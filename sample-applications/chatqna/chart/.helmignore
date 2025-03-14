@@ -1,0 +1,13 @@
+
+# Patterns to ignore when packaging Helm chart
+*.md
+*.txt
+*.bak
+*.tmp
+*.swp
+*.DS_Store
+.git/
+.gitignore
+.vscode/
+.idea/
+tests/

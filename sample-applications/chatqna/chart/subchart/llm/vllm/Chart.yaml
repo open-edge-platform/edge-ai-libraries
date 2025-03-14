@@ -1,0 +1,8 @@
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v2
+name: vllmService
+description: The Helm chart for vLLM Inference Server
+type: application
+version: 0.1.0

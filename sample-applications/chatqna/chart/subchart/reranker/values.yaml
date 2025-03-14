@@ -1,0 +1,16 @@
+global:
+  proxy:
+    no_proxy: <NO_PROXY>
+    http_proxy: <HTTP_PROXY>
+    https_proxy: <HTTPS_PROXY>
+
+rerankerService:
+  name: reranker
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 80
+  image:
+    repository: ghcr.io/huggingface/text-embeddings-inference
+    tag: "cpu-1.5"
+    pullPolicy: IfNotPresent

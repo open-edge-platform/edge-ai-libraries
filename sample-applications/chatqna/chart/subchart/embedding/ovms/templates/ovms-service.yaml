@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.ovms.name }}
+spec:
+  type: {{ .Values.ovms.service.type }}
+  ports:
+    - port: {{ .Values.ovms.service.port }}
+      targetPort: {{ .Values.ovms.service.targetPort }}
+  selector:
+    app: {{ .Values.ovms.name }}

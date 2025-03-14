@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.minioServer.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.minioServer.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.minioServer.name }}
+    spec:
+      containers:
+        - name: {{ .Values.minioServer.name }}
+          image: {{ .Values.minioServer.image.repository }}
+          imagePullPolicy: {{ .Values.minioServer.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.minioServer.service.port}}
+          volumeMounts:
+            - mountPath: /mnt/miniodata
+              name: minio-data
+          env:
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.global.MINIO_ROOT_USER }}
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ .Values.global.MINIO_ROOT_PASSWORD }}
+          command: ["minio","server", "/data", "--address", ":9000", "--console-address", ":9001"]
+      volumes:
+        - name: minio-data
+          hostPath:
+            path: /data

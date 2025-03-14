@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.tgiService.name }}
+spec:
+  type: {{ .Values.tgiService.service.type }}
+  ports:
+    - port: {{ .Values.tgiService.service.port }}
+      targetPort: {{ .Values.tgiService.service.targetPort }}
+  selector:
+    app: {{ .Values.tgiService.name }}

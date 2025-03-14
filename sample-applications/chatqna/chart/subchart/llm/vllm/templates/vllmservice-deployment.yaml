@@ -1,0 +1,87 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.vllmService.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.vllmService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.vllmService.name }}
+    spec:
+      containers:
+        - name: {{ .Values.vllmService.name }}
+          image: "{{ .Values.vllmService.image.repository}}:{{ .Values.vllmService.image.tag }}"
+          imagePullPolicy: {{ .Values.vllmService.image.pullPolicy }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.vllmService.readinessProbe.httpGet.path }}
+              port: {{ .Values.vllmService.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.vllmService.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.vllmService.readinessProbe.periodSeconds }}
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: data
+              mountPath: /data
+            - name: huggingface-cache
+              mountPath: /root/.cache/huggingface
+          env:
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: HUGGING_FACE_HUB_TOKEN
+              value: {{ .Values.global.huggingface.apiToken }}
+            - name: LLM_MODEL
+              value: {{ .Values.global.LLM_MODEL }}
+            - name: VLLM_CPU_KVCACHE_SPACE
+              value: "40"
+            - name: VLLM_OPENVINO_KVCACHE_SPACE
+              value: "40"
+            - name: TENSOR_PARALLEL_SIZE
+              value: "1"
+            - name: VLLM_OPENVINO_CPU_KV_CACHE_PRECISION
+              value: "u8"
+            - name: VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS
+              value: "ON"
+            - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+              value: {{ .Values.vllmService.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }} 
+            - name: OTEL_METRICS_EXPORTER
+              value: {{ .Values.vllmService.env.OTEL_METRICS_EXPORTER }} 
+            - name: OTEL_TRACES_EXPORTER
+              value: {{ .Values.vllmService.env.OTEL_TRACES_EXPORTER }} 
+            - name: OTEL_SERVICE_NAME
+              value: {{ .Values.vllmService.env.OTEL_SERVICE_NAME }} 
+            - name: OTEL_SERVICE_ENV
+              value: {{ .Values.vllmService.env.OTEL_SERVICE_ENV }}
+          command:
+            - "/bin/bash"
+            - "-c"
+            - >
+              echo {{ .Values.global.OTLP.endpoint }} &&
+              echo {{ .Values.global.OTLP.trace_endpoint }} &&
+              pip install 'opentelemetry-sdk>=1.26.0,<1.27.0'
+              'opentelemetry-api>=1.26.0,<1.27.0'
+              'opentelemetry-exporter-otlp>=1.26.0,<1.27.0'
+              'opentelemetry-semantic-conventions-ai>=0.4.1,<0.5.0'
+              opentelemetry-instrumentation-fastapi &&
+              opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server
+              --enforce-eager
+              --otlp-traces-endpoint={{ .Values.global.OTLP.trace_endpoint }}
+              --model {{ .Values.global.LLM_MODEL }}
+              --tensor-parallel-size 1
+              --host 0.0.0.0
+              --port 80
+      volumes:
+        - name: data
+          hostPath:
+            path: /data
+        - name: huggingface-cache
+          hostPath:
+            path: /root/.cache/huggingface

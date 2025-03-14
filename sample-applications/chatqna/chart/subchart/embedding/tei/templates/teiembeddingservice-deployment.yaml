@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.teiEmbeddingService.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.teiEmbeddingService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.teiEmbeddingService.name }}
+    spec:
+      containers:
+        - name: {{ .Values.teiEmbeddingService.name }}
+          image: {{ .Values.teiEmbeddingService.image.repository }}:{{ .Values.teiEmbeddingService.image.tag }}
+          imagePullPolicy: {{ .Values.teiEmbeddingService.image.pullPolicy }}
+          ports:
+            - containerPort: 80
+          env:
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: model-id
+              value: {{ .Values.global.EMBEDDING_MODEL_NAME }}
+          args:
+            - --model-id 
+            - {{ .Values.global.EMBEDDING_MODEL_NAME }}
+            - --auto-truncate

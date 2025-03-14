@@ -1,0 +1,19 @@
+global:
+  MINIO_ROOT_USER: <MINIO_ROOT_USER>
+  MINIO_ROOT_PASSWORD: <MINIO_ROOT_PASSWORD>
+
+minioServer:
+  name: minio-server
+  image:
+    repository: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000
+  volumes:
+    - ${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data
+  command: |
+    server /data 
+    --address ":${MINIO_API_PORT:-9000}" 
+    --console-address ":${MINIO_CONSOLE_PORT:-9001}"

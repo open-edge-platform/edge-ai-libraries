@@ -1,0 +1,27 @@
+global:
+  huggingface:
+    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+  proxy:
+    no_proxy: <NO_PROXY>
+    http_proxy: <HTTP_PROXY>
+    https_proxy: <HTTPS_PROXY>
+
+tgiService:
+  name: tgi-service
+  image: 
+    repository: ghcr.io/huggingface/text-generation-inference
+    tag: "3.0.1-intel-xpu"
+    pullPolicy: IfNotPresent
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 80
+  volumes:
+    - $PWD/data_tgi:/data
+  shm_size: 1g

@@ -1,0 +1,23 @@
+global:
+  proxy:
+    no_proxy: <NO_PROXY>
+    http_proxy: <HTTP_PROXY>
+    https_proxy: <HTTPS_PROXY>
+  MINIO_ROOT_USER: <MINIO_ROOT_USER>
+  MINIO_ROOT_PASSWORD: <MINIO_ROOT_PASSWORD>
+
+dataStore:
+  name: datastore
+  image:
+    repository: intel/object-store
+    tag: "1.1"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  env:
+    MINIO_HOST: minio-server
+    MINIO_API_PORT: 9000
+    MINIO_ACCESS_KEY: dummy_user
+    MINIO_SECRET_KEY: dummy_321

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.chatqnaui.name }}
+spec:
+  type: {{ .Values.chatqnaui.service.type }}
+  ports:
+    - port: {{ .Values.chatqnaui.service.port }}
+      targetPort: {{ .Values.chatqnaui.service.targetPort }}
+  selector:
+    app: {{ .Values.chatqnaui.name }}

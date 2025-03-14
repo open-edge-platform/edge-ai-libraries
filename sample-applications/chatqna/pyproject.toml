@@ -1,0 +1,34 @@
+[tool.poetry]
+name = "my-app"
+version = "0.1.0"
+description = ""
+authors = ["Yogesh Pandey <yogesh.pandey@intel.com>, Pankaj Kumar Singh <pankaj.kumar.singh@intel.com>"]
+readme = "README.md"
+packages = [{ include = "app" }]
+
+[tool.poetry.dependencies]
+python = ">=3.10,<3.13"
+uvicorn = "^0.23.2"
+langchain = "^0.3.8"
+langchain_postgres = "^0.0.13"
+langchain_huggingface = "0.1.2"
+langchain-community = "0.3.10"
+langchain_openai = "^0.3.5"
+psycopg-binary = "3.2.3"
+asyncpg = "^0.30.0"
+fastapi = "^0.115.0"
+torch = "^2.5.1"
+torchvision = "^0.20.1"
+sentence-transformers = "^3.4.1"
+opentelemetry-sdk = "1.27.0" 
+opentelemetry-instrumentation-fastapi = "0.48b0"
+openlit = "1.33.10"
+httpx = "0.27.2"
+
+[tool.poetry.dev-dependencies]
+pytest = "^6.2.4"
+pytest-mock = "^3.6.1"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

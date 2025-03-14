@@ -1,0 +1,33 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.pgvectorContainer.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.pgvectorContainer.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.pgvectorContainer.name }}
+    spec:
+      containers:
+        - name: {{ .Values.pgvectorContainer.name }}
+          image: {{ .Values.pgvectorContainer.image.repository }}:{{ .Values.pgvectorContainer.image.tag }}
+          imagePullPolicy: {{ .Values.pgvectorContainer.image.pullPolicy }}  
+          ports:
+            - containerPort: 5432
+          env:
+            - name: POSTGRES_USER
+              value: {{ .Values.global.POSTGRES_USER }}
+            - name: POSTGRES_PASSWORD
+              value: {{ .Values.global.POSTGRES_PASSWORD }}
+            - name: POSTGRES_DB
+              value: {{ .Values.pgvectorContainer.env.POSTGRES_DB }}
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}

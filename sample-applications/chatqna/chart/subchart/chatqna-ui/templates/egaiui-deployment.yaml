@@ -1,0 +1,30 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.chatqnaui.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.chatqnaui.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.chatqnaui.name }}
+    spec:
+      containers:
+        - name: {{ .Values.chatqnaui.name }}
+          image: {{ .Values.chatqnaui.image.repository }}:{{ .Values.chatqnaui.image.tag }}
+          imagePullPolicy: {{ .Values.chatqnaui.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.chatqnaui.service.targetPort }}
+          env:
+            - name: APP_ENDPOINT_URL
+              value: "{{ .Values.chatqnaui.env.APP_ENDPOINT_URL }}"
+            - name: APP_DATA_PREP_URL
+              value: "{{ .Values.chatqnaui.env.APP_DATA_PREP_URL }}"
+            - name: HTTP_PROXY
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: HTTPS_PROXY
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: NO_PROXY
+              value: {{ .Values.global.proxy.no_proxy }}

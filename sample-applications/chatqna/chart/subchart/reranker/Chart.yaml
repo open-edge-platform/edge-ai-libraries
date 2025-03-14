@@ -1,0 +1,5 @@
+apiVersion: v2
+name: reranker
+description: A helm chart for reranker service
+version: 0.1.0
+type: application

@@ -1,0 +1,65 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.ovms.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.ovms.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.ovms.name }}
+    spec:
+      initContainers:
+        - name: init-script
+          image: "python:3.10.12"
+          command: ["/bin/sh"]
+          args: ["-c", ". /config/init-embed-script.sh","{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}"]
+          env:
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }}
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /config
+            - name: workspace
+              mountPath: /app/data
+      containers:
+        - name: {{ .Values.ovms.name }}
+          image: {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}
+          imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ovms.readinessProbe.httpGet.path }}
+              port: {{ .Values.ovms.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.ovms.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ovms.readinessProbe.periodSeconds }}
+          ports:
+            - containerPort: {{ .Values.ovms.service.port }}
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /config
+            - name: workspace
+              mountPath: /app/data
+          env:
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }}
+            - name: WEIGHT_FORMAT
+              value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
+          args: ["--port", "9300", "--rest_port", "8400", "--log_level", "DEBUG", "--config_path", "/config/config-embed_converted_model.json"]
+      volumes:
+        - name: workspace
+          emptyDir: {}
+        - name: scripts-volume
+          configMap:
+            name: {{ .Values.ovms.script.name }}
+            defaultMode: 0777

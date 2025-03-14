@@ -1,0 +1,48 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.tgiService.name }}
+spec:
+  selector:
+    matchLabels:
+      app: {{ .Values.tgiService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.tgiService.name }}
+    spec:
+      containers:
+        - name: {{ .Values.tgiService.name }}
+          image: {{ .Values.tgiService.image.repository }}:{{ .Values.tgiService.image.tag }}
+          imagePullPolicy: {{ .Values.tgiService.image.pullPolicy }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.tgiService.readinessProbe.httpGet.path }}
+              port: {{ .Values.tgiService.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.tgiService.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.tgiService.readinessProbe.periodSeconds }}
+          ports:
+            - containerPort: 80
+          volumeMounts:
+            - name: data
+              mountPath: /data
+          env:
+            - name: HF_TOKEN
+              value: {{ .Values.global.huggingface.apiToken }}
+            - name: HUGGINGFACEHUB_API_TOKEN
+              value: {{ .Values.global.huggingface.apiToken }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: MODEL_ID
+              value: {{ .Values.global.LLM_MODEL }}
+          args: 
+            - --model-id
+            - {{ .Values.global.LLM_MODEL }}
+            - --cuda-graphs
+            - "0"
+      volumes:
+        - name: data
+          hostPath:
+            path: /data

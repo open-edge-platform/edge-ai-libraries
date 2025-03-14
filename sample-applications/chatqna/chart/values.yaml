@@ -1,0 +1,74 @@
+global:
+  huggingface:
+    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+  proxy:
+    no_proxy: <NO_PROXY>
+    http_proxy: <HTTP_PROXY>
+    https_proxy: <HTTPS_PROXY>
+  POSTGRES_USER: <POSTGRES_USER>
+  POSTGRES_PASSWORD: <POSTGRES_PASSWORD>
+  MINIO_ROOT_USER: <MINIO_ROOT_USER>
+  MINIO_ROOT_PASSWORD: <MINIO_ROOT_PASSWORD>
+  LLM_MODEL: <LLM_MODEL>
+  EMBEDDING_MODEL_NAME: <EMBEDDING_MODEL_NAME>
+  RERANKER_MODEL: <RERANKER_MODEL>
+  teiEmbeddingService:
+    enabled: false
+  ovmsEmbeddingService:
+    enabled: false
+
+intelEgaiChatqna:
+  name: chatqna-backend
+  image:
+    repository: intel/chatqna
+    tag: "1.1"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8100
+    targetPort: 8080
+  env:
+    ENDPOINT_URL: http://ovms
+    INDEX_NAME: intel-rag
+    FETCH_K: 10
+    PORT_DB: 5432/langchain
+    SERVICE_NAME: chatqna
+    SERVICE_ENV: chatqna
+    OTEL_METRICS_EXPORTER: otlp
+    OTEL_TRACES_EXPORTER: otlp
+    REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+    PG_CONNECTION_STRING: postgresql+psycopg://
+
+chatqna-ui:
+  name: chatqna-ui
+  nameOverride: "ui"
+
+dataprepPgvector:
+  name: document-ingestion
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+tgiService:
+  name: tgi-service
+  enabled: false
+  service:
+    port: 8080
+vllmService:
+  name: vllm-service
+  enabled: false
+  service:
+    port: 8080
+ovmsService:
+  name: ovmsService
+  enabled: true
+  service:
+    port: 8300
+reranker:
+  service:
+    port: 8090
+chatqnaui:
+  name: chatqna-ui
+  service:
+    port: 80

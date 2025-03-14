@@ -1,0 +1,106 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ovms.script.name }}
+  labels:
+    app: {{ .Values.ovms.script.name }}
+
+data:
+  {{- $DIRECTORY := split "/" .Values.global.EMBEDDING_MODEL_NAME }}
+  config-embed_converted_model.json: |-
+    {
+    "mediapipe_config_list": [
+        {
+            "name": "{{ .Values.global.EMBEDDING_MODEL_NAME}}",
+            "base_path": "/app/data/{{- $DIRECTORY._1 }}"
+        }
+    ],
+    "model_config_list": []
+    }
+
+  init-embed-script.sh: |-
+    #!/bin/bash
+    export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu https://storage.openvinotoolkit.org/simple/wheels/nightly"
+    pip3 install optimum-intel@git+https://github.com/huggingface/optimum-intel.git  openvino-tokenizers[transformers]==2024.5.* openvino==2024.5.* nncf==2.14.0  sentence_transformers==3.1.1 openai "transformers<4.45" einops
+    
+    # Log in to Hugging Face using the provided token
+    huggingface-cli login --token $2
+
+    # Check if the login was successful
+    if [ $? -eq 0 ]; then
+        echo "Successfully logged in to Hugging Face!"
+    else
+        echo "Failed to log in to Hugging Face. Please check your token and try again."
+    fi
+
+    model=$0
+    weight_format=$1
+    model_name=$(echo $model | cut -d'/' -f2)
+
+    model_tokenizer_directory_name=${model_name}/${model_name}-${weight_format}-converted-tokenizer/1
+    model_embeddings_directory_name=${model_name}/${model_name}-${weight_format}-converted-embeddings/1
+
+    echo ${model_tokenizer_directory_name}
+    echo ${model_embeddings_directory_name}
+
+    # Convert tokenizer and export model to OpenVINO IR format
+    convert_tokenizer -o ${model_tokenizer_directory_name} ${model}
+
+    optimum-cli export openvino --disable-convert-tokenizer --model ${model} --task feature-extraction --weight-format int8 --trust-remote-code --library sentence_transformers ${model_embeddings_directory_name}
+
+    # Create graph.pbtxt file
+    cat <<EOF > ${model_name}/graph.pbtxt
+        input_stream: "REQUEST_PAYLOAD:input"
+        output_stream: "RESPONSE_PAYLOAD:output"
+        node {
+          calculator: "OpenVINOModelServerSessionCalculator"
+          output_side_packet: "SESSION:tokenizer"
+          node_options: {
+            [type.googleapis.com / mediapipe.OpenVINOModelServerSessionCalculatorOptions]: {
+              servable_name: "tokenizer_model"
+              servable_version: "1"
+            }
+          }
+        }
+        node {
+          calculator: "OpenVINOModelServerSessionCalculator"
+          output_side_packet: "SESSION:embeddings"
+          node_options: {
+            [type.googleapis.com / mediapipe.OpenVINOModelServerSessionCalculatorOptions]: {
+              servable_name: "embeddings_model"
+              servable_version: "1"
+            }
+          }
+        }
+        node {
+            input_side_packet: "TOKENIZER_SESSION:tokenizer"
+            input_side_packet: "EMBEDDINGS_SESSION:embeddings"
+            calculator: "EmbeddingsCalculator"
+            input_stream: "REQUEST_PAYLOAD:input"
+            output_stream: "RESPONSE_PAYLOAD:output"
+        }
+    EOF
+
+    cat <<EOF > ${model_name}/subconfig.json
+    {
+      "model_config_list": [
+        { "config": 
+          {
+            "name": "tokenizer_model",
+            "base_path": "${model_name}-${weight_format}-converted-tokenizer"
+          }
+        },
+        { "config": 
+          {
+            "name": "embeddings_model",
+            "base_path": "${model_name}-${weight_format}-converted-embeddings",
+            "device": "CPU"
+          }
+        }
+      ]
+    }
+    EOF
+
+    cp -r ${model_name}/ /app/data
+
+    echo "All the steps are completed successfully"

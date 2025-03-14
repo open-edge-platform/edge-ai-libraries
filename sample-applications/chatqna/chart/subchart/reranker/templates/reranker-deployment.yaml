@@ -1,0 +1,40 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.rerankerService.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.rerankerService.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.rerankerService.name }}
+    spec:
+      containers:
+        - env:
+            - name: MODEL_ID
+              value: {{ .Values.global.RERANKER_MODEL }} 
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }} 
+            - name: no_proxy
+              value: {{ .Values.global.proxy.no_proxy }} 
+          args:
+            - --model-id 
+            - {{ .Values.global.RERANKER_MODEL }}
+            - --auto-truncate
+          image: "{{ .Values.rerankerService.image.repository }}:{{ .Values.rerankerService.image.tag }}"
+          name: {{ .Values.rerankerService.name }}
+          ports:
+            - containerPort: {{ .Values.rerankerService.service.targetPort }}
+              protocol: TCP
+          volumeMounts:
+            - name: data
+              mountPath: /data
+      volumes:
+        - name: data
+          hostPath:
+            path: /data

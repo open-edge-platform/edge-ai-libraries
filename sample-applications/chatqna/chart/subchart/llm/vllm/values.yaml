@@ -1,0 +1,38 @@
+global:
+  huggingface:
+    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+  proxy:
+    no_proxy: <NO_PROXY>
+    http_proxy: <HTTP_PROXY>
+    https_proxy: <HTTPS_PROXY>
+  OTLP:
+    endpoint: "your-otlp-endpoint"
+    trace_endpoint: "your-otlp-trace-endpoint"
+
+vllmService:
+  name: vllm-service
+  image: 
+    repository: opea/vllm-openvino
+    tag: "1.1"
+    pullPolicy: IfNotPresent
+  readinessProbe:
+    httpGet:
+      path: /health
+      port: 80
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  service:
+    type: ClusterIP
+    port: 8080
+    targetPort: 80
+  volumes:
+    - ./data:/data
+    - ~/.cache/huggingface:/root/.cache/huggingface
+  env:
+    KVCACHE: "50"
+    TENSOR_PARALLEL_SIZE: 1
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
+    OTEL_METRICS_EXPORTER: otlp
+    OTEL_TRACES_EXPORTER: otlp
+    OTEL_SERVICE_NAME: chatqna
+    OTEL_SERVICE_ENV: chatqna

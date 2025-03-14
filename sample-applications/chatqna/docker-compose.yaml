@@ -1,0 +1,280 @@
+services:
+  chatqna:
+    image: ${REGISTRY:-}chatqna:${TAG:-latest}
+    build:
+      context: .
+    ports:
+      - "8100:8080"
+    environment:
+      - no_proxy=${no_proxy},text-generation,tei-embedding-service
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - ENDPOINT_URL=${ENDPOINT_URL}
+      - EMBEDDING_ENDPOINT_URL=${EMBEDDING_ENDPOINT_URL}
+      - INDEX_NAME=${INDEX_NAME}
+      - FETCH_K=${FETCH_K}
+      - EMBEDDING_MODEL=${EMBEDDING_MODEL_NAME}
+      - PG_CONNECTION_STRING=${PG_CONNECTION_STRING}
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - LLM_MODEL=${LLM_MODEL}
+      - OTLP_ENDPOINT=${OTLP_ENDPOINT}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
+      - SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_TRACES_EXPORTER=otlp
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+      - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
+    networks:
+      - my_network
+    volumes:
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /etc/ssl/certs:/etc/ssl/certs
+      - "~/.cache/huggingface:/home/intelgai/.cache/huggingface"
+
+  pgvector:
+    image: pgvector/pgvector:pg16
+    container_name: pgvector_db
+    environment:
+      - POSTGRES_USER=${PGVECTOR_USER}
+      - POSTGRES_PASSWORD=${PGVECTOR_PASSWORD}
+      - POSTGRES_DB=${PGVECTOR_DBNAME}
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+    ports:
+      - "5432:5432"
+    healthcheck:
+      test: [ "CMD-SHELL", "pg_isready -U ${PGVECTOR_USER} -d ${PGVECTOR_DBNAME}" ]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - my_network
+
+  reranker:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    container_name: reranker_tei
+    ports:
+      - "8090:80"
+    volumes:
+      - "./data:/data"
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - MODEL_ID=${RERANKER_MODEL}
+    networks:
+      - my_network
+    command: --model-id ${RERANKER_MODEL} --auto-truncate
+
+  dataprep_pgvector:
+    image: intel/document-ingestion:1.1
+    container_name: dataprep_pgvector
+    environment:
+      no_proxy: ${no_proxy},tei-embedding-service
+      https_proxy: ${https_proxy}
+      PG_CONNECTION_STRING: ${PG_CONNECTION_STRING}
+      INDEX_NAME: ${INDEX_NAME}
+      TEI_ENDPOINT_URL: ${EMBEDDING_ENDPOINT_URL}
+      EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+      DATASTORE_ENDPOINT_URL: ${DATASTORE_ENDPOINT_URL}
+      CHUNK_SIZE: ${CHUNK_SIZE}
+      CHUNK_OVERLAP: ${CHUNK_OVERLAP}
+      BATCH_SIZE: ${BATCH_SIZE}
+      HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+    ports:
+      - "8000:8000"
+    depends_on:
+      - pgvector
+      - data-store
+    networks:
+      - my_network
+
+  chatqna-ui:
+    image: intel/chatqna-ui:1.1
+    container_name: chatqna-ui_server
+    build:
+      context: ./ui/react/
+    ports:
+      - "5173:80"
+    networks:
+      - my_network
+    environment:
+      - no_proxy=${no_proxy}
+      - https_proxy=${https_proxy}
+      - http_proxy=${http_proxy}
+      - APP_ENDPOINT_URL=${APP_ENDPOINT_URL}
+      - APP_DATA_PREP_URL=${APP_DATA_PREP_URL}
+
+  minio-server:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
+    environment:
+      - MINIO_ROOT_USER
+      - MINIO_ROOT_PASSWORD
+    ports:
+      - "${MINIO_API_HOST_PORT:-9000}:${MINIO_API_PORT:-9000}"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
+    volumes:
+      - "${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data"
+    networks:
+      - my_network
+    command: |
+      server /data
+      --address ":${MINIO_API_PORT:-9000}"
+      --console-address ":${MINIO_CONSOLE_PORT:-9001}"
+
+  data-store:
+    image: intel/object-store:1.1
+    hostname: data_store
+    environment:
+      - http_proxy
+      - https_proxy
+      - no_proxy
+      - MINIO_HOST=${MINIO_HOST:-minio-server}
+      - MINIO_API_PORT=${MINIO_API_PORT:-9000}
+      # Raise error if following required env vars is not set
+      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?error}
+      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?error}
+    ports:
+      - "${DATASTORE_HOST_PORT:-8888}:8000"
+    depends_on:
+      - minio-server
+    networks:
+      - my_network
+
+  #Model Server
+  vllm-service:
+    image: opea/vllm-openvino:1.1
+    profiles:
+      - VLLM
+    container_name: vllm-openvino-server
+    ports:
+      - "8080:80"
+    volumes:
+      - "~/.cache/huggingface:/root/.cache/huggingface"
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - HUGGING_FACE_HUB_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - LLM_MODEL=${LLM_MODEL}
+      - VLLM_CPU_KVCACHE_SPACE=${KVCACHE_SPACE}
+      - VLLM_OPENVINO_KVCACHE_SPACE=${KVCACHE_SPACE}
+      - TENSOR_PARALLEL_SIZE=${TENSOR_PARALLEL_SIZE}
+      - VLLM_OPENVINO_CPU_KV_CACHE_PRECISION=u8
+      - VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS=ON
+      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
+      - OTEL_METRICS_EXPORTER=otlp
+      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTLP_ENDPOINT=${OTLP_ENDPOINT}
+      - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT_TRACE}
+    cap_add:
+      - SYS_NICE
+    healthcheck:
+      test: [ "CMD", "httpx", "http://localhost/health", "-m", "GET" ]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+    networks:
+      - my_network
+    command: /bin/bash -c "echo $OTLP_ENDPOINT && echo $OTLP_ENDPOINT_TRACE && pip install 'opentelemetry-sdk>=1.26.0,<1.27.0' 'opentelemetry-api>=1.26.0,<1.27.0' 'opentelemetry-exporter-otlp>=1.26.0,<1.27.0' 'opentelemetry-semantic-conventions-ai>=0.4.1,<0.5.0' opentelemetry-instrumentation-fastapi &&  opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server --enforce-eager --otlp-traces-endpoint=$OTLP_ENDPOINT_TRACE --model $LLM_MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE --host 0.0.0.0 --port 80"
+
+  text-generation:
+    image: ghcr.io/huggingface/text-generation-inference:3.0.1-intel-xpu
+    command: --model-id ${LLM_MODEL} --cuda-graphs 0
+    profiles:
+      - TGI
+    container_name: text-generation
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+    ports:
+      - "8080:80"
+    volumes:
+      - ${VOLUME}:/data
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/health" ]
+      interval: 120s
+      timeout: 10s
+      retries: 3
+    networks:
+      - my_network
+    shm_size: "1g"
+
+  ovms-service:
+    image: openvino/model_server:2025.0
+    container_name: ovms-service
+    profiles:
+      - OVMS
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - WEIGHT_FORMAT=${WEIGHT_FORMAT}
+      - MODEL_DIRECTORY=${MODEL_DIRECTORY_NAME}
+    ports:
+      - "9300:9300"
+      - "8300:80"
+    volumes:
+      - "${VOLUME_OVMS}:/workspace:ro"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: [ "--port", "9300", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json" ]
+    networks:
+      - my_network
+
+  #Embedding Services
+  tei-embedding-service:
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    profiles:
+      - TEI
+    container_name: tei-embedding-service
+    ports:
+      - "6006:80"
+    volumes:
+      - "./data:/data"
+    shm_size: 1g
+    networks:
+      - my_network
+    environment:
+      no_proxy: ${no_proxy}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+    command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
+
+  openvino-model-server:
+    image: openvino/model_server:2025.0
+    profiles:
+      - OVMS-EMBEDDING
+    container_name: openvino-embedding
+    ports:
+      - "8500:80"
+    environment:
+      no_proxy: ${no_proxy}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+    volumes:
+      - "${VOLUME_OVMS}:/workspace:ro"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: [ "--port", "9000", "--rest_port", "80", "--config_path", "workspace/models/config.json" ]
+    networks:
+      - my_network
+
+networks:
+  my_network:
+    driver: bridge

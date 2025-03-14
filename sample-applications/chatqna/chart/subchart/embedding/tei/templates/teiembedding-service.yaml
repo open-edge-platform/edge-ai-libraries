@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.teiEmbeddingService.name }}
+spec:
+  type: {{ .Values.teiEmbeddingService.service.type }}
+  ports:
+    - port: {{ .Values.teiEmbeddingService.service.port }}
+      targetPort: 80
+  selector:
+    app: {{ .Values.teiEmbeddingService.name }}

@@ -1,0 +1,11 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.vllmService.name }}
+spec:
+  type: {{ .Values.vllmService.service.type }}
+  ports:
+    - port: {{ .Values.vllmService.service.port }}
+      targetPort: 80
+  selector:
+    app: {{ .Values.vllmService.name }}

@@ -1,0 +1,8 @@
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v2
+name: dataprepPgvector
+description: The Helm chart for dataprep with pgVector
+type: application
+version: 0.1.0

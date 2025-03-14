@@ -1,0 +1,43 @@
+apiVersion: v2
+name: intel-egai-chatqna-helm-chart
+description: A helm chart for deploying Intel
+version: 0.1.0
+dependencies:
+  - name: vllmService
+    version: 0.1.0
+    repository: "file://subchart/llm/vllm"
+    condition: vllmService.enabled
+  - name: tgiService
+    version: 0.1.0
+    repository: "file://subchart/llm/tgi"
+    condition: tgiService.enabled
+  - name: ovmsService
+    version: 0.1.0
+    repository: "file://subchart/llm/ovms"
+    condition: ovmsService.enabled
+  - name: teiEmbeddingService
+    version: 0.1.0
+    repository: "file://subchart/embedding/tei"
+    condition: global.teiEmbeddingService.enabled
+  - name: ovmsEmbeddingService
+    version: 0.1.0
+    repository: "file://subchart/embedding/ovms"
+    condition: global.ovmsEmbeddingService.enabled
+  - name: pgvector
+    version: 0.1.0
+    repository: "file://subchart/pgvector"
+  - name: minioServer
+    version: 0.1.0
+    repository: "file://subchart/minioserver"
+  - name: dataprepPgvector
+    version: 0.1.0
+    repository: "file://subchart/dataprep"
+  - name: dataStore
+    version: 0.1.0
+    repository: "file://subchart/datastore"
+  - name: reranker
+    version: 0.1.0
+    repository: "file://subchart/reranker"
+  - name: chatqna-ui
+    version: 0.1.0
+    repository: "file://subchart/chatqna-ui"

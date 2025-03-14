@@ -1,0 +1,49 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.dataprepPgvector.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.dataprepPgvector.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.dataprepPgvector.name }}
+    spec:
+      containers:
+        - name: {{ .Values.dataprepPgvector.name }}
+          image: {{ .Values.dataprepPgvector.image.repository }}:{{ .Values.dataprepPgvector.image.tag }}
+          imagePullPolicy: {{ .Values.dataprepPgvector.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},tei-embedding-service.{{ .Release.Namespace }},ovms-embedding.{{ .Release.Namespace }}"
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy }}
+            - name: PG_CONNECTION_STRING
+              value: {{ .Values.dataprepPgvector.env.PG_CONNECTION_STRING }}{{ .Values.global.POSTGRES_USER }}:{{ .Values.global.POSTGRES_PASSWORD }}@pgvector.{{ .Release.Namespace }}:{{ .Values.dataprepPgvector.env.PORT_DB }}
+            - name: INDEX_NAME
+              value: {{ .Values.dataprepPgvector.env.INDEX_NAME }}
+            - name: TEI_ENDPOINT_URL
+              value: {{- if .Values.global.teiEmbeddingService.enabled }}
+                      http://tei-embedding-service.{{ .Release.Namespace }}:6006
+                    {{- else }}
+                      http://ovms-embedding.{{ .Release.Namespace }}:8400/v3                     
+                    {{- end }} 
+            - name: HUGGINGFACEHUB_API_TOKEN
+              value: {{ .Values.global.huggingface.apiToken }}
+            - name: HF_TOKEN
+              value: {{ .Values.global.huggingface.apiToken }}
+            - name: EMBEDDING_MODEL_NAME
+              value: {{ .Values.global.EMBEDDING_MODEL_NAME }}
+            - name: CHUNK_SIZE
+              value: "1500"
+            - name: CHUNK_OVERLAP
+              value: "100"
+            - name: BATCH_SIZE
+              value: "16"
+            - name: DATASTORE_ENDPOINT_URL
+              value: {{ .Values.dataprepPgvector.env.DATASTORE_ENDPOINT_URL }}.{{ .Release.Namespace }}:8000
