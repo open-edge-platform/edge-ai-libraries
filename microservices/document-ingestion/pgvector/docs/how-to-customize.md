@@ -1,0 +1,74 @@
+# Build and customize options
+
+This guide provides build from source and specific customization options provided when building or deploying the microservice.
+
+## Manually setup environment variables
+Following environment variables are required for setting up the services. It is recommended that the  runner script `run.sh` be used to setup the variables. Refer to this section only if any of the variables need to be changed.
+
+#### Project name:
+- **PROJECT_NAME:** Helps provide a common docker compose project name and create a common container prefix for all services involved.
+
+#### Minio related variables:
+
+- **MINIO_HOST:** Host name for Minio Server. This is used to communicate with Minio Server by Data Store service inside container.
+- **MINIO_API_PORT:** Port on which Minio Server's API service runs inside container.
+- **MINIO_API_HOST_PORT**: Port on which we want to access Minio server's API service outside container i.e. on host.
+- **MINIO_CONSOLE_PORT:** Port on which we want MINIO UI Console to run inside container.
+- **MINIO_CONSOLE_HOST_PORT:** Port on which we want to access MINIO UI Console on host machine.
+- **MINIO_MOUNT_PATH:** Mount point for Minio server objects storage on host machine. This helps persist objects stored on Minio server.
+- **MINIO_ROOT_USER:** Username for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_PASSWD` variable on shell, if not using the default value.
+- **MINIO_ROOT_PASSWORD:** Password for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_USER` variable on shell, if not using the default value.
+
+#### Data store related variables:
+
+The data store microservice as an abstraction layer will be removed and instead direct access to minIO using standard API will be used. The following variables will be deprecated with the data store microservice. Currently, data store microservice abstracts the access to minIO.
+- **DATASTORE_CODE_DIR:** Contains the location of DataStore source code. This location is mounted to docker container in dev environment to facilitate auto-reload of server while code changes during development.
+- **DATASTORE_HOST_PORT:** Port on host machine where we want to access DataStore Service outside container.
+- **DATASTORE_HOST:** Host IP address or service name for DataStore application to help other services connect to it.
+- **DATASTORE_ENDPOINT_URL:** DataStore service API endpoint URL used by other docker containers to hit the datastore APIs.
+- **DATAPREP_HOST_PORT:** Port on host machine where we want to access DataPrep Service outside container.
+
+#### Embedding service related variables:
+Currently, TEI is used to host the embedding model. Following variables are required as a result.
+
+- **TEI_HOST:** Host IP address or service name for TEI Embedding service to help other services connect to it.
+- **TEI_HOST_PORT:** Port on host machine where we want to access TEI embedding Service outside container.
+- **EMBEDDING_ENDPOINT_URL:** TEI Embedding service API endpoint URL where it serves the model. This endpoint is used by other services to get results from embedding model server.
+- **TEI_EMBEDDING_MODEL_NAME:** This provides the name model served by TEI embedding service.
+
+#### PGVector DB related variables:
+
+- **PGVECTOR_HOST:** Host IP address or service name for PGVector DB service to help other services connect to it.
+- **PGVECTOR_USER:** User name for PG Vector DB. This needs to overridden by setting `PGDB_USER` on shell, if not using the default value.
+- **PGVECTOR_PASSWORD:** Password for PG Vector DB. This needs to overridden by setting `PGDB_PASSWD` on shell, if not using the default value.
+- **PGVECTOR_DBNAME:** Database name for PG Vector DB which contains different tables to store embeddings. This needs to overridden by setting `PGDB_NAME` on shell, if not using the default value.
+- **INDEX_NAME:** Name of index used for creating embeddings. This is referenced in several PG vector DB queries and defines a particular context for retrieval. This needs to overridden by setting `PGDB_INDEX` on shell, if not using the default value.
+- **PG_CONNECTION_STRING:** This is the connection string derived from previous set values for PG Vector DB. This is used by other services to connect to the databases. Override it only if you are aware of what you are doing.
+
+
+#### Secrets and token variables
+
+- **HUGGINGFACEHUB_API_TOKEN:** This is the token required for running Huggingface based services and models. **It is mandatory  to set it and `run.sh` script.** To set it, set `HF_SECRET` variable from shell.
+
+## Build from source
+
+```bash
+# To build DataPrep service image
+
+# image_name:tag in below command are optional. If not provided `intel/document-ingestion:1.1` tag would be used.
+source ./run.sh --build dataprep <image_name:tag>
+
+# To build DataStore development image
+
+# image_name:tag in below command are optional. If not provided `intel/object-store:1.1-dev` tag would be used.
+source ./run.sh --build-dev datastore <image_name:tag>
+
+# To build DataStore production image
+
+# image_name:tag in below command are optional. If not provided `intel/object-store:1.1` tag would be used.
+source ./run.sh --build datastore <image_name:tag>
+```
+
+
+## Common Customizations
+Customization options are currently provided in the context of the sample application. Refer to ChatQnA sample application for details like Helm and customization options.

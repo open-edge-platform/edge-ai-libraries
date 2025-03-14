@@ -1,0 +1,158 @@
+openapi: 3.1.0
+info:
+  title: Intel GenAI DataPrep Microservice
+  description: >-
+    A Data preparation microservice based on Intel GenAI DataStore service.
+    Helps create embeddings for a given document and store it in an Object
+    storage service.
+  version: 0.1.0
+paths:
+  /documents:
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: Get list of files for which embeddings have been stored.
+      description: |-
+        Retrieve a list of all distinct document filenames.
+
+        Returns:
+            List[str]: A list of document filenames.
+      operationId: get_documents_documents_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  type: object
+                title: Response Get Documents Documents Get
+    post:
+      tags:
+        - Data Preparation APIs
+      summary: >-
+        Upload documenst to create and store embeddings. Store documents in
+        Object Storage.
+      description: |-
+        Ingest documents into the system.
+
+        Args:
+            files (list[UploadFile]): A file or multiple files to be ingested.
+
+        Returns:
+            dict: A status message indicating the result of the ingestion.
+      operationId: ingest_document_documents_post
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_ingest_document_documents_post'
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                type: object
+                title: Response Ingest Document Documents Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    delete:
+      tags:
+        - Data Preparation APIs
+      summary: Delete embeddings and associated files from VectorDB and Object Storage
+      description: >-
+        Delete a document or all documents from storage and their embeddings
+        from Vector DB.
+
+
+        Args:
+            bucket_name (str): Bucket name where file to be deleted is stored
+            filename(str): Name of file too be deleted
+            file_path (str): The path of the file to delete, or "all" to delete all files.
+
+        Returns:
+            response (dict): A status message indicating the result of the deletion.
+      operationId: delete_documents_documents_delete
+      parameters:
+        - name: bucket_name
+          in: query
+          required: true
+          schema:
+            type: string
+            title: Bucket Name
+        - name: file_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: File Name
+        - name: delete_all
+          in: query
+          required: false
+          schema:
+            type: boolean
+            default: false
+            title: Delete All
+      responses:
+        '204':
+          description: Successful Response
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    Body_ingest_document_documents_post:
+      properties:
+        files:
+          items:
+            type: string
+            format: binary
+          type: array
+          title: Files
+          description: 'Select single or multiple PDF, docx or pdf file(s).'
+      type: object
+      required:
+        - files
+      title: Body_ingest_document_documents_post
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
