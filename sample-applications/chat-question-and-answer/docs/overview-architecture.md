@@ -93,4 +93,4 @@ The ChatQ&A sample application is designed with modularity in mind, allowing dev
 
 ## Next Steps
 - [Get Started](./get-started.md)
-- [Benchmarks](./how-to-performance.md)
+- [Benchmarks](./benchmarks.md)

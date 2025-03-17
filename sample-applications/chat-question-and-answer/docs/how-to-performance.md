@@ -52,7 +52,7 @@ Before you begin, ensure that you have the following prerequisites:
 ## Troubleshooting
 - If you encounter any issues during the performance testing process, check the application logs for errors:
   ```bash
-  docker-compose logs
+  docker compose logs
   ```
 
 

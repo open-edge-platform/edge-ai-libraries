@@ -25,10 +25,10 @@ Note: The configuration below is Intel internal currently. Post migration to pub
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token                      | `your-huggingface-token` |
-| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `langchain` |
-| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `langchain` |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | `dummy_user (MINIO_ROOT_USER length should be at least 3)` |
-| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `dummy_321` (MINIO_ROOT_PASSWORD length at least 8 characters) |
+| `global.POSTGRES_USER`  | Give User name for PG Vector DB | <your-id> |
+| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | <your-passwd> |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | <your-id> (MINIO_ROOT_USER length should be at least 3)` |
+| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | <your-passwd> (MINIO_ROOT_PASSWORD length at least 8 characters) |
 |  global.OTLP.endpoint | OTLP Endpoint | |
 |  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
 | `intelEgaiChatqna.name` | Name of the ChatQnA application                        | `intel-egai-chatqna` |
@@ -55,7 +55,7 @@ Deploy the OVMS Helm chart:
 
 ```bash
 helm install intel-egai-chatqna . \
-  --set global.huggingface.apiToken=your-huggingface-token \
+  --set global.huggingface.apiToken=<your-huggingface-token> \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
   --set global.proxy.no_proxy=<your no_proxy> \
@@ -118,7 +118,7 @@ helm install intel-egai-chatqna . \
 Check the status of the deployed resources to ensure everything is running correctly
 
 ```bash
-kubectl get pods -n <NAMESPACE>
+kubectl get pods -n <YOUR_NAMESPACE>
 kubectl get services -n < NAMESPACE>
 ```
 
@@ -131,7 +131,7 @@ To access a intel-egai-chatqna-nginx service running in your Kubernetes cluster 
 
 Run the following command after replacing \<NAMESPACE\> with your actual values:
 ```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc intel-egai-chatqna-nginx -n <NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc intel-egai-chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```
 Simply copy and paste the output into your browser.
 ### Step 7: Update Helm Dependencies
@@ -146,7 +146,7 @@ helm dependency update
 To uninstall helm charts deployed, use the following command:
 
 ```bash
-  helm uninstall <name> -n <namespace>
+  helm uninstall <name> -n <YOUR_NAMESPACE>
 ```
 ## Verification
 - Ensure that all pods are running and the services are accessible.
