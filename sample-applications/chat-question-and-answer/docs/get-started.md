@@ -114,7 +114,7 @@ Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the p
 
 2. Run the tests using `pytest`:
    ```sh
-   cd sampleapps/chatqna/tests/unit_tests/
+   cd sample-applications/chat-question-and-answer/tests/unit_tests/
    poetry run pytest
    ```
 
