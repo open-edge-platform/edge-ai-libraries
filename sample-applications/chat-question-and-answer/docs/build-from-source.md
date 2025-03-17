@@ -11,12 +11,12 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the ChatQ&A Sample Application repository:
       ```bash
-      git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
       ```
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna
+      cd edge-ai-libraries/sample-applications/chat-question-and-answer
       ```
       ***Embedding Models Supported for each model server***
       | Model Server | Models Supported |

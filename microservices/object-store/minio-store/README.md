@@ -96,13 +96,13 @@ For all other variables, you can edit the `run.sh` file in project root and upda
 1. Clone the Repo:
 
    ```bash
-   git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples intel-microservices
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
    ```
 
 2. Change to the project directory:
 
    ```bash
-   cd intel-microservices/microservices/object-store/minio-store
+   cd edge-ai-libraries/microservices/object-store/minio-store
    ```
 
 3. Set the username and password for MINIO Server.
