@@ -1,0 +1,36 @@
+services:
+  chatqna-core:
+    image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
+    container_name: chatqna-core
+    build:
+      context: ../
+      dockerfile: docker/Dockerfile
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+      HF_ACCESS_TOKEN: ${HF_ACCESS_TOKEN}
+      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
+      RERANKER_MODEL_ID: ${RERANKER_MODEL_ID}
+      LLM_MODEL_ID: ${LLM_MODEL_ID}
+    ports:
+      - "8888:8888"
+    volumes:
+      - "${MODEL_CACHE_PATH}:/tmp/model_cache"
+  chatqna-core-ui:
+    image: ${REGISTRY:-}chatqna-ui:${UI_TAG:-latest}
+    container_name: chatqna-core-ui
+    build:
+      context: ../ui/
+      dockerfile: Dockerfile
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
+      APP_BACKEND_URL: ${APP_BACKEND_URL}
+    ports:
+      - "5173:80"
+
+networks:
+  default:
+    driver: bridge
