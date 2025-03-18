@@ -1,0 +1,4 @@
+apiVersion: v2
+description: A Helm Chart for Edge Video Analytics Microservice
+name: edge-video-analytics-microservice
+version: 2.3.0-helm

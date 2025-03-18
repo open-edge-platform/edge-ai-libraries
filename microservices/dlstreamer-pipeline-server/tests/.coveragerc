@@ -1,0 +1,7 @@
+[run] 
+omit = 
+    tests/*
+    util/*
+    *__main__*
+    grpc/*
+    udfs/python/anomalib_udf

@@ -1,0 +1,11 @@
+# build artifacts
+plugins/camera/src-gst-gencamsrc/build
+
+# READMEs
+docs/
+plugins/camera/src-gst-gencamsrc/*.md
+*.md
+
+# Docker files
+docker/docker-compose*
+docker/Dockerfile

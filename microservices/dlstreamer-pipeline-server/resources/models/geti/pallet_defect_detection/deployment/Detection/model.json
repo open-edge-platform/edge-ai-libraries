@@ -1,0 +1,26 @@
+{
+   "id": "66abcbaf4d3a470e6531099d",
+   "name": "YOLOX-TINY OpenVINO FP32",
+   "version": 1,
+   "creation_date": "2024-08-01T17:53:51.230000+00:00",
+   "model_format": "OpenVINO",
+   "precision": [
+      "FP32"
+   ],
+   "has_xai_head": false,
+   "target_device": "CPU",
+   "target_device_type": null,
+   "performance": {
+      "score": 0.8275862068965516
+   },
+   "size": 20619427,
+   "latency": 0,
+   "fps_throughput": 0,
+   "optimization_type": "MO",
+   "optimization_objectives": {},
+   "model_status": "SUCCESS",
+   "configurations": [],
+   "previous_revision_id": "66abcbaf4d3a470e6531099b",
+   "previous_trained_revision_id": "66abcbaf4d3a470e6531099b",
+   "optimization_methods": []
+}

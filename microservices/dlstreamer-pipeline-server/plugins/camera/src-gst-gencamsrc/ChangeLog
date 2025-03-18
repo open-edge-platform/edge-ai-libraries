@@ -1,0 +1,116 @@
+Version 1.3.0
+- Production release
+
+Version 1.2.7
+- Updated GenICam runtime libraries with missing files
+
+Version 1.2.6
+- Integrated GenICam runtime libraries with security fixes to repo
+- Hardware trigger timeout logic declubbed from logging
+
+Version 1.2.5
+- Fixed issues on device clock selector and frequency
+
+Version 1.2.4
+- Made Genicam object multi entrant
+- Logging levels enhanced
+- Code cleanup
+
+Version 1.2.3
+- Enhanced logging mechanism to use Gst runtime configurable logging
+
+Version 1.2.2
+- Increased grab timeout to 5 seconds
+- Rebased rc_genicam_api to latest v2.4.1
+
+Version 1.2.1
+- Implemented actual fps calculation
+- Enhanced to handle multiple gentl producers if specified
+
+Version 1.1.12
+- Implemented opening the first camera found, serial is optional
+- Implemented set float method
+- Changed defaults value for some features
+- Pixel size separated from pixel format
+- Implemented device info using string interface type
+- Fixed KW scan errors
+
+Version 1.1.11
+- Fixed defect on pixel format
+- Fixed gitignore config file
+- Assigned proper default values for all the parameters
+
+Version 1.1.10
+- Implemented black level auto
+- Implemented decimation horizontal and vertical
+- Made safer string copy
+
+Version 1.1.9
+- Implemented gamma, gamma selector and gamma enable
+- Overloaded getInteger config API
+- Implemented setIntFeature method to use as utility
+- Implemented gevscpd and gevscps packet size
+
+Version 1.1.8
+- String operations made safer
+- Fixed resolution issue
+- Enhanced feature enum
+
+Version 1.1.7
+- Implemented device clock selector and device clock frequency
+- Used timestamp tagged with the image when acquired
+
+Version 1.1.6
+- Refactored to use set enum method and avoid iterative comparison
+
+Version 1.1.5
+- Implemented balance ratio selector and balance ratio
+- Implemented balance white auto
+
+Version 1.1.4
+- Implemented gain selector, gain
+- Implemented gain auto, gain auto balance
+
+Version 1.1.3
+- Implemented black level and black level selector
+- Implemented feature check routine
+
+Version 1.1.2
+- Handled device specific binning feature deviations
+- Implemented device link throughput limit
+
+Version 1.1.1
+- Implemented acquisition mode and acquisition status
+- Implemented trigger mode, trigger source, trigger software
+- Implemented trigger selector, trigger activation
+- Implemented trigger overlap, trigger divider, trigger multiplier
+- Implemented trigger delay
+
+Version 1.0.3
+- Written setup script to automate build and install
+- Removed GenICam runtime binaries
+
+Version 1.0.2
+- Handled range for width, height, exposure time
+- Handled range and pre-conditions for acquisition frame rate
+- Implemented exposure time mode and exposure time selector
+- Implemented exposure auto
+
+Version 1.0.1
+- Implemented binning vertical and binning vertical mode
+- Implemented binning selector, binning horizontal and binning horizontal mode
+- Implemented pixel size
+- Implemented exposure mode and exposure time
+- Implemented acquisition frame rate and acquisition frame rate enable
+- Implemented offset x and offset y
+- Implemented pixel format without which pipeline will abort
+- Implemented width and height without which pipeline will abort
+- Implemented device reset
+- Implemented exception handling
+- GenApi library built statically
+
+Version 1.0.0
+- Gstreamer source plugin that communicates and streams from GenICam camera via GenTL
+- Supports Basler GigE Vision camera via Basler GenTL producer
+- Supports A&B Software GigE simulator via Baumer GenTL producer
+- Select the camera using serial number as argument to the plugin

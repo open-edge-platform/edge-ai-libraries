@@ -1,0 +1,29 @@
+# Config for setting up Open Telemetry Collector
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  batch:
+  memory_limiter:
+    # 80% of maximum memory up to 2G
+    limit_mib: 1500
+    # 25% of limit up to 2G
+    spike_limit_mib: 512
+    check_interval: 5s
+extensions:
+  zpages: {}
+
+exporters:
+  debug: {}
+  prometheus:
+    endpoint: 0.0.0.0:9464
+service:
+  pipelines:
+    metrics:
+      receivers: [ otlp ]  # Collect metrics using OTLP receiver
+      exporters: [ prometheus ]  # Export to Prometheus

@@ -1,0 +1,111 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: edge-video-analytics-microservice
+  name: edge-video-analytics-microservice-deployment
+  namespace: {{ $.Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: edge-video-analytics-microservice
+  strategy:
+    type: Recreate
+  template:
+    metadata:
+      labels:
+        app: edge-video-analytics-microservice
+    spec:
+      containers:
+      - name: edge-video-analytics-microservice
+        image: {{ $.Values.DOCKER_REGISTRY }}intel/edge-video-analytics-microservice:2.3.0
+        securityContext:
+          supplementalGroups:
+            - 109
+            - 110
+        env:
+        - name: APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC
+          value: "{{ $.Values.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
+        - name: REST_SERVER_PORT
+          value: "{{ $.Values.env.REST_SERVER_PORT }}"
+        - name: CLASSIFICATION_DEVICE
+          value: {{ $.Values.env.CLASSIFICATION_DEVICE }}
+        - name: DETECTION_DEVICE
+          value: {{ $.Values.env.DETECTION_DEVICE }}
+        - name: ENABLE_RTSP
+          value: "{{ $.Values.env.ENABLE_RTSP }}"
+        - name: ENABLE_WEBRTC
+          value: "{{ $.Values.env.ENABLE_WEBRTC }}"
+        - name: GENICAM
+          value: {{ $.Values.env.GENICAM }}
+        - name: GST_DEBUG
+          value: '{{ $.Values.env.GST_DEBUG }}'
+        - name: HTTPS
+          value: "{{ $.Values.env.HTTPS }}"
+        - name: LSFEATURE_NAME
+          value: '{{ $.Values.env.LSFEATURE_NAME }}'
+        - name: RTSP_PORT
+          value: "{{ $.Values.env.RTSP_PORT }}"
+        - name: RUN_MODE
+          value: {{ $.Values.env.RUN_MODE }}
+        - name: WEBRTC_SIGNALING_SERVER
+          value: {{ $.Values.env.WEBRTC_SIGNALING_SERVER }}
+        - name: http_proxy
+          value: {{ $.Values.env.http_proxy }}
+        - name: https_proxy
+          value: {{ $.Values.env.https_proxy }}
+        - name: no_proxy
+          value: {{ $.Values.env.no_proxy }}
+        volumeMounts:
+        - name: evam-input
+          mountPath: /home/pipeline-server/config.json
+          subPath: config.json
+        - mountPath: /var/cache/pipeline_root
+          name: vol-evam-pipeline-root-tmpfs0
+        - name: mr-models
+          mountPath: /home/pipeline-server/mr_models
+        - name: dev
+          mountPath: /dev
+        - name: dev-shm
+          mountPath: /dev/shm
+        - name: tmp
+          mountPath: /tmp
+        - name: var-tmp
+          mountPath: /var/tmp
+        - name: run-udev
+          mountPath: /run/udev
+        # securityContext:
+        #   supplementalGroups:
+        #     - 109
+        #     - 110
+      # - ports:
+      #   - containerPort: 8080
+      #     protocol: TCP
+      #   - containerPort: 8554
+      #     protocol: TCP
+      # - restartPolicy: Always
+      volumes:
+      - name: evam-input
+        configMap:
+          name: evam-config-input
+      - name: vol-evam-pipeline-root-tmpfs0
+        emptyDir: {}
+      - name: mr-models
+        hostPath:
+          path: {{ $.Values.env.mr_models }}
+      - name: dev
+        hostPath:
+          path: /dev
+      - name: dev-shm
+        hostPath:
+          path: /dev/shm
+      - name: tmp
+        hostPath:
+          path: /tmp
+      - name: var-tmp
+        hostPath:
+          path: /var/tmp
+      - name: run-udev
+        hostPath:
+          path: /run/udev

@@ -1,0 +1,40 @@
+{
+    "config": {
+        "logging": {
+            "C_LOG_LEVEL": "INFO",
+            "PY_LOG_LEVEL": "INFO"
+        },
+        "model_registry": {
+            "url": "<PROTOCOL>://<IP_ADDRESS_OR_SERVICE_HOSTNAME>:32002",
+            "saved_models_dir": "./mr_models",
+            "request_timeout": 300
+        },
+        "pipelines": [
+            {
+                "name": "pallet_defect_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
+                        }
+                    }
+                },
+                "auto_start": false,
+                "model_params": [{
+                    "project_name": "<PROJECT_NAME>",
+                    "version": "<VERSION>",
+                    "category": "<CATEGORY>",
+                    "architecture": "<ARCHITECTURE>",
+                    "precision": "<PRECISION>"
+                }]
+            }
+        ]
+    }
+}

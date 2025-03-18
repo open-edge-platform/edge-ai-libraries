@@ -1,0 +1,90 @@
+stages:
+    - build_package
+    - deploy
+    
+before_script:
+  - echo "Before script section"
+
+after_script:
+  - echo "After script section"
+
+
+package:
+  stage: build_package
+  tags:
+      - gencamsrc-ci
+  script:
+      - echo "build the code"
+      - rm -rf output
+      - mkdir output
+      - cd output
+      - git clone https://gitlab.devtools.intel.com/iotg_pcae/ebp_td/src-gst-gencamsrc.git
+      - cd src-gst-gencamsrc
+      - git checkout $CI_COMMIT_REF_NAME
+      - mkdir -p downloads && cd downloads
+      - echo "downloads directory created and switched"
+      - curl https://www.emva.org/wp-content/uploads/GenICam_V3_1_0_public_data.zip -L -O
+      - echo "GenICam v3.1 runtime downloaded"
+      - find . -type f -not -name 'GenICam_V3_1_0_public_data.zip' -delete
+      - unzip *
+      - echo "GenICam v3.1 runtime unzipped"
+      - find . -type f -not -name '*Runtime*Linux64*x64*3_1*.tgz' -delete
+      - echo "GenICam v3.1 runtime for Linux64/x64 is found"
+      - tar xzvf *
+      - echo "GenICam runtime for Linux64/x64 untarred"
+      - sudo cp bin/Linux64_x64/* /usr/lib/x86_64-linux-gnu/
+      - echo "GenICam runtime copied to /usr/lib/x86_64-linux-gnu/"
+      - cd .. 
+      - rm -rf downloads
+      - echo "downloads directory cleaned up"
+      - ./autogen.sh
+      - make
+      - sudo make install
+      - echo "Package to artifactory"
+      - mkdir gencamsrc genicam-runtime
+      - echo $CI_PROJECT_DIR
+      - cd $CI_PROJECT_DIR/output/src-gst-gencamsrc/plugins/.libs/
+      - cp -r libgstgencamsrc.a libgstgencamsrc.la libgstgencamsrc.so $CI_PROJECT_DIR/output/src-gst-gencamsrc/gencamsrc
+      - cd ../..
+      - tar -czvf gencamsrc_$(date +%Y%m%dT%H%M%S).tar gencamsrc
+      - curl -fL https://getcli.jfrog.io | sh
+      - ./jfrog rt config --url=$ARTIFACTORY_URL --apikey=$JFROG_APIKEY
+      - ./jfrog rt c show
+      - ./jfrog rt ping --url=$ARTIFACTORY_URL --apikey=$JFROG_APIKEY
+      - ./jfrog rt u "*.tar" $JFROG_ARTIFACTORY_REPOS/EBP_TD/GenericCameraPlugin/build/src-gst-gencamsrc/$CI_JOB_ID/$CI_BUILD_REF_NAME/ --quiet --sync-deletes="JFROG_ARTIFACTORY_REPOS/EBP_TD/GenericCameraPlugin/build/src-gst-gencamsrc/$CI_JOB_ID/$CI_BUILD_REF_NAME/" --url=$ARTIFACTORY_URL --apikey=$JFROG_APIKEY
+      - ./jfrog rt sp "$JFROG_ARTIFACTORY_REPOS/EBP_TD/GenericCameraPlugin/build/src-gst-gencamsrc/$CI_JOB_ID/$CI_BUILD_REF_NAME/" "retention.days=30" --url=$ARTIFACTORY_URL --apikey=$JFROG_APIKEY
+ 
+kw_scan:
+  stage: deploy
+  tags:
+      - kw_gencam
+  script:
+      - echo "run the kw scan"
+      - rm -rf output
+      - mkdir output
+      - cd output
+      - git clone https://gitlab.devtools.intel.com/iotg_pcae/ebp_td/src-gst-gencamsrc.git
+      - cd src-gst-gencamsrc
+      - git checkout $CI_COMMIT_REF_NAME
+      - mkdir -p downloads && cd downloads
+      - echo "downloads directory created and switched"
+      - curl https://www.emva.org/wp-content/uploads/GenICam_V3_1_0_public_data.zip -L -O
+      - echo "GenICam v3.1 runtime downloaded"
+      - find . -type f -not -name 'GenICam_V3_1_0_public_data.zip' -delete
+      - unzip *
+      - echo "GenICam v3.1 runtime unzipped"
+      - find . -type f -not -name '*Runtime*Linux64*x64*3_1*.tgz' -delete
+      - echo "GenICam v3.1 runtime for Linux64/x64 is found"
+      - tar xzvf *
+      - echo "GenICam runtime for Linux64/x64 untarred"
+      - sudo cp bin/Linux64_x64/* /usr/lib/x86_64-linux-gnu/
+      - echo "GenICam runtime copied to /usr/lib/x86_64-linux-gnu/"
+      - cd .. 
+      - rm -rf downloads
+      - echo "downloads directory cleaned up"
+      - ./autogen.sh
+      - echo ${KW_PROJECT_NAME}
+      - /nfs/ka/disks/ias_estools/kw_tools/server/bin/kwinject --output ./kwinject.out make
+      - /nfs/ka/disks/ias_estools/kw_tools/server/bin/kwbuildproject ./kwinject.out --tables-directory ./${KW_PROJECT_NAME} --url https://klocwork.ka.intel.com:8070/${KW_PROJECT_NAME} --incremental
+      - /nfs/ka/disks/ias_estools/kw_tools/server/bin/kwadmin -url https://klocwork.ka.intel.com:8070 load ${KW_PROJECT_NAME} ./${KW_PROJECT_NAME} --name $(date +"%Y-%m-%d_%H-%M-%S")
+      

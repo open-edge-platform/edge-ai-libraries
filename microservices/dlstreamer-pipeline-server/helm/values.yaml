@@ -1,0 +1,33 @@
+namespace: apps
+DOCKER_REGISTRY: ''
+DOCKER_USERNAME: ''
+DOCKER_PASSWORD: ''
+imagePullPolicy: IfNotPresent
+storageClassName: manual
+env:
+  CLASSIFICATION_DEVICE: "CPU"
+  REST_SERVER_PORT: "8080"
+  DETECTION_DEVICE: "CPU"
+  ENABLE_RTSP: "true"
+  ENABLE_WEBRTC: "true"
+  APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC: "false"
+  GENICAM: "Balluff"
+  GST_DEBUG: "1,gencamsrc:2"
+  HTTPS: "false"
+  mr_models: "host_machine_path_where_model_gets_downloaded"
+  LSFEATURE_NAME: '"EVAM"'
+  RTSP_PORT: "8554"
+  RUN_MODE: "EVA"
+  WEBRTC_SIGNALING_SERVER: "ws://localhost:8443"
+  http_proxy: "http://proxy-chain.intel.com:912"
+  https_proxy: "http://proxy-chain.intel.com:912"
+  no_proxy: "eshqaservicelayer.intel.com,intel.com,.intel.com,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,192.168.49.2"
+config: 
+  edge_video_analytics_microservice:
+    name: edge-video-analytics-microservice
+    int:
+      rest_api_port: "8080"
+      rtsp_output_port: "8554"
+    ext:
+      rest_api_port: "30007"
+      rtsp_output_port: "30025"

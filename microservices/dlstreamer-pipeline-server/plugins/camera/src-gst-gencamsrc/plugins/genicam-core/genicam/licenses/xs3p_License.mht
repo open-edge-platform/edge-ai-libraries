@@ -1,0 +1,630 @@
+From: <Mit Microsoft Internet Explorer 7 gespeichert>
+Subject: DSTC Public License
+Date: Thu, 25 Sep 2008 18:08:08 +0200
+MIME-Version: 1.0
+Content-Type: text/html;
+	charset="utf-8"
+Content-Transfer-Encoding: quoted-printable
+Content-Location: file://C:\Projects\genicam_v1_2\xml\GenApi\xs3p-1.1.3\LICENSE.html
+X-MimeOLE: Produced By Microsoft MimeOLE V6.00.2900.5579
+
+=EF=BB=BF<!DOCTYPE HTML PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN">
+<HTML><HEAD><TITLE>DSTC Public License</TITLE>
+<META http-equiv=3DContent-Type content=3D"text/html; charset=3DUTF-8">
+<META content=3D"MSHTML 6.00.6000.16705" name=3DGENERATOR></HEAD>
+<BODY>
+<H1>DSTC Public License (DPL)</H1>
+<P>Version 1.1</P>
+<H2>1. Definitions.</H2>
+<P><B>1.0.1. "Commercial Use" </B>means distribution or otherwise making =
+the=20
+Covered Code available to a third party.</P>
+<P><B>1.1. "Contributor"</B> means each entity that creates or =
+contributes to=20
+the creation of Modifications.</P>
+<P><B>1.2. "Contributor Version"</B> means the combination of the =
+Original Code,=20
+prior Modifications used by a Contributor, and the Modifications made by =
+that=20
+particular Contributor.</P>
+<P><B>1.3. "Covered Code"</B> means the Original Code or Modifications =
+or the=20
+combination of the Original Code and Modifications, in each case =
+including=20
+portions thereof<B>.</B></P>
+<P><B>1.4. "Electronic Distribution Mechanism"</B> means a mechanism =
+generally=20
+accepted in the software development community for the electronic =
+transfer of=20
+data.</P>
+<P><B>1.5. "Executable"</B> means Covered Code in any form other than =
+Source=20
+Code.</P>
+<P><B>1.6. "Initial Developer"</B> means the individual or entity =
+identified as=20
+the Initial Developer in the Source Code notice required by <B>Exhibit=20
+A</B>.</P>
+<P><B>1.7. "Larger Work"</B> means a work which combines Covered Code or =
+
+portions thereof with code not governed by the terms of this =
+License.</P>
+<P><B>1.8. "License"</B> means this document.</P>
+<P><B>1.8.1. "Licensable"</B> means having the right to grant, to the =
+maximum=20
+extent possible, whether at the time of the initial grant or =
+subsequently=20
+acquired, any and all of the rights conveyed herein.</P>
+<P><B>1.9. "Modifications"</B> means any addition to or deletion from =
+the=20
+substance or structure of either the Original Code or any previous=20
+Modifications. When Covered Code is released as a series of files, a=20
+Modification is:</P>
+<UL>
+  <LI><B>A.</B> Any addition to or deletion from the contents of a file=20
+  containing Original Code or previous Modifications.=20
+  <LI><B>B.</B> Any new file that contains any part of the Original Code =
+or=20
+  previous Modifications. </LI></UL>
+<P><B>1.10. "Original Code"</B> means Source Code of computer software =
+code=20
+which is described in the Source Code notice required by <B>Exhibit =
+A</B> as=20
+Original Code, and which, at the time of its release under this License =
+is not=20
+already Covered Code governed by this License.</P>
+<P><B>1.10.1. "Patent Claims"</B> means any patent claim(s), now owned =
+or=20
+hereafter acquired, including without limitation, method, process, and =
+apparatus=20
+claims, in any patent Licensable by grantor.</P>
+<P><B>1.11. "Source Code"</B> means the preferred form of the Covered =
+Code for=20
+making modifications to it, including all modules it contains, plus any=20
+associated interface definition files, scripts used to control =
+compilation and=20
+installation of an Executable, or source code differential comparisons =
+against=20
+either the Original Code or another well known, available Covered Code =
+of the=20
+Contributor's choice. The Source Code can be in a compressed or archival =
+form,=20
+provided the appropriate decompression or de-archiving software is =
+widely=20
+available for no charge.</P>
+<P><B>1.12. "You" (or "Your")</B> means an individual or a legal entity=20
+exercising rights under, and complying with all of the terms of, this =
+License or=20
+a future version of this License issued under Section 6.1. For legal =
+entities,=20
+"You" includes any entity which controls, is controlled by, or is under =
+common=20
+control with You. For purposes of this definition, "control" means (a) =
+the=20
+power, direct or indirect, to cause the direction or management of such =
+entity,=20
+whether by contract or otherwise, or (b) ownership of more than fifty =
+percent=20
+(50%) of the outstanding shares or beneficial ownership of such =
+entity.</P>
+<H2>2. Source Code License.</H2>
+<H3>2.1. The Initial Developer Grant.</H3>
+<P>The Initial Developer hereby grants You a world-wide, royalty-free,=20
+non-exclusive license, subject to third party intellectual property =
+claims:</P>
+<P><B>(a)</B> under intellectual property rights (other than patent or=20
+trademark) Licensable by Initial Developer to use, reproduce, modify, =
+display,=20
+perform, sublicense and distribute the Original Code (or portions =
+thereof) with=20
+or without Modifications, and/or as part of a Larger Work; and</P>
+<P><B>(b)</B> under Patents Claims infringed by the making, using or =
+selling of=20
+Original Code, to make, have made, use, practice, sell, and offer for =
+sale,=20
+and/or otherwise dispose of the Original Code (or portions thereof).</P>
+<P><B>(c) </B>the licenses granted in this Section 2.1(a) and (b) are =
+effective=20
+on the date Initial Developer first distributes Original Code under the =
+terms of=20
+this License.</P>
+<P><B>(d) </B>Notwithstanding Section 2.1(b) above, no patent license is =
+
+granted: 1) for code that You delete from the Original Code; 2) separate =
+from=20
+the Original Code; or 3) for infringements caused by: i) the =
+modification of the=20
+Original Code or ii) the combination of the Original Code with other =
+software or=20
+devices.</P>
+<H3>2.2. Contributor Grant.</H3>
+<P>Subject to third party intellectual property claims, each Contributor =
+hereby=20
+grants You a world-wide, royalty-free, non-exclusive license</P>
+<P><B>(a)</B> under intellectual property rights (other than patent or=20
+trademark) Licensable by Contributor, to use, reproduce, modify, =
+display,=20
+perform, sublicense and distribute the Modifications created by such =
+Contributor=20
+(or portions thereof) either on an unmodified basis, with other =
+Modifications,=20
+as Covered Code and/or as part of a Larger Work; and</P>
+<P><B>(b)</B> under Patent Claims infringed by the making, using, or =
+selling of=20
+Modifications made by that Contributor either alone and/or in =
+combination with=20
+its Contributor Version (or portions of such combination), to make, use, =
+sell,=20
+offer for sale, have made, and/or otherwise dispose of: 1) Modifications =
+made by=20
+that Contributor (or portions thereof); and 2) the combination of =
+Modifications=20
+made by that Contributor with its Contributor Version (or portions of =
+such=20
+combination).</P>
+<P><B>(c) </B>the licenses granted in Sections 2.2(a) and 2.2(b) are =
+effective=20
+on the date Contributor first makes Commercial Use of the Covered =
+Code.</P>
+<P><B>(d)</B> Notwithstanding Section 2.2(b) above, no patent license is =
+
+granted: 1) for any code that Contributor has deleted from the =
+Contributor=20
+Version; 2) separate from the Contributor Version; 3) for infringements =
+caused=20
+by: i) third party modifications of Contributor Version or ii) the =
+combination=20
+of Modifications made by that Contributor with other software (except as =
+part of=20
+the Contributor Version) or other devices; or 4) under Patent Claims =
+infringed=20
+by Covered Code in the absence of Modifications made by that =
+Contributor.</P>
+<H2>3. Distribution Obligations</H2>
+<H3>3.1. Application of License.</H3>
+<P>The Modifications which You create or to which You contribute are =
+governed by=20
+the terms of this License, including without limitation Section =
+<B>2.2</B>. The=20
+Source Code version of Covered Code may be distributed only under the =
+terms of=20
+this License or a future version of this License released under Section=20
+<B>6.1</B>, and You must include a copy of this License with every copy =
+of the=20
+Source Code You distribute. You may not offer or impose any terms on any =
+Source=20
+Code version that alters or restricts the applicable version of this =
+License or=20
+the recipients' rights hereunder. However, You may include an additional =
+
+document offering the additional rights described in Section =
+<B>3.5</B>.</P>
+<H3>3.2. Availability of Source Code.</H3>
+<P>Any Modification which You create or to which You contribute must be =
+made=20
+available in Source Code form under the terms of this License either on =
+the same=20
+media as an Executable version or via an accepted Electronic =
+Distribution=20
+Mechanism to anyone to whom you made an Executable version available; =
+and if=20
+made available via Electronic Distribution Mechanism, must remain =
+available for=20
+at least twelve (12) months after the date it initially became =
+available, or at=20
+least six (6) months after a subsequent version of that particular =
+Modification=20
+has been made available to such recipients. You are responsible for =
+ensuring=20
+that the Source Code version remains available even if the Electronic=20
+Distribution Mechanism is maintained by a third party.</P>
+<H3>3.3. Description of Modifications.</H3>
+<P>You must cause all Covered Code to which You contribute to contain a =
+file=20
+documenting the changes You made to create that Covered Code and the =
+date of any=20
+change. You must include a prominent statement that the Modification is =
+derived,=20
+directly or indirectly, from Original Code provided by the Initial =
+Developer and=20
+including the name of the Initial Developer in (a) the Source Code, and =
+(b) in=20
+any notice in an Executable version or related documentation in which =
+You=20
+describe the origin or ownership of the Covered Code.</P>
+<H3>3.4. Intellectual Property Matters</H3>
+<H4>(a) Third Party Claims.</H4>
+<P>If Contributor has knowledge that a license under a third party's=20
+intellectual property rights is required to exercise the rights granted =
+by such=20
+Contributor under Sections 2.1 or 2.2, Contributor must include a text =
+file with=20
+the Source Code distribution titled "LEGAL" which describes the claim =
+and the=20
+party making the claim in sufficient detail that a recipient will know =
+whom to=20
+contact. If Contributor obtains such knowledge after the Modification is =
+made=20
+available as described in Section 3.2, Contributor shall promptly modify =
+the=20
+LEGAL file in all copies Contributor makes available thereafter and =
+shall take=20
+other steps (such as notifying appropriate mailing lists or newsgroups)=20
+reasonably calculated to inform those who received the Covered Code that =
+new=20
+knowledge has been obtained.</P>
+<H4>(b) Contributor APIs.</H4>
+<P>If Contributor's Modifications include an application programming =
+interface=20
+and Contributor has knowledge of patent licenses which are reasonably =
+necessary=20
+to implement that API, Contributor must also include this information in =
+the=20
+LEGAL file.</P>
+<H4>(c) Representations.</H4>
+<P>Contributor represents that, except as disclosed pursuant to Section =
+3.4(a)=20
+above, Contributor believes that Contributor's Modifications are =
+Contributor's=20
+original creation(s) and/or Contributor has sufficient rights to grant =
+the=20
+rights conveyed by this License.</P>
+<H3>3.5. Required Notices.</H3>
+<P>You must duplicate the notice in <B>Exhibit A</B> in each file of the =
+Source=20
+Code. If it is not possible to put such notice in a particular Source =
+Code file=20
+due to its structure, then You must include such notice in a location =
+(such as a=20
+relevant directory) where a user would be likely to look for such a =
+notice. If=20
+You created one or more Modification(s) You may add your name as a =
+Contributor=20
+to the notice described in <B>Exhibit A</B>. You must also duplicate =
+this=20
+License in any documentation for the Source Code where You describe =
+recipients'=20
+rights or ownership rights relating to Covered Code. You may choose to =
+offer,=20
+and to charge a fee for, warranty, support, indemnity or liability =
+obligations=20
+to one or more recipients of Covered Code. However, You may do so only =
+on Your=20
+own behalf, and not on behalf of the Initial Developer or any =
+Contributor. You=20
+must make it absolutely clear than any such warranty, support, indemnity =
+or=20
+liability obligation is offered by You alone, and You hereby agree to =
+indemnify=20
+the Initial Developer and every Contributor for any liability incurred =
+by the=20
+Initial Developer or such Contributor as a result of warranty, support,=20
+indemnity or liability terms You offer.</P>
+<H3>3.6. Distribution of Executable Versions.</H3>
+<P>You may distribute Covered Code in Executable form only if the =
+requirements=20
+of Section <B>3.1-3.5</B> have been met for that Covered Code, and if =
+You=20
+include a notice stating that the Source Code version of the Covered =
+Code is=20
+available under the terms of this License, including a description of =
+how and=20
+where You have fulfilled the obligations of Section <B>3.2</B>. The =
+notice must=20
+be conspicuously included in any notice in an Executable version, =
+related=20
+documentation or collateral in which You describe recipients' rights =
+relating to=20
+the Covered Code. You may distribute the Executable version of Covered =
+Code or=20
+ownership rights under a license of Your choice, which may contain terms =
+
+different from this License, provided that You are in compliance with =
+the terms=20
+of this License and that the license for the Executable version does not =
+attempt=20
+to limit or alter the recipient's rights in the Source Code version from =
+the=20
+rights set forth in this License. If You distribute the Executable =
+version under=20
+a different license You must make it absolutely clear that any terms =
+which=20
+differ from this License are offered by You alone, not by the Initial =
+Developer=20
+or any Contributor. You hereby agree to indemnify the Initial Developer =
+and=20
+every Contributor for any liability incurred by the Initial Developer or =
+such=20
+Contributor as a result of any such terms You offer.</P>
+<H3>3.7. Larger Works.</H3>
+<P>You may create a Larger Work by combining Covered Code with other =
+code not=20
+governed by the terms of this License and distribute the Larger Work as =
+a single=20
+product. In such a case, You must make sure the requirements of this =
+License are=20
+fulfilled for the Covered Code.</P>
+<H2>4. Inability to Comply Due to Statute or Regulation.</H2>
+<P>If it is impossible for You to comply with any of the terms of this =
+License=20
+with respect to some or all of the Covered Code due to statute, judicial =
+order,=20
+or regulation then You must: (a) comply with the terms of this License =
+to the=20
+maximum extent possible; and (b) describe the limitations and the code =
+they=20
+affect. Such description must be included in the LEGAL file described in =
+Section=20
+<B>3.4</B> and must be included with all distributions of the Source =
+Code.=20
+Except to the extent prohibited by statute or regulation, such =
+description must=20
+be sufficiently detailed for a recipient of ordinary skill to be able to =
+
+understand it.</P>
+<H2>5. Application of this License.</H2>
+<P>This License applies to code to which the Initial Developer has =
+attached the=20
+notice in <B>Exhibit A</B> and to related Covered Code.</P>
+<H2>6. Versions of the License.</H2>
+<H3>6.1. New Versions</H3>
+<P>The Distributed Systems Technology Centre ("DSTC") may publish =
+revised and/or=20
+new versions of the License from time to time. Each version will be =
+given a=20
+distinguishing version number.</P>
+<H3>6.2. Effect of New Versions</H3>
+<P>Once Covered Code has been published under a particular version of =
+the=20
+License, You may always continue to use it under the terms of that =
+version. You=20
+may also choose to use such Covered Code under the terms of any =
+subsequent=20
+version of the License published by DSTC. No one other than DSTC has the =
+right=20
+to modify the terms applicable to Covered Code created under this =
+License.</P>
+<H3>6.3. Derivative Works</H3>
+<P>If You create or use a modified version of this License (which you =
+may only=20
+do in order to apply it to code which is not already Covered Code =
+governed by=20
+this License), You must (a) rename Your license so that the phrases =
+"DSTC",=20
+"DPL" or any confusingly similar phrase do not appear in your license =
+(except to=20
+note that your license differs from this License) and (b) otherwise make =
+it=20
+clear that Your version of the license contains terms which differ from =
+the DSTC=20
+Public License. (Filling in the name of the Initial Developer, Original =
+Code or=20
+Contributor in the notice described in <B>Exhibit A</B> shall not of =
+themselves=20
+be deemed to be modifications of this License.)</P>
+<H2>7. Disclaimer of Warranty.</H2>
+<P>COVERED CODE IS PROVIDED UNDER THIS LICENSE ON AN "AS IS" BASIS, =
+WITHOUT=20
+WARRANTY OF ANY KIND, EITHER EXPRESSED OR IMPLIED, INCLUDING, WITHOUT=20
+LIMITATION, WARRANTIES THAT THE COVERED CODE IS FREE OF DEFECTS, =
+MERCHANTABLE,=20
+FIT FOR A PARTICULAR PURPOSE OR NON-INFRINGING. THE ENTIRE RISK AS TO =
+THE=20
+QUALITY AND PERFORMANCE OF THE COVERED CODE IS WITH YOU. SHOULD ANY =
+COVERED CODE=20
+PROVE DEFECTIVE IN ANY RESPECT, YOU (NOT THE INITIAL DEVELOPER OR ANY =
+OTHER=20
+CONTRIBUTOR) ASSUME THE COST OF ANY NECESSARY SERVICING, REPAIR OR =
+CORRECTION.=20
+THIS DISCLAIMER OF WARRANTY CONSTITUTES AN ESSENTIAL PART OF THIS =
+LICENSE. NO=20
+USE OF ANY COVERED CODE IS AUTHORIZED HEREUNDER EXCEPT UNDER THIS=20
+DISCLAIMER.</P>
+<H2>8. Termination.</H2>
+<P><B>8.1. </B>This License and the rights granted hereunder will =
+terminate=20
+automatically if You fail to comply with terms herein and fail to cure =
+such=20
+breach within 30 days of becoming aware of the breach. All sublicenses =
+to the=20
+Covered Code which are properly granted shall survive any termination of =
+this=20
+License. Provisions which, by their nature, must remain in effect beyond =
+the=20
+termination of this License shall survive.</P>
+<P><B>8.2. </B>If You initiate litigation by asserting a patent =
+infringement=20
+claim (excluding declatory judgment actions) against Initial Developer =
+or a=20
+Contributor (the Initial Developer or Contributor against whom You file =
+such=20
+action is referred to as 'Participant') alleging that:</P>
+<P><B>(a) </B>such Participant's Contributor Version directly or =
+indirectly=20
+infringes any patent, then any and all rights granted by such =
+Participant to You=20
+under Sections 2.1 and/or 2.2 of this License shall, upon 60 days notice =
+from=20
+Participant terminate prospectively, unless if within 60 days after =
+receipt of=20
+notice You either: (i) agree in writing to pay Participant a mutually =
+agreeable=20
+reasonable royalty for Your past and future use of Modifications made by =
+such=20
+Participant, or (ii) withdraw Your litigation claim with respect to the=20
+Contributor Version against such Participant. If within 60 days of =
+notice, a=20
+reasonable royalty and payment arrangement are not mutually agreed upon =
+in=20
+writing by the parties or the litigation claim is not withdrawn, the =
+rights=20
+granted by Participant to You under Sections 2.1 and/or 2.2 =
+automatically=20
+terminate at the expiration of the 60 day notice period specified =
+above.</P>
+<P><B>(b)</B> any software, hardware, or device, other than such =
+Participant's=20
+Contributor Version, directly or indirectly infringes any patent, then =
+any=20
+rights granted to You by such Participant under Sections 2.1(b) and =
+2.2(b) are=20
+revoked effective as of the date You first made, used, sold, =
+distributed, or had=20
+made, Modifications made by that Participant.</P>
+<P><B>8.3. </B>If You assert a patent infringement claim against =
+Participant=20
+alleging that such Participant's Contributor Version directly or =
+indirectly=20
+infringes any patent where such claim is resolved (such as by license or =
+
+settlement) prior to the initiation of patent infringement litigation, =
+then the=20
+reasonable value of the licenses granted by such Participant under =
+Sections 2.1=20
+or 2.2 shall be taken into account in determining the amount or value of =
+any=20
+payment or license.</P>
+<P><B>8.4.</B> In the event of termination under Sections 8.1 or 8.2 =
+above, all=20
+end user license agreements (excluding distributors and resellers) which =
+have=20
+been validly granted by You or any distributor hereunder prior to =
+termination=20
+shall survive termination.</P>
+<H2>9. Limitation of Liability.</H2>
+<P>UNDER NO CIRCUMSTANCES AND UNDER NO LEGAL THEORY, WHETHER TORT =
+(INCLUDING=20
+NEGLIGENCE), CONTRACT, OR OTHERWISE, SHALL YOU, THE INITIAL DEVELOPER, =
+ANY OTHER=20
+CONTRIBUTOR, OR ANY DISTRIBUTOR OF COVERED CODE, OR ANY SUPPLIER OF ANY =
+OF SUCH=20
+PARTIES, BE LIABLE TO ANY PERSON FOR ANY INDIRECT, SPECIAL, INCIDENTAL, =
+OR=20
+CONSEQUENTIAL DAMAGES OF ANY CHARACTER INCLUDING, WITHOUT LIMITATION, =
+DAMAGES=20
+FOR LOSS OF GOODWILL, WORK STOPPAGE, COMPUTER FAILURE OR MALFUNCTION, OR =
+ANY AND=20
+ALL OTHER COMMERCIAL DAMAGES OR LOSSES, EVEN IF SUCH PARTY SHALL HAVE =
+BEEN=20
+INFORMED OF THE POSSIBILITY OF SUCH DAMAGES. THIS LIMITATION OF =
+LIABILITY SHALL=20
+NOT APPLY TO LIABILITY FOR DEATH OR PERSONAL INJURY RESULTING FROM SUCH =
+PARTY'S=20
+NEGLIGENCE TO THE EXTENT APPLICABLE LAW PROHIBITS SUCH LIMITATION. SOME=20
+JURISDICTIONS DO NOT ALLOW THE EXCLUSION OR LIMITATION OF INCIDENTAL OR=20
+CONSEQUENTIAL DAMAGES, SO THIS EXCLUSION AND LIMITATION MAY NOT APPLY TO =
+
+YOU.</P>
+<H2>10. U.S. Government End Users.</H2>
+<P>The Covered Code is a "commercial item," as that term is defined in =
+48 C.F.R.=20
+2.101 (Oct. 1995), consisting of "commercial computer software" and =
+"commercial=20
+computer software documentation," as such terms are used in 48 C.F.R. =
+12.212=20
+(Sept. 1995). Consistent with 48 C.F.R. 12.212 and 48 C.F.R. 227.7202-1 =
+through=20
+227.7202-4 (June 1995), all U.S. Government End Users acquire Covered =
+Code with=20
+only those rights set forth herein.</P>
+<H2>11. Miscellaneous.</H2>
+<P>This License represents the complete agreement concerning subject =
+matter=20
+hereof. If any provision of this License is held to be unenforceable, =
+such=20
+provision shall be reformed only to the extent necessary to make it =
+enforceable.=20
+This License shall be governed by Queensland, Australia law provisions =
+(except=20
+to the extent applicable law, if any, provides otherwise), excluding its =
+
+conflict-of-law provisions. With respect to disputes in which at least =
+one party=20
+is a citizen of, or an entity chartered or registered to do business in=20
+Australia, any litigation relating to this License shall be subject to =
+the=20
+jurisdiction of Australian Courts, with the losing party responsible for =
+costs,=20
+including without limitation, court costs and reasonable attorneys' fees =
+and=20
+expenses. The application of the United Nations Convention on Contracts =
+for the=20
+International Sale of Goods is expressly excluded. Any law or regulation =
+which=20
+provides that the language of a contract shall be construed against the =
+drafter=20
+shall not apply to this License.</P>
+<H2>12. Responsibility for Claims.</H2>
+<P>As between Initial Developer and the Contributors, each party is =
+responsible=20
+for claims and damages arising, directly or indirectly, out of its =
+utilization=20
+of rights under this License and You agree to work with Initial =
+Developer and=20
+Contributors to distribute such responsibility on an equitable basis. =
+Nothing=20
+herein is intended or shall be deemed to constitute any admission of=20
+liability.</P>
+<H2>13. Multiple-licensed Code.</H2>
+<P>Initial Developer may designate portions of the Covered Code as=20
+"Multiple-Licensed". "Multiple-Licensed" means that the Initial =
+Developer=20
+permits you to utilize portions of the Covered Code under Your choice of =
+the DPL=20
+or the alternative licenses, if any, specified by the Initial Developer =
+in the=20
+file described in Exhibit A.</P>
+<H2>14. High Risk Activities.</H2>
+<P>The Software is not fault-tolerant and is not designed, manufactured =
+or=20
+intended for use or resale as on-line control equipment in hazardous=20
+environments requiring fail-safe performance, such as in the operation =
+of=20
+nuclear facilities, aircraft navigation or communication systems, air =
+traffic=20
+control, direct life support machines, or weapons systems, in which the =
+failure=20
+of the Software could lead directly to death, personal injury, or severe =
+
+physical or environmental damage ("High Risk Activities").</P>
+<H2>EXHIBIT A - DSTC Public License.</H2>
+<P>The contents of this file are subject to the DSTC Public License =
+Version 1.1=20
+(the 'License'); you may not use this file except in compliance with the =
+
+License.</P>
+<P>Software distributed under the License is distributed on an 'AS IS' =
+basis,=20
+WITHOUT WARRANTY OF ANY KIND, either express or implied. See the License =
+for the=20
+specific language governing rights and limitations under the =
+License.</P>
+<P>The Original Code is ______________________________________.</P>
+<P>The Initial Developer of the Original Code is =
+________________________.=20
+Portions created by ______________________ are Copyright =C2=A9=20
+_____________________________. All Rights Reserved.</P>
+<P>Contributor(s): ______________________________________.</P>
+<P>Alternatively, the contents of this file may be used under the terms =
+of the=20
+_____ license (the "[___] License"), in which case the provisions of =
+[______]=20
+License are applicable instead of those above. If you wish to allow use =
+of your=20
+version of this file only under the terms of the [____] License and not =
+to allow=20
+others to use your version of this file under the DPL, indicate your =
+decision by=20
+deleting the provisions above and replace them with the notice and other =
+
+provisions required by the [___] License. If you do not delete the =
+provisions=20
+above, a recipient may use your version of this file under either the =
+DPL or the=20
+[___] License.'</P>
+<P>[NOTE: The text of this Exhibit A may differ slightly from the text =
+of the=20
+notices in the Source Code files of the Original Code. You should use =
+the text=20
+of this Exhibit A rather than the text found in the Original Code Source =
+Code=20
+for Your Modifications.]</P></BODY></HTML>

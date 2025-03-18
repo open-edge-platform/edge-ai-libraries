@@ -1,0 +1,10 @@
+# Copyright Intel Corporation
+
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  namespace: {{ .Values.namespace }}
+  name: evam-config-input
+data:
+  config.json: |-
+{{ .Files.Get "evam_config.json" | indent 4 }}
