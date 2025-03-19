@@ -43,6 +43,6 @@ For support, please submit your bug report and feature request to [Github Issues
 
 ## License
 
-The **Edge AI Suites** project is licensed under the [APACHE 2.0](LICENSE).   
+The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE).   
 Last Updated Date: March 17, 2025.  
  
