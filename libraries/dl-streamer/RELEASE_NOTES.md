@@ -8,7 +8,7 @@ The complete solution leverages:
 -   Open source GStreamer\* framework for pipeline management
 -   GStreamer\* plugins for input and output such as media files and real-time streaming from camera or network
 -   Video decode and encode plugins, either CPU optimized plugins or GPU-accelerated plugins [based on VAAPI](https://gitlab.freedesktop.org/gstreamer/gstreamer/-/tree/main/subprojects/gstreamer-vaapi)
--   Deep Learning models converted from training frameworks TensorFlow\*, Caffe\* etc. from [Open Model Zoo (OMZ)](https://github.com/openvinotoolkit/open_model_zoo)
+-   Deep Learning models converted from training frameworks TensorFlow\*, Caffe\* etc.
 -   The following elements in the Pipeline Framework repository:
 
 | Element| Description|
@@ -27,7 +27,7 @@ The complete solution leverages:
 | [gvawatermark](https://dlstreamer.github.io/elements/gvawatermark) | Overlays the metadata on the video frame to visualize the inference results. |
 
 
-For the details of supported platforms, please refer to [System Requirements](#system-requirements) section.
+For the details of supported platforms, please refer to [System Requirements](https://dlstreamer.github.io/get_started/system_requirements.html) section.
 
 For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [Intel® DL Streamer Pipeline Framework installation guide](https://dlstreamer.github.io/get_started/install/install_guide_index.html)
 
@@ -259,6 +259,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Performance optimizations | 8% geomean gain across tested scenarios, up to 50% performance gain in multi-stream scenarios |
 | Docker image replaced with Docker file | Ubuntu 22.04 docker file is released instead of docker image. |
 
+## Other informations
 
 ## System Requirements
 
