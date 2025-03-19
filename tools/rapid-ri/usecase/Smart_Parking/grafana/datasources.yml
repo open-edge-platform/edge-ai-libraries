@@ -1,0 +1,15 @@
+apiVersion: 1
+
+datasources:
+  - name: Infinity
+    type: yesoreyeram-infinity-datasource
+    access: proxy
+    isDefault: true
+    jsonData:
+    
+  - name: grafana-mqtt-datasource
+    type: grafana-mqtt-datasource
+    access: proxy
+    readOnly: false
+    editable: true
+    jsonData: { "uri": "tcp://10.124.220.134:1883" }

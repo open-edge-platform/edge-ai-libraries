@@ -1,0 +1,254 @@
+{
+    "config": {
+        "logging": {
+            "C_LOG_LEVEL": "INFO",
+            "PY_LOG_LEVEL": "INFO"
+        },
+        "cert_type": [
+            "zmq"
+        ],
+        "pipelines": [
+            {
+                "name": "yolov10_1",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_2",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_3",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_4",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+	          {
+                "name": "object_tracking_1",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP32/pedestrian-and-vehicle-detector-adas-0001.xml model_proc=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/pedestrian-and-vehicle-detector-adas-0001.json device=CPU pre-process-backend=ie threshold=0.1 inference-interval=3 ! queue ! gvatrack tracking-type=short-term-imageless ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "object_tracking_2",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP32/pedestrian-and-vehicle-detector-adas-0001.xml model_proc=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/pedestrian-and-vehicle-detector-adas-0001.json device=CPU pre-process-backend=ie threshold=0.1 inference-interval=3 ! queue ! gvatrack tracking-type=short-term-imageless ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "object_tracking_3",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP32/pedestrian-and-vehicle-detector-adas-0001.xml model_proc=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/pedestrian-and-vehicle-detector-adas-0001.json device=CPU pre-process-backend=ie threshold=0.1 inference-interval=3 ! queue ! gvatrack tracking-type=short-term-imageless ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "object_tracking_4",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/FP32/pedestrian-and-vehicle-detector-adas-0001.xml model_proc=/home/pipeline-server/models/intel/pedestrian-and-vehicle-detector-adas-0001/pedestrian-and-vehicle-detector-adas-0001.json device=CPU pre-process-backend=ie threshold=0.1 inference-interval=3 ! queue ! gvatrack tracking-type=short-term-imageless ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination !  gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            }
+        ]
+    },
+    "interfaces": {
+        "Publishers": [
+            {
+                "Name": "default",
+                "Type": "zmq_ipc",
+                "zmq_send_hwm": 50,
+                "EndPoint": "/EII/sockets",
+                "Topics": [
+                    "yolov5",
+                    "yolov5_effnet"
+                ],
+                "AllowedClients": [
+                    "*"
+                ]
+            }
+        ]
+    }
+}

@@ -1,0 +1,137 @@
+/*
+* Copyright (C) 2022 Intel Corporation.
+*
+* SPDX-License-Identifier: BSD-3-Clause
+*/
+label
+{
+    width:          175px;
+    text-align:     right;
+    display:        inline-block;
+}
+.error { color: red; }
+
+body, html {
+    margin: 0;
+    padding: 0;
+    width: 100%;
+    height: 100%;
+    overflow: hidden;
+}
+
+video {
+    width:          100%;
+    height:         100%;
+    object-fit:     contain;
+}
+/* input[name=field] */
+input.input-disabled {
+  /* uncomment to treat as disabled, otherwise allow user to copy values */
+  /* pointer-events:none; */ 
+    color:        #AAA;
+    background:   #F5F5F5;
+    outline:        none !important;
+}
+
+.labelStatus
+{
+    display:        inline;
+    text-align:     left;
+    color:          gray;
+}
+.class-status.span
+{
+    width:          70%;
+    text-align:     left;
+    color:          gray;
+}
+div {
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    color:          #007dc3;
+}
+.class-status
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    display:        block;
+    color:          #007dc3;
+}
+.class-convenience-form
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    display:        block;
+}
+.class-launch-form
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    display:        block;
+}
+.class-input-form
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    display:        block;
+}
+.class-details-debug
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      16px;
+    font-weight:    normal;
+    display:        none;
+}
+.class-stats-box
+{
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      10px;
+    font-weight:    normal;
+}
+.expando {
+    background-color: #007dc3;
+    color:        white;
+    cursor:         pointer;
+    padding:        8px;
+    width:          100%;
+    border:         none;
+    text-align:     left;
+    outline:        none;
+    font-size:      14px;
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-weight:    normal;
+    display:        block;
+}
+
+.active, .expando:hover {
+    background-color: #00a3f6;
+}
+
+.expando:after {
+    content:        '\002B';
+    color:        white;
+    font-weight:    bold;
+    float:          right;
+    margin-left:    5px;
+}
+
+.active:after {
+    content:        "\2212";
+}
+
+.content {
+    padding:        0 18px;
+    max-height:     0;
+    overflow:       hidden;
+    transition:     max-height 0.2s ease-out;
+    background-color: #f1f1f1;
+    font-family:    "intel-one","intel-clear",Helvetica,Arial,sans-serif;
+    font-size:      14px;
+    font-weight:    normal;
+    display:        block;
+}

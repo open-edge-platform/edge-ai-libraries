@@ -1,0 +1,139 @@
+{
+    "config": {
+        "logging": {
+            "C_LOG_LEVEL": "INFO",
+            "PY_LOG_LEVEL": "INFO"
+        },
+        "cert_type": [
+            "zmq"
+        ],
+        "pipelines": [
+            {
+                "name": "yolov10_1",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvaclassify model=/home/pipeline-server/models/colorcls2/colorcls2.xml model_proc=/home/pipeline-server/models/colorcls2/colorcls2.json device=CPU pre-process-backend=ie ! queue ! gvapython module=/home/pipeline-server/models/colorcls2/process class=Process function=process_frame ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! gvafpscounter ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_2",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvaclassify model=/home/pipeline-server/models/colorcls2/colorcls2.xml model_proc=/home/pipeline-server/models/colorcls2/colorcls2.json device=CPU pre-process-backend=ie ! queue ! gvapython module=/home/pipeline-server/models/colorcls2/process class=Process function=process_frame ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! gvafpscounter ! appsink name=appsink",
+                "description": "Object detection with yolov8",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_3",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvaclassify model=/home/pipeline-server/models/colorcls2/colorcls2.xml model_proc=/home/pipeline-server/models/colorcls2/colorcls2.json device=CPU pre-process-backend=ie ! queue ! gvapython module=/home/pipeline-server/models/colorcls2/process class=Process function=process_frame ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! gvafpscounter ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            },
+            {
+                "name": "yolov10_4",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! gvadetect model=/home/pipeline-server/models/public/yolov10s/FP32/yolov10s.xml device=CPU pre-process-backend=ie ! queue ! gvaclassify model=/home/pipeline-server/models/colorcls2/colorcls2.xml model_proc=/home/pipeline-server/models/colorcls2/colorcls2.json device=CPU pre-process-backend=ie ! queue ! gvapython module=/home/pipeline-server/models/colorcls2/process class=Process function=process_frame ! queue ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! gvafpscounter ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        },
+                        "detection-device": {
+                            "element": {
+                                "name": "detection",
+                                "property": "device"
+                            },
+                            "type": "string",
+                            "default": "{env[DETECTION_DEVICE]}"
+                        }
+                    }
+                },
+                "auto_start": false,
+                "publish_frame": true
+            }
+        ]
+    },
+    "interfaces": {
+        "Publishers": [
+            {
+                "Name": "default",
+                "Type": "zmq_ipc",
+                "zmq_send_hwm": 50,
+                "EndPoint": "/EII/sockets",
+                "Topics": [
+                    "yolov5",
+                    "yolov5_effnet"
+                ],
+                "AllowedClients": [
+                    "*"
+                ]
+            }
+        ]
+    }
+}
