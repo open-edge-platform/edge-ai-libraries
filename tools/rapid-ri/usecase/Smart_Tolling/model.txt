@@ -1,3 +1,0 @@
-yolov10s yolo
-license-plate-recognition-barrier-0007 omz
-vehicle-attributes-recognition-barrier-0039 omz

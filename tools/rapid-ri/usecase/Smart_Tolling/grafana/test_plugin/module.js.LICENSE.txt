@@ -1,8 +1,0 @@
-/*! Bundled license information:
-
-@jspm/core/nodelibs/browser/buffer.js:
-  (*! ieee754. BSD-3-Clause License. Feross Aboukhadijeh <https://feross.org/opensource> *)
-
-safe-buffer/index.js:
-  (*! safe-buffer. MIT License. Feross Aboukhadijeh <https://feross.org/opensource> *)
-*/
