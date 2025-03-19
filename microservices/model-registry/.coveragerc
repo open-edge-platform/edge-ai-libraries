@@ -1,0 +1,7 @@
+[run]
+source = src
+omit =
+    src/managers/geti_manager.py
+    src/models/project.py 
+    src/models/project_active_models.py 
+    src/routers/geti.py

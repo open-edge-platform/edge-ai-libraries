@@ -1,0 +1,98 @@
+services:
+  model-registry:
+    image: intel/model-registry:${MR_VERSION}
+    container_name: model-registry
+    hostname: model-registry
+    ipc: "none"
+    build:
+      context: ..
+      dockerfile: ./Dockerfile
+      args:
+        MR_UID: ${MR_UID}
+        MR_USER_NAME: ${MR_USER_NAME}
+    ports:
+    - "${HOST_IP_ADDRESS}:32002:${MR_SERVER_PORT}"
+    restart: unless-stopped
+    deploy:
+      resources:
+        limits:
+          memory: 4096mb
+          cpus: '0.30'
+          pids: 200
+        reservations:
+          memory: 2048mb
+          cpus: '0.15'
+    security_opt:
+      - no-new-privileges
+    healthcheck:
+      test: ["CMD-SHELL", "exit", "0"]
+    environment:
+      AppName: "ModelRegistry"
+      MIN_LOG_LEVEL: ${MR_MIN_LOG_LEVEL}
+      ENABLE_HTTPS_MODE: ${ENABLE_HTTPS_MODE}
+      GETI_HOST: ${GETI_HOST}
+      GETI_TOKEN: ${GETI_TOKEN}
+      GETI_SERVER_API_VERSION: ${GETI_SERVER_API_VERSION}
+      GETI_ORGANIZATION_ID: ${GETI_ORGANIZATION_ID}
+      GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID}
+      MLFLOW_TRACKING_URI: postgresql+psycopg2://${MR_USER_NAME}:${MR_PSQL_PASSWORD}@mr_postgres:${MR_PSQL_PORT}/${MR_PSQL_DATABASE}
+      MLFLOW_S3_ENDPOINT_URL: ${MR_MLFLOW_S3_ENDPOINT_URL}
+      MINIO_HOSTNAME: ${MR_MINIO_HOSTNAME}
+      MINIO_SERVER_PORT: ${MR_MINIO_SERVER_PORT}
+      MINIO_ACCESS_KEY: ${MR_MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MR_MINIO_SECRET_KEY}
+      MINIO_BUCKET_NAME: ${MR_MINIO_BUCKET_NAME}
+      SERVER_PORT: ${MR_SERVER_PORT}
+      LSHOST: host.docker.internal
+      SERVER_CERT: /run/secrets/ModelRegistry_Server/public.crt
+      CA_CERT: /run/secrets/ModelRegistry_Server/server-ca.crt
+      SERVER_PRIVATE_KEY: /run/secrets/ModelRegistry_Server/private.key
+      no_proxy: mr_minio
+      NO_PROXY: mr_minio
+    volumes:
+      - ./Certificates/ssl/:/run/secrets/ModelRegistry_Server:ro
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - mr
+  mr_postgres:
+    image: postgres:13
+    container_name: mr_postgres
+    hostname: mr_postgres
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    environment:
+      AppName: "ModelRegistry"
+      POSTGRES_USER: ${MR_USER_NAME}
+      POSTGRES_PASSWORD: ${MR_PSQL_PASSWORD}
+      POSTGRES_DB: ${MR_PSQL_DATABASE}
+    volumes:
+    - ${MR_INSTALL_PATH}/data/mr_postgres:/var/lib/postgresql/data
+    expose:
+      - ${MR_PSQL_PORT}
+    user: "${MR_UID}:${MR_UID}"
+    networks:
+      - mr
+  mr_minio:
+    image: minio/minio:RELEASE.2020-12-12T08-39-07Z
+    container_name: mr_minio
+    hostname: mr_minio
+    ipc: "none"
+    expose:
+      - ${MR_MINIO_SERVER_PORT}
+    volumes:
+      - ./Certificates/ssl/:/certs/:rw
+      - ${MR_INSTALL_PATH}/data/mr_minio:/data
+    networks:
+      - mr
+    restart: unless-stopped
+    security_opt:
+      - no-new-privileges
+    environment:
+      MINIO_ACCESS_KEY: ${MR_MINIO_ACCESS_KEY}
+      MINIO_SECRET_KEY: ${MR_MINIO_SECRET_KEY}
+    command: server --address ":8000" --certs-dir /certs /data
+networks:
+  mr:
+    driver: bridge

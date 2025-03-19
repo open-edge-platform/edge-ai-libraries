@@ -1,0 +1,22 @@
+[MESSAGES CONTROL]
+disable=
+        broad-exception-caught,
+        too-few-public-methods,
+        line-too-long,
+        too-many-arguments,
+        logging-fstring-interpolation
+
+[FORMAT]
+# Maximum number of characters on a single line.
+max-line-length=150
+
+
+[SIMILARITIES]
+# Ignore comments when computing similarities.
+ignore-comments=yes
+# Ignore docstrings when computing similarities.
+ignore-docstrings=yes
+# Ignore imports when computing similarities.
+ignore-imports=no
+# Minimum lines number of a similarity.
+min-similarity-lines=4

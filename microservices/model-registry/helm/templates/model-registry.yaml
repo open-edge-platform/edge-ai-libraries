@@ -1,0 +1,94 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v1
+kind: Service
+metadata:
+  namespace: {{ .Values.namespace }}
+  name: {{ $.Values.config.model_registry.name }}
+spec:
+  type: NodePort
+  ports:
+    - name: mr-port
+      port: {{ $.Values.config.model_registry.int.port }}
+      targetPort: {{ $.Values.config.model_registry.int.port }}
+      nodePort: {{ $.Values.config.model_registry.ext.port }}
+  selector:
+    app: {{ $.Values.env.AppName }}
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: {{ $.Values.env.AppName }}
+  name: deployment-{{ $.Values.config.model_registry.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ $.Values.env.AppName }}
+  template:
+    metadata:
+      labels:
+        app: {{ $.Values.env.AppName }}
+    spec:
+      {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
+      imagePullSecrets:
+      - name: registryauth
+      {{- end }}
+      containers:
+        - env:
+            - name: AppName
+              value: {{ $.Values.env.AppName }}
+            - name: CA_CERT
+              value: "{{ .Values.env.CA_CERT }}"
+            - name: ENABLE_HTTPS_MODE
+              value: "{{ .Values.env.ENABLE_HTTPS_MODE }}"
+            - name: LSHOST
+              value: host.docker.internal
+            - name: MINIO_ACCESS_KEY
+              value: "{{ .Values.env.MINIO_ACCESS_KEY }}"
+            - name: MINIO_BUCKET_NAME
+              value: "{{ .Values.env.MINIO_BUCKET_NAME }}"
+            - name: MINIO_HOSTNAME
+              value: "{{ .Values.env.MINIO_HOSTNAME }}"
+            - name: MINIO_SECRET_KEY
+              value: "{{ .Values.env.MINIO_SECRET_KEY }}"
+            - name: MINIO_SERVER_PORT
+              value: "{{ .Values.env.MINIO_SERVER_PORT }}"
+            - name: MIN_LOG_LEVEL
+              value: "{{ .Values.env.MIN_LOG_LEVEL }}"
+            - name: MLFLOW_S3_ENDPOINT_URL
+              value: "{{ .Values.env.MLFLOW_S3_ENDPOINT_URL }}"
+            - name: MLFLOW_TRACKING_URI
+              value: postgresql+psycopg2://{{ .Values.env.MR_USER_NAME }}:{{ .Values.env.POSTGRES_PASSWORD }}@mr-postgres:5432/{{ .Values.env.POSTGRES_DB }}
+            - name: SERVER_CERT
+              value: "{{ .Values.env.SERVER_CERT }}"
+            - name: SERVER_PORT
+              value: "{{ .Values.env.SERVER_PORT }}"
+            - name: SERVER_PRIVATE_KEY
+              value: "{{ .Values.env.SERVER_PRIVATE_KEY }}"
+            - name: https_proxy
+              value: "{{ .Values.env.https_proxy }}"
+            - name: http_proxy
+              value: "{{ .Values.env.http_proxy }}"
+            - name: no_proxy
+              value: "{{ .Values.env.no_proxy }}"
+            - name: NO_PROXY
+              value: "{{ .Values.env.NO_PROXY }}"
+          image: {{ $.Values.DOCKER_REGISTRY }}{{ .Values.images.model_registry }}
+          imagePullPolicy: {{ $.Values.imagePullPolicy }}
+          name: {{ $.Values.config.model_registry.name }}
+          ports:
+            - containerPort: 8111
+              protocol: TCP
+          resources:
+            limits:
+              cpu: 300m
+              memory: "4294967296"
+            requests:
+              cpu: 150m
+              memory: "2147483648"
+      hostname: {{ $.Values.config.model_registry.name }}
+      restartPolicy: Always

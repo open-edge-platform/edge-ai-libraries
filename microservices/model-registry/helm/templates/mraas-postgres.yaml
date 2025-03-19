@@ -1,0 +1,55 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: mr-postgres
+  namespace: {{ .Values.namespace }}
+spec:
+  ports:
+    - name: "mr-postgres-port"
+      port: 5432
+  selector:
+    app: mr-postgres
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: mr-postgres
+  name: deployment-mr-postgres
+  namespace: {{ .Values.namespace }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: mr-postgres
+  template:
+    metadata:
+      labels:
+        app: mr-postgres
+    spec:
+      {{- if and .Values.DOCKER_USERNAME .Values.DOCKER_PASSWORD }}
+      imagePullSecrets:
+      - name: registryauth
+      {{- end }}
+      containers:
+      - name: mr-postgres
+        env:
+          - name: POSTGRES_DB
+            value: "{{ .Values.env.POSTGRES_DB }}"
+          - name: POSTGRES_PASSWORD
+            value: "{{ .Values.env.POSTGRES_PASSWORD }}"
+          - name: POSTGRES_USER
+            value: "{{ .Values.env.MR_USER_NAME }}"
+        image: postgres:13
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        volumeMounts:
+          - name: {{ .Values.volumes.postgres_data.name }}
+            mountPath: {{ .Values.volumes.postgres_data.location }}
+      restartPolicy: Always
+      volumes:
+        - name: {{ .Values.volumes.postgres_data.name }}
+          hostPath:
+            path: {{ .Values.volumes.postgres_data.hostpath }}

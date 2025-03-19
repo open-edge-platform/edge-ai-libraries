@@ -1,0 +1,50 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+namespace: apps
+DOCKER_REGISTRY: ''
+DOCKER_USERNAME: ''
+DOCKER_PASSWORD: ''
+imagePullPolicy: IfNotPresent
+storageClassName: manual
+env:
+  AppName: ModelRegistry
+  CA_CERT: /run/secrets/modelregistry-server/server-ca.crt
+  ENABLE_HTTPS_MODE: false
+  MIN_LOG_LEVEL: DEBUG
+  MINIO_ACCESS_KEY: intel
+  MINIO_BUCKET_NAME: model-registry
+  MINIO_HOSTNAME: mr-minio
+  MINIO_SECRET_KEY: 
+  MINIO_SERVER_PORT: "8000"
+  MLFLOW_S3_ENDPOINT_URL: http://127.0.0.1:8000
+  SERVER_CERT: /run/secrets/modelregistry-server/public.crt
+  SERVER_PORT: "8111"
+  SERVER_PRIVATE_KEY: /run/secrets/modelregistry-server/private.key
+  https_proxy: 
+  http_proxy: 
+  no_proxy: mr-minio
+  NO_PROXY: mr-minio
+  MR_USER_NAME: mruser
+  POSTGRES_DB: model_registry_db
+  POSTGRES_PASSWORD: 
+images:
+  model_registry: intel/model-registry:1.0.2
+config: 
+  model_registry:
+    name: model-registry
+    int:
+      port: "8111"
+    ext:
+      port: "32002"
+volumes:
+  minio_data:
+    name: vol-minio-data
+    size: 500Mi
+    location: "/data"
+    hostpath: "/opt/intel/mr/data/mr_minio"
+  postgres_data:
+    name: vol-postgres-data
+    size: 500Mi
+    location: "/var/lib/postgresql/data"
+    hostpath: "/opt/intel/mr/data/mr_postgres"

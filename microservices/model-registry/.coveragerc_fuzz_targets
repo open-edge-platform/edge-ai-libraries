@@ -1,0 +1,14 @@
+[run]
+source = src
+[report]
+omit =
+    src/main.py
+    src/managers/minio_manager.py
+    src/managers/mlflow_manager.py
+    src/managers/geti_manager.py
+    src/models/project.py 
+    src/models/project_active_models.py
+    src/models/model_identifiers.py
+    src/models/registered_model.py
+    src/utils/logging_config.py
+    src/routers/geti.py
