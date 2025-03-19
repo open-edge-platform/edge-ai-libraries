@@ -34,15 +34,15 @@ By following this guide, you will learn how to:
 -->
 
 1. **Clone the Repository**:
-    Clone the ChatQ&A sample application repository. Note: Documentation will be updated post-migration to the public repo to point to the new repo that is accessible outside of Intel.
+    Clone the ChatQ&A sample application repository.
     ```bash
-    git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
       ```bash
-       cd applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core
+      cd edge-ai-libraries/sample-applications/chatqna-core
       ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:

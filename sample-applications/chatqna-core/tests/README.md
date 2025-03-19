@@ -59,7 +59,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Clone the repository to your local machine:
 
    ```bash
-   git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
    ```
 
 5. **Install the Required Packages**
@@ -68,7 +68,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
     ```bash
     # Install application dependencies packages using Poetry
-    cd ~/applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core
+    cd ~/edge-ai-libraries/sample-applications/chatqna-core
     poetry install --with dev
     ```
 
@@ -78,7 +78,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
    ```bash
    # via scripts
-   export HUGGINGFACE_API_TOKEN="<YOUR_HUGGINGFACE_API_TOKEN>"
+   export HUGGINGFACEHUB_API_TOKEN="<HUGGINGFACEHUB_API_TOKEN>"
    source scripts/setup_env.sh
    ```
 
@@ -87,7 +87,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Change to the directory containing the tests:
 
    ```bash
-   cd applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core/tests
+   cd edge-ai-libraries/sample-applications/chatqna-core/tests
    ```
 
 8. **Run the Tests**
@@ -128,7 +128,7 @@ If you prefer not to use virtual environment, please follow these steps:
     First, clone the repository to your local machine:
 
     ```bash
-    git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
     ```
 
 2. **Install the application dependencies**
@@ -137,7 +137,7 @@ If you prefer not to use virtual environment, please follow these steps:
 
    ```bash
    # Install application dependencies packages
-   cd ~/applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core/
+   cd ~/edge-ai-libraries/sample-applications/chatqna-core/
    poetry install --with dev
    ```
 
@@ -147,7 +147,7 @@ If you prefer not to use virtual environment, please follow these steps:
 
    ```bash
    # via scripts
-   export HUGGINGFACE_API_TOKEN="<YOUR_HUGGINGFACE_API_TOKEN>"
+   export HUGGINGFACEHUB_API_TOKEN="<YOUR_HUGGINGFACEHUB_API_TOKEN>"
    source scripts/setup_env.sh
    ```
 
@@ -156,7 +156,7 @@ If you prefer not to use virtual environment, please follow these steps:
     Change to the directory containing the tests:
 
     ```bash
-    cd applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core/tests
+    cd edge-ai-libraries/sample-applications/chatqna-core/tests
     ```
 
 5. **Run the Tests**

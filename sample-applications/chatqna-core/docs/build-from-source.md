@@ -14,7 +14,7 @@ To build the Docker image for the `chatqna-core` application, follow these steps
 1. Ensure you are in the project directory:
 
    ```bash
-   cd sampleapps/chatqna-core
+   cd sample-applications/chatqna-core
    ```
 
 2. Build the Docker image using the provided `Dockerfile`:
@@ -37,7 +37,7 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
 1. Ensure you are in the `ui/` project directory:
 
    ```bash
-   cd sampleapps/chatqna-core/ui
+   cd sample-applications/chatqna-core/ui
    ```
 
 2. Build the Docker image using the provided `Dockerfile`:
@@ -60,7 +60,7 @@ If you want to build the images using the `compose.yaml` file via the `docker co
 1. Ensure you are in the project directory:
 
    ```bash
-   cd sampleapps/chatqna-core
+   cd sample-applications/chatqna-core
    ```
 
 2. Build the Docker images using the `compose.yaml` file:
