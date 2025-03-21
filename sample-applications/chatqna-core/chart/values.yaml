@@ -29,7 +29,7 @@ chatqna:
     httpGet:
       path: /v1/chatqna/health
       port: 8888
-    initialDelaySeconds: 660
+    initialDelaySeconds: 1000 
     periodSeconds: 30
 
 uiService:
