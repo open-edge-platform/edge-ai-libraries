@@ -166,7 +166,7 @@ def generate_gauges(results: OptimizationResult, report: CollectionReport):
     mapped_results = [
         {
             "label": "Throughput [fps]",
-            "value": round(results.per_stream_fps, 2),
+              "value": round(results.per_stream_fps, 2) if results and isinstance(results.per_stream_fps, (int, float)) else None,
             "min": 0,
             "max": 500,
         },
@@ -207,9 +207,13 @@ def generate_gauges(results: OptimizationResult, report: CollectionReport):
             "max": 500,
         },
     ]
-
+    
+    mapped_results = [item for item in mapped_results if item["value"] is not None]
     # Create 1 row with 4 subplots
-    fig, axes = plt.subplots(2, 4, figsize=(17, 8))  # Adjust width for better spacing
+    num_metrics = len(mapped_results)
+    num_cols = min(num_metrics, 4)
+    num_rows = (num_metrics - 1) // num_cols + 1
+    fig, axes = plt.subplots(num_rows, num_cols, figsize=(17, 8))  # Adjust width for better spacing
     axes = axes.flatten()  # Flatten the 2D array of axes for easier iteration
 
     for ax, metric in zip(axes, mapped_results):

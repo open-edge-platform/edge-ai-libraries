@@ -98,9 +98,12 @@ class PipelineOptimizer:
                 process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE)
 
                 exit_code = None
-                total_fps = 0
-                per_stream_fps = 0
-
+                total_fps = None
+                per_stream_fps = None
+                num_streams = None
+                last_fps = None
+                avg_fps_dict = {}
+                
                 # Capture Memory and CPU metrics
                 while process.poll() is None:
 
@@ -111,13 +114,14 @@ class PipelineOptimizer:
                         break
 
                 # Define pattern to capture FPSCounter metrics
-                pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
-
+                overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
+                avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
+                last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
+                
                 # Capture FPSCounter metrics
                 for line in iter(process.stdout.readline, b""):
                     line_str = line.decode("utf-8")
-
-                    match = re.search(pattern, line_str)
+                    match = re.search(overall_pattern, line_str)
                     if match:
                         result = {
                             "total_fps": float(match.group(2)),
@@ -126,8 +130,51 @@ class PipelineOptimizer:
                         }
                         if result["number_streams"] == self.channels:
                             total_fps = result["total_fps"]
+                            num_streams = result["number_streams"]
                             per_stream_fps = result["per_stream_fps"]
                             break
+                            
+                    match = re.search(avg_pattern, line_str)
+                    if match:
+                        result = {
+                            "total_fps": float(match.group(2)),
+                            "number_streams": int(match.group(3)),
+                            "per_stream_fps": float(match.group(4)),
+                        }
+                        avg_fps_dict[result["number_streams"]] = result
+                        
+                    match = re.search(last_pattern, line_str)
+                    if match:
+                        result = {
+                            "total_fps": float(match.group(2)),
+                            "number_streams": int(match.group(3)),
+                            "per_stream_fps": float(match.group(4)),
+                        }
+                        last_fps = result
+                
+                found_fps = False            
+                if total_fps is None and avg_fps_dict.keys():
+                    if self.channels in avg_fps_dict.keys():
+                        total_fps = avg_fps_dict[self.channels]["total_fps"]
+                        num_streams = avg_fps_dict[self.channels]["number_streams"]
+                        per_stream_fps = avg_fps_dict[self.channels]["per_stream_fps"]
+                        found_fps = True
+                    else:
+                        closest_match = min(avg_fps_dict.keys(), key=lambda x: abs(x -self.channels), default=None)
+                        total_fps = avg_fps_dict[closest_match]["total_fps"]
+                        num_streams = avg_fps_dict[closest_match]["number_streams"]
+                        per_stream_fps = avg_fps_dict[closest_match]["per_stream_fps"]
+                        found_fps = True
+                                   
+                if not found_fps and total_fps is None and last_fps:
+                    total_fps = last_fps["total_fps"]
+                    num_streams = last_fps["number_streams"]
+                    per_stream_fps = last_fps["per_stream_fps"]
+                
+                if total_fps is None:
+                    total_fps = "N/A"
+                    num_streams = "N/A"
+                    per_stream_fps = "N/A"
 
                 # Log the metrics
                 self.logger.info("Exit code: {}".format(exit_code))
