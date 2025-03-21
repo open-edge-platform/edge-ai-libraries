@@ -1,0 +1,19 @@
+{
+    "background_file": "/usr/src/app/background.gif",
+    "base_image_dir": "/usr/src/app/images",
+    "output_file": "output_file",
+    "target_resolution": [1920, 1080],
+    "frame_count": 300,
+    "frame_rate": 30,
+    "swap_percentage" : 20,
+    "object_counts": {
+        "cars": 3,
+        "persons": 3
+    },
+    "object_rotation_rate": 0.25, 
+    "object_scale_rate": 0.25, 
+    "object_scale_range": [0.25, 1],
+    "encoding": "H264",
+    "bitrate": 20000,
+    "swap_rate": 1
+}
