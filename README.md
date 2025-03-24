@@ -5,25 +5,16 @@
 
 The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. Sample applications are available to showcase the use cases. Visit also the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for additionl sample applications.  
 
-| Library |
-|:------|
-| [Deep Learning Streamer](libraries/dl-streamer) | 
-
-| Microservices |
-|:------|
-| [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) |
-| [Document Ingestion](microservices/document-ingestion) |
-| [Model Registry](microservices/model-registry) |
-| [Object Store](microservices/object-store) |
-
-| Tools |
-|:------|
-| [Video Generator](tools/video-generator) |
-| [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) |
-
-| Sample Application |
-|:------|
-| [Chat Question and Answer](sample-applcations/chat-question-and-answer) |
+| Component | Description |
+|:------|:-----|
+| Library | [Deep Learning Streamer](libraries/dl-streamer) | 
+| Microservice | [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) |
+| Microservice | [Document Ingestion](microservices/document-ingestion) |
+| Microservice | [Model Registry](microservices/model-registry) |
+| Microservice | [Object Store](microservices/object-store) |
+| Tool | [Video Generator](tools/video-generator) |
+| Tool | [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) |
+| Sample Application | [Chat Question and Answer](sample-applcations/chat-question-and-answer) |
 
 ## Get Started
 
