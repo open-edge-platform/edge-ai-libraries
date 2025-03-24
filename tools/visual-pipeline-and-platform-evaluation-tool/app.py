@@ -166,7 +166,7 @@ def generate_gauges(results: OptimizationResult, report: CollectionReport):
     mapped_results = [
         {
             "label": "Throughput [fps]",
-              "value": round(results.per_stream_fps, 2) if results and isinstance(results.per_stream_fps, (int, float)) else None,
+            "value": round(results.per_stream_fps, 2) if results and isinstance(results.per_stream_fps, (int, float)) else None,
             "min": 0,
             "max": 500,
         },
