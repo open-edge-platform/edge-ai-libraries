@@ -25,14 +25,14 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 1. **Clone the Repository**:
    - Run:
      ```bash
-     git clone https://github.com/intel-innersource/frameworks.ai.ai-suite-for-vision.git
+     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
      cd ./tools/vippet
      ```
 
 2. **Build and Start the Tool**:
    - Run:
      ```bash
-     docker pull docker.io/intel/dlstreamer:2024.2.2-ubuntu24
+     docker pull docker.io/intel/dlstreamer:2025.0.1.2-ubuntu24
      docker compose build
      docker compose up -d
      ```

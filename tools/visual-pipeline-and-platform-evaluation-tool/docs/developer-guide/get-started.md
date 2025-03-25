@@ -15,15 +15,29 @@ By following this guide, you will learn how to:
 ## Set up and First Use
 
 1. **Download the Compose File**:
+    - Create and navigate to directory:
+      ```bash
+        mkdir visual-pipeline-and-platform-evaluation-tool
+        cd visual-pipeline-and-platform-evaluation-tool
+      ```
     - Download the Docker Compose file:
       ```bash
-      curl -O https://example.com/sample-application/docker-compose.yaml
+        curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose/compose-linux-v1.0.0/compose-linux-v1.0.0.yml"
       ```
 
-2. **Navigate to the Directory**:
-    - Go to the directory where you saved the Compose file:
+2. **Download the Artifacts**:
+    - Download the artifacts:
       ```bash
-      cd /path/to/directory
+        mkdir video_generator
+        curl -L -o video_generator/models.lst "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
+        mkdir -p video_generator/images/cars
+        curl -L -o video_generator/images/cars/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/1.png"
+        curl -L -o video_generator/images/cars/2.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/2.png"
+        curl -L -o video_generator/images/cars/3.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/3.png"
+        mkdir -p video_generator/images/persons
+        curl -L -o video_generator/images/persons/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/1.png"
+        curl -L -o video_generator/images/persons/2.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/2.png"
+        curl -L -o video_generator/images/persons/3.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/3.png"
       ```
 
 3. **Start the Application**:
