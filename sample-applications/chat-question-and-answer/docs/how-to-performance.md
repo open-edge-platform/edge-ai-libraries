@@ -3,6 +3,7 @@
 This guide provides step-by-step instructions for testing the performance of the ChatQ&A Sample Application.
 
 ## Prerequisites
+
 Before you begin, ensure that you have the following prerequisites:
 - The ChatQ&A Sample Application is set up and running. Refer to the [Get Started](./get-started.md) guide for setup instructions.
 
@@ -39,17 +40,21 @@ Before you begin, ensure that you have the following prerequisites:
 ## Key Performance Metrics
 
 ### Latency
+
 - **Definition**: The time taken to generate a response to a user query.
 - **Measurement**: Measure the response time for each query during the performance test.
 
 ### Throughput
+
 - **Definition**: The number of queries processed per second.
 - **Measurement**: Measure the number of queries processed per second during the performance test.
 
 ## Verification
+
 - Ensure that the application meets the expected performance criteria by analyzing the performance test results.
 
 ## Troubleshooting
+
 - If you encounter any issues during the performance testing process, check the application logs for errors:
   ```bash
   docker compose logs
