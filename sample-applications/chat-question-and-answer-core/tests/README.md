@@ -191,10 +191,25 @@ If you prefer not to use virtual environment, please follow these steps:
 
 5. **Run the Tests**
 
-    Use the `pytest` command to run the tests:
+    Use the `poetry run pytest` command to run the tests:
 
     ```bash
+    poetry run pytest
+    ```
+
+    This ensures pytest runs within the virtual environment without needing to activate it separately.
+
+    Alternatively, you can manually activate the environment and then run the tests:
+
+    ```bash
+    # activate the environment
+    eval $(poetry env activate)
+
+    # run the tests
     pytest
+
+    # deactivate the environment after running the tests
+    deactivate
     ```
 
     This will discover and run all the test cases defined in the `tests` directory.
