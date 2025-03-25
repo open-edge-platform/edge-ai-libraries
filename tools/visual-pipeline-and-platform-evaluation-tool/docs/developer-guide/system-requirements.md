@@ -51,6 +51,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 **Required Software**:
 - Docker 20.10 or higher
 
+- Ensure the device has the required drivers. If not, follow the steps in this [link](https://edgesoftwarecatalog.intel.com/details/?microserviceType=recipe&microserviceNameForUrl=metro-ai-suite-device-qualification-for-hardware-builder).
 
 ## Compatibility Notes
 <!--
