@@ -29,7 +29,7 @@ By following this guide, you will learn how to:
     - Download the artifacts:
       ```bash
         mkdir video_generator
-        curl -L -o video_generator/models.lst "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
+        curl -L -o video_generator/config.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
         mkdir -p video_generator/images/cars
         curl -L -o video_generator/images/cars/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/1.png"
         curl -L -o video_generator/images/cars/2.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/2.png"
