@@ -82,7 +82,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 - Docker 24.0 or higher
 - Python 3.11+
 
-<!-- 
+<!--
 **Dependencies**:
 - Intel® Distribution of OpenVINO™ Toolkit 2024.5
 - Intel® oneMKL
