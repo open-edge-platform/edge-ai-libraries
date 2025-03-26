@@ -5,7 +5,7 @@ The ChatQ&A sample application is a RAG based chatbot pipeline that allows devel
 ## Purpose
 
 The ChatQnA sample application is designed to:
-- Demonstrate how Intel Tiber<sup>TM</sup> Edge AI catalog of inference microservices can be used to quickly build and deploy on Intel Tiber<sup>TM</sup> Edge AI systems portfolio. 
+- Demonstrate how Intel Tiber<sup>TM</sup> Edge AI catalog of inference microservices can be used to quickly build and deploy on Intel Tiber<sup>TM</sup> Edge AI systems portfolio.
 - Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Tiber<sup>TM</sup> Edge AI systems.
 - Showcase how popular frameworks like LangChain can be used to quickly implement a sample application and deploy the same on Intel Tiber<sup>TM</sup> AI systems.
 - Showcase the competitiveness of Intel Tiber<sup>TM</sup> Edge AI systems to address varied deployment scenario requirements (edge to cloud).
@@ -14,7 +14,7 @@ The ChatQnA sample application is designed to:
 ## Detailed Architecture Overview
 <!--
 **User Stories Addressed**:
-- **US-7: Understanding the Architecture**  
+- **US-7: Understanding the Architecture**
   - **As a developer**, I want to understand the architecture and components of the application, so that I can identify customization or integration points.
 
 **Acceptance Criteria**:
@@ -26,25 +26,27 @@ The ChatQnA sample application is designed to:
 ChatQ&A application is a combination of the core LangChain application logic that implements the ChatQ&A pipeline and the set of microservices that implements the salient blocks of a RAG based ChatQ&A application. The figure below illustrates the setup. The ChatQ&A UI communicates with the ChatQ&A backend application. The LLM, Reranker, and Embedding microservices are provided as part of Intel Tiber<sup>TM</sup> inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs like [Hugging Face OpenVINO](https://huggingface.co/OpenVINO). The document ingestion microservice provides capability to ingest popular document types, convert it into embedding space, and store it in the VectorDB. A copy of the document can also be saved to the object store.
 
 ### Technical Architecture Diagram
+
 ![Technical Architecture Diagram](./images/TEAI_ChatQnA.png)
 *Figure 1: Detailed Architecture of ChatQ&A sample application
 
 ### Application Flow
+
 1. **Input Sources**:
-   - **Documents**: The document ingestion microservice supports ingesting from various document formats. Supported formats are word and pdf. 
+   - **Documents**: The document ingestion microservice supports ingesting from various document formats. Supported formats are word and pdf.
    - **Web pages**: Contents of accessible web pages can also be parsed and used as input for the RAG pipeline.
 2. **Create the context**
    - **Upload input documents and web links**: The UI microservice allows the developer to interact with the ChatQ&A backend. It provides the interface to upload the documents and weblinks on which the RAG pipeline will be executed. The documents are uploaded and stored in object store. MinIO is the database used for object store.
    - **Convert to embeddings space**: The ChatQ&A backend microservice creates the embeddings out of the uploaded documents and web pages using the document ingestion microservice. The Embeddings microservice is used to create the embeddings. The embeddings are stored in a vector database. PGVector is used in the sample application.
 3. **Chat flow**
-   - **Ask a query**: The UI microservice provides prompt window in which the query is asked. 
+   - **Ask a query**: The UI microservice provides prompt window in which the query is asked.
    - **Execute the RAG AI pipeline**: The ChatQ&A backend microservice performs the following actions to generate the output response using the RAG pipeline.
       -   The query is converted into embedding space using the Embeddings microservice.
       - Semantic retrieval is done to fetch the relevant documents or data points from VectorDB. The reranker microservice ranks them in order of accuracy.
-      - The retrieved documents and data points is used as part of the prompt to the LLM model and a response is generated using the LLM microservice which hosts the configured LLM model.    
+      - The retrieved documents and data points is used as part of the prompt to the LLM model and a response is generated using the LLM microservice which hosts the configured LLM model.
 4. **Output Generation**:
    - **Response**: The generated response from the LLM microservice is sent to the UI for display and consumption by the user.
-   - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..   
+   - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/request.jpg)
@@ -58,7 +60,7 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 -->
 
 1. **Intel Tiber<sup>TM</sup> Edge AI Inference microservices**:
-   - **What it is**: Inference microservices are the LLM, Embeddings, and Reranker microservices that run the chosen models optimally on the hardware. 
+   - **What it is**: Inference microservices are the LLM, Embeddings, and Reranker microservices that run the chosen models optimally on the hardware.
    - **How it's used**: Each of the microservices uses OpenAI APIs to support their functionality. The microservices are configured to use the required models and launched. The ChatQ&A backend accesses these microservices in the LangChain application which creates a RAG chain out of these microservices.
    - **Benefits**: The default configuration of these microservices as provided by the sample application is guaranteed to perform optimally for the chosen models and on the target deployment hardware. Standard OpenAI API ensures easy portability of different inference microservices.
 
@@ -83,7 +85,7 @@ The ChatQ&A sample application is designed with modularity in mind, allowing dev
 1. **Change inference microservices**:
    - The default option is OVMS for LLM and TEI for embeddings and reranker.
    - Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
-   - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options. 
+   - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options.
 2. **Load different LLM, Embedding, and Reranker models**:
    - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers.
 3. **Use other GenAI frameworks like Haystack and LlamaIndex**:
@@ -92,5 +94,6 @@ The ChatQ&A sample application is designed with modularity in mind, allowing dev
    - Follow the system requirements guidelines on the different options available.
 
 ## Next Steps
+
 - [Get Started](./get-started.md)
-- [Benchmarks](./benchmarks.md)
+- [Benchmarks](./how-to-performance.md)

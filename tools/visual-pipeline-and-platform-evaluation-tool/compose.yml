@@ -1,0 +1,107 @@
+services:
+  models:
+    image: docker.io/openvino/ubuntu22_dev:2025.0.0
+    container_name: models
+    volumes:
+      - ./models.lst:/opt/intel/openvino_2025.0.0.0/models.lst
+      - ./models/:/output
+    user: root
+    command: bash -xc '
+        test -f /output/.done || (
+          OPENVINO_STORAGE_URL="https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/1" &&
+          MODEL_1="person-vehicle-bike-detection-2004/FP16-INT8/person-vehicle-bike-detection-2004" &&
+          MODEL_2="vehicle-attributes-recognition-barrier-0039/FP16-INT8/vehicle-attributes-recognition-barrier-0039" &&
+          mkdir -p /tmp/models/intel/person-vehicle-bike-detection-2004/FP16-INT8 && 
+          curl $$OPENVINO_STORAGE_URL/$$MODEL_1.xml -o /tmp/models/intel/$$MODEL_1.bin &&
+          curl $$OPENVINO_STORAGE_URL/$$MODEL_1.xml -o /tmp/models/intel/$$MODEL_1.xml &&
+          mkdir -p /tmp/models/intel/vehicle-attributes-recognition-barrier-0039/FP16-INT8 &&
+          curl $$OPENVINO_STORAGE_URL/$$MODEL_2.xml -o /tmp/models/intel/$$MODEL_2.xml &&
+          curl $$OPENVINO_STORAGE_URL/$$MODEL_2.bin -o /tmp/models/intel/$$MODEL_2.bin &&
+          cp -r /tmp/models/intel /output &&
+          mkdir -p /output/public &&
+          git clone --depth 1 https://github.com/dlstreamer/pipeline-zoo-models.git &&
+          cp -r pipeline-zoo-models/storage/efficientnet-b0_INT8 /output/public/ &&
+          cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/public &&
+          cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/public/ &&
+          cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/public/ &&
+          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/public/
+        ) &&
+        touch /output/.done &&
+        tail -f /dev/null
+      '
+    restart: on-failure:5
+  vippet:
+    image: docker.io/intel/vippet-app:v1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile.vippet
+    container_name: vippet
+    ports:
+      - "7860:7860"
+    command: gradio app.py
+    depends_on:
+      - models
+    restart: on-failure:5
+    # # The following config applies to WSL2:
+    # environment:
+    #   DISPLAY: ":0"
+    #   WAYLAND_DISPLAY: "wayland-0"
+    #   XDG_RUNTIME_DIR: "/mnt/wslg/runtime-dir"
+    #   PULSE_SERVER: "/mnt/wslg/PulseServer"
+    #   GST_DEBUG: "1"
+    # devices:
+    #   - "/dev/dri:/dev/dri"
+    # volumes:
+    #   - "/run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix"
+    #   - "/run/desktop/mnt/host/wslg:/mnt/wslg"
+    #   - "/usr/lib/wsl:/usr/lib/wsl"
+    # The following config applies to Linux:
+    environment:
+      GST_DEBUG: "1"
+    group_add:
+     - "110"
+    devices:
+      - "/dev/dri:/dev/dri"
+    volumes:
+      - collector-signals:/home/dlstreamer/vippet/.collector-signals
+      - ./models:/home/dlstreamer/vippet/models
+  collector:
+    image: docker.io/intel/vippet-collector:v1.0.0
+    build:
+      context: .
+      dockerfile: Dockerfile.collector
+    container_name: collector
+    privileged: true
+    devices:
+      - "/sys:/sys"
+      - "/dev:/dev"
+      - "/run:/run"
+      - "/proc:/proc"
+    network_mode: host
+    ipc: host
+    pid: host
+    volumes:
+      - "collector-signals:/usr/src/app/.collector-signals"
+    command: bash -xc '
+        chmod a+rwx /usr/src/app/.collector-signals &&
+        bash /usr/src/app/collector.sh
+      '
+    restart: on-failure:5
+  videogenerator:
+    image: docker.io/intel/vippet-videogenerator:v1.0.0
+    build:
+      context: video_generator
+      dockerfile: Dockerfile
+    container_name: videogenerator
+    volumes:
+      - "./videos:/usr/src/app/output"
+      - "./video_generator/config.json:/usr/src/app/config.json"
+      - "./video_generator/images:/usr/src/app/images"
+    restart: on-failure:5
+
+volumes:
+  collector-signals:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
