@@ -7,7 +7,7 @@ global:
     https_proxy: <HTTPS_PROXY>
 
 tgiService:
-  name: tgi-service
+  name: text-generation-service
   image: 
     repository: ghcr.io/huggingface/text-generation-inference
     tag: "3.0.1-intel-xpu"

@@ -17,7 +17,7 @@ global:
   ovmsEmbeddingService:
     enabled: false
 
-intelEgaiChatqna:
+Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
@@ -51,7 +51,7 @@ dataprepPgvector:
     targetPort: 8000
 
 tgiService:
-  name: tgi-service
+  name: text-generation-service
   enabled: false
   service:
     port: 8080

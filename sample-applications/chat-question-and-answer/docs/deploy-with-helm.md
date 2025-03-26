@@ -31,15 +31,15 @@ Note: The configuration below is Intel internal currently. Post migration to pub
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | <your-passwd> (MINIO_ROOT_PASSWORD length at least 8 characters) |
 |  global.OTLP.endpoint | OTLP Endpoint | |
 |  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
-| `intelEgaiChatqna.name` | Name of the ChatQnA application                        | `intel-egai-chatqna` |
-| `intelEgaiChatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `intelEgaiChatqna.image.tag` | latest image tag                                  | `1.1`   |
-| `intelEgaiChatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
-| `intelEgaiChatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
-| `intelEgaiChatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
-| `intelEgaiChatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
-| `intelEgaiChatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
-| `intelEgaiChatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
+| `Chatqna.name` | Name of the ChatQnA application                        | `intel-egai-chatqna` |
+| `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
+| `Chatqna.image.tag` | latest image tag                                  | `1.1`   |
+| `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
+| `Chatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
+| `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
+| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
+| `Chatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
+| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
 
 ### Step 3: Build Helm Dependencies
 

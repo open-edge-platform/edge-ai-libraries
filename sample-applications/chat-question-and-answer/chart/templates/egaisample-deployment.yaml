@@ -1,15 +1,15 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Values.intelEgaiChatqna.name }}
+  name: {{ .Values.Chatqna.name }}
 spec:
   selector:
     matchLabels:
-      app: {{ .Values.intelEgaiChatqna.name }}
+      app: {{ .Values.Chatqna.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.intelEgaiChatqna.name }}
+        app: {{ .Values.Chatqna.name }}
     spec:
       securityContext:
         fsGroup: 1001
@@ -17,14 +17,14 @@ spec:
         runAsGroup: 1001
         allowPrivilegeEscalation: false
       containers:
-        - name: {{ .Values.intelEgaiChatqna.name }}
-          image: {{ .Values.intelEgaiChatqna.image.repository }}:{{ .Values.intelEgaiChatqna.image.tag }}
-          imagePullPolicy: {{ .Values.intelEgaiChatqna.image.pullPolicy }}
+        - name: {{ .Values.Chatqna.name }}
+          image: {{ .Values.Chatqna.image.repository }}:{{ .Values.Chatqna.image.tag }}
+          imagePullPolicy: {{ .Values.Chatqna.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.intelEgaiChatqna.service.port }}
+            - containerPort: {{ .Values.Chatqna.service.port }}
           env:
             - name: NO_PROXY
-              value: "{{ .Values.global.proxy.no_proxy }},vllm-service.{{ .Release.Namespace }},tgi-service.{{ .Release.Namespace }},ovms.{{ .Release.Namespace }},reranker.{{ .Release.Namespace }},tei-embedding-service.{{ .Release.Namespace }},ovms-embedding.{{ .Release.Namespace }}"
+              value: "{{ .Values.global.proxy.no_proxy }},vllm-service.{{ .Release.Namespace }},text-generation-service.{{ .Release.Namespace }},ovms.{{ .Release.Namespace }},reranker.{{ .Release.Namespace }},tei-embedding-service.{{ .Release.Namespace }},ovms-embedding.{{ .Release.Namespace }}"
             - name: HTTP_PROXY
               value: {{ .Values.global.proxy.http_proxy }}
             - name: HTTPS_PROXY
@@ -38,7 +38,7 @@ spec:
             - name: EMBEDDING_MODEL
               value: {{ .Values.global.EMBEDDING_MODEL_NAME }}
             - name: INDEX_NAME
-              value: {{ .Values.intelEgaiChatqna.env.INDEX_NAME }}
+              value: {{ .Values.Chatqna.env.INDEX_NAME }}
             - name: HOME
               value: /home/intelgai
             - name: EMBEDDING_ENDPOINT_URL
@@ -50,28 +50,28 @@ spec:
             - name: RERANKER_ENDPOINT
               value: http://reranker.{{ .Release.Namespace }}:{{ .Values.reranker.service.port }}/rerank
             - name: PG_CONNECTION_STRING
-              value: {{ .Values.intelEgaiChatqna.env.PG_CONNECTION_STRING }}{{ .Values.global.POSTGRES_USER }}:{{ .Values.global.POSTGRES_PASSWORD }}@pgvector.{{ .Release.Namespace }}:{{ .Values.intelEgaiChatqna.env.PORT_DB }}
+              value: {{ .Values.Chatqna.env.PG_CONNECTION_STRING }}{{ .Values.global.POSTGRES_USER }}:{{ .Values.global.POSTGRES_PASSWORD }}@pgvector.{{ .Release.Namespace }}:{{ .Values.Chatqna.env.PORT_DB }}
             - name: OTLP_ENDPOINT
-              value:  {{ .Values.intelEgaiChatqna.env.OTLP_ENDPOINT }}
+              value:  {{ .Values.Chatqna.env.OTLP_ENDPOINT }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value:  {{ .Values.intelEgaiChatqna.env.OTLP_ENDPOINT }}
+              value:  {{ .Values.Chatqna.env.OTLP_ENDPOINT }}
             - name: SERVICE_NAME
-              value:  {{ .Values.intelEgaiChatqna.env.SERVICE_NAME }}
+              value:  {{ .Values.Chatqna.env.SERVICE_NAME }}
             - name: SERVICE_ENV
-              value:  {{ .Values.intelEgaiChatqna.env.SERVICE_ENV }}
+              value:  {{ .Values.Chatqna.env.SERVICE_ENV }}
             - name: OTEL_METRICS_EXPORTER
-              value:  {{ .Values.intelEgaiChatqna.env.OTEL_METRICS_EXPORTER }}
+              value:  {{ .Values.Chatqna.env.OTEL_METRICS_EXPORTER }}
             - name: OTEL_TRACES_EXPORTER
-              value:  {{ .Values.intelEgaiChatqna.env.OTEL_TRACES_EXPORTER }}
+              value:  {{ .Values.Chatqna.env.OTEL_TRACES_EXPORTER }}
             - name: REQUESTS_CA_BUNDLE
-              value:  {{ .Values.intelEgaiChatqna.env.REQUESTS_CA_BUNDLE }}
+              value:  {{ .Values.Chatqna.env.REQUESTS_CA_BUNDLE }}
             - name: ENDPOINT_URL
               value: {{ if .Values.vllmService.enabled }}
-                      {{ .Values.intelEgaiChatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.vllmService.service.port }}/v1
+                      {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.vllmService.service.port }}/v1
                     {{ else if .Values.tgiService.enabled  }}
-                     {{ .Values.intelEgaiChatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.tgiService.service.port }}/v1
+                     {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.tgiService.service.port }}/v1
                     {{ else  if .Values.ovmsService.enabled }}
-                      {{ .Values.intelEgaiChatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.ovmsService.service.port }}/v3
+                      {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.ovmsService.service.port }}/v3
                     {{ end }}
             - name: FETCH_K
               value: "10"

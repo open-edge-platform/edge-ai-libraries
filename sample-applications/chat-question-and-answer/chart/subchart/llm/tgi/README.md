@@ -22,7 +22,7 @@ This guide provides instructions for deploying the Text Generation Inference (TG
   | Key                          | Value                                                                 |
   |------------------------------|-----------------------------------------------------------------------|
   | `global.huggingface.apiToken`| `<your-huggingface-api-token>`                                         |
-  | `tgiService.name`            | `tgi-service`                                                         |
+  | `tgiService.name`            | `text-generation-service`                                                         |
   | `tgiService.image.repository`| `ghcr.io/huggingface/text-generation-inference`                       |
   | `tgiService.image.tag`       | `3.0.1-intel-xpu`                                                                 |
   | `tgiService.volumes`         | `$PWD/data_tgi:/data`                                                 |
