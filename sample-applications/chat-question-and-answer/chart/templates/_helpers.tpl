@@ -2,14 +2,14 @@
 {{/*
 Expand the name of the chart.
 */}}
-{{- define "intel-egai-chatqna-helm-chart.name" -}}
+{{- define "chatqna-helm-chart.name" -}}
 {{- default .Chart.Name .Values.nameOverride | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Expand the full name of the chart.
 */}}
-{{- define "intel-egai-chatqna-helm-chart.fullname" -}}
+{{- define "chatqna-helm-chart.fullname" -}}
 {{- if .Values.fullnameOverride -}}
 {{- .Values.fullnameOverride | trunc 63 | trimSuffix "-" -}}
 {{- else -}}
@@ -21,23 +21,23 @@ Expand the full name of the chart.
 {{/*
 Create a default chart label.
 */}}
-{{- define "intel-egai-chatqna-helm-chart.chart" -}}
+{{- define "chatqna-helm-chart.chart" -}}
 {{- printf "%s-%s" .Chart.Name .Chart.Version | trunc 63 | trimSuffix "-" -}}
 {{- end -}}
 
 {{/*
 Common labels
 */}}
-{{- define "intel-egai-chatqna-helm-chart.labels" -}}
-helm.sh/chart: {{ include "intel-egai-chatqna-helm-chart.chart" . }}
-{{ include "intel-egai-chatqna-helm-chart.selectorLabels" . }}
+{{- define "chatqna-helm-chart.labels" -}}
+helm.sh/chart: {{ include "chatqna-helm-chart.chart" . }}
+{{ include "chatqna-helm-chart.selectorLabels" . }}
 {{- end -}}
 
 {{/*
 Selector labels
 */}}
-{{- define "intel-egai-chatqna-helm-chart.selectorLabels" -}}
-app.kubernetes.io/name: {{ include "intel-egai-chatqna-helm-chart.name" . }}
+{{- define "chatqna-helm-chart.selectorLabels" -}}
+app.kubernetes.io/name: {{ include "chatqna-helm-chart.name" . }}
 app.kubernetes.io/instance: {{ .Release.Name }}
 app.kubernetes.io/version: {{ .Chart.AppVersion }}
 app.kubernetes.io/managed-by: {{ .Release.Service }}

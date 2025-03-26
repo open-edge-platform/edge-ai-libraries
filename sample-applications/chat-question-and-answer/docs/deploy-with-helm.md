@@ -31,7 +31,7 @@ Note: The configuration below is Intel internal currently. Post migration to pub
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | <your-passwd> (MINIO_ROOT_PASSWORD length at least 8 characters) |
 |  global.OTLP.endpoint | OTLP Endpoint | |
 |  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
-| `Chatqna.name` | Name of the ChatQnA application                        | `intel-egai-chatqna` |
+| `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `1.1`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
@@ -54,7 +54,7 @@ helm dependency build
 Deploy the OVMS Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=<your-huggingface-token> \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
@@ -74,7 +74,7 @@ helm install intel-egai-chatqna . \
 Deploy the vLLM Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=your-huggingface-token \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
@@ -96,7 +96,7 @@ helm install intel-egai-chatqna . \
 Deploy the TGI Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=your-huggingface-token \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
@@ -124,14 +124,14 @@ kubectl get services -n < NAMESPACE>
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access a intel-egai-chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
+To access a chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
 Run the following command after replacing \<NAMESPACE\> with your actual values:
 ```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc intel-egai-chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```
 Simply copy and paste the output into your browser.
 ### Step 7: Update Helm Dependencies

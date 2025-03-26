@@ -58,17 +58,17 @@ kind: Deployment
 metadata:
   name: {{ include "nginx.fullname" . }}
   labels:
-    {{- include "intel-egai-chatqna-helm-chart.labels" . | nindent 4 }}
+    {{- include "chatqna-helm-chart.labels" . | nindent 4 }}
     app: {{ include "nginx.fullname" . }}
 spec:
   selector:
     matchLabels:
-      {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 6 }}
+      {{- include "chatqna-helm-chart.selectorLabels" . | nindent 6 }}
       app: {{ include "nginx.fullname" . }}
   template:
     metadata:
       labels:
-        {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 8 }}
+        {{- include "chatqna-helm-chart.selectorLabels" . | nindent 8 }}
         app: {{ include "nginx.fullname" . }}
     spec:
       containers:
@@ -107,6 +107,6 @@ spec:
     protocol: TCP
     targetPort: 80
   selector:
-    {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 4 }}
+    {{- include "chatqna-helm-chart.selectorLabels" . | nindent 4 }}
     app: {{ include "nginx.fullname" . }}
   type: NodePort
