@@ -22,13 +22,18 @@ By following this guide, you will learn how to:
       ```
     - Download the Docker Compose file:
       ```bash
-        curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose/compose-linux-v1.0.0/compose-linux-v1.0.0.yml"
+        curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose/compose-linux-v1.0.0/compose.yml"
       ```
 
 2. **Download the Artifacts**:
     - Download the artifacts:
       ```bash
+        mkdir -p models/intel/person-vehicle-bike-detection-2004/
+        curl -L -o models/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json"
+        mkdir -p models/intel/vehicle-attributes-recognition-barrier-0039/
+        curl -L -o models/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
         mkdir video_generator
+        curl -L -o video_generator/background.gif "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/background.gif"
         curl -L -o video_generator/config.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
         mkdir -p video_generator/images/cars
         curl -L -o video_generator/images/cars/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/1.png"
