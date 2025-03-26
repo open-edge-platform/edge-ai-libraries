@@ -3,7 +3,6 @@ services:
     image: docker.io/openvino/ubuntu22_dev:2025.0.0
     container_name: models
     volumes:
-      - ./models.lst:/opt/intel/openvino_2025.0.0.0/models.lst
       - ./models/:/output
     user: root
     command: bash -xc '
@@ -32,9 +31,6 @@ services:
     restart: on-failure:5
   vippet:
     image: docker.io/intel/vippet-app:v1.0.0
-    build:
-      context: .
-      dockerfile: Dockerfile.vippet
     container_name: vippet
     ports:
       - "7860:7860"
@@ -42,20 +38,6 @@ services:
     depends_on:
       - models
     restart: on-failure:5
-    # # The following config applies to WSL2:
-    # environment:
-    #   DISPLAY: ":0"
-    #   WAYLAND_DISPLAY: "wayland-0"
-    #   XDG_RUNTIME_DIR: "/mnt/wslg/runtime-dir"
-    #   PULSE_SERVER: "/mnt/wslg/PulseServer"
-    #   GST_DEBUG: "1"
-    # devices:
-    #   - "/dev/dri:/dev/dri"
-    # volumes:
-    #   - "/run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix"
-    #   - "/run/desktop/mnt/host/wslg:/mnt/wslg"
-    #   - "/usr/lib/wsl:/usr/lib/wsl"
-    # The following config applies to Linux:
     environment:
       GST_DEBUG: "1"
     group_add:
@@ -67,9 +49,6 @@ services:
       - ./models:/home/dlstreamer/vippet/models
   collector:
     image: docker.io/intel/vippet-collector:v1.0.0
-    build:
-      context: .
-      dockerfile: Dockerfile.collector
     container_name: collector
     privileged: true
     devices:
@@ -89,9 +68,6 @@ services:
     restart: on-failure:5
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
-    build:
-      context: video_generator
-      dockerfile: Dockerfile
     container_name: videogenerator
     volumes:
       - "./videos:/usr/src/app/output"
