@@ -39,8 +39,8 @@ if otlp_endpoint:
 
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
-MODEL_NAME = os.getenv("EMBEDDING_MODEL")
-EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL")
+MODEL_NAME = os.getenv("EMBEDDING_MODEL","BAAI/bge-small-en-v1.5")
+EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL","http://localhost:6006")
 COLLECTION_NAME = os.getenv("INDEX_NAME")
 FETCH_K = os.getenv("FETCH_K")
 
@@ -48,8 +48,8 @@ engine = create_async_engine(PG_CONNECTION_STRING)
 
 # Init Embeddings via Intel Edge GenerativeAI Suite
 embedder = EGAIEmbeddings(
-            openai_api_key="EMPTY", 
-            openai_api_base="{}".format(EMBEDDING_ENDPOINT_URL), 
+            openai_api_key="EMPTY",
+            openai_api_base="{}".format(EMBEDDING_ENDPOINT_URL),
             model=MODEL_NAME,
             tiktoken_enabled=False
         )

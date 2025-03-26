@@ -5,6 +5,7 @@ ChatQ&A sample application is a foundational Retrieval-Augmented Generation (RAG
 ![ChatQ&A web interface](./docs/images/ChatQnA_Webpage.png)
 
 ## Table of Contents
+
 1. [Overview and Architecture](#overview-and-architecture)
 2. [How to Use the Application](#how-to-use-the-application)
 3. [Benchmarks](#benchmark-results)
@@ -18,13 +19,14 @@ ChatQ&A sample application is a foundational Retrieval-Augmented Generation (RAG
 Key features include:
 
 - **Optimized RAG pipeline on Intel Tiber AI Systems hardware**: The application is [optimized](./docs/benchmarks.md) to run efficiently on Intel® hardware, ensuring high performance and reliability.
-- **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI [inference microservices](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices) allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. For example, developers can customize the data ingestion process for specific document types without altering the rest of the RAG pipeline. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
+- **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI [inference microservices](../../microservices/) allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. For example, developers can customize the data ingestion process for specific document types without altering the rest of the RAG pipeline. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
 - **Flexible deployment options**: The application provides options for deployment using Docker Compose and Helm charts, enabling developers to choose the best deployment environment for their needs.
 - **Support for a wide range of open-source models**: Intel's inference microservices provide flexibility to use the right GenAI models (LLM, for example) as required for target usage. The application supports various [open-source models](https://huggingface.co/OpenVINO), allowing developers to select the best models for their use cases.
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) & [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
 
 ### Technical Architecture
+
 The ChatQ&A sample application includes the following components:
 
 - **LLM inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) is used to efficiently run large language models on Intel hardware. Developers also have other model serving options if required.
@@ -51,14 +53,17 @@ Detailed hardware and software requirements are available [here](./docs/system-r
 To get started with the application, please refer to the [Get Started](./docs/get-started.md) page.
 
 ## Benchmark Results
+
 Detailed metrics and analysis can be found in the benchmark report [here](./docs/benchmarks.md).
 
 ## Release Notes
 
 ### Version 1.0.0
+
 - Initial release of the ChatQ&A Sample Application.
 - Added support for vLLM, TGI, and OVMS inference methods.
 - Improved user interface for better user experience.
 
 ## Support and Community
+
 This section provides information on how to get support and engage with the community.

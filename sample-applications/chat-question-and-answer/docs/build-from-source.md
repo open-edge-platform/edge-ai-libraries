@@ -3,6 +3,7 @@
 This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
 
 ## Prerequisites
+
 Before you begin, ensure that you have the following prerequisites:
 - Docker installed on your system: [Installation Guide](https://docs.docker.com/get-docker/).
 
@@ -13,6 +14,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git
       ```
+
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
@@ -61,11 +63,13 @@ Before you begin, ensure that you have the following prerequisites:
     # ModelServer: VLLM , OVMS, TGI
     # Embedding: OVMS, TEI
     ```
+
 4. **Build the Docker Image**:
     - Build the Docker image for the ChatQ&A Sample Application:
       ```bash
       docker compose build chatqna
       ```
+
 5. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
@@ -76,6 +80,7 @@ Before you begin, ensure that you have the following prerequisites:
     - Open a browser and go to `http://{host_ip}:5173` to access the application dashboard.
 
 ## Verification
+
 - Ensure that the application is running by checking the Docker container status:
   ```bash
   docker ps
@@ -83,8 +88,8 @@ Before you begin, ensure that you have the following prerequisites:
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting
+
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
   ```bash
   docker logs <container_id>
   ```
-

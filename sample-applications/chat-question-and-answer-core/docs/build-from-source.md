@@ -1,20 +1,20 @@
 # How to Build from Source
 
-This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
+This guide provides step-by-step instructions for building the Chat Question-and-Answer Core Sample Application from source.
 
-If you want to build the microservices image locally, you can optionally refer to the steps in the [Building the Backend Image](#building-the-backend-image) and [Building the UI Image](#building-the-ui-image) sections. These sections provide detailed instructions on how to build the Docker images for both the backend and UI components of the `chatqna-core` application separately.
+If you want to build the microservices image locally, you can optionally refer to the steps in the [Building the Backend Image](#building-the-backend-image) and [Building the UI Image](#building-the-ui-image) sections. These sections provide detailed instructions on how to build the Docker images for both the backend and UI components of the `Chat Question-and-Answer Core` application separately.
 
 If you want to build the images via `docker compose`, please refer to the section [Build the Images via Docker Compose](#build-the-images-via-docker-compose).
 
-Once all the images are built, go back to `chatqna-core` directory by using `cd ..` command. Then, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
+Once all the images are built, go back to `chat-question-and-answer-core` directory by using `cd ..` command. Then, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
 ## Building the Backend Image
-To build the Docker image for the `chatqna-core` application, follow these steps:
+To build the Docker image for the `Chat Question-and-Answer Core` application, follow these steps:
 
 1. Ensure you are in the project directory:
 
    ```bash
-   cd sampleapps/chatqna-core
+   cd sample-applications/chat-question-and-answer-core
    ```
 
 2. Build the Docker image using the provided `Dockerfile`:
@@ -37,7 +37,7 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
 1. Ensure you are in the `ui/` project directory:
 
    ```bash
-   cd sampleapps/chatqna-core/ui
+   cd sample-applications/chat-question-and-answer-core/ui
    ```
 
 2. Build the Docker image using the provided `Dockerfile`:
@@ -60,7 +60,7 @@ If you want to build the images using the `compose.yaml` file via the `docker co
 1. Ensure you are in the project directory:
 
    ```bash
-   cd sampleapps/chatqna-core
+   cd sample-applications/chat-question-and-answer-core
    ```
 
 2. Build the Docker images using the `compose.yaml` file:
@@ -83,4 +83,3 @@ You should see entries for both `chatqna` and `chatqna-ui`.
   ```
 
 ## Next Steps
-
