@@ -14,7 +14,8 @@ The **Edge AI Libraries** project hosts a collection of libraries, microservices
 | Microservice | [Object Store](microservices/object-store) |
 | Tool | [Video Generator](tools/video-generator) |
 | Tool | [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) |
-| Sample Application | [Chat Question and Answer](sample-applcations/chat-question-and-answer) |
+| Sample Application | [Chat Question and Answer](sample-applications/chat-question-and-answer) |
+| Sample Application | [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) |
 
 ## Get Started
 
