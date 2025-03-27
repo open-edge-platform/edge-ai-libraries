@@ -14,6 +14,7 @@ By following this guide, you will learn how to:
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## Prerequisites
+
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
@@ -36,22 +37,22 @@ By following this guide, you will learn how to:
 1. **Clone the Repository**:
     Clone the ChatQ&A sample application repository. Note: Documentation will be updated post-migration to the public repo to point to the new repo that is accessible outside of Intel.
     ```bash
-    git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
-      ```bash
-       cd applications.ai.intel-gpt.generative-ai-examples/sampleapps/chatqna-core
-      ```
+    ```bash
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
+    ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
     To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
-      ```bash
-      export REGISTRY="intel/"
-      export BACKEND_TAG=core_1.1
-      export UI_TAG=core_1.1
-      ```
+    ```bash
+    export REGISTRY="intel/"
+    export BACKEND_TAG=core_1.1
+    export UI_TAG=core_1.1
+    ```
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
 4. **Set Up Environment Variables**:
@@ -64,9 +65,9 @@ By following this guide, you will learn how to:
 
 5. **Start the Application**:
     Start the application using docker compose:
-      ```bash
-      docker compose -f docker/compose.yaml up
-      ```
+    ```bash
+    docker compose -f docker/compose.yaml up
+    ```
 
 6. **Verify the Application**:
     Following log should be printed on the console to confirm that the application is ready for use.
@@ -79,10 +80,12 @@ By following this guide, you will learn how to:
     Open a browser and go to `http://$HOST_IP:5173` to access the application dashboard.
 
 ## Advanced Setup Options
+
 For alternative ways to set up the sample application, see:
 
 - [How to Build from Source](./build-from-source.md)
 
 ## Supporting Resources
+
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [API Reference](./chatqna-api.yml)

@@ -31,7 +31,6 @@ services:
     volumes:
       - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
-      - "~/.cache/huggingface:/home/intelgai/.cache/huggingface"
 
   pgvector:
     image: pgvector/pgvector:pg16
@@ -70,7 +69,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: intel/document-ingestion:1.1
+    image: ${REGISTRY:-}document-ingestion:${TAG:-latest}
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -94,7 +93,7 @@ services:
       - my_network
 
   chatqna-ui:
-    image: intel/chatqna-ui:1.1
+    image: ${REGISTRY:-}chatqna-ui:${TAG:-latest}
     container_name: chatqna-ui_server
     build:
       context: ./ui/react/
@@ -127,7 +126,7 @@ services:
       --console-address ":${MINIO_CONSOLE_PORT:-9001}"
 
   data-store:
-    image: intel/object-store:1.1
+    image: ${REGISTRY:-}object-store:${TAG:-latest}
     hostname: data_store
     environment:
       - http_proxy

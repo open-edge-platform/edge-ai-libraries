@@ -1,98 +1,118 @@
-openapi: 3.1.0
-info:
-  title: FastAPI
-  version: 0.1.0
-paths:
-  /stream_log:
-    post:
-      summary: Query Chain
-      description: >-
-        Handles POST requests to the /stream_log endpoint.
+openapi: "3.1.0"
+info: 
+  title: "FastAPI"
+  version: "0.1.0"
+servers: 
+- url: "/v1/chatqna"
+paths: 
+  /: 
+    get: 
+      summary: "Redirect Root To Docs"
+      operationId: "redirect_root_to_docs__get"
+      responses: 
+        200: 
+          description: "Successful Response"
+          content: 
+            application/json: 
+              schema: 
+  /health: 
+    get: 
+      summary: "Health Check"
+      description: "Health check endpoint to verify if the LLM and embedding model servers are ready to serve connections.
 
-        This endpoint receives a question in the form of a JSON payload,
-        validates the input,
+Returns:
+    The status of the LLM and embedding model servers."
+      operationId: "health_check_health_get"
+      responses: 
+        200: 
+          description: "Successful Response"
+          content: 
+            application/json: 
+              schema: 
+  /model: 
+    get: 
+      summary: "Get Llm Model"
+      description: "Endpoint to get the current LLM model.
 
-        and returns a streaming response with the processed chunks of the
-        question text.
+Returns:
+    The current LLM model."
+      operationId: "get_llm_model_model_get"
+      responses: 
+        200: 
+          description: "Successful Response"
+          content: 
+            application/json: 
+              schema: 
+  /stream_log: 
+    post: 
+      summary: "Query Chain"
+      description: "Handles POST requests to the /stream_log endpoint.
 
-        Args:
-            payload (QuestionRequest): The request payload containing the input question text.
+This endpoint receives a question in the form of a JSON payload, validates the input,
+and returns a streaming response with the processed chunks of the question text.
 
-        Returns:
-            StreamingResponse: A streaming response with the processed chunks of the question text.
+Args:
+    payload (QuestionRequest): The request payload containing the input question text.
 
-        Raises:
-            HTTPException: If the input question text is empty or not provided, a 422 status code is returned.
-      operationId: query_chain_stream_log_post
-      requestBody:
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/QuestionRequest'
-        required: true
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                type: object
-                properties:
-                  message:
-                    type: string
-                    description: The response message
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-components:
-  schemas:
-    HTTPValidationError:
-      properties:
-        detail:
-          items:
-            $ref: '#/components/schemas/ValidationError'
-          type: array
-          title: Detail
-          description: List of validation errors
-      type: object
-      title: HTTPValidationError
-      description: Validation error response
-    QuestionRequest:
-      properties:
-        input:
-          type: string
-          title: Input
-          description: The input question text
-      type: object
-      required:
-        - input
-      title: QuestionRequest
-      description: Request payload containing the input question text
-    ValidationError:
-      properties:
-        loc:
-          items:
-            anyOf:
-              - type: string
-              - type: integer
-          type: array
-          title: Location
-          description: Location of the error
-        msg:
-          type: string
-          title: Message
-          description: Error message
-        type:
-          type: string
-          title: Error Type
-          description: Type of the error
-      type: object
-      required:
-        - loc
-        - msg
-        - type
-      title: ValidationError
-      description: Validation error details
+Returns:
+    StreamingResponse: A streaming response with the processed chunks of the question text.
+
+Raises:
+    HTTPException: If the input question text is empty or not provided, a 422 status code is returned."
+      operationId: "query_chain_stream_log_post"
+      requestBody: 
+        content: 
+          application/json: 
+            schema: 
+              $ref: "#/components/schemas/QuestionRequest"
+        required: "true"
+      responses: 
+        200: 
+          description: "Successful Response"
+        422: 
+          description: "Validation Error"
+          content: 
+            application/json: 
+              schema: 
+                $ref: "#/components/schemas/HTTPValidationError"
+components: 
+  schemas: 
+    HTTPValidationError: 
+      properties: 
+        detail: 
+          items: 
+            $ref: "#/components/schemas/ValidationError"
+          type: "array"
+          title: "Detail"
+      type: "object"
+      title: "HTTPValidationError"
+    QuestionRequest: 
+      properties: 
+        input: 
+          type: "string"
+          title: "Input"
+      type: "object"
+      required: 
+      - "input"
+      title: "QuestionRequest"
+    ValidationError: 
+      properties: 
+        loc: 
+          items: 
+            anyOf: 
+            - type: "string"
+            - type: "integer"
+          type: "array"
+          title: "Location"
+        msg: 
+          type: "string"
+          title: "Message"
+        type: 
+          type: "string"
+          title: "Error Type"
+      type: "object"
+      required: 
+      - "loc"
+      - "msg"
+      - "type"
+      title: "ValidationError"

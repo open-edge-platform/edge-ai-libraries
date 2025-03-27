@@ -4,9 +4,9 @@ This document provides reference benchmark results for the ChatQ&A sample applic
 
 ## Test Environment
 
-- **Processor:** Intel Xeon 4th generation
-- **Memory:** 1TB DDR4
-- **Storage:** 8TB NVMe SSD
+- **Processor:** Intel® Core™ Ultra 7 256V
+- **Memory:** 16GB
+- **Storage:** 1TB
 - **Operating System:** Ubuntu 22.04.2 LTS
 
 ## Benchmark Results
