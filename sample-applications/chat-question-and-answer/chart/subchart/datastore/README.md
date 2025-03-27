@@ -24,7 +24,7 @@ This Helm chart deploys the `dataStore` service. The `dataStore` service require
     | Parameter          | Description                                      | Default Value                          |
     |--------------------|--------------------------------------------------|----------------------------------------|
     | `dataStore.image.repository`  | Docker image repository for datastore        | `intel/object-store` |
-    | `dataStore.image.tag`         | Docker image tag                             | `1.1`                                   |
+    | `dataStore.image.tag`         | Docker image tag                             | `1.1.1`                                   |
     | `dataStore.env.MINIO_HOST`    | Minio server host                            | `minio-server`                         |
     | `dataStore.env.MINIO_API_PORT`| Minio API port                               | `9000`                                 |
     | `dataStore.env.MINIO_ACCESS_KEY` | Minio access key                          | ``                           |

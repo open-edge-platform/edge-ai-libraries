@@ -84,7 +84,7 @@ By following this guide, you will learn how to:
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
-    export TAG=1.1
+    export TAG=1.1.1
     source setup.sh llm=<ModelServer> embed=<Embedding>
     # Below are the options
     # ModelServer: VLLM , OVMS, TGI
