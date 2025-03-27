@@ -26,12 +26,12 @@ Edit the `values.yaml` file located in the chart directory to set the necessary 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token                      | `<your-huggingface-token>` |
-| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your-id>` |
-| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `<your-passwd>` |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your-id>` (MINIO_ROOT_USER length should be at least 3) |
-| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-passwd>` (MINIO_ROOT_PASSWORD length at least 8 characters) |
-|  global.OTLP.endpoint | OTLP Endpoint | |
-|  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
+| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your postgres user-id>` |
+| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `your postgres password` |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | `your minio user-id (MINIO_ROOT_USER length should be at least 3)` |
+| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `your minio password` (MINIO_ROOT_PASSWORD length at least 8 characters) |
+| `global.OTLP.endpoint` | OTLP Endpoint | |
+| `global.OTLP.trace_endpoint` | OTLP Endpoint for Trace | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `1.1.1`   |

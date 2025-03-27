@@ -3,7 +3,7 @@
 <!--
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
-The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Tiber<sup>TM</sup> AI systems for the edge.
+The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.

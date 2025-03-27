@@ -31,11 +31,12 @@ Before you begin, ensure that you have the following prerequisites:
 3. **Run the Performance Test**:
     - Run the performance test script:
       ```bash
-      locust -f performance_test.py --host http://{host_ip}:5173
+      locust -f performance_test.py --host http://{host_ip}:<port_no>
       ```
+      The port number will depend based on if it is docker compose based deployment or Helm based deployment.
 
 4. **Monitor Performance Metrics**:
-    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard.
+    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard. Accordingly provide the right port number. For docker compose, the port number is `5173`.
 
 ## Key Performance Metrics
 
