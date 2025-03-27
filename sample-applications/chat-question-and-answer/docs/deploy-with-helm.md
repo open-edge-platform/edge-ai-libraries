@@ -3,18 +3,20 @@
 This guide provides step-by-step instructions for deploying the ChatQ&A Sample Application using Helm.
 
 ## Prerequisites
+
 Before you begin, ensure that you have the following prerequisites:
 - Kubernetes cluster set up and running.
 - Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
 
 ## Steps to deploy with Helm
+
 Following steps should be followed to deploy ChatQ&A using Helm.
 
 ### Step 1: Change to chart directory
 
 ```bash
- cd chart
+cd chart
 ```
 
 ### Step 2: Configure the values.yaml file
@@ -24,11 +26,11 @@ Note: The configuration below is Intel internal currently. Post migration to pub
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
-| `global.huggingface.apiToken` | Your Hugging Face API token                      | `your-huggingface-token` |
-| `global.POSTGRES_USER`  | Give User name for PG Vector DB | <your-id> |
-| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | <your-passwd> |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | <your-id> (MINIO_ROOT_USER length should be at least 3)` |
-| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | <your-passwd> (MINIO_ROOT_PASSWORD length at least 8 characters) |
+| `global.huggingface.apiToken` | Your Hugging Face API token                      | `<your-huggingface-token>` |
+| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your-id>` |
+| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `<your-passwd>` |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your-id>` (MINIO_ROOT_USER length should be at least 3) |
+| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-passwd>` (MINIO_ROOT_PASSWORD length at least 8 characters) |
 |  global.OTLP.endpoint | OTLP Endpoint | |
 |  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
@@ -56,9 +58,9 @@ Deploy the OVMS Helm chart:
 ```bash
 helm install chatqna . \
   --set global.huggingface.apiToken=<your-huggingface-token> \
-  --set global.proxy.http_proxy=<your proxy> \
-  --set global.proxy.https_proxy=<your proxy> \
-  --set global.proxy.no_proxy=<your no_proxy> \
+  --set global.proxy.http_proxy=<your-proxy> \
+  --set global.proxy.https_proxy=<your-proxy> \
+  --set global.proxy.no_proxy=<your-no-proxy> \
   --set global.POSTGRES_USER=<POSTGRES_USER> \
   --set global.POSTGRES_PASSWORD=<POSTGRES_PASSWORD> \
   --set global.MINIO_ROOT_USER=<MINIO_ROOT_USER> \
@@ -88,7 +90,7 @@ helm install chatqna . \
   --set global.EMBEDDING_MODEL_NAME=<embedding_model> \
   --set global.RERANKER_MODEL=<reranker_model> \
   --set global.teiEmbeddingService.enabled=true \
-  --set global.OTLP.endpoint=<OTLP_endpoint> \ 
+  --set global.OTLP.endpoint=<OTLP_endpoint> \
   --set global.OTLP.trace_endpoint=<OTLP_endpoint_trace> \
   --namespace <YOUR_NAMESPACE>
 ```
@@ -119,7 +121,7 @@ Check the status of the deployed resources to ensure everything is running corre
 
 ```bash
 kubectl get pods -n <YOUR_NAMESPACE>
-kubectl get services -n < NAMESPACE>
+kubectl get services -n <YOUR_NAMESPACE>
 ```
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
@@ -134,6 +136,7 @@ Run the following command after replacing \<NAMESPACE\> with your actual values:
   echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```
 Simply copy and paste the output into your browser.
+
 ### Step 7: Update Helm Dependencies
 
 If any changes are made to the subcharts, update the Helm dependencies using the following command:
@@ -141,24 +144,28 @@ If any changes are made to the subcharts, update the Helm dependencies using the
 ```bash
 helm dependency update
 ```
-### Step 9: Uninstall Helm chart
+### Step 8: Uninstall Helm chart
 
 To uninstall helm charts deployed, use the following command:
 
 ```bash
-  helm uninstall <name> -n <YOUR_NAMESPACE>
+helm uninstall <name> -n <YOUR_NAMESPACE>
 ```
+
 ## Verification
+
 - Ensure that all pods are running and the services are accessible.
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting
+
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
   ```bash
   kubectl logs <pod_name>
   ```
 
 ## Related links
+
 - [How to Build from Source](./build-from-source.md)
 - [How to Test Performance](./how-to-performance.md)
 - [How to Benchmark](./benchmarks.md)

@@ -14,6 +14,7 @@ By following this guide, you will learn how to:
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## Prerequisites
+
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
@@ -106,6 +107,7 @@ By following this guide, you will learn how to:
     Open a browser and go to `http://{host_ip}:5173` to access the application dashboard.
 
 ## Running in Kubernetes
+
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 
 ## Running Tests
@@ -124,8 +126,10 @@ For alternative ways to set up the sample application, see:
 - [How to Build from Source](./build-from-source.md)
 
 ## Related Links
+
 - [How to Test Performance](./how-to-performance.md)
 
 ## Supporting Resources
+
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [API Reference](./chatqna-api.yml)
