@@ -8,7 +8,6 @@ import {
   getFirstValidString,
   decodeEscapedBytes,
   removeLastTagIfPresent,
-  formatDate,
   getTitle,
   isValidUrl,
   capitalize,
@@ -88,17 +87,6 @@ describe('Utility Functions test suite', () => {
     it('should remove the last tag if present', () => {
       expect(removeLastTagIfPresent('Hello</s>')).toBe('Hello');
       expect(removeLastTagIfPresent('Hello')).toBe('Hello');
-    });
-  });
-
-  describe('formatDate test suite', () => {
-    it('should format timestamp correctly', () => {
-      const timestamp = new Date('2021-01-01T00:00:00Z').getTime();
-      expect(formatDate(timestamp)).toBe('Jan 01, 05:30 AM');
-    });
-
-    it('should handle invalid timestamp input', () => {
-      expect(() => formatDate(NaN)).toThrow();
     });
   });
 

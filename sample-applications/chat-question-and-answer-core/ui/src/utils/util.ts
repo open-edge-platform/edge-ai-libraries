@@ -51,25 +51,6 @@ export const removeLastTagIfPresent = (message: string): string => {
   return message;
 };
 
-export const formatDate = (timestamp: number) => {
-  if (!timestamp) {
-    throw new Error('Not a number!');
-  }
-
-  if (!timestamp) {
-    throw new Error('Not a number!');
-  }
-
-  const date = new Date(timestamp);
-  return date.toLocaleString('en-US', {
-    day: '2-digit',
-    month: 'short',
-    hour: '2-digit',
-    minute: '2-digit',
-    hour12: true,
-  });
-};
-
 export const getTitle = (input: string): string => {
   const maxLength = 40;
   if (input.length <= maxLength) return input;
