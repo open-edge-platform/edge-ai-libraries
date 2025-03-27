@@ -35,7 +35,7 @@ Note: The configuration below is Intel internal currently. Post migration to pub
 |  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `1.1`   |
+| `Chatqna.image.tag` | latest image tag                                  | `1.1.1`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
