@@ -3,7 +3,7 @@
 <!--
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
-The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Tiber<sup>TM</sup> AI systems for the edge.
+The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
@@ -35,23 +35,22 @@ By following this guide, you will learn how to:
 -->
 
 1. **Clone the Repository**:
-    Clone the ChatQ&A sample application repository. Note: Documentation will be updated post-migration to the public repo to point to the new repo that is accessible outside of Intel.
-    ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    Clone the repository.
+    git clone <repository-url>
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
     ```bash
-    cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
+    cd <repository-url>/sample-applications/chat-question-and-answer-core
     ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
     To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
     ```bash
     export REGISTRY="intel/"
-    export BACKEND_TAG=core_1.1
-    export UI_TAG=core_1.1
+    export BACKEND_TAG=core_1.1.1
+    export UI_TAG=core_1.1.1
     ```
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 

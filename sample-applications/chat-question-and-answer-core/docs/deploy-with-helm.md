@@ -22,7 +22,6 @@ cd chart
 ### Step 2: Configure the values.yaml file
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
-Note: The configuration below is Intel internal currently. Post migration to public repo and docker hub, documentation will be updated to reflect the details.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |

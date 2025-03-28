@@ -22,26 +22,25 @@ cd chart
 ### Step 2: Configure the values.yaml file
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
-Note: The configuration below is Intel internal currently. Post migration to public repo and docker hub, documentation will be updated to reflect the details.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token                      | `<your-huggingface-token>` |
-| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your-id>` |
-| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `<your-passwd>` |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your-id>` (MINIO_ROOT_USER length should be at least 3) |
-| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-passwd>` (MINIO_ROOT_PASSWORD length at least 8 characters) |
-|  global.OTLP.endpoint | OTLP Endpoint | |
-|  global.OTLP.trace_endpoint | OTLP Endpoint for Trace | |
-| `intelEgaiChatqna.name` | Name of the ChatQnA application                        | `intel-egai-chatqna` |
-| `intelEgaiChatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `intelEgaiChatqna.image.tag` | latest image tag                                  | `1.1`   |
-| `intelEgaiChatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
-| `intelEgaiChatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
-| `intelEgaiChatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
-| `intelEgaiChatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
-| `intelEgaiChatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
-| `intelEgaiChatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
+| `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your postgres user-id>` |
+| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `your postgres password` |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | `your minio user-id (MINIO_ROOT_USER length should be at least 3)` |
+| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `your minio password` (MINIO_ROOT_PASSWORD length at least 8 characters) |
+| `global.OTLP.endpoint` | OTLP Endpoint | |
+| `global.OTLP.trace_endpoint` | OTLP Endpoint for Trace | |
+| `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
+| `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
+| `Chatqna.image.tag` | latest image tag                                  | `1.1.1`   |
+| `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
+| `Chatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
+| `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
+| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
+| `Chatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
+| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
 
 ### Step 3: Build Helm Dependencies
 
@@ -56,7 +55,7 @@ helm dependency build
 Deploy the OVMS Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=<your-huggingface-token> \
   --set global.proxy.http_proxy=<your-proxy> \
   --set global.proxy.https_proxy=<your-proxy> \
@@ -76,7 +75,7 @@ helm install intel-egai-chatqna . \
 Deploy the vLLM Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=your-huggingface-token \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
@@ -98,7 +97,7 @@ helm install intel-egai-chatqna . \
 Deploy the TGI Helm chart:
 
 ```bash
-helm install intel-egai-chatqna . \
+helm install chatqna . \
   --set global.huggingface.apiToken=your-huggingface-token \
   --set global.proxy.http_proxy=<your proxy> \
   --set global.proxy.https_proxy=<your proxy> \
@@ -126,14 +125,14 @@ kubectl get services -n <YOUR_NAMESPACE>
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access a intel-egai-chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
+To access a chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
 Run the following command after replacing \<NAMESPACE\> with your actual values:
 ```bash
-echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc intel-egai-chatqna-nginx -n <NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```
 Simply copy and paste the output into your browser.
 

@@ -12,13 +12,13 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the ChatQ&A Sample Application repository:
       ```bash
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+      git clone <repository-url>
       ```
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd edge-ai-libraries/sample-applications/chat-question-and-answer
+      cd <repository-url>/sample-applications/chat-question-and-answer
       ```
       ***Embedding Models Supported for each model server***
       | Model Server | Models Supported |

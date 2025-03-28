@@ -19,18 +19,18 @@ global:
   ovmsEmbeddingService:
     enabled: false
 
-intelEgaiChatqna:
+Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.1"
+    tag: "1.1.1"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
     port: 8100
     targetPort: 8080
   env:
-    ENDPOINT_URL: http://tgi-service
+    ENDPOINT_URL: http://text-generation-service
     INDEX_NAME: intel-rag
     FETCH_K: 10
     PORT_DB: 5432/langchain
@@ -52,7 +52,7 @@ dataprepPgvector:
     targetPort: 8000
 
 tgiService:
-  name: tgi-service
+  name: text-generation-service
   enabled: true
   service:
     port: 8080

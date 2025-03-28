@@ -9,4 +9,4 @@ export const acceptedFormat: string[] = [
 
 export const plainAcceptedFormat: string[] = ['.pdf', '.docx', '.txt'];
 
-export const MAX_FILE_SIZE: number = 10;
+export const MAX_FILE_SIZE: number = 100;

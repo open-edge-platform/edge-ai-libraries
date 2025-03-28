@@ -10,7 +10,7 @@ dataStore:
   name: datastore
   image:
     repository: intel/object-store
-    tag: "1.1"
+    tag: "1.1.1"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

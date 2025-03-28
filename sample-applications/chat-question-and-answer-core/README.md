@@ -57,6 +57,15 @@ Detailed metrics and  analysis can be found in the benchmark report [here](./doc
 
 - The load time for the application is ~10mins during the first run as the models needs to be downloaded and converted to OpenVINO IR format. Subsequent run with the same model configuration will not have this overhead. However, if the model configuration is changed, it will lead to the download and convert requirement resulting in the load time limitation.
 
+## Release Notes
+### Version 1.1.1
+
+- Updated the documentation to reflect availability in public artefactory.
+- Bug fixes.
+
+
+<!--
 ## Support and Community
 
 This section provides information on how to get support and engage with the community.
+ -->
