@@ -27,11 +27,6 @@ This page provides detailed hardware, software, and platform requirements to hel
 - Intel® Xeon® processors (recommended for large deployments)
 -->
 
-## Minimum Requirements
-<!--
-**Guidelines**:
-- Use a table to clearly outline minimum and recommended configurations.
--->
 
 ## Minimum Requirements
 | **Component**       | **Minimum**              | **Recomended**           |     
@@ -43,15 +38,10 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 
 ## Software Requirements
-<!--
-**Guidelines**:
-- List software dependencies, libraries, and tools.
--->
-## Software Requirements
 **Required Software**:
 - Docker 20.10 or higher
 
-- Ensure the device has the required drivers. If not, follow the steps in this [link](https://edgesoftwarecatalog.intel.com/details/?microserviceType=recipe&microserviceNameForUrl=metro-ai-suite-device-qualification-for-hardware-builder).
+- Ensure the device has the required drivers. If not, follow the steps in [Intel® Edge Device Enablement Framework (EEF)](https://docs.edgeplatform.intel.com/edge-device-enablement-framework/user-guide/Get-Started-Guide.html).
 
 ## Compatibility Notes
 <!--
