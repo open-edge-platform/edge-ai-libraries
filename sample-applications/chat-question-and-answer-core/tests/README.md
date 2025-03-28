@@ -89,7 +89,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Clone the repository to your local machine:
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   git clone <repository-url>
    ```
 
 5. **Install the Required Packages**
@@ -98,7 +98,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
     ```bash
     # Install application dependencies packages using Poetry
-    cd ~/edge-ai-libraries/sample-applications/chat-question-and-answer-core
+    cd ~/<repository-url>/sample-applications/chat-question-and-answer-core
     poetry install --with dev
     ```
 
@@ -117,7 +117,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Change to the directory containing the tests:
 
    ```bash
-   cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/tests
+   cd <repository-url>/sample-applications/chat-question-and-answer-core/tests
    ```
 
 8. **Run the Tests**
@@ -158,7 +158,7 @@ If you prefer not to use virtual environment, please follow these steps:
     First, clone the repository to your local machine:
 
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone <repository-url>
     ```
 
 2. **Install the application dependencies**
@@ -167,7 +167,7 @@ If you prefer not to use virtual environment, please follow these steps:
 
    ```bash
    # Install application dependencies packages
-   cd ~/edge-ai-libraries/sample-applications/chat-question-and-answer-core/
+   cd ~/<repository-url>/sample-applications/chat-question-and-answer-core/
    poetry install --with dev
    ```
 
@@ -186,7 +186,7 @@ If you prefer not to use virtual environment, please follow these steps:
     Change to the directory containing the tests:
 
     ```bash
-    cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/tests
+    cd <repository-url>/sample-applications/chat-question-and-answer-core/tests
     ```
 
 5. **Run the Tests**
@@ -218,7 +218,7 @@ If you prefer not to use virtual environment, please follow these steps:
 
 1. Before executing the following commands, ensure you navigate to the `ui` directory.
    ```bash
-   cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/ui
+   cd <repository-url>/sample-applications/chat-question-and-answer-core/ui
    ```
 
 2. Execute the Tests for the UI

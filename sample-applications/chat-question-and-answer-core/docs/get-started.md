@@ -35,15 +35,14 @@ By following this guide, you will learn how to:
 -->
 
 1. **Clone the Repository**:
-    Clone the ChatQ&A sample application repository. Note: Documentation will be updated post-migration to the public repo to point to the new repo that is accessible outside of Intel.
-    ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    Clone the repository.
+    git clone <repository-url>
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
     ```bash
-    cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
+    cd <repository-url>/sample-applications/chat-question-and-answer-core
     ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:

@@ -35,15 +35,15 @@ By following this guide, you will learn how to:
 -->
 
 1. **Clone the Repository**:
-    Clone the ChatQ&A sample application repository. Note: Documentation will be updated post migration to the public repo to point to the new repo that is accessible outside of Intel.
+    Clone the repository.
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone <repository-url>
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
     ```bash
-    cd edge-ai-libraries/sample-applications/chat-question-and-answer
+    cd <repository-url>/sample-applications/chat-question-and-answer
     ```
     ***Embedding Models Supported for each model server***
     | Model Server | Models Supported |
