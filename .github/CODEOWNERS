@@ -8,3 +8,5 @@ SECURITY.md @xwu2intel
 /sample-applications/chat-question-and-answer/  @bharagha @ganesanintel @yogeshmpandey
 /sample-applications/chatqna-core/  @bharagha @ganesanintel @yogeshmpandey
 /tools/visual-pipeline-and-platform-evaluation-tool/ @dnoliver @rajpatel9498 @mkarvir
+/microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
+/microservices/model-registry/ @rrajore @elroyashjr
