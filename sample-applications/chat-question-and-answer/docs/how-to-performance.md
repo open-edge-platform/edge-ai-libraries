@@ -31,7 +31,7 @@ Before you begin, ensure that you have the following prerequisites:
 3. **Run the Performance Test**:
     - Run the performance test script:
       ```bash
-      locust -f performance_test.py --host http://{host_ip}:<port_no>
+      locust -f performance_test.py --host http://<host_ip>:<port_no>
       ```
       The port number will depend based on if it is docker compose based deployment or Helm based deployment.
 
