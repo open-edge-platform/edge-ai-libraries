@@ -27,9 +27,9 @@ Edit the `values.yaml` file located in the chart directory to set the necessary 
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token                      | `<your-huggingface-token>` |
 | `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your postgres user-id>` |
-| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `your postgres password` |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | `your minio user-id (MINIO_ROOT_USER length should be at least 3)` |
-| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `your minio password` (MINIO_ROOT_PASSWORD length at least 8 characters) |
+| `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `<your postgres password>` |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your minio user-id> (MINIO_ROOT_USER length should be at least 3)` |
+| `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your minio password>` (MINIO_ROOT_PASSWORD length at least 8 characters) |
 | `global.OTLP.endpoint` | OTLP Endpoint | |
 | `global.OTLP.trace_endpoint` | OTLP Endpoint for Trace | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
@@ -60,13 +60,13 @@ helm install chatqna . \
   --set global.proxy.http_proxy=<your-proxy> \
   --set global.proxy.https_proxy=<your-proxy> \
   --set global.proxy.no_proxy=<your-no-proxy> \
-  --set global.POSTGRES_USER=<POSTGRES_USER> \
-  --set global.POSTGRES_PASSWORD=<POSTGRES_PASSWORD> \
-  --set global.MINIO_ROOT_USER=<MINIO_ROOT_USER> \
-  --set global.MINIO_ROOT_PASSWORD=<MINIO_ROOT_PASSWORD> \
-  --set global.LLM_MODEL=<LLM model> \
-  --set global.EMBEDDING_MODEL_NAME=<embedding_model> \
-  --set global.RERANKER_MODEL=<reranker model> \
+  --set global.POSTGRES_USER=<postgres-user> \
+  --set global.POSTGRES_PASSWORD=<postgres-password> \
+  --set global.MINIO_ROOT_USER=<minio-root-user> \
+  --set global.MINIO_ROOT_PASSWORD=<minio-root-password> \
+  --set global.LLM_MODEL=<llm-model> \
+  --set global.EMBEDDING_MODEL_NAME=<embedding-model> \
+  --set global.RERANKER_MODEL=<reranker-model> \
   --set global.ovmsEmbeddingService.enabled=true \
   --namespace <YOUR_NAMESPACE>
 ```
@@ -76,21 +76,21 @@ Deploy the vLLM Helm chart:
 
 ```bash
 helm install chatqna . \
-  --set global.huggingface.apiToken=your-huggingface-token \
-  --set global.proxy.http_proxy=<your proxy> \
-  --set global.proxy.https_proxy=<your proxy> \
-  --set global.proxy.no_proxy=<your no_proxy> \
-  --set global.POSTGRES_USER=<POSTGRES_USER> \
-  --set global.POSTGRES_PASSWORD=<POSTGRES_PASSWORD> \
-  --set global.MINIO_ROOT_USER=<MINIO_ROOT_USER> \
-  --set global.MINIO_ROOT_PASSWORD=<MINIO_ROOT_PASSWORD> \
+  --set global.huggingface.apiToken=<your-huggingface-token> \
+  --set global.proxy.http_proxy=<your-proxy> \
+  --set global.proxy.https_proxy=<your-proxy> \
+  --set global.proxy.no_proxy=<your-no-proxy> \
+  --set global.POSTGRES_USER=<postgres-user> \
+  --set global.POSTGRES_PASSWORD=<postgres-password> \
+  --set global.MINIO_ROOT_USER=<minio-root-user> \
+  --set global.MINIO_ROOT_PASSWORD=<minio-root-password> \
   -f values_vllm.yaml \
-  --set global.LLM_MODEL=<LLM model> \
-  --set global.EMBEDDING_MODEL_NAME=<embedding_model> \
-  --set global.RERANKER_MODEL=<reranker_model> \
+  --set global.LLM_MODEL=<llm-model> \
+  --set global.EMBEDDING_MODEL_NAME=<embedding-model> \
+  --set global.RERANKER_MODEL=<reranker-model> \
   --set global.teiEmbeddingService.enabled=true \
-  --set global.OTLP.endpoint=<OTLP_endpoint> \
-  --set global.OTLP.trace_endpoint=<OTLP_endpoint_trace> \
+  --set global.OTLP.endpoint=<OTLP-endpoint> \
+  --set global.OTLP.trace_endpoint=<OTLP-endpoint-trace> \
   --namespace <YOUR_NAMESPACE>
 ```
 
@@ -98,14 +98,14 @@ Deploy the TGI Helm chart:
 
 ```bash
 helm install chatqna . \
-  --set global.huggingface.apiToken=your-huggingface-token \
-  --set global.proxy.http_proxy=<your proxy> \
-  --set global.proxy.https_proxy=<your proxy> \
-  --set global.proxy.no_proxy=<your no_proxy> \
-  --set global.POSTGRES_USER=<POSTGRES_USER> \
-  --set global.POSTGRES_PASSWORD=<POSTGRES_PASSWORD> \
-  --set global.MINIO_ROOT_USER=<MINIO_ROOT_USER> \
-  --set global.MINIO_ROOT_PASSWORD=<MINIO_ROOT_PASSWORD> \
+  --set global.huggingface.apiToken=<your-huggingface-token> \
+  --set global.proxy.http_proxy=<your-proxy> \
+  --set global.proxy.https_proxy=<your-proxy> \
+  --set global.proxy.no_proxy=<your-no-proxy> \
+  --set global.POSTGRES_USER=<postgres-user> \
+  --set global.POSTGRES_PASSWORD=<postgres-password> \
+  --set global.MINIO_ROOT_USER=<minio-root-user> \
+  --set global.MINIO_ROOT_PASSWORD=<minio-root-password> \
   -f values_tgi.yaml \
   --set global.LLM_MODEL=<LLM model> \
   --set global.EMBEDDING_MODEL_NAME=<embedding_model> \
@@ -130,7 +130,7 @@ To access a chatqna-nginx service running in your Kubernetes cluster using NodeP
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<NAMESPACE\> with your actual values:
+Run the following command after replacing \<YOUR_NAMESPACE\> with your actual values:
 ```bash
   echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```

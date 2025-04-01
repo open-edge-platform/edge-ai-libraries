@@ -36,6 +36,7 @@ By following this guide, you will learn how to:
 
 1. **Clone the Repository**:
     Clone the repository.
+    ```bash
     git clone <repository-url>
     ```
 
@@ -55,12 +56,12 @@ By following this guide, you will learn how to:
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
 4. **Set Up Environment Variables**:
-    Set up the environment variables:
-    ```bash
-    export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
-    source scripts/setup_env.sh
-    ```
-    Configure the models to be used - LLM, Embeddings, Rerankers - in the `scripts/setup_env.sh` as needed.
+    - Set up the environment variables:
+      ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh
+      ```
+    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../chat-question-and-answer/docs/get-started.md#running-the-application-using-docker-compose). 
 
 5. **Start the Application**:
     Start the application using docker compose:
