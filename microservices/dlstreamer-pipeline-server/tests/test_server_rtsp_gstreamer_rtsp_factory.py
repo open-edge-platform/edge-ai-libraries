@@ -40,15 +40,18 @@ class TestGStreamerRtspFactory:
         assert selected_caps == expected_caps
 
     @pytest.mark.parametrize(
-    "to_string, is_audio, expected_launch_string",
+    "to_string, is_audio, expected_launch_string,overlay,caps,launch_string",
     [
-        ("Video Pipeline", False, " ! videoconvert ! video/x-raw,format=I420 \
-        ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"),
-        ("audio Pipeline", True, " ! queue ! decodebin ! audioresample ! audioconvert  ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96")
+        ("Video Pipeline", False, " ! videoconvert          ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
+        ("audio Pipeline", True, " ! queue ! decodebin ! audioresample ! audioconvert  ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96",True,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
+        ("Video Pipeline", False, " ! videoconvert          ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",False,["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
+        ("Video Pipeline", False, " ! rtpjpegpay name=pay0",False,["image/jpeg","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="image/jpeg,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"'),
+        ("Video Pipeline", False, " ! jpegdec ! videoconvert          ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0",True,["image/jpeg","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"],'appsrc name=source format=GST_FORMAT_TIME caps="image/jpeg,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format"')
     ])
-    def test_do_create_element_audio_and_video(self, gstreamer_rtsp_factory, mock_rtsp_server,mocker,mock_gst,to_string, is_audio, expected_launch_string):
+    def test_do_create_element_audio_and_video(self, gstreamer_rtsp_factory, mock_rtsp_server,mocker,mock_gst,to_string, is_audio, expected_launch_string,overlay,caps,launch_string):
         mock_url = MagicMock()
         mock_stream = MagicMock()
+        mock_stream.overlay = overlay
         mock_stream.caps = MagicMock()
         mock_stream.caps.to_string.return_value = to_string
         mock_pipeline = MagicMock()
@@ -56,8 +59,8 @@ class TestGStreamerRtspFactory:
         mock_pipeline.get_by_name.return_value = mock_appsrc
         mock_parse_launch = mocker.patch.object(mock_gst,'parse_launch',return_value = mock_pipeline)
         mock_get_source = mocker.patch.object(mock_rtsp_server,'get_source',return_value = mock_stream)
-        mock_select_caps = mocker.patch.object(gstreamer_rtsp_factory,'_select_caps',return_value = ["video/x-raw","width=1920","height=1080","framerate=30","layout=temp_layout","format=temp_format"])
-        mock_launch_string = ' appsrc name=source format=GST_FORMAT_TIME caps="video/x-raw,width=1920,height=1080,framerate=30,layout=temp_layout,format=temp_format" {} '.format(expected_launch_string)
+        mock_select_caps = mocker.patch.object(gstreamer_rtsp_factory,'_select_caps',return_value = caps)
+        mock_launch_string = f' {launch_string} {expected_launch_string} '
         pipeline = gstreamer_rtsp_factory.do_create_element(mock_url)
         mock_get_source.assert_called_once_with(mock_url.abspath)
         mock_select_caps.assert_called_once_with(to_string)

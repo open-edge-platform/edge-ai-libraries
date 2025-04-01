@@ -140,31 +140,41 @@ class GStreamerPipeline(Pipeline):
 
     def _verify_and_set_frame_destinations(self):
         destination = self.request.get("destination", {})
+        frame_destination_dict = {}
         frame_destination = destination.get("frame", {})
-        frame_destination_type = frame_destination.get("type", None)
-        if frame_destination_type == "rtsp":
+        if isinstance(frame_destination, list):
+            for type in frame_destination:
+                if type["type"] == "rtsp":
+                    frame_destination_dict["rtsp"] = type
+                if type["type"] == "webrtc":
+                    frame_destination_dict["webrtc"] = type
+        if isinstance(frame_destination, dict) and frame_destination != {}:
+            frame_destination_dict[frame_destination["type"]] = frame_destination
+        if "rtsp" in frame_destination_dict:
+            rtsp_destination = frame_destination_dict["rtsp"]
             if (not self.appsink_element) or (not self.rtsp_server):
                 raise Exception("Unsupported Frame Destination: RTSP Server isn't enabled")
-            self.rtsp_path = frame_destination["path"]
+            self.rtsp_path = rtsp_destination["path"]
             if not self.rtsp_path.startswith('/'):
                 self.rtsp_path = "/" + self.rtsp_path
             self.rtsp_server.check_if_path_exists(self.rtsp_path)
-            frame_destination["class"] = GStreamerRtspDestination.__name__
-            rtsp_destination = AppDestination.create_app_destination(self.request, self, "frame")
-            if not rtsp_destination:
+            rtsp_destination["class"] = GStreamerRtspDestination.__name__
+            rtsp_app_destination = AppDestination.create_app_destination(rtsp_destination, self, "frame")
+            if not rtsp_app_destination:
                 raise Exception("Unsupported Frame Destination: {}".format(
-                    frame_destination["class"]))
-            self._app_destinations.append(rtsp_destination)
-        if frame_destination_type == "webrtc":
+                    rtsp_destination["class"]))
+            self._app_destinations.append(rtsp_app_destination)
+        if "webrtc" in frame_destination_dict:
+            webrtc_destination = frame_destination_dict["webrtc"]
             self._logger.info("Request assigned webrtc frame destination {dest}".format(
-                dest=json.dumps(frame_destination)))
+                dest=json.dumps(webrtc_destination)))
             if (not self.appsink_element):
                 raise Exception("Pipeline does not support Frame Destination")
-            frame_destination["class"] = GStreamerWebRTCDestination.__name__
-            webrtc_destination = AppDestination.create_app_destination(self.request, self, "frame")
-            if not webrtc_destination:
-                raise Exception("Unsupported Frame Destination: {}".format(frame_destination["class"]))
-            self._app_destinations.append(webrtc_destination)
+            webrtc_destination["class"] = GStreamerWebRTCDestination.__name__
+            webrtc_app_destination = AppDestination.create_app_destination(webrtc_destination, self, "frame")
+            if not webrtc_app_destination:
+                raise Exception("Unsupported Frame Destination: {}".format(webrtc_destination["class"]))
+            self._app_destinations.append(webrtc_app_destination)
 
     def _delete_pipeline(self, new_state):
         self._cal_avg_fps()

@@ -133,26 +133,63 @@ class Publisher:
         self.grpc_publish = False
         self.s3_config = None
         try:
-            # always add S3_write first in the list of publishers, essential for blocking case
-            if self.request is not None and "S3_write" in self.request:
-                self.s3_config = self.request["S3_write"]
-                publishers.append(S3Writer(self.s3_config))
-                # remove S3_write from request. pipeline-server doesnot understand this key
-                self.request.pop("S3_write")
-            elif self.app_cfg.get("S3_write"):
-                self.s3_config = self.app_cfg["S3_write"]
-                publishers.append(S3Writer(self.s3_config))
-                
-            if self.app_cfg.get("opcua_publisher"):
-                opcua_pub = OPCUAPublisher(self.app_cfg)
-                self.opcua_publish_frame = opcua_pub.publish_frame
-                publishers.append(opcua_pub)
-            if self.app_cfg.get("mqtt_publisher"):
-                mqtt_pub = MQTTPublisher(self.app_cfg)
-                self.mqtt_publish_frame = mqtt_pub.publish_frame
-                publishers.append(mqtt_pub)
-                
-                
+            launch_string = self.app_cfg.get("pipeline")
+            for elem in launch_string.split("!"):
+                if 'appsink' in elem:                    
+                    if ' name=destination' in elem:
+                        self.log.info("appsink destination found. Publisher will be initialized")
+                        # identify EVAM publishers and pop them from the request
+                        # NOTE: always add S3_write first in the list of publishers, essential for blocking case
+                        if self.request is not None:
+                            if "destination" in self.request:
+                                if "frame" in self.request["destination"]:
+                                    destination_frame = self.request["destination"]["frame"]
+                                    if isinstance(destination_frame, list):
+                                        for dest in destination_frame:
+                                            if "type" in dest and dest["type"] == "s3_write":
+                                                self.s3_config = dest
+                                                publishers.append(S3Writer(self.s3_config))
+                                                self.request["destination"]["frame"].remove(dest)
+                                                # remove frame from destination if no more frame publishers
+                                                if len(self.request["destination"]["frame"]) == 0:
+                                                    self.request["destination"].pop("frame")
+                                                break
+                                    elif isinstance(destination_frame, dict):
+                                        if "type" in destination_frame and destination_frame["type"] == "s3_write":
+                                            self.s3_config = destination_frame
+                                            publishers.append(S3Writer(self.s3_config))
+                                            self.request["destination"].pop("frame")
+                                    else:
+                                        raise ValueError("Invalid frame destination container. Must be a list or dict.")
+                                            
+                                if "metadata" in self.request["destination"]:
+                                    metadata_request = self.request["destination"]["metadata"]
+                                    if "type" in metadata_request and metadata_request["type"]=="mqtt":  # this refers to EVAM's mqtt publisher
+                                        mqtt_pub = MQTTPublisher(metadata_request)
+                                        publishers.append(mqtt_pub)
+                                        self.mqtt_publish_frame = mqtt_pub.publish_frame
+                                        # remove since only one type of metadata publisher is supported
+                                        self.request["destination"].pop("metadata")
+                                
+                                # remove if empty destination
+                                if not self.request["destination"]:
+                                    self.request.pop("destination")
+                                
+                        if not self.s3_config and self.app_cfg.get("S3_write"):
+                            self.s3_config = self.app_cfg["S3_write"]
+                            publishers.append(S3Writer(self.s3_config))
+                            
+                        if self.app_cfg.get("mqtt_publisher"):
+                            mqtt_pub = MQTTPublisher(self.app_cfg.get("mqtt_publisher"))    #TODO: remove this and use REST with `mqtt` key only
+                            self.mqtt_publish_frame = mqtt_pub.publish_frame
+                            publishers.append(mqtt_pub)
+
+                        if self.app_cfg.get("opcua_publisher"):
+                            opcua_pub = OPCUAPublisher(self.app_cfg)
+                            self.opcua_publish_frame = opcua_pub.publish_frame
+                            publishers.append(opcua_pub)
+                        
+                        
             if os.getenv('RUN_MODE') == "EII":
                 dev_mode = os.getenv("DEV_MODE", "False")
             else:
@@ -166,7 +203,7 @@ class Publisher:
                     self.grpc_publish = True
                     self.log.info("Edge gRPC publisher initialized")
         except Exception as e:
-            self.log.error(f'Error in initializing publisher')
+            self.log.exception(f'Error in initializing publisher')
             self.error_handler(e)
 
         for p in publishers:
@@ -465,7 +502,7 @@ class Publisher:
             while not self.stop_ev.is_set():
                 try:
                     results = self.queue.get(timeout=0.5)
-                    self.log.info("Received results from app dest queue")
+                    self.log.debug("Received results from app dest queue")
                     if not results:
                         continue
 
@@ -497,13 +534,13 @@ class Publisher:
                     #    - Update metadata (encoding type/level)
                     if meta_data['caps'].split(',')[0] == "video/x-raw":
                         self.log.debug("Processing raw frame")
-                        if self.mqtt_publish_frame or self.grpc_publish or self.opcua_publish_frame:
+                        if self.mqtt_publish_frame or self.grpc_publish or self.opcua_publish_frame or self.s3_config:
                             if (self.encoding == True) or (not self.publish_raw_frame):
-                                self.log.debug("Encoding frame")
+                                self.log.debug("Encoding frame of format {}".format(meta_data["img_format"]))
                                 try:
                                     if meta_data.get("task", None) is None and self.send_overlayed_frame:
                                         self.send_overlayed_frame = False
-                                        self.log.info("task key is missing in metadata. overriding overlaying annotation to False")
+                                        self.log.debug("task key is missing in metadata. overriding overlaying annotation to False")
                                     frame, meta_data['encoding_type'], meta_data[
                                         'encoding_level'], overlayed_frame = utils.encode_frame(
                                             self.encoding_type, self.encoding_level,

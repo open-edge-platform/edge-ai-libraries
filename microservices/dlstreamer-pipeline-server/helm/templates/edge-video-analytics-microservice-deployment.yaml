@@ -19,7 +19,7 @@ spec:
     spec:
       containers:
       - name: edge-video-analytics-microservice
-        image: {{ $.Values.DOCKER_REGISTRY }}intel/edge-video-analytics-microservice:2.3.0
+        image: {{ $.Values.DOCKER_REGISTRY }}intel/edge-video-analytics-microservice:2.4.0
         securityContext:
           supplementalGroups:
             - 109

@@ -7,6 +7,7 @@
 import connexion
 import requests
 import time
+import os
 from pydantic import ValidationError
 from http import HTTPStatus
 from src.common.log import get_logger
@@ -185,8 +186,16 @@ class Endpoints:
 
         :rtype: object
         """
-        return (NOT_IMPLEMENTED, HTTPStatus.BAD_REQUEST)
-
+        try:
+            logger.debug("GET on /pipelines/{id}/status".format(id=instance_id))
+            result = Endpoints.pipeline_server_manager.get_instance_status(instance_id)
+            if result:
+                result['state'] = result['state'].name
+                return result
+            return ('Invalid instance', HTTPStatus.BAD_REQUEST)
+        except Exception as error:
+            logger.error('pipelines_instance_id_status_get %s', error)
+            return ('Unexpected error', HTTPStatus.INTERNAL_SERVER_ERROR)
 
     def pipelines_name_version_post(name, version):  # noqa: E501
         """pipelines_name_version_post
@@ -294,18 +303,28 @@ class Endpoints:
 
                 pipelines_cfg = [{"name":version, "model_params": [model_query_params]}]
 
-                is_model_files_downloaded, msg, deployment_dirpath, model_path = \
+                is_model_files_downloaded, msg = \
                     Endpoints.model_registry_client.download_models(pipelines_cfg)
 
                 is_success_criteria_met = is_model_files_downloaded
                 resp_body["message"] = msg
 
                 restart_pipeline = model_query_params.get("deploy", False)
-                if restart_pipeline and is_model_files_downloaded and model_path is None:
-                    resp_body["message"] = (
-                        "Model(s) downloaded, but failed to get model path."
-                    )
-                    return (resp_body, HTTPStatus.INTERNAL_SERVER_ERROR)
+
+                model_path = None
+                if restart_pipeline:
+                    model_path_dict = Endpoints.model_registry_client.get_model_path(pipelines_cfg)
+                    if model_path_dict:
+                        model_path = next(iter(Endpoints.model_registry_client.get_model_path(pipelines_cfg).values()))
+                    if is_model_files_downloaded and model_path is None:
+                        resp_body["message"] = (
+                            "Model(s) downloaded, but failed to get model path."
+                        )
+                        return (resp_body, HTTPStatus.INTERNAL_SERVER_ERROR)
+                    if is_model_files_downloaded and not os.path.exists(model_path):
+                        resp_body["message"] = f"Model(s) downloaded, but model path {model_path} does not exist."
+                        return (resp_body, HTTPStatus.INTERNAL_SERVER_ERROR)
+
                 new_pipeline_instance_id = None
                 if restart_pipeline:
                     resp = Endpoints.pipeline_server_manager.get_pipeline_instance_summary(instance_id)
@@ -313,12 +332,13 @@ class Endpoints:
                     p_instance_state = p_summary.get("state") if p_summary else None
                     if isinstance(p_summary, dict):
                         p_params = p_summary["params"]
+                        prev_request = p_params.get("request", None)
                         if None not in (p_params.get("source"),
-                                        p_params.get("destination"),
-                                        p_params.get("request").get("parameters")):
+                                        prev_request.get("destination"),
+                                        prev_request.get("parameters")):
                             pipeline_cfg = {"source": p_params["source"],
-                                            "destination": p_params["destination"],
-                                            "parameters": p_params["request"]["parameters"]
+                                            "destination": prev_request["destination"],
+                                            "parameters": prev_request["parameters"]
                                             }
                             resp = Endpoints.pipelines_instance_id_delete(instance_id)
                         else:
@@ -357,7 +377,7 @@ class Endpoints:
                         if isinstance(pipeline_cfg["parameters"][pipeline_param_name], dict):
                             if pipeline_cfg["parameters"][pipeline_param_name].get("udfs", None):
                                 pipeline_cfg["parameters"][pipeline_param_name].get("udfs", None)[0]["deployment"] = \
-                                    deployment_dirpath
+                                    model_path.split('/deployment', 1)[0] + '/deployment'
 
                             if pipeline_cfg["parameters"][pipeline_param_name].get("model", None):
                                 pipeline_cfg["parameters"][pipeline_param_name]["model"] = \

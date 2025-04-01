@@ -4,12 +4,12 @@
 #
 
 # Specify all Docker arguments for the Dockerfile
-ARG BASE_IMAGE
+ARG BASE_IMAGE=ubuntu:22.04
 FROM ${BASE_IMAGE} AS evam_standard
 LABEL description="Edge Video Analytics Microservice"
 LABEL vendor="Intel Corporation"
 
-ARG DLSTREAMER_VERSION=2025.0.1
+ARG DLSTREAMER_VERSION=2025.0.1.2
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
@@ -254,7 +254,7 @@ RUN cd /usr/local/lib/python3.10/dist-packages/model_api && \
     git apply /home/pipeline-server/model_api.patch   
 
 # Install Geti SDK
-RUN pip3 install geti-sdk==2.5.0
+RUN pip3 install geti-sdk==2.7.1
 
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 RUN pip3 uninstall -y cuda-python aiohappyeyeballs
@@ -268,36 +268,6 @@ RUN pip3 install asyncua==1.1.5
 # Downgrading Flask due to an atttribute error(JSONEncoder)
 RUN pip3 uninstall -y Flask && \
     pip3 install Flask==2.2.5
-
-# Installing gst-rswebrtc-plugins
-RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-    curl \
-    libssl-dev && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN git clone https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git && \
-    cd gst-plugins-rs && \
-    git checkout 207196a0334da74c4db9db7c565d882cb9ebc07d
-    
-WORKDIR /home/pipeline-server/gst-plugins-rs
-
-ENV PKG_CONFIG_PATH=$PKG_CONFIG_PATH:${DLSTREAMER_DIR}/gstreamer/lib/pkgconfig
-ENV RUSTFLAGS="-L ${DLSTREAMER_DIR}/gstreamer/lib"
-
-RUN curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85.0 && \
-    source $HOME/.cargo/env && \
-    cargo install cargo-c --version=0.10.11 && \
-    cargo update && \
-    cargo cinstall -p gst-plugin-webrtc --prefix=${DLSTREAMER_DIR}/gstreamer/lib && \
-    rm ${DLSTREAMER_DIR}/gstreamer/lib/lib/x86_64-linux-gnu/gstreamer-1.0/libgstrswebrtc.a && \
-    rustup self uninstall -y && \
-    rm -rf /home/pipeline-server/gst-plugins-rs && \
-    apt-get purge -y curl libssl-dev && \
-    apt-get autoremove -y && \
-    apt-get clean
-
-WORKDIR /home/pipeline-server
 
 # Visualizer webtrc requirements
 RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends

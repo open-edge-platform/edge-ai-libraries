@@ -9,7 +9,7 @@
                 "name": "pallet_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -23,7 +23,7 @@
                 },
                 "opcua_publisher": {
                     "publish_frame" : true,
-                    "variable" : "ns=3;s=Demo.Static.Scalar.String"
+                    "variable" : "<OPCUA-server-variable>"
                 },
                 "auto_start": false
             }

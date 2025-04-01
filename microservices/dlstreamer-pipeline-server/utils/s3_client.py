@@ -64,9 +64,9 @@ class S3Client():
                 Body=frame_data
             )
             if not (resp['ResponseMetadata']['HTTPStatusCode'] == 200):
-                self.log.info(f"Error uploading frame data: {object_name} to S3 storage")
+                self.log.error(f"Error uploading frame data: {object_name} to S3 storage")
             else:
-                self.log.info(f"Uploaded frame data at uri: s3://{s3_bucket_name}/{object_name} to S3 storage")
+                self.log.debug(f"Uploaded frame data at uri: s3://{s3_bucket_name}/{object_name} to S3 storage")
             
         except botocore.exceptions.ClientError as e:
             self.log.info(f"Error uploading frame data: {e}")

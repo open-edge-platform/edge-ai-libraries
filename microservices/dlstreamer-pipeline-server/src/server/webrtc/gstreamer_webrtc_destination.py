@@ -26,31 +26,33 @@ class GStreamerWebRTCDestination(AppDestination):
         self._frame_size = 0
         self._frame_count = 0
         self._clock = Gst.SystemClock()
-        caps = Gst.Caps.from_string("video/x-raw")
-        if self._pipeline.appsink_element.props.caps:
-            caps = caps.intersect(self._pipeline.appsink_element.props.caps)
-        self._pipeline.appsink_element.props.caps = caps
+        # caps = Gst.Caps.from_string("video/x-raw")
+        # if self._pipeline.appsink_element.props.caps:
+        #     caps = caps.intersect(self._pipeline.appsink_element.props.caps)
+        # self._pipeline.appsink_element.props.caps = caps
         self._get_request_parameters(request)
 
     def _get_request_parameters(self, request):
-        destination_config = request.get("destination", {})
-        frame_config = destination_config.get("frame", {})
-        self._webrtc_peerid = frame_config["peer-id"]
-        self._cache_length = frame_config.get("cache-length", 30)
-        self._sync_with_source = frame_config.get("sync-with-source", True)
-        self._sync_with_destination = frame_config.get("sync-with-destination", True)
-        self._encode_cq_level = frame_config.get("encode-cq-level", 10)
+        # destination_config = request.get("destination", {})
+        # frame_config = destination_config.get("frame", {})
+        self._webrtc_peerid = request["peer-id"]
+        self._cache_length = request.get("cache-length", 30)
+        self._sync_with_source = request.get("sync-with-source", True)
+        self._sync_with_destination = request.get("sync-with-destination", True)
+        self._encode_cq_level = request.get("encode-cq-level", 10)
+        self.overlay = request.get("overlay",True)
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
         caps = sample.get_caps()
+        self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
         self._last_timestamp = self._clock.get_time()
         if self._sync_with_source:
             self._pipeline.appsink_element.set_property("sync", True)
         self._logger.info("Adding WebRTC frame destination stream for peer_id {}.".format(self._webrtc_peerid))
         self._logger.debug("WebRTC Stream frame caps == {}".format(caps))
-        self._webrtc_manager.add_stream(self._webrtc_peerid, caps, self)
+        self._webrtc_manager.add_stream(self._webrtc_peerid, caps, self,self.overlay)
 
     def _on_need_data(self, _unused_src, _):
         self._need_data = True

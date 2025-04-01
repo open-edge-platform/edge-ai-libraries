@@ -15,9 +15,14 @@ from src.server.common.utils import logging
 class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     _source = "appsrc name=source format=GST_FORMAT_TIME"
 
-    _RtspVideoPipeline = " ! videoconvert ! video/x-raw,format=I420 \
-        ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"  # removed gvawatermark to avoid duplicate overlay assuming EVAM pipeline already has gvawatermark
+    _RtspVideoPipeline_withjpeginput = " ! rtpjpegpay name=pay0"  # removed gvawatermark to avoid duplicate overlay assuming EVAM pipeline already has gvawatermark
         # ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
+
+    _RtspVideoPipeline_withjpeginput_overlay = " ! jpegdec ! videoconvert  \
+        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0" 
+
+    _RtspVideoPipeline = " ! videoconvert  \
+        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0" 
 
     # Decoding audio again as there is issue with audio pipeline element audiomixer
     _RtspAudioPipeline = " ! queue ! decodebin ! audioresample ! audioconvert " \
@@ -35,7 +40,7 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     def _select_caps(self, caps):
         split_caps = caps.split(',')
         new_caps = []
-        selected_caps = ['video/x-raw', 'width', 'height',
+        selected_caps = ['image/jpeg', 'video/x-raw', 'width', 'height',
                          'audio/x-raw', 'rate', 'channels', 'layout',
                          'format']
         for cap in split_caps:
@@ -56,17 +61,25 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
 
         source = stream.source
         caps = stream.caps
-
+        overlay = stream.overlay
         new_caps = self._select_caps(caps.to_string())
         s_src = "{} caps=\"{}\"".format(GStreamerRtspFactory._source, ','.join(new_caps))
-        media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
+        if "image/jpeg" in new_caps:
+            if overlay:
+                media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput_overlay
+            else:
+                media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput
+        else:
+            media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
+            if overlay is False:
+                media_pipeline = media_pipeline.replace("gvawatermark ! ", "")
         is_audio_pipeline = False
         if caps.to_string().startswith('audio'):
             media_pipeline = GStreamerRtspFactory._RtspAudioPipeline
             is_audio_pipeline = True
         launch_string = " {} {} ".format(s_src, media_pipeline)
         self._logger.debug("Starting RTSP stream url:{}".format(url))
-        self._logger.debug(launch_string)
+        self._logger.info(launch_string)
         pipeline = Gst.parse_launch(launch_string)
         pipeline.caps = caps
         appsrc = pipeline.get_by_name("source")
