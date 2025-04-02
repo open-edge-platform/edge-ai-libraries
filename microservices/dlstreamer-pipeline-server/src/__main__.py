@@ -19,7 +19,7 @@ from src.rest_api.server import RestServer
 from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
-EVAM_VERSION = "2.3.0"
+EVAM_VERSION = "2.4.0"
 EII_MODE = True if os.getenv('RUN_MODE') == "EII" else False
 
 if EII_MODE:
@@ -112,7 +112,10 @@ def main(cfg: EvamConfig):
     if model_registry_cfg:
         model_registry_client = ModelRegistryClient(model_registry_cfg=model_registry_cfg)
         model_registry_client.start_download_models(pipelines_cfg=cfg.get_pipelines_config())
-
+        model_path_dict = model_registry_client.get_model_path(cfg.get_pipelines_config())
+        log.info("Model Path Dict: {}".format(model_path_dict))
+        if model_path_dict:
+           cfg.update_pipeline_config(model_path_dict)
 
     # define pipeline server and pipelines
     pipeline_server_mgr = PipelineServerManager(cfg,pipeline_root="/var/cache/pipeline_root")

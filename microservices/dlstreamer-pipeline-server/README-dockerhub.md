@@ -6,14 +6,16 @@ Video analytics involves the conversion of video streams into valuable insights 
 
 ## Deploy using Docker Compose
 ---
-For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.3.0/user-guide/Get-Started-Guide.html).
+For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html).
 
 ## Deployment using Kubernetes Charts
 ---
-For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.3.0/user-guide/Get-Started-Guide-Helm.html).
+For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/how-to-deploy-with-helm.html).
 
 ## Supported version
 ---
+2.4.0
+
 2.3.0
 
 2.2.0

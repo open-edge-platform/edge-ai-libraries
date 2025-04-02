@@ -12,7 +12,7 @@ export DIR=$(cd $(dirname $0) && pwd)
 # build image from EVAM Dockerfile
 docker build ${DIR}/../ \
     --network host \
-    -t intel/edge-video-analytics-microservice-test:2.3.0 \
+    -t intel/edge-video-analytics-microservice-test:2.4.0 \
     --build-arg MSGBUS_LIB_VERSION="4.0.0" \
     --build-arg UTILS_LIB_VERSION="4.0.0" \
     --build-arg EVAM_UID=1999 \

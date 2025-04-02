@@ -285,7 +285,7 @@ class PipelineManager:
             destination_config = pipeline_config.get("destination", {})
             for destination in destination_section:
                 if not self.is_input_valid(destination_section, destination_config, destination) or \
-                        not isinstance(destination_section[destination], dict):
+                        not (isinstance(destination_section[destination], dict) or isinstance(destination_section[destination], list)):
                     return None, "Invalid Destination"
         if not self.is_input_valid(request, pipeline_config, "source"):
             return None, "Invalid Source"

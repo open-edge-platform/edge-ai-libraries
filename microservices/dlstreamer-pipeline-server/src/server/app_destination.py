@@ -57,8 +57,11 @@ class AppDestination(metaclass=abc.ABCMeta):
         """Factory method for creating an AppDestination instance based on registered subclasses"""
 
         destination_class = None
-        requested_destination = request.get("destination", {}).get(dest_type, {})
-        requested_destination_class = requested_destination.get("class", None)
+        if dest_type == "frame":
+            requested_destination_class = request.get("class", None)
+        else:
+            requested_destination = request.get("destination", {}).get(dest_type, {})
+            requested_destination_class = requested_destination.get("class", None)
         if requested_destination_class:
             for destination_class in AppDestination.__subclasses__():
                 if (destination_class.__name__ == requested_destination_class):

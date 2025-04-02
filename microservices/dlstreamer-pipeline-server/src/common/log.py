@@ -76,7 +76,7 @@ def get_logger(name):
             logger.setLevel(logging.INFO)
         logger.propagate = 0
         formatter = logging.Formatter(
-            "%(asctime)s - %(name)s - %(levelname)s - %(message)s")
+            "%(asctime)s - %(levelname)s - %(module)s\t - %(funcName)s [%(lineno)3d] - %(message)s")
         streamHandler = logging.StreamHandler(sys.stdout)
         streamHandler.setFormatter(formatter)
 

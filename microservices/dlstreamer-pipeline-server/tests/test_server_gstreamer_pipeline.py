@@ -615,7 +615,7 @@ class TestGStreamerPipeline:
         mock_create_app_destination = mocker.patch('src.server.gstreamer_pipeline.AppDestination.create_app_destination', return_value=mock_rtsp_destination)
         gstreamer_pipeline._verify_and_set_frame_destinations()
         gstreamer_pipeline.rtsp_server.check_if_path_exists.assert_called_once_with("/rtsppath")
-        mock_create_app_destination.assert_called_once_with(gstreamer_pipeline.request,gstreamer_pipeline,"frame")
+        mock_create_app_destination.assert_called_once_with({"type":"rtsp","path":"rtsppath", 'class':mock_rtsp_dest_class.__name__},gstreamer_pipeline,"frame")
         assert gstreamer_pipeline._app_destinations == [mock_rtsp_destination]
 
     def test_verify_and_set_frame_destinations_webrtc(self, mocker, gstreamer_pipeline):
@@ -627,7 +627,7 @@ class TestGStreamerPipeline:
         mock_webrtc_destination = MagicMock()
         mock_create_app_destination = mocker.patch('src.server.gstreamer_pipeline.AppDestination.create_app_destination', return_value=mock_webrtc_destination)
         gstreamer_pipeline._verify_and_set_frame_destinations()
-        mock_create_app_destination.assert_called_once_with(gstreamer_pipeline.request,gstreamer_pipeline,"frame")
+        mock_create_app_destination.assert_called_once_with({"type":"webrtc","path":"webrtcpath", 'class':mock_webrtc_dest_class.__name__},gstreamer_pipeline,"frame")
         assert gstreamer_pipeline._app_destinations == [mock_webrtc_destination]
 
     def test_verify_and_set_frame_destinations_webrtc_exception(self,gstreamer_pipeline,mocker):
@@ -644,7 +644,7 @@ class TestGStreamerPipeline:
         mock_create_app_destination = mocker.patch('src.server.gstreamer_pipeline.AppDestination.create_app_destination', return_value=None)
         with pytest.raises(Exception, match="Unsupported Frame Destination: Class_webrtc"):
             gstreamer_pipeline._verify_and_set_frame_destinations()
-        mock_create_app_destination.assert_called_once_with(gstreamer_pipeline.request,gstreamer_pipeline,"frame")
+        mock_create_app_destination.assert_called_once_with({"type":"webrtc","path":"webrtcpath", "class": "Class_webrtc"},gstreamer_pipeline,"frame")
     def test_verify_and_set_frame_destinations_rtsp_exception(self, mocker, gstreamer_pipeline):
         gstreamer_pipeline.request["destination"]["frame"] = {"type":"rtsp","path":"rtsppath"}
         with pytest.raises(Exception, match="Unsupported Frame Destination: RTSP Server isn't enabled"):
@@ -660,7 +660,7 @@ class TestGStreamerPipeline:
         mock_create_app_destination = mocker.patch('src.server.gstreamer_pipeline.AppDestination.create_app_destination', return_value=None)
         with pytest.raises(Exception, match="Unsupported Frame Destination: Class_rtsp"):
             gstreamer_pipeline._verify_and_set_frame_destinations()
-        mock_create_app_destination.assert_called_once_with(gstreamer_pipeline.request,gstreamer_pipeline,"frame")
+        mock_create_app_destination.assert_called_once_with({"type":"rtsp","path":"rtsppath", "class": "Class_rtsp"},gstreamer_pipeline,"frame")
 
     def test_cache_inference_elements(self, mocker, gstreamer_pipeline):
         mock_prop1 = MagicMock()

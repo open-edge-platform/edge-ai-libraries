@@ -279,18 +279,15 @@ def test_successful_download_and_save(setup_model_registry_client, pipelines_cfg
          patch('zipfile.ZipFile.extract') as mock_zipfile, \
          patch('os.listdir', return_value=["model.xml"]):
         
-        is_artifacts_saved, msg, deployment_dirpath, model_path = model_downloader.download_models(pipelines_cfg)
+        is_artifacts_saved, msg  = model_downloader.download_models(pipelines_cfg)
         assert not is_artifacts_saved
-        assert deployment_dirpath is not None
 
 def test_model_not_found(setup_model_registry_client, pipelines_cfg):
     model_downloader = setup_model_registry_client
     with patch.object(model_downloader, '_get_model', return_value=None):
-        is_artifacts_saved, msg, deployment_dirpath, model_path = model_downloader.download_models(pipelines_cfg)
+        is_artifacts_saved, msg = model_downloader.download_models(pipelines_cfg)
         assert not is_artifacts_saved
         assert msg == "Model is not found."
-        assert deployment_dirpath is None
-        assert model_path is None
 
 def test_permission_error(setup_model_registry_client, pipelines_cfg):
     model_downloader = setup_model_registry_client
@@ -306,8 +303,86 @@ def test_permission_error(setup_model_registry_client, pipelines_cfg):
 
     with patch.object(model_downloader, '_get_model', return_value=model), \
          patch.object(model_downloader, '_get_model_artifacts_zip_file_data', side_effect=PermissionError):
-        is_artifacts_saved, msg, deployment_dirpath, model_path = model_downloader.download_models(pipelines_cfg)
+        is_artifacts_saved, msg = model_downloader.download_models(pipelines_cfg)
         assert not is_artifacts_saved
         assert "Insufficient permissions" in msg
 
-
+@pytest.mark.parametrize("pipelines_cfg, expected_model_paths", [
+    (
+        [{
+            "name": "pipeline1",
+            "model_params": [
+                {
+                    "name": "model",
+                    "version": "v1",
+                    "precision": "FP32",
+                    "deploy": True,
+                    "pipeline_element_name": "detection",
+                    "origin": "Geti",
+                    "category": "Detection"
+                }
+            ]
+        }],
+        {"detection": "/fake/dir/model_m-v1_fp32/deployment/Detection/model/model.xml"}
+    ),
+    (
+        [{
+            "name": "pipeline2",
+            "model_params": [
+                {
+                    "name": "model11s",
+                    "version": "v2",
+                    "precision": "FP16",
+                    "deploy": True,
+                    "pipeline_element_name": "detection",                }
+            ]
+        }],
+        {"detection": "/fake/dir/model11s_m-v2_fp16/FP16/model11s.xml"}
+    ),
+    (
+        [{
+            "name": "pipeline3",
+            "model_params": [
+                {
+                    "name": "model",
+                    "version": "v1",
+                    "precision": "FP32",
+                    "deploy": False,
+                }
+            ]
+        }],
+        {}
+    ),
+    (
+        [{
+            "name": "pipeline4",
+            "model_params": [
+                {
+                    "name": "model1",
+                    "version": "v1",
+                    "precision": "FP32",
+                    "deploy": True,
+                    "pipeline_element_name": "detection",
+                    "category": "Detection"
+                },
+                {
+                    "name": "model2",
+                    "version": "v1",
+                    "precision": "FP32",
+                    "deploy": True,
+                    "pipeline_element_name": "classification",
+                    "origin": "Geti",
+                    "category": "Classification"
+                }
+            ]
+        }],
+        {
+            "detection": "/fake/dir/model1_m-v1_fp32/FP32/model1.xml",
+            "classification": "/fake/dir/model2_m-v1_fp32/deployment/Classification/model/model.xml"
+        }
+    )
+])
+def test_get_model_path(mocker, pipelines_cfg, expected_model_paths):
+    client = get_mock_model_registry_client(mocker)
+    model_paths = client.get_model_path(pipelines_cfg)
+    assert model_paths == expected_model_paths

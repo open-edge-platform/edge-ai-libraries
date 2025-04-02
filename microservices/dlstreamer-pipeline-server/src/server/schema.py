@@ -262,89 +262,177 @@ destination = {
         ]
     },
     "frame": {
-        "rtsp": {
-            "type":"object",
+    "anyOf": [
+      {
+        "type": "object",
+        "oneOf": [
+          {
+            "type": "object",
             "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["rtsp"]
+              },
+              "path": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
+              },
+              "cache-length": {
+                "type": "integer",
+                "default": 30,
+                "minimum": 0
+              },
+              "sync-with-source": {
+                "type": "boolean",
+                "default": True
+              },
+              "sync-with-destination": {
+                "type": "boolean",
+                "default": True
+              },
+              "encode-quality": {
+                "type": "integer",
+                "minimum": 0,
+                "maximum": 100,
+                "default": 85
+              },
+              "overlay": {
+                "type": "boolean",
+                "default": True
+              }
+            },
+            "required": [
+              "type",
+              "path"
+            ]
+          },
+          {
+            "type": "object",
+            "properties": {
+              "type": {
+                "type": "string",
+                "enum": ["webrtc"]
+              },
+              "peer-id": {
+                "type": "string",
+                "minLength": 1,
+                "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
+              },
+              "cache-length": {
+                "type": "integer"
+              },
+              "sync-with-source": {
+                "type": "boolean"
+              },
+              "sync-with-destination": {
+                "type": "boolean"
+              },
+              "encode-cq-level": {
+                "type": "integer"
+              },
+              "overlay": {
+                "type": "boolean",
+                "default": True
+              }
+            },
+            "required": [
+              "type",
+              "peer-id"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "array",
+        "items": {
+          "oneOf": [
+            {
+              "type": "object",
+              "properties": {
                 "type": {
-                    "type":"string",
-                    "enum":["rtsp"]
+                  "type": "string",
+                  "enum": ["rtsp"]
                 },
                 "path": {
-                    "type":"string",
-                    "minLength": 1,
-                    "pattern" : "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
                 },
                 "cache-length": {
-                    "type":"integer",
-                    "default":30,
-                    "minimum":0
+                  "type": "integer",
+                  "default": 30,
+                  "minimum": 0
                 },
                 "sync-with-source": {
-                    "type":"boolean",
-                    "default":True
+                  "type": "boolean",
+                  "default": True
                 },
-                "sync-with-destination":{
-                    "type":"boolean",
-                    "default":True
+                "sync-with-destination": {
+                  "type": "boolean",
+                  "default": True
                 },
-                "encode-quality":{
-                    "type":"integer",
-                    "minimum":0,
-                    "maximum":100,
-                    "default":85
+                "encode-quality": {
+                  "type": "integer",
+                  "minimum": 0,
+                  "maximum": 100,
+                  "default": 85
+                },
+                "overlay": {
+                  "type": "boolean",
+                  "default": True
                 }
-            },
-            "required": [
+              },
+              "required": [
                 "type",
                 "path"
-            ]
-        },
-        "webrtc": {
-            "type":"object",
-            "properties": {
+              ]
+            },
+            {
+              "type": "object",
+              "properties": {
                 "type": {
-                    "type":"string",
-                    "enum":["webrtc"]
+                  "type": "string",
+                  "enum": ["webrtc"]
                 },
                 "peer-id": {
-                    "type":"string",
-                    "minLength": 1,
-                    "pattern" : "^[a-zA-Z0-9][a-zA-Z0-9_]*[a-zA-Z0-9]$"
+                  "type": "string",
+                  "minLength": 1,
+                  "pattern": "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
                 },
                 "cache-length": {
-                    "type":"integer"
+                  "type": "integer"
                 },
                 "sync-with-source": {
-                    "type":"boolean"
+                  "type": "boolean"
                 },
-                "sync-with-destination":{
-                    "type":"boolean"
+                "sync-with-destination": {
+                  "type": "boolean"
                 },
-                "encode-cq-level":{
-                    "type":"integer"
+                "encode-cq-level": {
+                  "type": "integer"
+                },
+                "overlay": {
+                  "type": "boolean"
                 }
-            },
-            "required": [
+              },
+              "required": [
                 "type",
                 "peer-id"
-            ]
-        },
-        "oneOf": [
-            {
-                "$ref": "#/rtsp"
-            },
-            {
-                "$ref": "#/webrtc"
+              ]
             }
-        ]
-    },
-    "anyOf": [
-        {
-            "required":["frame"]
-        },
-        {
-            "required":["metadata"]
-        },
-        {}
+          ]
+        }
+      }
     ]
+  },
+  "anyOf": [
+    {
+      "required": ["frame"]
+    },
+    {
+      "required": ["metadata"]
+    },
+    {}
+  ]
 }

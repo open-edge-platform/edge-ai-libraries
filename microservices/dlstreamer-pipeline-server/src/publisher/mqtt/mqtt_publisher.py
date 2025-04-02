@@ -28,14 +28,14 @@ class MQTTPublisher():
     """MQTT Publisher.
     """
 
-    def __init__(self, app_cfg, qsize=DEFAULT_APPDEST_MQTT_QUEUE_SIZE):
+    def __init__(self, config, qsize=DEFAULT_APPDEST_MQTT_QUEUE_SIZE):
         """Constructor
         :param json app_cfg: Application config
             the meta-data for the frame (df: True)
         """
         self.queue = deque(maxlen=qsize)
         self.stop_ev = th.Event()
-        self.topic = app_cfg.get('mqtt_publisher').get('topic', "edge_video_analytics_results")
+        self.topic = config.get('topic', "edge_video_analytics_results")
         assert len(self.topic) > 0, f'No specified topic'
 
         self.log = get_logger(f'{__name__} ({self.topic})')
@@ -50,19 +50,18 @@ class MQTTPublisher():
         else:
             self.port = int(self.port)
 
-        mqtt_cfg = app_cfg["mqtt_publisher"]
-        self.publish_frame = mqtt_cfg.get("publish_frame", False)
+        self.publish_frame = config.get("publish_frame", False)
 
-        self.qos = app_cfg.get('mqtt_publisher').get('qos', 0)
-        self.protocol = app_cfg.get('mqtt_publisher').get('protocol', 4)
+        self.qos = config.get('qos', 0)
+        self.protocol = config.get('protocol', 4)
 
-        filter_config = app_cfg.get('mqtt_publisher').get('filter', None)
+        filter_config = config.get('filter', None)
         if filter_config:
             self.filter = Filter(filter_config)
         else:
             self.filter = None
 
-        self.tls_config = app_cfg.get('mqtt_publisher').get('tls', None)
+        self.tls_config = config.get('tls', None)
 
         self.client = MQTTClient(self.host, self.port, self.topic, self.qos, self.protocol, self.tls_config)
         self.initialized=True
@@ -137,7 +136,7 @@ class MQTTPublisher():
          
         msg = json.dumps(msg)
 
-        self.log.info(f'Publishing message to: {self.topic}')
+        self.log.info(f'Publishing message to topic: {self.topic}')
         self.client.publish(self.topic, payload=msg)
 
         # Discarding publish message
