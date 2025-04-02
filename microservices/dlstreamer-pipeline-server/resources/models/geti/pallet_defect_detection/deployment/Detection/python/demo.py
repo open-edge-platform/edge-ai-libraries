@@ -1,27 +1,17 @@
-"""Demo based on ModelAPI."""
-# Copyright (C) 2021-2022 Intel Corporation
+# Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+"""Demo based on ModelAPI."""
 
-import os
 import sys
 from argparse import SUPPRESS, ArgumentParser
 from pathlib import Path
 
-os.environ["FEATURE_FLAGS_OTX_ACTION_TASKS"] = "1"
-
-# pylint: disable=no-name-in-module, import-error
-from otx.api.usecases.exportable_code.demo.demo_package import (
-    AsyncExecutor,
-    ChainExecutor,
-    ModelContainer,
-    SyncExecutor,
-    create_visualizer,
-)
+from demo_package import AsyncExecutor, ModelWrapper, SyncExecutor, create_visualizer
 
 
-def build_argparser():
-    """Parses command line arguments."""
+def build_argparser() -> ArgumentParser:
+    """Returns an ArgumentParser for parsing command line arguments."""
     parser = ArgumentParser(add_help=False)
     args = parser.add_argument_group("Options")
     args.add_argument(
@@ -40,13 +30,10 @@ def build_argparser():
     )
     args.add_argument(
         "-m",
-        "--models",
+        "--model",
         help="Optional. Path to directory with trained model and configuration file. "
-        "If you provide several models you will start the task chain pipeline with "
-        "the provided models in the order in which they were specified. Default value "
-        "points to deployed model folder '../model'.",
-        nargs="+",
-        default=[Path("../model")],
+        "Default value points to deployed model folder '../model'.",
+        default=Path("../model"),
         type=Path,
     )
     args.add_argument(
@@ -54,7 +41,7 @@ def build_argparser():
         "--inference_type",
         help="Optional. Type of inference for single model.",
         choices=["sync", "async"],
-        default="sync",
+        default="async",
         type=str,
     )
     args.add_argument(
@@ -80,7 +67,7 @@ def build_argparser():
     )
     args.add_argument(
         "--output",
-        default=None,
+        default="./outputs/model_visualization",
         type=str,
         help="Optional. Output path to save input data with predictions.",
     )
@@ -91,43 +78,30 @@ def build_argparser():
 EXECUTORS = {
     "sync": SyncExecutor,
     "async": AsyncExecutor,
-    "chain": ChainExecutor,
 }
 
 
-def get_inferencer_class(type_inference, models):
-    """Return class for inference of models."""
-    if len(models) > 1:
-        type_inference = "chain"
-        print("You started the task chain pipeline with the provided models in the order in which they were specified")
-    return EXECUTORS[type_inference]
-
-
-def main():
+def main() -> int:
     """Main function that is used to run demo."""
     args = build_argparser().parse_args()
 
     if args.loop and args.output:
-        raise ValueError("--loop and --output cannot be both specified")
+        msg = "--loop and --output cannot be both specified"
+        raise ValueError(msg)
 
     # create models
-    models = []
-    for model_dir in args.models:
-        model = ModelContainer(model_dir, device=args.device)
-        models.append(model)
-
-    inferencer = get_inferencer_class(args.inference_type, models)
+    model = ModelWrapper(args.model, device=args.device)
+    inferencer = EXECUTORS[args.inference_type]
 
     # create visualizer
-    visualizer = create_visualizer(models[-1].task_type, no_show=args.no_show, output=args.output)
-
-    if len(models) == 1:
-        models = models[0]
+    visualizer = create_visualizer(model.task_type, model.labels, no_show=args.no_show, output=args.output)
 
     # create inferencer and run
-    demo = inferencer(models, visualizer)
+    demo = inferencer(model, visualizer)
     demo.run(args.input, args.loop and not args.no_show)
+
+    return 0
 
 
 if __name__ == "__main__":
-    sys.exit(main() or 0)
+    sys.exit(main())

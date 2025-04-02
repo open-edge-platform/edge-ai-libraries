@@ -1,5 +1,23 @@
 # Release Notes
 
+## v2.4.0 (March 2025)
+
+### Added
+- Enabled frame publishing over WebRTC protocol to MediaMTX server.
+- New REST API to get pipeline instance status: GET/pipelines/{instance_id}/status
+
+### Fixed
+- Fixes in model update flow
+- Fixed an issue where overlay was improper for published frames when source has I420 image format 
+
+### Updates
+- DLS upgraded to 2025.0.1.2
+- Geti SDK upgraded 2.7.1, sample model files updated
+- RTSP and WebRTC allows watermark overlay on frames using REST
+- Updated documentation
+
+---
+
 ## v2.3.0 (March 2025)
 
 ### Added

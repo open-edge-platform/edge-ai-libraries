@@ -136,7 +136,7 @@ class EvamConfig:
             
         def get_app_cfg(self):
             return self._app_cfg
-        
+                
         def get_app_interface(self):
             return self._app_interface
 
@@ -248,3 +248,40 @@ class EvamConfig:
         """
         app_cfg = self.get_app_config()
         return app_cfg.get('model_registry')
+
+    def set_app_config(self, new_config: Dict[str, Any]) -> None:
+        """Set the application configuration with a new configuration.
+
+        Args:
+            new_config (Dict[str, Any]): The new configuration to set.
+        """
+        self._cfg_handler._app_cfg = new_config
+
+    def update_pipeline_config(self, model_path_dict: Dict) -> None:
+        """Update the configuration of pipelines with new model paths.
+
+        Args:
+            model_path_dict (Dict): Dictionary mapping pipeline element names to model paths.
+        """
+        app_cfg = self.get_app_config()
+        pipelines = app_cfg.get('pipelines', [])
+        for pipeline_index, pipeline in enumerate(pipelines):
+            for pipeline_element_name, model_path in model_path_dict.items():
+                elements = pipeline["pipeline"].split('!')
+                for i, element in enumerate(elements):
+                    if pipeline_element_name in element:
+                        if 'udfloader' in element:
+                            deployment_dir = model_path.split('/deployment', 1)[0] + '/deployment'
+                            app_cfg["pipelines"][pipeline_index]["udfs"]["udfloader"][0]["deployment"] = deployment_dir
+                        elif 'model=' in element:
+                            # Update the model path if it already exists
+                            elements[i] = f"{element.split('model=')[0]}model={model_path} "
+                        else:
+                            # Add the model path if it does not already exist
+                            elements[i] = f"{element.rstrip()} model={model_path} "
+                        break
+                app_cfg['pipelines'][pipeline_index]["pipeline"] = elements[0] + ''.join(f'!{e}' for e in elements[1:-1]) + '!' + elements[-1]                
+                self.log.debug("Pipeline '%s' updated with model %s for '%s'.", pipeline, model_path, pipeline_element_name)
+
+        self.set_app_config(app_cfg)
+        self.log.info("Updated pipeline configuration with model paths. New configuration is %s.", json.dumps(app_cfg, indent=4))

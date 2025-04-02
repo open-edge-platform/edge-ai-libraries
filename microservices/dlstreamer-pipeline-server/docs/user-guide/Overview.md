@@ -9,7 +9,7 @@ Video analytics involves the conversion of video streams into valuable insights 
 
 ## How it Works
 
-![EVAM Architecture](./images/evam-2.x-architecture.png)
+![EVAM Architecture](./images/evam-simplified-arch.png)
 
 Here is the high level description of functionality of EVAM module:
 
@@ -25,14 +25,11 @@ Here is the high level description of functionality of EVAM module:
    - **GST UDF Loader**</br>
       EVAM provides a [GStreamer plugin](https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c) - `udfloader` using which users can configure and load arbitrary UDFs. With `udfloader`, EVAM provides an easy way to bring user developed programs and run them as a part of GStreamer pipelines. A User Defined Function (UDF) is a chunk of user code that can transform video frames and/or manipulate metadata. For example, a UDF can act as filter, preprocessor, classifier or a detector. These User Defined Functions can be developed in Python.
    
-   - **EVAM Camera Ingestion**<br>
-      EVAM supports ingesting frames from external camera sources into the GStreamer pipeline, for example see [here](https://gstreamer.freedesktop.org/documentation/rtsp/rtspsrc.html?gi-language=c)
-
    - **EVAM Publisher**</br>
       Supports publishing metadata to file, MQTT/Kafka message brokers and frame along with metadata to MQTT message broker. We also support publishing metadata and frame over gRPC and OPCUA. The frames can also be saved on S3 compliant storage.
    
    - **EVAM Model Update**</br>
-      Supports integration with Model Registry service [MRaaS](https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.1/user-guide/Overview.html) for model download, deployment and management.
+      Supports integration with Model Registry service [MRaaS](https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.3/user-guide/Overview.html) for model download, deployment and management.
 
    - **Open Telemetry**</br>
       Supports gathering metrics over Open Telemetry for seamless visualization and analysis. 

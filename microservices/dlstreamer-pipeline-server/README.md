@@ -37,8 +37,7 @@ Follow the steps in this section to quickly pull the latest pre-built Edge Video
 - Pull the image with the latest tag from registry
 
    ```sh
-     docker pull amr-registry.caas.intel.com/nex-microservices/intel/edge-video-analytics-microservice:2.3.0
-     docker tag amr-registry.caas.intel.com/nex-microservices/intel/edge-video-analytics-microservice:2.3.0 intel/edge-video-analytics-microservice:2.3.0
+     docker pull intel/edge-video-analytics-microservice:2.4.0
    ```
 
 - Clone this repo in-order to get the required files that will help you run this microservice.
@@ -144,6 +143,6 @@ Refer [here](#run-default-sample) to run default sample upon bringing up EVAM co
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Get Started Guide](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Get-Started-Guide.html)
--   For more details on advanced configuration, usage of features refer to [Detailed Usage](./docs/user-guide/detailed_usage/Detailed-Usage.md). 
--   For more tutorials refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Tutorials-How-To.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Detailed Usage](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/get-started.html)

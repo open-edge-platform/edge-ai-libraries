@@ -3,7 +3,7 @@
 <!--
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
-The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Tiber<sup>TM</sup> AI systems for the edge.
+The ChatQ&A Sample Application is a modular Retrieval Augmented Generation (RAG) pipeline designed to help developers create intelligent chatbots that can answer questions based on enterprise data. This guide will help you set up, run, and modify the ChatQ&A Sample Application on Intel Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
@@ -14,6 +14,7 @@ By following this guide, you will learn how to:
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## Prerequisites
+
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
@@ -34,15 +35,15 @@ By following this guide, you will learn how to:
 -->
 
 1. **Clone the Repository**:
-    Clone the ChatQ&A sample application repository. Note: Documentation will be updated post migration to the public repo to point to the new repo that is accessible outside of Intel.
+    Clone the repository.
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone <repository-url>
     ```
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
     ```bash
-    cd edge-ai-libraries/sample-applications/chat-question-and-answer
+    cd <repository-url>/sample-applications/chat-question-and-answer
     ```
     ***Embedding Models Supported for each model server***
     | Model Server | Models Supported |
@@ -83,7 +84,7 @@ By following this guide, you will learn how to:
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
     export REGISTRY="intel/"
-    export TAG=1.1
+    export TAG=1.1.1
     source setup.sh llm=<ModelServer> embed=<Embedding>
     # Below are the options
     # ModelServer: VLLM , OVMS, TGI
@@ -106,6 +107,7 @@ By following this guide, you will learn how to:
     Open a browser and go to `http://{host_ip}:5173` to access the application dashboard.
 
 ## Running in Kubernetes
+
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 
 ## Running Tests
@@ -124,8 +126,10 @@ For alternative ways to set up the sample application, see:
 - [How to Build from Source](./build-from-source.md)
 
 ## Related Links
+
 - [How to Test Performance](./how-to-performance.md)
 
 ## Supporting Resources
+
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 - [API Reference](./chatqna-api.yml)

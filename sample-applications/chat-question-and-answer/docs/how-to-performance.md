@@ -3,6 +3,7 @@
 This guide provides step-by-step instructions for testing the performance of the ChatQ&A Sample Application.
 
 ## Prerequisites
+
 Before you begin, ensure that you have the following prerequisites:
 - The ChatQ&A Sample Application is set up and running. Refer to the [Get Started](./get-started.md) guide for setup instructions.
 
@@ -24,32 +25,37 @@ Before you begin, ensure that you have the following prerequisites:
 
           @task
           def ask_query(self):
-              self.client.post("/api/query", json={"question": "What is the capital of France?"})
+              self.client.post("/v1/chatqna/stream_log", json={"input": "What is the capital of France?"})
       ```
 
 3. **Run the Performance Test**:
     - Run the performance test script:
       ```bash
-      locust -f performance_test.py --host http://{host_ip}:5173
+      locust -f performance_test.py --host http://<host_ip>:<port_no>
       ```
+      The port number will depend based on if it is docker compose based deployment or Helm based deployment.
 
 4. **Monitor Performance Metrics**:
-    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard.
+    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard. Accordingly provide the right port number. For docker compose, the port number is `5173`.
 
 ## Key Performance Metrics
 
 ### Latency
+
 - **Definition**: The time taken to generate a response to a user query.
 - **Measurement**: Measure the response time for each query during the performance test.
 
 ### Throughput
+
 - **Definition**: The number of queries processed per second.
 - **Measurement**: Measure the number of queries processed per second during the performance test.
 
 ## Verification
+
 - Ensure that the application meets the expected performance criteria by analyzing the performance test results.
 
 ## Troubleshooting
+
 - If you encounter any issues during the performance testing process, check the application logs for errors:
   ```bash
   docker compose logs

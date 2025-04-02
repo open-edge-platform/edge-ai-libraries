@@ -1,11 +1,11 @@
 apiVersion: v1
 kind: Service
 metadata:
-  name: {{ .Values.intelEgaiChatqna.name }}
+  name: {{ .Values.Chatqna.name }}
 spec:
-  type: {{ .Values.intelEgaiChatqna.service.type }}
+  type: {{ .Values.Chatqna.service.type }}
   ports:
-    - port: {{ .Values.intelEgaiChatqna.service.port }}
-      targetPort: {{ .Values.intelEgaiChatqna.service.targetPort }}
+    - port: {{ .Values.Chatqna.service.port }}
+      targetPort: {{ .Values.Chatqna.service.targetPort }}
   selector:
-    app: {{ .Values.intelEgaiChatqna.name }}
+    app: {{ .Values.Chatqna.name }}

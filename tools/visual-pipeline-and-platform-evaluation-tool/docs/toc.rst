@@ -1,3 +1,3 @@
 .. toctree::
 
-   developer-guide/index
+   user-guide/index

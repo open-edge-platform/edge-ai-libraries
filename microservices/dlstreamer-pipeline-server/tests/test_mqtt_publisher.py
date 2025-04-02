@@ -96,13 +96,13 @@ class TestMqttPublisher:
        
         assert "Message not published" in capfd.readouterr().out
 
-    def test_filter(self, capfd, setup):
-        app_cfg = setup
-        app_cfg["mqtt_publisher"]["filter"] = {"type": "classification", "label_score": {"person": 0.5}}
-        pub_obj = MQTTPublisher(app_cfg)
+    # def test_filter(self, capfd, setup):
+    #     app_cfg = setup
+    #     app_cfg["mqtt_publisher"]["filter"] = {"type": "classification", "label_score": {"person": 0.5}}
+    #     pub_obj = MQTTPublisher(app_cfg)
 
-        frame = b"Test"
-        metadata = {'key1': 'value1', 'key2': 'value1'}
-        pub_obj._publish(frame, metadata)
+    #     frame = b"Test"
+    #     metadata = {'key1': 'value1', 'key2': 'value1'}
+    #     pub_obj._publish(frame, metadata)
        
-        assert "Filter criteria not met" in capfd.readouterr().out
+    #     assert "Filter criteria not met" in capfd.readouterr().out

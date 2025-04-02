@@ -1,0 +1,38 @@
+image:
+  registry: "intel/"
+  backendTag: "core_1.1.1"
+  pullPolicy: IfNotPresent
+
+global:
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: ""
+  huggingface: 
+    apiToken: ""
+  EMBEDDING_MODEL_NAME: ""
+  RERANKER_MODEL: ""
+  LLM_MODEL: ""
+  model_cache_path: "/tmp/model_cache"
+
+chatqna:
+  name: chatqna-core
+  service:
+    type: ClusterIP
+    port: 8888
+  readinessProbe:
+    httpGet:
+      path: /v1/chatqna/health
+      port: 8888
+    initialDelaySeconds: 30
+    periodSeconds: 30
+  startupProbe:
+    httpGet:
+      path: /v1/chatqna/health
+      port: 8888
+    initialDelaySeconds: 1000 
+    periodSeconds: 30
+
+uiService:
+  name: chatqna-core-ui
+  type: ClusterIP
+  port: 80

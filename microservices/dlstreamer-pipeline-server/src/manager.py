@@ -125,6 +125,7 @@ class PipelineInstance:
         elif self.source_type != "gstreamer":
             raise RuntimeError(f'Unsupported source: {self.source_type}')
         
+        request_cpy = copy.deepcopy(self.request)   # keep a copy of request to update instance summary
         self.publisher = Publisher(self.config, self.pub_cfg, self.output_queue,request=self._request)
 
         # add imagepublisher for source= "image_ingestor"
@@ -165,13 +166,16 @@ class PipelineInstance:
         
         # identify destination
         self.is_appdest = False
-        if self.request is not None and "destination" in self.request:
-            dest = self.request["destination"]
-            if "metadata" in self.request["destination"]:   # there could be request with only frame and no metadata
-                if self.request["destination"]["metadata"]["type"] == "application":
-                    dest["metadata"]["output"] = self.output_queue
-                    self.is_appdest = True
-        else:
+        dest = {}
+        if self.request is not None and "destination" in self.request :
+            # for pipeline restart where request is picked from a prior run and had appsink set as destination
+            if "metadata" in self.request["destination"] and self.request["destination"]["metadata"]["type"] == "application":   # there could be request with only frame and no metadata
+                dest = self.request["destination"]
+                dest["metadata"]["output"] = self.output_queue
+                self.is_appdest = True
+            if "frame" in self.request["destination"]:
+                dest["frame"] = self.request["destination"]["frame"]
+        if self.publisher.publishers != [] and ("destination" not in self.request or "metadata" not in self.request["destination"]):
             pipeline_config = self.config["pipeline"]
             appsink_name=""
             appsink_pattern = r"appsink\s+name\s*=\s*(\w+)"
@@ -181,15 +185,13 @@ class PipelineInstance:
             self.log.debug(f'Appsink name found as - {appsink_name}')
             
             if appsink_name =="destination":
-                dest = {
-                    'metadata': {
+                dest['metadata'] = {
                         'type': 'application',
                         'class': 'GStreamerAppDestination',
                         'output': self.output_queue,
                         'mode':
                             'frames'  # TODO: Should this be something else? options?
                     }
-                }
                 self.is_appdest = True
             else:
                 dest = {}
@@ -221,8 +223,7 @@ class PipelineInstance:
 
         self.log.info('Starting Pipeline Server pipeline {} {} {}'.format(
             src, dest,model_params))
-        request_cpy = copy.deepcopy(self.request)
-        self.instance_id = self.pipeline.start(request=request_cpy,
+        self.instance_id = self.pipeline.start(request=copy.deepcopy(self.request),
                                                source=src,
                                                destination=dest,
                                                parameters=model_params,
@@ -576,6 +577,10 @@ class PipelineServerManager:
         """GET /pipelines/status"""
         return self.pserv.pipeline_manager.get_all_instance_status()
 
+    def get_instance_status(self, instance_id: str) -> List[Dict]:
+        """GET /pipelines/{instance_id}/status"""
+        return self.pserv.pipeline_manager.get_instance_status(instance_id)
+
     def stop_instance(self, 
                       instance_id: str)->str:
         """DELETE /pipelines/{instance_id}"""
@@ -620,7 +625,7 @@ class PipelineServerManager:
             minst_id = match.group(1) if match else None
             if minst_id is not None:    # check if model instance id is errored out
                 if minst_id in model_inst_data:
-                    if 'id' in model_inst_data[minst_id]:
+                    if model_inst_data[minst_id].get('id') is not None:
                         state = self.pserv.pipeline_manager.get_instance_status(model_inst_data[minst_id]['id'])['state']
                         if state == PipelineServer_Pipeline.State.ERROR:
                             return None, "Cannot start pipeline. {} element uses model-instance-id: {} that errored out on a prior run due to incorrect parameters. Review parameters and relaunch EVAM.".format(gvaelement, minst_id)

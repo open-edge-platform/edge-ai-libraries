@@ -28,7 +28,7 @@ data:
         }
 
         location /v1/chatqna {
-            proxy_pass http://{{ .Values.intelEgaiChatqna.name }}:{{ .Values.intelEgaiChatqna.service.port }};
+            proxy_pass http://{{ .Values.Chatqna.name }}:{{ .Values.Chatqna.service.port }};
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -58,22 +58,22 @@ kind: Deployment
 metadata:
   name: {{ include "nginx.fullname" . }}
   labels:
-    {{- include "intel-egai-chatqna-helm-chart.labels" . | nindent 4 }}
+    {{- include "chatqna-helm-chart.labels" . | nindent 4 }}
     app: {{ include "nginx.fullname" . }}
 spec:
   selector:
     matchLabels:
-      {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 6 }}
+      {{- include "chatqna-helm-chart.selectorLabels" . | nindent 6 }}
       app: {{ include "nginx.fullname" . }}
   template:
     metadata:
       labels:
-        {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 8 }}
+        {{- include "chatqna-helm-chart.selectorLabels" . | nindent 8 }}
         app: {{ include "nginx.fullname" . }}
     spec:
       containers:
       - image: nginx:1.27.1
-        imagePullPolicy: {{ .Values.intelEgaiChatqna.image.pullPolicy }}
+        imagePullPolicy: {{ .Values.Chatqna.image.pullPolicy }}
         name: nginx
         volumeMounts:
         - mountPath: /etc/nginx/conf.d
@@ -107,6 +107,6 @@ spec:
     protocol: TCP
     targetPort: 80
   selector:
-    {{- include "intel-egai-chatqna-helm-chart.selectorLabels" . | nindent 4 }}
+    {{- include "chatqna-helm-chart.selectorLabels" . | nindent 4 }}
     app: {{ include "nginx.fullname" . }}
   type: NodePort

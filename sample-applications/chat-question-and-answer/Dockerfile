@@ -29,6 +29,10 @@ RUN poetry install --only main
 
 RUN python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng
 
+RUN mkdir /home/intelgai/.cache/huggingface
+
+RUN chown intelgai:intelgai /home/intelgai/.cache/huggingface
+
 USER intelgai
 
 EXPOSE 8080
