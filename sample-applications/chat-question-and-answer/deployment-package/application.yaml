@@ -70,13 +70,11 @@ profiles:
         mandatory: true
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
-        type: string
-        default: "true"
+        type: boolean
         mandatory: true
       - name: global.teiEmbeddingService.enabled
         displayName: TEI Embedding Service
-        type: string
-        default: "false"
+        type: boolean
         mandatory: true
   - name: "vllm"
     valuesFileName: "chatqna-values-vllm.yaml"
@@ -132,13 +130,11 @@ profiles:
         mandatory: true
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
-        type: string
-        default: "false"
+        type: boolean
         mandatory: true
       - name: global.teiEmbeddingService.enabled
         displayName: TEI Embedding Service
-        type: string
-        default: "true"
+        type: boolean
         mandatory: true
   - name: "tgi"
     valuesFileName: "chatqna-values-tgi.yaml"
@@ -194,11 +190,9 @@ profiles:
         mandatory: true
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
-        type: string
-        default: "false"
+        type: boolean
         mandatory: true
       - name: global.teiEmbeddingService.enabled
         displayName: TEI Embedding Service
-        type: string
-        default: "true"
+        type: boolean
         mandatory: true
