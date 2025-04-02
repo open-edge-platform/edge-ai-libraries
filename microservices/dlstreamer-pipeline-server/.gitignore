@@ -1,3 +1,4 @@
+models
 utils/tools/model_downloader/__pycache__
 **/*.swo
 **/*.swp

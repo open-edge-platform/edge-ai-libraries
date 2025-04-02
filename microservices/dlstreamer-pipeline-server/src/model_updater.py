@@ -33,6 +33,7 @@ class ModelQueryParams(BaseModel):
     precision: str = None
     project_name: str = None
     version: str = None
+    origin: str = None
     deploy: bool = False
     pipeline_element_name: str = None
 
@@ -193,6 +194,7 @@ class ModelRegistryClient:
                            v in params.model_dump().items() if v is not None}
             params_dict.pop("deploy", None)
             params_dict.pop("pipeline_element_name", None)
+            params_dict.pop("origin", None)
             params_dict_str = json.dumps(params_dict)
             self._logger.debug(
                 "Metadata for a model with the specified properties (%s) requested.",
@@ -266,6 +268,51 @@ class ModelRegistryClient:
 
         return zip_file_data
 
+    def get_model_path(self, pipelines_cfg: list) -> dict:
+        """
+        Constructs and returns the model path based on the provided pipeline configuration.
+
+        Args:
+            pipeline_cfg (list): A list of pipeline configurations, where each configuration
+                 is expected to contain model parameters.
+
+        Returns:
+            dict: A dictionary mapping pipeline names to their constructed model paths.
+
+        Raises:
+            Exception: Logs an error message if an exception occurs during the construction
+               of the model path.
+
+        The function iterates through the provided pipeline configurations to extract model
+        parameters and constructs the model path based on these parameters. The path format
+        differs depending on the origin of the model (e.g., "geti" or other origins).
+        """
+        try:
+            model_path_dict = {}
+            for pipeline in pipelines_cfg:
+                list_pipeline_model_params = pipeline.get("model_params")
+                if list_pipeline_model_params:
+                    for pipeline_model_params in list_pipeline_model_params:
+                        model_params = ModelQueryParams(**pipeline_model_params)      
+                        model_params = {k: v for k,
+                                    v in model_params.model_dump().items() if v is not None}
+                        if model_params.get("deploy", False):
+                            models_pipeline_dirpath = (self._saved_models_dir + \
+                                    "/" + "_".join((model_params["name"],
+                                    "m-"+model_params["version"],
+                                    model_params["precision"]))).lower()
+                            if model_params.get("origin", None) == "Geti":
+                                model_path = models_pipeline_dirpath + "/deployment" + "/" + model_params["category"] + "/model/model.xml"
+                                self._logger.debug("Model origin is GETI. Model path is %s", model_path)
+                            else:
+                                model_path = models_pipeline_dirpath + "/" + model_params["precision"].upper() + "/" + model_params["name"] + ".xml"
+                                self._logger.debug("Model origin is not GETI. Model path is %s", model_path)
+                            model_path_dict.update({model_params["pipeline_element_name"]: model_path})
+            return model_path_dict
+        except Exception as e:
+            self._logger.error("Exception occurred while constructing model path: %s", e)
+            return None
+
     def start_download_models(self, pipelines_cfg: list): # pragma: no cover
         """Start a thread to download the artifacts for models described in the model params 
         in the provided `pipelines_cfg` parameter.
@@ -295,11 +342,9 @@ class ModelRegistryClient:
         
         Returns:
             tuple: The flag where the model(s) artifacts was saved successfully, error_message
-            , deployment directory path, model path
         """
         is_artifacts_saved = False
         deployment_dirpath = None
-        model_path = None
         msg = None
 
         # if not self._is_connected:
@@ -317,6 +362,7 @@ class ModelRegistryClient:
                 list_pipeline_model_params = pipeline.get("model_params")
                 if list_pipeline_model_params:
                     for pipeline_model_params in list_pipeline_model_params:
+                            msg = None
                             params = ModelQueryParams(**pipeline_model_params)
                             model = self._get_model(params)
                             if not model:
@@ -370,25 +416,8 @@ class ModelRegistryClient:
                                 is_already_saved = True
                                 is_artifacts_saved = True
 
-                            try: 
-                                model_origin = model.get("origin")
-                                if model_origin:
-                                    model_origin = model_origin.lower()
-                                if model_origin == "geti":
-                                        dir_info = ("Deployment directory", deployment_dirpath)
-                                        self._logger.debug("Model origin is GETI. Deployment directory is %s", deployment_dirpath)
-                                        model_path = deployment_dirpath + "/" + model["category"] + "/model/model.xml" 
-                                else:
-                                    model_dir_path = models_pipeline_dirpath + "/" + model["precision"][0].upper()
-                                    self._logger.debug("Model origin is not GETI. Model directory is %s", model_dir_path)
-                                    model_path = [os.path.join(model_dir_path, file) for file in os.listdir(model_dir_path) if file.endswith(".xml")][0]
-                                if not os.path.exists(model_path):
-                                    raise ValueError("Model path does not exist.")
-                                self._logger.debug("Model path: %s", model_path)
-                            except Exception as e:
-                                msg = "Failed to get model path."
-                                self._logger.error("Exception occurred while getting model path: %s", e)
-                                model_path = None
+                            if os.path.exists(deployment_dirpath):
+                                dir_info = ("Deployment directory", deployment_dirpath)
 
                             if msg is None:
                                 verb_phrase = "already exists " if is_already_saved else "was created "
@@ -406,4 +435,4 @@ class ModelRegistryClient:
             self._logger.error("Exception occurred while saving artifacts for model: " \
                                "%s", e)
 
-        return is_artifacts_saved, msg, deployment_dirpath, model_path
+        return is_artifacts_saved, msg

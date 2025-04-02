@@ -19,8 +19,7 @@ This code deployment .zip archive contains:
 3. A very simple code example to get and visualize the result of inference for your 
    project, on the sample image.
    
-4. Jupyter notebooks with instructions and code for running inference for your project, 
-   either locally or via the OpenVINO Model Server (OVMS).
+4. Jupyter notebooks with instructions and code for running inference locally for your project.
 
 The deployment holds one model for each task in your project, so if for example 
 you created a deployment for a `Detection -> Classification` project, it will consist of
@@ -33,7 +32,6 @@ machine.
 ## Prerequisites
 
 - [Python 3.9, 3.10 or 3.11](https://www.python.org/downloads/)
-- [*Optional, only for OVMS notebook*] [Docker](https://docs.docker.com/get-docker/) 
 
 ## Installation
 
@@ -91,8 +89,7 @@ machine.
    python -m pip install -r requirements.txt
    ```
 
-5. (Optional) Install the requirements for running the `demo_notebook.ipynb` or 
-   `demo_ovms.ipynb` Juypter notebooks:
+5. (Optional) Install the requirements for running the `demo_notebook.ipynb` Juypter notebook:
 
    ```
    python -m pip install -r requirements-notebook.txt
@@ -112,19 +109,10 @@ Both `demo.py` script and the `demo_notebook.ipynb` notebook contain a code samp
 4. Visualizing the inference results.
 
 ### Inference with OpenVINO Model Server
-The additional demo notebook `demo_ovms.ipynb` shows how to set up and run an OpenVINO 
-Model Server for your deployment, and make inference requests to it. The notebook 
-contains instructions and code to:
+Inference with OpenVINO Model Server (OVMS) is deprecated in Intel® Geti™ SDK.
 
-1. Generate a configuration file for OVMS.
-
-2. Launch an OVMS docker container with the proper configuration.
-
-3. Load the image `sample_image.jpg`, as an example image to run inference on.
-
-4. Make an inference request to OVMS.
-
-5. Visualize the inference results.
+To use OVMS, create a new model deployment in Intel® Geti™ and select "OpenVINO Model Server deployment". 
+After downloading the deployment package, follow the included README instructions to run OVMS.
 
 ### Running the demo script
 
@@ -161,8 +149,7 @@ In your terminal:
 
 Inside JuypterLab:
 
-5. In the sidebar of the JupyterLab interface, double-click on `demo_notebook.ipynb` or
-   `demo_ovms.ipynb` to open one of the notebooks.
+5. In the sidebar of the JupyterLab interface, double-click on `demo_notebook.ipynb` open one of the notebooks.
    
 6. Execute the notebook cell by cell to view the inference results. 
 

@@ -54,7 +54,7 @@ def parse_options(args=None):
                         default=bool(util.strtobool(os.getenv('ENABLE_WEBRTC', 'false'))))
     parser.add_argument("--webrtc-signaling-server", action="store",
                         dest="webrtc_signaling_server",
-                        default=os.getenv('WEBRTC_SIGNALING_SERVER', 'ws://webrtc_signaling_server:8443'))
+                        default=os.getenv('WEBRTC_SIGNALING_SERVER', 'http://mediamtx-server:8889'))
     parser.add_argument("--emit-source-and-destination",
                         dest="emit_source_and_destination",
                         help="Outputs source/destination endpoint access information into metadata "

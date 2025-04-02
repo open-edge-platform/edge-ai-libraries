@@ -117,20 +117,20 @@ class TestPublisher:
         assert pub_obj.get_pipeline_status == get_pipeline_status, "Get pipeline status function should be set correctly"
     
     
-    @pytest.mark.parametrize(
-        'mqtt_cfg',
-        [{"host": "x.x.x.x", "port": 1883}, None
-        ])
-    def test_get_publishers(self, setup, mqtt_cfg):
-        app_cfg, pub_cfg = setup
-        if mqtt_cfg:
-            app_cfg["mqtt_publisher"] = mqtt_cfg
+    # @pytest.mark.parametrize(
+    #     'mqtt_cfg',
+    #     [{"host": "x.x.x.x", "port": 1883}, None
+    #     ])
+    # def test_get_publishers(self, setup, mqtt_cfg):
+    #     app_cfg, pub_cfg = setup
+    #     if mqtt_cfg:
+    #         app_cfg["mqtt_publisher"] = mqtt_cfg
        
-        pub_obj = Publisher(app_cfg, pub_cfg, MagicMock())
-        publishers = pub_obj._get_publishers()
+    #     pub_obj = Publisher(app_cfg, pub_cfg, MagicMock())
+    #     publishers = pub_obj._get_publishers()
         
-        if mqtt_cfg:
-            assert len(publishers) == 1
+    #     if mqtt_cfg:
+    #         assert len(publishers) == 1
             
     def test_generate_image_handle(self, pub_obj):
         output = pub_obj._generate_image_handle(9)

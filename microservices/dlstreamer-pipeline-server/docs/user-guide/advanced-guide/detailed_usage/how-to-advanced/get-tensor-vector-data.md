@@ -1,0 +1,206 @@
+# Get tensor vector data
+
+EVAM supports extracting tensor data (as python lists) from pipeline models by making use of DLStreamer's `add-tensor-data=true` property for `gvametaconvert` element. Depending upon how gva elements are stacked and whether inference is done on entire frame or on ROIs (Region Of Interest), the metadata json is structured accordingly. Tensor outputs are vector representation of the frame/roi. It can be used by reference applications for various usecases such as image comparison, image description, image classification using custom model, etc. To learn more about the property, read [here](https://dlstreamer.github.io/elements/gvametaconvert.html).
+
+Follow the below steps to publish tensor vector data along with other metadata via MQTT
+
+1. Update default pipeline present in `[EVAM_WORKDIR]/configs/default/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) - 
+    `NOTE` The model used in the below pipeline is from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DLStreamer on how to download it for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+    ```sh
+    "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
+    ```
+
+    `NOTE` The property `add-tensor-data` for the dlstreamer element gvametaconvert is set to `true`. 
+
+2. Add the following MQTT parameters to `[EVAM_WORKDIR]/configs/default/config.json` as shown below to publish the tensor data along with all other metadata via MQTT. The below section should be present in `[EVAM_WORKDIR]/configs/default/config.json` under `pipelines` section. 
+
+    ```sh
+    "mqtt_publisher": {
+        "publish_frame": false,
+        "topic": "edge_video_analytics_results"
+    }
+    ```
+    `NOTE` Follow instruction in the [Prerequisite section](../../../how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
+
+    After the above changes, the updated config.json looks something like this.
+
+    ```json
+    {
+        "config": {
+            "logging": {
+                "C_LOG_LEVEL": "INFO",
+                "PY_LOG_LEVEL": "INFO"
+            },
+            "pipelines": [
+                {
+                    "name": "pallet_defect_detection",
+                    "source": "gstreamer",
+                    "queue_maxsize": 50,
+                    "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "detection-properties": {
+                                "element": {
+                                    "name": "detection",
+                                    "format": "element-properties"
+                                }
+                            }
+                        }
+                    },
+                    "auto_start": false,
+                    "mqtt_publisher": {
+                        "publish_frame": false,
+                        "topic": "edge_video_analytics_results"
+                    }
+                }
+            ]
+        }
+    }
+    ```
+
+3. Configure MQTT `host` and `port` present in `[EVAM_WORKDIR]/docker/.env`.
+    ```sh
+    MQTT_HOST=<mqtt_broker_address>
+    MQTT_PORT=1883
+    ```
+
+    `NOTE` By default, EVAM provides a MQTT broker as part of the docker compose file. In case, the user wants to use a different broker please update the above variables accordingly. 
+
+4. Allow EVAM to read the above modified configuration. We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).
+    ```yaml
+    services:
+        edge-video-analytics-microservice:
+            volumes:
+                - "../configs/default/config.json:/home/pipeline-server/config.json"
+    ```
+
+5. Start EVAM.
+    ```sh
+    docker compose up -d
+    ```
+
+6. Once started, send the following curl command to launch the pipeline
+    ```sh
+    curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+        "source": {
+            "uri": "file:///home/pipeline-server/resources/videos/person-bicycle-car-detection.mp4",
+            "type": "uri"
+        }
+    }'
+    ```
+
+7. You can check the vector output by subscribing to mqtt. You can check this [document](./../../detailed_usage/publisher/eis_mqtt_publish_doc.md#start-mqtt-subscriber) on how to configure and start mqtt subscriber.
+
+    Here's what a sample metadata for a frame looks like (some data deleted to keep size small).
+    ```sh
+    {
+        "objects": [
+            {
+                "detection": {
+                    "bounding_box": {
+                        "x_max": 0.6305969953536987,
+                        "x_min": 0.38808196783065796,
+                        "y_max": 0.8155133128166199,
+                        "y_min": 0.5354097485542297
+                    },
+                    "confidence": 0.5702379941940308,
+                    "label": "vehicle",
+                    "label_id": 0
+                },
+                "h": 121,
+                "region_id": 146,
+                "roi_type": "vehicle",
+                "tensors": [
+                    {
+                        "confidence": 0.5702379941940308,
+                        "label_id": 0,
+                        "layer_name": "labels\\boxes",
+                        "layout": "ANY",
+                        "model_name": "torch-jit-export",
+                        "name": "detection",
+                        "precision": "UNSPECIFIED"
+                    },
+                    {
+                        "data": [
+                            1.1725661754608154,
+                            -0.46770259737968445,
+                            <omitted data>
+                            -0.8607546091079712,
+                            1.1693058013916016
+                        ],
+                        "dims": [
+                            1,
+                            1000
+                        ],
+                        "layer_name": "prob",
+                        "layout": "ANY",
+                        "model_name": "torch_jit",
+                        "name": "inference_layer_name:prob",
+                        "precision": "FP32"
+                    }
+                ],
+                "w": 186,
+                "x": 298,
+                "y": 231
+            },
+            {
+                "detection": {
+                    "bounding_box": {
+                        "x_max": 0.25753622874617577,
+                        "x_min": 0.017545249313116074,
+                        "y_max": 0.39748281240463257,
+                        "y_min": 0.12764209508895874
+                    },
+                    "confidence": 0.5328243970870972,
+                    "label": "vehicle",
+                    "label_id": 0
+                },
+                "h": 117,
+                "region_id": 147,
+                "roi_type": "vehicle",
+                "tensors": [
+                    {
+                        "confidence": 0.5328243970870972,
+                        "label_id": 0,
+                        "layer_name": "labels\\boxes",
+                        "layout": "ANY",
+                        "model_name": "torch-jit-export",
+                        "name": "detection",
+                        "precision": "UNSPECIFIED"
+                    },
+                    {
+                        "data": [
+                            0.5690383911132813,
+                            -0.5517100691795349,
+                            <omitted data>
+                            -0.8780728578567505,
+                            1.1474417448043823
+                        ],
+                        "dims": [
+                            1,
+                            1000
+                        ],
+                        "layer_name": "prob",
+                        "layout": "ANY",
+                        "model_name": "torch_jit",
+                        "name": "inference_layer_name:prob",
+                        "precision": "FP32"
+                    }
+                ],
+                "w": 184,
+                "x": 13,
+                "y": 55
+            }
+        ],
+        "resolution": {
+            "height": 432,
+            "width": 768
+        },
+        "timestamp": 0
+    }
+    ```
+8. To stop EVAM and other services, run the following.
+    ```sh
+    docker compose down
+    ```

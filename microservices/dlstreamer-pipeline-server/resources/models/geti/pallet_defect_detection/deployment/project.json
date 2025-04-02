@@ -1,53 +1,23 @@
 {
-   "id": "66abca327b1086f1546a2527",
-   "name": "Pallet Defect Detection",
-   "creation_time": "2024-08-01T17:47:30.329000+00:00",
+   "id": "67c1af441766e41edce24f08",
+   "name": "Pallet Defect Detection GETi2.7.X_Feb28",
+   "creation_time": "2025-02-28T12:42:44.513000+00:00",
    "creator_id": "96ab72b1-30e0-4425-b2f7-987a49f9d725",
    "pipeline": {
       "tasks": [
          {
-            "id": "66abca327b1086f1546a2528",
+            "id": "67c1af441766e41edce24f09",
             "title": "Dataset",
             "task_type": "dataset"
          },
          {
-            "id": "66abca327b1086f1546a252a",
+            "id": "67c1af441766e41edce24f0b",
             "title": "Detection",
             "task_type": "detection",
             "labels": [
                {
-                  "id": "66abca327b1086f1546a252c",
+                  "id": "67c1af441766e41edce24f0d",
                   "name": "box",
-                  "is_anomalous": false,
-                  "color": "#00f5d4ff",
-                  "hotkey": "",
-                  "is_empty": false,
-                  "group": "Detection labels",
-                  "parent_id": null
-               },
-               {
-                  "id": "66abca327b1086f1546a252d",
-                  "name": "shipping label",
-                  "is_anomalous": false,
-                  "color": "#edb200ff",
-                  "hotkey": "",
-                  "is_empty": false,
-                  "group": "Detection labels",
-                  "parent_id": null
-               },
-               {
-                  "id": "66abca327b1086f1546a252e",
-                  "name": "defect",
-                  "is_anomalous": false,
-                  "color": "#c9e649ff",
-                  "hotkey": "",
-                  "is_empty": false,
-                  "group": "Detection labels",
-                  "parent_id": null
-               },
-               {
-                  "id": "66abca327b1086f1546a252f",
-                  "name": "No Object",
                   "is_anomalous": false,
                   "color": "#00a5cfff",
                   "hotkey": "",
@@ -56,7 +26,37 @@
                   "parent_id": null
                },
                {
-                  "id": "66abca327b1086f1546a2533",
+                  "id": "67c1af441766e41edce24f0e",
+                  "name": "shipping label",
+                  "is_anomalous": false,
+                  "color": "#9b5de5ff",
+                  "hotkey": "",
+                  "is_empty": false,
+                  "group": "Detection labels",
+                  "parent_id": null
+               },
+               {
+                  "id": "67c1af441766e41edce24f0f",
+                  "name": "defect",
+                  "is_anomalous": false,
+                  "color": "#5b69ffff",
+                  "hotkey": "",
+                  "is_empty": false,
+                  "group": "Detection labels",
+                  "parent_id": null
+               },
+               {
+                  "id": "67c1af441766e41edce24f10",
+                  "name": "No Object",
+                  "is_anomalous": false,
+                  "color": "#9d3b1aff",
+                  "hotkey": "",
+                  "is_empty": false,
+                  "group": "Detection labels",
+                  "parent_id": null
+               },
+               {
+                  "id": "67c1af441766e41edce24f14",
                   "name": "No object",
                   "is_anomalous": false,
                   "color": "#000000ff",
@@ -66,25 +66,25 @@
                   "parent_id": null
                }
             ],
-            "label_schema_id": "66abca327b1086f1546a2535"
+            "label_schema_id": "67c1af441766e41edce24f16"
          }
       ],
       "connections": [
          {
-            "from": "66abca327b1086f1546a2528",
-            "to": "66abca327b1086f1546a252a"
+            "from": "67c1af441766e41edce24f09",
+            "to": "67c1af441766e41edce24f0b"
          }
       ]
    },
-   "thumbnail": "/api/v1/organizations/a78b182d-0be1-4463-9b21-2aab6ad04746/workspaces/25df12db-ebb8-48e6-a4c6-df7567b8630f/projects/66abca327b1086f1546a2527/thumbnail",
+   "thumbnail": "/api/v1/organizations/a78b182d-0be1-4463-9b21-2aab6ad04746/workspaces/25df12db-ebb8-48e6-a4c6-df7567b8630f/projects/67c1af441766e41edce24f08/thumbnail",
    "performance": {
-      "score": 0.8275862068965516,
+      "score": 0.909090909090909,
       "task_performances": [
          {
-            "task_id": "66abca327b1086f1546a252a",
+            "task_id": "67c1af441766e41edce24f0b",
             "score": {
-               "value": 0.8275862068965516,
-               "metric_type": "f-measure"
+               "value": 0.909090909090909,
+               "metric_type": "F-Measure"
             }
          }
       ]
@@ -92,10 +92,10 @@
    "storage_info": {},
    "datasets": [
       {
-         "id": "66abca327b1086f1546a2530",
+         "id": "67c1af441766e41edce24f11",
          "name": "Dataset",
          "use_for_training": true,
-         "creation_time": "2024-08-01T17:47:30.325000+00:00"
+         "creation_time": "2025-02-28T12:42:44.509000+00:00"
       }
    ]
 }

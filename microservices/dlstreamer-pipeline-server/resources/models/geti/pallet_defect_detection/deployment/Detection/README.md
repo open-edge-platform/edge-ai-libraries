@@ -5,23 +5,35 @@ Exportable code is a .zip archive that contains simple demo to get and visualize
 ## Structure of generated zip
 
 - `README.md`
+- `LICENSE`
 - model
   - `model.xml`
   - `model.bin`
   - `config.json`
 - python
-  - model_wrappers (Optional)
+  - demo_package
     - `__init__.py`
-    - model_wrappers required to run demo
-  - `LICENSE`
+    - executors
+      - `__init__.py`
+      - `asynchronous.py`
+      - `synchronous.py`
+    - inference
+      - `__init__.py`
+      - `inference.py`
+    - streamer
+      - `__init__.py`
+      - `streamer.py`
+    - visualizers
+      - `__init__.py`
+      - `visualizer.py`
+      - `vis_utils.py`
   - `demo.py`
   - `requirements.txt`
-
-> **NOTE**: Zip archive contains model_wrappers when [ModelAPI](https://github.com/openvinotoolkit/model_api) has no appropriate standard model wrapper for the model.
+  - `setup.py`
 
 ## Prerequisites
 
-- [Python 3.8](https://www.python.org/downloads/)
+- [Python 3.10](https://www.python.org/downloads/)
 - [Git](https://git-scm.com/)
 
 ## Install requirements to run demo
@@ -66,7 +78,8 @@ Exportable code is a .zip archive that contains simple demo to get and visualize
 1. Install requirements in the environment:
 
    ```bash
-   python -m pip install -r requirements.txt
+   cd python
+   python setup.py install
    ```
 
 ## Usecase
@@ -74,14 +87,14 @@ Exportable code is a .zip archive that contains simple demo to get and visualize
 1. Running the `demo.py` application with the `-h` option yields the following usage message:
 
    ```bash
-   usage: demo.py [-h] -i INPUT -m MODELS [MODELS ...] [-it {sync,async}] [-l] [--no_show] [-d {CPU,GPU}] [--output OUTPUT]
+   usage: demo.py [-h] -i INPUT -m MODEL [MODEL ...] [-it {sync,async}] [-l] [--no_show] [-d {CPU,GPU}] [--output OUTPUT]
 
    Options:
    -h, --help            Show this help message and exit.
    -i INPUT, --input INPUT
                            Required. An input to process. The input must be a single image, a folder of images, video file or camera id.
-   -m MODELS [MODELS ...], --models MODELS [MODELS ...]
-                           Optional. Path to directory with trained model and configuration file. If you provide several models you will start the task chain pipeline with the provided models in the order in which they were specified. Default value points to deployed model folder '../model'.
+   -m MODEL [MODEL ...], --model MODELS [MODELS ...]
+                           Optional. Path to directory with trained model and configuration file. Default value points to deployed model folder '../model'.
    -it {sync,async}, --inference_type {sync,async}
                            Optional. Type of inference for single model.
    -l, --loop            Optional. Enable reading the input in a loop.
