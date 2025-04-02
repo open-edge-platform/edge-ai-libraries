@@ -70,7 +70,7 @@ To access a chatqna-core-nginx service running in your Kubernetes cluster using 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<NAMESPACE\> with your actual values:
+Run the following command after replacing \<your-namespace\> with your actual values:
 
 ```bash
 echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-core-nginx -n <your-namespace> -o jsonpath='{.spec.ports[0].nodePort}')"
