@@ -19,9 +19,9 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 This method provides the fastest way to get started with the microservice.
 
-1. Pull the Docker* image
+1. Pull the Docker* image from Docker Hub
     ```sh
-    docker pull intel/model-registry:1.0.2
+    docker pull intel/model-registry:1.0.3
     ```
 
 1. Create a `.env` file with the following environment variables:
@@ -49,7 +49,7 @@ This method provides the fastest way to get started with the microservice.
     MR_MINIO_SERVER_PORT=8000
 
     # Model Registry service
-    MR_VERSION=1.0.2
+    MR_VERSION=1.0.3
     MR_MIN_LOG_LEVEL=INFO
     MR_SERVER_PORT=8111
 

@@ -2,16 +2,24 @@ FROM ubuntu:22.04
 
 ENV DEBIAN_FRONTEND=noninteractive
 
-RUN apt-get update && apt-get -y upgrade && apt-get install -y \
-python3-opencv \
-git \
-software-properties-common \
-curl
+# Update and install necessary packages
+RUN apt-get update && apt-get -y upgrade && \
+    apt-get install -y --no-install-recommends \
+    git \
+    software-properties-common \
+    curl \
+    wget \
+    python3.10 \
+    python3.10-venv \
+    python3-pip \
+    python3.10-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
-# Install Python 3.10 and pip 
-# Set Python 3.10 as the default Python version
-RUN add-apt-repository ppa:deadsnakes/ppa && apt-get install -y python3.10 \
-python3.10-distutils python3-pip && update-alternatives --install /usr/bin/python python /usr/bin/python3.10 10
+# Create symbolic links for python and pip commands
+RUN ln -sf /usr/bin/python3.10 /usr/bin/python \
+    && ln -sf /usr/bin/python3.10 /usr/bin/python3 \
+    && ln -sf /usr/bin/pip3 /usr/bin/pip
 
 EXPOSE 80
 
@@ -27,14 +35,16 @@ RUN python -m pip install -r requirements.txt
 
 # Store Source code for relevant dependencies
 WORKDIR /third_party
-RUN sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list
-RUN apt-get update && \ 
-apt-get source --download-only -q git && \
-tar -cvf debian_deps.tar.xz * && \
-rm -rf git* && \
-pip wheel --wheel-dir=. --no-deps psycopg2-binary==2.9.7 && \
-tar -cvf python_deps.tar.xz psycopg2_binary* && \
-rm -rf psycopg2_binary*
+RUN sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    python3-opencv && \
+    apt-get source --download-only -q git && \
+    tar -cvf debian_deps.tar.xz * && \
+    rm -rf git* && \
+    pip wheel --wheel-dir=. --no-deps psycopg2-binary==2.9.7 && \
+    tar -cvf python_deps.tar.xz psycopg2_binary* && \
+    rm -rf psycopg2_binary*
 
 COPY ./third_party_deb_apk_deps.txt /third_party
 COPY ./third-party-programs.txt /third_party
@@ -44,7 +54,6 @@ COPY ./src /src
 
 ARG MR_UID
 ARG MR_USER_NAME
-RUN apt-get update && apt-get install wget -y
 
 ENV PYTHONPATH $PYTHONPATH:/src
 
@@ -54,6 +63,8 @@ RUN groupadd $MR_USER_NAME -g $MR_UID && \
     chown -R $MR_USER_NAME /src
 
 USER $MR_USER_NAME
+
+ENV SERVER_IP_ADDRESS 0.0.0.0
 
 # During debugging, this entry point will be overridden
 CMD ["python", "main.py"]
