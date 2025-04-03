@@ -7,7 +7,7 @@ Fixes # (issue)
 
 ### Any Newly Introduced Dependencies
 
-Please describe any newly introduced 3rd party depenedencies in this change. List their name, license information and how they are used in the project.
+Please describe any newly introduced 3rd party dependencies in this change. List their name, license information and how they are used in the project.
 
 ### How Has This Been Tested?
 
