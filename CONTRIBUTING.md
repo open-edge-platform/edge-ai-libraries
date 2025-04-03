@@ -166,8 +166,11 @@ By making a contribution to this project, I certify that:
     personal information I submit with it, including my sign-off) is
     maintained indefinitely and may be redistributed consistent with
     this project or the open source license(s) involved.
+```
+
 Then you just add a line to every git commit message:
 
+```
 Signed-off-by: Your Name <your.name@email.com>
 ```
 
