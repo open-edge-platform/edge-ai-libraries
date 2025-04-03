@@ -52,7 +52,7 @@ RUN export no_proxy= && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN \
+RUN export no_proxy= && \
     echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
     wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -63,7 +63,7 @@ RUN \
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN \
+RUN export no_proxy= && \
     apt-get update -y && \
     apt-get install -y -q --no-install-recommends intel-dlstreamer=${DLSTREAMER_VERSION} && \
     apt-get clean -y && \
@@ -183,7 +183,8 @@ ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
     PATH=${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
     PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
 
-RUN apt-get update && \
+RUN export no_proxy= && \
+    apt-get update && \
     apt-get install -y -q --no-install-recommends libdrm-dev=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
