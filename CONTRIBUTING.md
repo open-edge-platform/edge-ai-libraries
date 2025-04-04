@@ -6,7 +6,7 @@ The following are guidelines for contributing to the Edge AI Libraries project, 
 # Table of Contents
 
 - [`Code of Conduct`](#code-of-conduct)
-- [`Security <URL>`](#security)
+- [`Security`](#security)
 - [`Get Started`](#get-started)
 - [`How to Contribute`](#how-to-contribute)
 - [`Development Guidelines`](#development-guidelines)
@@ -94,7 +94,8 @@ Clear and informative commit messages make it easier to understand the history o
 - Use the present tense (e.g., "Add feature" not "Added feature")
 - Capitalize the first letter
 - Keep the message concise, ideally under 50 characters
-- Use the following format for commit messages:
+
+Use the following format in your Pull Request messages:
 
 ```
 ### Description
