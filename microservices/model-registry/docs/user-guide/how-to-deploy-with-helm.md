@@ -38,12 +38,12 @@ This guide assumes basic familiarity with Kubernetes concepts, kubectl commands,
 
 1. **Pull the Helm chart from Docker Hub**
     ```sh
-    helm pull oci://registry-1.docker.io/intel/model-registry --version 1.0.2-helm
+    helm pull oci://registry-1.docker.io/intel/model-registry --version 1.0.3-helm
     ```
 
 1. **Unzip the file**
     ```sh
-    tar xvf model-registry-1.0.2-helm.tgz
+    tar xvf model-registry-1.0.3-helm.tgz
     ```
 
 1. **Navigate into the directory**

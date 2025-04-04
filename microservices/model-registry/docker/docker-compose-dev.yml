@@ -11,8 +11,11 @@ services:
         MR_UID: ${MR_UID}
         MR_USER_NAME: ${MR_USER_NAME}
     ports:
-    - "${MR_SERVER_PORT}:5002"
+    - "32002:${MR_SERVER_PORT}"
     restart: unless-stopped
+    read_only: true
+    tmpfs:
+      - /tmp
     security_opt:
       - no-new-privileges
     healthcheck:
@@ -27,6 +30,7 @@ services:
       GETI_SERVER_API_VERSION: ${GETI_SERVER_API_VERSION}
       GETI_ORGANIZATION_ID: ${GETI_ORGANIZATION_ID}
       GETI_WORKSPACE_ID: ${GETI_WORKSPACE_ID}
+      GETI_SERVER_SSL_VERIFY: ${GETI_SERVER_SSL_VERIFY}
       MLFLOW_TRACKING_URI: postgresql+psycopg2://${MR_USER_NAME}:${MR_PSQL_PASSWORD}@mr_postgres:${MR_PSQL_PORT}/${MR_PSQL_DATABASE}
       MLFLOW_S3_ENDPOINT_URL: ${MR_MLFLOW_S3_ENDPOINT_URL}
       MINIO_HOSTNAME: ${MR_MINIO_HOSTNAME}
@@ -41,8 +45,11 @@ services:
       SERVER_PRIVATE_KEY: /run/secrets/ModelRegistry_Server/private.key
       no_proxy: mr_minio
       NO_PROXY: mr_minio
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
     volumes:
       - ./Certificates/ssl/:/run/secrets/ModelRegistry_Server:ro
+      - src_data:/src
     extra_hosts:
       - "host.docker.internal:host-gateway"
     networks:
@@ -60,7 +67,7 @@ services:
       POSTGRES_PASSWORD: ${MR_PSQL_PASSWORD}
       POSTGRES_DB: ${MR_PSQL_DATABASE}
     volumes:
-    - ${MR_INSTALL_PATH}/data/mr_postgres:/var/lib/postgresql/data
+      - ${MR_INSTALL_PATH}/data/mr_postgres:/var/lib/postgresql/data
     ports:
       - "${MR_PSQL_PORT}:${MR_PSQL_PORT}"
     user: "${MR_UID}:${MR_UID}"
@@ -88,3 +95,5 @@ services:
 networks:
   mr:
     driver: bridge
+volumes:
+  src_data:

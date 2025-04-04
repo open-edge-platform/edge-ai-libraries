@@ -3,5 +3,5 @@
 
 name: model-registry
 description: A Helm Chart for the Model Registry Microservice
-version: 1.0.2-helm
+version: 1.0.3-helm
 apiVersion: v2

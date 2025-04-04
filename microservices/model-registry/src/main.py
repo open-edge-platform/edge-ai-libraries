@@ -505,7 +505,8 @@ if __name__ == "__main__": # pragma: no cover
             if not (os.path.exists(server_certificate) and os.path.exists(server_private_key)):
                 raise ValueError("The required SSL certificate and private key files are not found. Please provide both for HTTPS connections.")
 
-        server_conf = uvicorn.Config(app="main:app", host="0.0.0.0", port=int(os.environ["SERVER_PORT"]), reload=IS_DEV_MODE_ENABLED,
+        SERVER_IP_ADDRESS = os.getenv("SERVER_IP_ADDRESS", "127.0.0.1")
+        server_conf = uvicorn.Config(app="main:app", host=SERVER_IP_ADDRESS, port=int(os.environ["SERVER_PORT"]), reload=IS_DEV_MODE_ENABLED,
                         log_level=uvicorn.config.LOG_LEVELS["critical"], ssl_certfile=server_certificate, ssl_keyfile=server_private_key,
                         ssl_version=tls_version, ssl_ciphers=cipher_suites)
         server = uvicorn.Server(config=server_conf)
