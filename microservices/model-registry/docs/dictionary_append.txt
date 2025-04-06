@@ -18,3 +18,4 @@ kubectl
 runnable
 scalable
 onboarding
+swagger-plugin

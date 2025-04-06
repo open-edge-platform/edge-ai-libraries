@@ -25,7 +25,7 @@ The model registry microservice's configuration is defined via environment varia
 * **MINIO_SERVER_PORT (Integer)**: The port for which the MinIO server listens for connections and requests
     * Example: `MINIO_SERVER_PORT=8000`
 * **VERSION (Float)**: The version of the model registry microservice
-    * Example: `VERSION=1.0.2`
+    * Example: `VERSION=1.0.3`
 * **SERVER_PORT (Integer)**: The port for which the Model Registry server listens for connections and requests
     * Example: `SERVER_PORT=5002`
 * **MLFLOW_S3_ENDPOINT_URL (String)**: The URL for a S3 endpoint to use for artifact operations

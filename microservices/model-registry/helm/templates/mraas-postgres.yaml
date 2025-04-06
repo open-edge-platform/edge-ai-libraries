@@ -45,6 +45,13 @@ spec:
             value: "{{ .Values.env.MR_USER_NAME }}"
         image: postgres:13
         imagePullPolicy: {{ .Values.imagePullPolicy }}
+        resources:
+          limits:
+            cpu: 1000m
+            memory: 1Gi
+          requests:
+            cpu: 500m
+            memory: 500Mi
         volumeMounts:
           - name: {{ .Values.volumes.postgres_data.name }}
             mountPath: {{ .Values.volumes.postgres_data.location }}
