@@ -7,7 +7,7 @@ The **Edge AI Libraries** project hosts a collection of libraries, microservices
 
 | Component | Category | Get Started | Developers Docs |
 |:----------|:---------|:------------|:-----------------|
-| [Intel&reg; Deep Learning Streamer](libraries/dl-streamer) | Library | [link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
+| [Deep Learning Streamer](libraries/dl-streamer) | Library | [link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
 | [Intel&reg; Geti&trade; SDK](https://github.com/open-edge-platform/geti-sdk) | Library | [link](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#getting-started) | [API Reference](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#high-level-api-reference) | 
 | [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) | Microservice | [link](microservices/dlstreamer-pipeline-server#quick-try-out) | [API Reference](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/dlstreamer-pipeline-server/docs/user-guide/api-docs/pipeline-server.yaml) |
 | [Document Ingestion](microservices/document-ingestion) | Microservice | [link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
