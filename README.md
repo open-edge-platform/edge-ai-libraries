@@ -3,35 +3,25 @@
 
 ## Overview
 
-The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. Sample applications are available to showcase the use cases. Visit also the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for additionl sample applications.  
+The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. This project includes also sample applications to showcase the generic AI use cases. 
 
-| Library |
-|:------|
-| [Deep Learning Streamer](libraries/dl-streamer) | 
+| Component | Category | Get Started | Developers Docs |
+|:----------|:---------|:------------|:-----------------|
+| [Deep Learning Streamer](libraries/dl-streamer) | Library | [link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
+| [Intel&reg; Geti&trade; SDK](https://github.com/open-edge-platform/geti-sdk) | Library | [link](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#getting-started) | [API Reference](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#high-level-api-reference) | 
+| [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) | Microservice | [link](microservices/dlstreamer-pipeline-server#quick-try-out) | [API Reference](microservices/dlstreamer-pipeline-server/docs/user-guide/api-docs/pipeline-server.yaml) |
+| [Document Ingestion](microservices/document-ingestion) | Microservice | [link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
+| [Model Registry](microservices/model-registry) | Microservice | [link](microservices/model-registry/docs/user-guide/get-started.md) | [API Reference](microservices/model-registry/docs/user-guide/api-docs/openapi.yaml) |
+| [Object Store](microservices/object-store) | Microservice |  [link](microservices/object-store/minio-store#configuration) | [Usage](microservices/object-store/minio-store#usage) |
+| [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) | Tool | [link](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/get-started.md) | [Build](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/how-to-build-source.md) instructions |
+| [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/build-from-source.md) instructions |
+| [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/build-from-source.md) instructions |
 
-| Microservices |
-|:------|
-| [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) |
-| [Document Ingestion](microservices/document-ingestion) |
-| [Model Registry](microservices/model-registry) |
-| [Object Store](microservices/object-store) |
+Please visit each library/microservice/tool/sample sub-directory for respective **Getting Started**, **Build** instructions and **Development** guides.
 
-| Tools |
-|:------|
-| [Video Generator](tools/video-generator) |
-| [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) |
+## More Sample Applications 
 
-| Sample Application |
-|:------|
-| [Chat Question and Answer](sample-applcations/chat-question-and-answer) |
-
-## Get Started
-
-Please visit each library/microservice/tool/sample sub-directory for the **Getting Started** guide.   
-
-## Develop
-
-Please visit each library/microservice/tool/sample sub-directory for the **Develop** guide.  
+Please visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.  
 
 ## Contribute
 
@@ -44,5 +34,5 @@ For support, please submit your bug report and feature request to [Github Issues
 ## License
 
 The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE).   
-Last Updated Date: March 17, 2025.  
+Last Updated Date: April 7, 2025.  
  
