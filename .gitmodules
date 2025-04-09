@@ -1,3 +1,18 @@
 [submodule "libraries/dl-streamer/thirdparty/spdlog"]
 	path = libraries/dl-streamer/thirdparty/spdlog
 	url = https://github.com/gabime/spdlog.git
+[submodule "libraries/anomalib"]
+	path = libraries/anomalib
+	url = https://github.com/open-edge-platform/anomalib
+[submodule "libraries/training_extensions"]
+	path = libraries/training_extensions
+	url = https://github.com/open-edge-platform/training_extensions.git
+[submodule "libraries/datumaro"]
+	path = libraries/datumaro
+	url = https://github.com/open-edge-platform/datumaro.git
+[submodule "libraries/geti-sdk"]
+	path = libraries/geti-sdk
+	url = https://github.com/open-edge-platform/geti-sdk.git
+[submodule "libraries/model_api"]
+	path = libraries/model_api
+	url = https://github.com/open-edge-platform/model_api.git
