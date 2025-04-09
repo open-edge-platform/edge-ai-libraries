@@ -1,0 +1,7 @@
+# update the submodules on a weekly interval
+version: 2
+updates:
+  - package-ecosystem: gitsubmodule
+    directory: "/"
+    schedule:
+      interval: "weekly"
