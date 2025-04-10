@@ -26,10 +26,11 @@ env:
   no_proxy: mr-minio
   NO_PROXY: mr-minio
   MR_USER_NAME: mruser
+  MR_UID: 2025
   POSTGRES_DB: model_registry_db
   POSTGRES_PASSWORD: 
 images:
-  model_registry: intel/model-registry:1.0.2
+  model_registry: intel/model-registry:1.0.3
 config: 
   model_registry:
     name: model-registry

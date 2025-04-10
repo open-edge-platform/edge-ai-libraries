@@ -22,7 +22,7 @@ Edge Video Analytics Microservice is a Python-based, interoperable containerized
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-Note - The detailed documentation of EVAM can be found [here](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Overview.html)
+Note - The detailed documentation of EVAM can be found [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/Overview.html)
 
 ## Architecture
 
@@ -37,8 +37,7 @@ Follow the steps in this section to quickly pull the latest pre-built Edge Video
 - Pull the image with the latest tag from registry
 
    ```sh
-     docker pull amr-registry.caas.intel.com/nex-microservices/intel/edge-video-analytics-microservice:2.3.0
-     docker tag amr-registry.caas.intel.com/nex-microservices/intel/edge-video-analytics-microservice:2.3.0 intel/edge-video-analytics-microservice:2.3.0
+     docker pull intel/edge-video-analytics-microservice:2.4.0
    ```
 
 - Clone this repo in-order to get the required files that will help you run this microservice.
@@ -140,10 +139,10 @@ Run the following commands:
    ```
 ---
 ### Run default sample
-Refer [here](#run-default-sample) to run default sample upon bringing up EVAM container.
+Refer [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html) to run default sample upon bringing up EVAM container.
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Get Started Guide](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Get-Started-Guide.html)
--   For more details on advanced configuration, usage of features refer to [Detailed Usage](./docs/user-guide/detailed_usage/Detailed-Usage.md). 
--   For more tutorials refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/edge-video-analytics-microservice/latest/user-guide/Tutorials-How-To.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Detailed Usage](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html)

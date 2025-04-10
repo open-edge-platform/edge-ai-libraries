@@ -19,15 +19,12 @@ def Gst(mocker):
 @pytest.fixture
 def mock_request():
     return {
-        "destination": {
-            "frame": {
                 "cache-length": 30,
                 "sync-with-source": True,
                 "sync-with-destination": True,
-                "encode-quality": 10
+                "encode-quality": 10,
+                "overlay": True
             }
-        }
-    }
 
 @pytest.fixture
 def gstreamer_rtsp_destination(mock_request, mock_pipeline,mocker,Gst):
@@ -35,19 +32,11 @@ def gstreamer_rtsp_destination(mock_request, mock_pipeline,mocker,Gst):
     return GStreamerRtspDestination(mock_request, mock_pipeline)
 
 class TestGStreamerRtspDestination:
-    def test_init(self, mock_request, mock_pipeline, Gst):
-        mock_caps = MagicMock()
-        mock_intersect_caps = MagicMock()
-        mock_caps.intersect.return_value = mock_intersect_caps
-        Gst.Caps.from_string.return_value = mock_caps
-        destination = GStreamerRtspDestination(mock_request, mock_pipeline)
-        Gst.Caps.from_string.assert_called_once_with("video/x-raw")
-        mock_caps.intersect.assert_called_once()
-        assert mock_pipeline.appsink_element.props.caps == mock_intersect_caps
-        assert destination._pipeline == mock_pipeline
-        assert destination._rtsp_path == mock_pipeline.rtsp_path
-        assert destination._identifier == mock_pipeline.identifier
-        assert destination._clock == Gst.SystemClock()
+    def test_init(self, mock_request, mock_pipeline, Gst,gstreamer_rtsp_destination):
+        assert gstreamer_rtsp_destination._pipeline == mock_pipeline
+        assert gstreamer_rtsp_destination._rtsp_path == mock_pipeline.rtsp_path
+        assert gstreamer_rtsp_destination._identifier == mock_pipeline.identifier
+        assert gstreamer_rtsp_destination._clock == Gst.SystemClock()
 
     def test_get_request_parameters(self, gstreamer_rtsp_destination, mock_request):
         gstreamer_rtsp_destination._get_request_parameters(mock_request)
@@ -55,6 +44,7 @@ class TestGStreamerRtspDestination:
         assert gstreamer_rtsp_destination._sync_with_source is True
         assert gstreamer_rtsp_destination._sync_with_destination is True
         assert gstreamer_rtsp_destination._encode_quality == 10
+        assert gstreamer_rtsp_destination.overlay is True
 
     def test_init_stream(self, gstreamer_rtsp_destination, mock_pipeline):
         mock_sample = MagicMock()
@@ -69,7 +59,7 @@ class TestGStreamerRtspDestination:
         gstreamer_rtsp_destination._init_stream(mock_sample)
         assert gstreamer_rtsp_destination._frame_size == 1000
         assert gstreamer_rtsp_destination._need_data is False
-        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps, gstreamer_rtsp_destination)
+        mock_pipeline.rtsp_server.add_stream.assert_called_once_with(mock_pipeline.identifier, mock_pipeline.rtsp_path, mock_caps, gstreamer_rtsp_destination,gstreamer_rtsp_destination.overlay)
         assert gstreamer_rtsp_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
 

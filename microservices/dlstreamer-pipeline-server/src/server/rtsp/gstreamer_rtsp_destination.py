@@ -28,27 +28,29 @@ class GStreamerRtspDestination(AppDestination):
         self._last_timestamp = 0
         self._frame_size = 0
         self._clock = Gst.SystemClock()
-        caps = Gst.Caps.from_string("video/x-raw")
-        if self._pipeline.appsink_element.props.caps:
-            caps = caps.intersect(self._pipeline.appsink_element.props.caps)
-        self._pipeline.appsink_element.props.caps = caps
+        # caps = Gst.Caps.from_string("video/x-raw")
+        # if self._pipeline.appsink_element.props.caps:
+        #     caps = caps.intersect(self._pipeline.appsink_element.props.caps)
+        # self._pipeline.appsink_element.props.caps = caps
         self._get_request_parameters(request)
 
     def _get_request_parameters(self, request):
-        destination_config = request.get("destination",
-                                         {})
-        frame_config = destination_config.get("frame",
-                                              {})
-        self._cache_length = frame_config.get("cache-length")
-        self._sync_with_source = frame_config.get("sync-with-source")
-        self._sync_with_destination = frame_config.get("sync-with-destination")
-        self._encode_quality = frame_config.get("encode-quality")
+        # destination_config = request.get("destination",
+        #                                  {})
+        # frame_config = destination_config.get("frame",
+        #                                       {})
+        self._cache_length = request.get("cache-length",30)
+        self._sync_with_source = request.get("sync-with-source", True)
+        self._sync_with_destination = request.get("sync-with-destination", True)
+        self._encode_quality = request.get("encode-quality", 85)
+        self.overlay = request.get("overlay", True)
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
         caps = sample.get_caps()
+        self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
-        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self)
+        self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self,self.overlay)
         self._last_timestamp = self._clock.get_time()
         if self._sync_with_source:
             self._pipeline.appsink_element.set_property("sync",

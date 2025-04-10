@@ -51,7 +51,7 @@ helm install chatqna-core .  \
   --set global.LLM_MODEL=<LLM model>  \
   --set global.EMBEDDING_MODEL_NAME=<embedding_model> \
   --set global.RERANKER_MODEL=<reranker model>  \
-  --namespace <YOUR_NAMESPACE>
+  --namespace <your-namespace>
 ```
 
 ### Step 5: Verify the Deployment
@@ -59,8 +59,8 @@ helm install chatqna-core .  \
 Check the status of the deployed resources to ensure everything is running correctly
 
 ```bash
-kubectl get pods -n <YOUR_NAMESPACE>
-kubectl get services -n <YOUR_NAMESPACE>
+kubectl get pods -n <your-namespace>
+kubectl get services -n <your-namespace>
 ```
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
@@ -70,10 +70,10 @@ To access a chatqna-core-nginx service running in your Kubernetes cluster using 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<NAMESPACE\> with your actual values:
+Run the following command after replacing \<your-namespace\> with your actual values:
 
 ```bash
-echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-core-nginx -n <YOUR_NAMESPACE> -o jsonpath='{.spec.ports[0].nodePort}')"
+echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):$(kubectl get svc chatqna-core-nginx -n <your-namespace> -o jsonpath='{.spec.ports[0].nodePort}')"
 ```
 Simply copy and paste the output into your browser.
 
@@ -89,7 +89,7 @@ helm dependency update
 To uninstall helm charts deployed, use the following command:
 
 ```bash
-helm uninstall <name> -n <YOUR_NAMESPACE>
+helm uninstall <name> -n <your-namespace>
 ```
 
 ## Verification

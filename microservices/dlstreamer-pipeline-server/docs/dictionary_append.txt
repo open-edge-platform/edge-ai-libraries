@@ -21,6 +21,7 @@ bgr
 bmp
 capsfilter
 cd
+Celeron
 CMA
 config
 Configmanager
@@ -114,12 +115,14 @@ md
 minio
 minio_access_key
 minio_secret_key
+ModelRegistry
 mosquitto
 MQTT
 mqtt
 MRaaS
 multifilesrc
 Multimodal
+multistream
 Multistream
 mux
 mvBlueFOX
@@ -164,6 +167,7 @@ sdk
 stfpm
 tcp
 test
+th
 tls
 tmp
 topicX
@@ -226,3 +230,9 @@ edgeplatform
 GetStartedGuide
 Intel®
 Geti™
+mediamtx
+WebRTC
+omz
+OMZ
+Init
+ntp

@@ -17,7 +17,7 @@ services:
       - app_network
 
   edge-video-analytics-microservice:
-    image: intel/edge-video-analytics-microservice:2.3.0
+    image: intel/edge-video-analytics-microservice:2.4.0
     hostname: edge-video-analytics-microservice
     container_name: edge-video-analytics-microservice
     read_only: true
@@ -56,8 +56,8 @@ services:
       - ENABLE_RTSP=true
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
-      - WEBRTC_SIGNALING_SERVER=ws://localhost:8443
-      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},otel-collector
+      - WEBRTC_SIGNALING_SERVER=http://${WHIP_SERVER_IP}:${WHIP_SERVER_PORT}
+      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST}
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
       - RUN_MODE=EVA

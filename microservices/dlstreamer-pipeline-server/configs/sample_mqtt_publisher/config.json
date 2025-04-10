@@ -9,41 +9,23 @@
                 "name": "pallet_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=BGR ! udfloader name=udfloader ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "udfloader": {
-                            "element": {
-                                "name": "udfloader",
-                                "property": "config",
-                                "format": "json"
-                            },
-                            "type": "object"
-                        },
-                        "mqtt_publisher": {
-                            "element": {
-                                "name": "mqtt_publisher",
-                                "property": "kwarg",
-                                "format": "json"
-                            },
-                            "type": "object"
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
                         }
                     }
                 },
-                "auto_start": false,
-                "udfs": {
-                    "udfloader": [
-                        {
-                            "name": "python.geti_udf.geti_udf",
-                            "type": "python",
-                            "device": "CPU",
-                            "visualize": "true",
-                            "deployment": "./resources/models/geti/pallet_defect_detection/deployment",
-                            "metadata_converter": "null"
-                        }
-                    ]
-                }
+                "mqtt_publisher":{
+                    "publish_frame": true,
+                    "topic": "edge_video_analytics_results"
+                },
+                "auto_start": false
             }
         ]
     }

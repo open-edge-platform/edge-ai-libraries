@@ -394,3 +394,48 @@ class TestEvamConfig:
         result = test_evam_config.get_subscribers()        
         assert len(result) == 1
         assert isinstance(result[0], config.SubscriberConfig)
+
+    @pytest.mark.parametrize("new_config", [
+        ({"test_data": "new_test", "pipelines": "new_pipeline", "model_registry": "new_model_registry"})
+    ])
+    def test_set_app_config(self, test_evam_config, new_config):    
+        test_evam_config.set_app_config(new_config)
+        assert test_evam_config._cfg_handler._app_cfg == new_config
+    
+    @pytest.mark.parametrize("new_config, model_path_dict, expected_pipeline, expected_udfloader", [
+        (
+            {"test_data": "test", "pipelines": [{"pipeline": "element1 ! element2 name=element2 ! element3 name=element3"}], "model_registry": "test_model_registry"},
+            {
+                "element2": "/fake/dir/model1/model1.xml",
+                "element3": "/fake/dir/model2/model2.xml"
+            },
+            "element1 ! element2 name=element2 model=/fake/dir/model1/model1.xml ! element3 name=element3 model=/fake/dir/model2/model2.xml ",
+            None
+        ),
+        (
+            {"test_data": "test", "pipelines": [{"pipeline": "element1 ! element2 name=element2 ! udfloader name=udfloader", "udfs": {"udfloader": [{"name": "python.geti_udf.geti_udf"}]}}], "model_registry": "test_model_registry"},
+            {
+                "element2": "/fake/dir/model1/model1.xml",
+                "udfloader": "/fake/dir/model/deployment"
+            },
+            "element1 ! element2 name=element2 model=/fake/dir/model1/model1.xml ! udfloader name=udfloader",
+            "/fake/dir/model/deployment"
+        ),
+        (
+            {"test_data": "test", "pipelines": [{"pipeline": "element1 ! udfloader name=udfloader", "udfs": {"udfloader": [{"name": "python.geti_udf.geti_udf"}]}}], "model_registry": "test_model_registry"},
+            {
+                "udfloader": "/fake/dir/model/deployment"
+            },
+            "element1 ! udfloader name=udfloader",
+            "/fake/dir/model/deployment"
+        ),
+    ])
+    def test_update_pipeline_config(self, mocker, new_config, model_path_dict, expected_pipeline, expected_udfloader):
+        mocker.patch("src.config.EvamConfig._ConfigHandler")
+        mock_config = config.EvamConfig(mode=False)
+        mock_config._cfg_handler.get_app_cfg.return_value = new_config
+        mock_config.update_pipeline_config(model_path_dict)
+        updated_config = mock_config.get_app_config()
+        assert updated_config["pipelines"][0]["pipeline"] == expected_pipeline
+        if expected_udfloader:
+            assert updated_config["pipelines"][0]["udfs"]["udfloader"][0]["deployment"] == expected_udfloader

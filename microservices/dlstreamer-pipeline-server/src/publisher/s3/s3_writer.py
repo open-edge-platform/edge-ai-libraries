@@ -123,9 +123,9 @@ class S3Writer():
         :type: Dict
         """
         ext = ""
-        if meta_data['caps'].split(',')[0] == "image/jpeg":
+        if meta_data['caps'].split(',')[0] == "image/jpeg" or meta_data['encoding_type']=='jpeg':
             ext = ".jpg"
-        elif meta_data['caps'].split(',')[0] == "image/png":
+        elif meta_data['caps'].split(',')[0] == "image/png" or meta_data['encoding_type']=='png':
             ext = ".png"
                 
         object_path = self.s3_folder_prefix + "/" if not self.s3_folder_prefix.endswith("/") else self.s3_folder_prefix        

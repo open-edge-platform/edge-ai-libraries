@@ -17,16 +17,12 @@ def Gst(mocker):
 @pytest.fixture
 def mock_request():
     return {
-        "destination": {
-            "frame": {
                 "peer-id": "peer1",
                 "cache-length": 30,
                 "sync-with-source": True,
                 "sync-with-destination": True,
                 "encode-cq-level": 10
             }
-        }
-    }
 
 @pytest.fixture
 def gstreamer_webrtc_destination(mock_request, mock_pipeline,mocker,Gst):
@@ -45,6 +41,7 @@ class TestGStreamerWebRTCDestination:
         assert gstreamer_webrtc_destination._sync_with_destination is True
         assert gstreamer_webrtc_destination._encode_cq_level == 10
         assert gstreamer_webrtc_destination._clock == Gst.SystemClock()
+        assert gstreamer_webrtc_destination.overlay == True
 
     def test_get_request_parameters(self, gstreamer_webrtc_destination, mock_request):
         gstreamer_webrtc_destination._get_request_parameters(mock_request)
@@ -69,7 +66,7 @@ class TestGStreamerWebRTCDestination:
         assert gstreamer_webrtc_destination._need_data is False
         assert gstreamer_webrtc_destination._last_timestamp == 500
         mock_pipeline.appsink_element.set_property.assert_called_once_with("sync", True)
-        gstreamer_webrtc_destination._webrtc_manager.add_stream.assert_called_once_with("peer1", mock_caps, gstreamer_webrtc_destination)
+        gstreamer_webrtc_destination._webrtc_manager.add_stream.assert_called_once_with("peer1", mock_caps, gstreamer_webrtc_destination,True)
 
     def test_on_need_data(self, gstreamer_webrtc_destination):
         gstreamer_webrtc_destination._on_need_data(None, None)

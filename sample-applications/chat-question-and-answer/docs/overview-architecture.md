@@ -28,7 +28,7 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 ### Technical Architecture Diagram
 
 ![Technical Architecture Diagram](./images/TEAI_ChatQnA_Arch.png)
-*Figure 1: Detailed Architecture of ChatQ&A sample application
+**Figure 1**: Detailed Architecture of ChatQ&A sample application
 
 ### Application Flow
 
@@ -50,7 +50,7 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/request.jpg)
-*Figure 2: Dataflow for ChatQ&A sample application
+**Figure 2:** Dataflow for ChatQ&A sample application
 
 ## Key Components and Their Roles
 <!--

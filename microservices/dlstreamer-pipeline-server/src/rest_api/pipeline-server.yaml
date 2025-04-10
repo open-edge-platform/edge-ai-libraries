@@ -529,20 +529,35 @@ components:
         - topic
       type: object
     MQTTDestination:
-      properties:
-        host:
-          description: host:port to use as mqtt server.
-          type: string
-        topic:
-          type: string
-        type:
-          enum:
-          - mqtt
-          type: string
-      required:
-        - host
-        - topic
-      type: object
+      anyOf:
+        - type: object
+          properties:
+            host:
+              description: host:port to use as mqtt server.
+              type: string
+            topic:
+              type: string
+            type:
+              enum:
+              - mqtt
+              type: string
+          required:
+            - host
+            - topic
+            - type
+        - type: object
+          properties:
+            publish_frame:
+              type: boolean
+            topic:
+              type: string
+            type:
+              enum:
+              - mqtt
+              type: string
+          required:
+            - topic
+            - type
     RTSPDestination:
       properties:
         type:
@@ -557,26 +572,45 @@ components:
         - type
         - path
       type: object
+    WebRTCDestination:
+      properties:
+        type:
+          enum:
+          - webrtc
+          type: string
+        peer-id:
+          type: string
+          minLength: 1
+          pattern: "^[a-zA-Z0-9][a-zA-Z0-9_/-]*[a-zA-Z0-9]$"
+      required:
+        - type
+        - peer-id
+      type: object
+    S3_write:
+      properties:
+        type:
+          enum:
+          - s3_write
+          type: string
+        bucket:
+          type: string
+        folder_prefix:
+          type: string
+        block:
+          type: boolean
+      required:
+        - type
+        - bucket
+        - folder_prefix
+      type: object
     FrameDestination:
       discriminator:
         propertyName: type
       oneOf:
         - $ref: '#/components/schemas/RTSPDestination'
+        - $ref: '#/components/schemas/WebRTCDestination'
+        - $ref: '#/components/schemas/S3_write'
       type: object
-    FrameAndMetadataDestination:
-      anyOf:
-        - type: object
-          properties:
-            frame:
-              $ref: '#/components/schemas/FrameDestination'
-          required:
-            - frame
-        - type: object
-          properties:
-            metadata:
-              $ref: '#/components/schemas/MetadataDestination'
-          required:
-            - metadata
     MetadataDestination:
       discriminator:
         propertyName: type
@@ -585,17 +619,24 @@ components:
         - $ref: '#/components/schemas/MQTTDestination'
         - $ref: '#/components/schemas/FileDestination'
       type: object
-    S3_write:
-      properties:
-        bucket:
-          type: string
-        folder_prefix:
-          type: string
-        block:
-          type: boolean
-      required:
-        - bucket
-      type: object
+    FrameAndMetadataDestination:
+      anyOf:
+        - type: object
+          properties:
+            frame:
+              anyOf:
+                - $ref: '#/components/schemas/FrameDestination'
+                - type: array
+                  items:
+                    $ref: '#/components/schemas/FrameDestination'
+          required:
+            - frame
+        - type: object
+          properties:
+            metadata:
+              $ref: '#/components/schemas/MetadataDestination'
+          required:
+            - metadata
     PipelineRequest:
       example:
         async: true

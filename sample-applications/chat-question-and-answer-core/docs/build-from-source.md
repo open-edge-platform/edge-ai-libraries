@@ -79,7 +79,7 @@ You should see entries for both `chatqna` and `chatqna-ui`.
 ## Troubleshooting
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
   ```bash
-  docker logs <container_id>
+  docker logs <container-id>
   ```
 
 ## Next Steps

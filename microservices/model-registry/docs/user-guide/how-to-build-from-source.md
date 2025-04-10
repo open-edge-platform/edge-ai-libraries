@@ -53,44 +53,36 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
     sudo ./init_mr_data_dirs.sh
     ```
 
-1. **Define the desired values for the REQUIRED environment variables in the `.env` file:**
+1. **Define the desired values for the REQUIRED environment variables in the `.env` file in the `docker` directory:**
     1. `MR_MINIO_ACCESS_KEY`
     2. `MR_MINIO_SECRET_KEY`
     3. `MR_PSQL_PASSWORD`
 
+    ```bash
+    # Replace `{{path_to}}` with the actual path to the directory
+    cd {{path_to}}/docker
+
+    vi .env
+    ```
+
     * For more information about the supported the environment variables, refer to the [Environment Variables](./environment-variables.md) documentation.
 
-1. **Create a virtual environment**
-    ```bash
-    virtualenv -p /usr/bin/python3.10 myvenv
+1. Optional: Enter values for the `http_proxy` and `https_proxy` variables in the `.env` file if you are behind a proxy.
+    ```
+    http_proxy= # example: http_proxy=http://proxy.example.com:891
+    https_proxy= # example: https_proxy=http://proxy.example.com:891
     ```
 
-2. **Activate the virtual environment**
-    ```bash
-    source myvenv/bin/activate
-    ```
-3. **Install the dependencies**
-    ```bash
-    pip install -r requirements.txt
-    ```
-
-4. **Create the Docker containers for the **PostgreSQL** and **MinIO** services**
-    ```bash
-    docker compose -f docker-compose-dev.yml up -d mr_postgres mr_minio
-    ```
-    * Docker containers for **PostgreSQL** and **MinIO** are required for the model registry to execute operations successfully.
-
-5. **Load the environment variables defined in the `.env` file into the current Terminal session**
+1. **Load the environment variables defined in the `.env` file into the current Terminal session**
     ```bash
     source .env
     ```
     
-6. **Start the microservice**
+1. **Build the model registry and start the containers**
     ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/src/
-    
-    python main.py
+    docker compose build
+
+    docker compose up -d
     ```
 
 ## Validation
@@ -103,8 +95,9 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
      ```
      http://localhost:{{port}}/docs
      ```
-   - Expected result: The microservice’s API documentation loads successfully.
-
+   - Expected result: The microservice’s API documentation page loads successfully.
+   
+   For more example requests and their responses, refer to the [Get Started Guide](./get-started.md#storing-a-model-in-the-registry).
 
 ## Troubleshooting
 
@@ -123,5 +116,6 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 
 ## Supporting Resources
 * [Overview](Overview.md)
-* [API Reference](api-reference.md)
 * [System Requirements](system-requirements.md)
+* [API Reference](api-reference.md)
+* 

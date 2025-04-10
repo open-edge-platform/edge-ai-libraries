@@ -17,7 +17,7 @@ services:
       - app_network
 
   edge-video-analytics-microservice:
-    image: intel/edge-video-analytics-microservice:2.3.0
+    image: intel/edge-video-analytics-microservice:2.4.0
     hostname: edge-video-analytics-microservice
     container_name: edge-video-analytics-microservice
     read_only: true
@@ -126,7 +126,7 @@ services:
       - HTTPS_PROXY=${https_proxy}
       - NO_PROXY=$no_proxy,otel-collector,localhost,127.0.0.1
     ports:
-      - "9099:9090"
+      - "${PROMETHEUS_PORT}:9090"
     volumes:
       - ../configs/open_telemetry/prometheus.yml:/etc/prometheus/prometheus.yml
     networks:

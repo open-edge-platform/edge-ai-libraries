@@ -8,4 +8,11 @@ https://docs.openvino.ai/2022.3/omz_tools_downloader.html
 https://docs.openvino.ai/2022.3/openvino_docs_MO_DG_IR_and_opsets.html
 https://docs.openvino.ai/2022.3/openvino_docs_MO_DG_Deep_Learning_Model_Optimizer_DevGuide.html
 https://docs.openvinotoolkit.org/latest/openvino_docs_MO_DG_Deep_Learning_Model_Optimizer_DevGuide.html
-https://www.baslerweb.com/en/downloads/software/96111466/ 
+https://www.baslerweb.com/en/downloads/software/96111466/
+https://gstreamer.freedesktop.org/documentation/
+https://gstreamer.freedesktop.org/documentation/additional/design/tracing.html?gi-language=python
+https://gstreamer.freedesktop.org/documentation/frequently-asked-questions/licensing.html
+https://gstreamer.freedesktop.org/documentation/additional/design/tracing.html?gi-language=python#print-processing-latencies-for-each-element
+https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c
+https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html?gi-language=python
+https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.3/user-guide/Overview.html

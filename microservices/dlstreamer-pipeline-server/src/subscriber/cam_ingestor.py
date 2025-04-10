@@ -13,12 +13,13 @@ import numpy as np
 import cv2
 import queue
 import gi
+gi.require_version('Gst', '1.0')
 from gi.repository import Gst
 import signal
 from src.common.log import get_logger
 
 
-gi.require_version('Gst', '1.0')
+
 
 class Frame(Structure):
         _fields_ = [('data', POINTER(c_char)),
