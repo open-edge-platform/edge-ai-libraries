@@ -1,19 +1,19 @@
 # Working with other services 
-EVAM can work with following microservices for visualization and model management.
-- [Model Registry (MRaaS)](#model-registry-mraas)  Hosts models to be deployed on the edge node. Users can provide required configurations to EVAM to pull models from Model Registry and deploy downloaded model.
+DL Streamer Pipeline Server can work with following microservices for visualization and model management.
+- [Model Registry (MRaaS)](#model-registry-mraas)  Hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
 
 ## Model Registry (MRaaS)
-This microservice hosts models to be deployed on the edge node. Users can provide required configurations to EVAM to pull models from Model Registry and deploy downloaded model.
-This document provides instructions on how to get started with the model registry microservice, utilize its REST API, and configure EVAM to interact with it.
+This microservice hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
+This document provides instructions on how to get started with the model registry microservice, utilize its REST API, and configure DL Streamer Pipeline Server to interact with it.
 
 The model registry microservice provides a centralized repository that can be accessed by different applications, services, or developers to store, and access models. It is an essential tool for deploying machine learning models, as it streamlines model management, fosters collaboration, and ultimately, aids in improving model deployments.
 
-In the current release of EVAM, the following two workflows are supported. 
-1. [Init Model download/deployment](#init-model-downloaddeployment): Model download and deployment during initialization phase of EVAM from the model registry microservice. Based on user inputs in configuration file of EVAM, model is downloaded and the model path is dynamically updated in the pipeline configuration.
-2. [Runtime Model download/deployment](#runtime-model-downloaddeployment): Model download and deployment through REST API during EVAM's runtime. Based on user inputs, model is downloaded and once the model download is completed, current pipeline is stopped and a new pipeline is launched with newly downloaded model.
+In the current release of DL Streamer Pipeline Server, the following two workflows are supported. 
+1. [Init Model download/deployment](#init-model-downloaddeployment): Model download and deployment during initialization phase of DL Streamer Pipeline Server from the model registry microservice. Based on user inputs in configuration file of DL Streamer Pipeline Server, model is downloaded and the model path is dynamically updated in the pipeline configuration. 
+2. [Runtime Model download/deployment](#runtime-model-downloaddeployment): Model download and deployment through REST API during DL Streamer Pipeline Server's runtime. Based on user inputs, model is downloaded and once the model download is completed, current pipeline is stopped and a new pipeline is launched with newly downloaded model.
 
 ### Get Started Guide
-**Note**: This guide assumes you have completed [EVAM's Get Started Guide](../../../get-started.md)
+**Note**: This guide assumes you have completed [DL Streamer Pipeline Server's Get Started Guide](../../../get-started.md)
 
 1. Pull the `intel/model-registry:1.0.3` Docker* image available on [Docker Hub](https://hub.docker.com/r/intel/model-registry)
     ```sh
@@ -51,11 +51,11 @@ In the current release of EVAM, the following two workflows are supported.
    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-### EVAM Integration
+### DL Streamer Pipeline Server Integration
 #### Pre-requisites
-In order to successfully, store models received from the model registry microservice within the context of EVAM, the following steps are required before starting the Docker* container for EVAM:
+In order to successfully, store models received from the model registry microservice within the context of DL Streamer Pipeline Server, the following steps are required before starting the Docker* container for DL Streamer Pipeline Server:
 1. Create the `mr_models` directory in the same directory as your `docker-compose.yml` as referenced [here](../../../get-started.md) in the `volumes` section. 
-   * This directory will contain the models downloaded from the model registry using EVAM's REST API.
+   * This directory will contain the models downloaded from the model registry using DL Streamer Pipeline Server's REST API.
    * The ownership of this directory is required to be the same user of the container (`intelmicroserviceuser`) to enable models to be stored successfully.
     ```sh
     mkdir -p mr_models
@@ -71,7 +71,7 @@ In order to successfully, store models received from the model registry microser
 ##### HTTPS and HTTP mode
 
 Model registry microservice supports both HTTPS and HTTP protocols. HTTP mode is enabled by default.
-When enabled in HTTPS MODE, EVAM will attempt to verify its SSL certificate using the file(s) in the `/run/secrets/ModelRegistry_Server` directory within the Docker container by default.
+When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify its SSL certificate using the file(s) in the `/run/secrets/ModelRegistry_Server` directory within the Docker container by default.
 
 
 *Note: If you would prefer to run the model registry in HTTP mode, set the `ENABLE_HTTPS_MODE` environment variable to `false` before starting the containers. The remainder of this section can be skipped if you are using HTTP mode.*
@@ -92,17 +92,17 @@ When enabled in HTTPS MODE, EVAM will attempt to verify its SSL certificate usin
     sudo cat server-ca.crt server.crt > ca-bundle.crt
     ```
 
-4. Move (**DO NOT Copy**) the newly created `ca-bundle.crt` file from the model registry's `Certificates/ssl` directory to EVAM's `Certificates/model_registry/` directory.
-    * **Note**: By default, EVAM requires the `ca-bundle.crt` file when sending requests to the model registry to verify its SSL certificate. 
-    * The `ca-bundle.crt` file is required for EVAM and should not be kept in the model registry's `Certificates/ssl` directory when its containers are started. It will lead to SSL certificate verification issues between the model registry and its dependent containers.
+4. Move (**DO NOT Copy**) the newly created `ca-bundle.crt` file from the model registry's `Certificates/ssl` directory to DL Streamer Pipeline Server's `Certificates/model_registry/` directory.
+    * **Note**: By default, DL Streamer Pipeline Server requires the `ca-bundle.crt` file when sending requests to the model registry to verify its SSL certificate. 
+    * The `ca-bundle.crt` file is required for DL Streamer Pipeline Server and should not be kept in the model registry's `Certificates/ssl` directory when its containers are started. It will lead to SSL certificate verification issues between the model registry and its dependent containers.
     ```shell
     sudo mv ca-bundle.crt <path/to>/Certificates/model_registry/
     ```
 **Note**: The following environment variable is used when HTTPS Mode is enabled:
 * **MR_VERIFY_CERT (String)**: Controls whether SSL certificate verification is performed during HTTPS requests to the model registry microservice.
     * Valid options are `True`, `False`, and `</path/to/CA_Bundle_file>`.
-        * `True` causes EVAM to validate the model registry's certificate's chain of trust, checks its expiration date and verify its hostname.
-        * `False` causes EVAM to ignore verifying the SSL certificate. This may be useful during testing, but not advised for production.
+        * `True` causes DL Streamer Pipeline Server to validate the model registry's certificate's chain of trust, checks its expiration date and verify its hostname.
+        * `False` causes DL Streamer Pipeline Server to ignore verifying the SSL certificate. This may be useful during testing, but not advised for production.
         * `</path/to/CA_Bundle_file>` specifies the path to a **CA_BUNDLE** file.
     * Example: `MR_VERIFY_CERT=False`
     * Default Value: `/run/secrets/ModelRegistry_Server/ca-bundle.crt`
@@ -110,11 +110,11 @@ When enabled in HTTPS MODE, EVAM will attempt to verify its SSL certificate usin
 
 ##### Configuration (config.json)
 
-EVAM requires the following configuration properties to search, retrieve and store a model locally from the model registry microservice:
-Create a `config.json` file with below contents inside the `configs/` folder within your EVAM work directory -`[EVAM_DIRECTORY]/configs/`. `EVAM_DIRECTORY` is your host machine workspace.
+DL Streamer Pipeline Server requires the following configuration properties to search, retrieve and store a model locally from the model registry microservice:
+Create a `config.json` file with below contents inside the `configs/` folder within your DL Streamer Pipeline Server work directory -`[WORKDIR]/configs/`. `WORKDIR` is your host machine workspace.
 The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
 Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice is in when started based on the value of `ENABLE_HTTPS_MODE` and the corresponding steps completed in the previous section.
-* **model_registry** (Object): The properties used to connect to the model registry microservice and the directory to save models locally within the context of EVAM.
+* **model_registry** (Object): The properties used to connect to the model registry microservice and the directory to save models locally within the context of DL Streamer Pipeline Server.
   * Location: Within the `config` object.
   * Supported sub-properties:
     * **url** (String): The service's IP address or hostname and port of the running model registry microservice.
@@ -140,7 +140,7 @@ Replace `<PROTOCOL>` in the following steps with `https` or `http` according to 
         	* Example: `"architecture": "YOLOX-TINY"`
         * **precision** (String, Optional): The precision of a model.
         	* Example: `"precision": "FP32"`
-    * **Note**: The query performed is an `AND` search if more than 1 sub-property is provided. Despite all the sub-properties being optional, EVAM requires at least 1 sub-property to execute a query. 
+    * **Note**: The query performed is an `AND` search if more than 1 sub-property is provided. Despite all the sub-properties being optional, DL Streamer Pipeline Server requires at least 1 sub-property to execute a query. 
     
     In addition to the properties mentioned above, the following properties would be used to dynamically update the model path in the pipeline configuration for the model retrieved from the model registry microservice.
     * **deploy** (String): The category of a model.
@@ -209,16 +209,16 @@ Replace the `<PROTOCOL>` and `<IP_ADDRESS_OR_SERVICE_HOSTNAME>` accordingly.
     }
 }
 ```
-The created `config.json` file must be volume mounted inside the `[EVAM_DIRECTORY]/docker/docker-compose.yml` to reflect the configuration changes when EVAM is brought up.
+The created `config.json` file must be volume mounted inside the `[WORKDIR]/docker/docker-compose.yml` to reflect the configuration changes when DL Streamer Pipeline Server is brought up.
 ```sh
 volumes:
-      # Volume mount [WORDDIR]/configs/config.json to config file that EVAM container loads."
+      # Volume mount [WORDDIR]/configs/config.json to config file that DL Streamer Pipeline Server container loads."
       - "../configs/config.json:/home/pipeline-server/config.json"
 ```
 
 Next bring up the containers
 ```sh
-cd [EVAM_DIRECTORY]/docker
+cd [WORKDIR]/docker
 docker compose up
 ```
 

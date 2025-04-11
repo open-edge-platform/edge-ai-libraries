@@ -1,10 +1,8 @@
-models
 utils/tools/model_downloader/__pycache__
 **/*.swo
 **/*.swp
 **/__pycache__
 **/*.pyc
-vaserving/
 
 **/local_*
 **/mr_models

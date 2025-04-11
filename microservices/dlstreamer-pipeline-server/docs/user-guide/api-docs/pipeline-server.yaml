@@ -6,8 +6,8 @@
 
 openapi: 3.0.0
 info:
-  description: Edge Video Analytics Microservice REST API
-  title: EVAM REST API
+  description: Deep Learning Streamer Pipeline Server REST API
+  title: DL Streamer Pipeline Server REST API
   version: 0.0.3
 paths:
   /pipelines:

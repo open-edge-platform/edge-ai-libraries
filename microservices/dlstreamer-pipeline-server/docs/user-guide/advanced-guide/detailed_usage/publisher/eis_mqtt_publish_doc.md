@@ -6,7 +6,7 @@
 - [Prerequisites](#prerequisites-for-mqtt-publishing)
   - [Configure and start MQTT broker](#configure-and-start-mqtt-broker)
   - [Start MQTT Subscriber](#start-mqtt-subscriber)
-- [Configure EVAM for MQTT Publishing](#configure-evam-for-mqtt-publishing)
+- [Configure DL Streamer Pipeline Server for MQTT Publishing](#configure-dl-streamer-pipeline-server-for-mqtt-publishing)
   - [Configuration options](#configuration-options)
   - [Metadata filtering](#metadata-filtering)
 - [Secure MQTT Publishing](#secure-publishing)
@@ -15,19 +15,19 @@
 
 ## Overview
 The processed frames and metadata can be published over to a MQTT message broker. Prior to publishing, MQTT broker/subscriber needs to be configured and started. Here is an overview of the flow,
-- EVAM will be the MQTT publisher and publishes to MQTT broker.
-- Broker receives messages from EVAM and forwards the messages to MQTT subscribers.
+- DL Streamer Pipeline Server will be the MQTT publisher and publishes to MQTT broker.
+- Broker receives messages from DL Streamer Pipeline Server and forwards the messages to MQTT subscribers.
 - Subscriber receives messages from broker on the subscribed topic. <br>
 
 ## Prerequisites for MQTT publishing
 *(Broker configuration, certificates generation are for development and testing purposes only)*
 
-Prior to EVAM publishing, MQTT broker and subscriber needs to be configured and started.
+Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber needs to be configured and started.
 
 ### Configure and start MQTT broker
 
-MQTT broker should be configured to accept connections. Start the broker from [EVAM_WORKDIR]/ directory.
-For example, start [eclipse mosquitto](https://mosquitto.org/) MQTT broker using configuration in `[EVAM_WORKDIR]/utils/mosquitto` as below. Make sure `echo $PWD` shows the root of EVAM repository.
+MQTT broker should be configured to accept connections. Start the broker from [WORKDIR]/ directory.
+For example, start [eclipse mosquitto](https://mosquitto.org/) MQTT broker using configuration in `[WORKDIR]/utils/mosquitto` as below. Make sure `echo $PWD` shows the root of DL Streamer Pipeline Server repository.
 
   ```sh
   docker run -d --name=mqtt_broker -p 1883:1883 -v $PWD/utils/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
@@ -92,9 +92,9 @@ Once the mqtt broker is configured and up, connect to the mqtt broker and subscr
 
     More details on the subscribe helper functions can be found [here](https://github.com/eclipse/paho.mqtt.python)
 
-## Configure EVAM for MQTT Publishing
+## Configure DL Streamer Pipeline Server for MQTT Publishing
 ### Configuration options
-Add values to following parameters present in `[EVAM_WORKDIR]/docker/.env` file
+Add values to following parameters present in `[WORKDIR]/docker/.env` file
 ```sh
 MQTT_HOST=<mqtt broker address>
 MQTT_PORT=1883
@@ -102,7 +102,7 @@ MQTT_PORT=1883
   - `host` mqtt broker hostname or IP address
   - `port` port to connect to the broker
 
-Add below configuration in appropriate config.json file in in `[EVAM_WORKDIR]/configs` directory to enable publishing to the mqtt broker.
+Add below configuration in appropriate config.json file in in `[WORKDIR]/configs/default/` directory to enable publishing to the mqtt broker.
   ```json
     "mqtt_publisher": {
       "publish_frame": false
@@ -113,12 +113,12 @@ Add below configuration in appropriate config.json file in in `[EVAM_WORKDIR]/co
       NOTE: When publish_frame is set to 'true', it is advised to use a pipeline element such as `jpegenc` to do the frame encoding to publish over MQTT. If not present, frame is encoded to jpeg but it is limited to frames with the following image orders - `RGB`, `GRAY8`, `NV12` and `I420`. This capability is however limited and not performance efficient.
 
 Other parameters that can be part of `mqtt_publisher` config are mentioned below - 
-  - `topic` topic to which message will be published. Defaults to `edge_video_analytics_results` *(optional)*
+  - `topic` topic to which message will be published. Defaults to `dlstreamer_pipeline_results` *(optional)*
   - `qos` quality of service level to use which defaults to 0. Values can be 0, 1, 2. *(optional)*
     More details on the QoS levels can be found [here](https://www.hivemq.com/blog/mqtt-essentials-part-6-mqtt-quality-of-service-levels)
   - `protocol` protocol version to use which defaults to 4 i.e. MQTTv311. Values can be 3, 4, 5 based on the versions MQTTv3, MQTTv311, MQTTv5 respectively *(optional)*
 
-The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-start-evam-mqtt-publish.md) for an example.
+The configuration above can also be sent as part of REST request payload allowing users to launch new instances with different configurations such as `topic`, etc. Refer [here](../../../how-to-start-dlstreamer-pipeline-server-mqtt-publish.md) for an example.
 
 ### Metadata filtering
 Below configuration can be used to optionally filter out messages sent to mqtt broker for classification and detection usecases.
@@ -163,7 +163,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
 1. Generate Certificates
 
-   CA (Certificate Authority), client and server certificates need to be generated which will be used for configuring MQTT broker and EVAM.
+   CA (Certificate Authority), client and server certificates need to be generated which will be used for configuring MQTT broker and DL Streamer Pipeline Server.
 
    Below script can be used for generating certificates using openssl. (Command reference: https://mosquitto.org/man/mosquitto-tls-7.html).
 
@@ -200,7 +200,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
     ```
 
-    Once the certificates are generated, make sure to move the certificates to right location. Make sure `echo $PWD` shows the root of EVAM repository.
+    Once the certificates are generated, make sure to move the certificates to right location. Make sure `echo $PWD` shows the root of DL Streamer Pipeline Server repository.
     - Move ca.crt, server/server.crt, server/server.key to `$PWD/utils/mosquitto/certificates`
       ```sh
       mkdir $PWD/utils/mosquitto/certificates
@@ -226,7 +226,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
 2. Configure and start MQTT broker
 
-   - Modify the `[EVAM_WORKDIR]/utils/mosquitto/mosquitto.conf` file as below.
+   - Modify the `[WORKDIR]/utils/mosquitto/mosquitto.conf` file as below.
 
     ```sh
       allow_anonymous true
@@ -304,15 +304,15 @@ Follow the below steps to establish a secure connection with MQTT broker,
         subscribe.callback(on_message, "<topic_name>", hostname="<mqtt broker address>", port=8883, tls={'ca_certs': "<path to ca.crt>", 'certfile': "<path to client.crt>", 'keyfile': "<path to client.key>"})
         ```
 
-4. Configure EVAM for establishing secure connection with MQTT broker
+4. Configure DL Streamer Pipeline Server for establishing secure connection with MQTT broker
 
-   Add values to following parameters present in `[EVAM_WORKDIR]/docker/.env` file
+   Add values to following parameters present in `[WORKDIR]/docker/.env` file
     ```sh
     MQTT_HOST=<mqtt broker address>
     MQTT_PORT=1883
     ```
 
-   Add below configuration in appropriate config.json file in in `[EVAM_WORKDIR]/configs` directory to enable publishing to the mqtt broker.
+   Add below configuration in appropriate config.json file in in `[WORKDIR]/configs/default/` directory to enable publishing to the mqtt broker.
 
     ```json
       "mqtt_publisher": {

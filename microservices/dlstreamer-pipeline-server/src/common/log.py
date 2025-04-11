@@ -65,7 +65,7 @@ def get_logger(name):
             # Default log level is INFO
             log_level = 'INFO'
 
-        # Configure EVAS logging globals
+        # Configure DLStreamer Pipeline Server logging globals
         configure_logging(log_level, dev_mode)
         return eii_logging.configure_logging(LOG_LEVEL, name, DEV_MODE)
     else:

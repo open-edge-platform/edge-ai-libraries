@@ -5,8 +5,8 @@
 
 # Specify all Docker arguments for the Dockerfile
 ARG BASE_IMAGE=ubuntu:22.04
-FROM ${BASE_IMAGE} AS evam_standard
-LABEL description="Edge Video Analytics Microservice"
+FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
+LABEL description="DL Streamer Pipeline Server"
 LABEL vendor="Intel Corporation"
 
 ARG DLSTREAMER_VERSION=2025.0.1.2
@@ -52,7 +52,7 @@ RUN export no_proxy= && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN \
+RUN export no_proxy= && \
     echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
     wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -63,7 +63,7 @@ RUN \
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN \
+RUN export no_proxy= && \
     apt-get update -y && \
     apt-get install -y -q --no-install-recommends intel-dlstreamer=${DLSTREAMER_VERSION} && \
     apt-get clean -y && \
@@ -102,7 +102,7 @@ RUN \
 
 # DL Streamer Runtime ends
 
-######################## EVAM builder ################################
+######################## DL Streamer Pipeline Server builder ################################
 
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
@@ -183,7 +183,8 @@ ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
     PATH=${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
     PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
 
-RUN apt-get update && \
+RUN export no_proxy= && \
+    apt-get update && \
     apt-get install -y -q --no-install-recommends libdrm-dev=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -197,7 +198,7 @@ RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
     && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
     && make"
 
-############################# EVAM runtime ################################
+############################# DL Streamer Pipeline Server runtime ################################
 
 USER root
 
@@ -217,9 +218,9 @@ RUN cp ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreame
 RUN cp /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
 
 ARG USER
-ARG EVAM_UID
+ARG UID
 
-RUN useradd -ms /bin/bash -G video,audio,users,plugdev ${USER} -o -u $EVAM_UID && \
+RUN useradd -ms /bin/bash -G video,audio,users,plugdev ${USER} -o -u $UID && \
     chown ${USER}:${USER} -R /home/pipeline-server /root
 
 RUN mkdir -p /home/${USER}/ && chown -R ${USER}:${USER} /home/${USER}
@@ -304,7 +305,7 @@ RUN if [ "$DOWNLOAD_GPL_SOURCES" = "yes" ]; then \
         sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
         apt-get update && \
         root_dir=$PWD && \
-        mkdir -p ./apt-sources/EVAM && cd ./apt-sources/EVAM && \
+        mkdir -p ./apt-sources/dlstreamer-pipeline-server && cd ./apt-sources/dlstreamer-pipeline-server && \
         cp ../../third_party_deb_apk_deps.txt . && \
         for line in $(cat third_party_deb_apk_deps.txt | xargs -n1); \
         do \
@@ -347,12 +348,12 @@ RUN mkdir -p grpc && unzip -o gRPC-py-2.0.0.zip -d grpc && \
 
 RUN pip3 install --no-cache-dir grpcio==1.66.0 grpcio-tools==1.66.0
 
-# Copy EVAM source code
+# Copy source code
 COPY ./docker/run.sh .
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
-# Pipeline server
+# Install server requirements
 USER root
 RUN pip3 install PyYAML==5.4.1 --no-build-isolation && \
     pip3 install -r  /home/pipeline-server/src/server/requirements.service.txt \

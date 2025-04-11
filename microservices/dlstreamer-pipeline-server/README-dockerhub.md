@@ -1,24 +1,20 @@
-# Edge Video Analytics Microservice
+# Deep Learning Streamer Pipeline Server
 
-Edge Video Analytics Microservice is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Intel® Deep Learning Streamer (DL Streamer)](https://dlstreamer.github.io/) , providing video ingestion and deep learning inferencing functionalities.
+Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://dlstreamer.github.io/) , providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 ## Deploy using Docker Compose
 ---
-For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html).
+For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html).
 
-## Deployment using Kubernetes Charts
+## Deploy using Kubernetes Charts
 ---
-For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/how-to-deploy-with-helm.html).
+For more details on deployment, refer to the [documentation](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/how-to-deploy-with-helm.html).
 
-## Supported version
+## Supported versions
 ---
-2.4.0
-
-2.3.0
-
-2.2.0
+3.0.0
 
 ## License Agreement
 ---

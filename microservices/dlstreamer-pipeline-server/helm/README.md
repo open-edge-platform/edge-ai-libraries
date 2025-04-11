@@ -1,13 +1,18 @@
-# Helm chart for standard Edge Video Analytics Microservice (EVAM)
+# Helm chart for Deep Learning Streamer Pipeline Server
 
 ## Steps to deploy the helm chart:
 
 - Note: Incase you do not have a k8s cluster, then please follow the steps mentioned in 'Setup k8s cluster' below before deploying the helm chart.
 - Get into the helm directory
-    `cd EdgeVideoAnalyticsMicroservice/helm`
+    `cd helm`
+- Update the below fields in `values.yaml` file in the helm chart
+    ``` sh
+    http_proxy: # example: http_proxy: http://proxy.example.com:891
+    https_proxy: # example: http_proxy: http://proxy.example.com:891
+    ```
 - Install the helm chart
-    `helm install evam . -n apps --create-namespace`
-- Check if EVAM is running fine
+    `helm install dlsps . -n apps --create-namespace`
+- Check if Deep Learning Streamer Pipeline Server is running fine
     `kubectl get pods --namespace apps`and monitor its logs using `kubectl logs -f <pod_name> -n apps`
 - Send the curl command to start the pallet defect detection pipeline
     ``` sh
@@ -35,79 +40,9 @@
             }
         }'
     ```
-- Open VLC media player on your windows system. Cick on Media -> Open Network Stream -> Enter `rtsp://<Host_IP_where_EVAM_is_running>:30025/pallet-defect-detection` in network URL tab and hit Play to see the visualization.
+- Open VLC media player on your windows system. Cick on Media -> Open Network Stream -> Enter `rtsp://<Host_IP_where_Deep_Learning_Streamer_Pipeline_Server_is_running>:30025/pallet-defect-detection` in network URL tab and hit Play to see the visualization.
 
-## Steps to interfacing with MRaaS:
 
-- `cd <EVAM_WORKDIR>`
-- ```sh
-    cd <EVAM_WORKDIR>/utils
-    sudo ./init_mr_dir.sh
-    ```
-- Update [evam_config.json](./evam_config.json) by adding "model_registry" with <HOST_IP_where_MRaaS_is_running> updated to enable MRaaS. Following is a sample evam_config.json with "model_regitry".
-    ```sh
-    {
-        "config": {
-            "logging": {
-                "C_LOG_LEVEL": "INFO",
-                "PY_LOG_LEVEL": "INFO"
-            },
-            "model_registry": {
-                "url": "http://<HOST_IP_where_MRaaS_is_running>:32002",
-                "request_timeout": 300,
-                "saved_models_dir": "./mr_models"
-            },
-            "pipelines": [
-                {
-                    "name": "pallet_defect_detection",
-                    "source": "gstreamer",
-                    "queue_maxsize": 50,
-                    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "detection-properties": {
-                                "element": {
-                                    "name": "detection",
-                                    "format": "element-properties"
-                                }
-                            }
-                        }
-                    },
-                    "auto_start": false
-                }
-            ]
-        }
-    }
-    ```
-
-- Update "mr_models" to the path where the models get downloaded on host machine in [values.yaml](./values.yaml). Ex: `/home/intel/EIS_2.0/IEdgeInsights/EdgeVideoAnalyticsMicroservice/mr_models`
-- Send the curl command to start the pipeline using the newly downloaded model. See example below:
-    ```sh
-    curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
-        "source": {
-            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
-            "type": "uri"
-        },
-        "destination": {
-            "metadata": {
-                "type": "file",
-                "path": "/tmp/results.jsonl",
-                "format": "json-lines"
-            },
-            "frame": {
-                "type": "rtsp",
-                "path": "pallet-defect-detection1"
-            }
-        },
-        "parameters": {
-            "detection-properties": {
-                "model": "/home/pipeline-server/mr_models/pallet_defect_detection_m-v2_fp32/deployment/Detection/model/model.xml",
-                "device": "CPU"
-            }
-        }
-    }'
-    ```
 ## Setup k8s cluster
 
 - Install Helm Charts: 

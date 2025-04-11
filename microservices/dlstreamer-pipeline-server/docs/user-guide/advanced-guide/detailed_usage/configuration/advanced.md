@@ -1,7 +1,7 @@
 ```{eval-rst}
 :orphan:
 ```
-# Advanced EVAM configuration
+# Advanced DL Streamer Pipeline Server configuration
 
 Basic configuration needs that described [here]. For EIS deployments, there are more fields applicable and they are described in this section. 
 
@@ -19,7 +19,7 @@ Here is a sample EIS config file.
         ],
         "pipelines": [
             {
-                "name": "edge_video_analytics_results",
+                "name": "dlstreamer_pipeline_results",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/anomalib_pcb_test.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! appsink name=destination",
@@ -60,7 +60,7 @@ Here is a sample EIS config file.
                 "EndPoint": "multimodal-data-visualization-streaming:65138",
                 "Name": "visualizer",
                 "Topics": [
-                    "edge_video_analytics_results"
+                    "dlstreamer_pipeline_results"
                 ],
                 "Type": "grpc",
                 "overlay_annotation": "true"
@@ -69,7 +69,7 @@ Here is a sample EIS config file.
                 "EndPoint": "ia-datastore:65137",
                 "Name": "datastore",
                 "Topics": [
-                    "edge_video_analytics_results"
+                    "dlstreamer_pipeline_results"
                 ],
                 "Type": "grpc"
             }
@@ -83,22 +83,22 @@ Fields in `config` section.
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
 
 | `cert_type`         | Type of EIS certs to be created. This should be `"zmq"` or `"pem"`.                                      |
-| `logging`         | Set log level for `"C_LOG_LEVEL"`, `"PY_LOG_LEVEL"`. Default is `INFO`.                                      |
-| `pipelines`         | List of DLStreamer pipelines.     
+| `logging`           | Set log level for `"C_LOG_LEVEL"`, `"PY_LOG_LEVEL"`. Default is `INFO`.                                      |
+| `pipelines`         | List of DL Streamer pipelines.     
 
 Fields within `pipelines` section. 
-|      Parameter      |                                                     Description                                                |
-| :-----------------: | -------------------------------------------------------------------------------------------------------------- |
-|`name`         | Name of the pipeline.                                      |
-| `source`            | Source of the frames. This should be `"gstreamer"` or `"image-ingestor"`.                                              |
-| `pipeline`              | DLStreamer pipeline description.         |
+|      Parameter          |                                                     Description                                                |
+| :----------------------:| -------------------------------------------------------------------------------------------------------------- |
+|`name`                   | Name of the pipeline.                                      |
+| `source`                | Source of the frames. This should be `"gstreamer"` or `"image-ingestor"`.                                              |
+| `pipeline`              | DL Streamer pipeline description.         |
 | `parameters`            | Optional JSON object specifying pipeline parameters that can be customized when the pipeline is launched |
-| `auto_start`          | The Boolean flag for whether to start the pipeline on EVAM start up. |
-| `udfs` | UDF config parameters |
-| `tags`            | Additional information to store with frame metadata. e.g. camera location/orientation of video input. |
-| `publish_raw_frame`  | The Boolean flag for whether to publish raw frame.                                  |
-| `encoding`          | Encodes the image in jpeg or png format.                                                                       |
-| `mqtt_publisher`    | Publishes frame/metadata to mqtt broker.                                                                      |
+| `auto_start`            | The Boolean flag for whether to start the pipeline on DL Streamer Pipeline Server start up. |
+| `udfs`                  | UDF config parameters |
+| `tags`                  | Additional information to store with frame metadata. e.g. camera location/orientation of video input. |
+| `publish_raw_frame`     | The Boolean flag for whether to publish raw frame.                                  |
+| `encoding`              | Encodes the image in jpeg or png format.                                                                       |
+| `mqtt_publisher`        | Publishes frame/metadata to mqtt broker.                                                                      |
 | `convert_metadata_to_dcaas_format`  | Converts inference results to DCaaS standardized format.
 
 > **Note:**
@@ -125,7 +125,7 @@ Refer to the below pipeline for example,
   - MQTT publishing can be enabled along with EII Message Bus publishing.
 
 ## Interface Configuration
-By default, EVAM is configured to publish frame and metadata over the EIS message bus. The interfaces configuration for publisher is shown below -
+By default, DL Streamer Pipeline Server is configured to publish frame and metadata over the EIS message bus. The interfaces configuration for publisher is shown below -
 
 ```json
     "interfaces": {
@@ -134,7 +134,7 @@ By default, EVAM is configured to publish frame and metadata over the EIS messag
                 "EndPoint": "multimodal-data-visualization-streaming:65138",
                 "Name": "visualizer",
                 "Topics": [
-                    "edge_video_analytics_results"
+                    "dlstreamer_pipeline_results"
                 ],
                 "Type": "grpc",
                 "overlay_annotation": "true"

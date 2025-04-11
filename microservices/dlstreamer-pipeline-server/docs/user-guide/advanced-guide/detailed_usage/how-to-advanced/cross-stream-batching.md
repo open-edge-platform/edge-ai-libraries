@@ -1,6 +1,6 @@
 # Cross stream batching
 
-EVAM supports grouping multiple frames in single batch during model processing. `batch-size` is an optional parameter to be used which specifies the number of input frames grouped together in a single batch. In the below example, the model processes 4 frames at a time.
+DL Streamer Pipeline Server supports grouping multiple frames in single batch during model processing. `batch-size` is an optional parameter to be used which specifies the number of input frames grouped together in a single batch. In the below example, the model processes 4 frames at a time.
 
 ```sh
 "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection batch-size=4 model-instance-id=1 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
@@ -45,23 +45,23 @@ You can use the following curl command to start the pipeline -
 * docker stats with batch-size as 1, no of streams as 1
 ```sh
 CONTAINER ID   NAME                                CPU %     MEM USAGE / LIMIT   MEM %     NET I/O           BLOCK I/O     PIDS
-f4355ac7a42e   edge-video-analytics-microservice   283.11%   322.6MiB / 31.18GiB   1.01%     42.8kB / 2.69kB   0B / 573kB    36
+f4355ac7a42e   dlstreamer-pipeline-server         283.11%   322.6MiB / 31.18GiB   1.01%     42.8kB / 2.69kB   0B / 573kB    36
 ```
 
 * docker stats with batch-size as 16, no of streams as 1
 ```sh
 CONTAINER ID   NAME                                CPU %     MEM USAGE / LIMIT   MEM %     NET I/O           BLOCK I/O     PIDS
-6a3ccbc9fb44   edge-video-analytics-microservice   281.32%   811.7MiB / 31.18GiB   2.54%     42.5kB / 2.83kB   0B / 0B       37
+6a3ccbc9fb44   dlstreamer-pipeline-server         281.32%   811.7MiB / 31.18GiB   2.54%     42.5kB / 2.83kB   0B / 0B       37
 ```
 
 * docker stats with batch-size as 1, no of streams as 4
 ```sh
 CONTAINER ID   NAME                                CPU %     MEM USAGE / LIMIT   MEM %     NET I/O           BLOCK I/O     PIDS
-f842a3f617c8   edge-video-analytics-microservice   1169.10%   462.7MiB / 31.18GiB   1.45%     46.3kB / 4.18kB   0B / 352kB    55
+f842a3f617c8   dlstreamer-pipeline-server        1169.10%   462.7MiB / 31.18GiB   1.45%     46.3kB / 4.18kB   0B / 352kB    55
 ```
 
 * docker stats with batch-size as 16, no of streams as 4
 ```sh
 CONTAINER ID   NAME                                CPU %     MEM USAGE / LIMIT   MEM %     NET I/O           BLOCK I/O     PIDS
-5b1c3b35ddfe   edge-video-analytics-microservice   1170.64%   999.2MiB / 31.18GiB   3.13%     45.4kB / 4.05kB   0B / 123kB    55
+5b1c3b35ddfe   dlstreamer-pipeline-server         1170.64%   999.2MiB / 31.18GiB   3.13%     45.4kB / 4.05kB   0B / 123kB    55
 ```

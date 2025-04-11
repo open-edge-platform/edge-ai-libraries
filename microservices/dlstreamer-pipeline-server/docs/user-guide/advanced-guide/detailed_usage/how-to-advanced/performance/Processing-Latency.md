@@ -3,7 +3,7 @@
 This guide will help you add environment variables to enable GST TRACER logs and store results in a file. This is useful for monitoring and reviewing performance metrics associated to a pipeline.
 
 ## Steps to enable GST TRACER logging
-1. Add the following environment variables to the `edge-video-analytics-microservice` service in the `docker-compose.yml file`
+1. Add the following environment variables to the `dlstreamer-pipeline-server` service in the `docker-compose.yml file`
     1. GST_DEBUG
     2. GST_TRACERS
     3. GST_DEBUG_FILE
@@ -11,8 +11,8 @@ This guide will help you add environment variables to enable GST TRACER logs and
     **Example**
     ```yaml
     services:
-      edge-video-analytics-microservice:
-        image: intel/edge-video-analytics-microservice:2.3.0
+      dlstreamer-pipeline-server:
+        image: intel/dlstreamer-pipeline-server:3.0.0
         environment:
           ...
           - GST_DEBUG="GST_TRACER:7"

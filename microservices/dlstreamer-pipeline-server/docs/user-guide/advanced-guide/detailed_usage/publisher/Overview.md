@@ -6,7 +6,6 @@
     - [Publish Metadata via gvametapublish](#publish-metadata-via-gvametapublish)
     - [Publish Frame and Metadata via gvapython](#publish-framemetadata-via-gvapython)
     - [Publish Frame and Metadata post pipeline execution](#publish-frame-and-metadata-post-pipeline-execution)
-- [gRPC Publishing](#grpc-publishing)
 - [OPCUA Publishing](#opcua-publishing)
 - [S3 frame publishing](#s3-frame-publishing)
 
@@ -24,13 +23,11 @@ To send frames over WebRTC for streaming, refer to this [doc](../rest_api/custom
 To publish metadata to MQTT message broker via REST Request refer to this [doc](../rest_api/customizing_pipeline_requests.md#mqtt).
 
 ### Publish frame/metadata via gvapython
-To publish frame/metadata to MQTT message broker using `gvapython` element in the DLStreamer pipeline, refer to the steps described in this [doc](gvapython_mqtt_publish.md).
+To publish frame/metadata to MQTT message broker using `gvapython` element in the DL Streamer pipeline, refer to the steps described in this [doc](gvapython_mqtt_publish.md).
 
 ### Publish Frame and Metadata post pipeline execution
 To publish frame/metadata to MQTT message broker post pipeline execution, refer to this [doc](eis_mqtt_publish_doc.md).
 
-### gRPC Publishing
-To publish frame and metadata via gRPC communication, refer to this [doc](grpc_publish_doc.md)
 
 ## OPCUA Publishing
 To send frames and metadata over OPC UA, refer to this [doc](opcua_publish_doc.md).
@@ -43,7 +40,6 @@ To store frames from media source and publish the metadata to MQTT, refer to thi
 :hidden:
 gvapython_mqtt_publish.md
 eis_mqtt_publish_doc.md
-grpc_publish_doc.md
 opcua_publish_doc.md
 s3_frame_storage.md
 ```

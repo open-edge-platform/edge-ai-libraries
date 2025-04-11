@@ -1,5 +1,10 @@
 # Release Notes
 
+## v3.0.0 (April 2025)
+
+### Updates
+- Rebranded Edge Video Analytics Microservice (EVAM) to Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server).
+
 ## v2.4.0 (March 2025)
 
 ### Added
@@ -42,7 +47,7 @@
 ### Added
 - Support for synchronous REST API, timeout and base64 image in Image Ingestor.
 - MRaaS support in Helm chart.
-- Support for NV12 and I420 image formats in EVAM Publisher.
+- Support for NV12 and I420 image formats in DLStreamer Pipeline Server Publisher.
 - Option to send frames optionally in image ingestion REST API requests.
 - Payload support in config when auto-start is enabled.
 - Insourced pipeline server.
@@ -63,17 +68,17 @@
 
 ### Added
 - Annotation overlay support for clients.
-- Support for mTLS and configurable gRPC in EVAM.
+- Support for mTLS and configurable gRPC in DLStreamer pipeline server.
 - Option to disable LEM check.
 - Time field to gvapython mqtt publisher and Geti wrapper.
 - Multi-threaded client publishers for performance improvements.
-- Standalone EVAM Helm chart.
+- Standalone DLStreamer pipeline server Helm chart.
 - Optimizations to Dockerfile for lean docker image size.
 
 ### Fixed
 - Bug where missing UDFs would cause task key errors.
 - Issue where multiple pipeline instances wouldn't refer to their own data.
-- Expired Model Registry Microservice JWT handling in EVAM.
+- Expired Model Registry Microservice JWT handling in DLStreamer pipeline server.
 - Hardcoded visualization overlay for classification models.
 - Error for REST requests with no metadata.
 - Volume mount permissions for deployments.
@@ -91,7 +96,7 @@
 
 ### Added
 - Support for image file ingestor and RGB frame format in UDF plugin.
-- Capability to load models from the Model Registry Microservice during EVAM startup.
+- Capability to load models from the Model Registry Microservice during DLStreamer pipeline server startup.
 - New REST API endpoint for model downloading.
 - gRPC integration for communication.
 - SSL (HTTPS) support for serving traffic.

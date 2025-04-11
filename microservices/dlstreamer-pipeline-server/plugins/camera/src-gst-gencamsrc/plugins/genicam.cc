@@ -717,7 +717,7 @@ bool Genicam::Create (GstBuffer ** buf, GstMapInfo * mapInfo)
         buffer;
 
   // not necessary as it is taken care of at init time and this doesn't make a difference, 
-  // but present on safer side: disabling unlimited license every frame for Balluff from EVAM v2.2.0 onwards
+  // but present on safer side: disabling unlimited license every frame for Balluff from DLStreamer Pipeline Server v2.2.0 onwards
   unsetenv("BALLUFF_ACQ_LIC_MODULE");
 
     while (!(buffer = stream[0]->grab (GRAB_DELAY * 1000))) {

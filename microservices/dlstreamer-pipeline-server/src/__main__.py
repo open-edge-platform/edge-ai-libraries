@@ -13,13 +13,13 @@ import threading
 from distutils.util import strtobool
 
 from src.manager import PipelineServerManager
-from src.config import EvamConfig
+from src.config import PipelineServerConfig
 from src.common.log import get_logger
 from src.rest_api.server import RestServer
 from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
-EVAM_VERSION = "2.4.0"
+VERSION = "3.0.0"
 EII_MODE = True if os.getenv('RUN_MODE') == "EII" else False
 
 if EII_MODE:
@@ -51,7 +51,7 @@ def exit_handler():
     if otel_exporter is not None:
         log.info("Stopping OpenTelemetry Exporter")
         otel_exporter.stop()
-    log.info("EVAM exiting...")
+    log.info("DL Streamer Pipeline Server exiting...")
     os._exit(-1)    # exit the process
 
 
@@ -66,16 +66,16 @@ signal.signal(signal.SIGABRT, sig_cleanup_handler)
 
 
 def watch_file_cbfunc():
-    log.info('Config file has been updated, restarting EVAM with latest cofig ')
+    log.info('Config file has been updated, restarting DL Streamer Pipeline Server with latest cofig ')
     exit_handler()
 
 
 def callback_func(key, _json):
-    log.info('key {} has been updated in ETCD, restarting EVAM with latest config '.format(key))
+    log.info('key {} has been updated in ETCD, restarting DL Streamer Pipeline Server with latest config '.format(key))
     exit_handler()
     
 
-def main(cfg: EvamConfig):
+def main(cfg: PipelineServerConfig):
     # stop the server and any threads (for etcd change scenario in eii mode)
     # define pipeline server and pipelines
     # start REST server in a new thread -> start/stop/discover pipelines
@@ -103,7 +103,7 @@ def main(cfg: EvamConfig):
         otel_exporter.stop()
         log.info("OpenTelemetry Exporter stopped")
         
-    log.info("EVAM Configuration:")
+    log.info("DL Streamer Pipeline Server Configuration:")
     app_cfg = cfg.get_app_config()
     log.info(json.dumps(app_cfg,indent=4))
 
@@ -175,8 +175,8 @@ if __name__ == "__main__":
             lic_handler = lem.LicenseHandler()
             lic_handler.start_license_check()
 
-        log.info("EVAM version: {}".format(EVAM_VERSION))
-        cfg = EvamConfig(mode=EII_MODE, watch_cb=callback_func, watch_file_cbfunc=watch_file_cbfunc)
+        log.info("DL Streamer Pipeline Server version: {}".format(VERSION))
+        cfg = PipelineServerConfig(mode=EII_MODE, watch_cb=callback_func, watch_file_cbfunc=watch_file_cbfunc)
         main(cfg)
         while True:
             log.info("sleeping...")

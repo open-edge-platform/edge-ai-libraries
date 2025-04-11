@@ -1,7 +1,7 @@
 # Customizing Pipeline Requests
 | [Request Format](#request-format) | [Source](#source) | [Destination](#metadata-destination) | [Parameters](#parameters) | [Tags](#tags) |
 
-Pipeline requests are initiated to exercise the Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Server REST API. Each pipeline in the Pipeline Server has a specific endpoint. A pipeline can be started by issuing a `POST` request and a running pipeline can be stopped using a `DELETE` request. The `source` and `destination` elements of Pipeline Server [pipeline templates](defining_pipelines.md#pipeline-templates) are configured and constructed based on the `source` and `destination` from the incoming requests.
+Pipeline requests are initiated to exercise the Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) REST API. Each pipeline in the DL Streamer Pipeline Server has a specific endpoint. A pipeline can be started by issuing a `POST` request and a running pipeline can be stopped using a `DELETE` request. The `source` and `destination` elements of Pipeline Server [pipeline templates](defining_pipelines.md#pipeline-templates) are configured and constructed based on the `source` and `destination` from the incoming requests.
 
 ## Request Format
 
@@ -17,7 +17,7 @@ Pipeline requests sent to Pipeline Server REST API are JSON documents that have 
 ### Example Request
 Below is a sample request using curl to start an `user_defined_pipelines/pallet_defect_detection` pipeline that analyzes the video warehouse.avi and sends its results to `/tmp/results.jsonl`.
 
-> Note: Files specified as a source or destination need to be accessible from within the EVAM container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml]. 
+> Note: Files specified as a source or destination need to be accessible from within the DL Streamer Pipeline Server container. Local files and directories can be volume mounted using standard docker volume mounted options in docker compose file i.e [WORKDIR/docker/docker-compose.yml]. 
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -95,7 +95,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
     }
 }'
 ```
-A local file can also be used as a source. In the following example, `warehouse.avi` that has been copied to `/tmp` from `[EVAM_WORKDIR]/resources/videos/` is used as video source and Pipeline can be started with below curl request:
+A local file can also be used as a source. In the following example, `warehouse.avi` that has been copied to `/tmp` from `[WORKDIR]/resources/videos/` is used as video source and Pipeline can be started with below curl request:
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -378,7 +378,7 @@ Use the following parameters to customize the request:
 
 ## Parameters
 Pipeline parameters as specified in the pipeline definition file, can be set in the REST request.
-For example, below is a the snippets from [EVAM_WORKDIR]/config/default/config.json file:
+For example, below is a the snippets from [WORKDIR]/config/default/config.json file:
 
 ```json
 {

@@ -7,10 +7,10 @@
 #
 
 # This shell script makes the `mr_models` directory in the project's root directory,
-# creates a new user based on the value of the `EVAM_USER` environment variable,
+# creates a new user based on the value of the `PIPELINE_SERVER_USER` environment variable,
 # and changes the ownership of the `mr_models` directory to the new user. This
 # directory is used as the location for model artifacts downloaded from the
-# model registry microservice by EVAM.
+# model registry microservice by DL Streamer Pipeline Server.
 
 
 source ../docker/.env
@@ -29,16 +29,16 @@ else
     echo "The '$target_dir' directory does not exist in $parent_dir."
 fi
 
-user_name="$EVAM_USER"
-user_id="$EVAM_UID"
+user_name="$PIPELINE_SERVER_USER"
+user_id="$UID"
 
-# Add the EVAM_USER to the host system
+# Add the PIPELINE_SERVER_USER to the host system
 if ! id -u "$user_name" &> /dev/null; then
   useradd -u "$user_id" "$user_name"
   echo "The user account '$user_name' was created."
 fi
 
-# Set the $target_dir (mr_models) directory ownership to the EVAM_USER
+# Set the $target_dir (mr_models) directory ownership to the PIPELINE_SERVER_USER
 chown "$user_name:$user_name" "$dir_path"
 
 owner=$(stat -c "%U" "$dir_path")

@@ -2,15 +2,15 @@
 
 ## Steps
 
-EVAM allows autostarting pipelines provided all the necessary payload information such as source, destination, model parameters etc are available in the configuration file.
+DL Streamer Pipeline Server allows autostarting pipelines provided all the necessary payload information such as source, destination, model parameters etc are available in the configuration file.
 
 There are 2 ways to enable autostarting the pipeline. First way is to provide all the necessary payload information while defining the pipeline itself. Second way is to provide the information under the `"pipelines"` config with `"payload"` as the keyword.
 
-Autostart for a pipeline can be enabled by setting the flag `auto_start` to `true`. This would start an instance of pipeline immediately as soon as EVAM container is up.
+Autostart for a pipeline can be enabled by setting the flag `auto_start` to `true`. This would start an instance of pipeline immediately as soon as DL Streamer Pipeline Server container is up.
 
 ### Method 1 - Specifying all the information in the pipeline itself - 
 
-Replace the following sections in `[EVAM_WORKDIR]/configs/default/config.json` with the following
+Replace the following sections in `[WORKDIR]/configs/default/config.json` with the following
 Note: Follow instruction in the [Prerequisite section](./how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
 
 - replace `"pipeline"` section with  
@@ -22,10 +22,10 @@ Note: Follow instruction in the [Prerequisite section](./how-to-update-default-c
 
     Notice that we have inlined model xml path (in `gvadetect` element) and metadata publish file (in `gvametapublish` element) into the pipeline string.
 
-- After making changes to config.json, make sure to save it and restart EVAM. Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned [above](./how-to-change-dlstreamer-pipeline.md#how-to-change-dlstreamer-pipeline)) it.
+- After making changes to config.json, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned [above](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)) it.
 
     ```sh
-    cd [EVAM_WORKDIR]/docker/    
+    cd [WORKDIR]/docker/    
     docker compose up
     ```
     We should see the metadata results in `/tmp/results.jsonl` file like the following snippet.
@@ -43,62 +43,72 @@ Note: Follow instruction in the [Prerequisite section](./how-to-update-default-c
 
 ### Method 2 - Add REST payload under `"payload"` section of the pipeline config.
 
-- In case you have provided placeholders in you pipeline configuration, we can also plug in the REST payload in the pipeline configuration and make use of the `auto_start` feature to start EVAM with this pipeline with the payload provided. 
+- In case you have provided placeholders in you pipeline configuration, we can also plug in the REST payload in the pipeline configuration and make use of the `auto_start` feature to start DL Streamer Pipeline Server with this pipeline with the payload provided. 
 
   The REST payload can be added inside a `payload` key section and the `autostart` key is then set `true`. 
 
   Following is a sample config with payload provided and `auto_start` set to `true`
 
     ```json
-        {
-            "name": "pallet_defect_detection",
-            "source": "gstreamer",
-            "queue_maxsize": 50,
-            "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
-            "parameters": {
-                "type": "object",
-                "properties": {
-                    "detection-properties": {
-                            "element": {
-                            "name": "detection",
-                            "format": "element-properties"
-                            }
-                    }
-                }
+    {
+        "config": {
+            "logging": {
+                "C_LOG_LEVEL": "INFO",
+                "PY_LOG_LEVEL": "INFO"
             },
-            "auto_start": true,
-            "payload": {
-                "source": {
-                    "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
-                    "type": "uri"
-                },
-                "destination": {
-                    "metadata": {
-                        "type": "file",
-                        "path": "/tmp/results.jsonl",
-                        "format": "json-lines"
+            "pipelines": [
+                {
+                    "name": "pallet_defect_detection",
+                    "source": "gstreamer",
+                    "queue_maxsize": 50,
+                    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                    "parameters": {
+                        "type": "object",
+                        "properties": {
+                            "detection-properties": {
+                                    "element": {
+                                    "name": "detection",
+                                    "format": "element-properties"
+                                    }
+                            }
+                        }
                     },
-                    "frame": {
-                        "type": "rtsp",
-                        "path": "pallet_defect_detection"
-                    }
-                },
-                "parameters": {
-                    "detection-properties": {
-                        "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
-                        "device": "CPU"
+                    "auto_start": true,
+                    "payload": {
+                        "source": {
+                            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+                            "type": "uri"
+                        },
+                        "destination": {
+                            "metadata": {
+                                "type": "file",
+                                "path": "/tmp/results.jsonl",
+                                "format": "json-lines"
+                            },
+                            "frame": {
+                                "type": "rtsp",
+                                "path": "pallet_defect_detection"
+                            }
+                        },
+                        "parameters": {
+                            "detection-properties": {
+                                "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+                                "device": "CPU"
+                            }
+                        }
                     }
                 }
-            }
+            ]
         }
+    }
     ```
 
-- Ensure that the changes made to the config.json are reflected in the container by volume mounting (as described [here](./how-to-change-dlstreamer-pipeline.md#how-to-change-dlstreamer-pipeline)).
+- Ensure that the changes made to the config.json are reflected in the container by volume mounting (as described [here](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)).
 
-- Start EVAM
+- Start DL Streamer Pipeline Server
 
     ```sh
-        cd [EVAM_WORKDIR]/docker/
+        cd [WORKDIR]/docker/
         docker compose up
     ```
-  The pipeline would start automatically as soon as EVAM starts. 
+  The pipeline would start automatically as soon as DL Streamer Pipeline Server starts. 
