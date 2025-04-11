@@ -6,7 +6,7 @@
     - [Defining Pipelines](./defining_pipelines.md)
     - [Customizing Pipeline Requests](./customizing_pipeline_requests.md)
 
-The Edge Video Analytics Microservice harnesses the capabilities of the Intel® DL Streamer Pipeline Server, offering a easy to use solution for constructing and managing video analytics pipelines. With the help of JSON files, users can effortlessly define and adapt their pipelines as required. Additionally, the Pipeline Server provides a streamlined set of RESTful endpoints for seamless pipeline control.
+The REST Server harnesses the capabilities of the DL Streamer Pipeline Server, offering a easy to use solution for constructing and managing video analytics pipelines. With the help of JSON files, users can effortlessly define and adapt their pipelines as required. Additionally, it provides a streamlined set of RESTful endpoints for seamless pipeline control.
 
 The following REST API endpoints are currently supported.
 

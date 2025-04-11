@@ -15,7 +15,7 @@ from src.server.common.utils import logging
 class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     _source = "appsrc name=source format=GST_FORMAT_TIME"
 
-    _RtspVideoPipeline_withjpeginput = " ! rtpjpegpay name=pay0"  # removed gvawatermark to avoid duplicate overlay assuming EVAM pipeline already has gvawatermark
+    _RtspVideoPipeline_withjpeginput = " ! rtpjpegpay name=pay0"  # removed gvawatermark to avoid duplicate overlay assuming DLStreamer pipeline server pipeline already has gvawatermark
         # ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
 
     _RtspVideoPipeline_withjpeginput_overlay = " ! jpegdec ! videoconvert  \

@@ -29,7 +29,7 @@ For example, consider the below pipeline from default config:
 
 `{auto_source}` provides source abstraction to specify the source at the time of submitting REST request making pipelines flexible as they the same pipeline can be reused different source types like file, RTSP, webcam etc. To learn more on source abstraction and different supported types, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#source)
 
-`gvametapublish` provides options to send metadata to a chosen destination. For example, metadata can be sent to file, MQTT/Kafka messages brokers. Additionally, EVAM send frames that can be sent over RTSP/WebRTC.
+`gvametapublish` provides options to send metadata to a chosen destination. For example, metadata can be sent to file, MQTT/Kafka messages brokers. Additionally, DL Streamer Pipeline Server send frames that can be sent over RTSP/WebRTC.
 To learn more on setting metadata destination, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#metadata-destination).
 To learn more on setting frame destination, refer to this [section](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md#frame-destination).
 
@@ -38,7 +38,7 @@ To learn more on setting frame destination, refer to this [section](./advanced-g
 **Note**: Refer this [tutorial](./how-to-change-dlstreamer-pipeline.md) and this [section](./advanced-guide/detailed_usage/configuration/basic.md) for configuration file. 
 Refer [this](./advanced-guide/detailed_usage/rest_api/customizing_pipeline_requests.md) page for detailed instructions on how to define configurable pipelines and launch them using REST command.
 
-Here is a sample REST request for the default pipeline (same as above sample) which has placeholders for `source`, `destination` and `parameters`. A video file within the container is specified as source, file is set as metadata destination, RTSP is specified for frame destination and the gvadetect element parameters such as model and device are provided under the parameters section. The model and video files are already provided as EVAM samples.
+Here is a sample REST request for the default pipeline (same as above sample) which has placeholders for `source`, `destination` and `parameters`. A video file within the container is specified as source, file is set as metadata destination, RTSP is specified for frame destination and the gvadetect element parameters such as model and device are provided under the parameters section. The model and video files are already provided as DL Streamer Pipeline Server samples.
 
 ```sh
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{

@@ -23,7 +23,7 @@ from src.publisher.publisher import Publisher
 from src.subscriber.cam_ingestor import XirisCamIngestor
 from src.subscriber.image_ingestor import ImageIngestor
 from src.publisher.image_publisher import ImagePublisher
-from src.config import EvamConfig
+from src.config import PipelineServerConfig
 from src.common.log import get_logger, LOG_LEVEL
 
 
@@ -389,7 +389,7 @@ class Pipeline:
         pipeline_template = {
             "type": "GStreamer",
             "template": [self.pipeline_config['pipeline']],
-            "description": "EVAM pipeline",
+            "description": "DL Streamer Pipeline Server pipeline",
             "parameters": parameters
         }
         os.makedirs(self.pipeline_dir, exist_ok=True)
@@ -450,12 +450,12 @@ class PipelineServerManager:
         "gvainference":defaultdict(dict)
         }   # bookkeeper to keep track of model-instance-id for gva elements in pipeline and their status
     def __init__(self, 
-                 config:EvamConfig, 
+                 config:PipelineServerConfig, 
                  pipeline_root: str="/home/pipeline-server") -> None:
         """Initialize PipelineServerManager
 
         Args:
-            config (EvamConfig): EVAM configuration instance
+            config (PipelineServerConfig): DL Streamer Pipeline Server configuration instance
             pipeline_root (str, optional): root dir where pipeline templates are generated or looked up. Defaults to "/home/pipeline-server".
         """
         self.log = get_logger(__name__)
@@ -628,7 +628,7 @@ class PipelineServerManager:
                     if model_inst_data[minst_id].get('id') is not None:
                         state = self.pserv.pipeline_manager.get_instance_status(model_inst_data[minst_id]['id'])['state']
                         if state == PipelineServer_Pipeline.State.ERROR:
-                            return None, "Cannot start pipeline. {} element uses model-instance-id: {} that errored out on a prior run due to incorrect parameters. Review parameters and relaunch EVAM.".format(gvaelement, minst_id)
+                            return None, "Cannot start pipeline. {} element uses model-instance-id: {} that errored out on a prior run due to incorrect parameters. Review parameters and relaunch DL Streamer Pipeline Server.".format(gvaelement, minst_id)
                 else:
                     model_inst_data[minst_id]['id'] = None  # to be set once pipeline is started
                     MODEL_IDS_TO_SET[gvaelement].append(minst_id)

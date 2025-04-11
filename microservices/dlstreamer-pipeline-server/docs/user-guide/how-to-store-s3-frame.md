@@ -2,17 +2,17 @@
 
 ## Steps
 
-EVAM supports storing frames from media source into an S3 compatible storage. It supports industry standard S3 APIs, thus making it compatible with any S3 storage of your choice. 
+DL Streamer Pipeline Server supports storing frames from media source into an S3 compatible storage. It supports industry standard S3 APIs, thus making it compatible with any S3 storage of your choice. 
 
-First you must add server configuration details such as host, port, credentials, etc. as environment variables to EVAM. 
+First you must add server configuration details such as host, port, credentials, etc. as environment variables to DL Streamer Pipeline Server. 
 
-If you are launching the service along with EVAM, you should add the S3 storage server service details to EVAM's docker-compose.yml file present at `[EVAM_WORKDIR]/docker/docker-compose.yml`. For this tutorial we will be following this approach.
+If you are launching the service along with DL Streamer Pipeline Server, you should add the S3 storage server service details to DL Streamer Pipeline Server's docker-compose.yml file present at `[WORKDIR]/docker/docker-compose.yml`. For this tutorial we will be following this approach.
 
 > **Note** In an production deployment, you should get the server details from your system admin and update the environment variables or compose file accordingly.
 
-For the sake of demonstration, we will be using MinIO database as the S3 storage for storing frames and will be launched together with EVAM. To get started, follow the steps below.
+For the sake of demonstration, we will be using MinIO database as the S3 storage for storing frames and will be launched together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
-1. Modify environment variables in `[EVAM_WORKDIR]/docker/.env` file.
+1. Modify environment variables in `[WORKDIR]/docker/.env` file.
     - Provide the S3 storage server details and credentials.
 
         ```sh
@@ -26,7 +26,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
         MQTT_HOST=<MQTT_BROKER_IP_ADDRESS>
         MQTT_PORT=1883
         ```
-        **Note** the default compose file from EVAM provides an MQTT broker already. If you already have a broker running, only the host and port details are to be added to the environment variables.
+        **Note** the default compose file from DL Streamer Pipeline Server provides an MQTT broker already. If you already have a broker running, only the host and port details are to be added to the environment variables.
 
 2. Add minio service to the docker compose yml.
     - Modify the docker-compose.yml file with the following changes. Add `minio` service under `services` section. Modify the values as per your requirements. The user and passwords are fetched from `.env` file updated in the previous step.
@@ -48,10 +48,10 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
             command: server --console-address ":9090" /data
         ```
 
-    - Update `no_proxy` environment section of EVAM service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `edge-video-analytics-microservice` service. Also include the S3 and MQTT environment variables.
+    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service. Also include the S3 and MQTT environment variables.
         ```yaml
         services:
-          edge-video-analytics-microservice:
+          dlstreamer-pipeline-server:
             environment:
               - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},minio-server
               - S3_STORAGE_HOST=${S3_STORAGE_HOST}
@@ -62,10 +62,10 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
               - MQTT_PORT=${MQTT_PORT}
         ```
         
-        > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `minio` service section at docker compose file (`[EVAM_WORKDIR]/docker/docker-compose.yml`). In our example, its `minio-server`.
+        > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `minio` service section at docker compose file (`[WORKDIR]/docker/docker-compose.yml`). In our example, its `minio-server`.
 
 3. Update the default `config.json`. 
-    - A sample config has been provided for this demonstration at `[EVAM_WORKDIR]/configs/sample_s3write/config.json`. Replace the contents in default config present at `[EVAM_WORKDIR]/configs/default/config.json` with the contents of the sample config. The config.json looks something like this.
+    - A sample config has been provided for this demonstration at `[WORKDIR]/configs/sample_s3write/config.json`. Replace the contents in default config present at `[WORKDIR]/configs/default/config.json` with the contents of the sample config. The config.json looks something like this.
         ```json
         {
             "config": {
@@ -93,7 +93,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
                         "auto_start": false,
                         "mqtt_publisher": {
                             "publish_frame": false,
-                            "topic": "edge_video_analytics_results"
+                            "topic": "dlstreamer_pipeline_results"
                         }
                     }
                 ]
@@ -105,30 +105,30 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
          "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
         ```
 
-    - The configuration above will allow EVAM to load a pipeline that would run an object detection using dlstreamer element `gvadetect`. Although, the MQTT details are provided in the config.json, the S3 configuration related to the bucket and object path will be sent as part of pipeline launch request mentioned few steps below. To know more about mqtt publishing, refer [here](../user-guide/advanced-guide/detailed_usage/publisher/eis_mqtt_publish_doc.md).
+    - The configuration above will allow DL Streamer Pipeline Server to load a pipeline that would run an object detection using dlstreamer element `gvadetect`. Although, the MQTT details are provided in the config.json, the S3 configuration related to the bucket and object path will be sent as part of pipeline launch request mentioned few steps below. To know more about mqtt publishing, refer [here](../user-guide/advanced-guide/detailed_usage/publisher/eis_mqtt_publish_doc.md).
 
-4. Allow EVAM to read the above modified configuration. 
+4. Allow DL Streamer Pipeline Server to read the above modified configuration. 
     - We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](how-to-change-dlstreamer-pipeline.md).
 
         ```yaml
         services:
-          edge-video-analytics-microservice:
+          dlstreamer_pipeline_results:
             volumes:
               - "../configs/default/config.json:/home/pipeline-server/config.json"
         ```
-5. Start EVAM and MinIO.
+5. Start DL Streamer Pipeline Server and MinIO.
     ```sh
     docker compose up -d
     ```
 6. Create MinIO bucket.
-    - EVAM expects a bucket to be created before launching the pipeline. 
-    Here's is a sample python script (requires `boto3` python package) that would connect to the minio server running and create a bucket named `evam`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
+    - DL Streamer Pipeline Server expects a bucket to be created before launching the pipeline. 
+    Here's is a sample python script (requires `boto3` python package) that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
         ```python
         import boto3
         url = "http://localhost:9000"
         user = "minioadmin"
         password = "minioadmin"
-        bucket_name = "evam"
+        bucket_name = "dlstreamer-pipeline-results"
         client= boto3.client(
                     "s3",
                     endpoint_url=url,
@@ -154,8 +154,8 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
         "frame": [
             {
                 "type": "s3_write",
-                "bucket": "evam",
-                "folder_prefix": "camera",
+                "bucket": "dlstreamer-pipeline-results",
+                "folder_prefix": "camera1",
                 "block": false
             }
         ]
@@ -169,13 +169,13 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
     }'
     ```
     
-    The `S3_write` sections mentions that the frame objects (referred by there respective image handles) will be stored in the bucket `evam` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
+    The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
     
-    **Note**: EVAM supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. Also, as mentioned before EVAM assumes that the user already has a S3 storage with buckets configured.
-8. Once you start EVAM with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `edge_video_analytics_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[EVAM_WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
+    **Note**: DL Streamer pipeline server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. Also, as mentioned before DL Streamer pipeline server assumes that the user already has a S3 storage with buckets configured.
+8. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
     
     **Note**: Minio console runs at port 9090 by default.
-9. To stop EVAM and other services, run the following. Since the data is stored inside the MinIO container for this demonstration, the frames will not persists after the containers are brought down.
+9. To stop DL Streamer pipeline server and other services, run the following. Since the data is stored inside the MinIO container for this demonstration, the frames will not persists after the containers are brought down.
     ```sh
     docker compose down
     ```

@@ -35,7 +35,7 @@ class MQTTPublisher():
         """
         self.queue = deque(maxlen=qsize)
         self.stop_ev = th.Event()
-        self.topic = config.get('topic', "edge_video_analytics_results")
+        self.topic = config.get('topic', "dlstreamer_pipeline_results")
         assert len(self.topic) > 0, f'No specified topic'
 
         self.log = get_logger(f'{__name__} ({self.topic})')

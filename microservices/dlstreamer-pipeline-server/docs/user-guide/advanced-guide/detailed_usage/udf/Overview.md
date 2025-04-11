@@ -7,7 +7,7 @@
       - [Add Label](#add-label)
 
 ## UDF Writing Guide
-An User Defined Function (UDF) is a chunk of user code that can transform video frames and/or manipulate metadata. For example, a UDF can act as filter, preprocessor, classifier or a detector. These User Defined Functions can be developed in Python. EVAM provides a GStreamer plugin - `udfloader` using which users can configure and load arbitrary UDFs. These UDFs are then called once for each video frame.
+An User Defined Function (UDF) is a chunk of user code that can transform video frames and/or manipulate metadata. For example, a UDF can act as filter, preprocessor, classifier or a detector. These User Defined Functions can be developed in Python. DL Streamer Pipeline Server provides a GStreamer plugin - `udfloader` using which users can configure and load arbitrary UDFs. These UDFs are then called once for each video frame.
 
 ## How-To Guide for Writing UDF
 A detailed guide for developing UDFs is available [here](./UDF_writing_guide).

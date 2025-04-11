@@ -5,15 +5,17 @@
 
 
 ## RTSP Cameras
-EVAM supports RTSP camera feed as input source. The [doc](./advanced-guide/detailed_usage/camera/rtsp.md) provides details on configuring pipelines with RTSP source and also provides more resources on RTSP protocol. 
+DL Streamer pipeline server supports RTSP camera feed as input source. The [doc](./advanced-guide/detailed_usage/camera/rtsp.md) provides details on configuring pipelines with RTSP source and also provides more resources on RTSP protocol. 
 
 
 ## Using RTSP as a source
 
 You can either start a RTSP server to feed video or you can use RTSP stream from a camera and accordingly update the `uri` key in `source` section of request. 
 
+`Note` Add `RTSP_CAMERA_IP=<ip_address>` as [environment variable](../user-guide/environment-variables.md#rtsp-related-config) in [WORKDIR]/docker/.env. This is the IP address of the RTSP camera or the system where the RTSP stream is started.
+
 Here is a request to start default pallet defect detection pipeline using RTSP camera feed as a source.
-Similar to default EVAM pipeline, it publishes metadata to a file `/tmp/results.jsonl` and sends frames over RTSP for streaming. 
+Similar to default DL Streamer pipeline server pipeline, it publishes metadata to a file `/tmp/results.jsonl` and sends frames over RTSP for streaming. 
 
 RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet-defect-detection`.
 

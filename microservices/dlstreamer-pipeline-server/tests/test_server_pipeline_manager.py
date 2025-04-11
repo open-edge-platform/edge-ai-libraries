@@ -183,7 +183,7 @@ class TestPipelineManager:
     "value, expected_result",
     [
         ('{"name": "pipeline1", "version": "v1"}', {"name": "pipeline1", "version": "v1"}),
-        ('evam pipeline', 'evam pipeline')
+        ('dlstreamer pipeline server pipeline', 'dlstreamer pipeline server pipeline')
     ])
     def test_get_typed_value(self, pipeline_manager,value, expected_result):
         result = pipeline_manager._get_typed_value(value)

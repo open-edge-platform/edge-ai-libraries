@@ -37,18 +37,18 @@ deactivate
 
 ### Run YOLO model
 
-Volume mount YOLO model directory from host to EVAM container by adding below lines to `[EVAM_WORKDIR]/docker/docker-compose.yml`
+Volume mount YOLO model directory from host to DL Streamer Pipeline Server container by adding below lines to `[WORKDIR]/docker/docker-compose.yml`
 
 ```sh
     volumes:
       - "[Path to yolo11s model directory on host]:/home/pipeline-server/yolo_models/yolo11s"
 ```
 
-Bring up EVAM containers,
+Bring up DL Streamer Pipeline Server containers,
 
 Next bring up the containers
 ```sh
-cd [EVAM_WORKDIR]/docker
+cd [WORKDIR]/docker
 ```
 
 ```sh

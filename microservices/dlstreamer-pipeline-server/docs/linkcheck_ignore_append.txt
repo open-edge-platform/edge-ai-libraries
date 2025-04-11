@@ -1,4 +1,3 @@
-https://github.com/intel-innersource/applications.services.esh.edge-video-analytics-microservice.git
 https://github.com/openvinotoolkit/anomalib/tree/v0.7.0?tab=readme-ov-file#training
 https://github.com/eclipse/paho.mqtt.python#subscribe-1
 https://www.emva.org/standards-technology/genicam
@@ -15,4 +14,3 @@ https://gstreamer.freedesktop.org/documentation/frequently-asked-questions/licen
 https://gstreamer.freedesktop.org/documentation/additional/design/tracing.html?gi-language=python#print-processing-latencies-for-each-element
 https://gstreamer.freedesktop.org/documentation/plugins_doc.html?gi-language=c
 https://gstreamer.freedesktop.org/documentation/tutorials/basic/debugging-tools.html?gi-language=python
-https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.3/user-guide/Overview.html

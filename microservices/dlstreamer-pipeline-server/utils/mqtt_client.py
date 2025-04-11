@@ -16,7 +16,7 @@ class MQTTClient():
     """
 
     #MQTTv31 = 3, MQTTv311 = 4, MQTTv5 = 5
-    def __init__(self, host, port, topic="edge_video_analytics_results", qos=0, protocol=4, tls_config=None):
+    def __init__(self, host, port, topic="dlstreamer_pipeline_results", qos=0, protocol=4, tls_config=None):
         """Constructor
         """
         self.log = logging.getLogger('MQTT_Client')

@@ -75,16 +75,16 @@ class RestServer:
                                     specification_dir='./',
                                     server='tornado')
                 app.add_api('pipeline-server.yaml',
-                            arguments={'title': 'Edge Video Analtytics Microservice REST API'})
+                            arguments={'title': 'DLStreamer Pipeline Server REST API'})
                 # Ref: https://github.com/spec-first/connexion/blob/main/docs/cookbook.rst#cors-support
                 # Enables CORS on all domains/routes/methods per https://flask-cors.readthedocs.io/en/latest/#usage
                 CORS(app.app)
                 self.log.info("Starting Tornado Server on port: %s", self.port)
                 ssl_context = None
                 if HTTPS_MODE:
-                    cert_file = "/run/secrets/EdgeVideoAnalyticsMicroservice_Server/public.crt"
-                    key_file = "/run/secrets/EdgeVideoAnalyticsMicroservice_Server/private.key"
-                    ca_file = "/run/secrets/EdgeVideoAnalyticsMicroservice_Server/ca.crt"
+                    cert_file = "/run/secrets/DLStreamerPipelineServer_Server/public.crt"
+                    key_file = "/run/secrets/DLStreamerPipelineServer_Server/private.key"
+                    ca_file = "/run/secrets/DLStreamerPipelineServer_Server/ca.crt"
 
                     if os.path.exists(cert_file) and os.path.exists(key_file):
                         ssl_context = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)

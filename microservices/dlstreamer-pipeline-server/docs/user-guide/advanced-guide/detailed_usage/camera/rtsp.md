@@ -1,6 +1,6 @@
 # RTSP Cameras
 
-- Refer the following pipeline for RTSP camera and modify the appropriate config.json file in `[EVAM_WORKDIR]/configs` directory.
+- Refer the following pipeline for RTSP camera and modify the appropriate config.json file in `[WORKDIR]/configs` directory.
 
 ```sh
   "pipeline": "rtspsrc location=\"rtsp://<USERNAME>:<PASSWORD>@<RTSP_CAMERA_IP>:<PORT>/<FEED>\" latency=100 name=source ! rtph264depay ! h264parse ! decodebin ! videoconvert ! video/x-raw,format=RGB ! appsink name=destination"
@@ -8,7 +8,7 @@
 
 > **Note:** The RTSP URI of the physical camera depends on how it is configured using the camera software. You can use VLC Network Stream to verify the RTSP URI to confirm the RTSP source. 
 
-> **Note:**  If you are deploying EVAM behind proxy environment, make sure that <RTSP_CAMERA_IP> address is specified under `no_proxy` environment variable.
+> **Note:**  If you are deploying DL Streamer Pipeline Server behind proxy environment, make sure that <RTSP_CAMERA_IP> address is specified under `no_proxy` environment variable.
 
 > **Note:** For more information on the RTSP URI please refer the website/tool of the camera software which is used to configure the RTSP camera. For information on RTSP protocol refer <https://en.wikipedia.org/wiki/Real_Time_Streaming_Protocol>
 

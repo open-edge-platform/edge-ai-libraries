@@ -7,7 +7,7 @@
 
 
 ## Object tracking
-Object tracking is supported by DLStreamer through `gvatrack` element which assigns ids to each uniquely identified objects. It is typically inserted into a video pipeline after `gvadetect` element. 
+Object tracking is supported by DL Streamer through `gvatrack` element which assigns ids to each uniquely identified objects. It is typically inserted into a video pipeline after `gvadetect` element. 
 
 There are several tracking types supported, for example, short-term-imageless, zero-term, zero-term-imageless. By default, zero-term tracking is enabled which requires object detection to be run on every frame. 
 

@@ -42,7 +42,7 @@ class S3Writer():
         self.s3_storage_pass = os.getenv("S3_STORAGE_PASS")
         
         self.s3_bucket_name = config.get("bucket")
-        self.s3_folder_prefix = config.get("folder_prefix", "edge_video_analytics")
+        self.s3_folder_prefix = config.get("folder_prefix", "dlstreamer_pipeline_server")
         self.s3_metadata_write_wait = config.get("block", False)
         self.s3write_complete = th.Event()
 

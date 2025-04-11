@@ -21,7 +21,7 @@ class MQTTPublisher:
     """MQTT Publisher
     """
 
-    def __init__(self, topic="edge_video_analytics_results", publish_frame=False, qos=0, protocol=4, tls=None):
+    def __init__(self, topic="dlstreamer_pipeline_results", publish_frame=False, qos=0, protocol=4, tls=None):
         """Constructor
         """
         self.log = logging.getLogger('MQTT_PUBLISHER')

@@ -87,7 +87,7 @@ Upon completing the broker and subscriber setup, refer to the below steps to con
 
   - `host` mqtt broker hostname or IP address
   - `port` port to connect to the broker
-  - `topic` topic to which message will be published. Defaults to `edge_video_analytics_results`. *(optional)*
+  - `topic` topic to which message will be published. Defaults to `dlstreamer_pipeline_results`. *(optional)*
   - `publish_frame` whether to publish only metadata or both frames and metadata can be published to the mqtt broker.
     Defaults to `false`. *(optional)*
       - When `publish_frame` is false, only metadata will be published.
