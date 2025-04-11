@@ -56,7 +56,7 @@ If a tracked object crosses any of the lines, an event of type `object-zone-coun
 }
 ```
 ## Example Run
-Intel(R) Deep Learning Streamer (Intel(R) DL Streamer) Pipeline Server comes with an [example configuration](../../client/parameter_files/object-zone-count.json) for object-zone-count
+Deep Learning Streamer (DL Streamer) Pipeline Server comes with an [example configuration](../../client/parameter_files/object-zone-count.json) for object-zone-count
 
 1. [Build](../../README.md#building-the-microservice) & [Run](../../README.md#running-the-microservice) the Pipeline Server
 

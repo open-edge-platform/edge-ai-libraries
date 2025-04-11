@@ -1,5 +1,5 @@
 # Environment Variables
-EVAM microservice's configuration is defined via environment variables.
+DL Streamer Pipeline Server microservice's configuration is defined via environment variables.
 
 ## Mandatory 
 ### Enable and specify port for REST server 
@@ -10,9 +10,9 @@ EVAM microservice's configuration is defined via environment variables.
 - **RTSP_PORT** `(integer)`
 - **RTSP_CAMERA_IP** `(string)`
 
-### EVAM username and ID 
-- **EVAM_USER** `(string)`
-- **EVAM_UID** `(integer)`
+### Username and ID 
+- **PIPELINE_SERVER_USER** `(string)`
+- **UID** `(integer)`
 
 ### proxy settings
 - **http_proxy** `(boolean)`
@@ -54,7 +54,7 @@ EVAM microservice's configuration is defined via environment variables.
 - **GST_DEBUG**=1 : Enable GST debug logs
 - **DETECTION_DEVICE**=CPU : Default Detection Device
 - **CLASSIFICATION_DEVICE**=CPU : Default Classification Device
-- **ADD_UTCTIME_TO_METADATA**=true : Add UTC timestamp in metadata by EVAM publisher
+- **ADD_UTCTIME_TO_METADATA**=true : Add UTC timestamp in metadata by DL Streamer Pipeline Server publisher
 - **HTTPS**=false : Make it `true` to enable SSL/TLS secure mode, mount the generated certificates
 - **MTLS_VERIFICATION**=false : Enable/disable client certificate verification for mTLS Model Registry Microservice
 - **MR_VERIFY_CERT**=/run/secrets/ModelRegistry_Server/ca-bundle.crt : Path to Model Registry certificate

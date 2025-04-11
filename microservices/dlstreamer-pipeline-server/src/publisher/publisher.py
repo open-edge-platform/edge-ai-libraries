@@ -138,7 +138,7 @@ class Publisher:
                 if 'appsink' in elem:                    
                     if ' name=destination' in elem:
                         self.log.info("appsink destination found. Publisher will be initialized")
-                        # identify EVAM publishers and pop them from the request
+                        # identify DLStreamer pipeline server publishers and pop them from the request
                         # NOTE: always add S3_write first in the list of publishers, essential for blocking case
                         if self.request is not None:
                             if "destination" in self.request:
@@ -164,7 +164,7 @@ class Publisher:
                                             
                                 if "metadata" in self.request["destination"]:
                                     metadata_request = self.request["destination"]["metadata"]
-                                    if "type" in metadata_request and metadata_request["type"]=="mqtt":  # this refers to EVAM's mqtt publisher
+                                    if "type" in metadata_request and metadata_request["type"]=="mqtt":  # this refers to DLStreamer pipeline server's mqtt publisher
                                         mqtt_pub = MQTTPublisher(metadata_request)
                                         publishers.append(mqtt_pub)
                                         self.mqtt_publish_frame = mqtt_pub.publish_frame
@@ -622,7 +622,7 @@ class Publisher:
         s3_metadata = {
             'S3_meta': {
                 'bucket': s3_cfg.get('bucket'),
-                'key': s3_cfg.get('folder_prefix', "edge_video_analytics")+f"/{meta_data['img_handle']}"+ext,
+                'key': s3_cfg.get('folder_prefix', "dlstreamer_pipeline_server")+f"/{meta_data['img_handle']}"+ext,
             }
         }
         return s3_metadata

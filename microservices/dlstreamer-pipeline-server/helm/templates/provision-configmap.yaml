@@ -4,7 +4,7 @@ apiVersion: v1
 kind: ConfigMap
 metadata:
   namespace: {{ .Values.namespace }}
-  name: evam-config-input
+  name: dlstreamer-pipeline-server-config-input
 data:
   config.json: |-
-{{ .Files.Get "evam_config.json" | indent 4 }}
+{{ .Files.Get "dlstreamer_pipeline_server_config.json" | indent 4 }}

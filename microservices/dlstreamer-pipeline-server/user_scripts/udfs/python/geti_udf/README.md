@@ -2,7 +2,7 @@
 
 This geti udf supports functionality for deploying a project for local inference with OpenVINO using Intel® Geti™ SDK python package.
 
-As a pre-requisite for running this geti udf, one would need to populate the deployment directory generated from Geti to the [geti udf directory]([WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/udfs/geti_udf) before running EVAM service.
+As a pre-requisite for running this geti udf, one would need to populate the deployment directory generated from Geti to the [geti udf directory]([WORKDIR]/dlstreamer-pipeline-server/user-scripts/udfs/geti_udf) before running DL Streamer Pipeline Server service.
 
 Refer the below config for the default config used for this geti udf:
 

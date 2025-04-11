@@ -1,16 +1,16 @@
 # How to publish metadata and frame over MQTT
 
 Pre-requisites:
-- `MQTT_HOST` and `MQTT_PORT` environment variable must be set for EVAM prior to sending this curl request.
+- `MQTT_HOST` and `MQTT_PORT` environment variable must be set for DL Streamer Pipeline Server prior to sending this curl request.
 You can do this by adding these variables to `.env` file present in the same folder as `docker-compose.yml`. 
     ```sh
     MQTT_HOST=<MQTT_BROKER_IP>
     MQTT_PORT=<MQTT_BROKER_PORT>
     ```
-    Alternatively, you can add them to the `environments` for EVAM  section in `docker-compose.yml`. 
+    Alternatively, you can add them to the `environments` for DL Streamer Pipeline Server section in `docker-compose.yml`. 
 
     ```yaml
-    edge-video-analytics-microservice:
+    dlstreamer-pipeline-server:
         environment:
           - MQTT_HOST=<MQTT_BROKER_IP>
           - MQTT_PORT=<MQTT_BROKER_PORT>

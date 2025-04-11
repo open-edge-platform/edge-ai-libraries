@@ -1,23 +1,23 @@
 # Get tensor vector data
 
-EVAM supports extracting tensor data (as python lists) from pipeline models by making use of DLStreamer's `add-tensor-data=true` property for `gvametaconvert` element. Depending upon how gva elements are stacked and whether inference is done on entire frame or on ROIs (Region Of Interest), the metadata json is structured accordingly. Tensor outputs are vector representation of the frame/roi. It can be used by reference applications for various usecases such as image comparison, image description, image classification using custom model, etc. To learn more about the property, read [here](https://dlstreamer.github.io/elements/gvametaconvert.html).
+DL Streamer Pipeline Server supports extracting tensor data (as python lists) from pipeline models by making use of DL Streamer's `add-tensor-data=true` property for `gvametaconvert` element. Depending upon how gva elements are stacked and whether inference is done on entire frame or on ROIs (Region Of Interest), the metadata json is structured accordingly. Tensor outputs are vector representation of the frame/roi. It can be used by reference applications for various usecases such as image comparison, image description, image classification using custom model, etc. To learn more about the property, read [here](https://dlstreamer.github.io/elements/gvametaconvert.html).
 
 Follow the below steps to publish tensor vector data along with other metadata via MQTT
 
-1. Update default pipeline present in `[EVAM_WORKDIR]/configs/default/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) - 
-    `NOTE` The model used in the below pipeline is from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DLStreamer on how to download it for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+1. Update default pipeline present in `[WORKDIR]/configs/default/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) - 
+    `NOTE` The model used in the below pipeline is from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download it for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
     ```sh
     "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
     ```
 
     `NOTE` The property `add-tensor-data` for the dlstreamer element gvametaconvert is set to `true`. 
 
-2. Add the following MQTT parameters to `[EVAM_WORKDIR]/configs/default/config.json` as shown below to publish the tensor data along with all other metadata via MQTT. The below section should be present in `[EVAM_WORKDIR]/configs/default/config.json` under `pipelines` section. 
+2. Add the following MQTT parameters to `[WORKDIR]/configs/default/config.json` as shown below to publish the tensor data along with all other metadata via MQTT. The below section should be present in `[WORKDIR]/configs/default/config.json` under `pipelines` section. 
 
     ```sh
     "mqtt_publisher": {
         "publish_frame": false,
-        "topic": "edge_video_analytics_results"
+        "topic": "dlstreamer_pipeline_results"
     }
     ```
     `NOTE` Follow instruction in the [Prerequisite section](../../../how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
@@ -51,7 +51,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
                     "auto_start": false,
                     "mqtt_publisher": {
                         "publish_frame": false,
-                        "topic": "edge_video_analytics_results"
+                        "topic": "dlstreamer_pipeline_results"
                     }
                 }
             ]
@@ -59,23 +59,23 @@ Follow the below steps to publish tensor vector data along with other metadata v
     }
     ```
 
-3. Configure MQTT `host` and `port` present in `[EVAM_WORKDIR]/docker/.env`.
+3. Configure MQTT `host` and `port` present in `[WORKDIR]/docker/.env`.
     ```sh
     MQTT_HOST=<mqtt_broker_address>
     MQTT_PORT=1883
     ```
 
-    `NOTE` By default, EVAM provides a MQTT broker as part of the docker compose file. In case, the user wants to use a different broker please update the above variables accordingly. 
+    `NOTE` By default, DL Streamer Pipeline Server provides a MQTT broker as part of the docker compose file. In case, the user wants to use a different broker please update the above variables accordingly. 
 
-4. Allow EVAM to read the above modified configuration. We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).
+4. Allow DL Streamer Pipeline Server to read the above modified configuration. We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).
     ```yaml
     services:
-        edge-video-analytics-microservice:
+        dlstreamer-pipeline-server:
             volumes:
                 - "../configs/default/config.json:/home/pipeline-server/config.json"
     ```
 
-5. Start EVAM.
+5. Start DL Streamer Pipeline Server.
     ```sh
     docker compose up -d
     ```
@@ -200,7 +200,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
         "timestamp": 0
     }
     ```
-8. To stop EVAM and other services, run the following.
+8. To stop DL Streamer Pipeline Server and other services, run the following.
     ```sh
     docker compose down
     ```

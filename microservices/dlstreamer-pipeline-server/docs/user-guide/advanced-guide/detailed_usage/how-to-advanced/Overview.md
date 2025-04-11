@@ -1,9 +1,9 @@
 # How To Advanced
-This section refers to few advanced features and tutorials provided by EVAM.
+This section refers to few advanced features and tutorials provided by DL Streamer Pipeline Server.
 
 - [Model Update](#model-update)
 - [Object tracking](#object-tracking)
-- [Enable HTTPS for EVAM](#evam-https)
+- [Enable HTTPS for DL Streamer Pipeline Server](#dlstreamer-pipeline-server-https)
 - [Performance Analysis](#performance-analysis)
 - [Get tensor vector data](#get-tensor-vector-data)
 - [Multistream pipelines with shared model instance](#multistream-pipelines-with-shared-model-instance)
@@ -13,13 +13,13 @@ This section refers to few advanced features and tutorials provided by EVAM.
 - [Working with other services](#working-with-other-services)
 
 ## Model Update
-To update models while a pipeline instance is running, refer this [doc](./model_update/evam_model_update.md)
+To update models while a pipeline instance is running, refer this [doc](./model_update/dlstreamer_pipeline_server_model_update.md)
 
 ## Object tracking
 To learn about object tracking refer this [doc](./object_tracking/object_tracking.md)
 
-## EVAM https
-To enable secure REST API, refer this [doc](./https/evam_https.md)
+## DL Streamer Pipeline Server https
+To enable secure REST API, refer this [doc](./https/dlstreamer_pipeline_server_https.md)
 
 ## Performance Analysis
 To learn about performance metrics using GST tracers and logging, refer this [doc](./performance/Processing-Latency.md)
@@ -40,14 +40,14 @@ To enable Open Telemetry and capture various runtime statistics, refer this [doc
 To learn how to stream frames over WebRTC protocol, refer this [doc](./webrtc-frame-streaming.md)
 
 ## Working with other services
-To learn how EVAM interacts with other microservices such as Model Registry, refer this [doc](./work-with-other-services.md)
+To learn how DL Streamer Pipeline Server interacts with other microservices such as Model Registry, refer this [doc](./work-with-other-services.md)
 
 ```{toctree}
 :maxdepth: 5
 :hidden:
-model_update/evam_model_update.md
+model_update/dlstreamer_pipeline_server_model_update.md
 object_tracking/object_tracking.md
-https/evam_https.md
+https/dlstreamer_pipeline_server_https.md
 performance/Processing-Latency.md
 get-tensor-vector-data.md
 multistream-pipelines.md

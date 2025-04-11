@@ -30,7 +30,6 @@
 -   [Overview](./detailed_usage/publisher/Overview.md)
 -   [MQTT publishing](./detailed_usage/publisher/eis_mqtt_publish_doc.md)
 -   [OPCUA publishing](./detailed_usage/publisher/opcua_publish_doc.md)
--   [gRPC publisher](./detailed_usage/publisher/grpc_publish_doc.md)
 -   [gvapython MQTT publishing](./detailed_usage/publisher/gvapython_mqtt_publish.md)
 
 ## Udf
@@ -40,9 +39,9 @@
 -   [Configuring UDFLoader element](./detailed_usage/udf/configuring_udfloader.md)
 
 ## How To Advanced
--   [Model Update](./detailed_usage/how-to-advanced/model_update/evam_model_update.md)
+-   [Model Update](./detailed_usage/how-to-advanced/model_update/dlstreamer_pipeline_server_model_update.md)
 -   [Object tracking](./detailed_usage/how-to-advanced/object_tracking/object_tracking.md)
--   [Enable HTTPS for EVAM](./detailed_usage/how-to-advanced/https/evam_https.md)
+-   [Enable HTTPS for DL Streamer Pipeline Server](./detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md)
 -   [Performance Analysis](./detailed_usage/how-to-advanced/performance/Processing-Latency.md)
 -   [Get tensor vector data](./detailed_usage/how-to-advanced/get-tensor-vector-data.md)
 -   [Multistream pipelines with shared model instance](./detailed_usage/how-to-advanced/multistream-pipelines.md)

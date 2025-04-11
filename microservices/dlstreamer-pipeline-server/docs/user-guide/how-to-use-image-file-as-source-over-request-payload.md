@@ -55,7 +55,7 @@ A sample config has been provided in below snippet:
 
 ```
 
-Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch EVAM with above config. 
+Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 
 Pipeline can be started by the following request. This would set the pipeline in queued state to wait for images requests. Here is a sample request to queue the pipeline in asynchronous mode i.e. `sync`:`false` (default if omitted)
 
@@ -81,7 +81,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
 ```
 Once the pipeline has started, we would receive an instance id (e.g. `9b041988436c11ef8e690242c0a82003`). We can use this instance id to send inference requests for images as shown below. Replace the `{instance_id}` to the id you would have received as a response from the previous POST request.
 
-Note that only source section is needed for the image files to send infer requests. Make sure that EVAM has access to the source file preferably by volume mounting in `docker-compose.yml`.
+Note that only source section is needed for the image files to send infer requests. Make sure that DL Streamer pipeline server has access to the source file preferably by volume mounting in `docker-compose.yml`.
 
 ```sh
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{instance_id} -X POST -H 'Content-Type: application/json' -d '{
@@ -91,7 +91,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{in
     }
 }'
 ```
-Note: The path in the above command `/home/pipeline-server/resources/images/classroom.jpg` is not a part of EVAM docker image and is for the sake of explanation only. If you would like to actually use this path (classroom.jpg image), it is available in EVAM's github repo, under the "resources" folder and should be appropriately volume mounted to EVAM container in its docker compose file.
+Note: The path in the above command `/home/pipeline-server/resources/images/classroom.jpg` is not a part of DL Streamer pipeline server docker image and is for the sake of explanation only. If you would like to actually use this path (classroom.jpg image), it is available in DL Streamer pipeline server's github repo, under the "resources" folder and should be appropriately volume mounted to DL Streamer pipeline server container in its docker compose file.
 Example:
 ```sh
     volumes:
@@ -138,7 +138,7 @@ Another way of queuing a image ingestor pipeline is in synchronous mode. The pip
 
 ```
 
-Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch EVAM with above config. 
+Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 
 Pipeline for sync mode can be started by sending the following curl request 
 ```sh
@@ -165,7 +165,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection/{in
     "timeout":10
 }'
 ```
-Note: The path in the above command `/home/pipeline-server/resources/images/classroom.jpg` is not a part of EVAM docker image and is for the sake of explanation only. If you would like to actually use this path (classroom.jpg image), it is available in EVAM's github repo, under the "resources" folder and should be appropriately volume mounted to EVAM container in its docker compose file.
+Note: The path in the above command `/home/pipeline-server/resources/images/classroom.jpg` is not a part of DL Streamer pipeline server docker image and is for the sake of explanation only. If you would like to actually use this path (classroom.jpg image), it is available in DL Streamer pipeline server's github repo, under the "resources" folder and should be appropriately volume mounted to DL Streamer pipeline server container in its docker compose file.
 Example:
 ```sh
     volumes:

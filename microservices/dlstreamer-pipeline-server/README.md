@@ -1,7 +1,7 @@
 # Contents
 
 - [Contents](#contents)
-  - [Edge Video Analytics Microservice](#edge-video-analytics-microservice)
+  - [Deep Learning Streamer Pipeline Server](#deep-learning-streamer-pipeline-server)
     - [Overview](#overview)
     - [Architecture](#architecture)
   - [Quick try out ](#quick-try-out)
@@ -9,53 +9,53 @@
       - [Run default sample](#run-default-sample)
   - [Build from source](#build-from-source)
       - [Prerequisites](#prerequisites)
-      - [Build EVAM Image and start container](#build-evam-image-and-start-container)
+      - [Build Deep Learning Streamer Pipeline Server Image and start container](#build-image-and-start-container)
       - [Run default sample](#run-default-sample-1)
   - [Learn More](#learn-more)
 
-# Edge Video Analytics Microservice
+# Deep Learning Streamer Pipeline Server <a name="deep-learning-streamer-pipeline-server"></a>
 
 ## Overview
 
-Edge Video Analytics Microservice is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Intel® Deep Learning Streamer (DL Streamer)](https://dlstreamer.github.io/) , providing video ingestion and deep learning inferencing functionalities.
+Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python-based, interoperable containerized microservice for easy development and deployment of video analytics pipelines. It is built on top of [GStreamer](https://gstreamer.freedesktop.org/documentation/) and [Deep Learning Streamer (DL Streamer)](https://dlstreamer.github.io/) , providing video ingestion and deep learning inferencing functionalities.
 
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-Note - The detailed documentation of EVAM can be found [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/Overview.html)
+Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
 
 ## Architecture
 
-![EVAM Architecture](./docs/user-guide/images/evam-2.x-architecture.png)
+![Deep Learning Streamer Pipeline Server Architecture](./docs/user-guide/images/dls-pipelineserver-simplified-arch.png)
 
 ## Quick try out
 
-Follow the steps in this section to quickly pull the latest pre-built Edge Video Analytics Microservice docker image followed by running a sample usecase. 
+Follow the steps in this section to quickly pull the latest pre-built Deep Learning Streamer Pipeline Server docker image followed by running a sample usecase. 
 
 ### Pull the image and start container
 
 - Pull the image with the latest tag from registry
 
    ```sh
-     docker pull intel/edge-video-analytics-microservice:2.4.0
+     docker pull intel/dlstreamer-pipeline-server:3.0.0
    ```
 
-- Clone this repo in-order to get the required files that will help you run this microservice.
-   ```sh
-     git clone https://github.com/intel-innersource/applications.services.esh.edge-video-analytics-microservice.git EdgeVideoAnalyticsMicroservice
-     git checkout main
-   ```
+- Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
 
-- Go into the cloned directory and run the image with the [compose file](./docker/docker-compose.yml) provided in this repo
+  ```sh
+    git clone <link-to-repository>
+    cd <path/to/dlstreamer-pipeline-server/docker>
+  ```
+
+- Run the image with the [compose file](./docker/docker-compose.yml) provided in this repo.
 
    ```sh
-     cd EdgeVideoAnalyticsMicroservice/docker
      docker compose up
    ```
 
 ### Run default sample
 
-Once the container is up, we will send a pipeline request to EVAM to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
+Once the container is up, we will send a pipeline request to Deep Learning Streamer Pipeline Server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
 
 We will send the below curl request to run the inference.
 It comprises of a source file path which is `warehouse.avi`, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl` and frames streamed over RTSP with id `pallet-defect-detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
@@ -110,10 +110,10 @@ To check the pipeline status and stop the pipeline send the following requests,
     curl --location -X DELETE http://localhost:8080/pipelines/{instance_id}
    ```
 
-Now you have successfully run the Edge Video Analytics Microservice container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
+Now you have successfully run the Deep Learning Streamer Pipeline Server container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
 
 ---
-## Build from source
+## Build from source 
 
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
@@ -124,7 +124,7 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
-### Build EVAM image and start container
+### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 
 Run the following commands:
 
@@ -139,10 +139,10 @@ Run the following commands:
    ```
 ---
 ### Run default sample
-Refer [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html) to run default sample upon bringing up EVAM container.
+Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/Overview.html)
--   For more details on advanced configuration, usage of features refer to [Detailed Usage](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/advanced-guide/Overview.html). 
--   For more tutorials refer [here](https://docs.edgeplatform.intel.com/edge-video-analytics-microservice/2.4.0/user-guide/get-started.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html)

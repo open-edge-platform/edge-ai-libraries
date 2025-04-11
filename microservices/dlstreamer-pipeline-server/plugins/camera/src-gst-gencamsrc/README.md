@@ -190,4 +190,4 @@ The following are the list of properties supported by the `gencamsrc` gstreamer 
 
 * The maximum grab delay is set to 5 seconds after which the plugin would timeout and throw "No frame received from the camera" exception. This error be caused by performance problems of the network hardware used, i.e. network adapter, switch, or ethernet cable. Make sure the camera is and the system are connected to the same gigabit switch or try increasing the camera's interpacket delay using `packet-delay` property.
 
-> The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool. For working with EdgeVideoAnalyticsMicroservice service refer [EdgeVideoAnalyticsMicroservice-README](../README.md#genicam-gige-or-usb3-cameras) for the ingestor configurations.
+> The sample pipelines mentioned in this readme were tested using gst-launch-1.0 tool. For working with DLStreamer Pipeline Server service refer [DLStreamer Pipeline Server-README](../README.md#genicam-gige-or-usb3-cameras) for the ingestor configurations.

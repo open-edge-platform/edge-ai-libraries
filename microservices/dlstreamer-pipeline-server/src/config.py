@@ -95,8 +95,8 @@ def get_eis_cfg():
     import cfgmgr.config_manager as cfg    
     return cfg
 
-class EvamConfig:
-    """Evam configuration class. 
+class PipelineServerConfig:
+    """DL Streamer Pipeline Server configuration class. 
     Abstracts config sources whether its from a config file or from EII ETCD."""
 
     class _ConfigHandler:

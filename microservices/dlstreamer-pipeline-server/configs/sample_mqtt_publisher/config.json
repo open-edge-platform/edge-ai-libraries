@@ -23,7 +23,7 @@
                 },
                 "mqtt_publisher":{
                     "publish_frame": true,
-                    "topic": "edge_video_analytics_results"
+                    "topic": "dlstreamer_pipeline_results"
                 },
                 "auto_start": false
             }

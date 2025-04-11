@@ -2,11 +2,11 @@
 
 Video ingestion supports reading video files from a directory.
 
-- Volume mount the videos directory present on the host system. To do this, provide the absolute path of the directory in `[EVAM_WORKDIR]/docker/docker-compose.yml` as shown below.
+- Volume mount the videos directory present on the host system. To do this, provide the absolute path of the directory in `[WORKDIR]/docker/docker-compose.yml` as shown below.
 
 
   ```yaml
-  edge-video-analytics-microservice:
+  dlstreamer-pipeline-server:
     ...
     volume:
       - "/tmp:/tmp"
@@ -18,7 +18,7 @@ Video ingestion supports reading video files from a directory.
       ...
   ```
 
-- Modify pipeline in appropriate config.json file in `[EVAM_WORKDIR]/configs` directory.
+- Modify pipeline in appropriate config.json file in `[WORKDIR]/configs` directory.
   -  For reading videos, for example, `video_000.avi`, `video_001.avi`, `video_002.avi`, from a directory use the following pipeline.
 
     ```json

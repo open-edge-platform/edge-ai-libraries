@@ -16,7 +16,7 @@ def parse_args(args=None):
     parser.add_argument('--model-proc-version', required=False, default="v1.3",
                         dest="dl_streamer_version",
                         help='(Applies only to OpenVINO(TM) images) \
-                            Intel(R) DL Streamer Framework version for model proc files')
+                            DL Streamer Framework version for model proc files')
     parser.add_argument("--force", required=False, dest="force", action="store_true",
                         default=False, help='force download and conversion of existing models')
 

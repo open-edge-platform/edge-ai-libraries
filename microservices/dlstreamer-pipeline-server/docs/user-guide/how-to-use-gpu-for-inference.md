@@ -5,12 +5,12 @@
 For inferencing with GPU backend, we will use the REST API to start a pipeline.
 
 
-Replace the following sections in `[EVAM_WORKDIR]/configs/default/config.json` with the following
+Replace the following sections in `[WORKDIR]/configs/default/config.json` with the following
 Note: Follow instruction in the [Prerequisite section](./how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
 
 - replace `"pipeline"` section with  
     ```sh
-    "pipeline": "{auto_source} name=source  ! parsebin ! vah264dec ! vapostproc ! video/x-raw(memory:VAMemory) ! gvadetect name=detection pre-process-backend=va  ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "{auto_source} name=source  ! parsebin ! vah264dec ! vapostproc ! video/x-raw(memory:VAMemory) ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
     ```
 In the pipeline string, we have added GPU specific elements. We will now start the pipeline with a curl request
 
@@ -35,11 +35,11 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
     }
 }'
 ```
-Save the config.json and restart EVAM
+Save the config.json and restart DL Streamer pipeline server
 Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned in this [document](./how-to-change-dlstreamer-pipeline.md)) it.
 
 ```sh
-    cd [EVAM_WORKDIR]/docker/
+    cd [WORKDIR]/docker/
     docker compose down
     docker compose up
 ```
