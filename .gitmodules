@@ -17,5 +17,5 @@
 	path = libraries/model_api
 	url = https://github.com/open-edge-platform/model_api.git
 [submodule "libraries/geti"]
-	path = libraries/geti
+	path = tools/geti
 	url = https://github.com/open-edge-platform/geti
