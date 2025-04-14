@@ -86,7 +86,7 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
 1. Start the Docker containers with the previously built images:
    ```bash
-   docker compose up
+   docker compose -f docker/compose.yaml up
    ```
 
 2. Access the application:
