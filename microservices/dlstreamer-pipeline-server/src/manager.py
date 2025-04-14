@@ -444,11 +444,6 @@ class Pipeline:
 class PipelineServerManager:
     """Manager class for Pipeline Server."""
     _PIPELINES = {}
-    _GVAELEMENT_MODEL_INSTANCE_ID = {
-        "gvadetect":defaultdict(dict),
-        "gvaclassify":defaultdict(dict),
-        "gvainference":defaultdict(dict)
-        }   # bookkeeper to keep track of model-instance-id for gva elements in pipeline and their status
     def __init__(self, 
                  config:PipelineServerConfig, 
                  pipeline_root: str="/home/pipeline-server") -> None:
@@ -606,43 +601,8 @@ class PipelineServerManager:
             self.log.error(errmsg)
             return None, errmsg
 
-        launch_str = pipeline.pipeline_config.get("pipeline")
-        
-        MODEL_IDS_TO_SET={"gvadetect":[],"gvaclassify":[],"gvainference":[]}    # update instance_id once pipeline is started
-        
-        for elem in launch_str.split('!'):
-            if "gvadetect" in elem:
-                gvaelement = "gvadetect"
-            elif "gvaclassify" in elem:
-                gvaelement = "gvaclassify"
-            elif "gvainference" in elem:
-                gvaelement = "gvainference"
-            else:
-                continue
-            
-            model_inst_data = self._GVAELEMENT_MODEL_INSTANCE_ID[gvaelement]
-            match = re.search(r"\s*model-instance-id\s*=\s*(\w+)\s*", elem)
-            minst_id = match.group(1) if match else None
-            if minst_id is not None:    # check if model instance id is errored out
-                if minst_id in model_inst_data:
-                    if model_inst_data[minst_id].get('id') is not None:
-                        state = self.pserv.pipeline_manager.get_instance_status(model_inst_data[minst_id]['id'])['state']
-                        if state == PipelineServer_Pipeline.State.ERROR:
-                            return None, "Cannot start pipeline. {} element uses model-instance-id: {} that errored out on a prior run due to incorrect parameters. Review parameters and relaunch DL Streamer Pipeline Server.".format(gvaelement, minst_id)
-                else:
-                    model_inst_data[minst_id]['id'] = None  # to be set once pipeline is started
-                    MODEL_IDS_TO_SET[gvaelement].append(minst_id)
-            
-        #TODO if model-instance-id comes from a REST request/payload
-        
         instance_id = pipeline.start(request)
         self.log.info("Pipeline instance_id: {}".format(instance_id))
-        
-        # set model-instance-id for gvaelements if present
-        for gvaelem,model_ids in MODEL_IDS_TO_SET.items():
-            for model_id in model_ids:
-                self._GVAELEMENT_MODEL_INSTANCE_ID[gvaelem][model_id]['id'] = instance_id
-                
         return instance_id,  None
 
     def execute_request_on_instance(self, 
