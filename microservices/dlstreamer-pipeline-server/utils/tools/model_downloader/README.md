@@ -4,10 +4,10 @@
 The model downloader downloads and prepares models from the
 OpenVINO<sup>&#8482;</sup> Toolkit [Open Model
 Zoo](https://github.com/openvinotoolkit/open_model_zoo) for use with
-Intel(R) Deep Learning Streamer (Intel(R) DL Streamer) Pipeline Server. It can be run as a standalone tool or as
+Deep Learning Streamer (DL Streamer) Pipeline Server. It can be run as a standalone tool or as
 part of the Pipeline Server build process. For more
 information on model file formats and the directory structure used by
-Intel(R) DL Streamer Pipeline Server see [defining_pipelines](/docs/defining_pipelines.md#deep-learning-models).
+DL Streamer Pipeline Server see [defining_pipelines](/docs/defining_pipelines.md#deep-learning-models).
 
 # Specifying Models
 
@@ -61,16 +61,16 @@ In that case, the corresponding files are expected to be in the same directory a
 * model-proc = <model_name>.json
 * labels = <filename>.txt
 
-If a local model-proc and/or labels file(s) are not specified, the tool will use the model-proc and/or labels file that is part of the Intel(R) DL Streamer developer image.
+If a local model-proc and/or labels file(s) are not specified, the tool will use the model-proc and/or labels file that is part of the DL Streamer developer image.
 
 # Downloading Models
 
 The model downloader can be run either as a standalone tool or as part
-of the Intel(R) DL Streamer Pipeline Server build process.
+of the DL Streamer Pipeline Server build process.
 
-## Downloading Models as part of Intel(R) DL Streamer Pipeline Server Build
+## Downloading Models as part of DL Streamer Pipeline Server Build
 
-The Intel(R) DL Streamer Pipeline Server build script downloads models listed in a
+The DL Streamer Pipeline Server build script downloads models listed in a
 yaml file that can be specified via the `--models` argument.
 
 Example:

@@ -224,7 +224,7 @@ Accepted values: any
   "destination":{},
   "parameters": {},
   "publish_frame": true
-  "custom_meta_data": {"my_id":100, "series_name":"EVAM1"}
+  "custom_meta_data": {"my_id":100, "series_name":"DLStreamerPipelineServer1"}
 }
 ```
 #### Responses
@@ -243,7 +243,7 @@ Accepted values: any
 		"source_path": "file:///root/image-examples/example.png",
 		"caps": "video/x-raw, width=(int)820, height=(int)468",
 		"my_id": 100,
-		"series_name": "EVAM1",
+		"series_name": "DLStreamerPipelineServer1",
 		"OTHER_METADATA": {
 			"other": "additional pipeline meta data"
 		}
@@ -255,7 +255,7 @@ Accepted values: any
 ### `POST` /pipelines/{name}/{version}/{instance_id}/models
 
 Download files from the model registry microservice associated with a specific model and deploy the newly downloaded model in the pipeline.
-- Properties are supported: `name` (string), `project_name` (string), `version` (string), `category` (string), `architecture` (string), `precision` (string), `deploy` (boolean), and  `pipeline_element_name`(string). These properties allow EVAM to query for a model stored in the model registry microservice. 
+- Properties are supported: `name` (string), `project_name` (string), `version` (string), `category` (string), `architecture` (string), `precision` (string), `deploy` (boolean), and  `pipeline_element_name`(string). These properties allow DL Streamer Pipeline Server to query for a model stored in the model registry microservice. 
 - If `deploy` is set to `true`, the specified pipeline instance will be stopped and a new instance will be started using the downloaded model. The default value for `deploy` is `false`. 
 - When `deploy` is set to true, `pipeline_element_name` should be provided to update the newly downloaded model for this element in the pipeline. For example, if pipeline has `gvadetect name=detection`, `pipeline_element_name` would be `detection`.
 - If a response from the model registry microservice is not received within 300 seconds by default, this request will time out and return a relevant response.  

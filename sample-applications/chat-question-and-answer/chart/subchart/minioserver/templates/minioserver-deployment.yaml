@@ -29,5 +29,5 @@ spec:
           command: ["minio","server", "/data", "--address", ":9000", "--console-address", ":9001"]
       volumes:
         - name: minio-data
-          hostPath:
-            path: /data
+          persistentVolumeClaim:
+            claimName: egai-minio-pvc

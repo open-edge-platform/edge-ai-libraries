@@ -36,5 +36,5 @@ spec:
               mountPath: /data
       volumes:
         - name: data
-          hostPath:
-            path: /data
+          persistentVolumeClaim:
+            claimName: egai-reranker-pvc

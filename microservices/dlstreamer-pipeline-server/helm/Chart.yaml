@@ -1,4 +1,4 @@
 apiVersion: v2
-description: A Helm Chart for Edge Video Analytics Microservice
-name: edge-video-analytics-microservice
-version: 2.4.0-helm
+description: A Helm Chart for Deep Learning Streamer Pipeline Server
+name: dlstreamer-pipeline-server
+version: 3.0.0-helm

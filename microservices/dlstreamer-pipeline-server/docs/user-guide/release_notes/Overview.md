@@ -1,5 +1,6 @@
 # Release Notes
 
+- [April 2025](./april-2025.md)
 - [March 2025](./march-2025.md)
 - [February 2025](./february-2025.md)
 - [November 2024](./november-2024.md)
@@ -10,6 +11,7 @@
 ```{toctree}
 :maxdepth: 5
 :hidden:
+april-2025.md
 march-2025.md
 february-2025.md
 november-2024.md

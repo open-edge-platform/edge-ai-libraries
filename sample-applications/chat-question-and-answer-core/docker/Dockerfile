@@ -28,9 +28,9 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 RUN /usr/local/bin/pip install --upgrade pip setuptools
 
 # Create a non-root user
-RUN useradd -m -s /bin/bash intelgai && \
-    mkdir -p $HOME && \
-    chown -R intelgai $HOME
+RUN groupadd -g 1001 intelgai && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
+    chown -R intelgai:intelgai $HOME
 
 
 FROM python-base AS builder-base
@@ -89,6 +89,9 @@ RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_t
 COPY . /app/
 RUN rm -rf /app/tests /app/ui
 WORKDIR /app
+
+RUN mkdir /tmp/model_cache && \
+    chown intelgai:intelgai /tmp/model_cache
 
 USER intelgai
 

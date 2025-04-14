@@ -28,7 +28,7 @@ if [[ $PROJECT_DIR_SERVICE_NAME =~ \..*  ]]; then
 fi
 
 PROJECT_DIR_NAME_LC=$(echo "$PROJECT_DIR_SERVICE_NAME" | tr '[:upper:]' '[:lower:]')
-EVAM_UID=$(awk -F= '$1 == "EVAM_UID" {print $2}' ../docker/.env)
+PIPELINE_SERVER_UID=$(awk -F= '$1 == "UID" {print $2}' ../docker/.env)
 
 ALT_IPS_LIST=(
   "127.0.0.1"
@@ -194,7 +194,7 @@ create_ssl_certs_and_keys() {
         copy_and_rename "$SETUP_SSL_DIR/server.key" "$SETUP_SSL_DIR/private.key"
         copy_and_rename "$SETUP_SSL_DIR/server.crt" "$SETUP_SSL_DIR/public.crt"
 
-        sudo chown -R "$EVAM_UID" "$SETUP_SSL_DIR"
+        sudo chown -R "$PIPELINE_SERVER_UID" "$SETUP_SSL_DIR"
     else
       echo "Certificates and keys already exists."
     fi

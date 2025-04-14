@@ -4,10 +4,10 @@
 Media analytics pipelines are directed graphs of audio/video
 processing, computer vision, and deep learning inference
 operations. The following sections explain how media analytics
-pipelines are defined and loaded by Intel(R) Deep Learning Streamer (Intel(R) DL Streamer) Pipeline Server.
+pipelines are defined and loaded by Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) .
 
 # Pipeline Definition Files
-EVAM exposes multiple application related fields in the config file.
+DL Streamer Pipeline Server exposes multiple application related fields in the config file.
 Here is a sample of basic config file. 
    
 ```json
@@ -40,24 +40,24 @@ The following table describes the essential attributes that are supported in the
 |      Parameter      |                                                     Description                                                |
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
 | `logging`         | Set log level for `"C_LOG_LEVEL"`, `"PY_LOG_LEVEL"`. Default is `INFO`.                                      |
-| `pipelines`         | List of DLStreamer pipelines.                                      |
+| `pipelines`         | List of DL Streamer pipelines.                                      |
 
 The parameters applicable for each pipeline are described below.
 |      Parameter      |                                                     Description                                                |
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
 | `name`         | Name of the pipeline.                                      |
-| `pipeline`          | 	DLStreamer pipeline description. |
+| `pipeline`          | 	DL Streamer pipeline description. |
 | `source`            | Source of the frames. This should be `"gstreamer"` or `"image-ingestor"`.                                              |
 | `parameters`            | Optional JSON object specifying pipeline parameters that can be customized when the pipeline is launched |
-| `auto_start`          | The Boolean flag for whether to start the pipeline on EVAM start up. |
+| `auto_start`          | The Boolean flag for whether to start the pipeline on DL Streamer Pipeline Server start up. |
 | `udfs` | UDF config parameters |
 
 
 ## How Pipeline Definition Files are Discovered and Loaded
 
-Pipeline definition files are created from `config.json` and are stored in a hierarchical directory structure that determines their name and version. The `config.json` file is present inside the EVAM container image. After startup, EVAM searches the configured pipeline directory and loads all pipeline definitions that are found.
+Pipeline definition files are created from `config.json` and are stored in a hierarchical directory structure that determines their name and version. The `config.json` file is present inside the DL Streamer Pipeline Server container image. After startup, DL Streamer Pipeline Server searches the configured pipeline directory and loads all pipeline definitions that are found.
 
-The hierarchical directory structure looks like the below inside the EVAM container image:
+The hierarchical directory structure looks like the below inside the DL Streamer Pipeline Server container image:
 `/var/cache/pipeline_root/user_defined_pipelines/<pipeline-name>/pipeline.json`
 
 Here is a sample directory listing:
@@ -107,7 +107,7 @@ the calling application.
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DLStreamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
 
 #### Source Abstraction
 `{auto_source}` is a virtual source that is updated with the appropriate GStreamer element and properties at request time.
@@ -120,7 +120,7 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DLStreamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
 
 **Sample audio pipeline**
 ```
@@ -131,7 +131,7 @@ Note: The model used in the above pipeline is an example of how it can be used f
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DLStreamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
 
 
 |    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks | 
@@ -253,7 +253,7 @@ targets the same hardware device and video format.
 #### More Information
 
 For more information and examples of media analytics pipelines created
-with Intel(R) DL Streamer please see the Intel(R) DL Streamer [tutorial](https://dlstreamer.github.io/get_started/tutorial.html).
+with DL Streamer please see the [tutorial](https://dlstreamer.github.io/get_started/tutorial.html).
 
 ## Pipeline Parameters
 
@@ -759,7 +759,7 @@ Zoo](https://github.com/openvinotoolkit/open_model_zoo).
 ## Model-Proc Files
 
 In addition to the `.xml` and `.bin` files that are part of a model's
-`IR` format, `Intel(R) DL Streamer` elements and `FFmpeg Video Analytics`
+`IR` format, `DL Streamer` elements and `FFmpeg Video Analytics`
 filters make use of an additional JSON file specifying the input and
 output processing instructions for a model. Processing instructions
 include details such as the expected color format and resolution of
@@ -774,9 +774,9 @@ If such a file exists, the Pipeline Server automatically looks for this file in 
 
 For more details on model proc and labels see [Model Proc File](https://dlstreamer.github.io/dev_guide/model_proc_file.html)
 
-### Intel(R) DL Streamer
-For more information on Intel(R) DL Streamer `model-proc` files and samples for
-common models please see the Intel(R) DL Streamer
+### Deep Learning Streamer (DL Streamer)
+For more information on DL Streamer `model-proc` files and samples for
+common models please see the DL Streamer
 [documentation](https://dlstreamer.github.io/dev_guide/how_to_create_model_proc_file.html#how-to-create-model-proc-file)
 and
 [samples](https://github.com/dlstreamer/dlstreamer/tree/master/samples).

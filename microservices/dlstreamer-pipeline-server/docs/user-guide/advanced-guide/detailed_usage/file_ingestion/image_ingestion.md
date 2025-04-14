@@ -1,6 +1,6 @@
 # Image Ingestion
 
-The Image ingestion feature is responsible for ingesting the images coming from a directory into EVAM for further processing.
+The Image ingestion feature is responsible for ingesting the images coming from a directory into DL Streamer Pipeline Server for further processing.
 Image ingestion supports the following image formats:
 
 - Jpg
@@ -9,11 +9,11 @@ Image ingestion supports the following image formats:
 - Bmp
 - Png
 
-Volume mount the image directory present on the host system. To do this, provide the absolute path of the images directory in the `[EVAM_WORKDIR]/docker/docker-compose.yml`.
-Refer the following snippet of the `edge-video-analytics-microservice` service to add the required changes. 
+Volume mount the image directory present on the host system. To do this, provide the absolute path of the images directory in the `[WORKDIR]/docker/docker-compose.yml`.
+Refer the following snippet of the `dlstreamer-pipeline-server` service to add the required changes. 
 
 ```yaml
-edge-video-analytics-microservice:
+dlstreamer-pipeline-server:
   ...
   volume:
     - "/tmp:/tmp"
@@ -25,7 +25,7 @@ edge-video-analytics-microservice:
     ...
 ```
 
-Refer the following snippet for enabling the image ingestion feature for Jpg images and and modify the appropriate config.json file in `[EVAM_WORKDIR]/configs` directory.
+Refer the following snippet for enabling the image ingestion feature for Jpg images and and modify the appropriate config.json file in `[WORKDIR]/configs` directory.
 
   ```javascript
     "pipeline": "multifilesrc location=\"/home/pipeline-server/img_dir/<image_filename>%02d.jpg\" index=1 name=source ! jpegdec ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! appsink name=destination",
@@ -44,7 +44,7 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 >  For e.g. If the images are named in the format `frame_0001`, `frame_0002`, then it has total 4 digits in the filename. Use `%04d` while providing the image name `<image_filename>%04d.jpg` in the pipeline.
 > - The ingestion will stop if it does not find the required image name.
 > For e.g. If directory contains images `frame_01`, `frame_02` and `frame_04`, then the ingestion will stop after reading `frame_02` since `frame_03` is not present in the directory.
-> - Make use of images having resolution - `720×480`, `1280×720`, `1920×1080`, `3840×2160` and `1920×1200`. If a different resolution image is used then the EdgeVideoAnalytics service might fail with `reshape` error  as gstreamer does zero padding to that image.
+> - Make use of images having resolution - `720×480`, `1280×720`, `1920×1080`, `3840×2160` and `1920×1200`. If a different resolution image is used then the DL Streamer Pipeline Server service might fail with `reshape` error  as gstreamer does zero padding to that image.
 > - Make sure that the images directory is having the required read and execute permission. If not use the following command to add the permissions.
 > `sudo chmod -R 755 <path to images directory>`
 
@@ -60,7 +60,7 @@ Refer the following snippet for enabling the image ingestion feature for Jpg ima
 
 - For BMP Images
 
-Refer to the following snippet for enabling the image ingestion feature for bmp image and modify the appropriate config.json file in `[EVAM_WORKDIR]/configs` directory.
+Refer to the following snippet for enabling the image ingestion feature for bmp image and modify the appropriate config.json file in `[WORKDIR]/configs` directory.
 
 ```javascript
     "pipeline": "imagesequencesrc location=/home/pipeline-server/img_dir/<image_filename>%03d.bmp start-index=1 framerate=1/1 ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! appsink name=destination"

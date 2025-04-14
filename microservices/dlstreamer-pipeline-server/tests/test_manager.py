@@ -228,7 +228,7 @@ class TestPipeline:
             expected_pipeline_json_content = {
                 "type": "GStreamer",
                 "template": ["test_pipeline_string"],
-                "description": "EVAM pipeline",
+                "description": "DL Streamer Pipeline Server pipeline",
                 "parameters": {}
             }
             assert pipeline_json_content == expected_pipeline_json_content

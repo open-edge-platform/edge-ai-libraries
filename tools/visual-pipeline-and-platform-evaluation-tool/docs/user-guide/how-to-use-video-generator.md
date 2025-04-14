@@ -78,7 +78,7 @@ This guide is ideal for developers who want to work directly with the source cod
       - **`base_image_dir`**: Path to the root directory containing categorized image subdirectories.
 
       - **`output_file`**: Path to the final generated video file. Preference is not to give the file extension and no `.` in
-      filename eg. output_file
+      filename (e.g., output_file).
 
       - **`target_resolution`**: Resolution of the output video in `[width, height]` format.
 

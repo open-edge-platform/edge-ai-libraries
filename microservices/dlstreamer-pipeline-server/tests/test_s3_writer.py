@@ -20,7 +20,7 @@ def setup(mocker):
 
     app_cfg = {
         "S3_write": {
-            "bucket": "evam",
+            "bucket": "dlstreamer_pipeline_server",
             "folder_prefix": 1883,
             "block": False
         }

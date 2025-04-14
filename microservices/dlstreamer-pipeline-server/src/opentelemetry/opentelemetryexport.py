@@ -22,7 +22,7 @@ class OpenTelemetryExporter:
         self.log = get_logger(f'{__name__}')
 
         # Fetch values from environment variables
-        service_name = os.getenv("SERVICE_NAME", "evam")
+        service_name = os.getenv("SERVICE_NAME", "dlstreamer-pipeline-server")
         collector_host = os.getenv("OTEL_COLLECTOR_HOST", "otel-collector")
         collector_port = os.getenv("OTEL_COLLECTOR_PORT", "4318")
         self.collector_url = f"http://{collector_host}:{collector_port}/v1/metrics"
@@ -65,19 +65,19 @@ class OpenTelemetryExporter:
         # Create gauges to track CPU and memory usage
         self.cpu_usage = self.meter.create_gauge(
             "cpu_usage_percentage",
-            description="Tracks CPU usage percentage of EVAM python process"
+            description="Tracks CPU usage percentage of DLStreamer pipeline server python process"
         )
 
         self.memory_usage = self.meter.create_gauge(
             "memory_usage_bytes",
-            description="Tracks memory usage in bytes of EVAM python process"
+            description="Tracks memory usage in bytes of DLStreamer pipeline server python process"
         )
 
         # Use Observable Gauge for FPS as it contains attributes
         self.fps_gauge = self.meter.create_observable_gauge(
             "fps_per_pipeline",
             callbacks=[self.fps_callback],
-            description="Tracks FPS for each active pipeline instance in EVAM"
+            description="Tracks FPS for each active pipeline instance in DLStreamer Pipeline Server"
         )
 
         # Initialize threading

@@ -1,3 +1,6 @@
+```{eval-rst}
+:orphan:
+```
  # gRPC Publishing post pipeline execution
 
  **Contents**
@@ -12,10 +15,10 @@
 
 ## Overview
 
-EVAM supports publishing metadata and frame blob using gRPC communication. The messages are published post pipeline execution to one or more grpc clients configured in `config.json`. Depending on the mode of deployment, EIS or standalone, the communication can be secure or unsecure. 
+DL Streamer Pipeline Server supports publishing metadata and frame blob using gRPC communication. The messages are published post pipeline execution to one or more grpc clients configured in `config.json`. Depending on the mode of deployment, EIS or standalone, the communication can be secure or unsecure. 
 
 ## Prerequisites
-One or more gRPC clients must be configured in EVAM's client list in the interfaces section of `config.json`. See below.
+One or more gRPC clients must be configured in DL Streamer Pipeline Server's client list in the interfaces section of `config.json`. See below.
 
 ### Configuration
 ```sh
@@ -30,7 +33,7 @@ One or more gRPC clients must be configured in EVAM's client list in the interfa
                 "EndPoint": "multimodal-data-visualization-streaming:65138",
                 "Name": "visualizer",
                 "Topics": [
-                    "edge_video_analytics_results"
+                    "dlstreamer_pipeline_results"
                 ],
                 "Type": "grpc",
                 "overlay_annotation": "true"
@@ -71,10 +74,10 @@ For example, consider a scenario where there are 2 pipelines with names pipeline
     **Resolution**: Most likely, the server cannot be reached. 
     
     Please check if the corresponding client services are up/accessible.     
-    - Check if endpoints and ports are correct for both server and client(in EVAM client list).
-    - Also check if the container name is added to EVAM's `no_proxy` environment variable in docker compose file.
+    - Check if endpoints and ports are correct for both server and client(in DL Streamer Pipeline Server client list).
+    - Also check if the container name is added to DL Streamer Pipeline Server's `no_proxy` environment variable in docker compose file.
 
 ## Known issues
-Pipelines where encoding is done by supported publisher such as EVAM's gRPC publisher, CPU consumption spikes have been observed. Especially for CPUs with readily available CPU cores for fast inferencing and encoding, e.g. i9-13000.
+Pipelines where encoding is done by supported publisher such as DL Streamer Pipeline Server's gRPC publisher, CPU consumption spikes have been observed. Especially for CPUs with readily available CPU cores for fast inferencing and encoding, e.g. i9-13000.
 
 Encoding is necessary if we wish to let the publisher do the annotation overlay. If one does not need the overlay, they can let the pipeline do the encoding which is usually better at resource consumption. In this case however, any annotation overlay required now has to be done by a supporting pipeline element such as udfloader. See udfloader flag, `"visualize": "true",`

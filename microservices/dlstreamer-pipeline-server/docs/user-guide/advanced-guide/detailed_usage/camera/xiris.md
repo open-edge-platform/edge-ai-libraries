@@ -9,7 +9,7 @@ The following are the prerequisites for working with Xiris cameras.
 
 > **Note:**
 >
-> - For other cameras such as RSTP, and USB (v4l2 driver compliant) revert the changes that are mentioned in this section. Refer to the following snip of the `ia_edge_video_analytics_microservice` service, to add the required changes in the `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/docker/docker-compose-eis.yml` file. After making the changes, before you build and run the services, ensure to run the `[WORKDIR]/IEdgeInsights/build/builder.py`.
+> - For other cameras such as RSTP, and USB (v4l2 driver compliant) revert the changes that are mentioned in this section. Refer to the following snip of the `dlstreamer-pipeline-server` service, to add the required changes in the `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/docker/docker-compose-eis.yml` file. After making the changes, before you build and run the services, ensure to run the `[WORKDIR]/IEdgeInsights/build/builder.py`.
 
 - For Xiris Camera:
 
@@ -19,11 +19,11 @@ Update the `ETCD_HOST` key with the current system's IP in the `[WORKDIR]/IEdgeI
 ETCD_HOST=<HOST_IP>
 ```
 
-Add `network_mode: host` in the `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/docker/docker-compose-eis.yml` file and comment/remove `networks` and `ports` sections.
-Make the following changes in the `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/docker/docker-compose-eis.yml` file.
+Add `network_mode: host` in the `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/docker/docker-compose-eis.yml` file and comment/remove `networks` and `ports` sections.
+Make the following changes in the `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/docker/docker-compose-eis.yml` file.
 
 ```yaml
-ia_edge_video_analytics_microservice:
+dlstreamer-pipeline-server:
   # Add network mode host
   network_mode: host
   # Please make sure that the above commands are not added under the environment section and also take care about the indentations in the compose file.
@@ -42,7 +42,7 @@ ia_edge_video_analytics_microservice:
   #   - '65114:65114'
 ```
 
-**Note:** There is a sample configuration file `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/configs/eii/sample_xiris/config.json` that has all the Xiris camera related configuration that are talked about in the below bullet points. These settings must be done in `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/configs/eii/default/config.json` for achieving the desired behavior.
+**Note:** There is a sample configuration file `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/configs/eii/sample_xiris/config.json` that has all the Xiris camera related configuration that are talked about in the below bullet points. These settings must be done in `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/configs/eii/default/config.json` for achieving the desired behavior.
 
 - The ip_address parameter must be set to IP address of the camera.
 - The shutter_mode parameter configures the camera in either rolling or global shutter mode. Can take one of two values: `Rolling` or `Global`.
@@ -94,7 +94,7 @@ Refer to the following code snippet:
      }
   ```
 
-- The source parameter in the `[WORKDIR]/IEdgeInsights/EdgeVideoAnalyticsMicroservice/configs/eii/default/config.json` file must be set to `ingestor`. Refer to the following code snippet:
+- The source parameter in the `[WORKDIR]/IEdgeInsights/DLStreamerPipelineServer/configs/eii/default/config.json` file must be set to `ingestor`. Refer to the following code snippet:
 
   ```javascript
      "config": {

@@ -5,7 +5,7 @@
     - [USB v4l2 Cameras](#usb-v4l2-cameras) -->
     
 ## Camera configurations
-Following section describes different types of camera sources that are supported by EVAM in a DLStreamer pipeline.
+Following section describes different types of camera sources that are supported by DL Streamer Pipeline Server in a DL Streamer pipeline.
 
 ### RTSP Cameras
 The [doc](rtsp.md) provides details on configuring pipelines with RTSP source and also provides more resources on RTSP protocol. To dynamically specify the RTSP source via REST request, refer to this [section](../rest_api/customizing_pipeline_requests.md#rtsp-source).

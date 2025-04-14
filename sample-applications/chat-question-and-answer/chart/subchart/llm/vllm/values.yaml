@@ -5,9 +5,6 @@ global:
     no_proxy: <NO_PROXY>
     http_proxy: <HTTP_PROXY>
     https_proxy: <HTTPS_PROXY>
-  OTLP:
-    endpoint: "your-otlp-endpoint"
-    trace_endpoint: "your-otlp-trace-endpoint"
 
 vllmService:
   name: vllm-service
@@ -25,9 +22,6 @@ vllmService:
     type: ClusterIP
     port: 8080
     targetPort: 80
-  volumes:
-    - ./data:/data
-    - ~/.cache/huggingface:/root/.cache/huggingface
   env:
     KVCACHE: "50"
     TENSOR_PARALLEL_SIZE: 1

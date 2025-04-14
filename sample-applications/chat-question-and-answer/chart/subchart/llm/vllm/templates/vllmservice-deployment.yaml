@@ -27,7 +27,7 @@ spec:
           volumeMounts:
             - name: data
               mountPath: /data
-            - name: huggingface-cache
+            - name: data
               mountPath: /root/.cache/huggingface
           env:
             - name: no_proxy
@@ -60,12 +60,16 @@ spec:
               value: {{ .Values.vllmService.env.OTEL_SERVICE_NAME }} 
             - name: OTEL_SERVICE_ENV
               value: {{ .Values.vllmService.env.OTEL_SERVICE_ENV }}
+            - name: OTLP_ENDPOINT
+              value: {{ .Values.global.OTLP_ENDPOINT }}
+            - name: OTLP_ENDPOINT_TRACE
+              value: {{ .Values.global.OTLP_ENDPOINT_TRACE }}          
           command:
             - "/bin/bash"
             - "-c"
             - >
-              echo {{ .Values.global.OTLP.endpoint }} &&
-              echo {{ .Values.global.OTLP.trace_endpoint }} &&
+              echo {{ .Values.global.OTLP_ENDPOINT }} &&
+              echo {{ .Values.global.OTLP_ENDPOINT_TRACE }} &&
               pip install 'opentelemetry-sdk>=1.26.0,<1.27.0'
               'opentelemetry-api>=1.26.0,<1.27.0'
               'opentelemetry-exporter-otlp>=1.26.0,<1.27.0'
@@ -73,15 +77,12 @@ spec:
               opentelemetry-instrumentation-fastapi &&
               opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server
               --enforce-eager
-              --otlp-traces-endpoint={{ .Values.global.OTLP.trace_endpoint }}
+              --otlp-traces-endpoint={{ .Values.global.OTLP_ENDPOINT_TRACE }}
               --model {{ .Values.global.LLM_MODEL }}
               --tensor-parallel-size 1
               --host 0.0.0.0
               --port 80
       volumes:
         - name: data
-          hostPath:
-            path: /data
-        - name: huggingface-cache
-          hostPath:
-            path: /root/.cache/huggingface
+          persistentVolumeClaim:
+            claimName: egai-vllm-pvc

@@ -11,29 +11,41 @@
 - For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
 
 ## Quick try out
-Follow the steps in this section to quickly pull the latest pre-built Edge Video Analytics Microservice helm charts followed by running a sample usecase. 
+Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server helm charts followed by running a sample usecase. 
 
-### Pull the helm chart and start
+### Pull the helm chart
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/edge-video-analytics-microservice --version 2.4.0-helm`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 3.0.0-helm`
 - unzip the package using the following command
 
-    `tar xvf edge-video-analytics-microservice-2.4.0-helm.tgz`
+    `tar xvf dlstreamer-pipeline-server-3.0.0-helm.tgz`
 - Get into the helm directory
 
-    `cd edge-video-analytics-microservice`
+    `cd dlstreamer-pipeline-server`
+
+### Configure and update the environment variables
+
+Update the below fields in `values.yaml` file in the helm chart
+
+  ``` sh
+  http_proxy: # example: http_proxy: http://proxy.example.com:891
+  https_proxy: # example: http_proxy: http://proxy.example.com:891
+  ```
+
+### Install the helm chart
+
 - Install the helm chart
 
-    `helm install evam . -n apps --create-namespace`
-- Check if EVAM is running fine
+    `helm install dlsps . -n apps --create-namespace`
+- Check if DL Streamer Pipeline Server is running fine
 
     `kubectl get pods --namespace apps`and monitor its logs using `kubectl logs -f <pod_name> -n apps`
-
+    
 ### Run default sample
 
-Once the pods are up, we will send a pipeline request to EVAM to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
+Once the pods are up, we will send a pipeline request to DL Streamer Pipeline Server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.
 
 We will send the below curl request to run the inference.
 It comprises of a source file path which is `warehouse.avi`, a destination, with metadata directed to a json fine in `/tmp/resuts.jsonl` and frames streamed over RTSP with id `pallet_defect_detection`. Additionally, we will also provide the GETi model path that would be used for detecting defective boxes on the video file.
@@ -90,15 +102,15 @@ To check the pipeline status and stop the pipeline send the following requests,
 
  - Uninstall the helm chart, 
    ```sh
-    helm uninstall evam -n apps
+    helm uninstall dlsps -n apps
    ```
 
-Now you have successfully run the Edge Video Analytics Microservice container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
+Now you have successfully run the DL Streamer Pipeline Server container, sent a curl request to start a pipeline within the microservice which runs the Geti based pallet defect detection model on a sample warehouse video. Then, you have also looked into the status of the pipeline to see if everything worked as expected and eventually stopped the pipeline as well.
 
 
 ## Summary
 
-In this get started guide, you learned how to start the EVAM service and start default pipeline.
+In this get started guide, you learned how to start the DL Streamer Pipeline Server service and start default pipeline.
 
 ## Learn More
 
@@ -106,7 +118,7 @@ In this get started guide, you learned how to start the EVAM service and start d
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](Overview.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
--   For more details on Intel Deep Learning Streamer visit [this](https://dlstreamer.github.io/) page.
+-   For more details on Deep Learning Streamer visit [this](https://dlstreamer.github.io/) page.
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.

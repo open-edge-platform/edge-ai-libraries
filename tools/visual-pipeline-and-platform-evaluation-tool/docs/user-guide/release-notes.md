@@ -48,7 +48,7 @@ Details about the changes, improvements, and known issues in this release of the
 -->
 
 - **Feature 1**: Pre-trained Models Optimized for Specific Use Cases: ViPPET includes pre-trained models that are optimized for specific use cases, such as object detection for Smart NVR pipeline. These models can be easily integrated into the pipeline, allowing users to quickly evaluate their performance on different Intel platforms.
-- **Feature 2**: Metrics Collection with Turbostat and Qmassa: VIPPET collects real-time CPU and GPU performance metrics using Turbostat and Qumasa. The collector agent runs in a dedicated collector container, gathering CPU and GPU metrics. Users can access and analyze these metrics via inutiative UI, enabling efficient system monitoring and optimization.
+- **Feature 2**: Metrics Collection with Turbostat and Qmassa: VIPPET collects real-time CPU and GPU performance metrics using Turbostat and Qmassa. The collector agent runs in a dedicated collector container, gathering CPU and GPU metrics. Users can access and analyze these metrics via intuitive UI, enabling efficient system monitoring and optimization.
 - **Feature 3**: Smart NVR Pipeline Integration: The Smart NVR Proxy Pipeline is seamlessly integrated into the tool, providing a structured video recorder architecture. It enables video analytics by supporting AI inference on selected input channels while maintaining efficient media processing. The pipeline includes multi-view composition, media encoding, and metadata extraction for insights.
 
 

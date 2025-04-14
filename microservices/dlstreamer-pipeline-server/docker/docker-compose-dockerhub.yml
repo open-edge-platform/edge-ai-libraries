@@ -16,10 +16,10 @@ services:
     networks:
       - app_network
 
-  edge-video-analytics-microservice:
-    image: intel/edge-video-analytics-microservice:2.4.0
-    hostname: edge-video-analytics-microservice
-    container_name: edge-video-analytics-microservice
+  dlstreamer-pipeline-server:
+    image: intel/dlstreamer-pipeline-server:3.0.0
+    hostname: dlstreamer-pipeline-server
+    container_name: dlstreamer-pipeline-server
     read_only: true
     security_opt:
     - no-new-privileges
@@ -44,7 +44,6 @@ services:
       - DETECTION_DEVICE=CPU
       - CLASSIFICATION_DEVICE=CPU
       - ADD_UTCTIME_TO_METADATA=true
-      - LSFEATURE_NAME="EVAM"
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
@@ -53,9 +52,9 @@ services:
       - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
       - REST_SERVER_PORT=8080
     volumes:
-      - vol_evam_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
+      - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"
-      - "../Certificates/ssl_server/:/run/secrets/EdgeVideoAnalyticsMicroservice_Server:ro"
+      - "../Certificates/ssl_server/:/run/secrets/DLStreamerPipelineServer_Server:ro"
       - "../Certificates/model_registry/:/run/secrets/ModelRegistry_Server:ro"
       - "/run/udev:/run/udev:ro"
       - "/dev:/dev"
@@ -76,7 +75,7 @@ networks:
     driver: "bridge"
 
 volumes:
-  vol_evam_pipeline_root:
+  vol_pipeline_root:
     driver: local
     driver_opts:
       type: tmpfs

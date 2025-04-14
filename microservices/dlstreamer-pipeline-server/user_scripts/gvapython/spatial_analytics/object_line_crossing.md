@@ -65,7 +65,7 @@ The algorithm to calculate line crossing is based on the following article:
 https://www.geeksforgeeks.org/check-if-two-given-line-segments-intersect/
 
 ## Example Run
-Intel(R) Deep Learning Streamer (Intel(R) DL Streamer) Pipeline Server comes with an [example configuration](../../client/parameter_files/object-line-crossing.json) for object-line-crossing
+Deep Learning Streamer (DL Streamer) Pipeline Server comes with an [example configuration](../../client/parameter_files/object-line-crossing.json) for object-line-crossing
 
 1. [Build](../../README.md#building-the-microservice) & [Run](../../README.md#running-the-microservice) the Pipeline Server
 

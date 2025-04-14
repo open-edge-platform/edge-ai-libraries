@@ -15,6 +15,4 @@ teiEmbeddingService:
     type: ClusterIP
     port: 6006
     targetPort: 80
-  volumes:
-    - ./data:/data
   shm_size: 1g

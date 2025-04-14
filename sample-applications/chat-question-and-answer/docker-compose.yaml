@@ -1,6 +1,6 @@
 services:
   chatqna:
-    image: ${REGISTRY:-}chatqna:${TAG:-latest}
+    image: ${BE_IMAGE_NAME}
     build:
       context: .
     ports:
@@ -58,7 +58,7 @@ services:
     ports:
       - "8090:80"
     volumes:
-      - "./data:/data"
+      - "~/.cache/huggingface:/root/.cache/huggingface"
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -69,7 +69,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:${TAG:-latest}
+    image: ${REGISTRY:-}document-ingestion:1.1.1
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -93,7 +93,7 @@ services:
       - my_network
 
   chatqna-ui:
-    image: ${REGISTRY:-}chatqna-ui:${TAG:-latest}
+    image: ${FE_IMAGE_NAME}
     container_name: chatqna-ui_server
     build:
       context: ./ui/react/
@@ -126,7 +126,7 @@ services:
       --console-address ":${MINIO_CONSOLE_PORT:-9001}"
 
   data-store:
-    image: ${REGISTRY:-}object-store:${TAG:-latest}
+    image: ${REGISTRY:-}object-store:1.1.1
     hostname: data_store
     environment:
       - http_proxy
@@ -195,10 +195,11 @@ services:
       - https_proxy=${https_proxy}
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
+      - HUGGINGFACE_HUB_CACHE='/root/.cache/huggingface/hub'
     ports:
       - "8080:80"
     volumes:
-      - ${VOLUME}:/data
+      - "~/.cache/huggingface:/root/.cache/huggingface"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/health" ]
       interval: 120s
@@ -242,7 +243,7 @@ services:
     ports:
       - "6006:80"
     volumes:
-      - "./data:/data"
+      - "~/.cache/huggingface:/root/.cache/huggingface"
     shm_size: 1g
     networks:
       - my_network

@@ -2,9 +2,9 @@
 
 ## Prerequisite for tutorials
 
-For tutorials that requires you to update the default configuration of EVAM, please follow the below instruction.
+For tutorials that requires you to update the default configuration of DL Streamer pipeline server, please follow the below instruction.
 
-Ensure that you have a `[EVAM_WORKDIR]/configs/default/config.json` file with the below snippet in your workspace (`EVAM_WORKDIR`) on the host machine. The tutorials will take you through updating the configuration accordingly.
+Ensure that you have a `[WORKDIR]/configs/default/config.json` file with the below snippet in your workspace (`WORKDIR`) on the host machine. The tutorials will take you through updating the configuration accordingly.
 ```sh
 {
     "config": {

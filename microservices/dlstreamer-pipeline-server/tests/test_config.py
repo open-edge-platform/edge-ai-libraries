@@ -276,7 +276,7 @@ class TestConfigHandler:
             read_data=json.dumps({
                 "config": "test_data"
             })))
-        ch = config.EvamConfig._ConfigHandler()
+        ch = config.PipelineServerConfig._ConfigHandler()
         ch.log = mocker.MagicMock()
         
         assert ch.eii_mode == False
@@ -285,11 +285,11 @@ class TestConfigHandler:
     @pytest.fixture
     def config_handler_eis(self, mocker, monkeypatch):
         monkeypatch.setenv("READ_CONFIG_FROM_FILE_ENV", "True")
-        monkeypatch.setenv("AppName", "TestEVAM")
+        monkeypatch.setenv("AppName", "TestPipelineServer")
         mck_cfg = mocker.patch("src.config.get_eis_cfg")
         mck_cfgmgr = mck_cfg.config_manager.ConfigMgr.return_value = mocker.MagicMock()
         mocker.patch("src.config.get_logger")
-        ch = config.EvamConfig._ConfigHandler(eii_mode=True, watch_cb=mocker.MagicMock(), watch_file_cbfunc=mocker.MagicMock())                
+        ch = config.PipelineServerConfig._ConfigHandler(eii_mode=True, watch_cb=mocker.MagicMock(), watch_file_cbfunc=mocker.MagicMock())                
         assert ch.eii_mode == True
         return ch
     
@@ -304,11 +304,11 @@ class TestConfigHandler:
     def test_config_handler_non_eii_mode_file_not_found(self, mocker):
         mocker.patch("builtins.open", side_effect=FileNotFoundError)
         with pytest.raises(FileNotFoundError):
-            config.EvamConfig._ConfigHandler(eii_mode=False)
+            config.PipelineServerConfig._ConfigHandler(eii_mode=False)
 
     # def test_config_handler_eii_raises_exception(self, mocker):
     #     with pytest.raises(ValueError):
-    #         ch = config.EvamConfig._ConfigHandler(eii_mode=True)
+    #         ch = config.PipelineServerConfig._ConfigHandler(eii_mode=True)
 
     def test_get_app_cfg(self, config_handler_eis):        
         config_handler_eis._app_cfg = "test_data"
@@ -347,60 +347,60 @@ class TestConfigHandler:
         assert config_handler_eis.get_eis_clients() == ["cfg1"]
 
 
-class TestEvamConfig:
+class TestPipelineServerConfig:
 
     @pytest.fixture
-    def test_evam_config(self, mocker):
-        mocker.patch("src.config.EvamConfig._ConfigHandler")
-        evam = config.EvamConfig(mode=False)
-        evam._cfg_handler.get_app_cfg.return_value = {"test_data": "test", "pipelines": "test_pipeline", "model_registry": "test_model_registry"}    
-        return evam
+    def test_pipeline_server_config(self, mocker):
+        mocker.patch("src.config.PipelineServerConfig._ConfigHandler")
+        pipeline_server = config.PipelineServerConfig(mode=False)
+        pipeline_server._cfg_handler.get_app_cfg.return_value = {"test_data": "test", "pipelines": "test_pipeline", "model_registry": "test_model_registry"}    
+        return pipeline_server
     
-    def test_get_app_cfg(self, test_evam_config):
-        assert test_evam_config.get_app_config() == {"test_data": "test", "pipelines": "test_pipeline", "model_registry": "test_model_registry"}
+    def test_get_app_cfg(self, test_pipeline_server_config):
+        assert test_pipeline_server_config.get_app_config() == {"test_data": "test", "pipelines": "test_pipeline", "model_registry": "test_model_registry"}
 
-    def test_get_pipelines_config(self, test_evam_config):
-        assert test_evam_config.get_pipelines_config() == "test_pipeline"
+    def test_get_pipelines_config(self, test_pipeline_server_config):
+        assert test_pipeline_server_config.get_pipelines_config() == "test_pipeline"
 
-    def test_get_model_registry_config(self, test_evam_config):
-        assert test_evam_config.get_model_registry_config() == "test_model_registry"
+    def test_get_model_registry_config(self, test_pipeline_server_config):
+        assert test_pipeline_server_config.get_model_registry_config() == "test_model_registry"
 
-    def test_get_app_interface(self, test_evam_config):
-        test_evam_config._cfg_handler.get_app_interface.return_value = "mocked_interface"
-        result = test_evam_config.get_app_interface()
+    def test_get_app_interface(self, test_pipeline_server_config):
+        test_pipeline_server_config._cfg_handler.get_app_interface.return_value = "mocked_interface"
+        result = test_pipeline_server_config.get_app_interface()
         assert result == "mocked_interface"
 
-    def test_get_publishers(self, test_evam_config):
+    def test_get_publishers(self, test_pipeline_server_config):
         test_publisher = [{"host": "localhost", "port": 1883, "topic": "test", "publish_frame": False}]
-        test_evam_config._cfg_handler.eii_mode = False
-        test_evam_config._cfg_handler.get_mqtt_publisher.return_value = test_publisher
-        result = test_evam_config.get_publishers()        
+        test_pipeline_server_config._cfg_handler.eii_mode = False
+        test_pipeline_server_config._cfg_handler.get_mqtt_publisher.return_value = test_publisher
+        result = test_pipeline_server_config.get_publishers()        
         assert len(result) == 1
         assert isinstance(result[0], config.PublisherConfig)
 
-    def test_get_publishers_eii_mode(self,test_evam_config, mocker):
-        evam = test_evam_config
-        evam._cfg_handler.eii_mode = True
+    def test_get_publishers_eii_mode(self, test_pipeline_server_config, mocker):
+        pipeline_server = test_pipeline_server_config
+        pipeline_server._cfg_handler.eii_mode = True
         eis_clients = [{"host": "localhost", "port": 50051, "service": "test_service"}]
-        evam._cfg_handler.get_eis_clients.return_value = eis_clients
-        publishers = evam.get_publishers()
+        pipeline_server._cfg_handler.get_eis_clients.return_value = eis_clients
+        publishers = pipeline_server.get_publishers()
         assert len(publishers) == 1
         assert publishers[0].is_emb_publisher() == True
         
-    def test_get_subscribers(self, test_evam_config):
+    def test_get_subscribers(self, test_pipeline_server_config):
         test_subscriber = ["sub_cfg"]
-        test_evam_config._cfg_handler.eii_mode = True
-        test_evam_config._cfg_handler.get_eis_servers.return_value = test_subscriber
-        result = test_evam_config.get_subscribers()        
+        test_pipeline_server_config._cfg_handler.eii_mode = True
+        test_pipeline_server_config._cfg_handler.get_eis_servers.return_value = test_subscriber
+        result = test_pipeline_server_config.get_subscribers()        
         assert len(result) == 1
         assert isinstance(result[0], config.SubscriberConfig)
 
     @pytest.mark.parametrize("new_config", [
         ({"test_data": "new_test", "pipelines": "new_pipeline", "model_registry": "new_model_registry"})
     ])
-    def test_set_app_config(self, test_evam_config, new_config):    
-        test_evam_config.set_app_config(new_config)
-        assert test_evam_config._cfg_handler._app_cfg == new_config
+    def test_set_app_config(self, test_pipeline_server_config, new_config):    
+        test_pipeline_server_config.set_app_config(new_config)
+        assert test_pipeline_server_config._cfg_handler._app_cfg == new_config
     
     @pytest.mark.parametrize("new_config, model_path_dict, expected_pipeline, expected_udfloader", [
         (
@@ -431,8 +431,8 @@ class TestEvamConfig:
         ),
     ])
     def test_update_pipeline_config(self, mocker, new_config, model_path_dict, expected_pipeline, expected_udfloader):
-        mocker.patch("src.config.EvamConfig._ConfigHandler")
-        mock_config = config.EvamConfig(mode=False)
+        mocker.patch("src.config.PipelineServerConfig._ConfigHandler")
+        mock_config = config.PipelineServerConfig(mode=False)
         mock_config._cfg_handler.get_app_cfg.return_value = new_config
         mock_config.update_pipeline_config(model_path_dict)
         updated_config = mock_config.get_app_config()

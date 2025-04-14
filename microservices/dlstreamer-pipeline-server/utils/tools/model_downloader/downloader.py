@@ -35,7 +35,7 @@ OMZ_PATHS = {
 SAMPLES_ROOT = "/opt/intel/dlstreamer/samples"
 MODEL_INDEX_FILE = "model_index.yaml"
 MODEL_PROC_SEARCH_PATH = "/opt/intel/openvino/data_processing/dl_streamer/samples/model_proc/**/{0}.json"
-# Pointer to Intel(R) Deep Learning Streamer (Intel(R) DL Streamer) repository
+# Pointer to Deep Learning Streamer (DL Streamer) repository
 DL_STREAMER_REPO_ROOT = "https://raw.githubusercontent.com/openvinotoolkit/dlstreamer_gst"
 
 MODEL_LIST_EXPECTED_SCHEMA = "\n- model(Required): mobilenet-ssd\n \
@@ -126,7 +126,7 @@ def _download_model_proc(base_type, target_dir, model_name, dl_streamer_version)
             ) as out_file:
                 out_file.write(response.content)
             print(
-                "Downloaded {0} model-proc file from Intel(R) DL Streamer repository".format(
+                "Downloaded {0} model-proc file from DL Streamer repository".format(
                     model_name
                 )
             )
@@ -135,7 +135,7 @@ def _download_model_proc(base_type, target_dir, model_name, dl_streamer_version)
             )
             shutil.move(model_proc, os.path.join(target_dir, "{}.json".format(model_name)))
         else:
-            print("WARNING: model-proc not found in Intel(R) DL Streamer repository!")
+            print("WARNING: model-proc not found in DL Streamer repository!")
 
 
 def _create_convert_command(base_type, model_name, output_dir, precisions):

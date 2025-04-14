@@ -2,28 +2,40 @@ apiVersion: apps/v1
 kind: Deployment
 metadata:
   labels:
-    app: edge-video-analytics-microservice
-  name: edge-video-analytics-microservice-deployment
+    app: dlstreamer-pipeline-server
+  name: dlstreamer-pipeline-server-deployment
   namespace: {{ $.Values.namespace }}
 spec:
   replicas: 1
   selector:
     matchLabels:
-      app: edge-video-analytics-microservice
+      app: dlstreamer-pipeline-server
   strategy:
     type: Recreate
   template:
     metadata:
       labels:
-        app: edge-video-analytics-microservice
+        app: dlstreamer-pipeline-server
     spec:
+      securityContext:
+        supplementalGroups: [109,110]
+      {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
+      imagePullSecrets:
+      - name: registryauth
+      {{- end }}
       containers:
-      - name: edge-video-analytics-microservice
-        image: {{ $.Values.DOCKER_REGISTRY }}intel/edge-video-analytics-microservice:2.4.0
+      - name: dlstreamer-pipeline-server
+        image: {{ $.Values.DOCKER_REGISTRY }}intel/dlstreamer-pipeline-server:3.0.0
+        imagePullPolicy: {{ $.Values.imagePullPolicy }}
+        {{- if $.Values.privileged_access_required }}
         securityContext:
-          supplementalGroups:
-            - 109
-            - 110
+          privileged: true  # Required for direct access to /dev
+        {{- end }}
+        {{- if $.Values.gpu.enabled }}
+        resources:
+          limits:
+            {{ $.Values.gpu.type }}: {{ $.Values.gpu.count }}
+        {{- end }}
         env:
         - name: APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC
           value: "{{ $.Values.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
@@ -35,22 +47,12 @@ spec:
           value: {{ $.Values.env.DETECTION_DEVICE }}
         - name: ENABLE_RTSP
           value: "{{ $.Values.env.ENABLE_RTSP }}"
-        - name: ENABLE_WEBRTC
-          value: "{{ $.Values.env.ENABLE_WEBRTC }}"
-        - name: GENICAM
-          value: {{ $.Values.env.GENICAM }}
         - name: GST_DEBUG
           value: '{{ $.Values.env.GST_DEBUG }}'
         - name: HTTPS
           value: "{{ $.Values.env.HTTPS }}"
-        - name: LSFEATURE_NAME
-          value: '{{ $.Values.env.LSFEATURE_NAME }}'
         - name: RTSP_PORT
           value: "{{ $.Values.env.RTSP_PORT }}"
-        - name: RUN_MODE
-          value: {{ $.Values.env.RUN_MODE }}
-        - name: WEBRTC_SIGNALING_SERVER
-          value: {{ $.Values.env.WEBRTC_SIGNALING_SERVER }}
         - name: http_proxy
           value: {{ $.Values.env.http_proxy }}
         - name: https_proxy
@@ -58,13 +60,11 @@ spec:
         - name: no_proxy
           value: {{ $.Values.env.no_proxy }}
         volumeMounts:
-        - name: evam-input
+        - name: dlstreamer-pipeline-server-input
           mountPath: /home/pipeline-server/config.json
           subPath: config.json
         - mountPath: /var/cache/pipeline_root
-          name: vol-evam-pipeline-root-tmpfs0
-        - name: mr-models
-          mountPath: /home/pipeline-server/mr_models
+          name: vol-pipeline-root-tmpfs0
         - name: dev
           mountPath: /dev
         - name: dev-shm
@@ -75,25 +75,12 @@ spec:
           mountPath: /var/tmp
         - name: run-udev
           mountPath: /run/udev
-        # securityContext:
-        #   supplementalGroups:
-        #     - 109
-        #     - 110
-      # - ports:
-      #   - containerPort: 8080
-      #     protocol: TCP
-      #   - containerPort: 8554
-      #     protocol: TCP
-      # - restartPolicy: Always
       volumes:
-      - name: evam-input
+      - name: dlstreamer-pipeline-server-input
         configMap:
-          name: evam-config-input
-      - name: vol-evam-pipeline-root-tmpfs0
+          name: dlstreamer-pipeline-server-config-input
+      - name: vol-pipeline-root-tmpfs0
         emptyDir: {}
-      - name: mr-models
-        hostPath:
-          path: {{ $.Values.env.mr_models }}
       - name: dev
         hostPath:
           path: /dev

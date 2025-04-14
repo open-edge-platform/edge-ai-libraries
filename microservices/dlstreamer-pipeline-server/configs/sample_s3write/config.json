@@ -24,7 +24,7 @@
                 "auto_start": false,
                 "mqtt_publisher": {
                     "publish_frame": false,
-                    "topic": "edge_video_analytics_results"
+                    "topic": "dlstreamer_pipeline_results"
                   }
             }
         ]

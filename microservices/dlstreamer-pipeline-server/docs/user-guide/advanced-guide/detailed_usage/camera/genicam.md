@@ -67,11 +67,11 @@ Download and extract pylon package (minimum pylon-8.0.2) [here](https://www.basl
 ## Prerequisites for Working with the GenICam Compliant GigE Cameras
 
 > - Add `<HOST_IP>` to the `no_proxy` environment variable in the Multimodal Data Visualization Streaming visualizer's `docker-compose.yml` file.
-> - Add `network_mode: host` in the `[EVAM_WORKDIR]/docker/docker-compose.yml` file and comment/remove `networks` and `ports` sections. Refer the below snip for making the changes
+> - Add `network_mode: host` in the `[WORKDIR]/docker/docker-compose.yml` file and comment/remove `networks` and `ports` sections. Refer the below snip for making the changes
 > - Set `ETCD_HOST` to `<HOST_IP>`
 
 ```yaml
-ia_edge_video_analytics_microservice:
+dlstreamer-pipeline-server:
   # Add network mode host
   network_mode: host
   ...
@@ -89,7 +89,7 @@ ia_edge_video_analytics_microservice:
     # - '65114:65114'
 ```
 
-> - Refer the following configuration for configuring the `[EVAM_WORKDIR]/configs/default/config.json` file for GenICam GigE/USB3.0 cameras.
+> - Refer the following configuration for configuring the `[WORKDIR]/configs/default/config.json` file for GenICam GigE/USB3.0 cameras.
 
   ```sh
   "pipeline": "gencamsrc serial=<DEVICE_SERIAL_NUMBER> pixel-format=<PIXEL_FORMAT> name=source ! videoconvert ! video/x-raw,format=BGR ! appsink name=destination"

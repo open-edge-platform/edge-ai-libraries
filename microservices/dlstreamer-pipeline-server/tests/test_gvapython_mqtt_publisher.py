@@ -60,10 +60,10 @@ class TestMQTTPublisher:
     #         expected_payload = (metadata,
     #                             base64.b64encode(frame).decode('utf-8'))
     #         mqtt_pub_obj.client.publish.assert_called_with(
-    #             "edge_video_analytics_results", payload=json.dumps(expected_payload))
+    #             "dlstreamer_pipeline_results", payload=json.dumps(expected_payload))
     #     else:
     #         mqtt_pub_obj.client.publish.assert_called_with(
-    #             "edge_video_analytics_results", payload=json.dumps(metadata))
+    #             "dlstreamer_pipeline_results", payload=json.dumps(metadata))
     #     #===========
 
 

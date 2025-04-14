@@ -477,7 +477,7 @@ gst_gencamsrc_init (GstGencamsrc * gencamsrc)
     GST_DEBUG_OBJECT (gencamsrc, "GENICAM_MODE doesn't exist");
   }
 
-  // disabling unlimited license for Balluff from EVAM v2.2.0 onwards
+  // disabling unlimited license for Balluff from DLStreamer Pipeline Server v2.2.0 onwards
   unsetenv(env_variable);
 
   GencamParams *prop = &gencamsrc->properties;
