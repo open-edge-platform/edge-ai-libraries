@@ -1,27 +1,38 @@
 global:
   huggingface:
-    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+    apiToken: <huggingface-api-token> # Set this during installation
   proxy:
-    no_proxy: <NO_PROXY>
-    http_proxy: <HTTP_PROXY>
-    https_proxy: <HTTPS_PROXY>
-  POSTGRES_USER: <POSTGRES_USER>
-  POSTGRES_PASSWORD: <POSTGRES_PASSWORD>
-  MINIO_ROOT_USER: <MINIO_ROOT_USER>
-  MINIO_ROOT_PASSWORD: <MINIO_ROOT_PASSWORD>
-  LLM_MODEL: <LLM_MODEL>
-  EMBEDDING_MODEL_NAME: <EMBEDDING_MODEL_NAME>
-  RERANKER_MODEL: <RERANKER_MODEL>
+    no_proxy: <no-proxy>
+    http_proxy: <http-proxy>
+    https_proxy: <https-proxy>
+  UI_NODEPORT: <ui-nodeport>
+  POSTGRES_USER: <postgres-user>
+  POSTGRES_PASSWORD: <postgres-password>
+  MINIO_ROOT_USER: <minio-root-user>
+  MINIO_ROOT_PASSWORD: <minio-root-password>
+  LLM_MODEL: <llm-model>
+  EMBEDDING_MODEL_NAME: <embedding-model-name>
+  RERANKER_MODEL: <reranker-model>
+  OTLP_ENDPOINT: <otlp-endpoint>
+  OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
     enabled: false
+  egai_minio_pvc:
+    size: 20Gi
+  egai_reranker_pvc:
+    size: 20Gi
+  egai_vllm_pvc:
+    size: 20Gi
+  egai_ovms_embed_pvc:
+    size: 20Gi
 
 Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.1.1"
+    tag: "1.1.2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -39,15 +50,8 @@ Chatqna:
     REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     PG_CONNECTION_STRING: postgresql+psycopg://
 
-chatqna-ui:
-  nameOverride: "ui"
-
 dataprepPgvector:
   name: document-ingestion
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
   service:
     type: ClusterIP
     port: 8000
@@ -72,5 +76,7 @@ reranker:
   service:
     port: 8090
 chatqnaui:
+  name: chatqna-ui
+  nameOverride: "ui"
   service:
     port: 80

@@ -44,5 +44,5 @@ spec:
             - "0"
       volumes:
         - name: data
-          hostPath:
-            path: /data
+          persistentVolumeClaim:
+            claimName: egai-tgi-pvc

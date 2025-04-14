@@ -52,7 +52,7 @@ export OTLP_SERVICE_ENV=chatqna
 # VLLM
 export TENSOR_PARALLEL_SIZE=1
 export KVCACHE_SPACE=50
-export VOLUME_VLLM=${PWD}/data
+#export VOLUME_VLLM=${PWD}/data
 
 # OVMS
 export MODEL_DIRECTORY_NAME=$(basename $LLM_MODEL)
@@ -60,7 +60,19 @@ export WEIGHT_FORMAT=fp16
 export VOLUME_OVMS=${PWD}/ovms_config
 
 #TGI
-export VOLUME=$PWD/data
+#export VOLUME=$PWD/data
+
+if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
+  export BE_IMAGE_NAME="${REGISTRY}chatqna:${TAG}"
+else
+  export BE_IMAGE_NAME="chatqna:latest"
+fi
+
+if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
+  export FE_IMAGE_NAME="${REGISTRY:-}chatqna-ui:${TAG:-latest}"
+else
+  export FE_IMAGE_NAME="chatqna-ui:latest"
+fi
 
 setup_inference() {
         local service=$1

@@ -20,11 +20,11 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       cd <repository-url>/sample-applications/chat-question-and-answer
       ```
-      **_Embedding Models Supported for each model server_**
-      | Model Server | Models Supported |
+      **_Embedding Models validated for each model server_**
+      | Model Server | Models Validated |
       |--------------|-------------------|
-      | `TEI`        | `BAAI/bge-small-en-v1.5`, `BAAI/bge-base-en-v1.5`, `BAAI/bge-large-en-v1.5` |
-      | `OVMS`       | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5`, `Alibaba-NLP/gte-large-en-v1.5`, `thenlper/gte-small` |
+      | `TEI`        | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
+      | `OVMS`       | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
 
 3. **Set Up Environment Variables**:
     Set up the environment variables based on the inference method you plan to use:
@@ -35,8 +35,8 @@ Before you begin, ensure that you have the following prerequisites:
     export LLM_MODEL=Intel/neural-chat-7b-v3-3
     export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
     export RERANKER_MODEL=BAAI/bge-reranker-base
-    export OTLP_ENDPOINT_TRACE=<OTLP_ENDPOINT_TRACE> # Optional. Set only if there is an OTLP endpoint available
-    export OTLP_ENDPOINT=<OTLP_ENDPOINT> # Optional. Set only if there is an OTLP endpoint available
+    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available
+    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available
     ```
 
     _Environment variables for OVMS as inference_
@@ -53,21 +53,22 @@ Before you begin, ensure that you have the following prerequisites:
     # Login using huggingface-cli
     pip install huggingface-hub
     huggingface-cli login
-    # pass hf_token
+    # pass hugging face token
     ```
 
     _Run the below script to set up the rest of the environment depending on the model server and embedding._
     ```bash
-    source setup.sh llm=<ModelServer> embed=<Embedding>
+    export REGISTRY="intel/"
+    source setup.sh llm=<model-server> embed=<embedding>
     # Below are the options
-    # ModelServer: VLLM , OVMS, TGI
-    # Embedding: OVMS, TEI
+    # model-server: VLLM , OVMS, TGI
+    # embedding: OVMS, TEI
     ```
 
 4. **Build the Docker Image**:
     - Build the Docker image for the ChatQ&A Sample Application:
       ```bash
-      docker compose build chatqna
+      docker compose build
       ```
 
 5. **Run the Docker Container**:
@@ -77,7 +78,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```
 
 6. **Access the Application**:
-    - Open a browser and go to `http://{host_ip}:5173` to access the application dashboard.
+    - Open a browser and go to `http://<host-ip>:5173` to access the application dashboard.
 
 ## Verification
 
@@ -91,5 +92,5 @@ Before you begin, ensure that you have the following prerequisites:
 
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
   ```bash
-  docker logs <container_id>
+  docker logs <container-id>
   ```

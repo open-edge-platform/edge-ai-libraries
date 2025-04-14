@@ -22,6 +22,4 @@ tgiService:
     type: ClusterIP
     port: 8080
     targetPort: 80
-  volumes:
-    - $PWD/data_tgi:/data
   shm_size: 1g

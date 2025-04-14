@@ -1,6 +1,6 @@
 image:
   registry: "intel/"
-  backendTag: "core_1.1.1"
+  backendTag: "core_1.1.2"
   pullPolicy: IfNotPresent
 
 global:
@@ -13,7 +13,9 @@ global:
   RERANKER_MODEL: ""
   LLM_MODEL: ""
   model_cache_path: "/tmp/model_cache"
-
+  UI_NODEPORT: <ui-nodeport>
+  pvc:
+    size: 40Gi
 chatqna:
   name: chatqna-core
   service:

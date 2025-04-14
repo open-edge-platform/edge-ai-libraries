@@ -63,12 +63,10 @@ metadata:
 spec:
   selector:
     matchLabels:
-      {{- include "chatqna-helm-chart.selectorLabels" . | nindent 6 }}
       app: {{ include "nginx.fullname" . }}
   template:
     metadata:
       labels:
-        {{- include "chatqna-helm-chart.selectorLabels" . | nindent 8 }}
         app: {{ include "nginx.fullname" . }}
     spec:
       containers:
@@ -106,7 +104,7 @@ spec:
   - port: 80
     protocol: TCP
     targetPort: 80
+    nodePort: {{ .Values.global.UI_NODEPORT }}
   selector:
-    {{- include "chatqna-helm-chart.selectorLabels" . | nindent 4 }}
     app: {{ include "nginx.fullname" . }}
   type: NodePort

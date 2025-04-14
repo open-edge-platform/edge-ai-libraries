@@ -62,14 +62,19 @@ If you want to build the images using the `compose.yaml` file via the `docker co
    ```bash
    cd sample-applications/chat-question-and-answer-core
    ```
-
-2. Build the Docker images using the `compose.yaml` file:
+2. Set Up Environment Variables:
+   ```bash
+      export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+      source scripts/setup_env.sh
+   ```
+   
+3. Build the Docker images using the `compose.yaml` file:
 
    ```bash
    docker compose -f docker/compose.yaml build
    ```
 
-3. Verify that the Docker images have been built successfully:
+4. Verify that the Docker images have been built successfully:
    ```bash
    docker images | grep chatqna
    ```
@@ -81,5 +86,3 @@ You should see entries for both `chatqna` and `chatqna-ui`.
   ```bash
   docker logs <container-id>
   ```
-
-## Next Steps

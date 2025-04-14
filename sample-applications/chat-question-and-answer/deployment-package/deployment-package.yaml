@@ -1,0 +1,32 @@
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: LicenseRef-Intel
+---
+specSchema: "DeploymentPackage"
+schemaVersion: "0.1"
+$schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
+
+name: "chatqna"
+displayName: "chatqna"
+description: "Chat Q&A Sample Application"
+version: "1.1.1"
+
+applications:
+  - name: chatqna-app
+    version: 1.1.1
+
+defaultNamespaces:
+  chatqna-app: chatqna
+
+deploymentProfiles:
+  - name: "ovms"
+    applicationProfiles:
+      - application: "chatqna-app"
+        profile: "ovms"
+  - name: "tgi"
+    applicationProfiles:
+      - application: "chatqna-app"
+        profile: "tgi"
+  - name: "vllm"
+    applicationProfiles:
+      - application: "chatqna-app"
+        profile: "vllm"

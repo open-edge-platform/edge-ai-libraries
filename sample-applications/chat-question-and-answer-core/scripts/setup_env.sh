@@ -27,6 +27,7 @@ fi
 
 # Export environment variables
 export HOST_IP=$(hostname -I | awk '{print $1}')
+export GID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
 export LLM_MODEL_ID="Intel/neural-chat-7b-v3-3"
