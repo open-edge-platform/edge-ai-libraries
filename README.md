@@ -1,5 +1,5 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue)]()
-[![#Libraries](https://img.shields.io/badge/%23Libraries-6-green)]()
+[![#Libraries](https://img.shields.io/badge/%23Libraries-7-green)]()
 [![#Microservices](https://img.shields.io/badge/%23Microservices-4-green)]()
 [![#Tools](https://img.shields.io/badge/%23Tools-1-green)]()
 [![#Samples](https://img.shields.io/badge/%23Samples-2-green)]()
