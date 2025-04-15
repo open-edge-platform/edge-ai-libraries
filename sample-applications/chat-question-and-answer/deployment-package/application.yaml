@@ -80,14 +80,6 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
-      - name: global.ovmsEmbeddingService.enabled
-        displayName: OVMS Embedding Service
-        type: boolean
-        mandatory: true
-      - name: global.teiEmbeddingService.enabled
-        displayName: TEI Embedding Service
-        type: boolean
-        mandatory: true
   - name: "vllm"
     valuesFileName: "chatqna-values-vllm.yaml"
     parameterTemplates:
@@ -152,14 +144,6 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
-      - name: global.ovmsEmbeddingService.enabled
-        displayName: OVMS Embedding Service
-        type: boolean
-        mandatory: true
-      - name: global.teiEmbeddingService.enabled
-        displayName: TEI Embedding Service
-        type: boolean
-        mandatory: true
   - name: "tgi"
     valuesFileName: "chatqna-values-tgi.yaml"
     parameterTemplates:
@@ -224,11 +208,3 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
-      - name: global.ovmsEmbeddingService.enabled
-        displayName: OVMS Embedding Service
-        type: boolean
-        mandatory: true
-      - name: global.teiEmbeddingService.enabled
-        displayName: TEI Embedding Service
-        type: boolean
-        mandatory: true
