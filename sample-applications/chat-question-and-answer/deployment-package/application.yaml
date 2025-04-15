@@ -35,6 +35,10 @@ profiles:
         displayName: "Huggingface API Token"
         type: string
         mandatory: true
+      - name: global.UI_NODEPORT
+        displayName: "Static UI NodePort"
+        type: string
+        mandatory: true
       - name: global.POSTGRES_USER
         displayName: "Postgres username"
         type: string
@@ -68,6 +72,14 @@ profiles:
         type: string
         default: ""
         mandatory: true
+      - name: global.OTLP_ENDPOINT
+        displayName: "OTLP Endpoint"
+        type: string
+        default: ""
+      - name: global.OTLP_ENDPOINT_TRACE
+        displayName: "OTLP Endpoint Trace"
+        type: string
+        default: ""
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
         type: boolean
@@ -95,6 +107,10 @@ profiles:
         displayName: "Huggingface API Token"
         type: string
         mandatory: true
+      - name: global.UI_NODEPORT
+        displayName: "Static UI NodePort"
+        type: string
+        mandatory: true
       - name: global.POSTGRES_USER
         displayName: "Postgres username"
         type: string
@@ -128,6 +144,14 @@ profiles:
         type: string
         default: ""
         mandatory: true
+      - name: global.OTLP_ENDPOINT
+        displayName: "OTLP Endpoint"
+        type: string
+        default: ""
+      - name: global.OTLP_ENDPOINT_TRACE
+        displayName: "OTLP Endpoint Trace"
+        type: string
+        default: ""
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
         type: boolean
@@ -155,6 +179,10 @@ profiles:
         displayName: "Huggingface API Token"
         type: string
         mandatory: true
+      - name: global.UI_NODEPORT
+        displayName: "Static UI NodePort"
+        type: string
+        mandatory: true
       - name: global.POSTGRES_USER
         displayName: "Postgres username"
         type: string
@@ -188,6 +216,14 @@ profiles:
         type: string
         default: ""
         mandatory: true
+      - name: global.OTLP_ENDPOINT
+        displayName: "OTLP Endpoint"
+        type: string
+        default: ""
+      - name: global.OTLP_ENDPOINT_TRACE
+        displayName: "OTLP Endpoint Trace"
+        type: string
+        default: ""
       - name: global.ovmsEmbeddingService.enabled
         displayName: OVMS Embedding Service
         type: boolean
