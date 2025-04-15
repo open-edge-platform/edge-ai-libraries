@@ -5,6 +5,8 @@
 
 The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. This project also includes sample applications to showcase the generic AI use cases.
 
+Key components of the **Edge AI Libraries**:
+
 | Component | Category | Get Started | Developers Docs |
 |:----------|:---------|:------------|:-----------------|
 | [Deep Learning Streamer](libraries/dl-streamer) | Library | [link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
@@ -14,6 +16,7 @@ The **Edge AI Libraries** project hosts a collection of libraries, microservices
 | [OpenVINO™ Training Extensions](https://github.com/open-edge-platform/training_extensions) | Library | [link](https://github.com/open-edge-platform/training_extensions?tab=readme-ov-file#introduction) | [API Reference](https://github.com/open-edge-platform/training_extensions?tab=readme-ov-file#quick-start) |
 | [Database Management Framework (Datumaro)](https://github.com/open-edge-platform/datumaro) | Library | [link](https://github.com/open-edge-platform/datumaro?tab=readme-ov-file#features) | [API Reference](https://open-edge-platform.github.io/datumaro/latest/docs/reference/datumaro_module.html) |
 | [OpenVINO™ Model API](https://github.com/open-edge-platform/model_api) | Library | [link](https://github.com/open-edge-platform/model_api?tab=readme-ov-file#installation) | [API Reference](https://github.com/open-edge-platform/model_api?tab=readme-ov-file#usage) |
+| [iVSR SDK](https://github.com/OpenVisualCloud/iVSR) | Library |  | [Usage](https://github.com/OpenVisualCloud/iVSR/tree/master/docs) |
 | [Video Super Resolution](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library) | Library |  | [Usage](https://github.com/OpenVisualCloud/Video-Super-Resolution-Library/tree/main/docs) |
 | [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) | Microservice | [link](microservices/dlstreamer-pipeline-server#quick-try-out) | [API Reference](microservices/dlstreamer-pipeline-server/docs/user-guide/api-docs/pipeline-server.yaml) |
 | [Document Ingestion](microservices/document-ingestion) | Microservice | [link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
