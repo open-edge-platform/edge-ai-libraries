@@ -1,24 +1,24 @@
-# Deploy with the Edge Manageability Framework
+# Deploy with Edge Orchestrator
 
-Edge Manageability Framework, part of Intel’s Open Edge Software, simplifies edge application deployment and management, making it easier to deploy edge solutions at scale. Edge Manageability Framework provides:
+Edge Orchestrator, part of Intel’s Open Edge Software, simplifies edge application deployment and management, making it easier to deploy edge solutions at scale. Edge Orchestrator provides:
 
 * **Secure Infrastructure Management**: Offers secure and efficient remote onboarding and management of your edge node fleet across sites and geographies. Zero-trust security configuration reduces the time required to secure your edge applications.
 
-* **Deployment Orchestration and Automation**: Lets you roll out and update applications and configure infrastructure nodes across your network from a single pane of glass. Edge Manageability Framework provides automated cluster orchestration and dynamic application deployment.
+* **Deployment Orchestration and Automation**: Lets you roll out and update applications and configure infrastructure nodes across your network from a single pane of glass. Edge Orchestrator provides automated cluster orchestration and dynamic application deployment.
 
 * **Automated Deployment**: Automates the remote installation and updating of applications at scale.
 
 * **Deep Telemetry**: Gives you policy-based Lifecycle management and centralized visibility into your distributed edge infrastructure and deployments.
 
-* **Flexible Configuration**: From organizing your physical infrastructure to managing the permutations of executing applications in a variety of runtime environments,Edge Manageability Framework gives you flexibility to define the policies, criteria, and hierarchies that make the most sense for your specific business needs.
+* **Flexible Configuration**: From organizing your physical infrastructure to managing the permutations of executing applications in a variety of runtime environments,Edge Orchestrator gives you flexibility to define the policies, criteria, and hierarchies that make the most sense for your specific business needs.
 
-To deploy the **ChatQ&A** application on the Edge Management Framework follow the steps described in the document
+To deploy the **ChatQ&A** application with the Edge Orchestrator follow the steps described in the document
 
-## Procedure to Deploy on Edge Manageability Framework
+## Procedure to Deploy with Edge Orchestrator
 
 ### Prerequisites
 
-1. Access to the web interface of the Edge Manageability Framework with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard.html#onboard-edge-nodes>) to the Edge Manageability Framework.
+1. Access to the web interface of the Edge Orchestrator with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard.html#onboard-edge-nodes>) to the Edge Orchestrator.
 1. Clusters with [privileged template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/additional_howtos/set_up_a_cluster_template.html#cluster-template>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/create_clusters.html#create-cluster>)
 
 ### Making available Deployment Package
@@ -33,9 +33,9 @@ To deploy the **ChatQ&A** application on the Edge Management Framework follow th
 
     The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries`. In case of forked repos, please ensure the right url is used when cloning the repo.
 
-2. From the web-browser open the URL of the Edge Manageability Framework and Import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html#import-deployment-package>)
+2. From the web-browser open the URL of the Edge Orchestrator and Import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html#import-deployment-package>)
 
-3. Once the deployment package has been imported into Edge Manageability Framework, you can see it in the list of Web UI as shown here.
+3. Once the deployment package has been imported into Edge Orchestrator, you can see it in the list of Web UI as shown here.
 
     **![ChatQnA Image](./images/chatqna-emf.png)**
 
@@ -67,7 +67,7 @@ To set up a deployment:
 
 After a few minutes, the deployment will start and will take about 5 minutes to complete.
 
-In the Edge Manageability Framework Web UI, you can track the application installation through the [View Deployment Details](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deployment_details.html#view-deployment-details>) view.
+In the Edge Orchestrator Web UI, you can track the application installation through the [View Deployment Details](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deployment_details.html#view-deployment-details>) view.
 
 **ChatQ&A** sample application is fully deployed when the applications become green and the status is shown as _Running_.
 

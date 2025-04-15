@@ -14,7 +14,7 @@
 
    build-from-source
    deploy-with-helm
-   deploy-with-edge-manageability-framework
+   deploy-with-edge-orchestrator
    how-to-performance
 
 .. toctree::

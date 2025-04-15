@@ -52,6 +52,8 @@ Detailed hardware and software requirements are available [here](./system-requir
 
 To get started with the application, please refer to the [Get Started](./get-started.md) page.
 
+[This sample application is ready for deployment with Edge Orchestrator. Download the deployment package and follow the instructions](deploy-with-edge-orchestrator.md)
+
 ## Benchmark Results
 
 Detailed metrics and analysis can be found in the benchmark report [here](./benchmarks.md).
