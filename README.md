@@ -25,7 +25,7 @@ The **Edge AI Libraries** project hosts a collection of libraries, microservices
 | [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) | Tool | [Link](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/get-started.md) | [Build](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/how-to-build-source.md) instructions |
 | [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/build-from-source.md) instructions |
 | [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/build-from-source.md) instructions |
-| [Geti](https://github.com/open-edge-platform/geti) | Application | [Link](https://docs.geti.intel.com/) | [Docs](https://docs.geti.intel.com) |
+| [Intel® Geti™](https://github.com/open-edge-platform/geti) | Application | [Link](https://docs.geti.intel.com/) | [Docs](https://docs.geti.intel.com) |
 
 Please visit each library/microservice/tool/sample sub-directory for respective **Getting Started**, **Build** instructions and **Development** guides.
 
