@@ -1,4 +1,4 @@
-# How to Deploy with the Edge Manageability Framework
+# Deploy with the Edge Manageability Framework
 
 Edge Manageability Framework, part of Intel’s Open Edge Software, simplifies edge application deployment and management, making it easier to deploy edge solutions at scale. Edge Manageability Framework provides:
 
@@ -18,26 +18,28 @@ To deploy the **ChatQ&A** application on the Edge Management Framework follow th
 
 ### Prerequisites
 
-1. Access to the web interface of the Edge Manageability Framework with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard.html>) to the Edge Manageability Framework.
-1. Clusters with [privilege template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/additional_howtos/set_up_a_cluster_template.html>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/create_clusters.html#create-clusters>)
+1. Access to the web interface of the Edge Manageability Framework with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard.html#onboard-edge-nodes>) to the Edge Manageability Framework.
+1. Clusters with [privileged template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/additional_howtos/set_up_a_cluster_template.html#cluster-template>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/create_clusters.html#create-cluster>)
 
 ### Making available Deployment Package
 
 1. Clone the **ChatQ&A Repo**
    Clone the repository.
+
     ```bash
     git clone <repository-url>
     cd <repository-url>/sample-applications/chat-question-and-answer
     ```
+
     The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries`. In case of forked repos, please ensure the right url is used when cloning the repo.
 
-2. From the web-browser open the URL of the Edge Manageability Framework and Import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html>)
+2. From the web-browser open the URL of the Edge Manageability Framework and Import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html#import-deployment-package>)
 
 3. Once the deployment package has been imported into Edge Manageability Framework, you can see it in the list of Web UI as shown here.
-   
-    **![ChatQnA Image](./images/chatqna-emf.png)** 
 
-See [Deployment Packages](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deploy_packages.html#deploy-packages>) for more information on deployment packages.
+    **![ChatQnA Image](./images/chatqna-emf.png)**
+
+See [Deployment Packages](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deploy_packages.html#deployment-packages>) for more information on deployment packages.
 
 ### Deploy the Application onto the Edge Nodes
 
@@ -50,7 +52,6 @@ To set up a deployment:
 1. In the Setup a Deployment page, select the **chat-question-and-answer** package for the deployment from list, and click Next. The Select a Profile step appears:
 
 1. In the Select a Profile step, select the deployment profile, and click Next. The Override Profile Values page appears.
-
 
 1. The Override Profile Values page shows the deployment profile values that are available for overriding. Provide the necessary overriding values, then click Next to proceed to the Select Deployment type step.
 
@@ -66,7 +67,7 @@ To set up a deployment:
 
 After a few minutes, the deployment will start and will take about 5 minutes to complete.
 
-In the Edge Manageability Framework Web UI, you can track the application installation through the [View Deployment Details](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deployment_details.html#deployment-details>) view.
+In the Edge Manageability Framework Web UI, you can track the application installation through the [View Deployment Details](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/deployment_details.html#view-deployment-details>) view.
 
 **ChatQ&A** sample application is fully deployed when the applications become green and the status is shown as _Running_.
 
