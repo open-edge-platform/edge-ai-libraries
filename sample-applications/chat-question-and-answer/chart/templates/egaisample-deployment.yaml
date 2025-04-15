@@ -52,9 +52,17 @@ spec:
             - name: PG_CONNECTION_STRING
               value: {{ .Values.Chatqna.env.PG_CONNECTION_STRING }}{{ .Values.global.POSTGRES_USER }}:{{ .Values.global.POSTGRES_PASSWORD }}@pgvector.{{ .Release.Namespace }}:{{ .Values.Chatqna.env.PORT_DB }}
             - name: OTLP_ENDPOINT
-              value:  {{ .Values.global.OTLP_ENDPOINT }}
+              value:  {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
+                          
+                      {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT }}
+                      {{- end }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value:  {{ .Values.global.OTLP_ENDPOINT }}
+              value:  {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
+                          
+                      {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT }}
+                      {{- end }}
             - name: SERVICE_NAME
               value:  {{ .Values.Chatqna.env.SERVICE_NAME }}
             - name: SERVICE_ENV
@@ -63,6 +71,8 @@ spec:
               value:  {{ .Values.Chatqna.env.OTEL_METRICS_EXPORTER }}
             - name: OTEL_TRACES_EXPORTER
               value:  {{ .Values.Chatqna.env.OTEL_TRACES_EXPORTER }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
+              value:  {{ .Values.Chatqna.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }}  
             - name: REQUESTS_CA_BUNDLE
               value:  {{ .Values.Chatqna.env.REQUESTS_CA_BUNDLE }}
             - name: ENDPOINT_URL

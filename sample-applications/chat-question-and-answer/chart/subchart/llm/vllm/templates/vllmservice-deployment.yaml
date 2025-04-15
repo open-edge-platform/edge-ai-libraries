@@ -41,15 +41,15 @@ spec:
             - name: LLM_MODEL
               value: {{ .Values.global.LLM_MODEL }}
             - name: VLLM_CPU_KVCACHE_SPACE
-              value: "40"
+              value: "{{ .Values.vllmService.env.KVCACHE }}"
             - name: VLLM_OPENVINO_KVCACHE_SPACE
-              value: "40"
+              value: "{{ .Values.vllmService.env.KVCACHE }}"
             - name: TENSOR_PARALLEL_SIZE
-              value: "1"
+              value: "{{ .Values.vllmService.env.TENSOR_PARALLEL_SIZE }}"
             - name: VLLM_OPENVINO_CPU_KV_CACHE_PRECISION
-              value: "u8"
+              value: "{{ .Values.vllmService.env.VLLM_OPENVINO_CPU_KV_CACHE_PRECISION }}"
             - name: VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS
-              value: "ON"
+              value: "{{ .Values.vllmService.env.VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS }}"
             - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
               value: {{ .Values.vllmService.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }} 
             - name: OTEL_METRICS_EXPORTER
@@ -61,15 +61,21 @@ spec:
             - name: OTEL_SERVICE_ENV
               value: {{ .Values.vllmService.env.OTEL_SERVICE_ENV }}
             - name: OTLP_ENDPOINT
-              value: {{ .Values.global.OTLP_ENDPOINT }}
+              value: {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
+                          
+                      {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT }}
+                      {{- end }}
             - name: OTLP_ENDPOINT_TRACE
-              value: {{ .Values.global.OTLP_ENDPOINT_TRACE }}          
+              value: {{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}} 
+                          
+                      {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT_TRACE }}
+                      {{- end }}        
           command:
             - "/bin/bash"
             - "-c"
             - >
-              echo {{ .Values.global.OTLP_ENDPOINT }} &&
-              echo {{ .Values.global.OTLP_ENDPOINT_TRACE }} &&
               pip install 'opentelemetry-sdk>=1.26.0,<1.27.0'
               'opentelemetry-api>=1.26.0,<1.27.0'
               'opentelemetry-exporter-otlp>=1.26.0,<1.27.0'
@@ -77,7 +83,10 @@ spec:
               opentelemetry-instrumentation-fastapi &&
               opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server
               --enforce-eager
-              --otlp-traces-endpoint={{ .Values.global.OTLP_ENDPOINT_TRACE }}
+              --otlp-traces-endpoint={{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}}
+                      {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT_TRACE }}
+                      {{- end }} 
               --model {{ .Values.global.LLM_MODEL }}
               --tensor-parallel-size 1
               --host 0.0.0.0

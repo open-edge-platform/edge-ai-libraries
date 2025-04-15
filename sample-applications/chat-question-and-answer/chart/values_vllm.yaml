@@ -47,6 +47,7 @@ Chatqna:
     SERVICE_ENV: chatqna
     OTEL_METRICS_EXPORTER: otlp
     OTEL_TRACES_EXPORTER: otlp
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
     REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     PG_CONNECTION_STRING: postgresql+psycopg://
 
