@@ -62,24 +62,47 @@ If you want to build the images using the `compose.yaml` file via the `docker co
    ```bash
    cd sample-applications/chat-question-and-answer-core
    ```
+2. Set Up Environment Variables:
+   ```bash
+      export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+      source scripts/setup_env.sh
+   ```
 
-2. Build the Docker images using the `compose.yaml` file:
+3. Build the Docker images using the `compose.yaml` file:
 
    ```bash
    docker compose -f docker/compose.yaml build
    ```
 
-3. Verify that the Docker images have been built successfully:
+4. Verify that the Docker images have been built successfully:
    ```bash
    docker images | grep chatqna
    ```
 
 You should see entries for both `chatqna` and `chatqna-ui`.
 
+## Running the Application Container
+After building the images for the `Chat Question-and-Answer Core` application, you can run the application container using `docker compose` by following these steps:
+
+1. Start the Docker containers with the previously built images:
+   ```bash
+   docker compose -f docker/compose.yaml up
+   ```
+
+2. Access the application:
+   - Open your web browser and navigate to `http://<host-ip>:5173` to view the application dashboard.
+
+## Verification
+
+- Ensure that the application is running by checking the Docker container status:
+  ```bash
+  docker ps
+  ```
+
+- Access the application dashboard and verify that it is functioning as expected.
+
 ## Troubleshooting
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
   ```bash
   docker logs <container-id>
   ```
-
-## Next Steps

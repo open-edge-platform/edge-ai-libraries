@@ -8,9 +8,10 @@ metadata:
 data:
   init-script.sh: |-
     #!/bin/bash
-    export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
-    pip3 install optimum-intel@git+https://github.com/huggingface/optimum-intel.git  openvino-tokenizers[transformers]==2024.4.* openvino==2024.4.* nncf==2.14.0 "transformers<4.45"
-
+    model=$0
+    weight_format=$1
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
+    
     # Log in to Hugging Face using the provided token
     huggingface-cli login --token $2
 
@@ -20,63 +21,10 @@ data:
     else
         echo "Failed to log in to Hugging Face. Please check your token and try again."
     fi
-
-    model=$0
-    weight_format=$1
-    model_directory_name="converted_model"
-
-    # Convert tokenizer and export model to OpenVINO IR format
-    convert_tokenizer -o "${model_directory_name}" --utf8_replace_mode replace --with-detokenizer --skip-special-tokens --streaming-detokenizer --not-add-special-tokens "${model}"
-
-    optimum-cli export openvino --disable-convert-tokenizer --model "${model}" --weight-format "${weight_format}" "${model_directory_name}"
-
-    # Create graph.pbtxt file
-    cat <<EOF > "${model_directory_name}/graph.pbtxt"
-    input_stream: "HTTP_REQUEST_PAYLOAD:input"
-    output_stream: "HTTP_RESPONSE_PAYLOAD:output"
-    node: {
-        name: "LLMExecutor"
-        calculator: "HttpLLMCalculator"
-        input_stream: "LOOPBACK:loopback"
-        input_stream: "HTTP_REQUEST_PAYLOAD:input"
-        input_side_packet: "LLM_NODE_RESOURCES:llm"
-        output_stream: "LOOPBACK:loopback"
-        output_stream: "HTTP_RESPONSE_PAYLOAD:output"
-        input_stream_info: {
-            tag_index: "LOOPBACK:0",
-            back_edge: true
-        }
-        node_options: {
-            [type.googleapis.com / mediapipe.LLMCalculatorOptions]: {
-                models_path: "./",
-                plugin_config: '{"KV_CACHE_PRECISION": "u8", "DYNAMIC_QUANTIZATION_GROUP_SIZE": "32"}',
-                cache_size: 4
-            }
-        }
-        input_stream_handler {
-            input_stream_handler: "SyncSetInputStreamHandler",
-            options {
-                [mediapipe.SyncSetInputStreamHandlerOptions.ext] {
-                    sync_set {
-                        tag_index: "LOOPBACK:0"
-                    }
-                }
-            }
-        }
-    }
-    EOF
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
+    mkdir models
+    python export_model.py text_generation --source_model "${model}" --weight-format int4 --config_file_path models/config.json --model_repository_path models --target_device CPU
     
-    cp -r converted_model /app/data
+    cp -r models /opt/data
 
     echo "All the steps are completed successfully"
-
-  config-converted_model.json: |-
-    {
-        "model_config_list": [],
-        "mediapipe_config_list": [
-            {
-                "name": "{{ .Values.global.LLM_MODEL }}",
-                "base_path": "/app/data/converted_model"
-            }
-        ]
-    }

@@ -2,7 +2,9 @@
 name = "my-app"
 version = "0.1.0"
 description = ""
-authors = ["Yogesh Pandey <yogesh.pandey@intel.com>, Pankaj Kumar Singh <pankaj.kumar.singh@intel.com>"]
+authors = [
+    "Yogesh Pandey <yogesh.pandey@intel.com>, Pankaj Kumar Singh <pankaj.kumar.singh@intel.com>",
+]
 readme = "README.md"
 packages = [{ include = "app" }]
 
@@ -20,9 +22,9 @@ fastapi = "^0.115.0"
 torch = "^2.5.1"
 torchvision = "^0.20.1"
 sentence-transformers = "^3.4.1"
-opentelemetry-sdk = "1.27.0" 
+opentelemetry-sdk = "1.27.0"
 opentelemetry-instrumentation-fastapi = "0.48b0"
-openlit = "1.33.10"
+openlit = "1.33.8"
 httpx = "0.27.2"
 
 [tool.poetry.dev-dependencies]
