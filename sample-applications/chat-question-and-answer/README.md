@@ -1,6 +1,6 @@
-# ChatQ&A Sample Application
+# Chat Question-and-Answer Sample Application
 
-ChatQ&A sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline that allows users to ask questions and receive answers, including those based on their own private data corpus. 
+Chat Question-and-Answer sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline that allows users to ask questions and receive answers, including those based on their own private data corpus. 
 
 Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
 
