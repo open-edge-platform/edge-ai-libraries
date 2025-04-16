@@ -134,10 +134,8 @@ kubectl get services -n <your-namespace>
 
 ### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-Acccess UI through browser with below address:
-http://\<node-ip\>:\<ui-node-port\>
-
-Simply copy and paste the output into your browser.
+Open the UI in a browser at:
+http://<node-ip>:<ui-node-port>
 
 ### Step 8: Update Helm Dependencies
 
