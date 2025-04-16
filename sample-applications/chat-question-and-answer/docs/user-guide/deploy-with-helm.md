@@ -134,13 +134,8 @@ kubectl get services -n <your-namespace>
 
 ### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access a chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
-
-- NodeIP – The internal IP of a worker node.
-- NodePort – The port exposed by the service.
-
 Acccess UI through browser with below address:
-http://<node-ip>:<ui-node-port>
+http://\<node-ip\>:\<ui-node-port\>
 
 Simply copy and paste the output into your browser.
 
