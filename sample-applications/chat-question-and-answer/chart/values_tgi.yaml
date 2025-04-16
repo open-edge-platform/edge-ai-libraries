@@ -7,7 +7,7 @@ global:
     https_proxy: <https-proxy>
   UI_NODEPORT: <ui-nodeport>
   POSTGRES_USER: <postgres-user>
-  POSTGRES_PASSWORD: <postgress-password>
+  POSTGRES_PASSWORD: <postgres-password>
   MINIO_ROOT_USER: <minio-root-user>
   MINIO_ROOT_PASSWORD: <minio-root-password>
   LLM_MODEL: <llm-model>

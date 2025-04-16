@@ -139,10 +139,9 @@ To access a chatqna-nginx service running in your Kubernetes cluster using NodeP
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<ui-node-port\> with your actual values:
-```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>"
-```
+Acccess UI through browser with below address:
+http://<node-ip>:<ui-node-port>
+
 Simply copy and paste the output into your browser.
 
 ### Step 8: Update Helm Dependencies
