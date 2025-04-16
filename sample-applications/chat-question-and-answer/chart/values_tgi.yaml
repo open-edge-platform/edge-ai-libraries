@@ -15,6 +15,7 @@ global:
   RERANKER_MODEL: <reranker-model>
   OTLP_ENDPOINT: <otlp-endpoint>
   OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
+  #Set either one of the below embedding model sever to true
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:

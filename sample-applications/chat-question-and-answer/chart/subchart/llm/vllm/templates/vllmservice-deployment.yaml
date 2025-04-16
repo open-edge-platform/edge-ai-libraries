@@ -84,7 +84,7 @@ spec:
               opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server
               --enforce-eager
               --otlp-traces-endpoint={{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}}
-                      {{- else}}
+                      {{- else }}
                          {{ .Values.global.OTLP_ENDPOINT_TRACE }}
                       {{- end }} 
               --model {{ .Values.global.LLM_MODEL }}
