@@ -61,7 +61,7 @@ By following this guide, you will learn how to:
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
       ```
-    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](./get-started.md#running-the-application-using-docker-compose). 
+    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose). 
 
 5. **Start the Application**:
     Start the application using docker compose:
