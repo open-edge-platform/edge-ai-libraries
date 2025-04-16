@@ -141,7 +141,7 @@ To access a chatqna-nginx service running in your Kubernetes cluster using NodeP
 
 Run the following command after replacing \<ui-node-port\> with your actual values:
 ```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>"
 ```
 Simply copy and paste the output into your browser.
 
