@@ -15,10 +15,11 @@ global:
   RERANKER_MODEL: <reranker-model>
   OTLP_ENDPOINT: <otlp-endpoint>
   OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
+  #Set either one of the below embedding model sever to true by defauly OVMS  is enabled
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
-    enabled: false
+    enabled: true
   egai_minio_pvc:
     size: 20Gi
   egai_reranker_pvc:
@@ -47,6 +48,7 @@ Chatqna:
     SERVICE_ENV: chatqna
     OTEL_METRICS_EXPORTER: otlp
     OTEL_TRACES_EXPORTER: otlp
+    OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
     REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     PG_CONNECTION_STRING: postgresql+psycopg://
 
