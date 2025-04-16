@@ -9,9 +9,6 @@ ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG
 
 1. [Overview and Architecture](#overview-and-architecture)
 2. [How to Use the Application](#how-to-use-the-application)
-3. [Benchmarks](#benchmark-results)
-4. [Release Notes](#release-notes)
-5. [Support and Community](#support-and-community)
 
 ## Overview and Architecture
 
