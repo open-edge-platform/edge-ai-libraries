@@ -141,7 +141,7 @@ To access a chatqna-nginx service running in your Kubernetes cluster using NodeP
 
 Run the following command after replacing \<ui-node-port\> with your actual values:
 ```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>"
 ```
 Simply copy and paste the output into your browser.
 
@@ -170,6 +170,10 @@ helm uninstall <name> -n <your-namespace>
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
   ```bash
   kubectl logs <pod-name>
+  ```
+- The _PVC_ created during helm chart deployment will remain present until explicitly deleted, use the below command to delete:
+  ```bash
+  kubectl delete pvc <pvc-name> -n <namespace>
   ```
 
 ## Related links

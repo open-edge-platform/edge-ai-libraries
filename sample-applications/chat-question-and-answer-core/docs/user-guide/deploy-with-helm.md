@@ -102,7 +102,7 @@ To access a chatqna-core-nginx service running in your Kubernetes cluster using 
 
 Run the following command after replacing \<ui-node-port\> with your actual values:
 ```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>')"
+  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>"
 ```
 Simply copy and paste the output into your browser.
 
@@ -132,7 +132,10 @@ helm uninstall <name> -n <your-namespace>
   ```bash
   kubectl logs <pod_name>
   ```
-
+- The _PVC_ created during helm chart deployment will remain present until explicitly deleted, use the below command to delete:
+  ```bash
+  kubectl delete pvc <pvc-name> -n <namespace>
+  ```
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
