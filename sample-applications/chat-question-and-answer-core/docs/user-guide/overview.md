@@ -1,6 +1,6 @@
 # Chat Question-and-Answer Core Sample Application
 
-ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG) pipeline, enabling users to ask questions and receive answers including on their own private data corpus. The sample application demonstrates how to build RAG pipelines. Compared to the [Chat Question-and-Answer](../../../chat-question-and-answer/) implementation, this implementation of Chat Question-and-Answer Core is optimized for memory footprint as it is built as a single monolith application with the entire RAG pipeline bundled in a single microservice. The microservice supports a bare metal deployment through docker compose installation to emphasize on the monolith objective.
+ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG) pipeline, enabling users to ask questions and receive answers including on their own private data corpus. The sample application demonstrates how to build RAG pipelines. Compared to the [Chat Question-and-Answer](../../../chat-question-and-answer/) implementation, this implementation of Chat Question-and-Answer Core is optimized for memory footprint as it is built as a single monolithic application with the entire RAG pipeline bundled in a single microservice. The microservice supports a bare metal deployment through docker compose installation to emphasize on the monolithic objective.
 
 
 ![ChatQ&A web interface](./images/ChatQnA_Webpage.png)
