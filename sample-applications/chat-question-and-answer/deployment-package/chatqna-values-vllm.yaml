@@ -21,12 +21,14 @@ global:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
-    enabled: true 
+    enabled: true
   egai_minio_pvc:
     size: 20Gi
   egai_reranker_pvc:
     size: 20Gi
   egai-ovms-embed-pvc:
+    size: 20Gi
+  egai_vllm_pvc:
     size: 20Gi
 
 Chatqna:
