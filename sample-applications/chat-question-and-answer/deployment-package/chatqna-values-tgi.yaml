@@ -28,7 +28,7 @@ global:
     size: 20Gi
   egai_tgi_pvc:
     size: 20Gi
-  egai-ovms-embed-pvc:
+  egai_ovms_embed_pvc:
     size: 20Gi
 
 Chatqna:
