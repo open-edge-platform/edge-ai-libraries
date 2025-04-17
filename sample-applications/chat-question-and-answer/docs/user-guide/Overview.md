@@ -9,20 +9,20 @@ ChatQ&A sample application is a foundational Retrieval-Augmented Generation (RAG
 1. [Overview and Architecture](#overview-and-architecture)
 2. [How to Use the Application](#how-to-use-the-application)
 
-## Overview and Architecture
+## Overview
 
 ### Key Features
 
 Key features include:
 
-- **Optimized RAG pipeline on Intel Edge AI Systems hardware**: The application is [optimized](./benchmarks.md) to run efficiently on Intel® Edge AI systems hardware, ensuring high performance and reliability.
-- **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI [inference microservices](../../../../microservices/) allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. For example, developers can customize the data ingestion process for specific document types without altering the rest of the RAG pipeline. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
+- **Optimized RAG pipeline on Intel Edge AI Systems hardware**: The application is [optimized](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/docs/user-guide/benchmarks.md) to run efficiently on Intel® Edge AI systems hardware, ensuring high performance and reliability.
+- **Customizable RAG pipeline with optimized microservices**: Intel's Edge AI [inference microservices](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/microservices) allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. For example, developers can customize the data ingestion process for specific document types without altering the rest of the RAG pipeline. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
 - **Flexible deployment options**: The application provides options for deployment using Docker Compose and Helm charts, enabling developers to choose the best deployment environment for their needs.
 - **Support for a wide range of open-source models**: Intel's inference microservices provide flexibility to use the right GenAI models (LLM, for example) as required for target usage. The application supports various [open-source models](https://huggingface.co/OpenVINO), allowing developers to select the best models for their use cases.
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) & [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
 
-### Technical Architecture
+## How It Works
 
 The ChatQ&A sample application includes the following components:
 
@@ -31,11 +31,11 @@ The ChatQ&A sample application includes the following components:
 - **Reranking inference microservice**: Intel’s optimized [OVMS](https://github.com/openvinotoolkit/model_server) model serving is used to run reranking models optimally on target Intel hardware. Text Embeddings Inference (TEI) is an alternative model serving choice available.
 - **Data ingestion microservice**: The sample data ingestion microservice allows ingestion of common document formats like PDF and DOC. The ingestion process creates embeddings of the documents and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. The sample application uses [PGvector](https://github.com/pgvector/pgvector) database. The raw documents are stored in the MinIO datastore, which is also customizable.
 
-Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
+Further details on the system architecture and customizable options are available [here](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/docs/user-guide/overview-architecture.md).
 
 ![System Architecture Diagram](./images/TEAI_ChatQnA.png)
 
-## How to Use the Application
+### How to Use the Application
 
 The ChatQ&A sample application consists of two main parts:
 
@@ -45,15 +45,15 @@ The ChatQ&A sample application consists of two main parts:
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
 
-Detailed hardware and software requirements are available [here](./system-requirements.md).
+Detailed hardware and software requirements are available [here](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/docs/user-guide/system-requirements.md).
 
-To get started with the application, please refer to the [Get Started](./get-started.md) page.
+To get started with the application, please refer to the [Get Started](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/docs/user-guide/get-started.md) page.
 
 [This sample application is ready for deployment with Edge Orchestrator. Download the deployment package and follow the instructions](deploy-with-edge-orchestrator.md)
 
-## Benchmark Results
+### Benchmark Results
 
-Detailed metrics and analysis can be found in the benchmark report [here](./benchmarks.md).
+Detailed metrics and analysis can be found in the benchmark report [here](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/sample-applications/chat-question-and-answer/docs/user-guide/benchmarks.md).
 
 <!--
 ## Support and Community
