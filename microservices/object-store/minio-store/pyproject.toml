@@ -2,7 +2,7 @@
 name = "minio-store"
 version = "0.1.0"
 description = "A object storage service based on MinIO to ingest files to create embeddings."
-authors = ["Krishna Murti <krishna.murti@intel.com>"]
+authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]

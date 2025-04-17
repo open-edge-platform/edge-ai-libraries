@@ -2,7 +2,7 @@
 name = "chatqna-core"
 version = "0.1"
 description = "A monolithic chat-based question and answer system that leverages Intel's advanced Generative AI technologies and employs Retrieval-Augmented-Generation (RAG) techniques."
-authors = ["Hoong Tee, Yeoh <hoong.tee.yeoh@intel.com>"]
+authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]

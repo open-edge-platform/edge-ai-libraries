@@ -2,7 +2,7 @@
 name = "dataprep-pgvector"
 version = "0.1.0"
 description = "A tool for loading, parsing, and generating embeddings for PDF, DOCX, and TXT files, storing these embeddings in PGVector (Vector Store)"
-authors = ["Hoong Tee, Yeoh <hoong.tee.yeoh@intel.com>"]
+authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]
