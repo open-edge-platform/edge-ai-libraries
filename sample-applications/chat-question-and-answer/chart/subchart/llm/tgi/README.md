@@ -13,9 +13,10 @@ This guide provides instructions for deploying the Text Generation Inference (TG
 1. Clone the repository:
 
   ```sh
-  git clone <repository-url>
-  cd <repository-directory>/chart/subchart/tgi
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+  cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/llm/tgi
   ```
+  Adjust the repo link appropriately in case of forked repo.
 
 2. Update the `values.yaml` file with your Hugging Face API token and other necessary configurations:
 
@@ -33,11 +34,11 @@ This guide provides instructions for deploying the Text Generation Inference (TG
 
   ```sh
   helm install tgi-service . \
-    --set global.huggingface.apiToken=your-huggingface-token \
-    --set global.proxy.http_proxy=<your proxy> \
-    --set global.proxy.https_proxy=<your proxy> \
-    --set global.proxy.no_proxy=<your no_proxy>  \
-    --namespace <YOUR_NAMESPACE>
+    --set global.huggingface.apiToken=<your-huggingface-token> \
+    --set global.proxy.http_proxy=<your-http-proxy> \
+    --set global.proxy.https_proxy=<your-https-proxy> \
+    --set global.proxy.no_proxy=<your-no-proxy>  \
+    --namespace <your-namespace>
   ```
 
 4. Verify the deployment:

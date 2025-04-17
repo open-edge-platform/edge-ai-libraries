@@ -1,10 +1,10 @@
 global:
   proxy:
-    no_proxy: <NO_PROXY>
-    http_proxy: <HTTP_PROXY>
-    https_proxy: <HTTPS_PROXY>
-  POSTGRES_USER: <POSTGRES_USER>
-  POSTGRES_PASSWORD: <POSTGRES_PASSWORD>
+    no_proxy: <no-proxy>
+    http_proxy: <http-proxy>
+    https_proxy: <https-proxy>
+  POSTGRES_USER: <postgres-user>
+  POSTGRES_PASSWORD: <postgres-passwd>
 
 pgvectorContainer:
   name: pgvector
