@@ -21,7 +21,7 @@ global:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
-    enabled: false
+    enabled: true 
   egai_minio_pvc:
     size: 20Gi
   egai_reranker_pvc:
