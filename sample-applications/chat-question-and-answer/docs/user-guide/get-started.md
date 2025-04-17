@@ -76,7 +76,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    ```
-   Note: In case of forked repos, ensure the right URL of the forked repo is entered for the clone command.
+   Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
