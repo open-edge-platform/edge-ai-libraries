@@ -8,9 +8,6 @@ ChatQ&A sample application is a foundational Retrieval-Augmented Generation (RAG
 
 1. [Overview and Architecture](#overview-and-architecture)
 2. [How to Use the Application](#how-to-use-the-application)
-3. [Benchmarks](#benchmark-results)
-4. [Release Notes](#release-notes)
-5. [Support and Community](#support-and-community)
 
 ## Overview and Architecture
 
@@ -51,6 +48,8 @@ Further details on the system architecture and customizable options are availabl
 Detailed hardware and software requirements are available [here](./system-requirements.md).
 
 To get started with the application, please refer to the [Get Started](./get-started.md) page.
+
+[This sample application is ready for deployment with Edge Orchestrator. Download the deployment package and follow the instructions](deploy-with-edge-orchestrator.md)
 
 ## Benchmark Results
 

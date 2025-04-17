@@ -2,9 +2,7 @@
 name = "my-app"
 version = "0.1.0"
 description = ""
-authors = [
-    "Yogesh Pandey <yogesh.pandey@intel.com>, Pankaj Kumar Singh <pankaj.kumar.singh@intel.com>",
-]
+authors = []
 readme = "README.md"
 packages = [{ include = "app" }]
 

@@ -1,0 +1,54 @@
+name: Publish Docs
+
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which target to build'
+        type: choice
+        options:
+        - all-documentation
+        - dlstreamer-pipeline-server
+        - document-ingestion
+        - model-registry
+        - object-store
+        - chat-question-and-answer
+        - visual-pipeline-platform-tool
+
+jobs:
+  build_dlstreamer-pipeline-server:
+    if: ${{ (github.event.inputs.target == 'dlstreamer-pipeline-server') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/dlstreamer-pipeline-server
+  build_document-ingestion:
+    if: ${{ (github.event.inputs.target == 'document-ingestion') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/document-ingestion
+  build_model-registry:
+    if: ${{ (github.event.inputs.target == 'model-registry') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/model-registry
+  build_object-store:
+    if: ${{ (github.event.inputs.target == 'object-store') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/object-store
+  build_chat-question-and-answer:
+    if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: sample-applications/chat-question-and-answer
+  build_visual-pipeline-platform-tool:
+    if: ${{ (github.event.inputs.target == 'visual-pipeline-platform-tool') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: tools/visual-pipeline-and-platform-evaluation-tool

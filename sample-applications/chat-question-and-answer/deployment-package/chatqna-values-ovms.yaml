@@ -8,6 +8,7 @@ global:
     no_proxy: <NO_PROXY>
     http_proxy: <HTTP_PROXY>
     https_proxy: <HTTPS_PROXY>
+  UI_NODEPORT: <ui-nodeport>
   POSTGRES_USER: <POSTGRES_USER>
   POSTGRES_PASSWORD: <POSTGRES_PASSWORD>
   MINIO_ROOT_USER: <MINIO_ROOT_USER>
@@ -15,24 +16,26 @@ global:
   LLM_MODEL: <LLM_MODEL>
   EMBEDDING_MODEL_NAME: <EMBEDDING_MODEL_NAME>
   RERANKER_MODEL: <RERANKER_MODEL>
+  OTLP_ENDPOINT: <otlp-endpoint>
+  OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
-    enabled: false
+    enabled: true 
   egai_minio_pvc:
     size: 20Gi
   egai_reranker_pvc:
     size: 20Gi
   egai_ovms_pvc:
     size: 20Gi
-  egai-ovms-embed-pvc:
+  egai_ovms_embed_pvc:
     size: 20Gi
 
 Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.1.1"
+    tag: "1.1.2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

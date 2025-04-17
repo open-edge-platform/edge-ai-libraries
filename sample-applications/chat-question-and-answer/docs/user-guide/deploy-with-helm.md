@@ -58,8 +58,8 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-minio-password>` (password length should be at least 8 characters) |
 | `global.OTLP_ENDPOINT` | OTLP endpoint | |
 | `global.OTLP_ENDPOINT_TRACE` | OTLP endpoint for trace | |
-| `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | true |
-| `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | false |
+| `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | false |
+| `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | true |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
@@ -134,16 +134,7 @@ kubectl get services -n <your-namespace>
 
 ### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access a chatqna-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
-
-- NodeIP – The internal IP of a worker node.
-- NodePort – The port exposed by the service.
-
-Run the following command after replacing \<ui-node-port\> with your actual values:
-```bash
-  echo "http://$(kubectl get nodes -o jsonpath='{.items[0].status.addresses[?(@.type=="InternalIP")].address}'):<ui-node-port>')"
-```
-Simply copy and paste the output into your browser.
+Open the UI in a browser at http://\<node-ip\>:\<ui-node-port\>
 
 ### Step 8: Update Helm Dependencies
 
