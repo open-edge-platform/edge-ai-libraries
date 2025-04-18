@@ -70,6 +70,7 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
 | `Chatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
 | `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
+| `Chatqna.env.RERANKER_MODEL` |  model to be used with tei               | BAAI/bge-reranker-base|
 
 
 ### Option 2: Install from Source
