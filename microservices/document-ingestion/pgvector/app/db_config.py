@@ -1,16 +1,13 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import logging
-from urllib.parse import urlparse
-from config import PG_CONNECTION_STRING
-from psycopg_pool import ConnectionPool
+from .config import Settings
+from .logger import logger
 from typing import Optional, List
+from urllib.parse import urlparse
+from psycopg_pool import ConnectionPool
 
-logging.basicConfig(
-    format="%(asctime)s: %(name)s: %(levelname)s: %(message)s", level=logging.INFO
-)
-
+config = Settings()
 connection_pool = None
 
 
@@ -18,7 +15,7 @@ def get_db_connection_pool() -> ConnectionPool:
     global connection_pool
     if connection_pool is None:
         try:
-            result = urlparse(PG_CONNECTION_STRING)
+            result = urlparse(config.PG_CONNECTION_STRING)
             username = result.username
             password = result.password
             database = result.path[1:]
@@ -29,7 +26,7 @@ def get_db_connection_pool() -> ConnectionPool:
                 f"user={username} password={password} host={hostname} port={port} dbname={database}"
             )
         except Exception as e:
-            logging.error(f"Error creating connection pool: {e}")
+            logger.error(f"Error creating connection pool: {e}")
             return None
     return connection_pool
 
@@ -60,12 +57,12 @@ def pool_execution(query, params=None) -> Optional[List[tuple]]:
                 elif query.strip().lower().startswith("delete"):
                     conn.commit()
                     result = [("Deletion query was executed successfuly affected rows", cur.rowcount)]
-            
+
             cur.close()
 
-        logging.info(result)
+        logger.info(result)
         return result
 
     except Exception as e:
-        logging.error(f"Error executing query: {e}")
+        logger.error(f"Error executing query: {e}")
         return None
