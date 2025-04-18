@@ -54,7 +54,7 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `global.huggingface.apiToken` | Your Hugging Face API token                      | `<your-huggingface-token>` |
 | `global.POSTGRES_USER`  | Give User name for PG Vector DB | `<your-postgres-user-id>` |
 | `global.POSTGRES_PASSWORD`  | Give pwd for PG Vector DB | `<your-postgres-password>` |
-| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your-minio-user-id> (user length should be at least 3)` |
+| `global.MINIO_ROOT_USER`   | A Minio server user name | `<your-minio-user-id>` (user length should be at least 3) |
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-minio-password>` (password length should be at least 8 characters) |
 | `global.OTLP_ENDPOINT` | OTLP endpoint | |
 | `global.OTLP_ENDPOINT_TRACE` | OTLP endpoint for trace | |
