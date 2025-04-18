@@ -3,7 +3,7 @@ kind: PersistentVolumeClaim
 metadata:
   name: egai-ovms-embed-pvc
   annotations:
-    helm.sh/resource-policy: keep  # Prevent Helm from deleting PVC on uninstall
+    helm.sh/resource-policy: {{ .Values.global.pvc_policy }}  # Prevent Helm from deleting PVC on uninstall
 spec:
   accessModes:
     - ReadWriteOnce
