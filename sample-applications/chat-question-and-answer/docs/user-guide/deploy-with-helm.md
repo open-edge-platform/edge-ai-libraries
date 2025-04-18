@@ -58,19 +58,19 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `global.MINIO_ROOT_PASSWORD`| A password to connect to minio server | `<your-minio-password>` (password length should be at least 8 characters) |
 | `global.OTLP_ENDPOINT` | OTLP endpoint | |
 | `global.OTLP_ENDPOINT_TRACE` | OTLP endpoint for trace | |
-| `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | false |
-| `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | true |
+| `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | `false` |
+| `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `1.1.2`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
-| `Chatqna.env.INDEX_NAME` | index name for pgVector                      | intel-rag |
-| `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | 10 |
-| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | BAAI/bge-small-en-v1.5|
+| `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
+| `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |
+| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | `BAAI/bge-small-en-v1.5`|
 | `Chatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
-| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | Intel/neural-chat-7b-v3-3|
-| `Chatqna.env.RERANKER_MODEL` |  model to be used with tei               | BAAI/bge-reranker-base|
+| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | `Intel/neural-chat-7b-v3-3`|
+| `Chatqna.env.RERANKER_MODEL` |  model to be used with tei               | `BAAI/bge-reranker-base`|
 
 
 ### Option 2: Install from Source
