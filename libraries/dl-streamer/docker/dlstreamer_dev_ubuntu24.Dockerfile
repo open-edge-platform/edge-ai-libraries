@@ -95,7 +95,7 @@ RUN \
 
 # Intel® Data Center GPU Flex Series drivers (optional)
 # hadolint ignore=SC1091
-RUN \
+RUN export -n no_proxy && \
     apt-get update && \
     . /etc/os-release && \
     if [[ ! " jammy noble " =~ ${VERSION_CODENAME} ]]; then \
@@ -445,7 +445,7 @@ RUN \
     strip -g "${DLSTREAMER_DIR}"/gstreamer/lib/gstreamer-1.0/libgstrs*.so
 
 # Intel® Distribution of OpenVINO™ Toolkit
-RUN \
+RUN export -n no_proxy && \
     wget -q --no-check-certificate https://storage.openvinotoolkit.org/repositories/openvino/packages/"$OPENVINO_VERSION"/linux/"$OPENVINO_FILENAME".tgz && \
     tar -xf "$OPENVINO_FILENAME".tgz && \
     mv "$OPENVINO_FILENAME" /opt/intel/openvino_"$OPENVINO_VERSION".0 && \
