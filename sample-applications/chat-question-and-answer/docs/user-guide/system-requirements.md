@@ -27,7 +27,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 **Required Software**:
 - Docker 24.0 or higher
-- Python 3.10+
+- Python 3.11
 
 
 ## Compatibility Notes
