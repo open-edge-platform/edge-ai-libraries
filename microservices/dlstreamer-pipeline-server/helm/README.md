@@ -45,6 +45,8 @@
 
 ## Setup k8s cluster
 
+- [System Requirements](../docs/user-guide/system-requirements.md)
+
 - Install Helm Charts: 
     - `curl -fsSL -o get_helm.sh https://raw.githubusercontent.com/helm/helm/main/scripts/get-helm-3`
     - `chmod 700 get_helm.sh`

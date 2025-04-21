@@ -4,6 +4,7 @@
   - [Deep Learning Streamer Pipeline Server](#deep-learning-streamer-pipeline-server)
     - [Overview](#overview)
     - [Architecture](#architecture)
+  - [Prerequisites For Target System](#prerequisites-for-target-system)
   - [Quick try out ](#quick-try-out)
       - [Pull the docker image and start container](#pull-the-image-and-start-container)
       - [Run default sample](#run-default-sample)
@@ -27,6 +28,10 @@ Note - The detailed documentation of Deep Learning Streamer Pipeline Server can 
 ## Architecture
 
 ![Deep Learning Streamer Pipeline Server Architecture](./docs/user-guide/images/dls-pipelineserver-simplified-arch.png)
+
+## Prerequisites For Target System
+
+- [System Requirements](./docs/user-guide/system-requirements.md)
 
 ## Quick try out
 
@@ -133,7 +138,9 @@ Run the following commands:
      source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
      docker compose build
    ```
-
+   
+   The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
+   
    ```sh
      docker compose up
    ```
