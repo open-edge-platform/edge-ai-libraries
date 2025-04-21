@@ -18,7 +18,7 @@ By following this guide, you will learn how to:
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
-- Install `Python 3.11` or higher.
+- Install `Python 3.11`.
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
@@ -37,13 +37,14 @@ By following this guide, you will learn how to:
 1. **Clone the Repository**:
     Clone the repository.
     ```bash
-    git clone <repository-url>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
     ```
+    Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
     Go to the directory where the Docker Compose file is located:
     ```bash
-    cd <repository-url>/sample-applications/chat-question-and-answer-core
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer-core
     ```
 
 3. **Configure Image Pulling Registry and Tag Environment Variables**:
@@ -61,7 +62,7 @@ By following this guide, you will learn how to:
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
       ```
-    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose). 
+    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models). 
 
 5. **Start the Application**:
     Start the application using docker compose:
@@ -77,7 +78,10 @@ By following this guide, you will learn how to:
       ```
 
 7. **Access the Application**:
-    Open a browser and go to `http://$HOST_IP:5173` to access the application dashboard.
+    Open a browser and go to `http://<host-ip>:5173` to access the application dashboard. The application dashboard allows the user to,
+    - Create and manage context by adding documents (pdf, docx, etc. Note: Web links are not supported for the Core version of the sample application. Note: There are restrictions on the max size of the document allowed.
+    - Start Q&A session with the created context.
+
 
 ## Advanced Setup Options
 

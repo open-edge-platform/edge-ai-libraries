@@ -15,9 +15,11 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
    Clone the repository containing the Helm chart to your local machine.
 
    ```sh
-   git clone <repository-url>
-   cd <repository-directory>/chart/subchart/minioserver
+   git clone git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/minioserver
    ```
+   Adjust the repo link appropriately in case of forked repo.
+
 2. **Update Values**
     
     Update the values.yaml file with the necessary configurations. Ensure you set the MINIO_ROOT_USER and MINIO_ROOT_PASSWORD environment The following table lists the configurable parameters of the Minio server Helm chart and their default values.
@@ -27,14 +29,14 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
     | `minioServer.name`               | Name of the MinIO server                       | `minio-server`                           |
     | `minioServer.image.repository`   | MinIO server image repository                  | `minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1`                    |
     | `minioServer.volumes`            | Volumes to mount                               | `/mnt/miniodata:/data`                   |
-    | `minioServer.env.MINIO_ROOT_USER`| MinIO root user                                | ``                             |
-    | `minioServer.env.MINIO_ROOT_PASSWORD`| MinIO root password                        | ``                              |
+    | `minioServer.env.MINIO_ROOT_USER`| MinIO root user                                |   `<minio-root-user>`                             |
+    | `minioServer.env.MINIO_ROOT_PASSWORD`| MinIO root password                        | `<minio-root-passwd>`                              |
 
     Specify each parameter using the `--set key=value[,key=value]` argument to `helm install`. For example:
 
     ```sh
-    helm install minio-server . --set minioServer.env.MINIO_ROOT_USER=myuser,minioServer.env.MINIO_ROOT_PASSWORD=mypassword \
-    --namespace <YOUR_NAMESPACE>
+    helm install minio-server . --set minioServer.env.MINIO_ROOT_USER=<minio-root-user>,minioServer.env.MINIO_ROOT_PASSWORD=<minio-root-passwd> \
+    --namespace <your-namespace>
     ```
 
 3. **Deploy the Helm Chart**
@@ -42,7 +44,7 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
     Use the following command to deploy the Helm chart:
     ```sh
     helm install minio-server . \
-    --namespace <YOUR_NAMESPACE>
+    --namespace <your-namespace>
     ```
 
 5. **Accessing the Service locally**
