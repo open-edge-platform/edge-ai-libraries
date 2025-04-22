@@ -3,8 +3,6 @@
  * Copyright (c) 2020, Intel Corporation
  * All rights reserved.
  *
- * Author: Gowtham Hosamane <gowtham.hosamane@intel.com>
- *
  * Redistribution and use in source and binary forms, with or without
  * modification, are permitted provided that the following conditions are met:
  *
