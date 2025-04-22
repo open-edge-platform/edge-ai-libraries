@@ -13,13 +13,12 @@ Before you begin, ensure that you have the following prerequisites:
     - Clone the ChatQ&A Sample Application repository:
       ```bash
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-      cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/pgvector
       ```
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd <repository-url>/sample-applications/chat-question-and-answer
+      cd edge-ai-libraries/sample-applications/chat-question-and-answer
       ```
       Adjust the repo link appropriately in case of forked repo.
    
@@ -36,7 +35,7 @@ Before you begin, ensure that you have the following prerequisites:
     export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available
     ```
     Refer to the supported model list in the [Get Started](./get-started.md) document.
-    
+
     _Environment variables for OVMS as inference_
     ```bash
     # Install required Python packages for model preparation
