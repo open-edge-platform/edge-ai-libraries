@@ -12,20 +12,16 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the ChatQ&A Sample Application repository:
       ```bash
-      git clone <repository-url>
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       ```
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd <repository-url>/sample-applications/chat-question-and-answer
+      cd edge-ai-libraries/sample-applications/chat-question-and-answer
       ```
-      **_Embedding Models validated for each model server_**
-      | Model Server | Models Validated |
-      |--------------|-------------------|
-      | `TEI`        | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
-      | `OVMS`       | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
-
+      Adjust the repo link appropriately in case of forked repo.
+   
 3. **Set Up Environment Variables**:
     Set up the environment variables based on the inference method you plan to use:
 
@@ -38,6 +34,7 @@ Before you begin, ensure that you have the following prerequisites:
     export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available
     export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available
     ```
+    Refer to the supported model list in the [Get Started](./get-started.md) document.
 
     _Environment variables for OVMS as inference_
     ```bash

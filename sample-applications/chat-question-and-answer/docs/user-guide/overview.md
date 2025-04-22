@@ -26,10 +26,14 @@ Key features include:
 
 The ChatQ&A sample application includes the following components:
 
-- **LLM inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) is used to efficiently run large language models on Intel hardware. Developers also have other model serving options if required.
-- **Embedding inference microservice**: Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference) microservice is used to run embedding models efficiently on target Intel hardware.
-- **Reranking inference microservice**: Intel’s optimized [OVMS](https://github.com/openvinotoolkit/model_server) model serving is used to run reranking models optimally on target Intel hardware. Text Embeddings Inference (TEI) is an alternative model serving choice available.
-- **Data ingestion microservice**: The sample data ingestion microservice allows ingestion of common document formats like PDF and DOC. The ingestion process creates embeddings of the documents and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. The sample application uses [PGvector](https://github.com/pgvector/pgvector) database. The raw documents are stored in the MinIO datastore, which is also customizable.
+- **LLM inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) is used to efficiently run large language models on Intel hardware. Developers also have other model serving options if required. vLLM with OpenVINO backend and TGI are the options provided.
+- **Embedding inference microservice**: Intel's optimized [OpenVINO Model Server (OVMS)](https://github.com/openvinotoolkit/model_server) and Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference) microservice are the options provided to run embedding models efficiently on target Intel hardware. OVMS is the default option due to performance benefits on Intel hardware.
+- **Reranking inference microservice**: Huggingface [Text Embeddings Inference](https://github.com/huggingface/text-embeddings-inference) microservice is the model serving choice available.
+- **Document ingestion microservice**: The sample [document ingestion](../../../../microservices/document-ingestion/) microservice allows ingestion of common document formats like PDF and DOC, and contents from web links. It supports a REST endpoint to ingest the documents. The ingestion process creates embeddings of the documents and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. The sample application uses [PGvector](https://github.com/pgvector/pgvector) database. The raw documents are stored in the [MinIO](https://github.com/minio/minio) datastore, which is also customizable.
+- **ChatQ&A backend microservice**: The Chat&A backend microservice is responsible for responding to the user queries. LangChain framework is used to create the RAG chain and provide the necessary integrations with VectorDB. The backend microservice provides a REST API to accept user queries.
+- **ChatQ&A UI**: A reference UI is provided to enable users quickly try the sample-application. The  UI is not designed to be a comprehensive guide on the design of UI but is more a functional implementation to enable quick demo interaction. It allows users to create the context by uploading the documents and provide weblinks. Users can then interact with the RAG pipeline. It uses the REST API provided by the document ingestion and ChatQ&A backend for its operations.
+
+All the 3rd party components are not built from source but instead the respective pre-built images are pulled from their artefactory (Docker hub for example) and used. The model serving is also reused from their prebuilt versions and used for LLM, Embedding, and Reranker. The Intel microservices can be built from source. Documentation is provided to help users build these microservices from source. 
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
 
@@ -37,17 +41,15 @@ Further details on the system architecture and customizable options are availabl
 
 ## How to Use the Application
 
-The ChatQ&A sample application consists of two main parts:
+Refer to the [Get Started](./get-started.md) page to get started with the sample-application. The UI is the recommended mode of interaction with the sample-application though users can also use the CLI approach using the REST endpoints. The ChatQ&A sample application consists of two main parts:
 
-1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding documents to the ChatQ&A instance. The data ingestion microservice allows ingestion of common document formats like PDF and DOC. The ingestion process cleans and formats the input document, creates embeddings of the documents using the embedding microservice, and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. The sample application uses [PGvector](https://github.com/pgvector/pgvector) database. The raw documents are stored in the MinIO datastore, which is also customizable.
+1. **Data Ingestion [Knowledge Building]**: This part is responsible for adding documents to the ChatQ&A instance. The document ingestion microservice allows creation of this knowledge base.
 
-2. **Generation [Q&A]**: This part allows the user to query the document database and generate responses. The LLM inference microservice, embedding inference microservice, and reranking microservice work together to provide accurate and efficient answers to user queries. When a user submits a question, the embedding model hosted by the TEI Inference Microservice transforms it into an embedding, enabling semantic comparison with stored document embeddings. The vector database searches for relevant embeddings, returning a ranked list of documents based on semantic similarity. The LLM Inference Microservice generates a context-aware response from the final set of documents.
+2. **Generation [Q&A]**: This part allows the user to query the document database and generate responses. The LLM inference microservice, embedding inference microservice, and reranking microservice work together to provide accurate and efficient answers to user queries. When a user submits a question, the embedding model hosted by the chosen model serving (default is OVMS) transforms it into an embedding, enabling semantic comparison with stored document embeddings. The vector database searches for relevant embeddings, returning a ranked list of documents based on semantic similarity. The LLM Inference Microservice generates a context-aware response from the final set of documents. It is possible to use any supported models to run with the applications. Detailed documentation provides full information on validated models and models supported overall.
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
 
 Detailed hardware and software requirements are available [here](./system-requirements.md).
-
-To get started with the application, please refer to the [Get Started](./get-started.md) page.
 
 [This sample application is ready for deployment with Edge Orchestrator. Download the deployment package and follow the instructions](deploy-with-edge-orchestrator.md)
 
