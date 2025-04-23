@@ -131,7 +131,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```bash
    docker compose up
    ```
-   - Refer to the application architecture for the application flow [here](./overview-architecture.md) .
+   - Refer to the application architecture diagram [here](./overview-architecture.md#technical-architecture-diagram) .
 
 5. **Verify the Application**:
    Check that the application is running:
