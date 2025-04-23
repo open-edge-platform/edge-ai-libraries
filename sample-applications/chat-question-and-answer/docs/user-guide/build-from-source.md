@@ -67,9 +67,12 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       docker compose build
       ```
-    - The below services will be build and ready
+    - The below services will be build.
 
-        ![Chatqna Services build from Source](./images/Chatqna-service-build.png)
+         ![Chatqna Services build from Source](./images/Chatqna-service-build.png)
+        
+    - __chatqna__  - ChatQ&A backend microservice is a LangChain based implementation of ChatQ&A RAG pipeline providing required handling of the user queries and REST APIs.
+    - __chatqna-ui__ - A reference front end providing an interface for users to interact with the ChatQ&A RAG pipeline
 
 5. **Run the Docker Container**:
     - Run the Docker container using the built image:
