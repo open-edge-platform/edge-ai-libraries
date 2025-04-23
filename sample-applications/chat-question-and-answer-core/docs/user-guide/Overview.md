@@ -10,7 +10,7 @@ ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG
 1. [Overview and Architecture](#overview-and-architecture)
 2. [How to Use the Application](#how-to-use-the-application)
 
-## Overview and Architecture
+## Overview
 
 ### Key Features
 
@@ -21,10 +21,10 @@ Key features include:
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) & [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
 
-### Technical Architecture
+## How It Works
 The Chat Question-and-Answer Core sample application is implemented as a LangChain based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker) executed in the context of a single OpenVINO® runtime. The approach is documented in the OpenVINO [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino). Readers are requested to refer to this documentation for the technical details.
 
-## How to Use the Application
+### How to Use the Application
 
 The Chat Question-and-Answer Core sample application consists of two main parts:
 
