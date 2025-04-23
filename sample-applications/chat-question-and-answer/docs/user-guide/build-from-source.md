@@ -67,7 +67,7 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       docker compose build
       ```
-    - The below services will be build.
+    - The following services will be built.
 
          ![Chatqna Services build from Source](./images/Chatqna-service-build.png)
         
