@@ -2,8 +2,10 @@ apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
   name: egai-tgi-pvc
+  {{- if .Values.global.keeppvc }}
   annotations:
-    helm.sh/resource-policy: {{ .Values.global.pvc_policy }}  # Prevent Helm from deleting PVC on uninstall
+    helm.sh/resource-policy: keep
+  {{- end }}
 spec:
   accessModes:
     - ReadWriteOnce
