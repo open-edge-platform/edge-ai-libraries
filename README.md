@@ -27,8 +27,8 @@ Key components of the **Edge AI Libraries**:
 | [Object Store](microservices/object-store) | Microservice |  [Link](microservices/object-store/minio-store#configuration) | [Usage](microservices/object-store/minio-store#usage) |
 | [Intel® Geti™](https://github.com/open-edge-platform/geti) | Tool | [Link](https://geti.intel.com/) | [Docs](https://docs.geti.intel.com) |
 | [Visual Pipeline and Performance Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) | Tool | [Link](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/get-started.md) | [Build](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/how-to-build-source.md) instructions |
-| [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/build-from-source.md) instructions |
-| [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/build-from-source.md) instructions |
+| [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer-core/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/user-guide/build-from-source.md) instructions |
+| [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/user-guide/build-from-source.md) instructions |
 
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.

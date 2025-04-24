@@ -67,13 +67,18 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       docker compose build
       ```
+    - The following services will be built as shown in the below screenshot.
+
+         ![Chatqna Services build from Source](./images/Chatqna-service-build.png)
+      
+    - Refer to [Overview](./overview.md#technical-architecture) for details on the built microservices. 
+    Note: `chatqna` and `ChatQnA backend` refer to the same microservice.
 
 5. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
       docker compose up
       ```
-
 6. **Access the Application**:
     - Open a browser and go to `http://<host-ip>:5173` to access the application dashboard.
 

@@ -10,6 +10,9 @@ SECURITY.md @xwu2intel
 /tools/visual-pipeline-and-platform-evaluation-tool/ @dnoliver @rajpatel9498 @mkarvir
 /microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
 /microservices/model-registry/ @rrajore @elroyashjr
-/libraries/dl-streamer/ @tbujewsk @msmiatac @OskarFiedot
+/libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo
+
+
+
 
 
