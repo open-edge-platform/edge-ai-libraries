@@ -14,6 +14,7 @@ on:
         - object-store
         - chat-question-and-answer
         - visual-pipeline-platform-tool
+        - chat-question-and-answer-core
 
 jobs:
   build_dlstreamer-pipeline-server:
@@ -52,3 +53,9 @@ jobs:
     secrets: inherit
     with:
       docs_directory: tools/visual-pipeline-and-platform-evaluation-tool
+  build_chat-question-and-answer-core:
+    if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: sample-applications/chat-question-and-answer-core
