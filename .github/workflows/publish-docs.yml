@@ -72,7 +72,7 @@ jobs:
     with:
       docs_directory: tools/visual-pipeline-and-platform-evaluation-tool
   build_chat-question-and-answer-core:
-    if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
+    if: ${{ (github.event.inputs.target == 'chat-question-and-answer-core') || (github.event.inputs.target == 'all-documentation') }}
     uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
