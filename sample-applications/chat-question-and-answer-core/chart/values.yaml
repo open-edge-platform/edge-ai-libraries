@@ -16,7 +16,7 @@ global:
   UI_NODEPORT: <ui-nodeport>
   pvc:
     size: 40Gi
-  pvc_policy: 
+  keeppvc: false 
 chatqna:
   name: chatqna-core
   service:
