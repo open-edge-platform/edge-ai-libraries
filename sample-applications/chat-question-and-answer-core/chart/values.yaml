@@ -34,6 +34,17 @@ chatqna:
       port: 8888
     initialDelaySeconds: 1000 
     periodSeconds: 30
+    
+gpu:
+  enabled: false
+  backendTag: "coregpu_1.1.0"
+  EMBEDDING_DEVICE: "GPU"
+  RERANKER_DEVICE: "GPU"
+  LLM_DEVICE: "GPU"
+  devices: /dev/dri
+  group_add: $(stat -c "%g" /dev/dri/render*)
+  key: ""  #update as per the cluster node label key for GPU
+  value: ""  #update as per the cluster node label value for GPU
 
 uiService:
   name: chatqna-core-ui

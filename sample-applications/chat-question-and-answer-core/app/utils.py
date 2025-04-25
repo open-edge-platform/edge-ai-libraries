@@ -1,5 +1,6 @@
 import os
 import openvino as ov
+import openvino.properties as props
 from .logger import logger
 from huggingface_hub import login, whoami, snapshot_download
 from optimum.intel import (
@@ -104,3 +105,49 @@ def convert_model(model_id: str, cache_dir: str, model_type: str):
                 model_id, export=True, weight_format="int8"
             )
             llm_model.save_pretrained(f"{cache_dir}/{model_id}")
+
+
+def get_devices():
+    """
+    Retrieves a list of available devices from the OpenVINO core.
+    Returns:
+        list: A list of available device names.
+    """
+
+    core = ov.Core()
+    device_list = core.available_devices
+
+    return device_list
+
+
+def get_device_property(device: str = ""):
+    """
+    Retrieves the properties of a specified device.
+    Args:
+        device (str): The name of the device to query. Defaults to an empty string.
+    Returns:
+        dict: A dictionary containing the properties of the device. The keys are property names,
+            and the values are the corresponding property values. Non-serializable types are
+            converted to strings. If a property value cannot be retrieved due to a TypeError,
+            it is set to "UNSUPPORTED TYPE".
+    """
+
+    properties_dict = {}
+    core = ov.Core()
+    supported_properties = core.get_property(device, "SUPPORTED_PROPERTIES")
+
+    for property_key in supported_properties:
+        if property_key not in ('SUPPORTED_METRICS', 'SUPPORTED_CONFIG_KEYS', 'SUPPORTED_PROPERTIES'):
+            try:
+                property_val = core.get_property(device, property_key)
+
+                # Convert non-serializable types to strings
+                if not isinstance(property_val, (str, int, float, bool, type(None))):
+                    property_val = str(property_val)
+
+            except TypeError:
+                property_val = "UNSUPPORTED TYPE"
+
+            properties_dict[property_key] = property_val
+
+    return properties_dict

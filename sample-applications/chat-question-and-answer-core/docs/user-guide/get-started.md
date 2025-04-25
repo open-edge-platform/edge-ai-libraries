@@ -51,8 +51,13 @@ By following this guide, you will learn how to:
     To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
     ```bash
     export REGISTRY="intel/"
-    export BACKEND_TAG=core_1.1.2
     export UI_TAG=core_1.1.2
+    # If you prefer to use the default CPU device, set the following:
+    export BACKEND_TAG=core_1.1.1
+    # If you want to utilize GPU device for inferencing, set the following:
+    # Note: This image also supports CPU devices.
+    export BACKEND_TAG=coregpu_1.1.0
+    ```
     ```
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
@@ -62,7 +67,7 @@ By following this guide, you will learn how to:
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
        source scripts/setup_env.sh
       ```
-    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models). 
+    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose).
 
 5. **Start the Application**:
     Start the application using docker compose:

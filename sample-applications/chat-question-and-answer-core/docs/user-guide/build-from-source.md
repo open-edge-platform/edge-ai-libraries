@@ -20,7 +20,11 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
 2. Build the Docker image using the provided `Dockerfile`:
 
    ```bash
+   # The default configuration sets up the application for CPU-based inferencing.
    docker build -t chatqna:latest -f docker/Dockerfile .
+
+   # To enable GPU-based inferencing, use the following command:
+   docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
    ```
 
 3. Verify that the Docker image has been built successfully:
