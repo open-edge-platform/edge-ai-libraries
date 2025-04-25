@@ -5,13 +5,7 @@
 
 ## Prerequisites
 
-Ensure that the following installations are present.
-
-* unzip. It can be installed using `sudo apt-get install unzip`
-*
-  | OS  |  Python           |
-  |-----|-------------------|
-  |Ubuntu 22.04|      3.10  |
+* [System Requirements](./system-requirements.md)
   
 ## Quick try out
 Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server docker image followed by running a sample usecase. 

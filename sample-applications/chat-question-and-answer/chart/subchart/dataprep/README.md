@@ -17,9 +17,10 @@ Before deploying the `dataprep` service, ensure the following services are up an
 1. **Clone the Repository**
 
    ```sh
-   git clone <repository-url>
-   cd <repository-directory>/chart/subchart/dataprep
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/dataprep
    ```
+   Adjust the repo link appropriately in case of forked repo.
 
 2. **Update Values**
     Edit the values.yaml file to set the appropriate values for your environment, especially the
@@ -34,11 +35,11 @@ Before deploying the `dataprep` service, ensure the following services are up an
 3. **Deploy Using Helm**
 
     ```sh   
-    helm install dataprep . --set global.huggingface.apiToken=your-huggingface-token \
-    --set dataprepPgvector.env.PG_CONNECTION_STRING=your-pg-connection-string \
-    --set dataprepPgvector.env.TEI_ENDPOINT_URL=your-tei-endpoint-url \
-    --set dataprepPgvector.env.DATASTORE_ENDPOINT_URL=your-datastore-endpoint-url \
-    --namespace <YOUR_NAMESPACE>
+    helm install dataprep . --set global.huggingface.apiToken=<your-huggingface-token> \
+    --set dataprepPgvector.env.PG_CONNECTION_STRING=<your-pg-connection-string> \
+    --set dataprepPgvector.env.TEI_ENDPOINT_URL=<your-tei-endpoint-url> \
+    --set dataprepPgvector.env.DATASTORE_ENDPOINT_URL=<your-datastore-endpoint-url> \
+    --namespace <your-namespace>
     ```
 4. **Verify Deployment**
     Check the status of the deployment to ensure all pods are running correctly.

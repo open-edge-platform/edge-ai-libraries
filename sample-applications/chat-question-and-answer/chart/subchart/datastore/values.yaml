@@ -1,10 +1,10 @@
 global:
   proxy:
-    no_proxy: <NO_PROXY>
-    http_proxy: <HTTP_PROXY>
-    https_proxy: <HTTPS_PROXY>
-  MINIO_ROOT_USER: <MINIO_ROOT_USER>
-  MINIO_ROOT_PASSWORD: <MINIO_ROOT_PASSWORD>
+    no_proxy: <no-proxy>
+    http_proxy: <http-proxy>
+    https_proxy: <https-proxy>
+  MINIO_ROOT_USER: <minio-root-user>
+  MINIO_ROOT_PASSWORD: <minio-root-password>
 
 dataStore:
   name: datastore
@@ -19,5 +19,5 @@ dataStore:
   env:
     MINIO_HOST: minio-server
     MINIO_API_PORT: 9000
-    MINIO_ACCESS_KEY: dummy_user
-    MINIO_SECRET_KEY: dummy_321
+    MINIO_ACCESS_KEY: <dummy-user>
+    MINIO_SECRET_KEY: <dummy-password>

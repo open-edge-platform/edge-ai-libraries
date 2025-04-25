@@ -13,9 +13,10 @@ This Helm chart deploys the `dataStore` service. The `dataStore` service require
 1. **Clone the repository:**
 
     ```sh
-    git clone <repository-url>
-    cd <repository-directory>/chart/subchart/datastore
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/datastore
     ```
+    Adjust the repo link appropriately in case of forked repo.
 
 2. **Update the `values.yaml` file:**
 
@@ -40,10 +41,10 @@ This Helm chart deploys the `dataStore` service. The `dataStore` service require
     Alternatively, a YAML file that specifies the values for the parameters can be provided while installing the chart. For example:
     ```sh
     helm install datastore . \
-    --set global.proxy.http_proxy=<your proxy> \
-    --set global.proxy.https_proxy=<your proxy> \
-    --set global.proxy.no_proxy=<your no_proxy> \
-    --namespace <YOUR_NAMESPACE>
+    --set global.proxy.http_proxy=<your-http-proxy> \
+    --set global.proxy.https_proxy=<your-https-proxy> \
+    --set global.proxy.no_proxy=<your-no-proxy> \
+    --namespace <your-namespace>
     ```
 
 4. **Verify the deployment:**

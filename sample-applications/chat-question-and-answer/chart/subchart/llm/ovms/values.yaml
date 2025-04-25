@@ -2,10 +2,10 @@ global:
   huggingface:
     apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
   proxy:
-    no_proxy: <NO_PROXY>
-    http_proxy: <HTTP_PROXY>
-    https_proxy: <HTTPS_PROXY>
-  LLM_MODEL: <LLM_MODEL>
+    no_proxy: <no-proxy>
+    http_proxy: <http-proxy>
+    https_proxy: <https-proxy>
+  LLM_MODEL: <llm-model>
 
 ovms:
   name: ovms

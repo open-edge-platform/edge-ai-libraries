@@ -1,0 +1,79 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Post-Merge CI Pipeline
+
+on:  # yamllint disable-line rule:truthy
+  push:
+    branches:
+      - main
+      - release-*
+  workflow_dispatch:
+
+jobs:
+  filter:
+    runs-on: ubuntu-latest
+    outputs:
+      dlstreamer-pipeline-server_changed: ${{ steps.filter.outputs.dlstreamer-pipeline-server }}
+      document-ingestion_changed: ${{ steps.filter.outputs.document-ingestion }}
+      model-registry_changed: ${{ steps.filter.outputs.model-registry }}
+      object-store_changed: ${{ steps.filter.outputs.object-store }}
+      chat-question-and-answer_changed: ${{ steps.filter.outputs.chat-question-and-answer }}
+      visual-pipeline-platform-tool_changed: ${{ steps.filter.outputs.visual-pipeline-platform-tool }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set paths filter
+        id: filter
+        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        with:
+          filters: |
+            dlstreamer-pipeline-server:
+              - 'microservices/dlstreamer-pipeline-server/docs**'
+            document-ingestion:
+              - 'microservices/document-ingestion/docs**'
+            model-registry:
+              - 'microservices/model-registry/docs**'
+            object-store:
+              - 'microservices/object-store/docs**'
+            chat-question-and-answer:
+              - 'sample-applications/chat-question-and-answer/docs**'
+            visual-pipeline-platform-tool:
+              - 'tools/visual-pipeline-and-platform-evaluation-tool/docs**'
+
+  build_dlstreamer-pipeline-server:
+    if: ${{ (github.event.inputs.target == 'dlstreamer-pipeline-server') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/dlstreamer-pipeline-server
+  build_document-ingestion:
+    if: ${{ (github.event.inputs.target == 'document-ingestion') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/document-ingestion
+  build_model-registry:
+    if: ${{ (github.event.inputs.target == 'model-registry') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/model-registry
+  build_object-store:
+    if: ${{ (github.event.inputs.target == 'object-store') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: microservices/object-store
+  build_chat-question-and-answer:
+    if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: sample-applications/chat-question-and-answer
+  build_visual-pipeline-platform-tool:
+    if: ${{ (github.event.inputs.target == 'visual-pipeline-platform-tool') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@main
+    secrets: inherit
+    with:
+      docs_directory: tools/visual-pipeline-and-platform-evaluation-tool

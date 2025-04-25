@@ -13,18 +13,19 @@ This Helm chart deploys pgVector, a PostgreSQL extension for vector similarity s
     Clone the repository containing the Helm chart to your local machine.
     
     ```sh
-    git clone <repository-url>
-    cd <repository-directory>/chart/subchart/pgvector
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/pgvector
     ```
+    Adjust the repo link appropriately in case of forked repo.
 
 2. **Install the Helm chart**
 
     ```sh
     helm install pgvector . \
-    --set global.proxy.http_proxy=<your proxy> \
-    --set global.proxy.https_proxy=<your proxy> \
-    --set global.proxy.no_proxy=<your no_proxy> \
-    --namespace <YOUR_NAMESPACE>
+    --set global.proxy.http_proxy=<your-http-proxy> \
+    --set global.proxy.https_proxy=<your-https-proxy> \
+    --set global.proxy.no_proxy=<your-no-proxy> \
+    --namespace <your-namespace>
     ```
 
 **Configuration**
@@ -35,15 +36,15 @@ This Helm chart deploys pgVector, a PostgreSQL extension for vector similarity s
     | --- | ----------- | ------------- |
     | `pgvectorContainer.image.repository`| Image repository for pgVector    | `pgvector/pgvector` |
     | `pgvectorContainer.image.tag`      | Image tag for pgVector  | `pg16`                   |
-    | `pgvectorContainer.env.POSTGRES_USER`| PostgreSQL user  | `langchain`                   |
-    | `pgvectorContainer.env.POSTGRES_PASSWORD`| PostgreSQL password    | `langchain`         |
-    | `pgvectorContainer.env.POSTGRES_DB`| PostgreSQL database    | `langchain`                | 
+    | `pgvectorContainer.env.POSTGRES_USER`| PostgreSQL user  | <postgres-user>                   |
+    | `pgvectorContainer.env.POSTGRES_PASSWORD`| PostgreSQL password    | <postgres-passwd>         |
+    | `pgvectorContainer.env.POSTGRES_DB`| PostgreSQL database    | <postgres-db>                | 
 
 3. **Install the Helm chart**
 
     ```sh
     helm install pgvector .  \
-    --namespace <YOUR_NAMESPACE>
+    --namespace <your-namespace>
     ``` 
 4. **Accessing the Service locally**
 

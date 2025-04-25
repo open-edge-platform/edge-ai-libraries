@@ -28,6 +28,7 @@ global:
     size: 20Gi
   egai_ovms_embed_pvc:
     size: 20Gi
+  keeppvc: false # true  to persist models across multiple deployments
 
 Chatqna:
   name: chatqna-backend

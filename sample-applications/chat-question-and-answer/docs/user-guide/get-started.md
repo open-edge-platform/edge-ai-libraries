@@ -21,11 +21,42 @@ By following this guide, you will learn how to:
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
 - Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
-- Install `Python 3.11` or higher.
+- Install `Python 3.11`.
 
 <!--
 **Setup and First Use**: Include installation instructions, basic operation, and initial validation.
 -->
+
+## Supported Models
+All models - embedding, reranker, and LLM - which are supported by the chosen model serving can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models. 
+
+The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
+
+### Embedding Models validated for each model server
+   | Model Server | Models Validated |
+   |--------------|-------------------|
+   | `TEI` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
+   | `OVMS` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
+
+### LLM Models validated for each model server
+| Model Server | Models Validated |
+   |--------------|-------------------|
+   | `TEI` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+   | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+   | `TGI` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+
+Note: Limited validation was done on DeepSeek model. 
+
+### Reranker Models validated 
+   | Model Server | Models Validated |
+   |--------------|-------------------|
+   | `TEI` | `BAAI/bge-reranker-base` |
+
+### Getting access to models
+
+To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
+
+Visit https://huggingface.co/settings/tokens to get your token.
 
 ## Running the application using Docker Compose
 
@@ -43,21 +74,16 @@ By following this guide, you will learn how to:
    Clone the repository.
 
    ```bash
-   git clone <repository-url>
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
    ```
+   Note: Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
    Go to the directory where the Docker Compose file is located:
 
    ```bash
-   cd <repository-url>/sample-applications/chat-question-and-answer
+   cd edge-ai-libraries/sample-applications/chat-question-and-answer
    ```
-
-   **_Embedding Models validated for each model server_**
-   | Model Server | Models Validated |
-   |--------------|-------------------|
-   | `TEI` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
-   | `OVMS` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
 
 3. **Set Up Environment Variables**:
    Set up the environment variables based on the inference method you plan to use:
@@ -72,17 +98,7 @@ By following this guide, you will learn how to:
    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    ```
-
-    _Environment variables for OVMS as inference_
-    ```bash
-    # Install required Python packages for model preparation
-    export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
-    pip3 install optimum-intel@git+https://github.com/huggingface/optimum-intel.git openvino-tokenizers[transformers]==2024.4.* openvino==2024.4.* nncf==2.14.0 sentence_transformers==3.1.1 openai "transformers<4.45"
-    ```
-
-    To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
-
-   _Go to https://huggingface.co/settings/tokens to get your token._
+   Login using your Hugging Face token
 
    ```bash
    # Login using huggingface-cli
@@ -91,6 +107,13 @@ By following this guide, you will learn how to:
    # pass hugging face token
    ```
 
+    _Environment variables for OVMS as inference_
+    ```bash
+    # Install required Python packages for model preparation
+    export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
+    pip3 install optimum-intel@git+https://github.com/huggingface/optimum-intel.git openvino-tokenizers[transformers]==2024.4.* openvino==2024.4.* nncf==2.14.0 sentence_transformers==3.1.1 openai "transformers<4.45"
+    ```
+    
    _Run the below script to set up the rest of the environment depending on the model server and embedding._
 
    ```bash
@@ -108,6 +131,7 @@ By following this guide, you will learn how to:
    ```bash
    docker compose up
    ```
+   - Refer to the application architecture diagram [here](./overview-architecture.md#technical-architecture-diagram) .
 
 5. **Verify the Application**:
    Check that the application is running:
@@ -117,7 +141,10 @@ By following this guide, you will learn how to:
    ```
 
 6. **Access the Application**:
-   Open a browser and go to `http://<host-ip>:5173` to access the application dashboard.
+   Open a browser and go to `http://<host-ip>:5173` to access the application dashboard. The application dashboard allows the user to,
+    - Create and manage context by adding documents (pdf, docx, etc.) and web links. Note: There are restrictions on the max size of the document allowed.
+    - Start Q&A session with the created context.
+    
 
 ## Running in Kubernetes
 

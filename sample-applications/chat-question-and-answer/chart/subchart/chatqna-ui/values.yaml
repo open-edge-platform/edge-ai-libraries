@@ -1,8 +1,8 @@
 global:
   proxy:
-    no_proxy: <NO_PROXY>
-    http_proxy: <HTTP_PROXY>
-    https_proxy: <HTTPS_PROXY>
+    no_proxy: <no-proxy>
+    http_proxy: <http-proxy>
+    https_proxy: <https-proxy>
 
 chatqnaui:
   name: chatqna-ui

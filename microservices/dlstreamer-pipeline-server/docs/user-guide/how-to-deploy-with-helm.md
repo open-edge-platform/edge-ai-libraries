@@ -5,6 +5,7 @@
 
 ## Prerequisites
 
+- [System Requirements](./system-requirements.md)
 - K8s installation on single or multi node must be done as pre-requisite to continue the following deployment. Note: The kubernetes cluster is set up with `kubeadm`, `kubectl` and `kubelet` packages on single and multi nodes with `v1.30.2`.
   Refer to tutorials such as <https://adamtheautomator.com/install-kubernetes-ubuntu> and many other
   online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
