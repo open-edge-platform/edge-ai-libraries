@@ -61,18 +61,28 @@ spec:
               value: "{{ .Values.global.RERANKER_MODEL }}"
             - name: LLM_MODEL_ID
               value: "{{ .Values.global.LLM_MODEL }}"
-          envFrom:
-            - configMapRef:
-                name: app-env-config
+            - name : EMBEDDING_DEVICE
+              value : "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+            - name : RERANKER_DEVICE
+              value: "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+            - name : LLM_DEVICE
+              value : "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+            - name : MAX_TOKENS
+              value: {{ .Values.chatqna.env.MAX_TOKENS }}
+            - name : ENABLE_RERANK
+              value : {{ .Values.chatqna.env.ENABLE_RERANK }}
+            - name: CACHE_DIR
+              value: {{ .Values.chatqna.env.CACHE_DIR }}
+            - name: HF_DATASETS_CACHE
+              value: {{ .Values.chatqna.env.HF_DATASETS_CACHE }}
+            - name: TMP_FILE_PATH
+              value: {{ .Values.chatqna.env.TMP_FILE_PATH }}
           {{ if .Values.gpu.enabled }}
           devices:
             - name: dri-device
               containerPath: {{ .Values.gpu.devices }}
           securityContext:
             privileged: true
-            capabilities:
-              add:
-                - {{ .Values.gpu.group_add }}
             runAsUser: 0
             runAsGroup: 0
             fsGroup: 0

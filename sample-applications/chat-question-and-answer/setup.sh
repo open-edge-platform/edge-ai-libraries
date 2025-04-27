@@ -76,7 +76,7 @@ fi
 
 #GPU Configuration
 # Check if render device exist
-if [ -e /dev/dri/render* ]; then
+if compgen -G "/dev/dri/render*" > /dev/null; then
     echo "RENDER device exist. Getting the GID..."
     export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)
 

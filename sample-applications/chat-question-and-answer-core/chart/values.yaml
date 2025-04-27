@@ -32,8 +32,14 @@ chatqna:
     httpGet:
       path: /v1/chatqna/health
       port: 8888
-    initialDelaySeconds: 1000 
+    initialDelaySeconds: 2500 
     periodSeconds: 30
+  env: 
+    MAX_TOKENS: "1024"
+    ENABLE_RERANK: "true"
+    CACHE_DIR: "/tmp/model_cache"
+    HF_DATASETS_CACHE:  "/tmp/model_cache"
+    TMP_FILE_PATH: "/tmp/chatqna/documents"
     
 gpu:
   enabled: false
