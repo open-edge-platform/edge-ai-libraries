@@ -83,14 +83,11 @@ spec:
               opentelemetry-instrumentation-fastapi &&
               opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server
               --enforce-eager
-              --otlp-traces-endpoint={{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}}
-                      {{- else }}
-                         {{ .Values.global.OTLP_ENDPOINT_TRACE }}
-                      {{- end }} 
               --model {{ .Values.global.LLM_MODEL }}
               --tensor-parallel-size 1
               --host 0.0.0.0
               --port 80
+              --otlp-traces-endpoint={{- if eq .Values.global.OTLP_ENDPOINT_TRACE ""}}{{- else }}{{ .Values.global.OTLP_ENDPOINT_TRACE }}{{- end }} 
       volumes:
         - name: data
           persistentVolumeClaim:

@@ -95,6 +95,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    export LLM_MODEL=Intel/neural-chat-7b-v3-3
    export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
    export RERANKER_MODEL=BAAI/bge-reranker-base
+   export LLM_DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS)
    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    ```

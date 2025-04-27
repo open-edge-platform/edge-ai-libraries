@@ -1,7 +1,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  {{ if .Values.global.GPU.enabled }}
+  name: egai-ovms-embed-gpu-pvc
+  {{ else }}
   name: egai-ovms-embed-pvc
+  {{ end }}
   annotations:
     helm.sh/resource-policy: {{ .Values.global.pvc_policy }}  # Prevent Helm from deleting PVC on uninstall
 spec:

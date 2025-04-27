@@ -1,17 +1,18 @@
 global:
   huggingface:
-    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+    apiToken:   # Set this during installation
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  LLM_MODEL: <llm-model>
+    no_proxy: 
+    http_proxy: 
+    https_proxy: 
+  LLM_MODEL: 
 
 ovms:
   name: ovms
   image:
     repository: openvino/model_server
     tag: "2025.0"
+    Gputag: "2025.0-gpu"
     pullPolicy: IfNotPresent
   readinessProbe:
     httpGet:
@@ -23,10 +24,10 @@ ovms:
     type: ClusterIP
     port: 8300
     targetPort: 8300
-  
+  group_add: $(stat -c "%g" /dev/dri/render*)
   # scriptconfigmap: ovms-configmap.yaml
   env:
-    WEIGHT_FORMAT: "fp16"
+    WEIGHT_FORMAT: "int4"
     model_directory_name: "converted_model"
   script:
     name: "ovms-model-preparation"

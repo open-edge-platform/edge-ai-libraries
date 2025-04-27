@@ -74,6 +74,14 @@ else
   export FE_IMAGE_NAME="chatqna-ui:latest"
 fi
 
+#GPU Configuration
+# Check if render device exist
+if [ -e /dev/dri/render* ]; then
+    echo "RENDER device exist. Getting the GID..."
+    export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)
+
+fi
+
 setup_inference() {
         local service=$1
         case "${service,,}" in
@@ -83,9 +91,17 @@ setup_inference() {
                         ;;
                 ovms)
                         export ENDPOINT_URL=http://ovms-service/v3
-                        export COMPOSE_PROFILES=OVMS
+                        #Target Device
+                        if [[ "$LLM_DEVICE" == "GPU" ]]; then
+                                export OVMS_CACHE_SIZE=2
+                                export COMPOSE_PROFILES=GPU-OVMS
+                        elif [[ "$LLM_DEVICE" == "CPU" ]]; then
+                                export OVMS_CACHE_SIZE=10
+                                export COMPOSE_PROFILES=OVMS
+
+                        fi
                         cd ./ovms_config
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device CPU
+                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE
                         cd ..
                         ;;
                 tgi)
@@ -107,10 +123,16 @@ setup_embedding() {
                         export COMPOSE_PROFILES=$COMPOSE_PROFILES,TEI
                         ;;
                 ovms)
-                        export EMBEDDING_ENDPOINT_URL=http://openvino-embedding/v3
-                        export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS-EMBEDDING
+                        export EMBEDDING_ENDPOINT_URL=http://ovms-service/v3
+                        #Target Device
+                        if [[ "$LLM_DEVICE" == "GPU" ]]; then
+                                export COMPOSE_PROFILES=$COMPOSE_PROFILES,GPU-OVMS
+                        elif [[ "$LLM_DEVICE" == "CPU" ]]; then
+                                export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS
+
+                        fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device CPU
+                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE
                         cd ..
                         ;;
                 *)
