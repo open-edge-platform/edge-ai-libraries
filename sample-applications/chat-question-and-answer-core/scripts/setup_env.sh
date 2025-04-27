@@ -71,7 +71,7 @@ if [ "$DEVICE" == "gpu" ]; then
     # Check if render device exists
     if compgen -G "/dev/dri/render*" > /dev/null; then
         echo "GPU rendering device found. Getting the GID..."
-        export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)
+        export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
         PROFILES="GPU-DEVICE"
     else
         echo -e "No GPU rendering device found. \nSwitching to CPU processing..."

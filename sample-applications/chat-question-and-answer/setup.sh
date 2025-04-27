@@ -78,7 +78,7 @@ fi
 # Check if render device exist
 if compgen -G "/dev/dri/render*" > /dev/null; then
     echo "RENDER device exist. Getting the GID..."
-    export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render*)
+    export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
 
 fi
 
