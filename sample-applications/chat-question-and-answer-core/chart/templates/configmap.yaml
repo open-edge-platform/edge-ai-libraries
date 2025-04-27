@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: app-env-config
+  labels:
+    app: {{ .Values.chatqna.name }}
+data:
+  EMBEDDING_DEVICE: "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+  RERANKER_DEVICE: "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+  LLM_DEVICE: "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+  MAX_TOKENS: "1024"
+  ENABLE_RERANK: "true"
+  CACHE_DIR: "/tmp/model_cache"
+  HF_DATASETS_CACHE: "/tmp/model_cache"
+  TMP_FILE_PATH: "/tmp/chatqna/documents"

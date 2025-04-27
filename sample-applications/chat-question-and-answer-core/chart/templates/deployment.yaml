@@ -32,7 +32,7 @@ spec:
         runAsUser: 0 
       containers:
         - name: chatqna-core
-          image: "{{ if .Values.gpu.enabled }}{{ .Values.image.registry }}chatqna:{{ .Values.gpu.backendTag }}{{ else }}{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}{{ end }}"
+          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}"
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
           readinessProbe:
             httpGet:
@@ -61,13 +61,10 @@ spec:
               value: "{{ .Values.global.RERANKER_MODEL }}"
             - name: LLM_MODEL_ID
               value: "{{ .Values.global.LLM_MODEL }}"
+          envFrom:
+            - configMapRef:
+                name: app-env-config
           {{ if .Values.gpu.enabled }}
-            - name: EMBEDDING_DEVICE
-              value: "{{ .Values.gpu.EMBEDDING_DEVICE }}"
-            - name: RERANKER_DEVICE
-              value: "{{ .Values.gpu.RERANKER_DEVICE }}"
-            - name: LLM_DEVICE
-              value: "{{ .Values.gpu.LLM_DEVICE }}"
           devices:
             - name: dri-device
               containerPath: {{ .Values.gpu.devices }}

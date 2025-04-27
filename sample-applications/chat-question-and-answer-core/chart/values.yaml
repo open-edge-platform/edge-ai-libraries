@@ -1,19 +1,19 @@
 image:
   registry: "intel/"
-  backendTag: "core_1.1.2"
+  backendTag: "core_1.2"
   pullPolicy: IfNotPresent
 
 global:
-  http_proxy: ""
-  https_proxy: ""
-  no_proxy: ""
+  http_proxy:
+  https_proxy:
+  no_proxy:
   huggingface: 
-    apiToken: ""
-  EMBEDDING_MODEL_NAME: ""
-  RERANKER_MODEL: ""
-  LLM_MODEL: ""
+    apiToken:
+  EMBEDDING_MODEL_NAME:
+  RERANKER_MODEL:
+  LLM_MODEL:
   model_cache_path: "/tmp/model_cache"
-  UI_NODEPORT: <ui-nodeport>
+  UI_NODEPORT: 
   pvc:
     size: 40Gi
   pvc_policy: 
@@ -37,14 +37,10 @@ chatqna:
     
 gpu:
   enabled: false
-  backendTag: "coregpu_1.1.0"
-  EMBEDDING_DEVICE: "GPU"
-  RERANKER_DEVICE: "GPU"
-  LLM_DEVICE: "GPU"
   devices: /dev/dri
   group_add: $(stat -c "%g" /dev/dri/render*)
-  key: ""  #update as per the cluster node label key for GPU
-  value: ""  #update as per the cluster node label value for GPU
+  key:  #update as per the cluster node label key for GPU
+  value:   #update as per the cluster node label value for GPU
 
 uiService:
   name: chatqna-core-ui

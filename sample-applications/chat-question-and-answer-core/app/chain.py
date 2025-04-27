@@ -68,7 +68,7 @@ llm = HuggingFacePipeline.from_model_id(
     task="text-generation",
     backend="openvino",
     model_kwargs={
-        "device": config.INFERENCE_DEVICE,
+        "device": config.LLM_DEVICE,
         "ov_config": {
             "PERFORMANCE_HINT": "LATENCY",
             "NUM_STREAMS": "1",
