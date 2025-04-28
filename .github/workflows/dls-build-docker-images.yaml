@@ -1,5 +1,5 @@
-name: "[PROD] [U22/24] Build and Push Docker Images"
-run-name: "[PROD] [U22/24] Build and Push Docker Images"
+name: "[DLS] [U22/24] Build and Push Docker Images"
+run-name: "[DLS] [U22/24] Build and Push Docker Images"
 on:
   push:
     branches:
