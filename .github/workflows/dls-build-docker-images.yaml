@@ -6,11 +6,16 @@ on:
       - 'dls-ci-docker-images'
     paths:
       - 'libraries/dl-streamer/**'
-    paths-ignore:
-      - 'libraries/dl-streamer/docs/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
+
+  push:
+    branches:
+      - 'dls-ci-docker-images'
+    paths-ignore:
+      - 'libraries/dl-streamer/docs/**'
+  pull_request:
     paths-ignore:
       - 'libraries/dl-streamer/docs/**'
 
