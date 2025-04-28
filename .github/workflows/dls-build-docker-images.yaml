@@ -2,13 +2,12 @@ name: "[DLS] [U22/24] Build and Push Docker Images"
 run-name: "[DLS] [U22/24] Build and Push Docker Images"
 on:
   push:
-    branches:
-      - 'dls-ci-docker-images'
     paths:
       - 'libraries/dl-streamer/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
+permissions: read-all
 
 jobs:
   build:
