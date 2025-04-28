@@ -62,6 +62,7 @@ services:
      - "110"
     devices:
       - "/dev/dri:/dev/dri"
+      - "/dev/accel:/dev/accel"
     volumes:
       - collector-signals:/home/dlstreamer/vippet/.collector-signals
       - ./models:/home/dlstreamer/vippet/models

@@ -13,6 +13,7 @@ from matplotlib.patches import Arc
 from collect import CollectionReport, MetricsCollectorFactory
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
+from device import DeviceDiscovery
 
 css_code = """
 
@@ -91,6 +92,7 @@ theme = gr.themes.Default(
 
 # pipeline = Transportation2Pipeline()
 pipeline = SmartNVRPipeline()
+device_discovery = DeviceDiscovery()
 
 # Download File
 def download_file(url, local_filename):
@@ -405,13 +407,18 @@ def create_interface():
     )
 
     # Object detection device
+    device_choices = [
+        (device.full_device_name, device.device_name)
+        for device in device_discovery.list_devices()
+    ]
+    preferred_device = next(
+        ( "GPU" for device_name in device_choices if "GPU" in device_name),
+        ( "CPU" ),
+    )
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
-        choices=[
-            "CPU",
-            "GPU",
-        ],
-        value="GPU",
+        choices=device_choices,
+        value=preferred_device,
     )
 
     # This elements are not used in the current version of the app
