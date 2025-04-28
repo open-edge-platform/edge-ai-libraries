@@ -17,6 +17,16 @@ from .utils import get_separators, parse_html
 config = Settings()
 
 async def get_urls_embedding() -> List[str]:
+    """
+    Retrieve a list of distinct URLs from the database based on the specified index name.
+    This function executes a SQL query to fetch distinct URLs from the `langchain_pg_embedding`
+    table by joining it with the `langchain_pg_collection` table. The URLs are filtered based
+    on the collection name specified in the configuration.
+
+    Returns:
+        List[str]: A list of distinct URLs retrieved from the database.
+    """
+
     url_list = []
     query = "SELECT DISTINCT \
     lpc.cmetadata ->> 'url' as url FROM \
@@ -32,7 +42,18 @@ async def get_urls_embedding() -> List[str]:
 
 
 def ingest_url_to_pgvector(url_list: List[str]) -> None:
-    """Ingest URL to PGVector."""
+    """
+    Ingests a list of URLs into a PGVector database by fetching their content,
+    splitting it into chunks, generating embeddings, and storing them.
+
+    Args:
+        url_list (List[str]): A list of URLs to be ingested.
+
+    Raises:
+        HTTPException: If there are issues with SSL, HTTP response status,
+            HTML parsing, or any other errors during the ingestion process.
+    """
+
 
     try:
         invalid_urls = 0
@@ -112,7 +133,22 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
 
 
 async def delete_embeddings_url(url: Optional[str], delete_all: bool = False) -> bool:
-    """Delete embeddings for a given URL or delete all embeddings."""
+    """
+    Deletes embeddings from the database based on the provided URL or deletes all embeddings.
+
+    Args:
+        url (Optional[str]): The URL whose embeddings should be deleted. Required if `delete_all` is False.
+        delete_all (bool): If True, deletes embeddings for all URLs in the database. Defaults to False.
+
+    Returns:
+        bool: True if the deletion was successful, False otherwise.
+
+    Raises:
+        HTTPException: If no URLs are present in the database when `delete_all` is True.
+        ValueError: If the provided URL does not exist in the database or if invalid arguments are provided.
+        HTTPException: If a database error occurs during the operation.
+    """
+
 
     try:
         url_list = await get_urls_embedding()

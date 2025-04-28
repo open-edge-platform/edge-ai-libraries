@@ -86,3 +86,20 @@ def parse_html(input, chunk_size, chunk_overlap):
         html_content += doc.page_content + "\n"
 
     return html_content
+
+class Validation:
+    @staticmethod
+    def sanitize_input(input: str) -> str | None:
+        """Takes an string input and strips whitespaces. Returns None if
+        string is empty else returns the string.
+        """
+        input = str.strip(input)
+        if len(input) == 0:
+            return None
+
+        return input
+
+    @staticmethod
+    def strip_input(input: str) -> str:
+        """Takes and string input and returns whitespace stripped string."""
+        return str.strip(input)

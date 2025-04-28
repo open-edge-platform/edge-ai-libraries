@@ -4,19 +4,21 @@
 import os
 import requests
 import psycopg
-from requests.exceptions import HTTPError
+import uvicorn
 from http import HTTPStatus
 from pathlib import Path
-from fastapi import FastAPI, HTTPException, File, UploadFile
-from pydantic import BaseModel
-from typing import Annotated, List, Optional
+from fastapi import FastAPI, HTTPException, File, Query, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import StreamingResponse
+from pydantic import BeforeValidator
+from typing import Annotated, List, Optional
 from .logger import logger
 from .config import Settings
 from .db_config import get_db_connection_pool
 from .document import get_documents_embeddings, ingest_to_pgvector, save_temp_file, delete_embeddings
 from .url import get_urls_embedding, ingest_url_to_pgvector, delete_embeddings_url
-from .utils import check_tables_exist
+from .utils import check_tables_exist, Validation
+from .store import DataStore
 
 config = Settings()
 pool = get_db_connection_pool()
@@ -32,9 +34,22 @@ app.add_middleware(
     allow_headers=config.ALLOW_HEADERS.split(","),
 )
 
+@app.get(
+    "/health",
+    tags=["Status APIs"],
+    summary="Check the health of the API service"
+)
+async def check_health():
+    """
+    Checks the health status of the application.
+    This asynchronous function is used to verify that the application is running
+    and healthy by returning a simple status message.
 
-class DocumentIn(BaseModel):
-    file_name: str
+    Returns:
+        dict: A dictionary containing the health status of the application.
+    """
+
+    return {"status": "ok"}
 
 
 @app.get(
@@ -114,32 +129,22 @@ async def ingest_document(
                         status_code=HTTPStatus.BAD_REQUEST,
                         detail=f"Unsupported file format: {file_extension}. Supported formats are: pdf, txt, docx",
                     )
+                else:
+                    logger.info(
+                        f"file: {file.filename} uploaded to DataStore successfully!"
+                    )
 
-                # Upload files to Data Store Service
+                # Upload files to Data Store
                 try:
-                    file_tuple = (file.filename, file.file, file.content_type)
-                    response = requests.post(
-                        config.DATASTORE_DATA_ENDPOINT, files={"file": file_tuple}
-                    )
-                    response.raise_for_status()
-                    result = response.json()
-                    uploaded_filename = result["files"][0]
-                    bucket_name = result["bucket_name"]
-                except HTTPError as ex:
-                    logger.error(f"HTTP Error while hitting DataStore : {ex}")
-                    raise HTTPException(
-                        status_code=response.status_code,
-                        detail="Some error ocurred at Data Storage Service. Please try later!",
-                    )
+                    result = DataStore.upload_document(file)
+                    bucket_name = result["bucket"]
+                    uploaded_filename = result["file"]
+
                 except Exception as ex:
                     logger.error(f"Internal Error: {ex}")
                     raise HTTPException(
                         status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                         detail="Some unknown error ocurred. Please try later!",
-                    )
-                else:
-                    logger.info(
-                        f"file: {file.filename} uploaded to DataStore successfully!"
                     )
 
                 try:
@@ -165,8 +170,10 @@ async def ingest_document(
         result = {"status": 200, "message": "Data preparation succeeded"}
 
         return result
+
     except HTTPException as e:
         raise e
+
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -178,18 +185,25 @@ async def ingest_document(
     status_code=HTTPStatus.NO_CONTENT,
 )
 async def delete_documents(
-    bucket_name: str, file_name: Optional[str] = None, delete_all: bool = False
+    bucket_name: Annotated[
+        str, BeforeValidator(Validation.sanitize_input), Query(min_length=3)
+    ] = config.DEFAULT_BUCKET,
+    file_name: Annotated[
+        Optional[str], BeforeValidator(Validation.sanitize_input)
+    ] = None,
+    delete_all: bool = False
 ) -> None:
     """
     Delete a document or all documents from storage and their embeddings from Vector DB.
 
     Args:
         bucket_name (str): Bucket name where file to be deleted is stored
-        filename(str): Name of file to be deleted
-        file_path (str): The path of the file to delete, or "all" to delete all files.
+        file_name(str): Name of file to be deleted
+        delete_all (bool): Flag to indicate delete all files. Set "True" to delete all files.
+        If "False", delete only the file specified in file_name. Default set to "False".
 
     Returns:
-        response (dict): A status message indicating the result of the deletion.
+        HTTPStatus: HTTP status code(NO_CONTENT) indicating the result of the deletion.
     """
 
     try:
@@ -203,34 +217,21 @@ async def delete_documents(
 
         # Delete embeddings from Vector DB
         if not await delete_embeddings(bucket_name, file_name, delete_all):
-            raise HTTPException(status_code=500, detail="Failed to delete embeddings from vector database.")
+            raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to delete embeddings from vector database.")
 
-        # Delete files or bucket from object store as requested.
-        delete_req = {
-            "bucket_name": bucket_name,
-            "file_name": file_name,
-            "delete_all": delete_all,
-        }
 
-        response = requests.delete(config.DATASTORE_DATA_ENDPOINT, params=delete_req)
-        response.raise_for_status()
-
-    except HTTPError as ex:
-        logger.error(f"Error while hitting DataStore : {ex}")
-        # Display error message from DataStore only if it is because of request error.
-        # Do not display error messages for internal errors.
-        result = response.json()
-        if result and response.status_code < 500:
-            error_msg = result["message"]
-        else:
-            error_msg = "Some error occurred at Data Storage Service!"
-
-        raise HTTPException(status_code=response.status_code, detail=error_msg)
+        DataStore.delete_document(bucket_name, file_name, delete_all)
 
     except ValueError as err:
         logger.error(f"Error: {err}")
         raise HTTPException(
             status_code=HTTPStatus.UNPROCESSABLE_ENTITY, detail=str(err)
+        )
+
+    except FileNotFoundError as err:
+        logger.error(f"Error: {err}")
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(err)
         )
 
     except AssertionError:
@@ -240,6 +241,64 @@ async def delete_documents(
 
     except HTTPException as e:
         raise e
+
+    except Exception as ex:
+        logger.error(f"Internal error: {ex}")
+        raise HTTPException(
+            status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
+            detail="Internal Server Error"
+        )
+
+
+@app.get(
+    "/documents/{file_name}",
+    tags=["Data Preparation APIs"],
+    summary="Download document from Object Storage",
+    response_class=StreamingResponse,
+)
+async def download_documents(
+    bucket_name: Annotated[
+        str, BeforeValidator(Validation.sanitize_input), Query(min_length=3)
+    ] = config.DEFAULT_BUCKET,
+    file_name: Annotated[
+        str, BeforeValidator(Validation.sanitize_input)
+    ] = None,
+):
+    """
+    Downloads a document from a specified bucket and returns it as a streaming response.
+    Args:
+        bucket_name (str): The name of the bucket to download the document from.
+        Must have a minimum length of 3 characters. Defaults to `config.DEFAULT_BUCKET`.
+        file_name (str): The name of the file to download.
+
+    Returns:
+        StreamingResponse: A streaming response containing the file content with
+        the appropriate media type and headers for file download.
+
+    Raises:
+        HTTPException: If the file is not found, raises an exception with a 404 status code.
+        HTTPException: If an internal error occurs, raises an exception with a 500 status code.
+    """
+    try:
+        file_size = DataStore.get_document_size(bucket_name, file_name)
+
+        file_stream = await DataStore.download_document(bucket_name, file_name)
+
+        headers = {
+            "Content-Length": f"{file_size}",
+            "Content-Disposition": f"attachment; filename={file_name}"
+        }
+
+        return StreamingResponse(file_stream,
+                                 media_type="application/octet-stream",
+                                 headers=headers,
+        )
+
+    except FileNotFoundError as err:
+        logger.error(f"Error: {err}")
+        raise HTTPException(
+            status_code=HTTPStatus.NOT_FOUND, detail=str(err)
+        )
 
     except Exception as ex:
         logger.error(f"Internal error: {ex}")
@@ -316,6 +375,7 @@ async def ingest_links(urls: list[str]) -> dict:
 
     except HTTPException as e:
         raise e
+
     except Exception as e:
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
@@ -373,8 +433,5 @@ async def delete_urls(
 
         )
 
-
 if __name__ == "__main__":
-    import uvicorn
-
     uvicorn.run("main:app", host="0.0.0.0", port=8000)

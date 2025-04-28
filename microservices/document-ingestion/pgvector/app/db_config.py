@@ -12,6 +12,18 @@ connection_pool = None
 
 
 def get_db_connection_pool() -> ConnectionPool:
+    """
+    Retrieves a singleton database connection pool. If the connection pool does not
+    already exist, it initializes one using the connection string from the configuration.
+
+    Returns:
+        ConnectionPool: The database connection pool instance, or None if an error occurs
+        during initialization.
+
+    Raises:
+        Exception: Logs an error if there is an issue creating the connection pool.
+    """
+
     global connection_pool
     if connection_pool is None:
         try:

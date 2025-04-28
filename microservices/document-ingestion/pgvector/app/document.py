@@ -52,6 +52,21 @@ async def save_temp_file(file: UploadFile, bucket_name: str, filename: str) -> s
 
 
 async def get_documents_embeddings() -> list:
+    """
+    Retrieves a list of document embeddings from the database, including file names and bucket names.
+    This function queries the database to fetch distinct file sources and bucket names
+    associated with a specific index name. The results are processed to extract the file
+    names and bucket names, which are returned as a list of dictionaries.
+
+    Returns:
+        list: A list of dictionaries, where each dictionary contains:
+            - file_name (str): The name of the file extracted from the source path.
+            - bucket_name (str): The name of the bucket associated with the file.
+
+    Raises:
+        Exception: If there is an issue with the database query or execution.
+    """
+
     file_list = []
     query = "SELECT DISTINCT \
     lpc.cmetadata ->> 'source' as source, lpc.cmetadata ->> 'bucket' as bucket \
@@ -73,10 +88,21 @@ async def get_documents_embeddings() -> list:
 
 
 def ingest_to_pgvector(doc_path: Path, bucket: str):
-    """Ingest document to PGVector."""
+    """
+    Ingests a document into a PostgreSQL database with PGVector extension for vector embeddings.
+    This function processes a document, splits it into chunks, generates embeddings for each chunk,
+    and uploads the embeddings to a PGVector collection in batches.
+
+    Args:
+        doc_path (Path): The file path to the document to be ingested.
+        bucket (str): The name of the bucket associated with the document metadata.
+
+    Raises:
+        HTTPException: If no text is found in the document or if an error occurs during ingestion.
+    """
+
 
     try:
-
         if doc_path.suffix.lower() == ".pdf":
             loader = PyPDFLoader(doc_path)
         else:
@@ -93,7 +119,7 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
         documents = [
             Document(
                 page_content=chunk.page_content,
-                metadata={"bucket": bucket, **chunk.metadata},
+                metadata={"bucket": bucket, "filename": doc_path.name, **chunk.metadata},
             )
             for chunk in chunks
         ]
@@ -133,8 +159,28 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
 async def delete_embeddings(
     bucket_name: str, file_name: Optional[str], delete_all: bool = False
 ) -> bool:
-    """Delete embeddings for a given file or delete all embeddings."""
+    """
+    Deletes embeddings from the database based on the specified criteria.
+    If `delete_all` is True, all embeddings associated with the given bucket
+    will be deleted. If `delete_all` is False, a `file_name` must be provided,
+    and only embeddings associated with the specified file in the given bucket
+    will be deleted.
 
+    Args:
+        bucket_name (str): The name of the bucket containing the embeddings.
+        file_name (Optional[str]): The name of the file whose embeddings are to
+            be deleted. Required if `delete_all` is False.
+        delete_all (bool): Flag indicating whether to delete all embeddings
+            in the specified bucket. Defaults to False.
+
+    Returns:
+        bool: True if the embeddings were successfully deleted, False otherwise.
+
+    Raises:
+        ValueError: If `delete_all` is False and `file_name` is not provided.
+        HTTPException: If a database error occurs or an internal server error
+            is encountered.
+    """
     try:
         # If `delete_all` is True, embeddings for all files in given bucket will be deleted,
         # irrespective of whether a `file_name` is provided or not.
@@ -159,6 +205,7 @@ async def delete_embeddings(
                 langchain_pg_embedding.cmetadata ->> 'bucket' = %(bucket)s
             )
             """
+
             params = {
                 "indexname": config.INDEX_NAME,
                 "filename": file_name,
