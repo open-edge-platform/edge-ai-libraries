@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-npu_driver_version='1.13.0'
+npu_driver_version='1.13.0' # Default NPU driver version
 reinstall_npu_driver='no'  # Default value for reinstalling the NPU driver
 on_host_or_docker='host'
 
