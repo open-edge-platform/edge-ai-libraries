@@ -11,6 +11,7 @@ permissions: read-all
 
 jobs:
   build:
+    name: Build ${{ matrix.image }} image
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
