@@ -61,6 +61,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | `false` |
 | `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
+| `global.keeppvc` | Set true to persists the storage. Default is false | false |
 | `global.GPU.enabled` | For model server deployed on GPU | false |
 | `global.GPU.node.key` | Tag key assigned to the GPU node on kubernetes cluster | |
 | `global.GPU.node.value` | Tag value assigned to the GPU node on kubernetes cluster | |

@@ -14,19 +14,19 @@ spec:
     spec:
     {{- if .Values.global.GPU.enabled }}
       tolerations:
-          - key: {{ .Values.global.GPU.key }}
+          - key: {{ .Values.global.GPU.node.key }}
             operator: "Equal"
-            value: {{ .Values.global.GPU.value }}
+            value: {{ .Values.global.GPU.node.value }}
             effect: "NoSchedule"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                - key: {{ .Values.global.GPU.key }}
+                - key: {{ .Values.global.GPU.node.key }}
                   operator: In
                   values:
-                    - {{ .Values.global.GPU.value }}
+                    - {{ .Values.global.GPU.node.value }}
     {{ end }}
       initContainers:
         - name: init-script

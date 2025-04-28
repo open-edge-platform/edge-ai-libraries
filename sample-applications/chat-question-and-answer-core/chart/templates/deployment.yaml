@@ -12,27 +12,27 @@ spec:
       labels:
         app: chatqna-core
     spec:
-      {{ if .Values.gpu.enabled }}
+      {{- if .Values.gpu.enabled }}
       tolerations:
-        - key: {{ .Values.gpu.key }}
+        - key: {{ .Values.gpu.node.key }}
           operator: "Equal"
-          value: {{ .Values.gpu.value }}
+          value: {{ .Values.gpu.node.value }}
           effect: "NoSchedule"
       affinity:
         nodeAffinity:
           requiredDuringSchedulingIgnoredDuringExecution:
             nodeSelectorTerms:
               - matchExpressions:
-                - key: {{ .Values.gpu.key }}
+                - key: {{ .Values.gpu.node.key }}
                   operator: In
                   values:
-                    - {{ .Values.gpu.value }}
-      {{ end }}
+                    - {{ .Values.gpu.node.value }}
+      {{- end }}
       securityContext:
         runAsUser: 0 
       containers:
         - name: chatqna-core
-          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}"
+          image: {{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
           readinessProbe:
             httpGet:
@@ -61,23 +61,23 @@ spec:
               value: "{{ .Values.global.RERANKER_MODEL }}"
             - name: LLM_MODEL_ID
               value: "{{ .Values.global.LLM_MODEL }}"
-            - name : EMBEDDING_DEVICE
-              value : "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
-            - name : RERANKER_DEVICE
-              value: "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
-            - name : LLM_DEVICE
-              value : "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
-            - name : MAX_TOKENS
-              value: {{ .Values.chatqna.env.MAX_TOKENS }}
-            - name : ENABLE_RERANK
-              value : {{ .Values.chatqna.env.ENABLE_RERANK }}
+            - name: EMBEDDING_DEVICE
+              value: "{{- if .Values.gpu.enabled}}{{ .Values.gpu.device }}{{- else}}{{ .Values.global.device }}{{- end }}"
+            - name: RERANKER_DEVICE
+              value: "{{- if .Values.gpu.enabled}}{{ .Values.gpu.device }}{{- else}}{{ .Values.global.device }}{{- end }}"
+            - name: LLM_DEVICE
+              value: "{{- if .Values.gpu.enabled}}{{ .Values.gpu.device }}{{- else}}{{ .Values.global.device }}{{- end }}"
+            - name: MAX_TOKENS
+              value: "{{ .Values.chatqna.env.MAX_TOKENS }}"
+            - name: ENABLE_RERANK
+              value: "{{ .Values.chatqna.env.ENABLE_RERANK }}"
             - name: CACHE_DIR
-              value: {{ .Values.chatqna.env.CACHE_DIR }}
+              value: "{{ .Values.chatqna.env.CACHE_DIR }}"
             - name: HF_DATASETS_CACHE
-              value: {{ .Values.chatqna.env.HF_DATASETS_CACHE }}
+              value: "{{ .Values.chatqna.env.HF_DATASETS_CACHE }}"
             - name: TMP_FILE_PATH
-              value: {{ .Values.chatqna.env.TMP_FILE_PATH }}
-          {{ if .Values.gpu.enabled }}
+              value: "{{ .Values.chatqna.env.TMP_FILE_PATH }}"
+          {{- if .Values.gpu.enabled }}
           devices:
             - name: dri-device
               containerPath: {{ .Values.gpu.devices }}
@@ -86,7 +86,7 @@ spec:
             runAsUser: 0
             runAsGroup: 0
             fsGroup: 0
-          {{ end }}
+          {{- end }}
           ports:
             - containerPort: 8888
           volumeMounts:
@@ -96,9 +96,9 @@ spec:
         - name: model-cache
           persistentVolumeClaim:
             claimName: egai-pvc
-      {{ if .Values.gpu.enabled }}
+      {{- if .Values.gpu.enabled }}
         - name: dri-device
           hostPath:
             path: {{ .Values.gpu.devices }}
             type: Directory
-      {{ end }}
+      {{- end }}

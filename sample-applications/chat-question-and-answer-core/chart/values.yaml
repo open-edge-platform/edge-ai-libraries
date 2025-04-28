@@ -13,9 +13,10 @@ global:
   RERANKER_MODEL:
   LLM_MODEL:
   model_cache_path: "/tmp/model_cache"
-  UI_NODEPORT: 
+  device: "CPU"
+  UI_NODEPORT:
   pvc:
-    size: 40Gi
+    size: 60Gi
   keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
@@ -32,13 +33,13 @@ chatqna:
     httpGet:
       path: /v1/chatqna/health
       port: 8888
-    initialDelaySeconds: 2500 
+    initialDelaySeconds: 1000 
     periodSeconds: 30
   env: 
     MAX_TOKENS: "1024"
-    ENABLE_RERANK: "true"
+    ENABLE_RERANK: true
     CACHE_DIR: "/tmp/model_cache"
-    HF_DATASETS_CACHE:  "/tmp/model_cache"
+    HF_DATASETS_CACHE: "/tmp/model_cache"
     TMP_FILE_PATH: "/tmp/chatqna/documents"
     
 gpu:
