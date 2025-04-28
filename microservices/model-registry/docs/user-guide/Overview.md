@@ -43,9 +43,9 @@ The Relational Database is responsible for storing structured data related to th
 
 The Object Storage solution is used to store unstructured data, such as model binaries and other files.
 
-**Intel® Geti™ Platform**
+**Intel® Geti™ Software**
 
-The Intel® Geti™ platform is accessible via optional configurations within the model registry. Once configured, the model registry is able to access the projects and models hosted within a remote Geti platform. 
+The Intel® Geti™ software is accessible via optional configurations within the model registry. Once configured, the model registry is able to access the projects and models hosted within a remote Geti platform. 
 
 ## Key Features
 * **Feature 1**: Provides a comprehensive set of REST API endpoints for operations such as registering, updating, retrieving, and deleting models.
