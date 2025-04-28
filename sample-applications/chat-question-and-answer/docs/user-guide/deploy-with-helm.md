@@ -62,8 +62,9 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
 | `global.GPU.enabled` | For model server deployed on GPU | false |
-| `global.GPU.key` | Tag key assigned to the GPU node on kubernetes cluster | |
-| `global.GPU.value` | Tag value assigned to the GPU node on kubernetes cluster | |
+| `global.GPU.node.key` | Tag key assigned to the GPU node on kubernetes cluster | |
+| `global.GPU.node.value` | Tag value assigned to the GPU node on kubernetes cluster | |
+| `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 ||
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `1.1.2`   |

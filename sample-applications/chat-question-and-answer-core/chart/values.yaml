@@ -16,7 +16,7 @@ global:
   UI_NODEPORT: 
   pvc:
     size: 40Gi
-  pvc_policy: 
+  keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
   service:
@@ -45,8 +45,10 @@ gpu:
   enabled: false
   devices: /dev/dri
   group_add: $(stat -c "%g" /dev/dri/render*)
-  key:  #update as per the cluster node label key for GPU
-  value:   #update as per the cluster node label value for GPU
+  device: "GPU"  #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __GPU_DEVICE__
+  node:
+    key:  #update as per the cluster node label key for GPU
+    value:   #update as per the cluster node label value for GPU
 
 uiService:
   name: chatqna-core-ui

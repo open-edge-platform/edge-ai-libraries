@@ -68,6 +68,10 @@ By following this guide, you will learn how to:
        source scripts/setup_env.sh
       ```
     - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose).
+    - __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __GPU_DEVICE__
+        ```bash
+        export GPU_DEVICE="GPU.1"
+        ```
 
 5. **Start the Application**:
     Start the application using docker compose:

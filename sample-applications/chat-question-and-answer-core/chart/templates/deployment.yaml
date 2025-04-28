@@ -62,11 +62,11 @@ spec:
             - name: LLM_MODEL_ID
               value: "{{ .Values.global.LLM_MODEL }}"
             - name : EMBEDDING_DEVICE
-              value : "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+              value : "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
             - name : RERANKER_DEVICE
-              value: "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+              value: "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
             - name : LLM_DEVICE
-              value : "{{ if .Values.gpu.enabled }}GPU{{ else }}CPU{{ end }}"
+              value : "{{ if .Values.gpu.enabled }}{{ .Values.gpu.device }}{{ else }}CPU{{ end }}"
             - name : MAX_TOKENS
               value: {{ .Values.chatqna.env.MAX_TOKENS }}
             - name : ENABLE_RERANK
