@@ -17,7 +17,7 @@ global:
   UI_NODEPORT:
   pvc:
     size: 40Gi
-  keeppvc: false 
+  keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
   service:
