@@ -95,7 +95,7 @@ RUN \
 
 # Intel® Data Center GPU Flex Series drivers (optional)
 # hadolint ignore=SC1091
-RUN export -n no_proxy && \
+RUN \
     apt-get update && \
     . /etc/os-release && \
     if [[ ! " jammy noble " =~ ${VERSION_CODENAME} ]]; then \

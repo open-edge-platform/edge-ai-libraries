@@ -1,5 +1,5 @@
-name: "[DLS] [U22/24] Build and Push Docker Images"
-run-name: "[DLS] [U22/24] Build and Push Docker Images"
+name: "[DLS] [U22/24] Build Docker Images"
+run-name: "[DLS] [U22/24] Build Docker Images"
 on:
   push:
     paths:

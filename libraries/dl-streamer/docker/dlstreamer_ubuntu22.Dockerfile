@@ -28,7 +28,7 @@ RUN \
 
 # Intel® Data Center GPU Flex Series drivers (optional)
 # hadolint ignore=SC1091
-RUN export -n no_proxy && \
+RUN \
     apt-get update && \
     . /etc/os-release && \
     if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
@@ -47,7 +47,7 @@ RUN export -n no_proxy && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN export -n no_proxy && \
+RUN \
     echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
     wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
@@ -58,7 +58,7 @@ RUN export -n no_proxy && \
 
 ARG DEBIAN_FRONTEND=noninteractive
 
-RUN export -n no_proxy && \
+RUN \
     apt-get update -y && \
     apt-get install -y -q --no-install-recommends intel-dlstreamer=\* && \
     apt-get clean -y && \
