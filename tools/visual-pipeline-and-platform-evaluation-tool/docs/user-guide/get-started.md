@@ -10,6 +10,7 @@ By following this guide, you will learn how to:
 ## Prerequisites
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
+- Latest NPU Linux Drivers [Linux NPU Driver Releases](https://github.com/intel/linux-npu-driver/releases).
 
 
 ## Set up and First Use
