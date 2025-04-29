@@ -3,28 +3,17 @@ services:
     image: docker.io/openvino/ubuntu22_dev:2025.0.0
     container_name: models
     volumes:
-      - ./models.lst:/opt/intel/openvino_2025.0.0.0/models.lst
       - ./models/:/output
     user: root
     command: bash -xc '
         test -f /output/.done || (
-          OPENVINO_STORAGE_URL="https://storage.openvinotoolkit.org/repositories/open_model_zoo/2022.1/models_bin/1" &&
-          MODEL_1="person-vehicle-bike-detection-2004/FP16-INT8/person-vehicle-bike-detection-2004" &&
-          MODEL_2="vehicle-attributes-recognition-barrier-0039/FP16-INT8/vehicle-attributes-recognition-barrier-0039" &&
-          mkdir -p /tmp/models/intel/person-vehicle-bike-detection-2004/FP16-INT8 && 
-          curl $$OPENVINO_STORAGE_URL/$$MODEL_1.xml -o /tmp/models/intel/$$MODEL_1.bin &&
-          curl $$OPENVINO_STORAGE_URL/$$MODEL_1.xml -o /tmp/models/intel/$$MODEL_1.xml &&
-          mkdir -p /tmp/models/intel/vehicle-attributes-recognition-barrier-0039/FP16-INT8 &&
-          curl $$OPENVINO_STORAGE_URL/$$MODEL_2.xml -o /tmp/models/intel/$$MODEL_2.xml &&
-          curl $$OPENVINO_STORAGE_URL/$$MODEL_2.bin -o /tmp/models/intel/$$MODEL_2.bin &&
-          cp -r /tmp/models/intel /output &&
-          mkdir -p /output/public &&
+          mkdir -p /output/pipeline-zoo-models &&
           git clone --depth 1 https://github.com/dlstreamer/pipeline-zoo-models.git &&
-          cp -r pipeline-zoo-models/storage/efficientnet-b0_INT8 /output/public/ &&
-          cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/public &&
-          cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/public/ &&
-          cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/public/ &&
-          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/public/
+          cp -r pipeline-zoo-models/storage/efficientnet-b0_INT8 /output/pipeline-zoo-models/ &&
+          cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/pipeline-zoo-models &&
+          cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/pipeline-zoo-models/ &&
+          cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/pipeline-zoo-models/ &&
+          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/
         ) &&
         touch /output/.done &&
         tail -f /dev/null

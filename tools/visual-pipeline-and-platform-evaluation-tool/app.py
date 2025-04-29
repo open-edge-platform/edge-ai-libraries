@@ -401,7 +401,6 @@ def create_interface():
             "SSDLite MobileNet V2",
             "YOLO v5m",
             "YOLO v5s",
-            "Person Vehicle Bike Detection",
         ],
         value="YOLO v5s",
     )
@@ -523,31 +522,24 @@ def create_interface():
                     match object_detection_model:
                         case "SSDLite MobileNet V2":
                             constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/public/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
                             )
                             constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/public/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
                             )
                         case "YOLO v5m":
                             constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/public/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
+                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
                             )
                             constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/public/yolov5m-416_INT8/yolo-v5.json"
+                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
                             )
                         case "YOLO v5s":
                             constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/public/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
+                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
                             )
                             constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/public/yolov5s-416_INT8/yolo-v5.json"
-                            )
-                        case "Person Vehicle Bike Detection":
-                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/intel/person-vehicle-bike-detection-2004/FP16-INT8/person-vehicle-bike-detection-2004.xml"
-                            )
-                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json"
+                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
                             )
                         case _:
                             raise ValueError("Unrecognized Object Detection Model")
@@ -556,24 +548,17 @@ def create_interface():
                     # match object_classification_model:
                     #     case "ResNet-50 TF":
                     #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/public/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
+                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
                     #         )
                     #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/public/resnet-50-tf_INT8/resnet-50-tf_i8.json"
+                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
                     #         )
                     #     case "EfficientNet B0":
                     #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/public/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
+                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
                     #         )
                     #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/public/efficientnet-b0_INT8/efficientnet-b0.json"
-                    #         )
-                    #     case "Vehicle Attributes Recognition Barrier":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16-INT8/vehicle-attributes-recognition-barrier-0039.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
+                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
                     #         )
                     #     case _:
                     #         raise ValueError("Unrecognized Object Classification Model")

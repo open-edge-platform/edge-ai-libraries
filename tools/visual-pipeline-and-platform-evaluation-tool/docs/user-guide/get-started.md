@@ -29,10 +29,6 @@ By following this guide, you will learn how to:
 2. **Download the Artifacts**:
     - Download the artifacts:
       ```bash
-        mkdir -p models/intel/person-vehicle-bike-detection-2004/
-        curl -L -o models/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json"
-        mkdir -p models/intel/vehicle-attributes-recognition-barrier-0039/
-        curl -L -o models/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
         mkdir -p video_generator
         curl -L -o video_generator/background.gif "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/background.gif"
         curl -L -o video_generator/config.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
