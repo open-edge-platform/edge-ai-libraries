@@ -40,9 +40,9 @@ jobs:
       run: |
         docker build -t ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} .
 
-    - name: Push Docker image
-      run: |
-        docker push ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }}
+    # - name: Push Docker image
+    #   run: |
+    #     docker push ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }}
 
     - name: Save image info
       id: save-image
