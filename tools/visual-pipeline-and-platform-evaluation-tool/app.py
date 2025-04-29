@@ -350,7 +350,7 @@ def create_interface():
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
-            value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.9/tests/files/mse.mp4",
+            value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.12/tests/files/mse.mp4",
             sources="upload",
         )
 
