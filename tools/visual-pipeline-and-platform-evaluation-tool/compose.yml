@@ -102,6 +102,7 @@ services:
     volumes:
       - "./videos:/usr/src/app/output"
       - "./video_generator/config.json:/usr/src/app/config.json"
+      - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
     restart: on-failure:5
 
