@@ -115,10 +115,6 @@ class SmartNVRPipeline(GstPipeline):
             "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
         )
 
-        self._encoder = (
-            "x264enc bitrate=16000 speed-preset=superfast ! "
-        )
-
         self._compositor = (
             "{compositor} "
             "  name=comp "
@@ -149,7 +145,7 @@ class SmartNVRPipeline(GstPipeline):
             "{decoder} ! "
             "gvafpscounter starting-frame=1000 ! "
             "queue2 max-size-bytes=0 max-size-time=0 ! "
-            "videoscale ! "
+            "{postprocessing} ! "
             "video/x-raw,width=640,height=360 ! "
             "comp.sink_{id} "
         )
@@ -188,8 +184,7 @@ class SmartNVRPipeline(GstPipeline):
             "  method=file "
             "  file-path=/dev/null ! "
             "queue2 max-size-bytes=0 max-size-time=0 ! "
-            "{decoder} ! "
-            "videoscale ! "
+            "{postprocessing} ! "
             "video/x-raw,width=640,height=360 ! "
             "comp.sink_{id} "
         )
@@ -244,10 +239,19 @@ class SmartNVRPipeline(GstPipeline):
 
         # Find the available decoder in elements
         _decoder = next(
-            ("vah264dec" for element in elements if element[1] == "vah264dec"),
+            ("vah264dec ! video/x-raw(memory:VAMemory) " for element in elements if element[1] == "vah264dec"),
             next(
                 ("decodebin" for element in elements if element[1] == "decodebin"),
                 None  # Fallback to None if no decoder is found
+            )
+        )
+
+        # Find the postprocessing element
+        _postprocessing = next(
+            ("vapostproc" for element in elements if element[1] == "vapostproc"),
+            next(
+                ("videoscale" for element in elements if element[1] == "videoscale"),
+                None  # Fallback to None if no postprocessing is found
             )
         )
 
@@ -266,7 +270,8 @@ class SmartNVRPipeline(GstPipeline):
                 **parameters,
                 **constants,
                 id=i,
-                decoder=_decoder
+                decoder=_decoder,
+                postprocessing=_postprocessing
             )
 
         for i in range(inference_channels, channels):
@@ -274,7 +279,8 @@ class SmartNVRPipeline(GstPipeline):
                 **parameters, 
                 **constants, 
                 id=i, 
-                decoder=_decoder
+                decoder=_decoder,
+                postprocessing=_postprocessing
             )
 
 
