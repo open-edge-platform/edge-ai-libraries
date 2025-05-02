@@ -126,10 +126,6 @@ class SmartNVRPipeline(GstPipeline):
             "  location={VIDEO_OUTPUT_PATH} "
         )
 
-        self._decoder = (
-            "decodebin ! "
-        )
-
         self._recording_stream = (
             "filesrc "
             "  location={VIDEO_PATH} ! "
@@ -238,7 +234,7 @@ class SmartNVRPipeline(GstPipeline):
         )
 
         # Find the available decoder in elements
-        _decoder = next(
+        _decoder_element = next(
             ("vah264dec ! video/x-raw(memory:VAMemory) " for element in elements if element[1] == "vah264dec"),
             next(
                 ("decodebin" for element in elements if element[1] == "decodebin"),
@@ -247,7 +243,7 @@ class SmartNVRPipeline(GstPipeline):
         )
 
         # Find the postprocessing element
-        _postprocessing = next(
+        _postprocessing_element = next(
             ("vapostproc" for element in elements if element[1] == "vapostproc"),
             next(
                 ("videoscale" for element in elements if element[1] == "videoscale"),
@@ -270,8 +266,8 @@ class SmartNVRPipeline(GstPipeline):
                 **parameters,
                 **constants,
                 id=i,
-                decoder=_decoder,
-                postprocessing=_postprocessing
+                decoder=_decoder_element,
+                postprocessing=_postprocessing_element
             )
 
         for i in range(inference_channels, channels):
@@ -279,8 +275,8 @@ class SmartNVRPipeline(GstPipeline):
                 **parameters, 
                 **constants, 
                 id=i, 
-                decoder=_decoder,
-                postprocessing=_postprocessing
+                decoder=_decoder_element,
+                postprocessing=_postprocessing_element
             )
 
 
