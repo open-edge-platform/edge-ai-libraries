@@ -162,10 +162,12 @@ class SmartNVRPipeline(GstPipeline):
             "gvadetect "
             "  model={OBJECT_DETECTION_MODEL_PATH} "
             "  model-proc={OBJECT_DETECTION_MODEL_PROC} "
-            "  inference-interval=3 "
             "  model-instance-id=detect0 "
             "  pre-process-backend={object_detection_pre_process_backend} "
-            "  device={object_detection_device} ! "
+            "  device={object_detection_device} "
+            "  bitrate={batch_size} "  # Add batch size as bitrate
+            "  inference-interval={inference_interval} " 
+            "  nireq={nireq} ! "  # Add nireq
             "queue2 "
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
@@ -258,7 +260,8 @@ class SmartNVRPipeline(GstPipeline):
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(**parameters, **constants, id=i)
 
-
+        # Print the pipeline string
+        print("Generated Pipeline String:", "gst-launch-1.0 -q " + compositor + " " + streams)
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + compositor + " " + streams
 
@@ -268,7 +271,7 @@ if __name__ == "__main__":
     pipeline = SmartNVRPipeline()
     print("Diagram Path:", pipeline.diagram())
     print("Bounding Boxes:", pipeline.bounding_boxes())
-    print("Pipeline:", pipeline.pipeline())
+    # print("Pipeline:", pipeline.pipeline())
     print(
         "Evaluate:",
         pipeline.evaluate(
@@ -278,7 +281,13 @@ if __name__ == "__main__":
                 "OBJECT_DETECTION_MODEL_PATH": "model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": "model_proc.xml",
             },
-            {"object_detection_device": "CPU"},
+            {"object_detection_device": "CPU",
+             "batch_size": 16,  # Add batch size
+             "inference_interval": 2,  # Add inference interval
+             "nireq": 4,  # Add nireq
+             },
             2,
+            1,
+            "x264enc"
         ),
     )
