@@ -256,7 +256,8 @@ class SmartNVRPipeline(GstPipeline):
             **constants, 
             sinks=sinks, 
             encoder=_encoder_element, 
-            compositor=_compositor_element)
+            compositor=_compositor_element
+        )
 
         # Create the streams
         streams = ""
