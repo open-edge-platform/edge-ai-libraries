@@ -26,8 +26,8 @@ export DATAPREP_HOST_PORT=8000
 # TEI Embedding service vars
 export TEI_HOST=tei-embedding-service
 export TEI_HOST_PORT=6060
-export EMBEDDING_ENDPOINT_URL="http://$TEI_HOST"
-export TEI_EMBEDDING_MODEL_NAME=BAAI/bge-large-en-v1.5
+export TEI_ENDPOINT_URL="http://$TEI_HOST"
+export EMBEDDING_MODEL_NAME=BAAI/bge-large-en-v1.5
 
 # PGVector DB Vars
 export PGVECTOR_HOST=pgvector-vector-db
@@ -46,8 +46,12 @@ export host_ip=$(hostname -I | cut -d ' ' -f 1)
 # To override value of INDEX_NAME, export PGDB_INDEX from your shell.
 # To override value of IMAGE_REGISTRY, export CONTAINER_REGISTRY_URL from shell.
 
+export MINIO_ACCESS_KEY=${MINIO_USER:-dummy_user}
+export MINIO_SECRET_KEY=${MINIO_PASSWD:-dummy_321}
 export MINIO_ROOT_USER=${MINIO_USER:-dummy_user}
 export MINIO_ROOT_PASSWORD=${MINIO_PASSWD:-dummy_321}
+export MINIO_ACCESS_KEY=${MINIO_USER:-dummy_user}
+export MINIO_SECRET_KEY=${MINIO_PASSWD:-dummy_321}
 export PGVECTOR_USER=${PGDB_USER:-pgvectortest}
 export PGVECTOR_PASSWORD=${PGDB_PASSWD:-pgvectortest}
 export PGVECTOR_DBNAME=${PGDB_NAME:-pgvectortest}

@@ -68,7 +68,7 @@ def pool_execution(query, params=None) -> Optional[List[tuple]]:
                     result = cur.fetchall()
                 elif query.strip().lower().startswith("delete"):
                     conn.commit()
-                    result = [("Deletion query was executed successfuly affected rows", cur.rowcount)]
+                    result = [("Deletion query was executed successfully affected rows", cur.rowcount)]
 
             cur.close()
 
