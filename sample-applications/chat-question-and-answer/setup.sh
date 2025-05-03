@@ -13,10 +13,13 @@ export INDEX_NAME=intel-rag
 export EMBEDDING_ENDPOINT_URL=http://tei-embedding-service
 #Setup the host IP
 export HOST_IP=$(hostname -I | awk '{print $1}')
-# The above command does not work on EMT. Check with:
-# ip -o route get to 8.8.8.8 | sed -n 's/.*src \([0-9.]\+\).*/\1/p'
-# But this approach could also have an issue based on kind of 
-# deployment (airgapped or not). Need to check for a better solution.
+# The above command does not work on EMT. Two options:
+# 1. Check with:
+#    ip -o route get to 8.8.8.8 | sed -n 's/.*src \([0-9.]\+\).*/\1/p'
+#    But this approach could also have an issue based on kind of 
+#    deployment (airgapped or not). Need to check for a better solution.
+#    IP address of 8.8.8.8 is Google address.
+# 2. Eliminate the need for hostname.
 
 # UI ENV variables
 export APP_ENDPOINT_URL=http://$HOST_IP:8100
