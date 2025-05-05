@@ -56,7 +56,7 @@ export KVCACHE_SPACE=50
 
 # OVMS
 export MODEL_DIRECTORY_NAME=$(basename $LLM_MODEL)
-export WEIGHT_FORMAT=fp16
+export WEIGHT_FORMAT=int8
 export VOLUME_OVMS=${PWD}/ovms_config
 
 #TGI
@@ -101,7 +101,7 @@ setup_inference() {
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE
+                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE
                         cd ..
                         ;;
                 tgi)
@@ -110,7 +110,6 @@ setup_inference() {
                         ;;
                 *)
                         echo "Invalid Model Server option: $service"
-                        exit 1
                         ;;
         esac
 }
@@ -132,12 +131,11 @@ setup_embedding() {
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE
+                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE
                         cd ..
                         ;;
                 *)
                         echo "Invalid Embedding Service option: $service"
-                        exit 1
                         ;;
         esac
 }
@@ -156,7 +154,6 @@ if [[ -n "$1" && -n "$2" ]]; then
                                 echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
                                 echo "Model Server options: VLLM or TGI or OVMS"
                                 echo "Embedding Service options: TEI or OVMS"
-                                exit 1
                                 ;;
                 esac
         done
@@ -167,5 +164,4 @@ else
         echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
         echo "Model Server options: VLLM or TGI or OVMS"
         echo "Embedding Service options: TEI or OVMS"
-        exit 1
 fi

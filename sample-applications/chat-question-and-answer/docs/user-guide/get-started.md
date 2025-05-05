@@ -110,11 +110,14 @@ Visit https://huggingface.co/settings/tokens to get your token.
    # pass hugging face token
    ```
 
-    _Environment variables for OVMS as inference_
+    _Environment setup for OVMS as inference_
     ```bash
+    # Create a python virtual environment
+    python3 -m venv .venv
+    # Activate the virtual env
+    source .venv/bin/activate
     # Install required Python packages for model preparation
-    export PIP_EXTRA_INDEX_URL="https://download.pytorch.org/whl/cpu"
-    pip3 install optimum-intel@git+https://github.com/huggingface/optimum-intel.git openvino-tokenizers[transformers]==2024.4.* openvino==2024.4.* nncf==2.14.0 sentence_transformers==3.1.1 openai "transformers<4.45"
+    pip install -r ovms_config/requirements.txt
     ```
     
    _Run the below script to set up the rest of the environment depending on the model server and embedding._

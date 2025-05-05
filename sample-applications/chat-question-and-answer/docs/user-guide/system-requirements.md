@@ -10,17 +10,17 @@ This page provides detailed hardware, software, and platform requirements to hel
 **Hardware Platforms**
 - Intel® Xeon® : Fourth generation processors onwards
 - Intel® Core&trade; 14th Gen with Intel® Arc&trade; A750 GPU
+- Intel® Core&trade; Ultra 7 265K Arc&trade; A770 GPU
+
+## System Confiuration
 
 
-## Minimum Requirements
-
-
-| **Component**      | **Minimum Requirement**   | **Recommended**         |
+| **Component**      | **Requirement**   | **Recommended**         |
 |---------------------|---------------------------|--------------------------|
-| **Processor**       | Intel® Xeon® 4th Gen    | Intel® Xeon® 5th Gen     |
-| **Memory**          | 64 GB                     | 128 GB+                   |
+| **Processor**       | Intel® Xeon® 5th Gen    | Intel® Core™ Ultra 7 265K  |
+| **Memory**          | 64 GB                   | 192 GB                   |
 | **Disk Space**      | 128 GB SSD               | 256 GB SSD              |
-| **GPU/Accelerator** | NA           | NA    |
+| **GPU/Accelerator** | NA           | iGPU , dGPU Arc770    |
 
 
 ## Software Requirements

@@ -56,16 +56,16 @@ This page provides detailed hardware, software, and platform requirements to hel
 **Hardware Platforms**
 - Intel® Core™ Ultra 7 165H
 - Intel® Core™ Ultra 7 256V
-- Intel® Core™ Ultra 7 265K with Arc770
+- Intel® Core&trade; Ultra 7 265K Arc&trade; A770 GPU
 
 
-## Minimum Requirements
+## System Configuration
 <!--
 **Guidelines**:
 - Use a table to clearly outline minimum and recommended configurations.
 -->
 
-| **Component**      | **Minimum Requirement**   | **Recommended**         |
+| **Component**      | **Requirement**   | **Recommended**         |
 |---------------------|---------------------------|--------------------------|
 | **Processor**       | Intel® Core™ Ultra 7 165H     | Intel® Core™ Ultra 7 265K     |
 | **Memory**          | 64 GB                     | 192 GB                   |

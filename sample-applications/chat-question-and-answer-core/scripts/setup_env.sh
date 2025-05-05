@@ -11,7 +11,7 @@
 
 # Default values
 MODEL_CACHE_PATH="/tmp/model_cache/"
-DEVICE="cpu"
+DEVICE="CPU"
 PROFILES="DEFAULT"
 
 # Parse named arguments using getopts
@@ -32,8 +32,10 @@ while [[ "$#" -gt 0 ]]; do
     shift
 done
 
+# Convert DEVICE to uppercase to handle both uppercase and lowercase inputs
+DEVICE=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
 # Check if DEVICE value is valid
-if [[ "$DEVICE" != "cpu" && "$DEVICE" != "gpu" ]]; then
+if [[ "$DEVICE" != "CPU" && "$DEVICE" != "GPU" ]]; then
     echo "Error: Invalid device value '$DEVICE'. Valid values are 'cpu' or 'gpu'."
     return 1
 fi
@@ -67,12 +69,12 @@ fi
 # If it doesn't exist, set to DEFAULT
 # Else, set to DEFAULT
 # If device is not mentioned, set to DEFAULT
-if [ "$DEVICE" == "gpu" ]; then
+if [ "$DEVICE" == "GPU" ]; then
     # Check if render device exists
     if compgen -G "/dev/dri/render*" > /dev/null; then
         echo "GPU rendering device found. Getting the GID..."
         export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
-        export GPU_DEVICE="GPU"
+        DEVICE="GPU"
         PROFILES="GPU-DEVICE"
     else
         echo -e "No GPU rendering device found. \nSwitching to CPU processing..."
@@ -86,6 +88,9 @@ export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
 export LLM_MODEL_ID="Intel/neural-chat-7b-v3-3"
 export RERANKER_MODEL_ID="BAAI/bge-reranker-base"
+export EMBEDDING_DEVICE="${DEVICE}"
+export RERANKER_DEVICE="${DEVICE}"
+export LLM_DEVICE="${DEVICE}"
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
 export APP_BACKEND_URL="http://$HOST_IP:8888"
 export COMPOSE_PROFILES=$PROFILES
