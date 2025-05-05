@@ -93,7 +93,7 @@ kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
+### Step 7: Access the Application 
 
 Open the UI in a browser at http://\<node-ip\>:\<ui-node-port\>
 
