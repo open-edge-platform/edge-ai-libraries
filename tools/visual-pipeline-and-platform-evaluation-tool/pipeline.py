@@ -260,9 +260,6 @@ class SmartNVRPipeline(GstPipeline):
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(**parameters, **constants, id=i)
 
-        # Print the pipeline string
-        print("Generated Pipeline String:", "gst-launch-1.0 -q " + compositor + " " + streams)
-        # Evaluate the pipeline
         return "gst-launch-1.0 -q " + compositor + " " + streams
 
 
