@@ -1,7 +1,10 @@
 global:
   egai_tgi_pvc:
     size: 20Gi
-  
+  egai_ovms_embed_pvc:
+    size: 20Gi
+  keeppvc: false # true to persist downloaded models across multiple deployments
+
 Chatqna:
   env:
     ENDPOINT_URL: http://text-generation-service
