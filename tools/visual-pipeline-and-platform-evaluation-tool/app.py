@@ -9,12 +9,12 @@ import gradio as gr
 import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Arc
-
+from benchmark import benchmark
+from device import DeviceDiscovery
+from explore import GstInspector
 from collect import CollectionReport, MetricsCollectorFactory
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
-from device import DeviceDiscovery
-from explore import GstInspector
 
 css_code = """
 
@@ -370,8 +370,24 @@ def create_interface():
         show_fullscreen_button=False,
     )
 
+    # Textbox to display the best configuration (initially hidden)
+    best_config_textbox = gr.Textbox(
+        label="Best Configuration",
+        interactive=False,
+        lines=2,
+        placeholder="The best configuration will appear here after benchmarking.",
+        visible=False,  # Initially hidden
+    )
+
     # Pipeline parameters accordion
     pipeline_parameters_accordion = gr.Accordion("Pipeline Parameters", open=True)
+
+    # model_type = gr.Dropdown(
+    # label="Select Model Type",
+    # choices=["SmartNVR", "Transportation"],  # Add more options if needed
+    # value="SmartNVR",  # Default value
+    # interactive=True
+    # )
 
     # Inferencing channels
     inferencing_channels = gr.Slider(
@@ -392,6 +408,12 @@ def create_interface():
         label="Number of Recording only channels",
         interactive=True,
     )
+    # FPS floor
+    fps_floor = gr.Number(
+        label="Set FPS Floor",
+        value=30.0,  # Default value
+        interactive=True
+        )
 
     # Object detection accordion
     object_detection_accordion = gr.Accordion("Object Detection Parameters", open=True)
@@ -403,11 +425,10 @@ def create_interface():
             "SSDLite MobileNet V2",
             "YOLO v5m",
             "YOLO v5s",
+            "Person Vehicle Bike Detection",
         ],
         value="YOLO v5s",
     )
-
-    # Object detection device
     device_choices = [
         (device.full_device_name, device.device_name)
         for device in device_discovery.list_devices()
@@ -416,6 +437,8 @@ def create_interface():
         ( "GPU" for device_name in device_choices if "GPU" in device_name),
         ( "CPU" ),
     )
+   
+    # Object detection device
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
         choices=device_choices,
@@ -453,8 +476,12 @@ def create_interface():
     cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
     gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
 
+    
     # Run button
     run_button = gr.Button("Run")
+
+    # Add a Benchmark button
+    benchmark_button = gr.Button("Benchmark")
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
@@ -478,7 +505,10 @@ def create_interface():
                     [object_detection_accordion],
                 )
                 run_button.render()
+                benchmark_button.render()
                 #results_plot.render()
+                best_config_textbox.render()
+                
                 cpu_metrics_plot.render()
                 
                 gpu_time_series_plot.render()
@@ -543,6 +573,7 @@ def create_interface():
                             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
                             )
+
                         case _:
                             raise ValueError("Unrecognized Object Detection Model")
 
@@ -562,13 +593,14 @@ def create_interface():
                     #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
                     #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
                     #         )
+
                     #     case _:
                     #         raise ValueError("Unrecognized Object Classification Model")
 
                     # Validate channels
                     if recording_channels + inferencing_channels == 0:
                         raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
-
+                    
                     system = os.uname()
                     collector = MetricsCollectorFactory.get_collector(
                         sysname=system.sysname, release=system.release
@@ -578,7 +610,7 @@ def create_interface():
                         constants=constants,
                         param_grid=param_grid,
                         channels=(recording_channels, inferencing_channels),
-                        elements=gst_inspector.get_elements(),
+			            elements=gst_inspector.get_elements(),
                     )
                     collector.collect()
                     time.sleep(3)
@@ -591,6 +623,90 @@ def create_interface():
                     cpu_plot = generate_gauges(best_result, report)
                     gpu_plot = generate_gpu_time_series(report)
                     return [video_output_path, cpu_plot, gpu_plot]
+
+                def on_benchmark(
+                        recording_channels,
+                        inferencing_channels,
+                        fps_floor,
+                        object_detection_model,
+                        object_detection_device,
+                        input_video_player,
+                        elements=gst_inspector.get_elements(),
+                ):
+                    # Define parameters and constants
+                    random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+                    video_output_path = input_video_player.replace(
+                        ".mp4", f"-output-{random_string}.mp4"
+                    )
+                    if os.path.exists(video_output_path):
+                        os.remove(video_output_path)
+
+                    param_grid = {
+                          "object_detection_device": object_detection_device.split(", "),
+                    }
+
+                    constants = {
+                        "VIDEO_PATH": input_video_player,
+                        "VIDEO_OUTPUT_PATH": video_output_path,
+                    }
+
+                    MODELS_PATH = "/home/dlstreamer/vippet/models"
+
+                    match object_detection_model:
+                        case "SSDLite MobileNet V2":
+                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                f"{MODELS_PATH}/public/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                            )
+                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                f"{MODELS_PATH}/public/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                            )
+                        case "YOLO v5m":
+                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                f"{MODELS_PATH}/public/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
+                            )
+                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                f"{MODELS_PATH}/public/yolov5m-416_INT8/yolo-v5.json"
+                            )
+                        case "YOLO v5s":
+                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                f"{MODELS_PATH}/public/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
+                            )
+                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                f"{MODELS_PATH}/public/yolov5s-416_INT8/yolo-v5.json"
+                            )
+                        case "Person Vehicle Bike Detection":
+                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                f"{MODELS_PATH}/intel/person-vehicle-bike-detection-2004/FP16-INT8/person-vehicle-bike-detection-2004.xml"
+                            )
+                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                f"{MODELS_PATH}/intel/person-vehicle-bike-detection-2004/person-vehicle-bike-detection-2004.json"
+                            )
+                        case _:
+                            raise ValueError("Unrecognized Object Detection Model")
+
+                    # Validate channels
+                    if recording_channels + inferencing_channels == 0:
+                        raise gr.Error(
+                            "Please select at least one channel for recording or inferencing.",
+                            duration=10,
+                        )
+
+                    # Initialize the benchmark class
+                    bm = benchmark(
+                        video_path=input_video_player,
+                        pipeline_cls=pipeline,
+                        fps_floor=fps_floor,
+                        parameters=param_grid,
+                        constants=constants,
+                        elements=gst_inspector.get_elements()
+                    )
+
+                    # Run the benchmark
+                    best_config = bm.run()
+
+                    # Return results
+                    return str(best_config)
+                    
 
                 input_video_player.change(
                     lambda v: (
@@ -616,6 +732,7 @@ def create_interface():
                     inputs=[
                         recording_channels,
                         inferencing_channels,
+                        fps_floor,
                         object_detection_model,
                         object_detection_device,
                         # This elements are not used in the current version of the app
@@ -631,6 +748,20 @@ def create_interface():
                     outputs=[run_button],
                 )
 
+
+                benchmark_button.click(
+                on_benchmark,
+                inputs=[
+                    recording_channels,
+                    inferencing_channels,
+                    fps_floor,
+                    object_detection_model,
+                    object_detection_device,
+                    input_video_player,
+                ],
+                outputs=[best_config_textbox],
+                )
+
             with gr.Column(scale=1, min_width=150):
                 with gr.Accordion("Video Player", open=True):
                     input_video_player.render()
@@ -639,6 +770,7 @@ def create_interface():
                 with pipeline_parameters_accordion.render():
                     inferencing_channels.render()
                     recording_channels.render()
+                    fps_floor.render()
 
                 with object_detection_accordion.render():
                     object_detection_model.render()
