@@ -26,11 +26,10 @@ else
 fi
 
 # Export environment variables
-export HOST_IP=$(hostname -I | awk '{print $1}')
 export GID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
 export LLM_MODEL_ID="Intel/neural-chat-7b-v3-3"
 export RERANKER_MODEL_ID="BAAI/bge-reranker-base"
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
-export APP_BACKEND_URL="http://$HOST_IP:8888"
+export APP_BACKEND_URL="/v1/chatqna"
