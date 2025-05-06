@@ -342,15 +342,75 @@ chart_titles = [
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
 
 # Function to generate one plot's data
-def generate_stream_data(i):
+'''def generate_stream_data(i):
     new_x = datetime.now()
     new_y = np.sin(len(stream_dfs[i]) / 5.0) + np.random.normal(0, 0.1)
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
     stream_dfs[i] = pd.concat([stream_dfs[i], new_row], ignore_index=True).tail(50)
     fig = px.line(stream_dfs[i], x="x", y="y", title=chart_titles[i])
     fig.update_layout(xaxis_title="Time", yaxis_title="Value")
-    return fig
+    return fig'''
 
+def read_latest_metrics():
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
+            lines = f.readlines()[-20:]  # last 20 lines
+    except FileNotFoundError:
+        return None, None
+
+    cpu_user = None
+    mem_used_percent = None
+
+    for line in reversed(lines):
+        if "cpu" in line and cpu_user is None:
+            parts = line.split()
+            if len(parts) > 1:
+                fields = parts[1].split(",")
+                for field in fields:
+                    if "usage_user" in field:
+                        try:
+                            cpu_user = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if "mem" in line and mem_used_percent is None:
+            parts = line.split()
+            if len(parts) > 1:
+                fields = parts[1].split(",")
+                for field in fields:
+                    if "used_percent" in field:
+                        try:
+                            mem_used_percent = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if cpu_user is not None and mem_used_percent is not None:
+            break
+
+    return cpu_user, mem_used_percent
+
+def generate_stream_data(i):
+    new_x = datetime.now()
+    new_y = 0
+    cpu_val, mem_val = read_latest_metrics()
+    yaxis_title_val = "Value"
+    title = chart_titles[i]
+    if title == "CPU Usage [%]" and cpu_val is not None:
+        yaxis_title_val = "Percent Used"
+
+        new_y = cpu_val
+    elif title == "Memory Usage [%]" and mem_val is not None:
+        yaxis_title_val = "Percent Available"
+        new_y = mem_val
+    #else:
+    # Generate fake data for other charts
+    #new_y = np.sin(len(stream_dfs[i]) / 5.0) + np.random.normal(0, 0.1)
+
+    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
+    stream_dfs[i] = pd.concat([stream_dfs[i], new_row], ignore_index=True).tail(50)
+    fig = px.line(stream_dfs[i], x="x", y="y", title=title)
+    fig.update_layout(xaxis_title="Time", yaxis_title=yaxis_title_val)
+    return fig
 # Create the interface
 def create_interface():
 
@@ -531,9 +591,9 @@ def create_interface():
                 )
                 run_button.render()
                 #results_plot.render()
-                cpu_metrics_plot.render()
+                #cpu_metrics_plot.render()
                 
-                gpu_time_series_plot.render()
+                #gpu_time_series_plot.render()
 
                 with gr.Row():
                     with gr.Column():
