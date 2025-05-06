@@ -14,15 +14,15 @@ def _iterate_param_grid(param_grid: Dict[str, List[str]]):
         yield dict(zip(keys, combination))
 
 def run_pipeline_and_extract_metrics(
-    pipeline_cmd: str,
-    inference_channels,
-    regular_channels,
-    parameters,
-    constants,
-    elements,
+    pipeline_cmd: GstPipeline,
+    constants: Dict[str, str],
+    parameters: Dict[str, List[str]],
+    channels: int | tuple[int, int] = 1,
+    elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
 ) -> Tuple[Dict[str, float], str, str]:
     """
+
     Runs a GStreamer pipeline and extracts FPS metrics.
 
     Args:
@@ -35,7 +35,19 @@ def run_pipeline_and_extract_metrics(
     """
     logger = logging.getLogger("run_pipeline_and_extract_metrics")
     results = []
-   # for params in parameters:
+    # Set the number of channels
+    channels = (
+    channels if isinstance(channels, int) else channels[0] + channels[1]
+    )
+
+    # Set the number if regular channels
+    # If no tuple is provided, the number of regular channels is 0
+    regular_channels = 0 if isinstance(channels, int) else channels[0]
+
+    # Set the number of inference channels
+    # If no tuple is provided, the number of inference channels is equal to the number of channels
+    inference_channels = channels if isinstance(channels, int) else channels[1]
+
     for params in _iterate_param_grid(parameters):        
 
             # Evaluate the pipeline with the given parameters, constants, and channels

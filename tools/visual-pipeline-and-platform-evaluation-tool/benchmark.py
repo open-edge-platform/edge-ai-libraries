@@ -41,7 +41,7 @@ class benchmark:
            non_ai_streams = streams - ai_streams
         #    if isinstance(self.parameters["object_detection_device"], list):
         #        self.parameters["object_detection_device"] = self.parameters["object_detection_device"][0]
-           results = run_pipeline_and_extract_metrics(self.pipeline_cls, ai_streams, non_ai_streams, parameters=self.parameters, constants=self.constants, elements=self.elements)
+           results = run_pipeline_and_extract_metrics(self.pipeline_cls, constants=self.constants, parameters=self.parameters, channels=(non_ai_streams, ai_streams), elements=self.elements)
            result = results[0]
            
            try:
@@ -73,7 +73,7 @@ class benchmark:
             non_ai_streams = mid - ai_streams
 
             #pipeline = self.pipeline_cls()
-            results = run_pipeline_and_extract_metrics(self.pipeline_cls, ai_streams, non_ai_streams, parameters=self.parameters, constants=self.constants, elements=self.elements)
+            results = run_pipeline_and_extract_metrics(self.pipeline_cls, constants=self.constants, parameters=self.parameters, channels=(non_ai_streams, ai_streams), elements=self.elements)
             
             if not results:
                 print("No results returned from run_pipeline_and_extract_metrics")
