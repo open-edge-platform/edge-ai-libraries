@@ -19,7 +19,7 @@ from .chain import (
     process_query,
 )
 from .document import validate_document, save_document
-from .utils import get_devices, get_device_property
+from .utils import get_available_devices, get_device_property
 
 app = FastAPI(root_path="/v1/chatqna")
 
@@ -68,7 +68,7 @@ async def get_llm_model():
 
 
 @app.get("/device", tags=["Device API"], summary="Get available device list")
-async def get_device():
+async def get_devices():
     """
     Retrieve a list of devices.
     Returns:
@@ -78,7 +78,7 @@ async def get_device():
     """
 
     try:
-        devices = get_devices()
+        devices = get_available_devices()
 
         return {"devices": devices}
 
@@ -100,7 +100,7 @@ async def get_device_info(device: str = ""):
     """
 
     try:
-        available_devices = get_devices()
+        available_devices = get_available_devices()
 
         if device not in available_devices:
             raise HTTPException(

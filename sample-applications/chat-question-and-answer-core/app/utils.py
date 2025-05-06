@@ -107,7 +107,7 @@ def convert_model(model_id: str, cache_dir: str, model_type: str):
             llm_model.save_pretrained(f"{cache_dir}/{model_id}")
 
 
-def get_devices():
+def get_available_devices():
     """
     Retrieves a list of available devices from the OpenVINO core.
     Returns:
