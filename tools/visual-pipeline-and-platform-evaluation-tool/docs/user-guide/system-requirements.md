@@ -16,6 +16,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Supported Platforms
 
+<!--
 **Guidelines**:
 - Include supported operating systems, versions, and platform-specific notes.
 -->
