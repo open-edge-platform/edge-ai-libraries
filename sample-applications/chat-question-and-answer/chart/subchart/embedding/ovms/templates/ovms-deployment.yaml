@@ -12,7 +12,7 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
-    {{- if .Values.global.GPU.enabled }}
+    {{- if .Values.global.ovmsEmbeddingGPUService.enabled }}
       tolerations:
           - key: {{ .Values.global.GPU.node.key }}
             operator: "Equal"
@@ -48,7 +48,7 @@ spec:
                   echo "No config.json found, running model prepration. /config/init-embed-script.sh "{{ .Values.global.EMBEDDING_MODEL_NAME }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
                   . /config/init-embed-script.sh
                 fi
-          args: ["{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.GPU.enabled }}"]
+          args: ["{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.ovmsEmbeddingGPUService.enabled }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
@@ -88,7 +88,7 @@ spec:
             - name: WEIGHT_FORMAT
               value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
           args: ["--port", "9400", "--rest_port", "8400", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
-      {{ if .Values.global.GPU.enabled }}
+      {{ if .Values.global.ovmsEmbeddingGPUService.enabled }}
           devices:
             - name: dri-device
               containerPath: /dev/dri
@@ -103,7 +103,7 @@ spec:
           configMap:
             name: {{ .Values.ovms.script.name }}
             defaultMode: 0777
-      {{ if .Values.global.GPU.enabled }}
+      {{ if .Values.global.ovmsEmbeddingGPUService.enabled }}
         - name: dri-device
           hostPath:
             path: /dev/dri

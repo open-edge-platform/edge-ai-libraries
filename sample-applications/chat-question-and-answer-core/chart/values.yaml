@@ -13,7 +13,10 @@ global:
   RERANKER_MODEL:
   LLM_MODEL:
   model_cache_path: "/tmp/model_cache"
-  device: "CPU"
+  #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
+  EMBEDDING_DEVICE: "CPU"
+  RERANKER_DEVICE: "CPU"
+  LLM_DEVICE: "CPU"
   UI_NODEPORT:
   pvc:
     size: 40Gi
@@ -46,7 +49,6 @@ gpu:
   enabled: false
   devices: /dev/dri
   group_add: $(stat -c "%g" /dev/dri/render*)
-  device: "GPU"  #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __GPU_DEVICE__
   node:
     key:  #update as per the cluster node label key for GPU
     value:   #update as per the cluster node label value for GPU

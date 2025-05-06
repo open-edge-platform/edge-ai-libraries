@@ -47,6 +47,9 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.LLM_MODEL` |  model to be used with ovms     | Intel/neural-chat-7b-v3-3|
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
 | `global.keeppvc` | Set true to persists the storage. Default is false | false |
+| `global.EMBEDDING_DEVICE`| set either CPU or GPU | CPU |
+| `global.RERANKER_DEVICE`| set either CPU or GPU | CPU |
+| `global.LLM_DEVICE`| set either CPU or GPU | CPU |
 | `gpu.enabled` | Set is true for deploying on GPU  | false |
 | `gpu.key` | Set as per the cluster node label key for GPU only if gpu is enabled | |
 | `gpu.value` | Set as per the cluster node label value for GPU only if gpu is enabled  | |

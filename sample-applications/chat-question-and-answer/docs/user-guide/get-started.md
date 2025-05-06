@@ -101,15 +101,6 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```
    __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __LLM_DEVICE__
 
-   Login using your Hugging Face token
-
-   ```bash
-   # Login using huggingface-cli
-   pip install huggingface-hub
-   huggingface-cli login
-   # pass hugging face token
-   ```
-
     _Environment setup for OVMS as inference_
     ```bash
     # Create a python virtual environment
@@ -120,6 +111,15 @@ Visit https://huggingface.co/settings/tokens to get your token.
     pip install -r ovms_config/requirements.txt
     ```
     
+   To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
+
+    _Go to https://huggingface.co/settings/tokens to get your token._
+
+   ```bash
+   # Login using huggingface-cli
+   huggingface-cli login
+   # pass hugging face token
+   ```
    _Run the below script to set up the rest of the environment depending on the model server and embedding._
 
    ```bash

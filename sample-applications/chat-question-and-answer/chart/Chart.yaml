@@ -22,7 +22,7 @@ dependencies:
   - name: ovmsEmbeddingService
     version: 0.1.0
     repository: "file://subchart/embedding/ovms"
-    condition: global.ovmsEmbeddingService.enabled,global.GPU.enabled
+    condition: global.ovmsEmbeddingService.enabled
   - name: pgvector
     version: 0.1.0
     repository: "file://subchart/pgvector"
