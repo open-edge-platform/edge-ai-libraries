@@ -93,6 +93,7 @@ services:
     pid: host
     volumes:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
+      - "collector-signals:/app/.collector-signals"
     privileged: true
     ports:
       - 7005:7005
