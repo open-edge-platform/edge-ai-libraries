@@ -20,8 +20,6 @@ global:
     enabled: false
   ovmsEmbeddingService:
     enabled: true
-  ovmsEmbeddingGPUService:
-    enabled: false 
   GPU: 
     enabled: true 
     node:

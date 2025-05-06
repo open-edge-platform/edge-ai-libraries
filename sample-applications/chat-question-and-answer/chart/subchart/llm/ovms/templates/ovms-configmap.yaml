@@ -26,10 +26,10 @@ data:
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device {{ .Values.global.GPU.device }}
+        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device {{ .Values.global.GPU.device }} --overwrite_models
     else
         echo "GPU is not enabled, using CPU model"
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU
+        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU --overwrite_models
     fi
     
     cp -r models /opt/data

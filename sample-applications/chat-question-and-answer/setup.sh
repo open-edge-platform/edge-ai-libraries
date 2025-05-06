@@ -108,7 +108,7 @@ setup_inference() {
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE
+                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
                         cd ..
                         ;;
                 tgi)
@@ -138,7 +138,7 @@ setup_embedding() {
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE
+                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --overwrite_models
                         cd ..
                         ;;
                 *)
