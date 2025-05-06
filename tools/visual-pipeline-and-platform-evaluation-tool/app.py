@@ -422,7 +422,7 @@ def create_interface():
         value=preferred_device,
     )
 
-        # Batch size
+    # Batch size
     batch_size = gr.Slider(
         minimum=0,
         maximum=1024,
@@ -682,9 +682,9 @@ def create_interface():
                 with object_detection_accordion.render():
                     object_detection_model.render()
                     object_detection_device.render()
-                    batch_size.render()  # Ensure this is added
-                    inference_interval.render()  # Ensure this is added
-                    nireq.render()  # Ensure this is added
+                    batch_size.render()
+                    inference_interval.render()
+                    nireq.render()
 
                 # This elements are not used in the current version of the app
                 # with object_classification_accordion.render():
