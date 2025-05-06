@@ -67,7 +67,7 @@ async def get_llm_model():
     return {"status": "Success", "llm_model": llm_model}
 
 
-@app.get("/device", tags=["Device API"], summary="Get available device list")
+@app.get("/devices", tags=["Device API"], summary="Get available devices list")
 async def get_devices():
     """
     Retrieve a list of devices.
@@ -87,7 +87,7 @@ async def get_devices():
         raise HTTPException(status_code=500, detail=str(e))
 
 
-@app.post("/device", tags=["Device API"], summary="Get device property")
+@app.get("/devices/{device}", tags=["Device API"], summary="Get device property")
 async def get_device_info(device: str = ""):
     """
     Retrieve information about a specific device.
@@ -114,7 +114,7 @@ async def get_device_info(device: str = ""):
     except Exception as e:
         logger.exception("Error getting properties for device.", error=e)
         raise HTTPException(status_code=500, detail=str(e))
-    
+
 
 @app.get(
     "/documents",
