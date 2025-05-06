@@ -9,6 +9,11 @@
 # OR
 # ./setup_env.sh -p /path/to/model_cache -d gpu
 
+# GPUs currently tested:
+# - Arc A770 dGPU
+# - Battlemage G21 dGPU
+# - Arrowlake iGPU
+
 # Default values
 MODEL_CACHE_PATH="/tmp/model_cache/"
 DEVICE="CPU"
@@ -86,7 +91,7 @@ export HOST_IP=$(hostname -I | awk '{print $1}')
 export GID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
-export LLM_MODEL_ID="Intel/neural-chat-7b-v3-3"
+export LLM_MODEL_ID="microsoft/Phi-3.5-mini-instruct"
 export RERANKER_MODEL_ID="BAAI/bge-reranker-base"
 export EMBEDDING_DEVICE="${DEVICE}"
 export RERANKER_DEVICE="${DEVICE}"
