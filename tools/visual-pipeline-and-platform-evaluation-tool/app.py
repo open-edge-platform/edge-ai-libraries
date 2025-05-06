@@ -565,8 +565,7 @@ def create_interface():
                             global stream_dfs
                             stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
                             gr.update(active=True)
-                            plot_updates = [generate_stream_data(i) for i in range(13)]
-
+                            
                             random_string = "".join(
                                 random.choices(string.ascii_lowercase + string.digits, k=6)
                             )
@@ -669,6 +668,8 @@ def create_interface():
                             cpu_plot = None
                             #gpu_plot = generate_gpu_time_series(report)
                             gpu_plot = None
+                            plot_updates = [generate_stream_data(i) for i in range(13)]
+
                             return [video_output_path, cpu_plot, gpu_plot] + plot_updates
 
                 input_video_player.change(
