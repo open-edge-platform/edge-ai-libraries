@@ -39,7 +39,6 @@ RUN cargo install --locked qmassa
 
 
 COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
-COPY grafana_util.py ${DEV_ROOT}/grafana_util.py
 
 COPY qmassa_reader.py ${DEV_ROOT}/qmassa_reader.py
 EXPOSE 7005

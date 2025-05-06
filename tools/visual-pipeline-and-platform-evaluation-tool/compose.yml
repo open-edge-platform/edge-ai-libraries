@@ -30,38 +30,6 @@ x-vippet: &vippet
     - ./models:/home/dlstreamer/vippet/models
 
 services:
-  collector:
-    build:
-      context: ./collector
-      dockerfile: Dockerfile
-    image: streaming_metrics/collector:latest
-    environment:
-      - HTTP_PROXY=
-      - http_proxy=
-      - HTTPS_PROXY=
-      - https_proxy=
-      - NO_PROXY=
-      - no_proxy=
-      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
-      - INFLUXDB_ORG=${INFLUXDB_ORG}
-      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
-      - INFLUXDB_RETENTION=${INFLUXDB_RETENTION}
-      - INFLUXDB_URL=${INFLUXDB_URL}
-    devices:
-      - "/dev/dxg:/dev/dxg"
-      - "/sys:/sys"
-      - "/dev:/dev"
-      - "/run:/run"
-      - "/proc:/proc"
-    ipc: host
-    pid: host
-    volumes:
-      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
-    privileged: true
-    networks:
-      - shared_network
-    ports:
-      - 7005:7005
   models:
     image: docker.io/openvino/ubuntu22_dev:2025.0.0
     container_name: models
@@ -104,27 +72,30 @@ services:
       - "/dev/accel:/dev/accel"
     profiles: [npu]
   collector:
-    image: docker.io/intel/vippet-collector:v1.0.0
     build:
-      context: .
-      dockerfile: Dockerfile.collector
-    container_name: collector
-    privileged: true
+      context: ./collector
+      dockerfile: Dockerfile
+    image: intel/collector:latest
+    environment:
+      - HTTP_PROXY=
+      - http_proxy=
+      - HTTPS_PROXY=
+      - https_proxy=
+      - NO_PROXY=
+      - no_proxy=
     devices:
+      - "/dev/dxg:/dev/dxg"
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
-    network_mode: host
     ipc: host
     pid: host
     volumes:
-      - "collector-signals:/usr/src/app/.collector-signals"
-    command: bash -xc '
-        chmod a+rwx /usr/src/app/.collector-signals &&
-        bash /usr/src/app/collector.sh
-      '
-    restart: on-failure:5
+      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
+    privileged: true
+    ports:
+      - 7005:7005
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
     build:

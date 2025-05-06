@@ -565,6 +565,8 @@ def create_interface():
                             global stream_dfs
                             stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
                             gr.update(active=True)
+                            plot_updates = [generate_stream_data(i) for i in range(13)]
+
                             random_string = "".join(
                                 random.choices(string.ascii_lowercase + string.digits, k=6)
                             )
@@ -654,18 +656,19 @@ def create_interface():
                                 channels=(recording_channels, inferencing_channels),
                                 elements=gst_inspector.get_elements(),
                             )
-                            collector.collect()
+                            #collector.collect()
                             time.sleep(3)
                             optimizer.optimize()
                             time.sleep(3)
-                            collector.stop()
+                            #collector.stop()
                             time.sleep(3)
                             best_result = optimizer.evaluate()
-                            report = collector.report()
-                            cpu_plot = generate_gauges(best_result, report)
-                            gpu_plot = generate_gpu_time_series(report)
-                            # Reset all dataframes
-                            plot_updates = [generate_stream_data(i) for i in range(13)]
+                            #report = collector.report()
+                            report = None
+                            #cpu_plot = generate_gauges(best_result, report)
+                            cpu_plot = None
+                            #gpu_plot = generate_gpu_time_series(report)
+                            gpu_plot = None
                             return [video_output_path, cpu_plot, gpu_plot] + plot_updates
 
                 input_video_player.change(
@@ -700,6 +703,10 @@ def create_interface():
                         ]
                     ),
                     outputs=plots
+                ).then(
+                    lambda: gr.update(active=True),  # This updates the same timer
+                    inputs=None,
+                    outputs=timer,
                 ).then(
                     on_run,
                     inputs=[
