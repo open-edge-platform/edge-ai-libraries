@@ -27,7 +27,7 @@ ovms:
   group_add: $(stat -c "%g" /dev/dri/render*)
   # scriptconfigmap: ovms-configmap.yaml
   env:
-    WEIGHT_FORMAT: "int4"
+    WEIGHT_FORMAT: "int8"
     model_directory_name: "converted_model"
   script:
     name: "ovms-model-preparation"

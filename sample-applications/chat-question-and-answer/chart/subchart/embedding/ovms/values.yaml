@@ -26,7 +26,7 @@ ovms:
     targetPort: 8400
   # scriptconfigmap: ovms-configmap.yaml
   env:
-    WEIGHT_FORMAT: "int4"
+    WEIGHT_FORMAT: "int8"
     model_directory_name: "converted_model"
   script:
     name: "ovms-embed-model-preparation"
