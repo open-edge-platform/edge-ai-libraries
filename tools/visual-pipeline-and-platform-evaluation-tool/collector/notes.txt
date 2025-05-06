@@ -1,0 +1,57 @@
+telegraf plugins:
+-----------------
+cpu         https://github.com/influxdata/telegraf/blob/release-1.31/plugins/inputs/cpu/README.md
+mem         https://github.com/influxdata/telegraf/blob/release-1.31/plugins/inputs/mem/README.md
+temp        https://github.com/influxdata/telegraf/blob/release-1.31/plugins/inputs/temp/README.md
+exec        https://github.com/influxdata/telegraf/blob/release-1.31/plugins/outputs/exec/README.md
+intel_pmu   https://github.com/influxdata/telegraf/blob/release-1.31/plugins/inputs/intel_pmu/README.md
+intel_rdt   https://github.com/influxdata/telegraf/blob/release-1.31/plugins/inputs/intel_rdt/README.md
+
+[agent]
+    interval = "1s"
+    round_interval = true
+    metric_batch_size = 1000
+    metric_buffer_limit = 10000
+    collection_jitter = "0s"
+    flush_interval = "1s"
+    flush_jitter = "0s"
+    precision = "0s"
+    debug = true
+    quiet = false
+    logfile = ""
+
+[[inputs.intel_pmu]]
+    event_definitions = ["/app/pmu-events/GenuineIntel-6-9E-core.json", "/app/pmu-events/GenuineIntel-6-9E-uncore.json", "/app/pmu-events/GenuineIntel-6-9E-fp_arith_inst.json"]
+    [[inputs.intel_pmu.core_events]]
+    events = ["INST_RETIRED.ANY", "CPU_CLK_UNHALTED.THREAD_ANY:config1=0x4043200000000k", "CPU_CLK_UNHALTED.THREAD", "FP_ARITH_INST_RETIRED.SCALAR_SINGLE", "FP_ARITH_INST_RETIRED.128B_PACKED_DOUBLE", "FP_ARITH_INST_RETIRED.128B_PACKED_SINGLE", "FP_ARITH_INST_RETIRED.256B_PACKED_DOUBLE", "FP_ARITH_INST_RETIRED.256B_PACKED_SINGLE",  "MEM_INST_RETIRED.ALL_LOADS", "MEM_INST_RETIRED.ALL_STORES", "BR_INST_RETIRED.ALL_BRANCHES", "BR_MISP_RETIRED.ALL_BRANCHES",  "LONGEST_LAT_CACHE.MISS", "LONGEST_LAT_CACHE.REFERENCE", "MEM_LOAD_RETIRED.L3_HIT", "MEM_LOAD_RETIRED.L3_MISS", "ICACHE_64B.IFTAG_HIT", "ICACHE_64B.IFTAG_MISS", "FRONTEND_RETIRED.L1I_MISS", "MEM_LOAD_RETIRED.L1_MISS", "MEM_LOAD_RETIRED.L1_HIT", "L2_RQSTS.DEMAND_DATA_RD_MISS", "L2_RQSTS.DEMAND_DATA_RD_HIT", "L2_RQSTS.ALL_DEMAND_DATA_RD", "MEM_LOAD_RETIRED.L2_HIT", "MEM_LOAD_RETIRED.L2_MISS", "L2_RQSTS.CODE_RD_HIT", "L2_RQSTS.CODE_RD_MISS", "FRONTEND_RETIRED.L2_MISS", "DTLB_LOAD_MISSES.MISS_CAUSES_A_WALK", "DTLB_STORE_MISSES.MISS_CAUSES_A_WALK", "ITLB_MISSES.MISS_CAUSES_A_WALK", "UOPS_RETIRED.MACRO_FUSED", "BR_MISP_RETIRED.CONDITIONAL", "BR_INST_RETIRED.NEAR_RETURN", "DTLB_STORE_MISSES.STLB_HIT", "DTLB_LOAD_MISSES.STLB_HIT", "ITLB_MISSES.STLB_HIT", "LSD.UOPS"]
+[[inputs.intel_rdt]]
+  ## Optionally set sampling interval to Nx100ms.
+  ## This value is propagated to pqos tool. Interval format is defined by pqos itself.
+  ## If not provided or provided 0, will be set to 10 = 10x100ms = 1s.
+  # sampling_interval = "10"
+
+  ## Optionally specify the path to pqos executable.
+  ## If not provided, auto discovery will be performed.
+  # pqos_path = "/usr/local/bin/pqos"
+
+  ## Optionally specify if IPC and LLC_Misses metrics shouldn't be propagated.
+  ## If not provided, default value is false.
+  # shortened_metrics = false
+
+  ## Specify the list of groups of CPU core(s) to be provided as pqos input.
+  ## Mandatory if processes aren't set and forbidden if processes are specified.
+  ## e.g. ["0-3", "4,5,6"] or ["1-3,4"]
+  # cores = ["0-3"]
+
+  ## Specify the list of processes for which Metrics will be collected.
+  ## Mandatory if cores aren't set and forbidden if cores are specified.
+  ## e.g. ["qemu", "pmd"]
+  # processes = ["process"]
+
+  ## Specify if the pqos process should be called with sudo.
+  ## Mandatory if the telegraf process does not run as root.
+  # use_sudo = false
+
+[[outputs.file]]
+    files = ["/tmp/metrics.out"]
+    data_format = "json"

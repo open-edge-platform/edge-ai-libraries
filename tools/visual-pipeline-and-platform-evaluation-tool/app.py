@@ -10,6 +10,11 @@ import matplotlib.pyplot as plt
 import numpy as np
 from matplotlib.patches import Arc
 
+import plotly.express as px
+import pandas as pd
+import threading
+
+from datetime import datetime
 from collect import CollectionReport, MetricsCollectorFactory
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
@@ -327,6 +332,24 @@ def detect_click(evt: gr.SelectData):
 
     return gr.update(open=False)
 
+chart_titles = [
+    "Throughput [fps]", "CPU Frequency [MHz]", "CPU Usage [%]", "CPU Temperature [K]",
+    "Memory Usage [%]", "Package Power [Wh]", "System Temperature [K]", "GPU Power Usage [W]",
+    "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy"
+]
+
+# Create a dataframe for each chart
+stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+
+# Function to generate one plot's data
+def generate_stream_data(i):
+    new_x = datetime.now()
+    new_y = np.sin(len(stream_dfs[i]) / 5.0) + np.random.normal(0, 0.1)
+    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
+    stream_dfs[i] = pd.concat([stream_dfs[i], new_row], ignore_index=True).tail(50)
+    fig = px.line(stream_dfs[i], x="x", y="y", title=chart_titles[i])
+    fig.update_layout(xaxis_title="Time", yaxis_title="Value")
+    return fig
 
 # Create the interface
 def create_interface():
@@ -512,121 +535,138 @@ def create_interface():
                 
                 gpu_time_series_plot.render()
 
-                def on_run(
-                    recording_channels,
-                    inferencing_channels,
-                    object_detection_model,
-                    object_detection_device,
-                    # This elements are not used in the current version of the app
-                    # object_classification_model,
-                    # object_classification_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
-                    input_video_player,
-                ):
+                with gr.Row():
+                    with gr.Column():
+                        left_plots = [gr.Plot(label=chart_titles[i]) for i in range(7)]
+                    with gr.Column():
+                        right_plots = [gr.Plot(label=chart_titles[i]) for i in range(7, 13)]
 
+                        plots = left_plots + right_plots
+                        timer = gr.Timer(1.0, active=False)
+                        def update_all_plots():
+                            return [generate_stream_data(i) for i in range(13)]
 
-                    random_string = "".join(
-                        random.choices(string.ascii_lowercase + string.digits, k=6)
-                    )
-                    video_output_path = input_video_player.replace(
-                        ".mp4", f"-output-{random_string}.mp4"
-                    )
-                    # Delete the video in the output folder before producing a new one
-                    # Otherwise, gstreamer will just save a few seconds of the video
-                    # and stop.
-                    if os.path.exists(video_output_path):
-                        os.remove(video_output_path)
+                        timer.tick(update_all_plots, outputs=plots)
+                        def on_run(
+                            recording_channels,
+                            inferencing_channels,
+                            object_detection_model,
+                            object_detection_device,
+                            # This elements are not used in the current version of the app
+                            # object_classification_model,
+                            # object_classification_device,
+                            batch_size,
+                            inference_interval,
+                            nireq,
+                            input_video_player,
+                            timer,
+                        ):
 
-                    param_grid = {
-                        "object_detection_device": object_detection_device.split(", "),
-                        "batch_size": [batch_size],
-                        "inference_interval": [inference_interval],
-                        "nireq": [nireq],
-                        # This elements are not used in the current version of the app
-                        # "vehicle_classification_device": object_classification_device.split(
-                        #     ", "
-                        # ),
-                    }
-
-                    constants = {
-                        "VIDEO_PATH": input_video_player,
-                        "VIDEO_OUTPUT_PATH": video_output_path,
-                    }
-
-                    MODELS_PATH = "/home/dlstreamer/vippet/models"
-
-                    match object_detection_model:
-                        case "SSDLite MobileNet V2":
-                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                            global stream_dfs
+                            stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
+                            gr.update(active=True)
+                            random_string = "".join(
+                                random.choices(string.ascii_lowercase + string.digits, k=6)
                             )
-                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                            video_output_path = input_video_player.replace(
+                                ".mp4", f"-output-{random_string}.mp4"
                             )
-                        case "YOLO v5m":
-                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
-                            )
-                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
-                            )
-                        case "YOLO v5s":
-                            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
-                            )
-                            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
-                            )
-                        case _:
-                            raise ValueError("Unrecognized Object Detection Model")
+                            # Delete the video in the output folder before producing a new one
+                            # Otherwise, gstreamer will just save a few seconds of the video
+                            # and stop.
+                            if os.path.exists(video_output_path):
+                                os.remove(video_output_path)
 
-                    # This elements are not used in the current version of the app
-                    # match object_classification_model:
-                    #     case "ResNet-50 TF":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
-                    #         )
-                    #     case "EfficientNet B0":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
-                    #         )
-                    #     case _:
-                    #         raise ValueError("Unrecognized Object Classification Model")
+                            param_grid = {
+                                "object_detection_device": object_detection_device.split(", "),
+                                "batch_size": [batch_size],
+                                "inference_interval": [inference_interval],
+                                "nireq": [nireq],
+                                # This elements are not used in the current version of the app
+                                # "vehicle_classification_device": object_classification_device.split(
+                                #     ", "
+                                # ),
+                            }
 
-                    # Validate channels
-                    if recording_channels + inferencing_channels == 0:
-                        raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
+                            constants = {
+                                "VIDEO_PATH": input_video_player,
+                                "VIDEO_OUTPUT_PATH": video_output_path,
+                            }
 
-                    system = os.uname()
-                    collector = MetricsCollectorFactory.get_collector(
-                        sysname=system.sysname, release=system.release
-                    )
-                    optimizer = PipelineOptimizer(
-                        pipeline=pipeline,
-                        constants=constants,
-                        param_grid=param_grid,
-                        channels=(recording_channels, inferencing_channels),
-                        elements=gst_inspector.get_elements(),
-                    )
-                    collector.collect()
-                    time.sleep(3)
-                    optimizer.optimize()
-                    time.sleep(3)
-                    collector.stop()
-                    time.sleep(3)
-                    best_result = optimizer.evaluate()
-                    report = collector.report()
-                    cpu_plot = generate_gauges(best_result, report)
-                    gpu_plot = generate_gpu_time_series(report)
-                    return [video_output_path, cpu_plot, gpu_plot]
+                            MODELS_PATH = "/home/dlstreamer/vippet/models"
+
+                            match object_detection_model:
+                                case "SSDLite MobileNet V2":
+                                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                                    )
+                                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                                    )
+                                case "YOLO v5m":
+                                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
+                                    )
+                                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
+                                    )
+                                case "YOLO v5s":
+                                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
+                                    )
+                                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                                        f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
+                                    )
+                                case _:
+                                    raise ValueError("Unrecognized Object Detection Model")
+
+                            # This elements are not used in the current version of the app
+                            # match object_classification_model:
+                            #     case "ResNet-50 TF":
+                            #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
+                            #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
+                            #         )
+                            #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
+                            #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
+                            #         )
+                            #     case "EfficientNet B0":
+                            #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
+                            #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
+                            #         )
+                            #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
+                            #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
+                            #         )
+                            #     case _:
+                            #         raise ValueError("Unrecognized Object Classification Model")
+
+                            # Validate channels
+                            if recording_channels + inferencing_channels == 0:
+                                raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
+
+                            system = os.uname()
+                            collector = MetricsCollectorFactory.get_collector(
+                                sysname=system.sysname, release=system.release
+                            )
+                            optimizer = PipelineOptimizer(
+                                pipeline=pipeline,
+                                constants=constants,
+                                param_grid=param_grid,
+                                channels=(recording_channels, inferencing_channels),
+                                elements=gst_inspector.get_elements(),
+                            )
+                            collector.collect()
+                            time.sleep(3)
+                            optimizer.optimize()
+                            time.sleep(3)
+                            collector.stop()
+                            time.sleep(3)
+                            best_result = optimizer.evaluate()
+                            report = collector.report()
+                            cpu_plot = generate_gauges(best_result, report)
+                            gpu_plot = generate_gpu_time_series(report)
+                            # Reset all dataframes
+                            plot_updates = [generate_stream_data(i) for i in range(13)]
+                            return [video_output_path, cpu_plot, gpu_plot] + plot_updates
 
                 input_video_player.change(
                     lambda v: (
@@ -648,6 +688,19 @@ def create_interface():
                     outputs=[run_button],
                     queue=True,
                 ).then(
+                    lambda: (
+                        globals().update(
+                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+                        )
+                        or [
+                            px.line(pd.DataFrame(columns=["x", "y"]), x="x", y="y", title=title).update_layout(
+                                xaxis_title="Time", yaxis_title="Value"
+                            )
+                            for title in chart_titles
+                        ]
+                    ),
+                    outputs=plots
+                ).then(
                     on_run,
                     inputs=[
                         recording_channels,
@@ -661,8 +714,13 @@ def create_interface():
                         inference_interval,
                         nireq,
                         input_video_player,
+                        timer,
                     ],
-                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
+                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot] + plots,
+                ).then(
+                    lambda: gr.update(active=False),  # This updates the same timer
+                    inputs=None,
+                    outputs=timer,
                 ).then(
                     fn=lambda video: gr.update(
                         interactive=True

@@ -30,6 +30,38 @@ x-vippet: &vippet
     - ./models:/home/dlstreamer/vippet/models
 
 services:
+  collector:
+    build:
+      context: ./collector
+      dockerfile: Dockerfile
+    image: streaming_metrics/collector:latest
+    environment:
+      - HTTP_PROXY=
+      - http_proxy=
+      - HTTPS_PROXY=
+      - https_proxy=
+      - NO_PROXY=
+      - no_proxy=
+      - INFLUXDB_TOKEN=${INFLUXDB_TOKEN}
+      - INFLUXDB_ORG=${INFLUXDB_ORG}
+      - INFLUXDB_BUCKET=${INFLUXDB_BUCKET}
+      - INFLUXDB_RETENTION=${INFLUXDB_RETENTION}
+      - INFLUXDB_URL=${INFLUXDB_URL}
+    devices:
+      - "/dev/dxg:/dev/dxg"
+      - "/sys:/sys"
+      - "/dev:/dev"
+      - "/run:/run"
+      - "/proc:/proc"
+    ipc: host
+    pid: host
+    volumes:
+      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
+    privileged: true
+    networks:
+      - shared_network
+    ports:
+      - 7005:7005
   models:
     image: docker.io/openvino/ubuntu22_dev:2025.0.0
     container_name: models
