@@ -31,6 +31,7 @@ class PipelineOptimizer:
         param_grid: Dict[str, List[str]],
         poll_interval: int = 1,
         channels: int | tuple[int, int] = 1,
+        elements: List[tuple[str, str, str]] = [],
     ):
 
         # Initialize class variables
@@ -38,6 +39,7 @@ class PipelineOptimizer:
         self.constants = constants
         self.param_grid = param_grid
         self.poll_interval = poll_interval
+        self.elements = elements
 
         # Set the number of channels
         self.channels = (
@@ -65,29 +67,12 @@ class PipelineOptimizer:
 
     def optimize(self):
 
-        # Run gst-inspect-1.0 to get the list of elements
-        process = Popen(["gst-inspect-1.0", "va"], stdout=PIPE, stderr=PIPE)
-        elements = process.communicate()[0].decode("utf-8").split("\n")
-
-        # Log the elements
-        self.logger.info("Elements:")
-        self.logger.info(pprint.pformat(elements))
-
-        # Find the available encoder
-        # Note that the selected encoder is the last one on the list.
-        # This is usually vah264lpenc if the encoder is available.
-        # Otherwise, fallback to the only available encoder, usually vah264enc.
-        encoder = [element for element in elements if "vah264enc" in element or "vah264lpenc" in element][-1]
-        encoder = encoder.split(":")[0].strip()
-
-        # Log the encoder
-        self.logger.info(f"Encoder: {encoder}")
 
         for params in self._iterate_param_grid(self.param_grid):
 
             # Evaluate the pipeline with the given parameters, constants, and channels
             _pipeline = self.pipeline.evaluate(
-                self.constants, params, self.regular_channels, self.inference_channels, encoder
+                self.constants, params, self.regular_channels, self.inference_channels, self.elements
             )
 
             # Log the command

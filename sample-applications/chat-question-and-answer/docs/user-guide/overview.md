@@ -47,8 +47,6 @@ Refer to the [Get Started](./get-started.md) page to get started with the sample
 
 2. **Generation [Q&A]**: This part allows the user to query the document database and generate responses. The LLM inference microservice, embedding inference microservice, and reranking microservice work together to provide accurate and efficient answers to user queries. When a user submits a question, the embedding model hosted by the chosen model serving (default is OVMS) transforms it into an embedding, enabling semantic comparison with stored document embeddings. The vector database searches for relevant embeddings, returning a ranked list of documents based on semantic similarity. The LLM Inference Microservice generates a context-aware response from the final set of documents. It is possible to use any supported models to run with the applications. Detailed documentation provides full information on validated models and models supported overall.
 
-Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
-
 Detailed hardware and software requirements are available [here](./system-requirements.md).
 
 [This sample application is ready for deployment with Edge Orchestrator. Download the deployment package and follow the instructions](deploy-with-edge-orchestrator.md)

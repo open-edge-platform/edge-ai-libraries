@@ -14,6 +14,7 @@ from collect import CollectionReport, MetricsCollectorFactory
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
 from device import DeviceDiscovery
+from explore import GstInspector
 
 css_code = """
 
@@ -93,6 +94,7 @@ theme = gr.themes.Default(
 # pipeline = Transportation2Pipeline()
 pipeline = SmartNVRPipeline()
 device_discovery = DeviceDiscovery()
+gst_inspector = GstInspector()
 
 # Download File
 def download_file(url, local_filename):
@@ -576,6 +578,7 @@ def create_interface():
                         constants=constants,
                         param_grid=param_grid,
                         channels=(recording_channels, inferencing_channels),
+                        elements=gst_inspector.get_elements(),
                     )
                     collector.collect()
                     time.sleep(3)
