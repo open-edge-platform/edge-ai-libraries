@@ -415,7 +415,7 @@ def create_interface():
         interactive=True
     )
 
-     # Object detection accordion
+    # Object detection accordion
     object_detection_accordion = gr.Accordion("Object Detection Parameters", open=True)
 
     # Object detection model
@@ -553,9 +553,14 @@ def create_interface():
                     input_video_player,
                 ):
                     video_output_path, constants, param_grid = prepare_video_and_constants(
-                            input_video_player, object_detection_model, object_detection_device, batch_size, nireq, inference_interval 
+                        input_video_player,
+                        object_detection_model,
+                        object_detection_device,
+                        batch_size,
+                        nireq,
+                        inference_interval,
                 )
-
+             
                     # This elements are not used in the current version of the app
                     # match object_classification_model:
                     #     case "ResNet-50 TF":
@@ -603,18 +608,23 @@ def create_interface():
                     return [video_output_path, cpu_plot, gpu_plot]
 
                 def on_benchmark(
-                        fps_floor,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
-                        input_video_player,
+                    fps_floor,
+                    object_detection_model,
+                    object_detection_device,
+                    batch_size,
+                    inference_interval,
+                    nireq,
+                    input_video_player,
                 ):
                     
                     _, constants, param_grid = prepare_video_and_constants(
-                            input_video_player, object_detection_model, object_detection_device, batch_size, nireq, inference_interval
-                )
+                        input_video_player,
+                        object_detection_model,
+                        object_detection_device,
+                        batch_size,
+                        nireq,
+                        inference_interval,
+            )
 
                     # Initialize the benchmark class
                     bm = Benchmark(
@@ -679,14 +689,14 @@ def create_interface():
                 benchmark_button.click(
                 on_benchmark,
                 inputs=[
-                        fps_floor,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
-                        input_video_player,
-                    ],
+                    fps_floor,
+                    object_detection_model,
+                    object_detection_device,
+                    batch_size,
+                    inference_interval,
+                    nireq,
+                    input_video_player,
+                ],
                     outputs=[best_config_textbox],
                 )
 

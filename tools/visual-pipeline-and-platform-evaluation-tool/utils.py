@@ -11,7 +11,7 @@ from itertools import product
 import logging
 from pipeline import GstPipeline
 
-def prepare_video_and_constants(input_video_player, object_detection_model, object_detection_device):
+def prepare_video_and_constants(input_video_player, object_detection_model, object_detection_device, batch_size, nireq, inference_interval):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
 
@@ -23,48 +23,60 @@ def prepare_video_and_constants(input_video_player, object_detection_model, obje
     Returns:
         tuple: A tuple containing video_output_path, constants, and param_grid.
     """
-    random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
-    video_output_path = input_video_player.replace(".mp4", f"-output-{random_string}.mp4")
-
+    random_string = "".join(
+                        random.choices(string.ascii_lowercase + string.digits, k=6)
+                    )
+    video_output_path = input_video_player.replace(
+                       ".mp4", f"-output-{random_string}.mp4"
+                    )
     # Delete the video in the output folder before producing a new one
+    # Otherwise, gstreamer will just save a few seconds of the video
+    # and stop.
     if os.path.exists(video_output_path):
-        os.remove(video_output_path)
+            os.remove(video_output_path)
 
     param_grid = {
-        "object_detection_device": object_detection_device.split(", "),
-    }
+                    "object_detection_device": object_detection_device.split(", "),
+                    "batch_size": [batch_size],
+                    "inference_interval": [inference_interval],
+                    "nireq": [nireq],
+                    # This elements are not used in the current version of the app
+                    # "vehicle_classification_device": object_classification_device.split(
+                    #     ", "
+                    # ),
+                }
+
+    constants = {
+                    "VIDEO_PATH": input_video_player,
+                    "VIDEO_OUTPUT_PATH": video_output_path,
+                }
 
     MODELS_PATH = "/home/dlstreamer/vippet/models"
 
-    constants = {
-        "VIDEO_PATH": input_video_player,
-        "VIDEO_OUTPUT_PATH": video_output_path,
-    }
-
     match object_detection_model:
-        case "SSDLite MobileNet V2":
-            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
-            )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
-            )
-        case "YOLO v5m":
-            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
-            )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
-            )
-        case "YOLO v5s":
-            constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
-            )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
-            )
-        case _:
-            raise ValueError("Unrecognized Object Detection Model")
+            case "SSDLite MobileNet V2":
+                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                    f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                )
+                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                    f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                )
+            case "YOLO v5m":
+                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                    f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
+                )
+                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                    f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
+                )
+            case "YOLO v5s":
+                    constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                     f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
+                )
+                    constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                    f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
+                )
+            case _:
+                    raise ValueError("Unrecognized Object Detection Model")
 
     return video_output_path, constants, param_grid
 
