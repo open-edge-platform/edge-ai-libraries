@@ -11,10 +11,8 @@ This page provides detailed hardware, software, and platform requirements to hel
 - Intel® Arc&trade; A770 GPU with following Core&trade; configurations:
     - Intel® Core&trade; Ultra 7 265K
     - Intel® Core&trade; Ultra 9 285K
-- Lunar Lake  with following Core&trade; configurations:
-    - Intel® Core&trade; Ultra 7 256V
-- Meteor Lake with following Core&trade; configurations:
-    - Intel® Core&trade; Ultra 7 165H
+- Intel® Core&trade; Ultra 7 256V
+- Intel® Core&trade; Ultra 7 165H
 
 
 ## Operating Systems used for validation
@@ -23,8 +21,6 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Minimum Configuration
 The recommended minimum configuration for memory is 16GB and storage is 64 GB. Further requirements is dependent on the specific configuration of the application like KV cache, context size etc. Any changes to the default parameters of the sample application should be assessed for memory and storage implications.
-
-It i s possible to reduce the memory to 32GB provided the model configuration is also reduced. Raise a git issue in case of any required support for smaller configurations.
 
 ## Software Requirements
 
