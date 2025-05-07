@@ -1,12 +1,72 @@
 import subprocess
 import re
 import time
+import os
+import random
+import string
 from typing import List, Dict, Tuple
 from subprocess import Popen, PIPE
 import psutil as ps
 from itertools import product
 import logging
 from pipeline import GstPipeline
+
+def prepare_video_and_constants(input_video_player, object_detection_model, object_detection_device):
+    """
+    Prepares the video output path, constants, and parameter grid for the pipeline.
+
+    Args:
+        input_video_player (str): Path to the input video.
+        object_detection_model (str): Selected object detection model.
+        object_detection_device (str): Selected object detection device.
+
+    Returns:
+        tuple: A tuple containing video_output_path, constants, and param_grid.
+    """
+    random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
+    video_output_path = input_video_player.replace(".mp4", f"-output-{random_string}.mp4")
+
+    # Delete the video in the output folder before producing a new one
+    if os.path.exists(video_output_path):
+        os.remove(video_output_path)
+
+    param_grid = {
+        "object_detection_device": object_detection_device.split(", "),
+    }
+
+    MODELS_PATH = "/home/dlstreamer/vippet/models"
+
+    constants = {
+        "VIDEO_PATH": input_video_player,
+        "VIDEO_OUTPUT_PATH": video_output_path,
+    }
+
+    match object_detection_model:
+        case "SSDLite MobileNet V2":
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+            )
+        case "YOLO v5m":
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
+            )
+        case "YOLO v5s":
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
+            )
+        case _:
+            raise ValueError("Unrecognized Object Detection Model")
+
+    return video_output_path, constants, param_grid
 
 def _iterate_param_grid(param_grid: Dict[str, List[str]]):
     keys, values = zip(*param_grid.items())

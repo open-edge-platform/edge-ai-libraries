@@ -69,7 +69,6 @@ class PipelineOptimizer:
         # Iterate over the list of metrics
         for metrics in metrics_list:
             # Log the metrics
-            self.logger.info(f"Metrics returned: {metrics}")
             self.logger.info("Exit code: {}".format(metrics["exit_code"]))
             self.logger.info("Total FPS is {}".format(metrics["total_fps"]))
             self.logger.info("Per Stream FPS is {}".format(metrics["per_stream_fps"]))
