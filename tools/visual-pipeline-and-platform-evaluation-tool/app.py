@@ -14,6 +14,7 @@ from collect import CollectionReport, MetricsCollectorFactory
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
 from device import DeviceDiscovery
+from explore import GstInspector
 
 css_code = """
 
@@ -93,6 +94,7 @@ theme = gr.themes.Default(
 # pipeline = Transportation2Pipeline()
 pipeline = SmartNVRPipeline()
 device_discovery = DeviceDiscovery()
+gst_inspector = GstInspector()
 
 # Download File
 def download_file(url, local_filename):
@@ -420,6 +422,35 @@ def create_interface():
         value=preferred_device,
     )
 
+    # Batch size
+    batch_size = gr.Slider(
+        minimum=0,
+        maximum=1024,
+        value=0,
+        step=1,
+        label="Batch Size",
+        interactive=True,
+    )
+
+    # Inference interval
+    inference_interval = gr.Slider(
+        minimum=1,
+        maximum=1800,
+        value=1,
+        step=1,
+        label="Inference Interval",
+        interactive=True,
+    )
+
+    # Number of inference requests (nireq)
+    nireq = gr.Slider(
+        minimum=0,
+        maximum=1024,
+        value=0,
+        step=1,
+        label="Number of Inference Requests (nireq)",
+        interactive=True,
+    )
     # This elements are not used in the current version of the app
     # # Object classification accordion
     # object_classification_accordion = gr.Accordion(
@@ -489,8 +520,12 @@ def create_interface():
                     # This elements are not used in the current version of the app
                     # object_classification_model,
                     # object_classification_device,
+                    batch_size,
+                    inference_interval,
+                    nireq,
                     input_video_player,
                 ):
+
 
                     random_string = "".join(
                         random.choices(string.ascii_lowercase + string.digits, k=6)
@@ -506,6 +541,9 @@ def create_interface():
 
                     param_grid = {
                         "object_detection_device": object_detection_device.split(", "),
+                        "batch_size": [batch_size],
+                        "inference_interval": [inference_interval],
+                        "nireq": [nireq],
                         # This elements are not used in the current version of the app
                         # "vehicle_classification_device": object_classification_device.split(
                         #     ", "
@@ -576,6 +614,7 @@ def create_interface():
                         constants=constants,
                         param_grid=param_grid,
                         channels=(recording_channels, inferencing_channels),
+                        elements=gst_inspector.get_elements(),
                     )
                     collector.collect()
                     time.sleep(3)
@@ -618,6 +657,9 @@ def create_interface():
                         # This elements are not used in the current version of the app
                         # object_classification_model,
                         # object_classification_device,
+                        batch_size,
+                        inference_interval,
+                        nireq,
                         input_video_player,
                     ],
                     outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
@@ -640,6 +682,9 @@ def create_interface():
                 with object_detection_accordion.render():
                     object_detection_model.render()
                     object_detection_device.render()
+                    batch_size.render()
+                    inference_interval.render()
+                    nireq.render()
 
                 # This elements are not used in the current version of the app
                 # with object_classification_accordion.render():

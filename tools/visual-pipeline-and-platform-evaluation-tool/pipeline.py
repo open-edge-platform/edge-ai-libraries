@@ -116,7 +116,7 @@ class SmartNVRPipeline(GstPipeline):
         )
 
         self._compositor = (
-            "vacompositor "
+            "{compositor} "
             "  name=comp "
             "  {sinks} ! "
             "{encoder} ! "
@@ -132,68 +132,19 @@ class SmartNVRPipeline(GstPipeline):
             "qtdemux ! "
             "h264parse ! "
             "tee name=t{id} ! "
-            "queue2 ! "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
             "mp4mux ! "
             "filesink "
             "  location=/tmp/stream{id}.mp4 "
             "t{id}. ! "
-            "queue2 ! "
-            "vah264dec ! "
-            "video/x-raw(memory:VAMemory) ! "
-            "gvafpscounter "
-            "  starting-frame=1000 ! "
-            "queue2 ! "
-            "vapostproc ! "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "{decoder} ! "
+            "gvafpscounter starting-frame=1000 ! "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "{postprocessing} ! "
             "video/x-raw,width=640,height=360 ! "
             "comp.sink_{id} "
         )
-
-        self._decode = (
-            "vah264dec ! "
-            "video/x-raw(memory:VAMemory) ! "
-        )
-
-        self._gpscounter = (
-            "gvafpscounter "
-            "  starting-frame=1000 ! "
-        )
-
-        self._detection = (
-            "gvadetect "
-            "  model={OBJECT_DETECTION_MODEL_PATH} "
-            "  model-proc={OBJECT_DETECTION_MODEL_PROC} "
-            "  inference-interval=3 "
-            "  model-instance-id=detect0 "
-            "  pre-process-backend={object_detection_pre_process_backend} "
-            "  device={object_detection_device} ! "
-            "queue2 "
-            "  max-size-buffers=0 "
-            "  max-size-bytes=0 "
-            "  max-size-time=0 ! "
-        )
-
-        self._watermark = (
-            "gvawatermark ! "
-        )
-
-        self._metadata = (
-            "gvametaconvert "
-            "  format=json "
-            "  json-indent=4 "
-            "  source={VIDEO_PATH} ! "
-            "gvametapublish "
-            "  method=file "
-            "  file-path=/dev/null ! "
-        )
-
-        self._storage = (
-            "mp4mux ! "
-            "filesink "
-            "  location=/tmp/stream{id}.mp4 "
-        )
-
-
-    def build_inference_stream(self, constants:dict):
 
         self._inference_stream = (
             "filesrc "
@@ -201,22 +152,41 @@ class SmartNVRPipeline(GstPipeline):
             "qtdemux ! "
             "h264parse ! "
             "tee name=t{id} ! "
-            "queue2 ! "
-            + " " + self._storage + " "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "mp4mux ! "
+            "filesink "
+            "  location=/tmp/stream{id}.mp4 "
             "t{id}. ! "
-            "queue2 ! "
-            + " " 
-            + self._decode
-            + self._gpscounter
-            + self._detection
-            + self._watermark
-            + self._metadata
-            + " "
-            "queue2 ! "
-            "vapostproc ! "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "{decoder} ! "
+            "gvafpscounter starting-frame=1000 ! "
+            "gvadetect "
+            "  model={OBJECT_DETECTION_MODEL_PATH} "
+            "  model-proc={OBJECT_DETECTION_MODEL_PROC} "
+            "  model-instance-id=detect0 "
+            "  pre-process-backend={object_detection_pre_process_backend} "
+            "  device={object_detection_device} "
+            "  batch-size={batch_size} "  
+            "  inference-interval={inference_interval} " 
+            "  nireq={nireq} ! "  
+            "queue2 "
+            "  max-size-buffers=0 "
+            "  max-size-bytes=0 "
+            "  max-size-time=0 ! "
+            "gvawatermark ! "
+            "gvametaconvert "
+            "  format=json "
+            "  json-indent=4 "
+            "  source={VIDEO_PATH} ! "
+            "gvametapublish "
+            "  method=file "
+            "  file-path=/dev/null ! "
+            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "{postprocessing} ! "
             "video/x-raw,width=640,height=360 ! "
             "comp.sink_{id} "
         )
+
     
     def evaluate(
         self,
@@ -224,7 +194,7 @@ class SmartNVRPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        encoder: str,
+        elements: List[ tuple[str, str, str] ] = [],
     ) -> str:
 
         parameters["object_detection_pre_process_backend"] = (
@@ -232,8 +202,6 @@ class SmartNVRPipeline(GstPipeline):
             if parameters["object_detection_device"] in ["CPU", "NPU"] 
             else "va-surface-sharing"
         )
-
-        self.build_inference_stream(constants)
 
         # Compute total number of channels
         channels = regular_channels + inference_channels
@@ -246,18 +214,73 @@ class SmartNVRPipeline(GstPipeline):
             ypos = 360 * (i // grid_size)
             sinks += self._sink.format(id=i, xpos=xpos, ypos=ypos)
 
+        # Find the available compositor in elements
+        _compositor_element = next(
+            ("vacompositor" for element in elements if element[1] == "vacompositor"),
+            next(
+                ("compositor" for element in elements if element[1] == "compositor"),
+                None  # Fallback to None if no compositor is found
+            )
+        )
+
+        # Find the available encoder in elements
+        _encoder_element = next(
+            ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
+            next(
+                ("vah264enc" for element in elements if element[1] == "vah264enc"),
+                next(
+                    ("x264enc bitrate=16000 speed-preset=superfast" for element in elements if element[1] == "x264enc"),
+                    None  # Fallback to None if no encoder is found
+                )
+            )
+        )
+
+        # Find the available decoder in elements
+        _decoder_element = next(
+            ("vah264dec ! video/x-raw(memory:VAMemory) " for element in elements if element[1] == "vah264dec"),
+            next(
+                ("decodebin" for element in elements if element[1] == "decodebin"),
+                None  # Fallback to None if no decoder is found
+            )
+        )
+
+        # Find the postprocessing element
+        _postprocessing_element = next(
+            ("vapostproc" for element in elements if element[1] == "vapostproc"),
+            next(
+                ("videoscale" for element in elements if element[1] == "videoscale"),
+                None  # Fallback to None if no postprocessing is found
+            )
+        )
+
         # Create the compositor
-        compositor = self._compositor.format(**constants, sinks=sinks, encoder=encoder)
+        compositor = self._compositor.format(
+            **constants, 
+            sinks=sinks, 
+            encoder=_encoder_element, 
+            compositor=_compositor_element
+        )
 
         # Create the streams
         streams = ""
 
         for i in range(inference_channels):
-            streams += self._inference_stream.format(**parameters, **constants, id=i)
+            streams += self._inference_stream.format(
+                **parameters,
+                **constants,
+                id=i,
+                decoder=_decoder_element,
+                postprocessing=_postprocessing_element
+            )
 
         for i in range(inference_channels, channels):
-            streams += self._recording_stream.format(**parameters, **constants, id=i)
-
+            streams += self._recording_stream.format(
+                **parameters, 
+                **constants, 
+                id=i, 
+                decoder=_decoder_element,
+                postprocessing=_postprocessing_element
+            )
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + compositor + " " + streams
@@ -272,13 +295,25 @@ if __name__ == "__main__":
     print(
         "Evaluate:",
         pipeline.evaluate(
-            {
+            constant = {
                 "VIDEO_OUTPUT_PATH": "output.mp4",
                 "VIDEO_PATH": "input.mp4",
                 "OBJECT_DETECTION_MODEL_PATH": "model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": "model_proc.xml",
             },
-            {"object_detection_device": "CPU"},
-            2,
+            parameters = {
+                "object_detection_device": "CPU",
+                "batch_size": 16,  
+                "inference_interval": 2, 
+                "nireq": 4,  
+            },
+            regular_channels = 2,
+            inference_channels = 1,
+            elements = [
+                "compositor",
+                "x264enc",
+                "decodebin",
+                "videoscale"
+            ]
         ),
     )

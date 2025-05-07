@@ -33,7 +33,7 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 ### Application Flow
 
 1. **Input Sources**:
-   - **Documents**: The document ingestion microservice supports ingesting from various document formats. Supported formats are word and pdf.
+   - **Documents**: The document ingestion microservice supports ingesting documents in various formats. Supported formats are word and pdf.    
    - **Web pages**: Contents of accessible web pages can also be parsed and used as input for the RAG pipeline.
 2. **Create the context**
    - **Upload input documents and web links**: The UI microservice allows the developer to interact with the ChatQ&A backend. It provides the interface to upload the documents and weblinks on which the RAG pipeline will be executed. The documents are uploaded and stored in object store. MinIO is the database used for object store.
@@ -66,12 +66,12 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 
 2. **Document ingestion microservice**:
    - **What it is**: Document ingestion microservice provides capability to ingest contents from documents and web links, create the necessary context, and retrieve the right context based on user query.
-   - **How it's used**: Document ingestion microservice provides a REST API endpoint that can be used to manage the contents. The ChatQ&A backend uses this API to access its capabilities.
-   - **Benefits**: The core part of the document ingestion microservice is the vector handling capability which is optimized for target deployment hardware. Selection of the vectorDB is based on performance considerations. Rest of the document ingestion microservice can be treated as sample reference implementaiton.
+   - **How it's used**: Document ingestion microservice provides a `documents` REST API endpoint that can be used to manage the contents. The ChatQ&A backend uses this API to access its capabilities.
+   - **Benefits**: The core part of the document ingestion microservice is the vector handling capability which is optimized for target deployment hardware. Selection of the vectorDB is based on performance considerations. Rest of the document ingestion microservice can be treated as sample reference implementation.
 
 3. **ChatQ&A backend microservice**:
    - **What it is**: ChatQ&A backend microservice is a LangChain based implementation of ChatQ&A RAG pipeline providing required handling of the user queries.
-   - **How it’s used**: A REST API endpoint is provided which is used by the UI front end to send user queries and trigger the RAG pipeline.
+   - **How it’s used**: A `streamlog` REST API endpoint is provided which is used by the UI front end to send user queries and trigger the RAG pipeline.
    - **Benefits**: The microservice provides a reference of how LangChain framework is used to implement ChatQ&A using Intel Edge AI inference microservices.
 
 4. **ChatQ&A UI**:
