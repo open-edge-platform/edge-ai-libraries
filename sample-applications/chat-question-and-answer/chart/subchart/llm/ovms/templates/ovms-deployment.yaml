@@ -110,9 +110,9 @@ spec:
             type: Directory
         - name: workspace
           persistentVolumeClaim:
-            claimName: egai-ovms-gpu-pvc
+            claimName: ovms-gpu-pvc
       {{ else }}
         - name: workspace
           persistentVolumeClaim:
-            claimName: egai-ovms-pvc
+            claimName: ovms-pvc
       {{ end }}

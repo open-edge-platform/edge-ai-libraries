@@ -1,7 +1,7 @@
 global: 
-  egai_vllm_pvc:
+  vllm_pvc:
     size: 20Gi
-  egai_ovms_embed_pvc:
+  ovms_embed_pvc:
     size: 20Gi
   keeppvc: false # true to persist downloaded models across multiple deployments
 

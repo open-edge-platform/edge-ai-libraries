@@ -28,13 +28,13 @@ global:
       key:  #update as per the cluster node label key for GPU
       value:  #update as per the cluster node label value for GPU
     device: "GPU" #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
-  egai_minio_pvc:
+  minio_pvc:
     size: 20Gi
-  egai_reranker_pvc:
+  reranker_pvc:
     size: 20Gi
-  egai_ovms_pvc:
+  ovms_pvc:
     size: 20Gi
-  egai_ovms_embed_pvc:
+  ovms_embed_pvc:
     size: 20Gi
   keeppvc: false # true  to persist models across multiple deployments
 

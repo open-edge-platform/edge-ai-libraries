@@ -91,4 +91,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: egai-vllm-pvc
+            claimName: vllm-pvc

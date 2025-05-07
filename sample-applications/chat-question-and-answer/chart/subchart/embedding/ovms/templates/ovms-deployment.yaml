@@ -110,9 +110,9 @@ spec:
             type: Directory
         - name: workspace
           persistentVolumeClaim:
-            claimName: egai-ovms-embed-gpu-pvc
+            claimName: ovms-embed-gpu-pvc
       {{ else }}
         - name: workspace
           persistentVolumeClaim:
-            claimName: egai-ovms-embed-pvc
+            claimName: ovms-embed-pvc
       {{ end }}
