@@ -84,12 +84,19 @@ You should see entries for both `chatqna` and `chatqna-ui`.
 ## Running the Application Container
 After building the images for the `Chat Question-and-Answer Core` application, you can run the application container using `docker compose` by following these steps:
 
-1. Start the Docker containers with the previously built images:
+1. **Set Up Environment Variables**:   
+      ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh
+      ```
+   Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models). 
+
+2. Start the Docker containers with the previously built images:
    ```bash
    docker compose -f docker/compose.yaml up
    ```
 
-2. Access the application:
+3. Access the application:
    - Open your web browser and navigate to `http://<host-ip>:5173` to view the application dashboard.
 
 ## Verification

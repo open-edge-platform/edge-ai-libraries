@@ -4,6 +4,7 @@ import string
 import time
 import math
 import requests
+import logging
 
 import gradio as gr
 import matplotlib.pyplot as plt
@@ -18,6 +19,8 @@ from device import DeviceDiscovery
 from explore import GstInspector
 from benchmark import Benchmark
 from utils import prepare_video_and_constants
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 css_code = """
 
@@ -441,6 +444,35 @@ def create_interface():
         value=preferred_device,
     )
 
+    # Batch size
+    batch_size = gr.Slider(
+        minimum=0,
+        maximum=1024,
+        value=0,
+        step=1,
+        label="Batch Size",
+        interactive=True,
+    )
+
+    # Inference interval
+    inference_interval = gr.Slider(
+        minimum=1,
+        maximum=1800,
+        value=1,
+        step=1,
+        label="Inference Interval",
+        interactive=True,
+    )
+
+    # Number of inference requests (nireq)
+    nireq = gr.Slider(
+        minimum=0,
+        maximum=1024,
+        value=0,
+        step=1,
+        label="Number of Inference Requests (nireq)",
+        interactive=True,
+    )
     # This elements are not used in the current version of the app
     # # Object classification accordion
     # object_classification_accordion = gr.Accordion(
@@ -515,11 +547,13 @@ def create_interface():
                     # This elements are not used in the current version of the app
                     # object_classification_model,
                     # object_classification_device,
+                    batch_size,
+                    inference_interval,
+                    nireq,
                     input_video_player,
                 ):
-
                     video_output_path, constants, param_grid = prepare_video_and_constants(
-                            input_video_player, object_detection_model, object_detection_device
+                            input_video_player, object_detection_model, object_detection_device, batch_size, nireq, inference_interval 
                 )
 
                     # This elements are not used in the current version of the app
@@ -572,11 +606,14 @@ def create_interface():
                         fps_floor,
                         object_detection_model,
                         object_detection_device,
+                        batch_size,
+                        inference_interval,
+                        nireq,
                         input_video_player,
                 ):
                     
                     _, constants, param_grid = prepare_video_and_constants(
-                            input_video_player, object_detection_model, object_detection_device
+                            input_video_player, object_detection_model, object_detection_device, batch_size, nireq, inference_interval
                 )
 
                     # Initialize the benchmark class
@@ -625,11 +662,14 @@ def create_interface():
                         # This elements are not used in the current version of the app
                         # object_classification_model,
                         # object_classification_device,
+                        batch_size,
+                        inference_interval,
+                        nireq,
                         input_video_player,
                     ],
                     outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
                 ).then(
-                    fn=lambda video: gr.update(
+                    fn=lambda: gr.update(
                         interactive=True
                     ),  # Re-enable Run button
                     outputs=[run_button],
@@ -639,10 +679,13 @@ def create_interface():
                 benchmark_button.click(
                 on_benchmark,
                 inputs=[
-                    fps_floor,
-                    object_detection_model,
-                    object_detection_device,
-                    input_video_player,
+                        fps_floor,
+                        object_detection_model,
+                        object_detection_device,
+                        batch_size,
+                        inference_interval,
+                        nireq,
+                        input_video_player,
                     ],
                     outputs=[best_config_textbox],
                 )
@@ -660,6 +703,9 @@ def create_interface():
                 with object_detection_accordion.render():
                     object_detection_model.render()
                     object_detection_device.render()
+                    batch_size.render()
+                    inference_interval.render()
+                    nireq.render()
 
                 # This elements are not used in the current version of the app
                 # with object_classification_accordion.render():
