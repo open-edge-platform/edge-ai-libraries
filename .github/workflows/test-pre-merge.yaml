@@ -28,7 +28,7 @@ jobs:
       - name: "Filter Out Unwanted Changed Subfolders"
         id: filter-changes
         run: |
-          folders_to_remove='[".github",".reuse","LICENSES",".git","os-profiles","libraries","microservices","tools",".gitmodules","*.md","LICENSE",""]'
+          folders_to_remove='[".github",".reuse","LICENSES",".git","os-profiles","libraries","microservices","tools",".gitmodules",""]'
 
           changed_projects='${{ steps.discover-changes.outputs.changed_projects }}'
           filtered_projects=$(echo "$changed_projects" | jq -cr --argjson folders_to_remove "$folders_to_remove" 'map(select(. as $item | $folders_to_remove | index($item) | not))')
