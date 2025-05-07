@@ -4,7 +4,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 ## Hardware Platforms used for validation
 - Intel® Xeon®: Fourth generation and fifth generation.
-- Intel® Arc&trade; B580 GPU with following Xeon processor configurations:
+- Intel® Arc&trade; B580 GPU with following Xeon® processor configurations:
     - Intel® Xeon® Platinum 8490H
     - Intel® Xeon® Platinum 8468V
     - Intel® Xeon® Platinum 8580
@@ -13,7 +13,7 @@ This page provides detailed hardware, software, and platform requirements to hel
     - Intel® Core&trade; Ultra 9 285K
 
 ## Operating Systems used for validation
-- Ubuntu 22.04.2 LTS for Xeon only configurations.
+- Ubuntu 22.04.2 LTS for Xeon® only configurations.
 - If GPU is available, refer to the official [documentation](https://dgpu-docs.intel.com/devices/hardware-table.html) for details on required kernel version. For the listed hardware platforms, the kernel requirement translates to Ubuntu 24.04 or Ubuntu 24.10 depending on the GPU used.
 
 ## Minimum Configuration
