@@ -64,7 +64,12 @@ By following this guide, you will learn how to:
     - Set up the environment variables:
       ```bash
        export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+
+       # For default CPU setup
        source scripts/setup_env.sh
+
+       # For GPU setup
+       source scripts/setup_env.sh -d gpu
       ```
     - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose).
     - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can configure it by exporting the following:
