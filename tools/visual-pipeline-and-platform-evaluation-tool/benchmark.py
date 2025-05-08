@@ -84,7 +84,7 @@ class Benchmark:
                 self.logger.info("Time limit reached during Binary phase.")
                 break
             mid = (low + high) // 2
-            ai_streams = max(1, int(streams * 0.2))
+            ai_streams = max(1, int(mid * 0.2))
             non_ai_streams = mid - ai_streams
 
             results = run_pipeline_and_extract_metrics(
