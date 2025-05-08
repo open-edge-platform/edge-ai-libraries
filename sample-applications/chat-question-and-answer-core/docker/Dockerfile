@@ -10,7 +10,9 @@ ARG INSTALL_DRIVER_VERSION="24.39.31294"
 RUN echo "USE_GPU is set to $USE_GPU"; \
     echo "GPU_TYPE is set to $GPU_TYPE"
 
+# Copy drivers and set execute permissions on all .sh files
 COPY ./drivers /tmp/drivers
+RUN chmod +x /tmp/drivers/*.sh
 
 # Install GPU drivers if required
 RUN if [ "$USE_GPU" = "true" ]; then \
