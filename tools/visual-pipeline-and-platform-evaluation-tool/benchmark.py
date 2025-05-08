@@ -1,10 +1,6 @@
-import subprocess
 import time
 from typing import List, Dict, Tuple
-import re
-import tempfile
 import logging
-from pipeline import SmartNVRPipeline, Transportation2Pipeline
 from utils import run_pipeline_and_extract_metrics
 
 logging.basicConfig(level=logging.INFO)
