@@ -503,7 +503,7 @@ def create_interface():
     # Results
     cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
     gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
-   
+
     # Run button
     run_button = gr.Button("Run")
 
@@ -583,7 +583,7 @@ def create_interface():
                     # Validate channels
                     if recording_channels + inferencing_channels == 0:
                         raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
-                    
+
                     system = os.uname()
                     collector = MetricsCollectorFactory.get_collector(
                         sysname=system.sysname, release=system.release
@@ -593,7 +593,7 @@ def create_interface():
                         constants=constants,
                         param_grid=param_grid,
                         channels=(recording_channels, inferencing_channels),
-			            elements=gst_inspector.get_elements(),
+                        elements=gst_inspector.get_elements(),
                     )
                     collector.collect()
                     time.sleep(3)
@@ -624,7 +624,7 @@ def create_interface():
                         batch_size,
                         nireq,
                         inference_interval,
-            )
+                    )
 
                     # Initialize the benchmark class
                     bm = Benchmark(
@@ -687,16 +687,16 @@ def create_interface():
 
 
                 benchmark_button.click(
-                on_benchmark,
-                inputs=[
-                    fps_floor,
-                    object_detection_model,
-                    object_detection_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
-                    input_video_player,
-                ],
+                    on_benchmark,
+                    inputs=[
+                        fps_floor,
+                        object_detection_model,
+                        object_detection_device,
+                        batch_size,
+                        inference_interval,
+                        nireq,
+                        input_video_player,
+                    ],
                     outputs=[best_config_textbox],
                 )
 
