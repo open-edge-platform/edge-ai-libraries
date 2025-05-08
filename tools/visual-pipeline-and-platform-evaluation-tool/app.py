@@ -637,7 +637,7 @@ def create_interface():
                     )
 
                     # Run the benchmark
-                    s, non_ai, ai, fps = bm.run()
+                    s, ai, non_ai, fps = bm.run()
 
                     # Return results
                     return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"

@@ -2,6 +2,7 @@ import time
 from typing import List, Dict, Tuple
 import logging
 from utils import run_pipeline_and_extract_metrics
+import math
 
 logging.basicConfig(level=logging.INFO)
 
@@ -38,7 +39,7 @@ class Benchmark:
                 self.logger.info("Time limit reached during exponential phase")
                 break
 
-            ai_streams = max(1, int(streams * 0.2))
+            ai_streams = max(1, math.ceil(streams * 0.2))
             non_ai_streams = streams - ai_streams
             results = run_pipeline_and_extract_metrics(
                 self.pipeline_cls,
@@ -80,7 +81,7 @@ class Benchmark:
                 self.logger.info("Time limit reached during Binary phase.")
                 break
             mid = (low + high) // 2
-            ai_streams = max(1, int(mid * 0.2))
+            ai_streams = max(1, math.ceil(mid * 0.2))
             non_ai_streams = mid - ai_streams
 
             results = run_pipeline_and_extract_metrics(
