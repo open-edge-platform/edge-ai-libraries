@@ -4,6 +4,7 @@ import string
 import time
 import math
 import requests
+import logging
 
 import gradio as gr
 import matplotlib.pyplot as plt
@@ -15,6 +16,8 @@ from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
 from device import DeviceDiscovery
 from explore import GstInspector
+
+logging.getLogger("httpx").setLevel(logging.WARNING)
 
 css_code = """
 
@@ -664,7 +667,7 @@ def create_interface():
                     ],
                     outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
                 ).then(
-                    fn=lambda video: gr.update(
+                    fn=lambda: gr.update(
                         interactive=True
                     ),  # Re-enable Run button
                     outputs=[run_button],
