@@ -384,28 +384,30 @@ def read_latest_metrics():
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
-                    if "package_power" in field:
+                    if "pkg_cur_power" in field:
                         try:
                             package_power = float(field.split("=")[1])
                         except:
                             pass
 
-        if "temperature" in line and sys_temp is None:
+        if "power" in line and gpu_power is None:
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
-                    if "system" in field:
+                    if "gpu_cur_power" in field:
+                        try:
+                            gpu_power = float(line.strip().split()[-1])
+                        except:
+                            pass
+        if "temp" in line and sys_temp is None:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "temp" in field:
                         try:
                             sys_temp = float(field.split("=")[1])
                         except:
                             pass
-
-        if "gpu_power" in line and gpu_power is None:
-            try:
-                gpu_power = float(line.strip().split()[-1])
-            except:
-                pass
-
         if "gpu_freq" in line and gpu_freq is None:
             try:
                 gpu_freq = float(line.strip().split()[-1])
@@ -937,6 +939,7 @@ def create_interface():
                     lambda: gr.update(active=False),  # This updates the same timer
                     inputs=None,
                     outputs=timer,
+                ).then(lambda: open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "w").close(), inputs=[], outputs=[]
                 ).then(
                     fn=lambda video: gr.update(
                         interactive=True
