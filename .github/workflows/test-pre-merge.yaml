@@ -49,3 +49,24 @@ jobs:
           PUBLISH=$(echo "$PR_DESCRIPTION" | grep -q '/publish🚢' && echo true || echo false)
           echo $PUBLISH
           echo "PUBLISH=$PUBLISH" >> $GITHUB_ENV
+  pre-merge-root:
+    needs: pre-checks
+    if: ${{ contains(needs.pre-checks.outputs.other_changed_projects, '.github') || contains(needs.pre-checks.outputs.other_changed_projects, 'LICENSES') || contains(needs.pre-checks.outputs.other_changed_projects, '""')}}
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+      - uses: actions/setup-node@cdca7365b2dadb8aad0a33bc7601856ffabcc48e # v4.3.0
+        with:
+          node-version: '18'
+      - run: |
+          npm install -g \
+          "markdownlint-cli@${{ env.MARKDOWNLINT_CLI_VER }}"
+      - uses: actions/setup-python@8d9ed9ac5c53483de85588cdf95a591a75ab9f55 # v5.5.0
+        id: setup_python
+        with:
+          python-version: '3.13'
+      - name: Restore cached virtualenv
+        uses: actions/cache@5a3ec84eff668545956fd18022155c47e93e2684 # v4.2.3
+        with:
+          key: venv-${{ runner.os }}-${{ steps.setup_python.outputs.python-version }}-${{ hashFiles('requirements.txt') }}
+          path: venv_infra    
