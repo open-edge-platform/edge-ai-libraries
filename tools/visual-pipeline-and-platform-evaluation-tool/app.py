@@ -341,15 +341,162 @@ chart_titles = [
 # Create a dataframe for each chart
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
 
-# Function to generate one plot's data
-'''def generate_stream_data(i):
+def read_latest_metrics():
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
+            lines = f.readlines()[-20:]
+    except FileNotFoundError:
+        return [None] * 9  # return 9 metrics (update if you add more)
+
+    cpu_user = None
+    mem_used_percent = None
+    package_power = None
+    sys_temp = None
+    gpu_power = None
+    gpu_freq = None
+    gpu_render = None
+    gpu_ve = None
+    gpu_video = None
+    gpu_copy = None
+
+    for line in reversed(lines):
+        if "cpu" in line and cpu_user is None:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "usage_user" in field:
+                        try:
+                            cpu_user = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if "mem" in line and mem_used_percent is None:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "used_percent" in field:
+                        try:
+                            mem_used_percent = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if "power" in line and package_power is None:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "package_power" in field:
+                        try:
+                            package_power = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if "temperature" in line and sys_temp is None:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "system" in field:
+                        try:
+                            sys_temp = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if "gpu_power" in line and gpu_power is None:
+            try:
+                gpu_power = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "gpu_freq" in line and gpu_freq is None:
+            try:
+                gpu_freq = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "render" in line and gpu_render is None:
+            try:
+                gpu_render = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "video-enhance" in line and gpu_ve is None:
+            try:
+                gpu_ve = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "video" in line and gpu_video is None:
+            try:
+                gpu_video = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if "copy" in line and gpu_copy is None:
+            try:
+                gpu_copy = float(line.strip().split()[-1])
+            except:
+                pass
+
+        if all(metric is not None for metric in [
+            cpu_user, mem_used_percent, package_power, sys_temp, gpu_power, 
+            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy]):
+            break
+
+    return [
+        cpu_user, mem_used_percent, package_power, sys_temp, gpu_power, 
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy
+    ]
+
+
+def generate_stream_data(i):
     new_x = datetime.now()
-    new_y = np.sin(len(stream_dfs[i]) / 5.0) + np.random.normal(0, 0.1)
+    new_y = 0
+    (
+        cpu_val, mem_val, power_val, temp_val, gpu_power, 
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy
+    ) = read_latest_metrics()
+
+    yaxis_title_val = "Value"
+    title = chart_titles[i]
+
+    if title == "CPU Usage [%]" and cpu_val is not None:
+        yaxis_title_val = "Percent Used"
+        new_y = cpu_val
+    elif title == "Memory Usage [%]" and mem_val is not None:
+        yaxis_title_val = "Percent Available"
+        new_y = mem_val
+    elif title == "Package Power [Wh]" and power_val is not None:
+        yaxis_title_val = "Watt-Hours"
+        new_y = power_val
+    elif title == "System Temperature [K]" and temp_val is not None:
+        yaxis_title_val = "Kelvin"
+        new_y = temp_val
+    elif title == "GPU Power Usage [W]" and gpu_power is not None:
+        yaxis_title_val = "Watts"
+        new_y = gpu_power
+    elif title == "GPU Frequency [MHz]" and gpu_freq is not None:
+        yaxis_title_val = "MHz"
+        new_y = gpu_freq
+    elif title == "GPU_render" and gpu_render is not None:
+        yaxis_title_val = "Percent"
+        new_y = gpu_render
+    elif title == "GPU_video enhance" and gpu_ve is not None:
+        yaxis_title_val = "Percent"
+        new_y = gpu_ve
+    elif title == "GPU_video" and gpu_video is not None:
+        yaxis_title_val = "Percent"
+        new_y = gpu_video
+    elif title == "GPU_copy" and gpu_copy is not None:
+        yaxis_title_val = "Percent"
+        new_y = gpu_copy
+
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
     stream_dfs[i] = pd.concat([stream_dfs[i], new_row], ignore_index=True).tail(50)
-    fig = px.line(stream_dfs[i], x="x", y="y", title=chart_titles[i])
-    fig.update_layout(xaxis_title="Time", yaxis_title="Value")
-    return fig'''
+    fig = px.line(stream_dfs[i], x="x", y="y", title=title)
+    fig.update_layout(xaxis_title="Time", yaxis_title=yaxis_title_val)
+    return fig
+
+
+'''
 
 def read_latest_metrics():
     try:
@@ -411,6 +558,7 @@ def generate_stream_data(i):
     fig = px.line(stream_dfs[i], x="x", y="y", title=title)
     fig.update_layout(xaxis_title="Time", yaxis_title=yaxis_title_val)
     return fig
+    '''
 # Create the interface
 def create_interface():
 
