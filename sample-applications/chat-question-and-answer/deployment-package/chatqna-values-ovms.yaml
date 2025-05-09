@@ -22,13 +22,13 @@ global:
     enabled: false
   ovmsEmbeddingService:
     enabled: true 
-  egai_minio_pvc:
+  minio_pvc:
     size: 20Gi
-  egai_reranker_pvc:
+  reranker_pvc:
     size: 20Gi
-  egai_ovms_pvc:
+  ovms_pvc:
     size: 20Gi
-  egai_ovms_embed_pvc:
+  ovms_embed_pvc:
     size: 20Gi
   keeppvc: false #true to persist downloaded models across multiple deployments
 

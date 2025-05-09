@@ -1,10 +1,10 @@
 global:
   huggingface:
-    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+    apiToken:  # Set this during installation
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
+    no_proxy: 
+    http_proxy: 
+    https_proxy: 
 
 vllmService:
   name: vllm-service

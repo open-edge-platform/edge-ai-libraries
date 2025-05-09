@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+.vscode
+.dockerignore
+docker
+scripts
+tests
+ui
+docs
+README*

@@ -2,6 +2,41 @@
 # SPDX-License-Identifier: Apache-2.0
 FROM python:3.11-slim AS python-base
 
+# Define a build-time variable to determine if GPU drivers should be installed
+ARG USE_GPU=false
+ARG GPU_TYPE="none"  # Options: none, igpu, dgpu
+ARG INSTALL_DRIVER_VERSION="24.39.31294"
+
+RUN echo "USE_GPU is set to $USE_GPU"; \
+    echo "GPU_TYPE is set to $GPU_TYPE"
+
+# Copy drivers and set execute permissions on all .sh files
+COPY ./drivers /tmp/drivers
+RUN chmod +x /tmp/drivers/*.sh
+
+# Install GPU drivers if required
+RUN if [ "$USE_GPU" = "true" ]; then \
+    if [ "$GPU_TYPE" != "igpu" ] && [ "$GPU_TYPE" != "dgpu" ]; then \
+    echo "ERROR: GPU_TYPE must be set to 'igpu' or 'dgpu' when USE_GPU is set to true"; \
+    exit 1; \
+    fi && \
+    if [ "$GPU_TYPE" = "igpu" ]; then \
+    echo "Installing iGPU drivers"; \
+    /tmp/drivers/install_igpu_drivers.sh; \
+    elif [ "$GPU_TYPE" = "dgpu" ]; then \
+    echo "Installing dGPU drivers version $INSTALL_DRIVER_VERSION"; \
+    apt-get update && apt-get install -y --no-install-recommends ca-certificates libxml2; \
+    /tmp/drivers/install_dgpu_drivers.sh; \
+    fi && \
+    apt-get clean && \
+    rm -rf /tmp/drivers && \
+    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
+    else \
+    if [ "$GPU_TYPE" != "none" ]; then \
+    echo "USE_GPU is set to false. No GPU drivers will be installed. Only CPU is supported."; \
+    fi; \
+    fi
+
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -18,8 +53,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Location where packages gets installed
     SETUP_PATH="/opt/projsetup" \
     # Location where virtual env is created
-    VENV_PATH="/opt/projsetup/.venv" \
-    HOME="/home/intelgai"
+    VENV_PATH="/opt/projsetup/.venv"
 
 # Add poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
@@ -66,7 +100,7 @@ RUN poetry install --with dev
 # Source code will be mounted here
 WORKDIR /app
 
-USER intelgai
+USER appuser
 
 EXPOSE 8888
 
@@ -87,7 +121,7 @@ RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_t
     /opt/projsetup/.venv/lib/python3.11/site-packages/langchain_huggingface/llms/huggingface_pipeline.py
 
 COPY . /app/
-RUN rm -rf /app/tests /app/ui
+
 WORKDIR /app
 
 RUN mkdir /tmp/model_cache && \

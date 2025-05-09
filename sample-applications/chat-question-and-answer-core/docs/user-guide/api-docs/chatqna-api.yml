@@ -184,6 +184,93 @@ paths:
           value: |
             curl -X DELETE "http://localhost:8888/documents?delete_all=True"
             curl -X DELETE "http://localhost:8888/documents?document=doc1.pdf"
+  /devices:
+    get:
+      tags:
+        - Device API
+      summary: Get available devices list
+      description: Retrieve a list of devices.
+      responses:
+        '200':
+          description: List of devices
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  devices:
+                    type: array
+                    items:
+                      type: string
+                example:
+                  devices: ["device1", "device2", "device3"]
+        '500':
+          description: Error message
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                example:
+                  detail: Error retrieving devices list.
+          examples:
+            curl:
+              summary: Curl example
+              value: |
+                curl -X GET "http://localhost:8888/devices"
+  /devices/{device}:
+    get:
+      tags:
+      - Device API
+      summary: Get device property
+      description: Retrieve information about a specific device, including its properties. If the device is not found, an error is returned.
+      parameters:
+      - name: device
+        in: path
+        required: true
+        description: The name of the device to retrieve information for.
+        schema:
+        type: string
+      responses:
+      '200':
+        description: Device properties retrieved successfully
+        content:
+        application/json:
+          schema:
+          type: object
+          additionalProperties: true
+          example:
+          property1: value1
+          property2: value2
+      '404':
+        description: Device not found
+        content:
+        application/json:
+          schema:
+          type: object
+          properties:
+            detail:
+            type: string
+          example:
+          detail: Device device_name not found. Available devices: [device1, device2]
+      '500':
+        description: Internal server error
+        content:
+        application/json:
+          schema:
+          type: object
+          properties:
+            detail:
+            type: string
+          example:
+          detail: An unexpected error occurred while retrieving the device properties.
+          examples:
+            curl:
+              summary: Curl example
+              value: |
+                curl -X GET "http://localhost:8888/devices/device1"
   /stream_log:
     post:
       tags:

@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: egai-minio-pvc
+  name: minio-pvc
   {{- if .Values.global.keeppvc }}
   annotations:
     helm.sh/resource-policy: keep
@@ -11,4 +11,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.global.egai_minio_pvc.size }}
+      storage: {{ .Values.global.minio_pvc.size }}

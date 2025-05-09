@@ -45,4 +45,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: egai-tgi-pvc
+            claimName: tgi-pvc
