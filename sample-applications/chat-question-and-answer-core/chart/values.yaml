@@ -19,7 +19,7 @@ global:
   LLM_DEVICE: "CPU"
   UI_NODEPORT:
   pvc:
-    size: 40Gi
+    size: 60Gi
   keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
