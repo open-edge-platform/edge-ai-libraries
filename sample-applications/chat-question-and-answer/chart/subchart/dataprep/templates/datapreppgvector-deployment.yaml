@@ -31,8 +31,8 @@ spec:
               value: {{- if .Values.global.teiEmbeddingService.enabled }}
                       http://tei-embedding-service.{{ .Release.Namespace }}:6006
                     {{- else }}
-                      http://ovms-embedding.{{ .Release.Namespace }}:8400/v3                     
-                    {{- end }} 
+                      http://ovms-embedding.{{ .Release.Namespace }}:8400/v3
+                    {{- end }}
             - name: HUGGINGFACEHUB_API_TOKEN
               value: {{ .Values.global.huggingface.apiToken }}
             - name: HF_TOKEN
@@ -45,5 +45,11 @@ spec:
               value: "100"
             - name: BATCH_SIZE
               value: "16"
-            - name: DATASTORE_ENDPOINT_URL
-              value: {{ .Values.dataprepPgvector.env.DATASTORE_ENDPOINT_URL }}.{{ .Release.Namespace }}:8000
+            - name: MINIO_HOST
+              value: {{ .Values.dataprepPgvector.env.MINIO_HOST }}.{{ .Release.Namespace }}
+            - name: MINIO_API_PORT
+              value: "{{ .Values.dataprepPgvector.env.MINIO_API_PORT }}"
+            - name: MINIO_ACCESS_KEY
+              value: {{ .Values.global.MINIO_ROOT_USER }}
+            - name: MINIO_SECRET_KEY
+              value: {{ .Values.global.MINIO_ROOT_PASSWORD }}
