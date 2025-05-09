@@ -14,7 +14,7 @@ RUN \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget -q https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
+RUN wget -q https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
     chmod +x DLS_install_prerequisites.sh && \
     ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
     rm -f DLS_install_prerequisites.sh

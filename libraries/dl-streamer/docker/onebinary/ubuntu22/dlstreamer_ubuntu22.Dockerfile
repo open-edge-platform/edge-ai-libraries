@@ -14,7 +14,7 @@ RUN \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN wget -q https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
+RUN wget -q https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
     chmod +x DLS_install_prerequisites.sh && \
     ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu22 && \
     rm -f DLS_install_prerequisites.sh
@@ -66,7 +66,7 @@ RUN \
     python3 -m venv /python3venv && \
     /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==70.0.0 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
-  
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]
 
