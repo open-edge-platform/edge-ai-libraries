@@ -40,12 +40,6 @@ spec:
               port: {{ .Values.chatqna.readinessProbe.httpGet.port }}
             initialDelaySeconds: {{ .Values.chatqna.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.chatqna.readinessProbe.periodSeconds }}
-          startupProbe:
-            httpGet:
-              path: {{ .Values.chatqna.startupProbe.httpGet.path }}
-              port: {{ .Values.chatqna.startupProbe.httpGet.port }}
-            initialDelaySeconds: {{ .Values.chatqna.startupProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.chatqna.startupProbe.periodSeconds }} 
           env:
             - name: http_proxy
               value: "{{ .Values.global.http_proxy }}"

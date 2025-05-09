@@ -19,7 +19,7 @@ global:
   LLM_DEVICE: "CPU"
   UI_NODEPORT:
   pvc:
-    size: 60Gi
+    size: 40Gi
   keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
@@ -31,12 +31,6 @@ chatqna:
       path: /v1/chatqna/health
       port: 8888
     initialDelaySeconds: 30
-    periodSeconds: 30
-  startupProbe:
-    httpGet:
-      path: /v1/chatqna/health
-      port: 8888
-    initialDelaySeconds: 1000 
     periodSeconds: 30
   env: 
     MAX_TOKENS: "1024"
