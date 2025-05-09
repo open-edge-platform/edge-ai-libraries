@@ -17,13 +17,13 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path: ./libraries/dl-streamer/docker/dlstreamer_dev_ubuntu22.Dockerfile
+          - path: ./libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             image: dev-ubuntu22
-          - path: ./libraries/dl-streamer/docker/dlstreamer_dev_ubuntu24.Dockerfile
+          - path: ./libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             image: dev-ubuntu24
-          - path: ./libraries/dl-streamer/docker/dlstreamer_ubuntu22.Dockerfile
+          - path: ./libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
             image: one-binary-ubuntu22
-          - path: ./libraries/dl-streamer/docker/dlstreamer_ubuntu24.Dockerfile
+          - path: ./libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
             image: one-binary-ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
