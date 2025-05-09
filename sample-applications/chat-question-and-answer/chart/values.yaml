@@ -1,6 +1,7 @@
 global:
   huggingface:
-    apiToken:  # Set this during installation
+    # Set this during installation
+    apiToken:  
   proxy:
     no_proxy:
     http_proxy:
@@ -15,11 +16,12 @@ global:
   RERANKER_MODEL:
   OTLP_ENDPOINT:
   OTLP_ENDPOINT_TRACE:
-  #Set either one of the below embedding model sever to true by defauly OVMS  is enabled
+  #Set either one of the below embedding model sever to true by defauly OVMS is enabled
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
     enabled: true
+  #Enable the below service if OVMS embedding needs to be deployed in GPU
   ovmsEmbeddingGPUService:
     enabled: false
   GPU: 
