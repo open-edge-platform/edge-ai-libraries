@@ -28,8 +28,6 @@ spec:
                   values:
                     - {{ .Values.gpu.node.value }}
       {{- end }}
-      securityContext:
-        runAsUser: 0 
       containers:
         - name: chatqna-core
           image: {{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}
@@ -71,16 +69,16 @@ spec:
               value: "{{ .Values.chatqna.env.HF_DATASETS_CACHE }}"
             - name: TMP_FILE_PATH
               value: "{{ .Values.chatqna.env.TMP_FILE_PATH }}"
-          {{- if .Values.gpu.enabled }}
+          {{ if .Values.gpu.enabled }}
           devices:
             - name: dri-device
-              containerPath: {{ .Values.gpu.devices }}
+              containerPath: /dev/dri
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
             fsGroup: 0
-          {{- end }}
+          {{ end }}
           ports:
             - containerPort: 8888
           volumeMounts:
