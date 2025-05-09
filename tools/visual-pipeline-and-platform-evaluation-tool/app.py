@@ -447,7 +447,7 @@ def create_interface():
     # Batch size
     batch_size = gr.Slider(
         minimum=0,
-        maximum=1024,
+        maximum=32,
         value=0,
         step=1,
         label="Batch Size",
@@ -457,7 +457,7 @@ def create_interface():
     # Inference interval
     inference_interval = gr.Slider(
         minimum=1,
-        maximum=1800,
+        maximum=5,
         value=1,
         step=1,
         label="Inference Interval",
@@ -467,7 +467,7 @@ def create_interface():
     # Number of inference requests (nireq)
     nireq = gr.Slider(
         minimum=0,
-        maximum=1024,
+        maximum=4,
         value=0,
         step=1,
         label="Number of Inference Requests (nireq)",
