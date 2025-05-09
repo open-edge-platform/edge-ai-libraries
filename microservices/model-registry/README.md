@@ -22,7 +22,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [How to Deploy with Helm](docs/user-guide/how-to-deploy-with-helm.md): Guide for deploying the microservice using Helm.
 
 - **Integration**
-  - [How to Interface with Intel® Geti™ Platform](docs/user-guide/how-to-interface-with-intel-geti-platform.md): Instructions for integrating with the Intel® Geti™ platform.
+  - [How to Interface with Intel® Geti™ software](docs/user-guide/how-to-interface-with-intel-geti-platform.md): Instructions for integrating with the Intel® Geti™ software.
 
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
