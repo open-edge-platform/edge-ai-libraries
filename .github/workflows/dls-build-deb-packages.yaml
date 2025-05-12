@@ -1,0 +1,53 @@
+name: "[DLS] [U22/24] Build deb packages"
+run-name: "[DLS] [U22/24] Build deb packages (by ${{ github.actor }}"
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'libraries/dl-streamer/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/**'
+permissions: read-all
+
+jobs:
+  build:
+    name: Build ${{ matrix.ubuntu_version }} .deb
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        git submodule update --init edge-ai-libraries-repo/libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Build deb packages
+      run: |
+        chmod +x edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
+        cd edge-ai-libraries-repo/libraries/dl-streamer
+        echo "y" | ./scripts/build_deb_packages.sh --ubuntu_version=${{ matrix.ubuntu_version }}
+
+    - name: Check for .deb package
+      run: |
+        if ls edge-ai-libraries-repo/libraries/dlstreamer/deb-packages/*.deb 1> /dev/null 2>&1; then
+          echo "Deb package found."
+        else
+          echo "No deb package found."
+          exit 1
+        fi
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+      
