@@ -52,7 +52,7 @@ By following this guide, you will learn how to:
     ```bash
     export REGISTRY="intel/"
     export BACKEND_TAG=core_1.1.2
-    export UI_TAG=core_1.1.2
+    export UI_TAG=core_1.2
     ```
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
