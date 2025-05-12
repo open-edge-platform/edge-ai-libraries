@@ -36,7 +36,7 @@ RUN \
     linux-libc-dev=\* libpmix2=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
     wget -q https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
     chmod +x DLS_install_prerequisites.sh && \
-    ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
+    ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu22 && \
     rm -f DLS_install_prerequisites.sh && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
