@@ -3,7 +3,7 @@ run-name: "[DLS] [U22/24] Build deb packages (by ${{ github.actor }}"
 on:
   push:
     branches:
-      - build-deb-packages
+      - 'build-deb-packages'
     paths:
       - 'libraries/dl-streamer/**'
   pull_request:
