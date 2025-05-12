@@ -3,9 +3,9 @@ run-name: "[DLS] [U22/24] Build deb packages (by ${{ github.actor }}"
 on:
   push:
     branches:
-       - build-deb-packages
-    # paths:
-    #   - 'libraries/dl-streamer/**'
+      - build-deb-packages
+    paths:
+      - 'libraries/dl-streamer/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
@@ -40,7 +40,7 @@ jobs:
 
     - name: Check for .deb package
       run: |
-        if ls edge-ai-libraries-repo/libraries/dlstreamer/deb-packages/*.deb 1> /dev/null 2>&1; then
+        if ls edge-ai-libraries-repo/libraries/dl-streamer/deb_packages/*.deb 1> /dev/null 2>&1; then
           echo "Deb package found."
         else
           echo "No deb package found."
