@@ -380,25 +380,20 @@ def read_latest_metrics():
                         except:
                             pass
 
-        if "power" in line and package_power is None:
-            parts = line.split()
-            if len(parts) > 1:
-                for field in parts[1].split(","):
-                    if "pkg_cur_power" in field:
-                        try:
-                            package_power = float(field.split("=")[1])
-                        except:
-                            pass
+        if "type=pkg_cur_power" in line and package_power is None:
+            try:
+                value_part = line.split("value=")[1]
+                package_power = float(value_part.split()[0])
+            except:
+                pass
+        if "type=gpu_cur_power" in line and package_power is None:
+            try:
+                value_part = line.split("value=")[1]
+                gpu_power = float(value_part.split()[0])
+            except:
+                pass
 
-        if "power" in line and gpu_power is None:
-            parts = line.split()
-            if len(parts) > 1:
-                for field in parts[1].split(","):
-                    if "gpu_cur_power" in field:
-                        try:
-                            gpu_power = float(line.strip().split()[-1])
-                        except:
-                            pass
+        
         if "temp" in line and sys_temp is None:
             parts = line.split()
             if len(parts) > 1:
@@ -469,7 +464,7 @@ def generate_stream_data(i):
     elif title == "Package Power [Wh]" and power_val is not None:
         yaxis_title_val = "Watt-Hours"
         new_y = power_val
-    elif title == "System Temperature [K]" and temp_val is not None:
+    elif ((title == "System Temperature [K]" or title == "CPU Temperature [K]") and temp_val is not None):
         yaxis_title_val = "Kelvin"
         new_y = temp_val
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
@@ -939,7 +934,6 @@ def create_interface():
                     lambda: gr.update(active=False),  # This updates the same timer
                     inputs=None,
                     outputs=timer,
-                ).then(lambda: open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "w").close(), inputs=[], outputs=[]
                 ).then(
                     fn=lambda video: gr.update(
                         interactive=True
