@@ -29,6 +29,10 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
 
+    - name: Init submodules
+      run: |
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
       with:
