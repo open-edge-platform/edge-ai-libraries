@@ -29,7 +29,8 @@ jobs:
 
     - name: Init submodules
       run: |
-        git submodule update --init edge-ai-libraries-repo/libraries/dl-streamer/thirdparty/spdlog
+        cd edge-ai-libraries-repo
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
     - name: Build deb packages
       run: |
