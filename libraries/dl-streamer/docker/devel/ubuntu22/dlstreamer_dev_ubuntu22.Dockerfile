@@ -258,7 +258,7 @@ RUN \
 # Intel® DL Streamer
 WORKDIR "$DLSTREAMER_DIR"
 
-COPY . "${DLSTREAMER_DIR}"
+COPY libraries/dl-streamer/ "${DLSTREAMER_DIR}"
 
 RUN \
     mkdir build && \
