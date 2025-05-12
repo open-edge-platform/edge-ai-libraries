@@ -1,5 +1,5 @@
 # ==============================================================================
-# Copyright (C) 2025 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
@@ -11,7 +11,6 @@ ARG DEBIAN_FRONTEND=noninteractive
 LABEL description="This is the development image of Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
 
-ARG DLSTREAMER_VERSION=2025.0.1.3
 ARG GST_VERSION=1.26.1
 ARG FFMPEG_VERSION=6.1.1
 
@@ -21,8 +20,6 @@ ARG OPENVINO_FILENAME=openvino_toolkit_ubuntu22_2025.1.0.18503.6fec06580ab_x86_6
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
 ENV GSTREAMER_DIR=/opt/intel/dlstreamer/gstreamer
 ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-ENV SPDLOG_COMMIT=5ebfc927306fd7ce551fa22244be801cf2b9fdd9
-ENV GOOGLETEST_COMMIT=f8d7d77c06936315286eb55f8de22cd23c188571
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_VA_ALL_DRIVERS=1
 
@@ -36,10 +33,10 @@ RUN \
     libgirepository1.0-dev=\* libx265-dev=\* libx264-dev=\* libde265-dev=\* gudev-1.0=\* libusb-1.0=\* nasm=\* python3-venv=\* \
     libcairo2-dev=\* libxt-dev=\* libgirepository1.0-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* libcurl4-openssl-dev=\* \
     libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
-    linux-libc-dev=\* libpmix2=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
+    linux-libc-dev=\* libpmix2t64=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
     wget -q https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && \
     chmod +x DLS_install_prerequisites.sh && \
-    ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu22 && \
+    ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
     rm -f DLS_install_prerequisites.sh && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -261,25 +258,11 @@ RUN \
 # Intel® DL Streamer
 WORKDIR "$DLSTREAMER_DIR"
 
+COPY . "${DLSTREAMER_DIR}"
+
 RUN \
-    wget -q --no-check-certificate https://github.com/dlstreamer/dlstreamer/archive/refs/tags/v"$DLSTREAMER_VERSION".zip && \
-    unzip v"$DLSTREAMER_VERSION".zip && \
-    rm v"$DLSTREAMER_VERSION".zip && \
-    mv dlstreamer-"$DLSTREAMER_VERSION"/* . && \
-    rm -rf dlstreamer-"$DLSTREAMER_VERSION" && \
-    wget -q --no-check-certificate https://github.com/gabime/spdlog/archive/"$SPDLOG_COMMIT".zip && \
-    unzip "$SPDLOG_COMMIT".zip && \
-    rm "$SPDLOG_COMMIT".zip && \
-    mv spdlog-"$SPDLOG_COMMIT"/* thirdparty/spdlog/ && \
-    rm -rf spdlog-"$SPDLOG_COMMIT" && \
-    wget -q --no-check-certificate https://github.com/google/googletest/archive/"$GOOGLETEST_COMMIT".zip && \
-    unzip "$GOOGLETEST_COMMIT".zip && \
-    rm "$GOOGLETEST_COMMIT".zip && \
-    mkdir thirdparty/googletest && \
-    mv googletest-"$GOOGLETEST_COMMIT"/* thirdparty/googletest/ && \
-    rm -rf googletest-"$GOOGLETEST_COMMIT" && \
-    ${DLSTREAMER_DIR}/scripts/install_metapublish_dependencies.sh && \
-    mkdir build
+    mkdir build && \
+    ${DLSTREAMER_DIR}/scripts/install_metapublish_dependencies.sh
 
 WORKDIR $DLSTREAMER_DIR/build
 
