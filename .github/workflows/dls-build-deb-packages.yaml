@@ -4,8 +4,8 @@ on:
   push:
     branches:
       - 'build-deb-packages'
-    paths:
-      - 'libraries/dl-streamer/**'
+    # paths:
+    #   - 'libraries/dl-streamer/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
