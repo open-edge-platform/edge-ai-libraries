@@ -51,7 +51,7 @@ The Intel® Geti™ software is accessible via optional configurations within th
 * **Feature 1**: Provides a comprehensive set of REST API endpoints for operations such as registering, updating, retrieving, and deleting models.
 * **Feature 2**: Utilizes a relational database to store structured data related to models, ensuring data integrity.
 * **Feature 3**: Leverages an object storage solution for scalable storage and retrieval of unstructured data, including model binaries and artifacts.
-* **Feature 4**: Offers optional configurations to integrate with the Intel® Geti™ platform, enabling access to projects and models hosted on a remote Geti platform.
+* **Feature 4**: Offers optional configurations to integrate with the Intel® Geti™ software, enabling access to projects and models hosted on a remote Geti platform.
 
 ## Supporting Resources
 
