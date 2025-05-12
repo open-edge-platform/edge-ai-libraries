@@ -15,7 +15,7 @@ Key components of the **Edge AI Libraries**:
 | Component | Category | Get Started | Developers Docs |
 |:----------|:---------|:------------|:-----------------|
 | [Anomalib](https://github.com/open-edge-platform/anomalib) | Library | [Link](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-introduction) | [API Reference](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-training) |
-| [Dataset Management Framework (Datumaro)](https://github.com/open-edge-platform/datumaro) | Library | [Link](https://github.com/open-edge-platform/datumaro?tab=readme-ov-file#features) | [API Reference](https://open-edge-platform.github.io/datumaro/latest/docs/reference/datumaro_module.html) |
+| [Dataset Management Framework (Datumaro)](https://github.com/open-edge-platform/datumaro)[*]( | Library | [Link](https://github.com/open-edge-platform/datumaro?tab=readme-ov-file#features) | [API Reference](https://open-edge-platform.github.io/datumaro/latest/docs/reference/datumaro_module.html) |
 | [Deep Learning Streamer](libraries/dl-streamer) | Library | [Link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
 | [Intel&reg; Geti&trade; SDK](https://github.com/open-edge-platform/geti-sdk) | Library | [Link](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#getting-started) | [API Reference](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#high-level-api-reference) |
 | [OpenVINO&trade; toolkit](https://github.com/openvinotoolkit/openvino) | Library | [Link](https://docs.openvino.ai/2025/index.html) | [API Reference](https://docs.openvino.ai/2025/api/api_reference.html) |
@@ -49,6 +49,14 @@ For support, please submit your bug report and feature request to [Github Issues
 
 ## License
 
-The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE).
+The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE), except for the following components:
+
+| Component | License |
+|:----------|:--------|
+| Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
+| Intel® Geti™ | [Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
+
+
+
 Last Updated Date: April 7, 2025.
 
