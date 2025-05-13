@@ -9,7 +9,9 @@ on:
   # pull_request:
   #   paths:
   #     - 'libraries/dl-streamer/**'
-permissions: read-all
+permissions:
+  packages: write
+  contents: read
 
 jobs:
   build-dls-image:
