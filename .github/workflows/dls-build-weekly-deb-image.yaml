@@ -113,7 +113,10 @@ jobs:
 
     - name: Build dls-pipeline-server-image using dls-image as base image
       run: |
-        docker build --build-arg BASE_IMAGE=${{ needs.build-dls-image.outputs.image }} -t ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/dlstreamer-pipeline-server.Dockerfile ./edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+        cd edge-ai-libraries-repo/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
+        export BASE_IMAGE=${{ needs.build-dls-image.outputs.image }}
+        export PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
+        docker compose build --no-cache --pull
 
     - name: Push Docker image
       run: |

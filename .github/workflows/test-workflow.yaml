@@ -1,0 +1,65 @@
+name: "[DLS] test"
+run-name: "[DLS] test (by ${{ github.actor }})"
+on:
+  push:
+    branches:
+      - 'build-deb-packages'
+permissions:
+  packages: write
+  contents: read
+
+jobs:
+  build-dls-pipeline-server-image:
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        cd edge-ai-libraries-repo
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build dls-pipeline-server-image using dls-image as base image
+      run: |
+        cd edge-ai-libraries-repo/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
+        export BASE_IMAGE=ubuntu:22.04
+        export PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
+        docker compose build --no-cache --pull
+
+    - name: Push Docker image
+      run: |
+        docker push ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
+
+    - name: Save image info
+      id: save-image
+      run: echo "image=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest " >> $GITHUB_ENV
+
+    - name: Create summary
+      if: always()
+      run: |
+        echo "### Dls-pipeline-server Docker ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "${{ env.image }}" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest || true
