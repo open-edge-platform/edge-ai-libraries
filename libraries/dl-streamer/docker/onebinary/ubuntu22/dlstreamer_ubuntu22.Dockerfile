@@ -22,7 +22,7 @@ RUN wget -q https://raw.githubusercontent.com/open-edge-platform/edge-ai-librari
 RUN \
     echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
     wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
 RUN mkdir -p /debs
 COPY edge-ai-libraries-repo/libraries/dl-streamer/deb_packages/*.deb /debs/
