@@ -3,7 +3,7 @@ run-name: "[DLS] [U22] Build weekly deb img (by ${{ github.actor }})"
 on:
   push:
     branches:
-      - 'main'
+      - 'build-deb-packages'
     # paths:
     #   - 'libraries/dl-streamer/**'
   # pull_request:
@@ -113,7 +113,7 @@ jobs:
 
     - name: Build dls-pipeline-server-image using dls-image as base image
       run: |
-        cd edge-ai-libraries-repo/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export BASE_IMAGE=${{ needs.build-dls-image.outputs.image }}
         export PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
         docker compose build --no-cache --pull
