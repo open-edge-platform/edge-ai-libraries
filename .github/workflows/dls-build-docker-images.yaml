@@ -3,9 +3,9 @@ run-name: "[DLS] [U22/24] Build Docker Images"
 on:
   push:
     branches:
-      - 'main'
-    paths:
-      - 'libraries/dl-streamer/**'
+      - 'build-deb-packages'
+    # paths:
+    #   - 'libraries/dl-streamer/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
