@@ -464,11 +464,11 @@ def read_latest_metrics(target_ns: int = None):
         return [None] * 11
 
     if target_ns is not None:
-        # Filter only lines near the target timestamp (±5 samples as buffer)
+        # Filter only lines near the target timestamp 
         surrounding_lines = [
             line for line in lines
             if line.split() and line.split()[-1].isdigit()
-            and abs(int(line.split()[-1]) - target_ns) < 5e9  # ±5 seconds window
+            and abs(int(line.split()[-1]) - target_ns) < 1e9  
         ]
         lines = surrounding_lines if surrounding_lines else []
     '''else:
