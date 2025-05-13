@@ -42,6 +42,7 @@ COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
 COPY qmassa_reader.py ${DEV_ROOT}/qmassa_reader.py
 COPY read_cpu_freq.sh ${DEV_ROOT}/read_cpu_freq.sh
+RUN chmod +x ${DEV_ROOT}/read_cpu_freq.sh
 EXPOSE 7005
 ENV PORT=7005
 
