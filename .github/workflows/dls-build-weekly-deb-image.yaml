@@ -60,22 +60,22 @@ jobs:
 
     - name: Build Binary image
       run: |
-        docker build -t ghcr.io/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:dls-latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile .
+        docker build -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile .
 
     - name: Push Docker image
       run: |
-        docker push ghcr.io/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:dls-latest
+        docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest
 
     - name: Save image info
       id: save-image
-      run: echo "image=ghcr.io/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:dls-latest " >> $GITHUB_ENV
+      run: echo "image=ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest" >> "$GITHUB_OUTPUT"
 
     - name: Create summary
       if: always()
       run: |
         echo "###  Dls Docker ${{ matrix.image }} :ship:" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "${{ env.image }}" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.save-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
@@ -83,7 +83,7 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:dls-latest || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest || true
 
   build-dls-pipeline-server-image:
     needs: build-dls-image
