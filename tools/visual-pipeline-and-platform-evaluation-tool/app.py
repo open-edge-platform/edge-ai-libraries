@@ -657,9 +657,22 @@ def generate_stream_data(i, timestamp_ns=None):
         gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq
     ) = read_latest_metrics(timestamp_ns)
 
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
+            lines = [line.strip() for line in f.readlines()[-500:]]
+            latest_fps = float(lines[-1])
+        
+    except FileNotFoundError:
+        latest_fps = 0
+    
+    except IndexError:
+        latest_fps = 0
+
     title = chart_titles[i]
 
-    if title == "CPU Usage [%]" and cpu_val is not None:
+    if title == "Throughput [fps]":
+        new_y = latest_fps
+    elif title == "CPU Usage [%]" and cpu_val is not None:
         new_y = cpu_val
     elif title == "Memory Usage [%]" and mem_val is not None:
         new_y = mem_val
@@ -937,6 +950,10 @@ def create_interface():
                     global stream_dfs
                     stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
                     gr.update(active=True)
+
+                    # Reset the FPS file
+                    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                        f.write(f"0.0\n")
 
                     video_output_path, constants, param_grid = prepare_video_and_constants(
                         input_video_player,
