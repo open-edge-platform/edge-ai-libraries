@@ -457,7 +457,9 @@ from datetime import datetime
 def read_latest_metrics(target_ns: int = None):
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
-            lines = [line.strip() for line in f.readlines()]
+            #lines = [line.strip() for line in f.readlines()]
+            lines = [line.strip() for line in f.readlines()[-500:]]
+
     except FileNotFoundError:
         return [None] * 11
 
