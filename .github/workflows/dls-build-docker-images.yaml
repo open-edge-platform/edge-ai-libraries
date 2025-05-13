@@ -1,11 +1,11 @@
-name: "[DLS] [U22/24] Build Docker Images"
-run-name: "[DLS] [U22/24] Build Docker Images"
+name: "[DLS] [U22/24] Build Dev Docker Img"
+run-name: "[DLS] [U22/24] Build Dev Docker Img"
 on:
   push:
     branches:
-      - 'main'
-    paths:
-      - 'libraries/dl-streamer/**'
+      - 'build-deb-packages'
+    # paths:
+    #   - 'libraries/dl-streamer/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
@@ -23,10 +23,6 @@ jobs:
             image: dev-ubuntu22
           - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             image: dev-ubuntu24
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
-            image: one-binary-ubuntu22
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
-            image: one-binary-ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -38,16 +34,16 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-    - name: Log in to GitHub Container Registry
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
-      with:
-        registry: ghcr.io
-        username: ${{ github.actor }}
-        password: ${{ secrets.GITHUB_TOKEN }}
+    # - name: Log in to GitHub Container Registry
+    #   uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+    #   with:
+    #     registry: ghcr.io
+    #     username: ${{ github.actor }}
+    #     password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build Docker image
       run: |
-        docker build -t ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} .
+        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} .
 
     # - name: Push Docker image
     #   run: |
@@ -55,7 +51,7 @@ jobs:
 
     - name: Save image info
       id: save-image
-      run: echo "image=ghcr.io/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} " >> $GITHUB_ENV
+      run: echo "image=dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} " >> $GITHUB_ENV
 
     - name: Create summary
       if: always()
