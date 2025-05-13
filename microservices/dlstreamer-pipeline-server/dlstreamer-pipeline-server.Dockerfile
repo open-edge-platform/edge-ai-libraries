@@ -1,5 +1,5 @@
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE}
+FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
