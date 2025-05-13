@@ -26,7 +26,7 @@ services:
     build:
       context: ..
       target: dlstreamer-pipeline-server
-      dockerfile: open-edge-platform-repo/edge-ai-libraries/libraries/dl-streamer/docker/dlstreamer-pipeline-server.Dockerfile
+      dockerfile: dlstreamer-pipeline-server.Dockerfile
       args:
         MSGBUS_LIB_VERSION: 4.0.0
         UTILS_LIB_VERSION: 4.0.0

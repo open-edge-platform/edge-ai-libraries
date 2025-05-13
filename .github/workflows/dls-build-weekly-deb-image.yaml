@@ -3,7 +3,7 @@ run-name: "[DLS] [U22] Build weekly deb img (by ${{ github.actor }})"
 on:
   push:
     branches:
-      - 'build-deb-packages'
+      - 'main'
     # paths:
     #   - 'libraries/dl-streamer/**'
   # pull_request:
