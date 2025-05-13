@@ -1,4 +1,4 @@
-# How to Interface with Intel® Geti™ Platform
+# How to Interface with Intel® Geti™ Software
 
 These steps demonstrate how to interact with a remote Intel Geti server such as accessing projects and storing OpenVINO optimized models in the Model Registry microservice using `curl` commands on a Linux system.
 

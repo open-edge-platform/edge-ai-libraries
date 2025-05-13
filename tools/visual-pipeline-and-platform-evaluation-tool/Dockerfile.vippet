@@ -32,6 +32,6 @@ RUN pip install -r requirements.txt
 
 ADD diagrams/ /home/dlstreamer/vippet/diagrams
 
-ADD app.py collect.py optimize.py pipeline.py device.py explore.py /home/dlstreamer/vippet/
+ADD app.py collect.py optimize.py pipeline.py device.py explore.py benchmark.py utils.py /home/dlstreamer/vippet/
 
 CMD ["python", "app.py"]
