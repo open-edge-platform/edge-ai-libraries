@@ -17,20 +17,24 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path: ./libraries/dl-streamer/docker/dlstreamer_dev_ubuntu22.Dockerfile
+          - path: ./libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             image: dev-ubuntu22
-          - path: ./libraries/dl-streamer/docker/dlstreamer_dev_ubuntu24.Dockerfile
+          - path: ./libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             image: dev-ubuntu24
-          - path: ./libraries/dl-streamer/docker/dlstreamer_ubuntu22.Dockerfile
+          - path: ./libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
             image: one-binary-ubuntu22
-          - path: ./libraries/dl-streamer/docker/dlstreamer_ubuntu24.Dockerfile
+          - path: ./libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
             image: one-binary-ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@85e6279
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+    - name: Init submodules
+      run: |
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@74a5d14
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
