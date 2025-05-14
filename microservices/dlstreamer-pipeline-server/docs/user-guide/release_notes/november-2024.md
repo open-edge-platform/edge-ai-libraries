@@ -39,7 +39,7 @@
 - Restructured repo and refactored code for ease of maintenance.
 - Enabled API to get pipeline instance summary.
 
-### Added in v2.0.0
+### Fixed in v2.0.0
 - Updated exception handling across the code base.
 - Issues with Model Registry integration.
 - Improved error handling for self-signed TLS certificate generation script.
