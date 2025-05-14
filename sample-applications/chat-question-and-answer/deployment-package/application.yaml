@@ -80,6 +80,26 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
+      - name: global.ovmsEmbeddingGPUService.enabled
+        displayName: "OVMS Embedding GPU Service"
+        type: boolean
+        default: false
+      - name: global.GPU.enabled
+        displayName: Enable GPU Device
+        type: boolean
+        default: false
+      - name: global.GPU.node.key
+        displayName: GPU Node Label Key
+        type: string
+        default: ""
+      - name: global.GPU.node.value
+        displayName: GPU Node Label Value
+        type: string
+        default: ""
+      - name: global.GPU.device
+        displayName: GPU Device
+        type: string
+        default: ""
   - name: "vllm"
     valuesFileName: "chatqna-values-vllm.yaml"
     parameterTemplates:
