@@ -3,9 +3,6 @@ run-name: "[DLS] [U22] Build weekly deb img"
 on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
-  push:
-    branches:
-      - 'build-deb-packages'
 permissions:
   packages: write
   contents: read
