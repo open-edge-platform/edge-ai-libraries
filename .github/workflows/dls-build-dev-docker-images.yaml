@@ -1,5 +1,5 @@
 name: "[DLS] [U22/24] Build dev img"
-run-name: "[DLS] [U22/24] Build dev img"
+run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
 on:
   workflow_call:
 permissions: read-all

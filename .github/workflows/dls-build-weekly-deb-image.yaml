@@ -52,7 +52,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build deb img
+    - name: Build .deb img
       run: |
         docker build -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile ./edge-ai-libraries-repo/libraries/dl-streamer
 

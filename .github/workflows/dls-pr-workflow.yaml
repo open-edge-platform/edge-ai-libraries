@@ -6,15 +6,19 @@ on:
       - 'main'
     paths:
       - 'libraries/dl-streamer/**'
+    paths-ignore:
+      - 'libraries/dl-streamer/docs/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/**'
+    paths-ignore:
+      - 'libraries/dl-streamer/docs/**'
   workflow_call:
 permissions: read-all
 
 jobs:
   build-dev-images:
-    name: Build dev images
+    name: Build dev img
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
   
   build-deb-and-img:

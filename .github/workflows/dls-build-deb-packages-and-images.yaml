@@ -1,5 +1,5 @@
-name: "[DLS] [U22/24] Build deb pkg and img"
-run-name: "[DLS] [U22/24] Build deb pkg and  img (by ${{ github.actor }})"
+name: "[DLS] [U22/24] Build .deb pkg and img"
+run-name: "[DLS] [U22/24] Build .deb pkg and img (by ${{ github.actor }})"
 on:
   workflow_call:
 permissions: read-all
@@ -25,7 +25,7 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-    - name: Build deb pkg
+    - name: Build .deb pkg
       run: |
         chmod +x edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
         cd edge-ai-libraries-repo/libraries/dl-streamer
