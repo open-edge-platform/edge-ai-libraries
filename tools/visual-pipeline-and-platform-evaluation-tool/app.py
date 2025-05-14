@@ -561,16 +561,21 @@ def read_latest_metrics(target_ns: int = None):
                         pass
 
         if gpu_ve is None and "engine=video-enhance" in line:
-            try:
-                gpu_ve = float(line.split()[-1])
-            except:
-                pass
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_ve = float(part.split("=")[1])
+                    except:
+                        pass
 
         if gpu_video is None and "engine=video" in line and "video-enhance" not in line:
-            try:
-                gpu_video = float(line.split()[-1])
-            except:
-                pass
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_video = float(part.split("=")[1])
+                    except:
+                        pass
+
         
         if all(v is not None for v in [
             cpu_user, mem_used_percent, package_power, sys_temp, gpu_power,
