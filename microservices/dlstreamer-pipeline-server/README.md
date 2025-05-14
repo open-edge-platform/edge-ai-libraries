@@ -146,7 +146,7 @@ Run the following commands:
    ```
 ---
 ### Run default sample
-Refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ## Learn More
 
