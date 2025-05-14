@@ -26,7 +26,7 @@ services:
     build:
       context: ..
       target: dlstreamer-pipeline-server
-      dockerfile: dlstreamer-pipeline-server.Dockerfile
+      dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
         UTILS_LIB_VERSION: 4.0.0
