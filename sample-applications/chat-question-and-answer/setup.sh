@@ -69,6 +69,8 @@ export VOLUME_OVMS=${PWD}/ovms_config
 #TGI
 #export VOLUME=$PWD/data
 
+export MAX_TOKENS=256
+
 if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
   export BE_IMAGE_NAME="${REGISTRY}chatqna:${TAG}"
 else

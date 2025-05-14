@@ -52,6 +52,7 @@ async def redirect_root_to_docs():
 
 class QuestionRequest(BaseModel):
     input: str
+    MAX_TOKENS: int
 
 
 @app.get("/health")
@@ -113,9 +114,10 @@ async def query_chain(payload: QuestionRequest):
         HTTPException: If the input question text is empty or not provided, a 422 status code is returned.
     """
     question_text = payload.input
+    max_tokens = payload.MAX_TOKENS if payload.MAX_TOKENS else 512
     if not question_text or question_text == "":
         raise HTTPException(status_code=422, detail="Question is required")
-    return StreamingResponse(process_chunks(question_text), media_type="text/event-stream")
+    return StreamingResponse(process_chunks(question_text,max_tokens), media_type="text/event-stream")
 
 
 if __name__ == "__main__":

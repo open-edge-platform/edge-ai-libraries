@@ -1,6 +1,6 @@
 services:
   chatqna:
-    image: ${BE_IMAGE_NAME}
+    image: chatqna:test
     build:
       context: .
     ports:
@@ -93,7 +93,7 @@ services:
       - my_network
 
   chatqna-ui:
-    image: ${FE_IMAGE_NAME}
+    image: chatqna-ui:test
     container_name: chatqna-ui_server
     build:
       context: ./ui/react/
@@ -107,6 +107,7 @@ services:
       - http_proxy=${http_proxy}
       - APP_ENDPOINT_URL=${APP_ENDPOINT_URL}
       - APP_DATA_PREP_URL=${APP_DATA_PREP_URL}
+      - MAX_TOKENS=${MAX_TOKENS}
 
   minio-server:
     image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1

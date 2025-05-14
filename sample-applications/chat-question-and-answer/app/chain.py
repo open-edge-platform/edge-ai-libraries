@@ -20,9 +20,7 @@ import logging
 
 set_verbose(True)
 
-
 from .custom_reranker import CustomReranker
-
 
 import openlit
 
@@ -91,30 +89,31 @@ LLM_MODEL = os.getenv("LLM_MODEL", "Intel/neural-chat-7b-v3-3")
 RERANKER_ENDPOINT = os.getenv("RERANKER_ENDPOINT", "http://localhost:9090/rerank")
 callbacks = [streaming_stdout.StreamingStdOutCallbackHandler()]
 
+async def process_chunks(question_text,max_tokens):
+    model = EGAIModelServing(
+        openai_api_key="EMPTY",
+        openai_api_base="{}".format(ENDPOINT_URL),
+        model_name=LLM_MODEL,
+        top_p=0.99,
+        temperature=0.01,
+        streaming=True,
+        callbacks=callbacks,
+        seed=42,
+        max_tokens=max_tokens,
+        stop=["\n\n"]
+    )
 
-model = EGAIModelServing(
-    openai_api_key="EMPTY",
-    openai_api_base="{}".format(ENDPOINT_URL),
-    model_name=LLM_MODEL,
-    top_p=0.99,
-    temperature=0.01,
-    streaming=True,
-    callbacks=callbacks,
-)
+    re_ranker = CustomReranker(reranking_endpoint=RERANKER_ENDPOINT)
+    re_ranker_lambda = RunnableLambda(re_ranker.rerank)
 
-re_ranker = CustomReranker(reranking_endpoint=RERANKER_ENDPOINT)
-re_ranker_lambda = RunnableLambda(re_ranker.rerank)
-
-# RAG Chain
-chain = (
-    RunnableParallel({"context": retriever, "question": RunnablePassthrough()})
-    | re_ranker_lambda
-    | prompt
-    | model
-    | StrOutputParser()
-)
-
-
-async def process_chunks(question_text):
+    # RAG Chain
+    chain = (
+        RunnableParallel({"context": retriever, "question": RunnablePassthrough()})
+        | re_ranker_lambda
+        | prompt
+        | model
+        | StrOutputParser()
+    )
+    # Run the chain with the question text
     async for log in chain.astream(question_text):
         yield f"data: {log}\n\n"

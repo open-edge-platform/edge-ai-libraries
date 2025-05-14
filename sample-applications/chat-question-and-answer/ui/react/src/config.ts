@@ -12,3 +12,5 @@ export const HEALTH_CHECK_URL: string =
   import.meta.env.VITE_BACKEND_SERVICE_ENDPOINT + '/health';
 export const MODEL_URL: string =
   import.meta.env.VITE_BACKEND_SERVICE_ENDPOINT + '/model';
+export const MAX_TOKENS: number =
+  import.meta.env.VITE_MAX_TOKENS ? parseInt(import.meta.env.VITE_MAX_TOKENS) : 512;
