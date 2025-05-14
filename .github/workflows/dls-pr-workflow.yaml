@@ -5,14 +5,26 @@ on:
     branches:
       - 'main'
     paths:
-      - 'libraries/dl-streamer/**'
-    paths-ignore:
-      - 'libraries/dl-streamer/docs/**'
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
   pull_request:
     paths:
-      - 'libraries/dl-streamer/**'
-    paths-ignore:
-      - 'libraries/dl-streamer/docs/**'
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
 permissions: read-all
 
