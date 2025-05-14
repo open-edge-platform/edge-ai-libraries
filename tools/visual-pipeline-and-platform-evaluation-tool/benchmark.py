@@ -13,6 +13,7 @@ class Benchmark:
         video_path: str,
         pipeline_cls,
         fps_floor: float,
+        rate: int,
         parameters: Dict[str, str],
         constants: Dict[str, str],
         elements: List[tuple[str, str, str]] = [],
@@ -20,6 +21,7 @@ class Benchmark:
         self.video_path = video_path
         self.pipeline_cls = pipeline_cls
         self.fps_floor = fps_floor
+        self.rate = rate
         self.parameters = parameters
         self.constants = constants
         self.elements = elements
@@ -39,7 +41,7 @@ class Benchmark:
                 self.logger.info("Time limit reached during exponential phase")
                 break
 
-            ai_streams = max(1, math.ceil(streams * 0.2))
+            ai_streams = max(1, math.ceil(streams * (self.rate / 100)))
             non_ai_streams = streams - ai_streams
             results = run_pipeline_and_extract_metrics(
                 self.pipeline_cls,
@@ -81,7 +83,7 @@ class Benchmark:
                 self.logger.info("Time limit reached during Binary phase.")
                 break
             mid = (low + high) // 2
-            ai_streams = max(1, math.ceil(mid * 0.2))
+            ai_streams = max(1, math.ceil(mid * (self.rate / 100)))
             non_ai_streams = mid - ai_streams
 
             results = run_pipeline_and_extract_metrics(
