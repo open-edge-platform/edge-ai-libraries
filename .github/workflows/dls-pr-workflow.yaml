@@ -1,0 +1,22 @@
+name: "[DLS] PR workflow"
+run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'libraries/dl-streamer/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/**'
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build-dev-images:
+    name: Build dev images
+    uses: ./.github/workflows/dls-build-dev-docker-images.yaml
+  
+  build-deb-and-img:
+    name: Build deb and img
+    uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
