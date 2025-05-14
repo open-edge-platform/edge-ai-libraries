@@ -25,7 +25,7 @@ RUN \
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
 RUN mkdir -p /debs
-COPY edge-ai-libraries-repo/libraries/dl-streamer/deb_packages/*.deb /debs/
+COPY ./deb_packages/*.deb /debs/
 
 ARG DEBIAN_FRONTEND=noninteractive
 

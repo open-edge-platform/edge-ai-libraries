@@ -29,7 +29,7 @@ jobs:
 
     - name: Build dev img
       run: |
-        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} .
+        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Clean up
       if: always()
