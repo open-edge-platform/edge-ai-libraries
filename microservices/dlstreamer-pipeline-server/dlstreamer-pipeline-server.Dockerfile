@@ -148,7 +148,7 @@ RUN pip3 install ntplib==0.4.0
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
 RUN pip3 install openvino-model-api==0.2.5
 RUN cd /usr/local/lib/python3.10/dist-packages/model_api && \
-    git apply /home/pipeline-server/model_api.patch   
+    git apply /home/pipeline-server/model_api.patch
 
 # Install Geti SDK
 RUN pip3 install geti-sdk==2.7.1
@@ -291,7 +291,6 @@ COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
 COPY ./user_scripts/gvapython/mqtt_publisher/ /home/pipeline-server/gvapython/mqtt_publisher
 COPY ./user_scripts/gvapython/timestamp/ /home/pipeline-server/gvapython/timestamp
 COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva_event_meta
-COPY ./user_scripts/gvapython/spatial_analytics /home/pipeline-server/gvapython/spatial_analytics
 
 # Copy default config
 COPY ./configs/default/config.json /home/pipeline-server/config.json
