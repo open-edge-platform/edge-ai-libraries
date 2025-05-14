@@ -6,7 +6,7 @@ permissions: read-all
 
 jobs:
   build:
-    name: Build ${{ matrix.ubuntu_version }} .deb
+    name: Build ${{ matrix.ubuntu_version }} .deb and img
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false

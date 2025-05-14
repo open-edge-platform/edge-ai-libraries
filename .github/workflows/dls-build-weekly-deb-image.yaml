@@ -9,7 +9,7 @@ permissions:
 
 jobs:
   build-dls-img:
-    name: Build ${{ matrix.ubuntu_version }} .deb
+    name: Build DLS ${{ matrix.ubuntu_version }} .deb and img
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -67,7 +67,7 @@ jobs:
     - name: Create summary
       if: always()
       run: |
-        echo "###  Dls Docker ${{ matrix.image }} :ship:" >> $GITHUB_STEP_SUMMARY
+        echo "###  DlStreamer deb image ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "${{ steps.save-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
@@ -81,6 +81,7 @@ jobs:
 
   build-dls-pipeline-server-image:
     needs: build-dls-img
+    name: Build DLS pipeline server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -123,7 +124,7 @@ jobs:
     - name: Create summary
       if: always()
       run: |
-        echo "### Dls-pipeline-server Docker ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
+        echo "### DLStreamer pipeline server image ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "${{ env.image }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
