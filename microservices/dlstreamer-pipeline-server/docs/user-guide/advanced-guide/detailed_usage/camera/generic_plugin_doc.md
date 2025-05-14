@@ -6,7 +6,7 @@
 Generic Plugin is a gstreamer generic source plugin that communicates and streams from a GenICam based camera which provides a GenTL producer. In order to use
 the generic plugin with DL Streamer Pipeline Server one must install the respective GenICam camera SDK and make sure the compatible GenTL producer for the camera is installed.
 
-**Refer [src-gst-gencamsrc/README.md](../src-gst-gencamsrc/README.md) for more information on Generic Plugin**
+>**Refer [src-gst-gencamsrc/README.md](../src-gst-gencamsrc/README.md) for more information on Generic Plugin**
  ----
 
 **For working with Genicam USB3 Vision camera please install the respective camera SDK by referring the below section**
