@@ -30,6 +30,9 @@ services:
     build:
       context: ../
       dockerfile: docker/Dockerfile
+      args:
+        USE_GPU: "true"
+        GPU_TYPE: "dgpu"
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
