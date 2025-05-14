@@ -8,7 +8,7 @@
 
 ### Fixed in v2.4.0
 - Fixes in model update flow
- Fixed an issue where overlay was improper for published frames when source has I420 image format
+- Fixed an issue where overlay was improper for published frames when source has I420 image format
 
 ### Updates in v2.4.0
 - DLS upgraded to 2025.0.1.2
