@@ -59,8 +59,8 @@ def get_logger(name):
             # By default, this will run NOT in dev mode
             dev_mode = False
 
-        if 'PY_LOG_LEVEL' in os.environ:
-            log_level = os.environ['PY_LOG_LEVEL'].upper()
+        if 'LOG_LEVEL' in os.environ:
+            log_level = os.environ['LOG_LEVEL'].upper()
         else:
             # Default log level is INFO
             log_level = 'INFO'
@@ -70,8 +70,8 @@ def get_logger(name):
         return eii_logging.configure_logging(LOG_LEVEL, name, DEV_MODE)
     else:
         logger = logging.getLogger(__name__)
-        if 'PY_LOG_LEVEL' in os.environ:
-            logger.setLevel(LOG_LEVELS[os.environ['PY_LOG_LEVEL']])
+        if 'LOG_LEVEL' in os.environ and os.environ['LOG_LEVEL'].upper() in LOG_LEVELS:
+            logger.setLevel(LOG_LEVELS[os.environ['LOG_LEVEL'].upper()])
         else:
             logger.setLevel(logging.INFO)
         logger.propagate = 0

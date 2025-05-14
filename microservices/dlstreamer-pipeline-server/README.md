@@ -23,7 +23,7 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
+Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/Overview.html)
 
 ## Architecture
 
@@ -138,18 +138,18 @@ Run the following commands:
      source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
      docker compose build
    ```
-   
-   The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
-   
+
+  The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
+
    ```sh
      docker compose up
    ```
 ---
 ### Run default sample
-Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+Refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
--   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html). 
--   For more tutorials refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://wheeljack.ch.intel.com/ESH-Documentation/dlstreamer-pipeline-server/latest/user-guide/get-started.html)

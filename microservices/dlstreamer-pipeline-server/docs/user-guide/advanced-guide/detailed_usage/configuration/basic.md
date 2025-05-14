@@ -33,7 +33,6 @@ The following table describes the essential attributes that are supported in the
 
 |      Parameter      |                                                     Description                                                |
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
-| `logging`         | Set log level for `"C_LOG_LEVEL"`, `"PY_LOG_LEVEL"`. Default is `INFO`.                                      |
 | `pipelines`         | List of DL Streamer pipelines.                                      |
 
 The parameters applicable for each pipeline are described below.
