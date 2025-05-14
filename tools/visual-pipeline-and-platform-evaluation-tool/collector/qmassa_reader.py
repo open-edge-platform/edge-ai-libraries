@@ -2,82 +2,83 @@
 
 import json
 import time
-import os
 import shutil
+import fcntl
+import sys
 
-# Configurable paths
+# === Config ===
 log_file = "/app/qmassa_log.json"
 temp_copy = "/tmp/qmassa_copy.json"
 index_tracker = "/tmp/last_state_index.txt"
 debug_log = "/tmp/qmassa_reader_trace.log"
+lock_file = "/tmp/qmassa_reader.lock"
 hostname = "gundaara-desk"
 
-# Load the last index and timestamp (ns)
+# === Helpers ===
 def load_last_state():
     try:
         with open(index_tracker, "r") as f:
             parts = f.read().strip().split()
             return int(parts[0]), int(parts[1])
     except:
-        return -1, int(time.time() * 1e9)  # First run fallback
+        return -1, int(time.time() * 1e9)
 
-# Save the current index and timestamp (ns)
 def save_last_state(index, timestamp):
     with open(index_tracker, "w") as f:
         f.write(f"{index} {timestamp}")
 
-try:
-    shutil.copy(log_file, temp_copy)
+# === Lock to prevent multiple instances ===
+with open(lock_file, "w") as lock_fp:
+    try:
+        fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        # Another instance is running
+        sys.exit(0)
 
-    with open(temp_copy, "r") as file:
-        data = json.load(file)
+    try:
+        shutil.copy(log_file, temp_copy)
+        with open(temp_copy, "r") as f:
+            data = json.load(f)
 
-    states = data.get("states", [])
-    if not states:
-        exit(0)
+        states = data.get("states", [])
+        if not states:
+            exit(0)
 
-    last_seen, last_ts_ns = load_last_state()
-    current_max = len(states) - 1
+        last_seen, last_ts_ns = load_last_state()
+        current_ts_ns = int(time.time() * 1e9)
 
-    if current_max <= last_seen:
-        exit(0)
+        for i in range(last_seen + 1, len(states)):
+            state = states[i]
+            devs_state = state.get("devs_state", [])
+            if not devs_state:
+                continue
 
-    now_ts_ns = int(time.time() * 1e9)
-    total_states = current_max - last_seen
-    total_delta = now_ts_ns - last_ts_ns
-    interval_per_state = total_delta // total_states if total_states > 0 else 1
+            dev_stats = devs_state[0].get("dev_stats", {})
+            eng_usage = dev_stats.get("eng_usage", {})
+            freqs = dev_stats.get("freqs", [])
+            power = dev_stats.get("power", [])
 
-    for i in range(last_seen + 1, current_max + 1):
-        state = states[i]
-        devs_state = state.get("devs_state", [])
-        if not devs_state:
-            continue
+            ts = current_ts_ns  # Same timestamp for simplicity
 
-        dev_stats = devs_state[0].get("dev_stats", {})
-        eng_stats = dev_stats.get("eng_usage", {})
-        power_stats = dev_stats.get("power", {})
+            # === Emit engine usage
+            for eng, vals in eng_usage.items():
+                if vals:
+                    print(f"engine_usage,engine={eng},type={eng},host={hostname} usage={vals[-1]} {ts}")
 
-        state_ts_ns = last_ts_ns + (i - (last_seen + 1)) * interval_per_state
+            # === Emit frequency
+            if freqs and isinstance(freqs[-1], list):
+                freq_entry = freqs[-1][0]
+                if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
+                    print(f"gpu_frequency,type=cur_freq,host={hostname} value={freq_entry['cur_freq']} {ts}")
 
-        # Emit each engine usage sample with spaced timestamps
-        for engine, values in eng_stats.items():
-            if values:
-                num_samples = len(values)
-                per_sample_delta = interval_per_state // num_samples if num_samples > 0 else 1
+            # === Emit power values
+            if power:
+                for key, val in power[-1].items():
+                    print(f"power,type={key},host={hostname} value={val} {ts}")
 
-                for idx, val in enumerate(values):
-                    sample_ts_ns = state_ts_ns + idx * per_sample_delta
-                    print(f"engine_usage,engine={engine},type={engine},host={hostname} usage={val} {sample_ts_ns}")
+            # Update last seen
+            save_last_state(i, current_ts_ns)
 
-        # Emit latest power values with state's base timestamp
-        if power_stats:
-            latest_power = power_stats[-1]
-            for key, value in latest_power.items():
-                print(f"power,type={key},host={hostname} value={value} {state_ts_ns}")
-
-    # Save last seen index and time
-    save_last_state(current_max, now_ts_ns)
-
-except Exception as e:
-    with open(debug_log, "a") as log:
-        log.write(f"[{time.ctime()}] ERROR: {e}\n")
+    except Exception as e:
+        with open(debug_log, "a") as log:
+            log.write(f"[{time.ctime()}] ERROR: {e}\n")
