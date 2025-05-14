@@ -533,11 +533,13 @@ def read_latest_metrics(target_ns: int = None):
                         except:
                             pass
 
-        if gpu_freq is None and "gpu_freq" in line:
-            try:
-                gpu_freq = float(line.split()[-1])
-            except:
-                pass
+        if gpu_freq is None and "gpu_frequency" in line:
+            for part in line.split():
+                if part.startswith("value="):
+                    try:
+                        gpu_freq = float(part.split("=")[1])
+                    except:
+                        pass
         if cpu_freq is None and "cpu_frequency_avg" in line:
             try:
                 parts = [part for part in line.split() if "frequency=" in part]
