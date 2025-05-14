@@ -138,9 +138,9 @@ Run the following commands:
      source .env # sometimes this is needed as docker compose doesn't always pick up the necessary env variables
      docker compose build
    ```
-
-  The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
-
+   
+   The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
+   
    ```sh
      docker compose up
    ```
