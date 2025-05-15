@@ -1,9 +1,6 @@
-name: "[DLS] [U22] Build weekly deb img"
-run-name: "[DLS] [U22] Build weekly deb img"
+name: "[DLS] [U22/U24] Build weekly imgs"
+run-name: "[DLS] [U22/U24] Build weekly imgs"
 on:
-  push:
-    branches:
-      - 'build-deb-packages'
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
 permissions:
@@ -19,6 +16,7 @@ jobs:
       matrix:
         include:
           - ubuntu_version: ubuntu22
+          - ubuntu_version: ubuntu24
     outputs:
       image: ${{ steps.save-image.outputs.image }}
 
