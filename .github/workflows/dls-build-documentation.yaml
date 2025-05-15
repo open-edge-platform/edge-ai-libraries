@@ -27,24 +27,25 @@ jobs:
       - name: Run build script
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
-        run: ./docs/build_html.sh "actions-gh-pages:latest" gh-pages
+        run: |
+          ./libraries/dl-streamer/docs/build_html.sh "actions-gh-pages:latest" gh-pages
 
       - name: Upload linkcheck report
         uses: actions/upload-artifact@v4.4.0
         if: success() || failure()
         with:
          name: docs_linkcheck_report
-         path: ./docs/build-linkcheck/
+         path: ./libraries/dl-streamer/docs/build-linkcheck/
 
       - name: Upload spelling report
         uses: actions/upload-artifact@v4.4.0
         if: success() || failure()
         with:
          name: docs_spelling_report
-         path: ./docs/build-spelling/
+         path: ./libraries/dl-streamer/docs/build-spelling/
 
       - name: Upload pages
         uses: actions/upload-artifact@v4.4.0
         with:
           name: docs_site
-          path: ./docs/build-html
+          path: ./libraries/dl-streamer/docs/build-html
