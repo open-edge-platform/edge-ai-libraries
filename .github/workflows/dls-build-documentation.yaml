@@ -28,6 +28,7 @@ jobs:
         env:
           GH_TOKEN: ${{ secrets.GH_PAT }}
         run: |
+          sudo chmod +x ./libraries/dl-streamer/docs/build_html.sh
           ./libraries/dl-streamer/docs/build_html.sh "actions-gh-pages:latest" gh-pages
 
       - name: Upload linkcheck report
