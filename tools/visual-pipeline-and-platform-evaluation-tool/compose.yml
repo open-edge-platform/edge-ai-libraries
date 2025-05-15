@@ -88,6 +88,7 @@ services:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     privileged: true
+    restart: on-failure:5
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
     build:
