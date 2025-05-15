@@ -1,0 +1,50 @@
+name: "[DLS] PR workflow"
+run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - 'main'
+      - 'dls_dmichalo_DocumentationCIWorkflow'
+    paths:
+      - 'libraries/dl-streamer/docs/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/docs/**'
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build-docs:
+    name: Build DL Streamer documentation
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository/libraries/dl-streamer
+        uses: actions/checkout@v4.2.0
+        with:
+          sparse-checkout: |
+            libraries/dl-streamer
+
+      - name: Run build script
+        env:
+          GH_TOKEN: ${{ secrets.GH_PAT }}
+        run: ./docs/build_html.sh "actions-gh-pages:latest" gh-pages
+
+      - name: Upload linkcheck report
+        uses: actions/upload-artifact@v4.4.0
+        if: success() || failure()
+        with:
+         name: docs_linkcheck_report
+         path: ./docs/build-linkcheck/
+
+      - name: Upload spelling report
+        uses: actions/upload-artifact@v4.4.0
+        if: success() || failure()
+        with:
+         name: docs_spelling_report
+         path: ./docs/build-spelling/
+
+      - name: Upload pages
+        uses: actions/upload-artifact@v4.4.0
+        with:
+          name: docs_site
+          path: ./docs/build-html
