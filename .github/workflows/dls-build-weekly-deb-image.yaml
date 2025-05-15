@@ -1,6 +1,9 @@
 name: "[DLS] [U22] Build weekly deb img"
 run-name: "[DLS] [U22] Build weekly deb img"
 on:
+  push:
+    branches:
+      - 'build-deb-packages'
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
 permissions:
@@ -54,15 +57,15 @@ jobs:
 
     - name: Build .deb img
       run: |
-        docker build -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile ./edge-ai-libraries-repo/libraries/dl-streamer
+        docker build -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Push Docker img
       run: |
-        docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest
+        docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest
 
     - name: Save image info
       id: save-image
-      run: echo "image=ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest" >> "$GITHUB_OUTPUT"
+      run: echo "image=ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
 
     - name: Create summary
       if: always()
@@ -77,7 +80,7 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:dls-latest || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest || true
 
   build-dls-pipeline-server-image:
     needs: build-dls-img
@@ -110,17 +113,17 @@ jobs:
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export BASE_IMAGE=${{ needs.build-dls-img.outputs.image }}
-        export PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=dlstreamer-pipeline-server.Dockerfile
         docker compose build --no-cache --pull
 
     - name: Push Docker img
       run: |
-        docker push ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest
+        docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
 
     - name: Save img info
       id: save-image
-      run: echo "image=ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest " >> $GITHUB_ENV
+      run: echo "image=ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest " >> $GITHUB_ENV
 
     - name: Create summary
       if: always()
@@ -135,4 +138,4 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dls-pipeline-server-deb-${{ matrix.ubuntu_version }}:dls-pipeline-server-latest || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest || true

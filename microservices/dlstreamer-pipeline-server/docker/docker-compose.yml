@@ -17,7 +17,7 @@ services:
       - app_network
 
   dlstreamer-pipeline-server:
-    image: ${PIPELINE_SERVER_IMAGE}
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
     read_only: true
