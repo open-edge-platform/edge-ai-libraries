@@ -75,7 +75,7 @@ services:
     build:
       context: ./collector
       dockerfile: Dockerfile
-    image: intel/collector:latest
+    image: docker.io/intel/vippet-collector:v1.0.0
     environment:
       - HTTP_PROXY=
       - http_proxy=
@@ -83,20 +83,24 @@ services:
       - https_proxy=
       - NO_PROXY=
       - no_proxy=
+      - HOSTNAME=Alderlake
+      - QMASSA_LOG_FILE=/app/.collector-signals/qmassa_log.json
+      - QMASSA_TEMP_COPY=/tmp/qmassa_copy.json
+      - QMASSA_INDEX_TRACKER=/tmp/last_state_index.txt
+      - QMASSA_DEBUG_LOG=/tmp/qmassa_reader_trace.log
+      - QMASSA_LOCK_FILE=/tmp/qmassa_reader.lock
     devices:
-      - "/dev/dxg:/dev/dxg"
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
     ipc: host
     pid: host
+    network_mode: host
     volumes:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     privileged: true
-    ports:
-      - 7005:7005
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
     build:

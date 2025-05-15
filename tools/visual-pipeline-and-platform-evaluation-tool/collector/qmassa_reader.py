@@ -5,14 +5,15 @@ import time
 import shutil
 import fcntl
 import sys
+import os
 
-# === Config ===
-log_file = "/app/qmassa_log.json"
-temp_copy = "/tmp/qmassa_copy.json"
-index_tracker = "/tmp/last_state_index.txt"
-debug_log = "/tmp/qmassa_reader_trace.log"
-lock_file = "/tmp/qmassa_reader.lock"
-hostname = "gundaara-desk"
+# === Config (with defaults, overridden via environment) ===
+log_file = os.getenv("QMASSA_LOG_FILE", "/app/qmassa_log.json")
+temp_copy = os.getenv("QMASSA_TEMP_COPY", "/tmp/qmassa_copy.json")
+index_tracker = os.getenv("QMASSA_INDEX_TRACKER", "/tmp/last_state_index.txt")
+debug_log = os.getenv("QMASSA_DEBUG_LOG", "/tmp/qmassa_reader_trace.log")
+lock_file = os.getenv("QMASSA_LOCK_FILE", "/tmp/qmassa_reader.lock")
+hostname = os.getenv("HOSTNAME", "localhost")
 
 # === Helpers ===
 def load_last_state():
