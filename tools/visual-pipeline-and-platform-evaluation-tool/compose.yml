@@ -83,12 +83,6 @@ services:
       - https_proxy=
       - NO_PROXY=
       - no_proxy=
-      - HOSTNAME=Alderlake
-      - QMASSA_LOG_FILE=/app/.collector-signals/qmassa_log.json
-      - QMASSA_TEMP_COPY=/tmp/qmassa_copy.json
-      - QMASSA_INDEX_TRACKER=/tmp/last_state_index.txt
-      - QMASSA_DEBUG_LOG=/tmp/qmassa_reader_trace.log
-      - QMASSA_LOCK_FILE=/tmp/qmassa_reader.lock
     devices:
       - "/sys:/sys"
       - "/dev:/dev"
