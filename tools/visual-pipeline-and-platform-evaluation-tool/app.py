@@ -493,6 +493,7 @@ def create_interface():
         label="Number of Inference Requests (nireq)",
         interactive=True,
     )
+
     # This elements are not used in the current version of the app
     # # Object classification accordion
     # object_classification_accordion = gr.Accordion(
@@ -519,10 +520,6 @@ def create_interface():
     #     ],
     #     value="CPU",
     # )
-
-    # Results
-    cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
-    gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
 
     # Run button
     run_button = gr.Button("Run")
@@ -582,7 +579,6 @@ def create_interface():
                     inference_interval,
                     nireq,
                     input_video_player,
-                    timer,
                 ):
                     global stream_dfs
                     stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]  # Reset all data
@@ -633,12 +629,14 @@ def create_interface():
                     )
                     optimizer.optimize()
                     best_result = optimizer.evaluate()
-                    report = None
-                    cpu_plot = None
-                    gpu_plot = None
                     plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
 
-                    return [video_output_path, cpu_plot, gpu_plot] + plot_updates
+                    best_result_message = (
+                        f"Total FPS: {best_result.total_fps:.2f}, "
+                        f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+                    )
+
+                    return [video_output_path] + plot_updates + [best_result_message]
 
                 def on_benchmark(
                     fps_floor,
@@ -691,8 +689,7 @@ def create_interface():
                 )
 
                 run_button.click(
-                    fn=lambda video: gr.update(interactive=False),
-                    inputs=input_video_player,
+                    fn=lambda: gr.update(interactive=False),
                     outputs=[run_button],
                     queue=True,
                 ).then(
@@ -725,9 +722,8 @@ def create_interface():
                         inference_interval,
                         nireq,
                         input_video_player,
-                        timer,
                     ],
-                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot] + plots,
+                    outputs=[output_video_player] + plots + [best_config_textbox],
                 ).then(
                     lambda: gr.update(active=False),  # This updates the same timer
                     inputs=None,
