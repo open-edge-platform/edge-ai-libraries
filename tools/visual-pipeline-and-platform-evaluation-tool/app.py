@@ -149,7 +149,7 @@ y_labels = [
     "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent"
 ]
 # Create a dataframe for each chart
-stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
 
 
 def read_latest_metrics(target_ns: int = None):
@@ -493,6 +493,7 @@ def create_interface():
         label="Number of Inference Requests (nireq)",
         interactive=True,
     )
+
     # This elements are not used in the current version of the app
     # # Object classification accordion
     # object_classification_accordion = gr.Accordion(
@@ -519,10 +520,6 @@ def create_interface():
     #     ],
     #     value="CPU",
     # )
-
-    # Results
-    cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
-    gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
 
     # Run button
     run_button = gr.Button("Run")
@@ -553,31 +550,22 @@ def create_interface():
                 )
                 run_button.render()
                 benchmark_button.render()
-                #results_plot.render()
-                #cpu_metrics_plot.render()
                 best_config_textbox.render()
-                
-                #gpu_time_series_plot.render()
 
+                # Metrics plots
                 with gr.Row():
-                    with gr.Column():
-                        #left_plots = [gr.Plot(label=chart_titles[i]) for i in range(7)]
-                        left_plots = [
-                            gr.Plot(value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i])
-                            for i in range(7)
-                        ]
-                    with gr.Column():
-                        #right_plots = [gr.Plot(label=chart_titles[i]) for i in range(7, 13)]
-                        right_plots = [
-                            gr.Plot(value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i])
-                            for i in range(7, len(chart_titles))
-                        ]
-                        plots = left_plots + right_plots
-                        timer = gr.Timer(1, active=False)
-                        def update_all_plots():
-                            return [generate_stream_data(i) for i in range(13)]
+                    plots = [
+                        gr.Plot(
+                            value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i],
+                            min_width=500,
+                        )
+                        for i in range(len(chart_titles))
+                    ]
+                    timer = gr.Timer(1, active=False)
+                    def update_all_plots():
+                        return [generate_stream_data(i) for i in range(len(chart_titles))]
 
-                        timer.tick(update_all_plots, outputs=plots)
+                    timer.tick(update_all_plots, outputs=plots)
 
                 def on_run(
                     recording_channels,
@@ -591,10 +579,9 @@ def create_interface():
                     inference_interval,
                     nireq,
                     input_video_player,
-                    timer,
                 ):
                     global stream_dfs
-                    stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
+                    stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]  # Reset all data
                     gr.update(active=True)
 
                     # Reset the FPS file
@@ -642,12 +629,14 @@ def create_interface():
                     )
                     optimizer.optimize()
                     best_result = optimizer.evaluate()
-                    report = None
-                    cpu_plot = None
-                    gpu_plot = None
-                    plot_updates = [generate_stream_data(i) for i in range(13)]
+                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
 
-                    return [video_output_path, cpu_plot, gpu_plot] + plot_updates
+                    best_result_message = (
+                        f"Total FPS: {best_result.total_fps:.2f}, "
+                        f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+                    )
+
+                    return [video_output_path] + plot_updates + [best_result_message]
 
                 def on_benchmark(
                     fps_floor,
@@ -700,14 +689,13 @@ def create_interface():
                 )
 
                 run_button.click(
-                    fn=lambda video: gr.update(interactive=False),
-                    inputs=input_video_player,
+                    fn=lambda: gr.update(interactive=False),
                     outputs=[run_button],
                     queue=True,
                 ).then(
                     lambda: (
                         globals().update(
-                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
                         )
                         or [
                             plots[i].value.update(data=[])  # Clear data, keep layout
@@ -734,9 +722,8 @@ def create_interface():
                         inference_interval,
                         nireq,
                         input_video_player,
-                        timer,
                     ],
-                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot] + plots,
+                    outputs=[output_video_player] + plots + [best_config_textbox],
                 ).then(
                     lambda: gr.update(active=False),  # This updates the same timer
                     inputs=None,
