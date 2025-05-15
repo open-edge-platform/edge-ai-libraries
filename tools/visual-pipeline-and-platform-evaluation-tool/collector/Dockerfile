@@ -24,7 +24,7 @@ RUN apt-get update && \
     apt-get install -y --no-install-recommends telegraf && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     # Install Python requirements
-    python3 -m pip install --upgrade pip && \
+    python3 -m pip install --upgrade pip 
 
 
 # Install rustup
