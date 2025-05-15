@@ -3,7 +3,7 @@ ENV DEV_ROOT=/app
 ENV XDG_CACHE_HOME=/app
 ENV DEBIAN_FRONTEND=noninteractive
 WORKDIR ${DEV_ROOT}
-COPY requirements.txt ${DEV_ROOT}/requirements.txt
+
 
 # install telegraf & intel-gpu-tools (which includes intel_gpu_top)
 RUN apt-get update && \
@@ -25,7 +25,6 @@ RUN apt-get update && \
     apt-get clean && rm -rf /var/lib/apt/lists/* && \
     # Install Python requirements
     python3 -m pip install --upgrade pip && \
-    python3 -m pip install --no-cache-dir -r ${DEV_ROOT}/requirements.txt
 
 
 # Install rustup
