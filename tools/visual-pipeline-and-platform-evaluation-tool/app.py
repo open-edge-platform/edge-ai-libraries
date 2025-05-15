@@ -553,31 +553,22 @@ def create_interface():
                 )
                 run_button.render()
                 benchmark_button.render()
-                #results_plot.render()
-                #cpu_metrics_plot.render()
                 best_config_textbox.render()
-                
-                #gpu_time_series_plot.render()
 
+                # Metrics plots
                 with gr.Row():
-                    with gr.Column():
-                        #left_plots = [gr.Plot(label=chart_titles[i]) for i in range(7)]
-                        left_plots = [
-                            gr.Plot(value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i])
-                            for i in range(7)
-                        ]
-                    with gr.Column():
-                        #right_plots = [gr.Plot(label=chart_titles[i]) for i in range(7, 13)]
-                        right_plots = [
-                            gr.Plot(value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i])
-                            for i in range(7, len(chart_titles))
-                        ]
-                        plots = left_plots + right_plots
-                        timer = gr.Timer(1, active=False)
-                        def update_all_plots():
-                            return [generate_stream_data(i) for i in range(13)]
+                    plots = [
+                        gr.Plot(
+                            value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i],
+                            min_width=500,
+                        )
+                        for i in range(len(chart_titles))
+                    ]
+                    timer = gr.Timer(1, active=False)
+                    def update_all_plots():
+                        return [generate_stream_data(i) for i in range(13)]
 
-                        timer.tick(update_all_plots, outputs=plots)
+                    timer.tick(update_all_plots, outputs=plots)
 
                 def on_run(
                     recording_channels,
