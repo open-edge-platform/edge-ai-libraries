@@ -1,4 +1,4 @@
-FROM ubuntu:20.04
+FROM ubuntu:22.04
 ENV DEV_ROOT=/app
 ENV XDG_CACHE_HOME=/app
 ENV DEBIAN_FRONTEND=noninteractive

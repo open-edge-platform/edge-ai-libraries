@@ -5,30 +5,31 @@ import time
 import shutil
 import fcntl
 import sys
+import os
 
-# === Config ===
-log_file = "/app/qmassa_log.json"
-temp_copy = "/tmp/qmassa_copy.json"
-index_tracker = "/tmp/last_state_index.txt"
-debug_log = "/tmp/qmassa_reader_trace.log"
-lock_file = "/tmp/qmassa_reader.lock"
-hostname = "gundaara-desk"
+# === Constants ===
+LOG_FILE = "/app/qmassa_log.json"
+TEMP_COPY = "/tmp/qmassa_copy.json"
+INDEX_TRACKER = "/tmp/last_state_index.txt"
+DEBUG_LOG = "/tmp/qmassa_reader_trace.log"
+LOCK_FILE = "/tmp/qmassa_reader.lock"
+HOSTNAME = os.uname()[1]
 
 # === Helpers ===
 def load_last_state():
     try:
-        with open(index_tracker, "r") as f:
+        with open(INDEX_TRACKER, "r") as f:
             parts = f.read().strip().split()
             return int(parts[0]), int(parts[1])
     except:
         return -1, int(time.time() * 1e9)
 
 def save_last_state(index, timestamp):
-    with open(index_tracker, "w") as f:
+    with open(INDEX_TRACKER, "w") as f:
         f.write(f"{index} {timestamp}")
 
 # === Lock to prevent multiple instances ===
-with open(lock_file, "w") as lock_fp:
+with open(LOCK_FILE, "w") as lock_fp:
     try:
         fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
@@ -36,8 +37,8 @@ with open(lock_file, "w") as lock_fp:
         sys.exit(0)
 
     try:
-        shutil.copy(log_file, temp_copy)
-        with open(temp_copy, "r") as f:
+        shutil.copy(LOG_FILE, TEMP_COPY)
+        with open(TEMP_COPY, "r") as f:
             data = json.load(f)
 
         states = data.get("states", [])
@@ -63,22 +64,22 @@ with open(lock_file, "w") as lock_fp:
             # === Emit engine usage
             for eng, vals in eng_usage.items():
                 if vals:
-                    print(f"engine_usage,engine={eng},type={eng},host={hostname} usage={vals[-1]} {ts}")
+                    print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME} usage={vals[-1]} {ts}")
 
             # === Emit frequency
             if freqs and isinstance(freqs[-1], list):
                 freq_entry = freqs[-1][0]
                 if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
-                    print(f"gpu_frequency,type=cur_freq,host={hostname} value={freq_entry['cur_freq']} {ts}")
+                    print(f"gpu_frequency,type=cur_freq,host={HOSTNAME} value={freq_entry['cur_freq']} {ts}")
 
             # === Emit power values
             if power:
                 for key, val in power[-1].items():
-                    print(f"power,type={key},host={hostname} value={val} {ts}")
+                    print(f"power,type={key},host={HOSTNAME} value={val} {ts}")
 
             # Update last seen
             save_last_state(i, current_ts_ns)
 
     except Exception as e:
-        with open(debug_log, "a") as log:
+        with open(DEBUG_LOG, "a") as log:
             log.write(f"[{time.ctime()}] ERROR: {e}\n")

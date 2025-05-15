@@ -75,28 +75,19 @@ services:
     build:
       context: ./collector
       dockerfile: Dockerfile
-    image: intel/collector:latest
-    environment:
-      - HTTP_PROXY=
-      - http_proxy=
-      - HTTPS_PROXY=
-      - https_proxy=
-      - NO_PROXY=
-      - no_proxy=
+    image: docker.io/intel/vippet-collector:v1.0.0
     devices:
-      - "/dev/dxg:/dev/dxg"
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
     ipc: host
     pid: host
+    network_mode: host
     volumes:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     privileged: true
-    ports:
-      - 7005:7005
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
     build:
