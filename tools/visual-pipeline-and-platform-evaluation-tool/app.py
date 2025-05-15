@@ -351,12 +351,10 @@ y_labels = [
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
 
 
-from datetime import datetime
 
 def read_latest_metrics(target_ns: int = None):
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
-            #lines = [line.strip() for line in f.readlines()]
             lines = [line.strip() for line in f.readlines()[-500:]]
 
     except FileNotFoundError:
@@ -370,10 +368,7 @@ def read_latest_metrics(target_ns: int = None):
             and abs(int(line.split()[-1]) - target_ns) < 1e9  
         ]
         lines = surrounding_lines if surrounding_lines else []
-    '''else:
-        lines = lines[-20:]'''
-
-    # Rest of the parsing logic remains the same
+  
 
 
     cpu_user = mem_used_percent = package_power = sys_temp = gpu_power = None
