@@ -149,7 +149,7 @@ y_labels = [
     "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent"
 ]
 # Create a dataframe for each chart
-stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
 
 
 def read_latest_metrics(target_ns: int = None):
@@ -566,7 +566,7 @@ def create_interface():
                     ]
                     timer = gr.Timer(1, active=False)
                     def update_all_plots():
-                        return [generate_stream_data(i) for i in range(13)]
+                        return [generate_stream_data(i) for i in range(len(chart_titles))]
 
                     timer.tick(update_all_plots, outputs=plots)
 
@@ -585,7 +585,7 @@ def create_interface():
                     timer,
                 ):
                     global stream_dfs
-                    stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(13)]  # Reset all data
+                    stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]  # Reset all data
                     gr.update(active=True)
 
                     # Reset the FPS file
@@ -636,7 +636,7 @@ def create_interface():
                     report = None
                     cpu_plot = None
                     gpu_plot = None
-                    plot_updates = [generate_stream_data(i) for i in range(13)]
+                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
 
                     return [video_output_path, cpu_plot, gpu_plot] + plot_updates
 
@@ -698,7 +698,7 @@ def create_interface():
                 ).then(
                     lambda: (
                         globals().update(
-                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(13)]
+                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
                         )
                         or [
                             plots[i].value.update(data=[])  # Clear data, keep layout
