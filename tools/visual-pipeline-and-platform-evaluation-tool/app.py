@@ -407,11 +407,21 @@ def create_interface():
         label="Number of Recording only channels",
         interactive=True,
     )
+    benchmark_parameters_accordion = gr.Accordion("Benchmark Parameters", open=True)
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
         value=30.0,  # Default value
         minimum=1.0,
+        interactive=True
+    )
+
+    rate = gr.Slider(
+        label="AI Stream Rate (%)",
+        value=20,  # Default value
+        minimum=0,
+        maximum=100,
+        step=1,
         interactive=True
     )
 
@@ -447,7 +457,7 @@ def create_interface():
     # Batch size
     batch_size = gr.Slider(
         minimum=0,
-        maximum=1024,
+        maximum=32,
         value=0,
         step=1,
         label="Batch Size",
@@ -457,7 +467,7 @@ def create_interface():
     # Inference interval
     inference_interval = gr.Slider(
         minimum=1,
-        maximum=1800,
+        maximum=5,
         value=1,
         step=1,
         label="Inference Interval",
@@ -467,7 +477,7 @@ def create_interface():
     # Number of inference requests (nireq)
     nireq = gr.Slider(
         minimum=0,
-        maximum=1024,
+        maximum=4,
         value=0,
         step=1,
         label="Number of Inference Requests (nireq)",
@@ -609,6 +619,7 @@ def create_interface():
 
                 def on_benchmark(
                     fps_floor,
+                    rate,
                     object_detection_model,
                     object_detection_device,
                     batch_size,
@@ -631,6 +642,7 @@ def create_interface():
                         video_path=input_video_player,
                         pipeline_cls=pipeline,
                         fps_floor=fps_floor,
+                        rate=rate,
                         parameters=param_grid,
                         constants=constants,
                         elements=gst_inspector.get_elements(),
@@ -690,6 +702,7 @@ def create_interface():
                     on_benchmark,
                     inputs=[
                         fps_floor,
+                        rate,
                         object_detection_model,
                         object_detection_device,
                         batch_size,
@@ -708,8 +721,11 @@ def create_interface():
                 with pipeline_parameters_accordion.render():
                     inferencing_channels.render()
                     recording_channels.render()
-                    fps_floor.render()
 
+                with benchmark_parameters_accordion.render():
+                    fps_floor.render()
+                    rate.render()
+                
                 with object_detection_accordion.render():
                     object_detection_model.render()
                     object_detection_device.render()

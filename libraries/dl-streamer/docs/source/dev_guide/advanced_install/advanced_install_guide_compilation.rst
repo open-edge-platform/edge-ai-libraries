@@ -86,7 +86,7 @@ Clone and build GStreamer:
     git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
 
     cd ~/gstreamer
-    git switch -c "1.24.12" "tags/1.24.12"
+    git switch -c "1.26.1" "tags/1.26.1"
     meson setup -Dexamples=disabled -Dtests=disabled -Dvaapi=enabled -Dgst-examples=disabled --buildtype=release --prefix=/opt/intel/dlstreamer/gstreamer --libdir=lib/ --libexecdir=bin/ build/
     ninja -C build
     sudo env PATH=~/python3venv/bin:$PATH meson install -C build/
@@ -155,8 +155,8 @@ Download and install OpenVINO™ Toolkit:
 
     .. code:: sh
 
-    sudo -E /opt/intel/openvino_2025/install_dependencies/install_openvino_dependencies.sh
-    source /opt/intel/openvino_2025/setupvars.sh
+        sudo -E /opt/intel/openvino_2025/install_dependencies/install_openvino_dependencies.sh
+        source /opt/intel/openvino_2025/setupvars.sh
 
 Step 9: Build Intel DLStreamer
 ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^

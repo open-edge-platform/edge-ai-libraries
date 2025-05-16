@@ -40,6 +40,7 @@ services:
       - RUN_MODE=EVA
       - GENICAM=Balluff
       - GST_DEBUG="1,gencamsrc:2"
+      - LOG_LEVEL=${LOG_LEVEL}
       # Default Detection and Classification Device
       - DETECTION_DEVICE=CPU
       - CLASSIFICATION_DEVICE=CPU

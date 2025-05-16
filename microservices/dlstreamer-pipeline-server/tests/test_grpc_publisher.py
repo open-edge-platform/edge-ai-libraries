@@ -54,7 +54,8 @@ class TestEdgeGrpcPublisher:
         edge_grpc_publisher.stop_ev = mocker.Mock()
         edge_grpc_publisher.stop_ev.set.return_value = False
         edge_grpc_publisher.stop()
-        mock_thread.join.assert_called_once()
+        if mock_thread is not None:
+            mock_thread.join.assert_called_once()
         assert edge_grpc_publisher.th is None
 
     def test_run(self, edge_grpc_publisher, mocker):

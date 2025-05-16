@@ -47,15 +47,6 @@ class GStreamerWebRTCStream:
         self._logger.info("GStreamerPipeline finished for peer_id:{}".format(self._peer_id))
 
     def _start_pipeline(self):
-        try:
-            response = requests.get(self._server)
-            if response.status_code == 404 and response.headers['Server'] == 'mediamtx':
-                self._logger.info("Mediamtx server is up and running.")
-            else:
-                self._logger.error("Error connecting to Mediamtx server.")
-                return
-        except requests.exceptions.RequestException as e:
-            self._logger.error(f"Error connecting to {self._server}: {e}")
         self._logger.info("Starting WebRTC pipeline for peer_id:{}".format(self._peer_id))
         config = {"type": self._webrtc_pipeline_type, "template": self._launch_string,
                   "prepare-pads": self.prepare_destination_pads}

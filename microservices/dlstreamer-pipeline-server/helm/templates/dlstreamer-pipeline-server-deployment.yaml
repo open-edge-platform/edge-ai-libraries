@@ -59,6 +59,8 @@ spec:
           value: {{ $.Values.env.https_proxy }}
         - name: no_proxy
           value: {{ $.Values.env.no_proxy }}
+        - name: LOG_LEVEL
+          value: "{{ $.Values.env.LOG_LEVEL }}"
         volumeMounts:
         - name: dlstreamer-pipeline-server-input
           mountPath: /home/pipeline-server/config.json
