@@ -51,9 +51,9 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.RERANKER_DEVICE`| set either CPU or GPU | CPU |
 | `global.LLM_DEVICE`| set either CPU or GPU | CPU |
 | `gpu.enabled` | Set is true for deploying on GPU  | false |
-| `gpu.key` | Set as per the cluster node label key for GPU only if gpu is enabled | |
-| `gpu.value` | Set as per the cluster node label value for GPU only if gpu is enabled  | |
+| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node| `<your-node-key-on-cluster>` |
 
+**NOTE**:Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
 ### Option 2: Install from Source
 
 #### Step 1: Clone the Repository

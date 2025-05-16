@@ -80,23 +80,19 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
-      - name: global.ovmsEmbeddingGPUService.enabled
+      - name: global.ovmsEmbeddinggpuService.enabled
         displayName: "OVMS Embedding GPU Service"
         type: boolean
         default: false
-      - name: global.GPU.enabled
+      - name: global.gpu.enabled
         displayName: Enable GPU Device
         type: boolean
         default: false
-      - name: global.GPU.node.key
+      - name: global.gpu.key
         displayName: GPU Node Label Key
         type: string
         default: ""
-      - name: global.GPU.node.value
-        displayName: GPU Node Label Value
-        type: string
-        default: ""
-      - name: global.GPU.device
+      - name: global.gpu.device
         displayName: GPU Device
         type: string
         default: ""

@@ -80,7 +80,7 @@ spec:
                       {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.vllmService.service.port }}/v1
                     {{ else if .Values.tgiService.enabled  }}
                      {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.tgiService.service.port }}/v1
-                    {{ else if or .Values.ovmsService.enabled .Values.global.GPU.enabled }}
+                    {{ else if or .Values.ovmsService.enabled .Values.global.gpu.enabled }}
                       {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.ovmsService.service.port }}/v3
                     {{ end }}
             - name: FETCH_K

@@ -12,22 +12,6 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
-    {{- if .Values.global.ovmsEmbeddingGPUService.enabled }}
-      tolerations:
-          - key: {{ .Values.global.GPU.node.key }}
-            operator: "Equal"
-            value: {{ .Values.global.GPU.node.value }}
-            effect: "NoSchedule"
-      affinity:
-        nodeAffinity:
-          requiredDuringSchedulingIgnoredDuringExecution:
-            nodeSelectorTerms:
-              - matchExpressions:
-                - key: {{ .Values.global.GPU.node.key }}
-                  operator: In
-                  values:
-                    - {{ .Values.global.GPU.node.value }}
-    {{ end }}
       initContainers:
         - name: init-script
           image: "python:3.10.12"
@@ -48,7 +32,7 @@ spec:
                   echo "No config.json found, running model prepration. /config/init-embed-script.sh "{{ .Values.global.EMBEDDING_MODEL_NAME }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
                   . /config/init-embed-script.sh
                 fi
-          args: ["{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.ovmsEmbeddingGPUService.enabled }}"]
+          args: ["{{ .Values.global.EMBEDDING_MODEL_NAME}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}","{{ .Values.global.ovmsEmbeddinggpuService.enabled }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
@@ -63,7 +47,7 @@ spec:
               mountPath: /opt/data
       containers:
         - name: {{ .Values.ovms.name }}
-          image: "{{- if .Values.global.GPU.enabled -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}{{- end -}}"
+          image: "{{- if .Values.global.ovmsEmbeddinggpuService.enabled -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}{{- end -}}"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           readinessProbe:
             httpGet:
@@ -88,7 +72,12 @@ spec:
             - name: WEIGHT_FORMAT
               value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
           args: ["--port", "9400", "--rest_port", "8400", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
-      {{ if .Values.global.ovmsEmbeddingGPUService.enabled }}
+      {{ if .Values.global.ovmsEmbeddinggpuService.enabled }}
+          resources:
+            requests:
+              {{ .Values.global.gpu.key}}: "1"
+            limits:
+              {{ .Values.global.gpu.key}}: "1"
           devices:
             - name: dri-device
               containerPath: /dev/dri
@@ -103,7 +92,7 @@ spec:
           configMap:
             name: {{ .Values.ovms.script.name }}
             defaultMode: 0777
-      {{ if .Values.global.ovmsEmbeddingGPUService.enabled }}
+      {{ if .Values.global.ovmsEmbeddinggpuService.enabled }}
         - name: dri-device
           hostPath:
             path: /dev/dri

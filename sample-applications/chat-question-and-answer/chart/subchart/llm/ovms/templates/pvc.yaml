@@ -1,7 +1,7 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-{{ if .Values.global.GPU.enabled }}
+{{ if .Values.global.gpu.enabled }}
   name: ovms-gpu-pvc
 {{ else }}
   name: ovms-pvc

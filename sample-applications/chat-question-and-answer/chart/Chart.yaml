@@ -14,7 +14,7 @@ dependencies:
   - name: ovmsService
     version: 0.1.0
     repository: "file://subchart/llm/ovms"
-    condition: ovmsService.enabled,global.GPU.enabled
+    condition: ovmsService.enabled,global.gpu.enabled
   - name: teiEmbeddingService
     version: 0.1.0
     repository: "file://subchart/embedding/tei"

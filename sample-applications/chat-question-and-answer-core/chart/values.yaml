@@ -43,9 +43,7 @@ gpu:
   enabled: false
   devices: /dev/dri
   group_add: $(stat -c "%g" /dev/dri/render*)
-  node:
-    key:  #update as per the cluster node label key for GPU
-    value:   #update as per the cluster node label value for GPU
+  key:  #update as per the cluster node label key for GPU assigned by device Plugin
 
 uiService:
   name: chatqna-core-ui
