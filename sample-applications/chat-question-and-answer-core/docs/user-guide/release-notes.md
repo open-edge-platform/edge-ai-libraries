@@ -3,6 +3,15 @@
 
 ## Current Release
 
+**Version**: 1.2.0 \
+**Release Date**: WW20 2025 
+
+- Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
+- Changed the default LLM to "Phi 3.5 Mini instruct"
+- Bug fixes
+
+## Previous releases
+
 **Version**: 1.1.2 \
 **Release Date**: WW16 2025 
 

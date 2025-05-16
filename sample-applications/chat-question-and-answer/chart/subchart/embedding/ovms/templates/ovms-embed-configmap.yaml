@@ -10,6 +10,8 @@ data:
     #!/bin/bash
     model=$0
     weight_format=$1
+    gpu_enabled=$3
+    # FLATTENED_MODEL_NAME=$(echo ${model} | tr '/' '-')
     pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
     
     # Log in to Hugging Face using the provided token
@@ -23,8 +25,14 @@ data:
     fi
     curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
     mkdir models
-    python export_model.py embeddings --source_model "${model}" --weight-format int4 --config_file_path models/config.json --model_repository_path models --target_device CPU
-    
-    cp -r models /opt/data
+    if [ "$gpu_enabled" = "true" ]; then
+        echo "GPU is enabled, using GPU model"
+        python3 export_model.py embeddings --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }} --overwrite_models
+    else
+        echo "GPU is not enabled, using CPU model"
+        python3 export_model.py embeddings --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device CPU --overwrite_models
+        
+    fi
 
+    cp -r models /opt/data/
     echo "All the steps are completed successfully"

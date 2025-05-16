@@ -1,7 +1,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: egai-ovms-pvc
+{{ if .Values.global.gpu.enabled }}
+  name: ovms-gpu-pvc
+{{ else }}
+  name: ovms-pvc
+{{ end }}
   {{- if .Values.global.keeppvc }}
   annotations:
     helm.sh/resource-policy: keep
@@ -11,4 +15,4 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.global.egai_ovms_pvc.size }}
+      storage: {{ .Values.global.ovms_pvc.size }}

@@ -1,32 +1,40 @@
 global:
   huggingface:
-    apiToken: <huggingface-api-token> # Set this during installation
+    # Set this during installation
+    apiToken:  
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  UI_NODEPORT: <ui-nodeport>
-  POSTGRES_USER: <postgres-user>
-  POSTGRES_PASSWORD: <postgres-password>
-  MINIO_ROOT_USER: <minio-root-user>
-  MINIO_ROOT_PASSWORD: <minio-root-password>
-  LLM_MODEL: <llm-model>
-  EMBEDDING_MODEL_NAME: <embedding-model-name>
-  RERANKER_MODEL: <reranker-model>
-  OTLP_ENDPOINT: <otlp-endpoint>
-  OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
-  #Set either one of the below embedding model sever to true by defauly OVMS  is enabled
+    no_proxy:
+    http_proxy:
+    https_proxy:
+  UI_NODEPORT: 
+  POSTGRES_USER:
+  POSTGRES_PASSWORD:
+  MINIO_ROOT_USER:
+  MINIO_ROOT_PASSWORD:
+  LLM_MODEL:
+  EMBEDDING_MODEL_NAME:
+  RERANKER_MODEL:
+  OTLP_ENDPOINT:
+  OTLP_ENDPOINT_TRACE:
+  #Set either one of the below embedding model sever to true by defauly OVMS is enabled
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
     enabled: true
-  egai_minio_pvc:
+  #Enable the below service if OVMS embedding needs to be deployed in gpu
+  ovmsEmbeddinggpuService:
+    enabled: false
+  gpu: 
+    enabled: false 
+    key:  #update as per the cluster node label key for GPU assigned by the device plugin
+    device: "GPU" #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
+  minio_pvc:
     size: 20Gi
-  egai_reranker_pvc:
+  reranker_pvc:
     size: 20Gi
-  egai_ovms_pvc:
+  ovms_pvc:
     size: 20Gi
-  egai_ovms_embed_pvc:
+  ovms_embed_pvc:
     size: 20Gi
   keeppvc: false # true  to persist models across multiple deployments
 

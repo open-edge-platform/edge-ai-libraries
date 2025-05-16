@@ -2,6 +2,15 @@
 
 
 ## Current Release
+
+**Version**: 1.2.0 \
+**Release Date**: WW20 2025 
+
+- Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
+- Bug fixes
+
+## Previous releases
+
 **Version**: 1.1.2 \
 **Release Date**: WW16 2025 
 

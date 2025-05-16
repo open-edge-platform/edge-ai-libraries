@@ -1,9 +1,9 @@
 global:
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  EMBEDDING_MODEL_NAME: <embedding-model-name>
+    no_proxy: 
+    http_proxy: 
+    https_proxy: 
+  EMBEDDING_MODEL_NAME: 
 
 teiEmbeddingService:
   name: tei-embedding-service

@@ -1,17 +1,18 @@
 global:
   huggingface:
-    apiToken: <huggingfacehub-api-token># Set this during installation
+    apiToken:  # Set this during installation
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  EMBEDDING_MODEL_NAME: <embedding-model-name> # Set this during installation
+    no_proxy: 
+    http_proxy: 
+    https_proxy: 
+  EMBEDDING_MODEL_NAME:  # Set this during installation
 
 ovms:
   name: ovms-embedding
   image:
     repository: openvino/model_server
     tag: "2025.0"
+    Gputag: "2025.0-gpu"
     pullPolicy: IfNotPresent
   readinessProbe:
     httpGet:
@@ -23,10 +24,9 @@ ovms:
     type: ClusterIP
     port: 8400
     targetPort: 8400
-  
   # scriptconfigmap: ovms-configmap.yaml
   env:
-    WEIGHT_FORMAT: "fp16"
+    WEIGHT_FORMAT: "int8"
     model_directory_name: "converted_model"
   script:
     name: "ovms-embed-model-preparation"
