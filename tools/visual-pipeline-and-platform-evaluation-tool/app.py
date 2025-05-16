@@ -141,7 +141,7 @@ def detect_click(evt: gr.SelectData):
 
 chart_titles = [
     "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [C]",
-    "Memory Usage [%]", "Package Power [Wh]", "GPU Power Usage [W]",
+    "Memory Usage [%]", "GPU Package Power Usage [W]", "GPU Power Usage [W]",
     "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
 ]
 y_labels = [
@@ -171,7 +171,7 @@ def read_latest_metrics(target_ns: int = None):
   
 
 
-    cpu_user = mem_used_percent = package_power = core_temp = gpu_power = None
+    cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
     gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy =  gpu_compute = None
 
     for line in reversed(lines):
@@ -195,10 +195,10 @@ def read_latest_metrics(target_ns: int = None):
                         except:
                             pass
 
-        if package_power is None and "pkg_cur_power" in line:
+        if gpu_package_power is None and "pkg_cur_power" in line:
             parts = line.split()
             try:
-                package_power = float(parts[1].split("=")[1])
+                gpu_package_power = float(parts[1].split("=")[1])
             except:
                 pass
 
@@ -276,12 +276,12 @@ def read_latest_metrics(target_ns: int = None):
                         pass
         
         if all(v is not None for v in [
-            cpu_user, mem_used_percent, package_power, core_temp, gpu_power,
+            cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
             gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute]):
             break
 
     return [
-        cpu_user, mem_used_percent, package_power, core_temp, gpu_power,
+        cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
         gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ]
 
@@ -308,7 +308,7 @@ def generate_stream_data(i, timestamp_ns=None):
 
     new_y = 0
     (
-        cpu_val, mem_val, power_val, core_temp, gpu_power, 
+        cpu_val, mem_val, gpu_package_power, core_temp, gpu_power, 
         gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ) = read_latest_metrics(timestamp_ns)
 
@@ -331,8 +331,8 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = cpu_val
     elif title == "Memory Usage [%]" and mem_val is not None:
         new_y = mem_val
-    elif title == "Package Power [Wh]" and power_val is not None:
-        new_y = power_val
+    elif title == "GPU Package Power Usage [W]" and gpu_package_power is not None:
+        new_y = gpu_package_power
     elif title ==  "CPU Temperature [C]" and core_temp is not None:
         new_y = core_temp
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
