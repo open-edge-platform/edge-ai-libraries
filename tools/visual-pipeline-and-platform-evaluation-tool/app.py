@@ -141,11 +141,11 @@ def detect_click(evt: gr.SelectData):
 
 chart_titles = [
     "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [C]",
-    "Memory Usage [%]", "Package Power [Wh]", "System Temperature [C]", "GPU Power Usage [W]",
+    "Memory Usage [%]", "Package Power [Wh]", "GPU Power Usage [W]",
     "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
 ]
 y_labels = [
-    "FPS", "Frequency", "Percent Used", "Celcius", "Percent Used", "Watts", "Celcius", 
+    "FPS", "Frequency", "Percent Used", "Celcius", "Percent Used", "Watts", 
     "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent", "Percent"
 ]
 # Create a dataframe for each chart
@@ -171,7 +171,7 @@ def read_latest_metrics(target_ns: int = None):
   
 
 
-    cpu_user = mem_used_percent = package_power = sys_temp = gpu_power = None
+    cpu_user = mem_used_percent = package_power = core_temp = gpu_power = None
     gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy =  gpu_compute = None
 
     for line in reversed(lines):
@@ -209,13 +209,13 @@ def read_latest_metrics(target_ns: int = None):
             except:
                 pass
 
-        if sys_temp is None and "temp" in line:
+        if core_temp is None and "temp" in line:
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
                     if "temp" in field:
                         try:
-                            sys_temp = float(field.split("=")[1])
+                            core_temp = float(field.split("=")[1])
                         except:
                             pass
 
@@ -226,6 +226,7 @@ def read_latest_metrics(target_ns: int = None):
                         gpu_freq = float(part.split("=")[1])
                     except:
                         pass
+
         if cpu_freq is None and "cpu_frequency_avg" in line:
             try:
                 parts = [part for part in line.split() if "frequency=" in part]
@@ -275,12 +276,12 @@ def read_latest_metrics(target_ns: int = None):
                         pass
         
         if all(v is not None for v in [
-            cpu_user, mem_used_percent, package_power, sys_temp, gpu_power,
+            cpu_user, mem_used_percent, package_power, core_temp, gpu_power,
             gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute]):
             break
 
     return [
-        cpu_user, mem_used_percent, package_power, sys_temp, gpu_power,
+        cpu_user, mem_used_percent, package_power, core_temp, gpu_power,
         gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ]
 
@@ -307,7 +308,7 @@ def generate_stream_data(i, timestamp_ns=None):
 
     new_y = 0
     (
-        cpu_val, mem_val, power_val, temp_val, gpu_power, 
+        cpu_val, mem_val, power_val, core_temp, gpu_power, 
         gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ) = read_latest_metrics(timestamp_ns)
 
@@ -332,10 +333,8 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = mem_val
     elif title == "Package Power [Wh]" and power_val is not None:
         new_y = power_val
-    elif title == "System Temperature [C]" and temp_val is not None:
-        new_y = temp_val
-    elif title ==  "CPU Temperature [C]" and temp_val is not None:
-        new_y = temp_val
+    elif title ==  "CPU Temperature [C]" and core_temp is not None:
+        new_y = core_temp
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
         new_y = gpu_power
     elif title == "CPU Frequency [KHz]"and cpu_freq is not None:
