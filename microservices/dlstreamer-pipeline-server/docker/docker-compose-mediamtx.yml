@@ -52,6 +52,7 @@ services:
       - RUN_MODE=EVA
       - GENICAM=Balluff
       - GST_DEBUG=1,gencamsrc:2
+      - LOG_LEVEL=${LOG_LEVEL}
       # Default Detection and Classification Device
       - DETECTION_DEVICE=CPU
       - CLASSIFICATION_DEVICE=CPU
@@ -115,6 +116,7 @@ services:
       - MTX_RTMP=no
       - MTX_HLS=no
       - MTX_SRT=no
+      - MTX_WEBRTCTRACKGATHERTIMEOUT=${WHIP_SERVER_TIMEOUT}
       - MTX_WEBRTCADDRESS=:${WHIP_SERVER_PORT}
       # - MTX_WEBRTCICESERVERS2_0_URL=
       # - WEBRTCICESERVERS2_0_USERNAME=

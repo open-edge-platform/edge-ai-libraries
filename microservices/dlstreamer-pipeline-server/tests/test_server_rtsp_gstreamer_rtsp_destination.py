@@ -140,7 +140,8 @@ class TestGStreamerRtspDestination:
         gstreamer_rtsp_destination._app_src = mock_app_src
         gstreamer_rtsp_destination._end_stream()
         assert gstreamer_rtsp_destination._need_data is False
-        mock_app_src.end_of_stream.assert_called_once()
+        if mock_app_src is not None:
+            mock_app_src.end_of_stream.assert_called_once()
         assert gstreamer_rtsp_destination._app_src is None
 
     def test_finish(self, gstreamer_rtsp_destination,mocker):

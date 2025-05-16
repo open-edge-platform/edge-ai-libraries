@@ -90,7 +90,8 @@ class TestGStreamerWebRTCStream:
         mock_webrtc = MagicMock()
         gstreamer_webrtc_stream._webrtc_pipeline = mock_webrtc
         gstreamer_webrtc_stream._reset()
-        mock_webrtc.stop.assert_called_once()
+        if mock_webrtc is not None:
+            mock_webrtc.stop.assert_called_once()
         assert gstreamer_webrtc_stream._webrtc_pipeline is None
         assert gstreamer_webrtc_stream._pipe is None
 
@@ -100,7 +101,8 @@ class TestGStreamerWebRTCStream:
         gstreamer_webrtc_stream._thread = mock_thread
         gstreamer_webrtc_stream.stop()
         mock_reset.assert_called_once()
-        mock_thread.join.assert_called_once()
+        if mock_thread is not None:
+            mock_thread.join.assert_called_once()
         assert gstreamer_webrtc_stream._thread is None
         assert gstreamer_webrtc_stream._stopped is True
     
