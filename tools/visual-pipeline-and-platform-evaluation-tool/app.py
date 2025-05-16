@@ -140,7 +140,7 @@ def detect_click(evt: gr.SelectData):
 
 
 chart_titles = [
-    "Throughput [fps]", "CPU Frequency [MHz]", "CPU Usage [%]", "CPU Temperature [K]",
+    "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [K]",
     "Memory Usage [%]", "Package Power [Wh]", "System Temperature [K]", "GPU Power Usage [W]",
     "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
 ]
@@ -338,7 +338,7 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = temp_val
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
         new_y = gpu_power
-    elif title == "CPU Frequency [MHz]"and cpu_freq is not None:
+    elif title == "CPU Frequency [KHz]"and cpu_freq is not None:
         new_y = cpu_freq
     elif title == "GPU Frequency [MHz]" and gpu_freq is not None:
         new_y = gpu_freq
