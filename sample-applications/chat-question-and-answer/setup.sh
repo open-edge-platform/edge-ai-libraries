@@ -11,19 +11,10 @@ export INDEX_NAME=intel-rag
 
 #Embedding service required configurations
 export EMBEDDING_ENDPOINT_URL=http://tei-embedding-service
-#Setup the host IP
-export HOST_IP=$(hostname -I | awk '{print $1}')
-# The above command does not work on EMT. Two options:
-# 1. Check with:
-#    ip -o route get to 8.8.8.8 | sed -n 's/.*src \([0-9.]\+\).*/\1/p'
-#    But this approach could also have an issue based on kind of 
-#    deployment (airgapped or not). Need to check for a better solution.
-#    IP address of 8.8.8.8 is Google address.
-# 2. Eliminate the need for hostname.
 
 # UI ENV variables
-export APP_ENDPOINT_URL=http://$HOST_IP:8100
-export APP_DATA_PREP_URL=http://$HOST_IP:8000
+export APP_ENDPOINT_URL=/v1/chatqna
+export APP_DATA_PREP_URL=/v1/dataprep
 
 # Required environment variables for the ChatQnA backend
 export CHUNK_SIZE=1500
@@ -32,7 +23,6 @@ export FETCH_K=10
 export BATCH_SIZE=32
 
 # Env variables for DataStore
-export DATASTORE_HOST=$HOST_IP
 export DATASTORE_HOST_PORT=8200
 export DATASTORE_ENDPOINT_URL=http://data-store:8000
 
