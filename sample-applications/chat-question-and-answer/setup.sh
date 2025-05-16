@@ -99,16 +99,16 @@ setup_inference() {
                 ovms)
                         export ENDPOINT_URL=http://ovms-service/v3
                         #Target Device
-                        if [[ "$LLM_DEVICE" == "GPU" ]]; then
+                        if [[ "$DEVICE" == "GPU" ]]; then
                                 export OVMS_CACHE_SIZE=2
                                 export COMPOSE_PROFILES=GPU-OVMS
-                        elif [[ "$LLM_DEVICE" == "CPU" ]]; then
+                        elif [[ "$DEVICE" == "CPU" ]]; then
                                 export OVMS_CACHE_SIZE=10
                                 export COMPOSE_PROFILES=OVMS
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
+                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
                         cd ..
                         ;;
                 tgi)
@@ -131,14 +131,14 @@ setup_embedding() {
                 ovms)
                         export EMBEDDING_ENDPOINT_URL=http://ovms-service/v3
                         #Target Device
-                        if [[ "$LLM_DEVICE" == "GPU" ]]; then
+                        if [[ "$DEVICE" == "GPU" ]]; then
                                 export COMPOSE_PROFILES=$COMPOSE_PROFILES,GPU-OVMS
-                        elif [[ "$LLM_DEVICE" == "CPU" ]]; then
+                        elif [[ "$DEVICE" == "CPU" ]]; then
                                 export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $LLM_DEVICE --overwrite_models
+                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
                         cd ..
                         ;;
                 *)
