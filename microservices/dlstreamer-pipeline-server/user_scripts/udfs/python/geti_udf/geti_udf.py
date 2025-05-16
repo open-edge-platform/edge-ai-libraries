@@ -106,10 +106,6 @@ class Udf:
             else:
                 output = frame
             
-            # When deployed with EIS, encode prediction object for frame overlay. it will not be published
-            if EII_MODE:
-                metadata["geti_prediction"] = codecs.encode(pickle.dumps(prediction), "base64").decode()
-            # prediction_unpck = pickle.loads(codecs.decode(unpck.encode(), "base64"))
             prediction.deidentify()
             prediction = prediction.to_dict()
         except AssertionError:

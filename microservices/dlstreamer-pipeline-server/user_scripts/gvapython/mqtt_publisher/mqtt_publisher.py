@@ -75,7 +75,7 @@ class MQTTPublisher:
                     channels = 3
                 #If raw frame, jpeg encode the image
                 if video_info.to_caps().to_string().split(',')[0] == "video/x-raw":
-                    image, _, _, _ = utils.encode_frame("jpeg", 85, frame=image, height=video_info.height,
+                    image, _, _ = utils.encode_frame("jpeg", 85, frame=image, height=video_info.height,
                                                     width=video_info.width, channels=channels, meta_data=metadata)
                     image = image[1]
 
