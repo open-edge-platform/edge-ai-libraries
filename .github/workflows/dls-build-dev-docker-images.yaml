@@ -1,0 +1,38 @@
+name: "[DLS] [U22/24] Build dev img"
+run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
+on:
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build:
+    name: Build ${{ matrix.image }} img
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+            image: dev-ubuntu22
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+            image: dev-ubuntu24
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        cd edge-ai-libraries-repo
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Build dev img
+      run: |
+        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} ./edge-ai-libraries-repo/libraries/dl-streamer
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi dls-img/${{ github.repository }}/one-binary-${{ matrix.ubuntu_version }}:${{ github.sha }} || true

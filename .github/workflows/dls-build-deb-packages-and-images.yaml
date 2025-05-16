@@ -1,0 +1,51 @@
+name: "[DLS] [U22/24] Build .deb pkg and img"
+run-name: "[DLS] [U22/24] Build .deb pkg and img (by ${{ github.actor }})"
+on:
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build:
+    name: Build ${{ matrix.ubuntu_version }} .deb and img
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        cd edge-ai-libraries-repo
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Build .deb pkg
+      run: |
+        chmod +x edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
+        cd edge-ai-libraries-repo/libraries/dl-streamer
+        echo "y" | ./scripts/build_deb_packages.sh --ubuntu_version=${{ matrix.ubuntu_version }}
+
+    - name: Check for .deb pkg
+      run: |
+        if ls edge-ai-libraries-repo/libraries/dl-streamer/deb_packages/*.deb 1> /dev/null 2>&1; then
+          echo ".deb package found."
+        else
+          echo "No .deb package found."
+          exit 1
+        fi
+
+    - name: Build .deb img
+      run: |
+        docker build -t dls-img/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:${{ github.sha }} -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile ./edge-ai-libraries-repo/libraries/dl-streamer
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi dls-img/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true

@@ -167,10 +167,6 @@ Replace the `<PROTOCOL>` and `<IP_ADDRESS_OR_SERVICE_HOSTNAME>` accordingly.
 ```json
 {
     "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },
         "model_registry": {
             "url": "<PROTOCOL>://<IP_ADDRESS_OR_SERVICE_HOSTNAME>:32002",
             "saved_models_dir": "./mr_models",

@@ -163,10 +163,12 @@ class SmartNVRPipeline(GstPipeline):
             "gvadetect "
             "  model={OBJECT_DETECTION_MODEL_PATH} "
             "  model-proc={OBJECT_DETECTION_MODEL_PROC} "
-            "  inference-interval=3 "
             "  model-instance-id=detect0 "
             "  pre-process-backend={object_detection_pre_process_backend} "
-            "  device={object_detection_device} ! "
+            "  device={object_detection_device} "
+            "  batch-size={batch_size} "  
+            "  inference-interval={inference_interval} " 
+            "  nireq={nireq} ! "  
             "queue2 "
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
@@ -280,7 +282,6 @@ class SmartNVRPipeline(GstPipeline):
                 postprocessing=_postprocessing_element
             )
 
-
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + compositor + " " + streams
 
@@ -294,13 +295,25 @@ if __name__ == "__main__":
     print(
         "Evaluate:",
         pipeline.evaluate(
-            {
+            constant = {
                 "VIDEO_OUTPUT_PATH": "output.mp4",
                 "VIDEO_PATH": "input.mp4",
                 "OBJECT_DETECTION_MODEL_PATH": "model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": "model_proc.xml",
             },
-            {"object_detection_device": "CPU"},
-            2,
+            parameters = {
+                "object_detection_device": "CPU",
+                "batch_size": 16,  
+                "inference_interval": 2, 
+                "nireq": 4,  
+            },
+            regular_channels = 2,
+            inference_channels = 1,
+            elements = [
+                "compositor",
+                "x264enc",
+                "decodebin",
+                "videoscale"
+            ]
         ),
     )

@@ -52,10 +52,6 @@ Note: Follow instruction in the [Prerequisite section](./how-to-update-default-c
     ```json
     {
         "config": {
-            "logging": {
-                "C_LOG_LEVEL": "INFO",
-                "PY_LOG_LEVEL": "INFO"
-            },
             "pipelines": [
                 {
                     "name": "pallet_defect_detection",

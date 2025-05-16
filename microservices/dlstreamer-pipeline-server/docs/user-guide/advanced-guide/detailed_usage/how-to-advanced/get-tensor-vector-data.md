@@ -27,10 +27,6 @@ Follow the below steps to publish tensor vector data along with other metadata v
     ```json
     {
         "config": {
-            "logging": {
-                "C_LOG_LEVEL": "INFO",
-                "PY_LOG_LEVEL": "INFO"
-            },
             "pipelines": [
                 {
                     "name": "pallet_defect_detection",

@@ -26,10 +26,9 @@ DEFAULT_APPDEST_OPCUA_QUEUE_SIZE = 1000
 class OPCUAPublisher():
     """OPCUA Publisher.
     """
-
-    def __init__(self, app_cfg, qsize=DEFAULT_APPDEST_OPCUA_QUEUE_SIZE):
+    def __init__(self, opcua_cfg, qsize=DEFAULT_APPDEST_OPCUA_QUEUE_SIZE):
         """Constructor
-        :param json app_cfg: Application config
+        :param json opcua_cfg: OPCUA config
             the meta-data for the frame (df: True)
         """
         self.client = None
@@ -38,8 +37,6 @@ class OPCUAPublisher():
         self.stop_ev = th.Event()
         self.queue = deque(maxlen=qsize)
         self.log = get_logger(f'{__name__} (OPCUA)')
-        if "opcua_publisher" not in app_cfg:
-            return
 
         opcua_server_ip = os.getenv("OPCUA_SERVER_IP", "").strip()
         opcua_server_port = os.getenv("OPCUA_SERVER_PORT", "").strip()
@@ -64,14 +61,14 @@ class OPCUAPublisher():
         opcua_url = f"opc.tcp://{opcua_server_ip}:{opcua_server_port}"
         self.log.info('Initializing publisher for OPCUA')
         self.client = Client(url=opcua_url)
-        self.opcua_variable = app_cfg["opcua_publisher"].get("variable", "").strip()
+        self.opcua_variable = opcua_cfg.get("variable", "").strip()
         if not self.opcua_variable:
             self.log.error(f"No variable configured for the OPCUA server {opcua_url}")
             return
         if server_username and server_password:
             self.client.set_user(server_username)
             self.client.set_password(server_password)
-        self.publish_frame = app_cfg["opcua_publisher"].get("publish_frame", "")
+        self.publish_frame = opcua_cfg.get("publish_frame", False)
         try:
             self.client.connect()
             self.initialized=True

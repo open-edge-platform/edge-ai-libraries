@@ -60,10 +60,6 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
         ```sh
         {
             "config": {
-                "logging": {
-                    "C_LOG_LEVEL": "INFO",
-                    "PY_LOG_LEVEL": "INFO"
-                },
                 "pipelines": [
                     {
                         "name": "pallet_defect_detection",

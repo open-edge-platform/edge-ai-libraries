@@ -562,7 +562,8 @@ class TestGStreamerPipeline:
         mock_bus = MagicMock()
         mock_app_destination = MagicMock()
         mock_app_source = MagicMock()
-        mock_pipeline.get_bus.return_value = mock_bus
+        if mock_pipeline is not None:
+            mock_pipeline.get_bus.return_value = mock_bus
         gstreamer_pipeline.pipeline = mock_pipeline
         gstreamer_pipeline._bus_connection_id = 1
         gstreamer_pipeline._app_source = mock_app_source
@@ -570,6 +571,12 @@ class TestGStreamerPipeline:
         gstreamer_pipeline.appsink_element = "appsink"
         gstreamer_pipeline.appsrc_element = "appsink"
         gstreamer_pipeline._delete_pipeline(mock_state)
+        assert gstreamer_pipeline.pipeline is None
+        assert gstreamer_pipeline._app_source is None
+        assert gstreamer_pipeline.appsrc_element is None
+        assert gstreamer_pipeline.appsink_element is None
+        assert gstreamer_pipeline._bus_connection_id is None
+        assert gstreamer_pipeline._app_destinations == []
         gstreamer_pipeline._cal_avg_fps.assert_called_once()
         mock_pipeline.get_bus.assert_called_once()
         mock_bus.remove_signal_watch.assert_called_once()
@@ -578,12 +585,6 @@ class TestGStreamerPipeline:
         mock_app_source.finish.assert_called_once()
         mock_app_destination.finish.assert_called_once()
         gstreamer_pipeline._finished_callback.assert_called_once()
-        assert gstreamer_pipeline.pipeline is None
-        assert gstreamer_pipeline._app_source is None
-        assert gstreamer_pipeline.appsrc_element is None
-        assert gstreamer_pipeline.appsink_element is None
-        assert gstreamer_pipeline._bus_connection_id is None
-        assert gstreamer_pipeline._app_destinations == []
 
     def test_delete_pipeline_with_error_state(self, mocker, gstreamer_pipeline):
         gstreamer_pipeline._cal_avg_fps = MagicMock()

@@ -35,6 +35,9 @@ def encode_frame(enc_type, enc_level, frame, height, width, channels, send_overl
     
     if not enc_level:
         enc_level = 85
+
+    if meta_data is None:
+        raise ValueError("Meta data not given!")
     
     data = np.frombuffer(frame, dtype="uint8")
     if (meta_data["img_format"] == "NV12") or (meta_data["img_format"] == "I420"):
@@ -65,8 +68,6 @@ def encode_frame(enc_type, enc_level, frame, height, width, channels, send_overl
     
     channel_order = "bgr"
     if send_overlayed_frame:         
-        if meta_data is None:
-            raise ValueError("Meta data is required to overlay frame")
         task = meta_data["task"]
         
         if task not in ["object_detection", "classification"]:

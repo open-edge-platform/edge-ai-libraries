@@ -30,7 +30,7 @@ def parse_options(args=None):
                         type=int, default=int(os.getenv('MAX_RUNNING_PIPELINES', '-1')))
     parser.add_argument("--log_level", action="store",
                         dest="log_level",
-                        choices=['INFO', 'DEBUG'], default=os.getenv('LOG_LEVEL', 'INFO'))
+                        choices=['INFO', 'DEBUG'], default=os.getenv('LOG_LEVEL', 'INFO').upper() if os.getenv('LOG_LEVEL') else 'INFO')
     parser.add_argument("--config_path", action="store",
                         dest="config_path",
                         default=os.getenv('CONFIG_PATH',

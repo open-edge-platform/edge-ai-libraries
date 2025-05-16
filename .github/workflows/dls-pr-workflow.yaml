@@ -1,0 +1,38 @@
+name: "[DLS] PR workflow"
+run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build-dev-images:
+    name: Build dev img
+    uses: ./.github/workflows/dls-build-dev-docker-images.yaml
+
+  build-deb-and-img:
+    name: Build .deb and img
+    uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
