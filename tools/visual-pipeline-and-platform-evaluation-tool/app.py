@@ -140,12 +140,12 @@ def detect_click(evt: gr.SelectData):
 
 
 chart_titles = [
-    "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [K]",
-    "Memory Usage [%]", "Package Power [Wh]", "System Temperature [K]", "GPU Power Usage [W]",
+    "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [C]",
+    "Memory Usage [%]", "Package Power [Wh]", "System Temperature [C]", "GPU Power Usage [W]",
     "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
 ]
 y_labels = [
-    "FPS", "Frequency", "Percent Used", "Kelvin","Percent Used", "Watts", "Kelvin", 
+    "FPS", "Frequency", "Percent Used", "Celcius", "Percent Used", "Watts", "Celcius", 
     "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent", "Percent"
 ]
 # Create a dataframe for each chart
@@ -332,9 +332,9 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = mem_val
     elif title == "Package Power [Wh]" and power_val is not None:
         new_y = power_val
-    elif title == "System Temperature [K]" and temp_val is not None:
+    elif title == "System Temperature [C]" and temp_val is not None:
         new_y = temp_val
-    elif title ==  "CPU Temperature [K]" and temp_val is not None:
+    elif title ==  "CPU Temperature [C]" and temp_val is not None:
         new_y = temp_val
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
         new_y = gpu_power
