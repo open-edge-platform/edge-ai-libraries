@@ -142,11 +142,11 @@ def detect_click(evt: gr.SelectData):
 chart_titles = [
     "Throughput [fps]", "CPU Frequency [MHz]", "CPU Usage [%]", "CPU Temperature [K]",
     "Memory Usage [%]", "Package Power [Wh]", "System Temperature [K]", "GPU Power Usage [W]",
-    "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy"
+    "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
 ]
 y_labels = [
     "FPS", "Frequency", "Percent Used", "Kelvin","Percent Used", "Watts", "Kelvin", 
-    "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent"
+    "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent", "Percent"
 ]
 # Create a dataframe for each chart
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
@@ -172,7 +172,7 @@ def read_latest_metrics(target_ns: int = None):
 
 
     cpu_user = mem_used_percent = package_power = sys_temp = gpu_power = None
-    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = None
+    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy =  gpu_compute = None
 
     for line in reversed(lines):
         if cpu_user is None and "cpu" in line:
@@ -265,16 +265,23 @@ def read_latest_metrics(target_ns: int = None):
                         gpu_video = float(part.split("=")[1])
                     except:
                         pass
-
+        
+        if gpu_compute is None and "engine=compute" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_compute = float(part.split("=")[1])
+                    except:
+                        pass
         
         if all(v is not None for v in [
             cpu_user, mem_used_percent, package_power, sys_temp, gpu_power,
-            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq]):
+            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute]):
             break
 
     return [
         cpu_user, mem_used_percent, package_power, sys_temp, gpu_power,
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ]
 
 
@@ -301,7 +308,7 @@ def generate_stream_data(i, timestamp_ns=None):
     new_y = 0
     (
         cpu_val, mem_val, power_val, temp_val, gpu_power, 
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
     ) = read_latest_metrics(timestamp_ns)
 
     try:
@@ -343,6 +350,8 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = gpu_video
     elif title == "GPU_copy" and gpu_copy is not None:
         new_y = gpu_copy
+    elif title == "GPU_compute" and gpu_compute is not None:
+        new_y = gpu_compute
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
     stream_dfs[i] = pd.concat(
