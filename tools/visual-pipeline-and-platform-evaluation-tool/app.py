@@ -1,17 +1,11 @@
-import os
-import random
-import string
-import time
-import math
 import requests
 import logging
 
 import gradio as gr
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import Arc
+import pandas as pd
+import plotly.graph_objects as go
 
-from collect import CollectionReport, MetricsCollectorFactory
+from datetime import datetime
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import SmartNVRPipeline, Transportation2Pipeline
 
@@ -113,195 +107,6 @@ def download_file(url, local_filename):
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
 
-# Generate Gagues
-def generate_gauges(results: OptimizationResult, report: CollectionReport):
-    def draw_gauge(ax, value, min_value, max_value, title):
-        ax.set_xlim(-1.2, 1.2)
-        ax.set_ylim(-0.4, 1.2)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.axis("off")
-
-        colors = ["red", "orange", "yellow", "green"]
-        colors.reverse()  # Green for high values
-
-        # Dynamically calculate threshold ranges based on min/max
-        color_thresholds = np.linspace(min_value, max_value, len(colors) + 1)
-
-        # light grey arc
-        full_arc = Arc(
-            (0, 0),
-            2,
-            1.4,
-            angle=0,
-            theta1=0,
-            theta2=180,
-            linewidth=25,
-            color="lightgray",
-        )
-        ax.add_patch(full_arc)
-
-        fill_color = colors[-1]  # Default to highest color
-        for i in range(1, len(color_thresholds)):
-            if value <= color_thresholds[i]:
-                fill_color = colors[i - 1]
-                break
-
-        fill_arc = Arc(
-            (0, 0),
-            2,
-            1.4,
-            angle=0,
-            theta1=180
-            - ((value - min_value) / (max_value - min_value))
-            * 180,  # Left-to-right fill
-            theta2=180,
-            linewidth=25,
-            color=fill_color,
-        )
-        ax.add_patch(fill_arc)
-
-        ax.text(
-            0, 0, f"{value}", ha="center", va="center", fontsize=30, fontweight="bold"
-        )
-
-        ax.text(-1.1, -0.15, f"{min_value}", ha="center", va="center", fontsize=15)
-        ax.text(1.1, -0.15, f"{max_value}", ha="center", va="center", fontsize=15)
-
-        ax.text(
-            0, -0.35, title, ha="center", va="center", fontsize=20, fontweight="bold"
-        )
-
-    # Results should be mapped to this format:
-    mapped_results = [
-        {
-            "label": "Throughput [fps]",
-            "value": round(results.per_stream_fps, 2) if results and isinstance(results.per_stream_fps, (int, float)) else None,
-            "min": 0,
-            "max": 500,
-        },
-        {
-            "label": "CPU Frequency [MHz]",
-            "value": report.avg_cpu_frequency_mhz,
-            "min": 0,
-            "max": 4800,
-        },
-        {
-            "label": "CPU Usage [%]",
-            "value": report.avg_cpu_usage_percent,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "CPU Temperature [K]",
-            "value": round(report.avg_cpu_temperature_kelvins, 2),
-            "min": 0,
-            "max": 500,
-        },
-        {
-            "label": "Memory Usage [%]",
-            "value": report.avg_memory_usage_percent,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "Package Power [Wh]",
-            "value": report.avg_package_power_wh,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "System Temperature [K]",
-            "value": report.avg_system_temperature_kelvins,
-            "min": 0,
-            "max": 500,
-        },
-    ]
-    
-    mapped_results = [item for item in mapped_results if item["value"] is not None]
-    # Create 1 row with 4 subplots
-    num_metrics = len(mapped_results)
-    num_cols = min(num_metrics, 4)
-    num_rows = (num_metrics - 1) // num_cols + 1
-    fig, axes = plt.subplots(num_rows, num_cols, figsize=(17, 8))  # Adjust width for better spacing
-    axes = axes.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    for ax, metric in zip(axes, mapped_results):
-        draw_gauge(ax, metric["value"], metric["min"], metric["max"], metric["label"])
-
-    # Disable the last axis
-    for ax in axes[len(mapped_results):]:
-        ax.axis("off")
-
-    fig.tight_layout()  # Adjust layout to prevent overlap
-    # plt.show()
-    return fig
-    
-def normalize(values):
-    max_value = max(values)
-    if max_value == 0:
-        return [0] * len(values)
-    return [(value / max_value) * 100 for value in values]
-
-
-def generate_gpu_time_series(report: CollectionReport):
-    num_metrics = len(report.gpu_engine_utils) + 2
-    cols = 2
-    rows = math.ceil(num_metrics/cols)
-    
-    fig_height = max(3 * rows, 8)
-    fig, ax = plt.subplots(rows, cols, figsize=(14, fig_height))
-
-    # Flatten the axes array for easier iteration
-    ax = ax.flatten()
-    
-    gpu_power = report.avg_gpu_power_wh if report.avg_gpu_power_wh else []
-    gpu_freq = report.avg_gpu_frequency_mhz if report.avg_gpu_frequency_mhz else []
-    timestamps = [t / 1000 for t in report.gpu_timestamps] 
-    
-    i = 0
-    if gpu_power:
-        ax[i].plot(timestamps, gpu_power, label="GPU Power (W)", color="r")
-        ax[i].set_xlabel("Time (s)", labelpad=15)
-        ax[i].set_ylabel("Power (W)", labelpad=15)
-        ax[i].set_title("GPU Power Usage", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, max(gpu_power) * 1.1)
-        i += 1
-    
-    if gpu_freq:
-        ax[i].plot(timestamps, gpu_freq, label="GPU Frequency (MHz)", color="b")
-        ax[i].set_xlabel("Time (s)", labelpad=12)
-        ax[i].set_ylabel("Frequency (MHz)", labelpad=12)
-        ax[i].set_title("GPU Frequency", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, max(gpu_freq) * 1.1)
-        i += 1
-    
-    for engine, values in report.gpu_engine_utils.items():
-        # normalized_values = normalize(values)
-        normalized_values = values
-        engine_name = engine.replace("gpu_engine_", "GPU_")
-        ax[i].plot(timestamps, normalized_values, label=engine_name, color="g")
-        ax[i].set_xlabel("Time (s)", labelpad=12)
-        ax[i].set_ylabel("Usage (%)", labelpad=12)
-        ax[i].set_title(f"{engine_name}", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, 100)
-        i += 1
-        
-    # Hide any unused subplots
-    for j in range(i, len(ax)):
-        fig.delaxes(ax[j])
-
-    fig.tight_layout(pad=3)
-    return fig  
 
 # This elements are not used in the current version of the app
 # # Function to check if a click is inside any bounding box
@@ -332,6 +137,255 @@ def detect_click(evt: gr.SelectData):
                     return gr.update(open=True)
 
     return gr.update(open=False)
+
+
+chart_titles = [
+    "Pipeline Throughput [FPS]",
+    "CPU Frequency [KHz]",
+    "CPU Utilization [%]",
+    "CPU Temperature [C°]",
+    "Memory Utilization [%]",
+    "GPU Package Power Usage [W]",
+    "GPU Power Usage [W]",
+    "GPU Frequency [MHz]",
+    "GPU Render Engine Utilization [%]",
+    "GPU Video Enhance Engine Utilization [%]",
+    "GPU Video Engine Utilization [%]",
+    "GPU Copy Engine Utilization [%]",
+    "GPU Compute Engine Utilization [%]"
+]
+
+y_labels = [
+    "Throughput", 
+    "Frequency",
+    "Utilization",
+    "Temperature",
+    "Utilization",
+    "Power", 
+    "Power",
+    "Frequency",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization"
+]
+
+# Create a dataframe for each chart
+stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
+
+
+def read_latest_metrics(target_ns: int = None):
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
+            lines = [line.strip() for line in f.readlines()[-500:]]
+
+    except FileNotFoundError:
+        return [None] * 11
+
+    if target_ns is not None:
+        # Filter only lines near the target timestamp 
+        surrounding_lines = [
+            line for line in lines
+            if line.split() and line.split()[-1].isdigit()
+            and abs(int(line.split()[-1]) - target_ns) < 1e9  
+        ]
+        lines = surrounding_lines if surrounding_lines else []
+  
+
+
+    cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
+    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy =  gpu_compute = None
+
+    for line in reversed(lines):
+        if cpu_user is None and "cpu" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if field.startswith("usage_user="):
+                        try:
+                            cpu_user = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if mem_used_percent is None and "mem" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if field.startswith("used_percent="):
+                        try:
+                            mem_used_percent = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if gpu_package_power is None and "pkg_cur_power" in line:
+            parts = line.split()
+            try:
+                gpu_package_power = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if gpu_power is None and "gpu_cur_power" in line:
+            parts = line.split()
+            try:
+                gpu_power = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if core_temp is None and "temp" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "temp" in field:
+                        try:
+                            core_temp = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if gpu_freq is None and "gpu_frequency" in line:
+            for part in line.split():
+                if part.startswith("value="):
+                    try:
+                        gpu_freq = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if cpu_freq is None and "cpu_frequency_avg" in line:
+            try:
+                parts = [part for part in line.split() if "frequency=" in part]
+                if parts:
+                    cpu_freq = float(parts[0].split("=")[1])
+            except:
+                pass
+        
+        if gpu_render is None and "engine=render" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_render = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_copy is None and "engine=copy" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_copy = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_ve is None and "engine=video-enhance" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_ve = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_video is None and "engine=video" in line and "video-enhance" not in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_video = float(part.split("=")[1])
+                    except:
+                        pass
+        
+        if gpu_compute is None and "engine=compute" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_compute = float(part.split("=")[1])
+                    except:
+                        pass
+        
+        if all(v is not None for v in [
+            cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
+            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute]):
+            break
+
+    return [
+        cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
+    ]
+
+
+def create_empty_fig(title, y_axis_label):
+    fig = go.Figure()
+    fig.update_layout(
+        title=title,
+        xaxis_title="Time",
+        yaxis_title=y_axis_label
+    )
+    return fig
+
+
+# Store figures globally
+figs = [
+    create_empty_fig(chart_titles[i], y_labels[i])
+    for i in range(len(chart_titles))
+]
+
+
+def generate_stream_data(i, timestamp_ns=None):
+    new_x = datetime.now() if timestamp_ns is None else datetime.fromtimestamp(timestamp_ns / 1e9)
+
+    new_y = 0
+    (
+        cpu_val, mem_val, gpu_package_power, core_temp, gpu_power, 
+        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
+    ) = read_latest_metrics(timestamp_ns)
+
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
+            lines = [line.strip() for line in f.readlines()[-500:]]
+            latest_fps = float(lines[-1])
+        
+    except FileNotFoundError:
+        latest_fps = 0
+    
+    except IndexError:
+        latest_fps = 0
+
+    title = chart_titles[i]
+
+    if title == "Pipeline Throughput [FPS]":
+        new_y = latest_fps
+    elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
+        new_y = cpu_freq
+    elif title == "CPU Utilization [%]" and cpu_val is not None:
+        new_y = cpu_val
+    elif title ==  "CPU Temperature [C°]" and core_temp is not None:
+        new_y = core_temp
+    elif title == "Memory Utilization [%]" and mem_val is not None:
+        new_y = mem_val
+    elif title == "GPU Package Power Usage [W]" and gpu_package_power is not None:
+        new_y = gpu_package_power
+    elif title == "GPU Power Usage [W]" and gpu_power is not None:
+        new_y = gpu_power
+    elif title == "GPU Frequency [MHz]" and gpu_freq is not None:
+        new_y = gpu_freq
+    elif title == "GPU Render Engine Utilization [%]" and gpu_render is not None:
+        new_y = gpu_render
+    elif title == "GPU Video Enhance Engine Utilization [%]" and gpu_ve is not None:
+        new_y = gpu_ve
+    elif title == "GPU Video Engine Utilization [%]" and gpu_video is not None:
+        new_y = gpu_video
+    elif title == "GPU Copy Engine Utilization [%]" and gpu_copy is not None:
+        new_y = gpu_copy
+    elif title == "GPU Compute Engine Utilization [%]" and gpu_compute is not None:
+        new_y = gpu_compute
+
+    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
+    stream_dfs[i] = pd.concat(
+        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], 
+        ignore_index=True
+    ).tail(50)
+
+    fig = figs[i]
+    fig.data = []  # clear previous trace
+    fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i]["y"], mode="lines"))
+
+    return fig
 
 
 # Create the interface
@@ -483,6 +537,7 @@ def create_interface():
         label="Number of Inference Requests (nireq)",
         interactive=True,
     )
+
     # This elements are not used in the current version of the app
     # # Object classification accordion
     # object_classification_accordion = gr.Accordion(
@@ -509,10 +564,6 @@ def create_interface():
     #     ],
     #     value="CPU",
     # )
-
-    # Results
-    cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
-    gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
 
     # Run button
     run_button = gr.Button("Run")
@@ -543,11 +594,23 @@ def create_interface():
                 )
                 run_button.render()
                 benchmark_button.render()
-                #results_plot.render()
                 best_config_textbox.render()
-                cpu_metrics_plot.render()
-                
-                gpu_time_series_plot.render()
+
+                # Metrics plots
+                with gr.Row():
+                    plots = [
+                        gr.Plot(
+                            value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i],
+                            min_width=500,
+                            show_label=False,
+                        )
+                        for i in range(len(chart_titles))
+                    ]
+                    timer = gr.Timer(1, active=False)
+                    def update_all_plots():
+                        return [generate_stream_data(i) for i in range(len(chart_titles))]
+
+                    timer.tick(update_all_plots, outputs=plots)
 
                 def on_run(
                     recording_channels,
@@ -562,6 +625,14 @@ def create_interface():
                     nireq,
                     input_video_player,
                 ):
+                    global stream_dfs
+                    stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]  # Reset all data
+                    gr.update(active=True)
+
+                    # Reset the FPS file
+                    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                        f.write(f"0.0\n")
+
                     video_output_path, constants, param_grid = prepare_video_and_constants(
                         input_video_player,
                         object_detection_model,
@@ -569,7 +640,7 @@ def create_interface():
                         batch_size,
                         nireq,
                         inference_interval,
-                )
+                    )
              
                     # This elements are not used in the current version of the app
                     # match object_classification_model:
@@ -594,10 +665,6 @@ def create_interface():
                     if recording_channels + inferencing_channels == 0:
                         raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
 
-                    system = os.uname()
-                    collector = MetricsCollectorFactory.get_collector(
-                        sysname=system.sysname, release=system.release
-                    )
                     optimizer = PipelineOptimizer(
                         pipeline=pipeline,
                         constants=constants,
@@ -605,17 +672,16 @@ def create_interface():
                         channels=(recording_channels, inferencing_channels),
                         elements=gst_inspector.get_elements(),
                     )
-                    collector.collect()
-                    time.sleep(3)
                     optimizer.optimize()
-                    time.sleep(3)
-                    collector.stop()
-                    time.sleep(3)
                     best_result = optimizer.evaluate()
-                    report = collector.report()
-                    cpu_plot = generate_gauges(best_result, report)
-                    gpu_plot = generate_gpu_time_series(report)
-                    return [video_output_path, cpu_plot, gpu_plot]
+                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
+
+                    best_result_message = (
+                        f"Total FPS: {best_result.total_fps:.2f}, "
+                        f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+                    )
+
+                    return [video_output_path] + plot_updates + [best_result_message]
 
                 def on_benchmark(
                     fps_floor,
@@ -670,10 +736,25 @@ def create_interface():
                 )
 
                 run_button.click(
-                    fn=lambda video: gr.update(interactive=False),
-                    inputs=input_video_player,
+                    fn=lambda: gr.update(interactive=False),
                     outputs=[run_button],
                     queue=True,
+                ).then(
+                    lambda: (
+                        globals().update(
+                            stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
+                        )
+                        or [
+                            plots[i].value.update(data=[])  # Clear data, keep layout
+                            for i in range(len(chart_titles))
+                        ]
+                        or plots  # Return updated plot objects
+                    ),
+                    outputs=plots
+                ).then(
+                    lambda: gr.update(active=True),  # This updates the same timer
+                    inputs=None,
+                    outputs=timer,
                 ).then(
                     on_run,
                     inputs=[
@@ -689,7 +770,11 @@ def create_interface():
                         nireq,
                         input_video_player,
                     ],
-                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
+                    outputs=[output_video_player] + plots + [best_config_textbox],
+                ).then(
+                    lambda: gr.update(active=False),  # This updates the same timer
+                    inputs=None,
+                    outputs=timer,
                 ).then(
                     fn=lambda: gr.update(
                         interactive=True
