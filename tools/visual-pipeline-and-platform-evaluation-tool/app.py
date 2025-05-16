@@ -345,7 +345,10 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = gpu_copy
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
-    stream_dfs[i] = pd.concat([stream_dfs[i], new_row], ignore_index=True).tail(50)
+    stream_dfs[i] = pd.concat(
+        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], 
+        ignore_index=True
+    ).tail(50)
 
     fig = figs[i]
     fig.data = []  # clear previous trace
