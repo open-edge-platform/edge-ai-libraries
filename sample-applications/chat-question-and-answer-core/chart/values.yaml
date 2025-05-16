@@ -1,6 +1,6 @@
 image:
   registry: "intel/"
-  backendTag: "core_1.2"
+  backendTag: "core_1.2.0"
   pullPolicy: IfNotPresent
 
 global:
