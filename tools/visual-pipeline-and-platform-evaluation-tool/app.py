@@ -140,14 +140,37 @@ def detect_click(evt: gr.SelectData):
 
 
 chart_titles = [
-    "Throughput [fps]", "CPU Frequency [KHz]", "CPU Usage [%]", "CPU Temperature [C]",
-    "Memory Usage [%]", "GPU Package Power Usage [W]", "GPU Power Usage [W]",
-    "GPU Frequency [MHz]", "GPU_render", "GPU_video enhance", "GPU_video", "GPU_copy", "GPU_compute"
+    "Pipeline Throughput [FPS]",
+    "CPU Frequency [KHz]",
+    "CPU Utilization [%]",
+    "CPU Temperature [C°]",
+    "Memory Utilization [%]",
+    "GPU Package Power Usage [W]",
+    "GPU Power Usage [W]",
+    "GPU Frequency [MHz]",
+    "GPU Render Engine Utilization [%]",
+    "GPU Video Enhance Engine Utilization [%]",
+    "GPU Video Engine Utilization [%]",
+    "GPU Copy Engine Utilization [%]",
+    "GPU Compute Engine Utilization [%]"
 ]
+
 y_labels = [
-    "FPS", "Frequency", "Percent Used", "Celcius", "Percent Used", "Watts", 
-    "Watts", "Frequency", "Percent", "Percent", "Percent", "Percent", "Percent"
+    "Throughput", 
+    "Frequency",
+    "Utilization",
+    "Temperature",
+    "Utilization",
+    "Power", 
+    "Power",
+    "Frequency",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization"
 ]
+
 # Create a dataframe for each chart
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
 
@@ -325,31 +348,31 @@ def generate_stream_data(i, timestamp_ns=None):
 
     title = chart_titles[i]
 
-    if title == "Throughput [fps]":
+    if title == "Pipeline Throughput [FPS]":
         new_y = latest_fps
-    elif title == "CPU Usage [%]" and cpu_val is not None:
+    elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
+        new_y = cpu_freq
+    elif title == "CPU Utilization [%]" and cpu_val is not None:
         new_y = cpu_val
-    elif title == "Memory Usage [%]" and mem_val is not None:
+    elif title ==  "CPU Temperature [C°]" and core_temp is not None:
+        new_y = core_temp
+    elif title == "Memory Utilization [%]" and mem_val is not None:
         new_y = mem_val
     elif title == "GPU Package Power Usage [W]" and gpu_package_power is not None:
         new_y = gpu_package_power
-    elif title ==  "CPU Temperature [C]" and core_temp is not None:
-        new_y = core_temp
     elif title == "GPU Power Usage [W]" and gpu_power is not None:
         new_y = gpu_power
-    elif title == "CPU Frequency [KHz]"and cpu_freq is not None:
-        new_y = cpu_freq
     elif title == "GPU Frequency [MHz]" and gpu_freq is not None:
         new_y = gpu_freq
-    elif title == "GPU_render" and gpu_render is not None:
+    elif title == "GPU Render Engine Utilization [%]" and gpu_render is not None:
         new_y = gpu_render
-    elif title == "GPU_video enhance" and gpu_ve is not None:
+    elif title == "GPU Video Enhance Engine Utilization [%]" and gpu_ve is not None:
         new_y = gpu_ve
-    elif title == "GPU_video" and gpu_video is not None:
+    elif title == "GPU Video Engine Utilization [%]" and gpu_video is not None:
         new_y = gpu_video
-    elif title == "GPU_copy" and gpu_copy is not None:
+    elif title == "GPU Copy Engine Utilization [%]" and gpu_copy is not None:
         new_y = gpu_copy
-    elif title == "GPU_compute" and gpu_compute is not None:
+    elif title == "GPU Compute Engine Utilization [%]" and gpu_compute is not None:
         new_y = gpu_compute
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
@@ -569,6 +592,7 @@ def create_interface():
                         gr.Plot(
                             value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i],
                             min_width=500,
+                            show_label=False,
                         )
                         for i in range(len(chart_titles))
                     ]
