@@ -25,6 +25,7 @@ x-vippet: &vippet
   # The following config applies to Linux:
   environment:
     GST_DEBUG: "1"
+    TZ: America/Los_Angeles
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
@@ -72,22 +73,23 @@ services:
       - "/dev/accel:/dev/accel"
     profiles: [npu]
   collector:
+    image: docker.io/intel/vippet-collector:v1.0.0
     build:
       context: ./collector
       dockerfile: Dockerfile
-    image: docker.io/intel/vippet-collector:v1.0.0
+    container_name: collector
+    privileged: true
     devices:
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
+    network_mode: host
     ipc: host
     pid: host
-    network_mode: host
     volumes:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
-    privileged: true
     restart: on-failure:5
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
