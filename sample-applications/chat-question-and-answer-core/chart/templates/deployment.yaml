@@ -56,9 +56,9 @@ spec:
           {{ if .Values.gpu.enabled }}
           resources:
             requests:
-              {{ .Values.gpu.key}}: "1"
+              {{ .Values.gpu.key}}: 1
             limits:
-              {{ .Values.gpu.key}}: "1"
+              {{ .Values.gpu.key}}: 1
           devices:
             - name: dri-device
               containerPath: /dev/dri
