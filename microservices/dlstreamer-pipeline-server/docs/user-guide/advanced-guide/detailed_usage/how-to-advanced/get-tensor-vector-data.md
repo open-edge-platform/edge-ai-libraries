@@ -4,7 +4,7 @@ DL Streamer Pipeline Server supports extracting tensor data (as python lists) fr
 
 Follow the below steps to publish tensor vector data along with other metadata via MQTT
 
-1. Update default pipeline present in `[WORKDIR]/configs/default/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) - 
+1. Update default pipeline present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the pipeline below (edit the path to model xml and proc json to your needs) - 
     `NOTE` The model used in the below pipeline is from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download it for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
     ```sh
     "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
@@ -12,7 +12,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
 
     `NOTE` The property `add-tensor-data` for the dlstreamer element gvametaconvert is set to `true`. 
 
-2. Add the following MQTT parameters to `[WORKDIR]/configs/default/config.json` as shown below to publish the tensor data along with all other metadata via MQTT. The below section should be present in `[WORKDIR]/configs/default/config.json` under `pipelines` section. 
+2. Add the following MQTT parameters to `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` as shown below to publish the tensor data along with all other metadata via MQTT. The below section should be present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` under `pipelines` section. 
 
     ```sh
     "mqtt_publisher": {
@@ -20,42 +20,8 @@ Follow the below steps to publish tensor vector data along with other metadata v
         "topic": "dlstreamer_pipeline_results"
     }
     ```
-    `NOTE` Follow instruction in the [Prerequisite section](../../../how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
 
-    After the above changes, the updated config.json looks something like this.
-
-    ```json
-    {
-        "config": {
-            "pipelines": [
-                {
-                    "name": "pallet_defect_detection",
-                    "source": "gstreamer",
-                    "queue_maxsize": 50,
-                    "pipeline": "{auto_source} name=source ! decodebin ! gvadetect model=/home/pipeline-server/omz/intel/person-vehicle-bike-detection-2004/FP32/person-vehicle-bike-detection-2004.xml model-proc=/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/person-vehicle-bike-detection-2004.json ! queue ! gvainference model=/home/pipeline-server/resources/models/classification/resnet50/FP16/resnet-50-pytorch.xml inference-region=1 ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvametapublish ! appsink name=destination ",
-                    "parameters": {
-                        "type": "object",
-                        "properties": {
-                            "detection-properties": {
-                                "element": {
-                                    "name": "detection",
-                                    "format": "element-properties"
-                                }
-                            }
-                        }
-                    },
-                    "auto_start": false,
-                    "mqtt_publisher": {
-                        "publish_frame": false,
-                        "topic": "dlstreamer_pipeline_results"
-                    }
-                }
-            ]
-        }
-    }
-    ```
-
-3. Configure MQTT `host` and `port` present in `[WORKDIR]/docker/.env`.
+3. Configure MQTT `host` and `port` present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env`.
     ```sh
     MQTT_HOST=<mqtt_broker_address>
     MQTT_PORT=1883

@@ -37,7 +37,7 @@ If you already have a functioning OPC UA server, you can skip this step. Otherwi
 To publish the meta-data and frame over OPCUA, follow the steps below.
 
 1. Modify environment variables
-    - Provide the OPCUA server details and credentials in `[WORKDIR]/docker/.env` file.
+    - Provide the OPCUA server details and credentials in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.
         ```sh
         OPCUA_SERVER_IP=<IP-Address of the OPCUA server>
         OPCUA_SERVER_PORT=48010
@@ -56,38 +56,8 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
           - OPCUA_SERVER_PASSWORD=$OPCUA_SERVER_PASSWORD
     ```
 3. Update the default `config.json`. 
-    - A sample config has been provided for this demonstration at `[WORKDIR]/configs/sample_opcua/config.json`. Replace the contents in default config present at `[WORKDIR]/configs/default/config.json` with the contents of the sample config. The config.json looks something like this.
-        ```sh
-        {
-            "config": {
-                "pipelines": [
-                    {
-                        "name": "pallet_defect_detection",
-                        "source": "gstreamer",
-                        "queue_maxsize": 50,
-                        "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "detection-properties": {
-                                    "element": {
-                                        "name": "detection",
-                                        "format": "element-properties"
-                                    }
-                                }
-                            }
-                        },
-                        "opcua_publisher": {
-                            "publish_frame" : true,
-                            "variable" : "<OPCUA-server-variable>"
-                        },
-                        "auto_start": false
-                    }
-                ]
-            }
-        }
-
-        ```
+    - A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_opcua/config.json`. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config.
+        
         - `variable` OPCUA server variable to which the meta data will be written.
             `ns=3;s=Demo.Static.Scalar.String` is an example OPC UA server variable supported by `OPC UA C++ Demo Server`
         - `publish_frame` set this flag to '*true*' if you need frame blobs inside the metadata to be published. If it is set to '*false*' only metadata will be published.

@@ -22,34 +22,7 @@ Image request can be run in 2 modes - *sync* and *async*. This configuration is 
 ### Async mode
 
 By default, image ingestor runs in async mode i.e. `sync` is `false`.
-A sample config has been provided in below snippet:
-```json
-{
-    "config": {
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "image_ingestor",
-                "queue_maxsize": 50,
-                "pipeline": "appsrc name=source ! decodebin ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                            "element": {
-                               "name": "detection",
-                               "format": "element-properties"
-                             }
-                       }
-                    }
-                },
-                "auto_start": false
-            }
-        ]
-    }
-}
-
-```
+A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config.
 
 Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 
@@ -101,34 +74,14 @@ Users can make as many request to the queued pipeline until the pipeline has bee
 
 ### Sync mode
 
-Another way of queuing a image ingestor pipeline is in synchronous mode. The pipeline destination should be compatible to support this mode i.e. the destination should be `appsink`. A sample config has been provided in below snippet:
-```json
-{
-    "config": {
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "image_ingestor",
-                "queue_maxsize": 50,
-                "pipeline": "appsrc name=source  ! decodebin  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                            "element": {
-                               "name": "detection",
-                               "format": "element-properties"
-                             }
-                       }
-                    }
-                },
-                "auto_start": false
-            }
-        ]
-    }
-}
+Another way of queuing a image ingestor pipeline is in synchronous mode. The pipeline destination should be compatible to support this mode i.e. the destination should be `appsink`.
 
-```
+- Change `"pipeline"` section in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. 
+
+    ```sh
+    "pipeline": "appsrc name=source  ! decodebin  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
+    ```
+- Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the modified sample config.
 
 Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 

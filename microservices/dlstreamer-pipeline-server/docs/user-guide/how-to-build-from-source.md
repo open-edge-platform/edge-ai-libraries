@@ -3,7 +3,7 @@
 ## Steps
 
 ### Prerequisites
-Add the following lines in `[WORKDIR]/docker/.env` if you are behind a proxy.
+Add the following lines in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` if you are behind a proxy.
 
   ``` sh
   http_proxy= # example: http_proxy=http://proxy.example.com:891
@@ -13,11 +13,11 @@ Add the following lines in `[WORKDIR]/docker/.env` if you are behind a proxy.
 
 ### Build DL Streamer Pipeline Server image and start container
 
-1. Clone the repository and change to the project directory for DL Streamer Pipeline Server
+1.  Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
 ```sh
-git clone <link-to-repository>
-cd <path/to/dlstreamer-pipeline-server/>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
 ```
 ---
 
