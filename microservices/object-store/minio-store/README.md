@@ -45,7 +45,7 @@ An object storage component based on [Minio](https://github.com/minio/minio). Th
 
 ## Configuration
 
-We will be running our application in docker containers. Configuration step involves setting various environment variables, which are prerequisites for spinning up our containers and proper functioning of application inside them.
+We will be running our application in docker containers. Configuration step involves setting various environment variables, which are prerequisites for spinning up our containers and proper functioning of application inside them..
 
 Two containers will be deployed and each running specific service:
 
