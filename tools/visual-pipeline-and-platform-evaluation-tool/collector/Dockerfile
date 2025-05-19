@@ -27,4 +27,4 @@ RUN chmod +x read_cpu_freq.sh
 
 COPY ./supervisord.conf /etc/supervisor/conf.d/supervisord.conf
 
-ENTRYPOINT ["/usr/bin/supervisord"]
+ENTRYPOINT ["/usr/bin/supervisord", "-c", "/etc/supervisor/conf.d/supervisord.conf"]
