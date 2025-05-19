@@ -42,7 +42,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token      | `<your-huggingface-token>` |
-| `global.EMBEDDING_MODEL`|   embedding model name      | BAAI/bge-small-en-v1.5|
+| `global.EMBEDDING_MODEL_NAME`|   embedding model name      | BAAI/bge-small-en-v1.5|
 | `global.RERANKER_MODEL`  | reranker model name   | BAAI/bge-reranker-base   |
 | `global.LLM_MODEL` |  model to be used with ovms     | microsoft/Phi-3.5-mini-instruct|
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
@@ -59,15 +59,17 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 #### Step 1: Clone the Repository
 
 Clone the repository containing the Helm chart:
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 ```
 
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
+
 ```bash
-cd <repository-url>/sample-applications/chat-question-and-answer-core/chart
+cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File
@@ -77,6 +79,7 @@ Edit the `values.yaml` file located in the chart directory to set the necessary 
 #### Step 4: Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
+
 ```bash
 helm dependency build
 ```
