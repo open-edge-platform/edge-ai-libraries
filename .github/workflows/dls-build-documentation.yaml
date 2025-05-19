@@ -15,7 +15,7 @@ permissions: read-all
 jobs:
   build-docs:
     name: Build DL Streamer documentation
-    runs-on: ubuntu-latest # Change to self-hosted when ready to unblock linkcheck: [self-hosted, linux, ARM64]
+    runs-on: ubuntu-latest # Change to self-hosted when ready to unblock linkcheck: [self-hosted, linux]
     steps:
       - name: Check out edge-ai-libraries repository/libraries/dl-streamer
         uses: actions/checkout@v4.2.0
