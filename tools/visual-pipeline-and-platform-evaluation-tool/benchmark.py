@@ -30,87 +30,68 @@ class Benchmark:
 
         self.logger = logging.getLogger("Benchmark")
 
-    def run(self) -> Tuple[int, int, int, float]:
+
+
+    def run(self) ->Tuple[int, int, int, float]:
         start_time = time.time()
         streams = 1
-        last_good_config = (0, 0, 0, 0.0)
+        last_estimate = -1
+        max_duration = 300  # 5 minutes
+        last_good_config = []
 
-        # Phase 1: Exponential Expansion
         while True:
-            if time.time() - start_time > 300:
-                self.logger.info("Time limit reached during exponential phase")
+            if time.time() - start_time > max_duration:
+                self.logger.info("Stopping: Max time reached.")
                 break
-
-            ai_streams = math.ceil(streams * (self.rate/100))
+            ai_streams = math.ceil(streams * (self.rate / 100))
             non_ai_streams = streams - ai_streams
             results = run_pipeline_and_extract_metrics(
-                self.pipeline_cls,
+                pipeline_cmd=self.pipeline_cls,
                 constants=self.constants,
                 parameters=self.parameters,
                 channels=(non_ai_streams, ai_streams),
-                elements=self.elements,
+                elements=self.elements
             )
-            result = results[0]
+            if not results:
+                self.logger.warning("No results returned, exiting.")
+                break
 
+            result = results[0]
             try:
-                raw_fps_value = result["per_stream_fps"]
-                per_stream_fps = float(raw_fps_value)
+                total_fps = float(result["total_fps"])
+                per_stream_fps = float(result["per_stream_fps"])
                 if per_stream_fps >= self.fps_floor:
-                    last_good_config = (
+                    self.logger.info("Per stream FPS above floor")
+                    new_estimate = math.floor(total_fps / self.fps_floor)
+                    last_good_config.append((
                         result["num_streams"],
                         ai_streams,
                         non_ai_streams,
                         per_stream_fps,
-                    )
-                    streams *= 2
+                    ))
+                    if new_estimate == last_estimate or \
+                        (len(last_good_config) >= 2 and new_estimate == last_good_config[-2][0]):
+                            self.logger.info(f"Estimate converged at {new_estimate}.")
+                            break
+                    last_estimate = new_estimate
+                    streams = new_estimate
                 else:
-                    failed_streams = streams
-                    break
-            except (ValueError, TypeError):
-                self.logger.info(
-                    "Invalid FPS value, skipping this result:", per_stream_fps
-                )
-                failed_streams = streams
+                    self.logger.info("Per stream FPS below floor, decreasing stream count.")
+                    new_estimate = max(1, streams - 1)
+                    last_good_config.append((
+                        result["num_streams"],
+                        ai_streams,
+                        non_ai_streams,
+                        per_stream_fps,
+                    ))
+                    if new_estimate == last_estimate or \
+                        (len(last_good_config) >= 2 and new_estimate == last_good_config[-2][0]):
+                            self.logger.info(f"Estimate converged at lower {new_estimate}.")
+                            break
+                    last_estimate = new_estimate
+                    streams = new_estimate
+            except (KeyError, ValueError) as e:
+                self.logger.error(f"Invalid result encountered: {e}")
                 break
 
-        # Phase 2: Binary Search
-        low = last_good_config[0] + 1
-        high = failed_streams - 1
-        best_config = last_good_config
-
-        while low <= high:
-            if time.time() - start_time > 300:
-                self.logger.info("Time limit reached during Binary phase.")
-                break
-            mid = (low + high) // 2
-            ai_streams = math.ceil(mid * (self.rate/100))
-            non_ai_streams = mid - ai_streams
-
-            results = run_pipeline_and_extract_metrics(
-                self.pipeline_cls,
-                constants=self.constants,
-                parameters=self.parameters,
-                channels=(non_ai_streams, ai_streams),
-                elements=self.elements,
-            )
-
-            if not results:
-                self.logger.info(
-                    "No results returned from run_pipeline_and_extract_metrics"
-                )
-                break
-
-            result = results[0]
-
-            per_stream_fps = float(result["per_stream_fps"])
-            if (
-                isinstance(per_stream_fps, (int, float))
-                and per_stream_fps >= self.fps_floor
-            ):
-                if result["num_streams"] > best_config[0]:
-                    best_config = (mid, ai_streams, non_ai_streams, per_stream_fps)
-                low = mid + 1
-            else:
-                high = mid - 1
-
-        return best_config
+        return last_good_config[-1] if last_good_config else (0, 0, 0, 0.0)
