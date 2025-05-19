@@ -138,7 +138,6 @@ class TestGetiUdf:
        
         expected_metadata = {
             'task': 'object_detection',
-            'geti_prediction': b'mocked_codecs'.decode(),
             'predictions': predictions.to_dict()
         }
         assert output_metadata['task'] == expected_metadata['task']
