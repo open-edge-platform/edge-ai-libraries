@@ -54,7 +54,7 @@ with open(LOCK_FILE, "w") as lock_fp:
             if not devs_state:
                 continue
 
-            dev_stats = devs_state[0].get("dev_stats", {})
+            dev_stats = devs_state[-1].get("dev_stats", {})
             eng_usage = dev_stats.get("eng_usage", {})
             freqs = dev_stats.get("freqs", [])
             power = dev_stats.get("power", [])
