@@ -4,12 +4,11 @@ on:
   push:
     branches:
       - 'main'
-      - 'dls_dmichalo_DocumentationCIWorkflow'
-  #   paths:
-  #     - 'libraries/dl-streamer/docs/**'
-  # pull_request:
-  #   paths:
-  #     - 'libraries/dl-streamer/docs/**'
+    paths:
+      - 'libraries/dl-streamer/docs/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/docs/**'
   workflow_call:
 permissions: read-all
 
