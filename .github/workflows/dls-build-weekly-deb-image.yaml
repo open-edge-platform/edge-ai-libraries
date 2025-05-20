@@ -103,6 +103,7 @@ jobs:
 
     - name: Init submodules
       run: |
+        cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
     - name: Set up Docker Buildx
