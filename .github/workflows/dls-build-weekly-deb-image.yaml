@@ -87,9 +87,9 @@ jobs:
       matrix:
         include:
           - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
-            image: dev-ubuntu22
+            ubuntu_version: ubuntu22
           - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
-            image: dev-ubuntu24
+            ubuntu_version: ubuntu24
     outputs:
       image: ${{ steps.save-image.outputs.image }}
 
@@ -118,9 +118,9 @@ jobs:
       run: |
         docker buildx build \
           --push \
-          --tag ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:latest \
-          --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
-          --cache-to=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache,mode=max \
+          --tag ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:latest \
+          --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:buildcache \
+          --cache-to=type=registry,ref=ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:buildcache,mode=max \
           -f ${{ matrix.path }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -128,7 +128,7 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.ubuntu_version }}:latest || true
 
   build-dls-pipeline-server-image:
     needs: build-dls-deb-img

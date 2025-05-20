@@ -14,9 +14,11 @@ jobs:
       matrix:
         include:
           - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
-            image: dev-ubuntu22
+            ubuntu_version: ubuntu22
           - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
-            image: dev-ubuntu24
+            ubuntu_version: ubuntu24
+    outputs:
+      image: ${{ steps.save-image.outputs.image }}
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -41,8 +43,8 @@ jobs:
     - name: Build and push with cache to GHCR
       run: |
         docker buildx build \
-          --tag ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:${{ github.sha }} \
-          --cache-from=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
+          --tag ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }} \
+          --cache-from=ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:buildcache \
           -f ${{ matrix.path }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 

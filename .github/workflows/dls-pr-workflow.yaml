@@ -3,7 +3,7 @@ run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name
 on:
   push:
     branches:
-      - 'main'
+      - 'dls-cache-docker'
     paths:
       - 'libraries/dl-streamer/cmake/**'
       - 'libraries/dl-streamer/docker/**'
@@ -26,6 +26,7 @@ on:
       - 'libraries/dl-streamer/tests/**'
       - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
+  workflow_dispatch:
 permissions: read-all
 
 jobs:
@@ -34,5 +35,8 @@ jobs:
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
   build-deb-and-img:
-    name: Build .deb and img
+    name: Build .deb and .deb img
+    needs: build-dev-images
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+    with:
+      img-dev: ${{ needs.build-dev-images.outputs.image }}

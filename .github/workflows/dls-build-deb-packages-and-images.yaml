@@ -2,6 +2,11 @@ name: "[DLS] [U22/24] Build .deb pkg and img"
 run-name: "[DLS] [U22/24] Build .deb pkg and img (by ${{ github.actor }})"
 on:
   workflow_call:
+    inputs:
+      dev-img:
+        description: "Dev img"
+        required: true
+        type: string
 permissions: read-all
 
 jobs:
@@ -37,13 +42,18 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build deb pkg img using cache
+    - name: Build deb pkg img using dev img
       run: |
-        docker buildx build \
+        if [ -z "${{ inputs.dev-img }}" ]; then
+          echo "Error: 'dev-img' input is required."
+          exit 1
+        fi
+
+        docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
-          --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:buildcache \
           --build-arg DLSTREAMER_VERSION=2025.0.1.3 \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
+          --build-arg BASE_IMAGE=${{ inputs.dev-img }} \
           -f ${{ matrix.path }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
