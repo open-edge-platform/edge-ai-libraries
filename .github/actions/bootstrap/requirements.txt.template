@@ -1,0 +1,12 @@
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+# python3 tools and versions
+
+ansible~=${ANSIBLE_VER}
+ansible-lint~=${ANSIBLE_LINT_VER}
+jmespath~=${JMESPATH_VER}
+setuptools~=${SETUP_TOOLS_VER}
+sphinx~=${SPHINX_VER}
+openapi-spec-validator~=${OPENAPI_SPEC_VALIDATOR_VER}
+yamllint~=${YAMLLINT_VER}
+reuse~=${REUSE_VER}
