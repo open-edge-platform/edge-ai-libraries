@@ -13,6 +13,19 @@ concurrency:
   cancel-in-progress: true
 
 jobs:
+  bootstrap:
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04-16core-64GB
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683  # v4.2.2
+        with:
+          persist-credentials: false
+      - name: bootstrap action
+        uses: ./.github/actions/bootstrap
+        with:
+          gh_token: ${{ secrets.SYS_ORCH_GITHUB }}
+          bootstrap_tools: "all"
   pre-checks:
     runs-on: ubuntu-24.04-16core-64GB
     outputs:
