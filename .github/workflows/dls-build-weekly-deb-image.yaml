@@ -16,8 +16,10 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - ubuntu_version: ubuntu22
-          - ubuntu_version: ubuntu24
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
+            ubuntu_version: ubuntu22
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
+            ubuntu_version: ubuntu24
     outputs:
       image: ${{ steps.save-image.outputs.image }}
 
@@ -32,20 +34,8 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-    - name: Build .deb pkg
-      run: |
-        chmod +x edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
-        cd edge-ai-libraries-repo/libraries/dl-streamer
-        echo "y" | ./scripts/build_deb_packages.sh --ubuntu_version=${{ matrix.ubuntu_version }}
-
-    - name: Check for .deb pkg
-      run: |
-        if ls edge-ai-libraries-repo/libraries/dl-streamer/deb_packages/*.deb 1> /dev/null 2>&1; then
-          echo "Deb package found."
-        else
-          echo "No deb package found."
-          exit 1
-        fi
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
@@ -54,26 +44,34 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build .deb img
+    - name: Build and push Docker deb pkg img
+      run: |
+        docker buildx build \
+          --push \
+          --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:latest \
+          --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:buildcache \
+          --cache-to=type=registry,ref=ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:buildcache,mode=max \
+          --build-arg DLSTREAMER_VERSION=2025.0.1.3 \
+          --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
+          -f ${{ matrix.path }} \
+          ./edge-ai-libraries-repo/libraries/dl-streamer
+
+    - name: Extract .deb packages using script
+      run: |
+        chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
+        ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:latest
+
+    - name: Build Docker img from .deb
       run: |
         docker build -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile ./edge-ai-libraries-repo/libraries/dl-streamer
 
-    - name: Push Docker img
+    - name: Push Docker img from .deb
       run: |
         docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest
 
     - name: Save image info
       id: save-image
       run: echo "image=ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
-
-    - name: Create summary
-      if: always()
-      run: |
-        echo "###  DL Streamer ${{ matrix.ubuntu_version }} Docker image with installed .deb package :ship:" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "${{ steps.save-image.outputs.image }}" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Clean up
       if: always()
@@ -116,7 +114,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push Docker image
+    - name: Build and push Docker dev img
       run: |
         docker buildx build \
           --push \
@@ -174,15 +172,6 @@ jobs:
     - name: Save img info
       id: save-image
       run: echo "image=ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest " >> $GITHUB_ENV
-
-    - name: Create summary
-      if: always()
-      run: |
-        echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "${{ env.image }}" >> $GITHUB_STEP_SUMMARY
-        echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
 
     - name: Clean up
       if: always()
