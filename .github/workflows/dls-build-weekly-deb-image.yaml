@@ -3,10 +3,6 @@ run-name: "[DLS] [U22/U24] Build weekly imgs"
 on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
-  push:
-    branches:
-      - 'dls-modify-workflows'
-
   workflow_dispatch:
 permissions:
   packages: write
