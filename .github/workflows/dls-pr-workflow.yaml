@@ -39,4 +39,4 @@ jobs:
     needs: build-dev-images
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
     with:
-      img-dev: ${{ needs.build-dev-images.outputs.image }}
+      dev-img: ${{ needs.build-dev-images.outputs.image }}
