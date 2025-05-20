@@ -48,6 +48,10 @@ jobs:
           -f ${{ matrix.path }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
+    - name: Save image info
+      id: save-image
+      run: echo "image=ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }}" >> "$GITHUB_OUTPUT"
+
     - name: Clean up
       if: always()
       run: |
