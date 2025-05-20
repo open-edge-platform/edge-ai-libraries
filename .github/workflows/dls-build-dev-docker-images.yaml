@@ -1,6 +1,9 @@
 name: "[DLS] [U22/24] Build dev img"
 run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
 on:
+  push:
+    branches:
+      - 'dls-cache-docker'
   workflow_call:
   workflow_dispatch:
 permissions: read-all
@@ -25,6 +28,7 @@ jobs:
 
     - name: Init submodules
       run: |
+        cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
     - name: Set up Docker Buildx
