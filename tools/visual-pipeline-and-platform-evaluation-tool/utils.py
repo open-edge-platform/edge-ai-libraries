@@ -113,7 +113,7 @@ def run_pipeline_and_extract_metrics(
     Returns:
         Tuple[Dict[str, float], str, str]: A dictionary of FPS metrics, stdout, and stderr.
     """
-    logger = logging.getLogger("run_pipeline_and_extract_metrics")
+    logger = logging.getLogger("utils")
     results = []
     # Set the number of channels
     channels = channels if isinstance(channels, int) else channels[0] + channels[1]
@@ -134,7 +134,7 @@ def run_pipeline_and_extract_metrics(
         )
 
         # Log the command
-        logger.info(f"run_pipeline_and_extract_metrics: {pipeline_cmd}")
+        logger.info(f"Pipeline Command: {_pipeline}")
 
         try:
             # Spawn command in a subprocess
@@ -147,26 +147,46 @@ def run_pipeline_and_extract_metrics(
             last_fps = None
             channels = inference_channels + regular_channels
             avg_fps_dict = {}
-
-            # Capture Memory and CPU metrics
-            while process.poll() is None:
-
-                time.sleep(poll_interval)
-
-                if ps.Process(process.pid).status() == "zombie":
-                    exit_code = process.wait()
-                    break
+            process_output = []
 
             # Define pattern to capture FPSCounter metrics
             overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
 
-            logger.info("overall_pattern: {}".format(overall_pattern))
-            logger.info("avg_pattern {}".format(avg_pattern))
-            logger.info("last_pattern {}".format(last_pattern))
-            # Capture FPSCounter metrics
-            for line in iter(process.stdout.readline, b""):
+            # Poll the process to check if it is still running
+            while process.poll() is None:
+
+                time.sleep(poll_interval)
+
+                # Read the process output
+                if process.stdout:
+                    for line in iter(process.stdout.readline, b""):
+
+                        # Save it to a buffer for later processing
+                        process_output.append(line)
+
+                        # Write the average FPS to the log
+                        line_str = line.decode("utf-8")
+                        match = re.search(avg_pattern, line_str)
+                        if match:
+                            result = {
+                                "total_fps": float(match.group(2)),
+                                "number_streams": int(match.group(3)),
+                                "per_stream_fps": float(match.group(4)),
+                            }
+                            latest_fps = result["per_stream_fps"]
+                            
+                            # Write latest FPS to a file
+                            with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                                f.write(f"{latest_fps}\n")
+
+                if ps.Process(process.pid).status() == "zombie":
+                    exit_code = process.wait()
+                    break
+
+            # Process the output and extract FPS metrics
+            for line in process_output:
                 line_str = line.decode("utf-8")
                 match = re.search(overall_pattern, line_str)
                 if match:
