@@ -2,6 +2,7 @@ name: "[DLS] [U22/24] Build dev img"
 run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
 on:
   workflow_call:
+  workflow_dispatch:
 permissions: read-all
 
 jobs:
@@ -24,15 +25,28 @@ jobs:
 
     - name: Init submodules
       run: |
-        cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-    - name: Build dev img
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push with cache to GHCR
       run: |
-        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} ./edge-ai-libraries-repo/libraries/dl-streamer
+        docker buildx build \
+          --tag ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:${{ github.sha }} \
+          --cache-from=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
+          -f ${{ matrix.path }} \
+          ./libraries/dl-streamer
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi dls-img/${{ github.repository }}/one-binary-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:${{ github.sha }} || true

@@ -9,7 +9,7 @@ permissions:
   contents: read
 
 jobs:
-  build-dls-img:
+  build-dls-deb-img:
     name: Build DLS ${{ matrix.ubuntu_version }} .deb and img
     runs-on: ubuntu-latest
     strategy:
@@ -80,6 +80,56 @@ jobs:
       run: |
         rm -rf edge-ai-libraries-repo
         docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest || true
+
+  build-dls-dev-img:
+    name: Build DLS ${{ matrix.ubuntu_version }} dev img
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+            image: dev-ubuntu22
+          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+            image: dev-ubuntu24
+    outputs:
+      image: ${{ steps.save-image.outputs.image }}
+
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build and push Docker image
+      run: |
+        docker buildx build \
+          --push \
+          --tag ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:latest \
+          --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
+          --cache-to=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache,mode=max \
+          -f ${{ matrix.path }} \
+          ./libraries/dl-streamer
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:latest || true
 
   build-dls-pipeline-server-image:
     needs: build-dls-img
