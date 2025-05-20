@@ -17,19 +17,33 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
    cd sample-applications/chat-question-and-answer-core
    ```
 
-2. Build the Docker image using the provided `Dockerfile`:
+2. Build the Docker image using the provided `Dockerfile` based on your setup.
 
-   ```bash
-   docker build -t chatqna:latest -f docker/Dockerfile .
-   ```
+   Choose one of the following options:
+
+   - CPU-only inferencing (default configuration):
+
+     ```bash
+     docker build -t chatqna:latest -f docker/Dockerfile .
+     ```
+
+     This build the image to support CPU-based inferencing, suitable for hardware setups without GPU support.
+
+   - GPU-enabled inferencing (also support CPU):
+
+     ```bash
+     docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
+     ```
+
+     This build the image with additional GPU support for accelerated inferencing. It still works on CPU-only systems, offering flexibility across different hardware setups.
 
 3. Verify that the Docker image has been built successfully:
 
    ```bash
    docker images | grep chatqna
-
-   # You should see an entry for `chatqna` with the `latest` tag.
    ```
+
+   You should see an entry for `chatqna` with the `latest` tag.
 
 ## Building the UI image
 To build the Docker image for the `chatqna-ui` application, follow these steps:
@@ -50,25 +64,40 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
 
    ```bash
    docker images | grep chatqna-ui
-
-   # You should see an entry for `chatqna-ui` with the `latest` tag.
    ```
 
+   You should see an entry for `chatqna-ui` with the `latest` tag.
+
 ## Build the Images via Docker Compose
-If you want to build the images using the `compose.yaml` file via the `docker compose` command, follow these steps:
+This guide explains how to build the images using the `compose.yaml` file via the `docker compose` command. It also outlines how to enable GPU support during the build process.
 
 1. Ensure you are in the project directory:
 
    ```bash
    cd sample-applications/chat-question-and-answer-core
    ```
-2. Set Up Environment Variables:
-   ```bash
-      export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-      source scripts/setup_env.sh
-   ```
 
-3. Build the Docker images using the `compose.yaml` file:
+2. Set Up Environment Variables:
+
+   Choose one of the following options depends on your hardware setups:
+
+   - For CPU-only setup (default):
+
+     ```bash
+     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+     source scripts/setup_env.sh
+     ```
+
+   - For GPU-enabled setup:
+
+     ```bash
+     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+     source scripts/setup_env.sh -d gpu
+     ```
+
+   ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile and sets additional environment variables required for GPU-based execution.
+
+3. Build the Docker images defined in the `compose.yaml` file:
 
    ```bash
    docker compose -f docker/compose.yaml build
@@ -79,29 +108,45 @@ If you want to build the images using the `compose.yaml` file via the `docker co
    docker images | grep chatqna
    ```
 
-You should see entries for both `chatqna` and `chatqna-ui`.
+   You should see entries for both `chatqna` and `chatqna-ui`.
 
 ## Running the Application Container
 After building the images for the `Chat Question-and-Answer Core` application, you can run the application container using `docker compose` by following these steps:
 
-1. **Set Up Environment Variables**:   
-      ```bash
-       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-       source scripts/setup_env.sh
-      ```
-   Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use   the same  list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models). 
+1. **Set Up Environment Variables**:
+
+   Choose one of the following options depends on your hardware setups:
+
+   - For CPU-only setup (default):
+
+     ```bash
+     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+     source scripts/setup_env.sh
+     ```
+
+   - For GPU-enabled setup:
+
+     ```bash
+     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+     source scripts/setup_env.sh -d gpu
+     ```
+
+   Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
 
 2. Start the Docker containers with the previously built images:
+
    ```bash
    docker compose -f docker/compose.yaml up
    ```
 
 3. Access the application:
+
    - Open your web browser and navigate to `http://<host-ip>:5173` to view the application dashboard.
 
 ## Verification
 
 - Ensure that the application is running by checking the Docker container status:
+
   ```bash
   docker ps
   ```
@@ -109,7 +154,9 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 - Access the application dashboard and verify that it is functioning as expected.
 
 ## Troubleshooting
+
 - If you encounter any issues during the build or run process, check the Docker logs for errors:
+
   ```bash
   docker logs <container-id>
   ```

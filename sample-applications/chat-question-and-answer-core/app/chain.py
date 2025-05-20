@@ -51,14 +51,14 @@ prompt = ChatPromptTemplate.from_template(template)
 # Initialize Embedding Model
 embedding = OpenVINOBgeEmbeddings(
     model_name_or_path=f"{config.CACHE_DIR}/{config.EMBEDDING_MODEL_ID}",
-    model_kwargs={"device": config.INFERENCE_DEVICE, "compile": False},
+    model_kwargs={"device": config.EMBEDDING_DEVICE, "compile": False},
 )
 embedding.ov_model.compile()
 
 # Initialize Reranker Model
 reranker = OpenVINOReranker(
     model_name_or_path=f"{config.CACHE_DIR}/{config.RERANKER_MODEL_ID}",
-    model_kwargs={"device": config.INFERENCE_DEVICE},
+    model_kwargs={"device": config.RERANKER_DEVICE},
     top_n=2,
 )
 
@@ -68,7 +68,7 @@ llm = HuggingFacePipeline.from_model_id(
     task="text-generation",
     backend="openvino",
     model_kwargs={
-        "device": config.INFERENCE_DEVICE,
+        "device": config.LLM_DEVICE,
         "ov_config": {
             "PERFORMANCE_HINT": "LATENCY",
             "NUM_STREAMS": "1",

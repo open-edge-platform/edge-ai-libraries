@@ -51,24 +51,24 @@ spec:
             - name: VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS
               value: "{{ .Values.vllmService.env.VLLM_OPENVINO_ENABLE_QUANTIZED_WEIGHTS }}"
             - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
-              value: {{ .Values.vllmService.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }} 
+              value: {{ .Values.vllmService.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }}
             - name: OTEL_METRICS_EXPORTER
-              value: {{ .Values.vllmService.env.OTEL_METRICS_EXPORTER }} 
+              value: {{ .Values.vllmService.env.OTEL_METRICS_EXPORTER }}
             - name: OTEL_TRACES_EXPORTER
-              value: {{ .Values.vllmService.env.OTEL_TRACES_EXPORTER }} 
+              value: {{ .Values.vllmService.env.OTEL_TRACES_EXPORTER }}
             - name: OTEL_SERVICE_NAME
-              value: {{ .Values.vllmService.env.OTEL_SERVICE_NAME }} 
+              value: {{ .Values.vllmService.env.OTEL_SERVICE_NAME }}
             - name: OTEL_SERVICE_ENV
               value: {{ .Values.vllmService.env.OTEL_SERVICE_ENV }}
             - name: OTLP_ENDPOINT
-              value: {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
-                          
+              value: {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}}
+
                       {{- else}}
                          {{ .Values.global.OTLP_ENDPOINT }}
                       {{- end }}
             - name: OTLP_ENDPOINT_TRACE
-              value: {{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}} 
-                          
+              value: {{- if eq .Values.global.OTLP_ENDPOINT_TRACE "<otlp-endpoint-trace>"}}
+
                       {{- else}}
                          {{ .Values.global.OTLP_ENDPOINT_TRACE }}
                       {{- end }}
@@ -91,4 +91,4 @@ spec:
       volumes:
         - name: data
           persistentVolumeClaim:
-            claimName: egai-vllm-pvc
+            claimName: vllm-pvc

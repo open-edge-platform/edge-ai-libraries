@@ -1,15 +1,15 @@
 global:
   huggingface:
-    apiToken: <huggingfacehub-api-token># Set this during installation
+    apiToken:  # Set this during installation
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  POSTGRES_USER: <postgres-user>
-  POSTGRES_PASSWORD: <postgres-password>
-  EMBEDDING_MODEL_NAME: <embedding-model-name>
-  MINIO_ROOT_USER: <minio-root-user>
-  MINIO_ROOT_PASSWORD: <minio-root-password>
+    no_proxy:
+    http_proxy:
+    https_proxy:
+  POSTGRES_USER:
+  POSTGRES_PASSWORD:
+  EMBEDDING_MODEL_NAME:
+  MINIO_ROOT_USER:
+  MINIO_ROOT_PASSWORD:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:

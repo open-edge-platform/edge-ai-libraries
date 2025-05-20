@@ -30,4 +30,4 @@ spec:
       volumes:
         - name: minio-data
           persistentVolumeClaim:
-            claimName: egai-minio-pvc
+            claimName: minio-pvc
