@@ -1,0 +1,483 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# too many long URLs in this file
+# yamllint disable rule:line-length
+
+name: "Build and Setup Environment"
+description: "Sets up the environment with necessary tools and dependencies"
+inputs:
+  bootstrap_tools:
+    required: false
+    description: "Comma-separated list of tools to install (e.g., 'go,docker') or 'all' for all tools"
+    default: "all"
+  gh_token:
+    required: false
+    description: "PAT token for private repositories"
+runs:
+  using: "composite"
+  steps:
+    - name: "Update and install base dependencies"
+      if: contains(inputs.bootstrap_tools, 'base') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        sudo apt-get update
+        sudo apt-get install -y --no-install-recommends \
+          amazon-ecr-credential-helper \
+          apt-utils \
+          bc \
+          bison \
+          build-essential \
+          ca-certificates \
+          cabextract \
+          cmake \
+          cpio \
+          curl \
+          debhelper \
+          debian-archive-keyring \
+          debootstrap \
+          default-jre-headless \
+          devscripts \
+          dh-python \
+          dpkg-dev \
+          dmidecode \
+          enchant-2 \
+          flex \
+          gcc \
+          ginkgo \
+          gir1.2-gstreamer-1.0 \
+          git \
+          git-lfs \
+          gnupg \
+          gstreamer-1.0 \
+          gstreamer1.0-dev \
+          ipmitool \
+          libatk-bridge2.0-0 \
+          libboost-dev \
+          libboost-filesystem-dev \
+          libboost-system-dev \
+          libcairo2 \
+          libcairo2-dev \
+          libelf-dev \
+          libfl-dev \
+          libgbm1 \
+          libgirepository1.0-dev \
+          libgrpc-dev \
+          libgrpc++-dev \
+          libpango-1.0-0 \
+          libprotobuf-dev \
+          libp11-kit-dev \
+          libssl-dev \
+          libtpm2-pkcs11-1-dev \
+          libtss2-dev \
+          libunwind-dev \
+          libusb-1.0-0-dev \
+          libxcomposite1 \
+          libxdamage1 \
+          libxfixes3 \
+          libxkbcommon0 \
+          libxrandr2 \
+          libxt-dev \
+          lsb-release \
+          make \
+          makeself \
+          nasm \
+          netcat-traditional \
+          openssh-client \
+          openssl \
+          pkg-config \
+          protobuf-compiler-grpc \
+          python-is-python3 \
+          python3-all-dev \
+          python3-gi \
+          python3-gst-1.0 \
+          python3-pip \
+          python3-pkg-resources \
+          python3-serial \
+          python3-six \
+          python3-setuptools \
+          python3-venv \
+          python3-yaml \
+          rsync \
+          skopeo \
+          software-properties-common \
+          sshpass \
+          sudo \
+          tpm2-tools \
+          udev \
+          unzip \
+          usbutils \
+          uuid-runtime \
+          wget \
+          xorriso \
+          zip
+
+    - name: "Setup VERSIONS in env"
+      shell: bash
+      run: |
+        cat ${{ github.action_path }}/VERSIONS >> $GITHUB_ENV
+
+    - name: "Setup GOTOOLS_VERSIONS in env"
+      if: contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        cat ${{ github.action_path }}/GOTOOLS_VERSIONS >> $GITHUB_ENV
+
+    - name: "Setup Go environment"
+      if: contains(inputs.bootstrap_tools, 'go') || contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      uses: actions/setup-go@d35c59abb061a4a6fb18e82ac0862c26744d6ab5  # v5.5.0
+      with:
+        go-version: ${{ env.GOLANG_VER }}
+        cache: false
+
+    - name: "Setup Node.js environment"
+      if: contains(inputs.bootstrap_tools, 'nodejs') || contains(inputs.bootstrap_tools, 'all')
+      uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020  # v4.4.0
+      with:
+        node-version: '18'
+
+    - name: "Set up Python environment"
+      if: contains(inputs.bootstrap_tools, 'python') || contains(inputs.bootstrap_tools, 'all')
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065  # v5.6.0
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+
+    - name: "Python dependencies"
+      if: contains(inputs.bootstrap_tools, 'python') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      working-directory: ${{ github.action_path }}
+      run: |
+        # Generate requirements.txt file
+        envsubst < requirements.txt.template > requirements.txt
+        pip install -r requirements.txt
+
+    - name: "node.js dependencies"
+      if: contains(inputs.bootstrap_tools, 'nodejs') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        npm install -g \
+        "@mermaid-js/mermaid-cli@${MERMAID_JS_CLI_VER}" \
+        "@stoplight/spectral-cli@${SPECTRAL_CLI_VER}" \
+        "markdownlint-cli@${MARKDOWNLINT_CLI_VER}" \
+        "markdownlint-cli2@${MARKDOWNLINT_CLI2_VER}" \
+        "npm-groovy-lint@${NPM_GROOVY_LINT_VER}" \
+        "swagger-cli@${SWAGGER_CLI_VER}" \
+        "@eslint/js@${ESLINT_VER}" \
+        "pajv@${PAJV_VER}" \
+        "@dbml/cli@${DBML_CLI_VER}" \
+        "@softwaretechnik/dbml-renderer@${DBML_RENDERER_VER}"
+
+    - name: "Use separate cache for Go tools"
+      if: contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |  # zizmor: ignore[github-env]
+        echo "Original GOCACHE: $(go env GOCACHE)"
+        echo "Original GOMODCACHE: $(go env GOMODCACHE)"
+
+        mkdir -p $(go env GOCACHE) $(go env GOMODCACHE)
+
+        sudo du -sh $(go env GOCACHE)
+        sudo du -sh $(go env GOMODCACHE)
+
+        # Set a temporary cache location (only for tools)
+        temp_go_cache="/tmp/.cache/go-build"
+        temp_go_modcache="/tmp/.cache/gopkgmod"
+
+        mkdir -p $temp_go_cache $temp_go_modcache
+
+        go env -w GOCACHE=$temp_go_cache
+        go env -w GOMODCACHE=$temp_go_modcache
+        echo "temp_go_cache=$(go env GOCACHE)" >> $GITHUB_ENV
+        echo "temp_go_modcache=$(go env GOMODCACHE)" >> $GITHUB_ENV
+
+        echo "New GOCACHE: $(go env GOCACHE)"
+        echo "New GOMODCACHE: $(go env GOMODCACHE)"
+        sudo du -sh $(go env GOCACHE)
+        sudo du -sh $(go env GOMODCACHE)
+
+    - name: "Restore Go tools from cache"
+      if: contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      id: restored-go-cache
+      uses: actions/cache/restore@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: |
+          ${{ env.temp_go_cache }}
+          ${{ env.temp_go_modcache }}
+        key: bootstrap-${{ runner.os }}-go-${{ env.GOLANG_VER }}-${{ hashFiles('**/GOTOOLS_VERSIONS') }}
+        restore-keys: |
+          bootstrap-${{ runner.os }}-go-${{ env.GOLANG_VER }}-
+          bootstrap-${{ runner.os }}-go-
+
+    - name: "Install Go tools"
+      if: contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      working-directory: ${{ github.action_path }}/gotools
+      run: |
+          ./go_tools.sh
+          ./go_install.sh
+
+    - name: "Save Go tools to cache"
+      if: steps.restored-go-cache.outputs.cache-hit != 'true' && (contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all'))
+      uses: actions/cache/save@5a3ec84eff668545956fd18022155c47e93e2684  # v4.2.3
+      with:
+        path: |
+          ${{ env.temp_go_cache }}
+          ${{ env.temp_go_modcache }}
+        key: bootstrap-${{ runner.os }}-go-${{ env.GOLANG_VER }}-${{ hashFiles('**/GOTOOLS_VERSIONS') }}
+
+    - name: "Restore original Go cache paths"
+      if: contains(inputs.bootstrap_tools, 'gotools') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        echo "Current GOCACHE: $(go env GOCACHE)"
+        echo "Current GOMODCACHE: $(go env GOMODCACHE)"
+
+        echo "Temporary cache sizes before removal:"
+        sudo du -sh $(go env GOCACHE)
+        sudo du -sh $(go env GOMODCACHE)
+
+        sudo rm -rf "$(go env GOCACHE)"/{*,.*} || true
+        sudo rm -rf "$(go env GOMODCACHE)"/{*,.*} || true
+
+        echo "Temporary cache sizes after removal:"
+        sudo du -sh $(go env GOCACHE)
+        sudo du -sh $(go env GOMODCACHE)
+
+        # Restore the original GOCACHE and GOMODCACHE
+        go env -u GOCACHE
+        go env -u GOMODCACHE
+
+        echo "Restored GOCACHE: $(go env GOCACHE)"
+        echo "Restored GOMODCACHE: $(go env GOMODCACHE)"
+
+        sudo du -sh $(go env GOCACHE)
+        sudo du -sh $(go env GOMODCACHE)
+
+    - name: Install golangci-lint
+      if: contains(inputs.bootstrap_tools, 'golang-lint') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/golangci-lint.deb "https://github.com/golangci/golangci-lint/releases/download/v${GOLANG_CI_LINT_VER}/golangci-lint-${GOLANG_CI_LINT_VER}-linux-amd64.deb"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        sudo dpkg -i /tmp/golangci-lint.deb
+        rm -rf /tmp/golangci-lint.deb
+
+      # The configuration from `v1` won't work in `v2` - it first needs to be migrated: https://golangci-lint.run/product/migration-guide/
+      # That's why it's better to give projects the option to choose which version they want to use (`v1` by default).
+      # To enable `v2`, you need to explicitly set `golangci-lint2` in `bootstrap_tools`.
+      # TODO: Once all projects have migrated to `v2`, both steps can be merged.
+    - name: Install golangci-lint2
+      if: contains(inputs.bootstrap_tools, 'golangci-lint2')
+      shell: bash
+      run: |
+        curl -Lo /tmp/golangci-lint2.deb "https://github.com/golangci/golangci-lint/releases/download/v${GOLANG_CI_LINT2_VER}/golangci-lint-${GOLANG_CI_LINT2_VER}-linux-amd64.deb"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        sudo dpkg -i /tmp/golangci-lint2.deb
+        rm -rf /tmp/golangci-lint2.deb
+
+    - name: Install helm
+      if: contains(inputs.bootstrap_tools, 'helm') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/helm.tgz "https://get.helm.sh/helm-v${HELM_VER}-linux-amd64.tar.gz"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        tar -xvf /tmp/helm.tgz -C /tmp
+        install -m 0755 /tmp/linux-amd64/helm /usr/local/bin/helm
+        rm -rf /tmp/helm.tgz /tmp/linux-amd64
+        helm plugin install https://github.com/databus23/helm-diff
+        helm plugin install https://github.com/helm-unittest/helm-unittest
+
+    - name: Install buf
+      if: contains(inputs.bootstrap_tools, 'buf') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/buf "https://github.com/bufbuild/buf/releases/download/v${BUF_VER}/buf-Linux-x86_64"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/buf /usr/local/bin/buf
+        rm /tmp/buf
+
+    - name: Install shellcheck
+      if: contains(inputs.bootstrap_tools, 'shellcheck') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/shellcheck.tar.xz "https://github.com/koalaman/shellcheck/releases/download/v${SHELLCHECK_VER}/shellcheck-v${SHELLCHECK_VER}.linux.x86_64.tar.xz"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        tar -xvf /tmp/shellcheck.tar.xz -C /tmp
+        install -m 0755 "/tmp/shellcheck-v${SHELLCHECK_VER}/shellcheck" /usr/local/bin/shellcheck
+        rm -rf /tmp/shellcheck*
+
+    - name: Install hadolint
+      if: contains(inputs.bootstrap_tools, 'hadolint') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/hadolint "https://github.com/hadolint/hadolint/releases/download/v${HADOLINT_VER}/hadolint-Linux-x86_64"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/hadolint /usr/local/bin/hadolint
+        rm /tmp/hadolint
+
+    - name: Install tflint
+      if: contains(inputs.bootstrap_tools, 'tflint') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/tflint.zip "https://github.com/terraform-linters/tflint/releases/download/v${TFLINT_VER}/tflint_linux_amd64.zip"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        unzip -d /tmp/tflint /tmp/tflint.zip
+        install -m 0755 /tmp/tflint/tflint /usr/local/bin/tflint
+        rm -rf /tmp/tflint*
+
+    - name: Install yq
+      if: contains(inputs.bootstrap_tools, 'yq') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/yq "https://github.com/mikefarah/yq/releases/download/v${YQ_VER}/yq_linux_amd64"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/yq /usr/local/bin/yq
+        rm /tmp/yq
+
+    - name: Install jq
+      if: contains(inputs.bootstrap_tools, 'jq') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/jq "https://github.com/jqlang/jq/releases/download/jq-${JQ_VER}/jq-linux-amd64"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/jq /usr/local/bin/jq
+        rm /tmp/jq
+
+    - name: Install kubectl
+      if: contains(inputs.bootstrap_tools, 'kubectl') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/kubectl "https://dl.k8s.io/release/v${KUBECTL_VER}/bin/linux/amd64/kubectl"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/kubectl /usr/local/bin/kubectl
+        rm /tmp/kubectl
+
+    - name: Install OPA
+      if: contains(inputs.bootstrap_tools, 'opa') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/opa "https://openpolicyagent.org/downloads/v${OPA_VER}/opa_linux_amd64_static"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        chmod +x /tmp/opa
+        mv /tmp/opa /usr/local/bin
+
+    - name: Install Atlas
+      if: contains(inputs.bootstrap_tools, 'atlas') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/atlas "https://release.ariga.io/atlas/atlas-linux-amd64-v${ATLAS_VERSION}"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        chmod +x /tmp/atlas
+        mv /tmp/atlas /usr/local/bin
+
+    - name: Install Fleet
+      if: contains(inputs.bootstrap_tools, 'fleet') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/fleet "https://github.com/rancher/fleet/releases/download/v${FLEET_VER}/fleet-linux-amd64"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        install -m 0755 /tmp/fleet /usr/local/bin/fleet
+        rm /tmp/fleet
+
+    - name: Install Trivy
+      if: contains(inputs.bootstrap_tools, 'trivy') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/trivy.deb "https://github.com/aquasecurity/trivy/releases/download/v${TRIVY_VER}/trivy_${TRIVY_VER}_Linux-64bit.deb"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        sudo dpkg -i /tmp/trivy.deb
+        rm -rf /tmp/trivy.deb
+
+    - name: Install Oras
+      if: contains(inputs.bootstrap_tools, 'oras') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/oras.tgz "https://github.com/oras-project/oras/releases/download/v${ORAS_VER}/oras_${ORAS_VER}_linux_amd64.tar.gz"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        mkdir -p /tmp/oras-install/
+        tar -zxf /tmp/oras.tgz -C /tmp/oras-install/
+        install -m 0755 /tmp/oras-install/oras /usr/local/bin/oras
+        rm -rf /tmp/oras.tgz /tmp/oras-install
+
+    - name: Install checksec
+      if: contains(inputs.bootstrap_tools, 'checksec') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/checksec "https://raw.githubusercontent.com/slimm609/checksec.sh/${CHECKSEC_VER}/checksec"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        chmod +x /tmp/checksec
+        install -m 0755 /tmp/checksec /usr/local/bin/checksec
+        rm -rf /tmp/checksec
+
+    - name: Install promtool
+      if: contains(inputs.bootstrap_tools, 'promtool') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/prometheus.tgz "https://github.com/prometheus/prometheus/releases/download/v${PROMETHEUS_VER}/prometheus-${PROMETHEUS_VER}.linux-amd64.tar.gz"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        mkdir -p /tmp/prometheus
+        tar -xzf /tmp/prometheus.tgz -C /tmp/prometheus --strip-components=1
+        install -m 0755 /tmp/prometheus/promtool /usr/local/bin/promtool
+        rm -rf /tmp/prometheus /tmp/prometheus.tgz
+
+    - name: Install level-zero
+      if: contains(inputs.bootstrap_tools, 'level-zero') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/level-zero.deb "https://github.com/oneapi-src/level-zero/releases/download/v${LEVEL_ZERO_VER}/level-zero_${LEVEL_ZERO_VER}+u22.04_amd64.deb"
+        sudo dpkg -i /tmp/level-zero.deb
+        rm -rf /tmp/level-zero.deb
+
+    - name: Install protolint
+      if: contains(inputs.bootstrap_tools, 'protolint') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        curl -Lo /tmp/protolint.tgz "https://github.com/yoheimuta/protolint/releases/download/v${PROTOLINT_VER}/protolint_${PROTOLINT_VER}_linux_amd64.tar.gz"
+        sha256sum -c --ignore-missing ${{ github.action_path }}/SHA256SUM
+        mkdir -p /tmp/protolint
+        tar -zxf /tmp/protolint.tgz -C /tmp/protolint/
+        install -m 0755 /tmp/protolint/protolint /usr/local/bin/protolint
+        rm -rf /tmp/protolint.tgz /tmp/protolint
+
+    - name: Install asdf
+      if: contains(inputs.bootstrap_tools, 'asdf') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        git clone https://github.com/asdf-vm/asdf.git ~/.asdf --branch v${{ env.ASDF_VER }}
+        echo '. $HOME/.asdf/asdf.sh' >> ~/.bashrc
+        echo '. $HOME/.asdf/completions/asdf.bash' >> ~/.bashrc
+
+    - name: Install AWS CLI
+      if: contains(inputs.bootstrap_tools, 'aws') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+          curl "https://awscli.amazonaws.com/awscli-exe-linux-x86_64-${{ env.AWSCLI2_VER }}.zip" -o "awscliv2.zip"
+          unzip awscliv2.zip
+          sudo ./aws/install --update
+          rm -rf awscliv2.zip aws
+
+    - name: Install Cosign
+      if: contains(inputs.bootstrap_tools, 'cosign') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        wget "https://github.com/sigstore/cosign/releases/download/${{ env.COSIGN_VER }}/cosign-linux-amd64"
+        chmod +x cosign-linux-amd64
+        sudo mv cosign-linux-amd64 /usr/bin/cosign
+
+    - name: Install gitleaks
+      if: contains(inputs.bootstrap_tools, 'gitleaks') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        wget -O /tmp/gitleaks.tar.gz https://github.com/gitleaks/gitleaks/releases/download/v${{ env.GITLEAKS_VER }}/gitleaks_${{ env.GITLEAKS_VER }}_linux_x64.tar.gz
+        sudo tar xf /tmp/gitleaks.tar.gz -C /usr/local/bin gitleaks
+        rm /tmp/gitleaks.tar.gz
+
+    - name: Install oasdiff
+      if: contains(inputs.bootstrap_tools, 'oasdiff') || contains(inputs.bootstrap_tools, 'all')
+      shell: bash
+      run: |
+        wget -O /tmp/oasdiff.tar.gz https://github.com/oasdiff/oasdiff/releases/download/v${{ env.OASDIFF_VER }}/oasdiff_${{ env.OASDIFF_VER }}_linux_amd64.tar.gz
+        sudo tar xf /tmp/oasdiff.tar.gz -C /usr/local/bin oasdiff
+        rm /tmp/oasdiff.tar.gz
