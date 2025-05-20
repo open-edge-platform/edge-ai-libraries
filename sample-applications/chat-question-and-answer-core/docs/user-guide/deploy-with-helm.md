@@ -37,30 +37,39 @@ cd chat-question-and-answer-core
 ```
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required. GPU support is enabled
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token      | `<your-huggingface-token>` |
 | `global.EMBEDDING_MODEL_NAME`|   embedding model name      | BAAI/bge-small-en-v1.5|
 | `global.RERANKER_MODEL`  | reranker model name   | BAAI/bge-reranker-base   |
-| `global.LLM_MODEL` |  model to be used with ovms     | Intel/neural-chat-7b-v3-3|
+| `global.LLM_MODEL` |  model to be used with ovms     | microsoft/Phi-3.5-mini-instruct|
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
+| `global.keeppvc` | Set true to persists the storage. Default is false | false |
+| `global.EMBEDDING_DEVICE`| set either CPU or GPU | CPU |
+| `global.RERANKER_DEVICE`| set either CPU or GPU | CPU |
+| `global.LLM_DEVICE`| set either CPU or GPU | CPU |
+| `gpu.enabled` | Set is true for deploying on GPU  | false |
+| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node| `<your-node-key-on-cluster>` |
 
+**NOTE**:Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
 ### Option 2: Install from Source
 
 #### Step 1: Clone the Repository
 
 Clone the repository containing the Helm chart:
+
 ```bash
-git clone <repository-url>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
 ```
 
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
+
 ```bash
-cd <repository-url>/sample-applications/chat-question-and-answer-core/chart
+cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File
@@ -70,6 +79,7 @@ Edit the `values.yaml` file located in the chart directory to set the necessary 
 #### Step 4: Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
+
 ```bash
 helm dependency build
 ```
