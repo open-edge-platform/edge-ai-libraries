@@ -2,12 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 services:
-  data-store:
+  dataprep_microservice:
     build:
       target: dev
-    image: intel/object-store:1.1-dev
+    image: intel/document-ingestion:1.2-dev
     environment:
-      - DEFAULT_BUCKET=intel.gai.dev.test
-      - OBJECT_PREFIX=test
+      DEFAULT_BUCKET: "intel.gai.dev.test"
+      OBJECT_PREFIX: "test"
     volumes:
-      - "${DATASTORE_CODE_DIR}:/app"
+      - "../app:/app/app"
+    restart: always
