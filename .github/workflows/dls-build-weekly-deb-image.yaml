@@ -132,7 +132,7 @@ jobs:
         docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:latest || true
 
   build-dls-pipeline-server-image:
-    needs: build-dls-img
+    needs: build-dls-deb-img
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
     strategy:
