@@ -2,12 +2,16 @@ name: "[DLS] [U22/24] Build dev img"
 run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
 on:
   workflow_call:
+    outputs:
+      image:
+        description: "Dev img"
+        value: ${{ jobs.build.outputs.image }}
   workflow_dispatch:
 permissions: read-all
 
 jobs:
   build:
-    name: Build ${{ matrix.image }} img
+    name: Build ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -56,4 +60,4 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:${{ github.sha }} || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
