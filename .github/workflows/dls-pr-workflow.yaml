@@ -4,16 +4,16 @@ on:
   push:
     branches:
       - 'dls-cache-docker'
-    paths:
-      - 'libraries/dl-streamer/cmake/**'
-      - 'libraries/dl-streamer/docker/**'
-      - 'libraries/dl-streamer/include/**'
-      - 'libraries/dl-streamer/python/**'
-      - 'libraries/dl-streamer/samples/**'
-      - 'libraries/dl-streamer/scripts/**'
-      - 'libraries/dl-streamer/src/**'
-      - 'libraries/dl-streamer/tests/**'
-      - 'libraries/dl-streamer/thirdparty/**'
+    # paths:
+    #   - 'libraries/dl-streamer/cmake/**'
+    #   - 'libraries/dl-streamer/docker/**'
+    #   - 'libraries/dl-streamer/include/**'
+    #   - 'libraries/dl-streamer/python/**'
+    #   - 'libraries/dl-streamer/samples/**'
+    #   - 'libraries/dl-streamer/scripts/**'
+    #   - 'libraries/dl-streamer/src/**'
+    #   - 'libraries/dl-streamer/tests/**'
+    #   - 'libraries/dl-streamer/thirdparty/**'
   pull_request:
     paths:
       - 'libraries/dl-streamer/cmake/**'
