@@ -124,7 +124,7 @@ jobs:
           --cache-from=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
           --cache-to=type=registry,ref=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache,mode=max \
           -f ${{ matrix.path }} \
-          ./libraries/dl-streamer
+          ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Clean up
       if: always()

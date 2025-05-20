@@ -43,7 +43,7 @@ jobs:
           --tag ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:${{ github.sha }} \
           --cache-from=ghcr.io/${{ github.repository }}/dls-${{ matrix.image }}:buildcache \
           -f ${{ matrix.path }} \
-          ./libraries/dl-streamer
+          ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Clean up
       if: always()
