@@ -67,8 +67,8 @@ jobs:
 
     - name: Extract .deb packages using script
       run: |
-        chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh
-        ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/build_deb_packages.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh
+        ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
 
     - name: Build Docker img from .deb
       run: |
