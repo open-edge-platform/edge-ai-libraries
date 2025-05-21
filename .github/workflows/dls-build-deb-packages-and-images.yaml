@@ -52,7 +52,7 @@ jobs:
         docker buildx build \
           --tag $dev-img \
           --cache-from=$dev-img-cached \
-          -f ${{ matrix.path }} \
+          -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Build deb pkg img using dev img
