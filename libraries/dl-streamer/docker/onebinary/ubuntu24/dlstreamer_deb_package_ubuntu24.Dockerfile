@@ -4,7 +4,8 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-FROM ubuntu:24.04
+ARG BASE_IMAGE
+FROM ${BASE_IMAGE}
 
 ARG DLSTREAMER_VERSION
 ARG DLSTREAMER_BUILD_NUMBER
