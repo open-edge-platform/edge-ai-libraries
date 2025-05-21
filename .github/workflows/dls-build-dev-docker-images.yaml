@@ -1,6 +1,9 @@
 name: "[DLS] [U22/24] Build dev img"
 run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
 on:
+  push:
+    branches:
+      - 'dls-cache-docker'
   workflow_call:
   workflow_dispatch:
 permissions: read-all
