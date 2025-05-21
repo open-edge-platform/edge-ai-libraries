@@ -1,5 +1,5 @@
 name: 'Setup Tools'
-description: 'Sets up Python, Trivy, and other required tools'
+description: 'Sets up Python, Poetry, Trivy, and other required tools'
 
 runs:
   using: "composite"
@@ -7,8 +7,13 @@ runs:
     - name: Setup Python
       uses: actions/setup-python@v4
       with:
-        python-version: '3.13'
-        cache: 'pip'
+        python-version: '3.11'
+    
+    - name: Install Poetry
+      shell: bash
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
     
     - name: Install Trivy
       shell: bash
@@ -19,4 +24,3 @@ runs:
       shell: bash
       run: |
         pip install pytest pytest-cov
-        # Add other dependencies as needed
