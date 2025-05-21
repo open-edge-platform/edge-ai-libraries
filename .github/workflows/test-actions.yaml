@@ -13,7 +13,7 @@ on:
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
-      - '.github/'
+      - '.github'
 
 jobs:
   detect-changes:
@@ -86,14 +86,14 @@ jobs:
           cd sample-applications/chat-question-and-answer-core
           poetry install --with dev
           source setup.sh llm=ModelServer embed=Embedding
-          cd tests/unit_tests
+          cd tests/
           poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
       
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
           name: core-coverage-report
-          path: sample-applications/chat-question-and-answer-core/tests/unit_tests/coverage.xml
+          path: sample-applications/chat-question-and-answer-core/tests/coverage.xml
 
   qa-job:
     needs: detect-changes
