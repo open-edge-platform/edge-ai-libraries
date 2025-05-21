@@ -2,7 +2,7 @@
 
 Chat Question-and-Answer sample application is a foundational Retrieval-Augmented Generation (RAG) pipeline that allows users to ask questions and receive answers, including those based on their own private data corpus..
 
-Compared to the [Chat Question-and-Answer](../chat-question-and-answer/) implementation, this implementation of Chat Question-and-Answer is optimized for memory footprint as it is built as a single monolithic application with the entire RAG pipeline bundled in a single microservice. This is primarily addressing deployment in configurations that are limited in available memory like Intel® Core&trade; portfolio (and hence the suffix "Core" in the name)..
+Compared to the [Chat Question-and-Answer](../chat-question-and-answer/) implementation, this implementation of Chat Question-and-Answer is optimized for memory footprint as it is built as a single monolithic application with the entire RAG pipeline bundled in a single microservice. This is primarily addressing deployment in configurations that are limited in available memory like Intel® Core&trade; portfolio (and hence the suffix "Core" in the name).
 
 Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice..
 
