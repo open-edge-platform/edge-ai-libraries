@@ -50,7 +50,7 @@ jobs:
         docker buildx build \
           --tag "${{ env.dev-img }}" \
           --cache-from="${{ env.dev-img-cached }}" \
-          --build-arg=debug \
+          --build-arg BUILD_ARG=debug \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
