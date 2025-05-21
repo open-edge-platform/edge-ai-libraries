@@ -3,7 +3,7 @@ run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name
 on:
   push:
     branches:
-      - 'dls-cache-docker'
+      - 'main'
     # paths:
     #   - 'libraries/dl-streamer/cmake/**'
     #   - 'libraries/dl-streamer/docker/**'

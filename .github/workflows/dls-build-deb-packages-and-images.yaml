@@ -1,28 +1,31 @@
-name: "[DLS] [U22/24] Build .deb pkg and img"
-run-name: "[DLS] [U22/24] Build .deb pkg and img (by ${{ github.actor }})"
+name: "[DLS] [U22/24] Build .deb pkgs and imgs"
+run-name: "[DLS] [U22/24] Build .deb pkgs and imgs (by ${{ github.actor }})"
 on:
+  push:
+    branches:
+      - 'dls-cache-docker'
   workflow_call:
-    inputs:
-      dev-img:
-        description: "Dev img"
-        required: true
-        type: string
 permissions:
   packages: read
   contents: read
 
 jobs:
   build:
-    name: Build ${{ matrix.ubuntu_version }} .deb and img
+    name: Build ${{ matrix.ubuntu_version }} .debs and imgs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
+          - path_deb: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
+            path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
+          - path_deb: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
+            path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
+    env:
+      dev-img: ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }}
+      dev-img-cached: ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:buildcache
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -44,19 +47,22 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
+    - name: Build dev with cache from GHCR
+      run: |
+        docker buildx build \
+          --tag $dev-img \
+          --cache-from=$dev-img-cached \
+          -f ${{ matrix.path }} \
+          ./edge-ai-libraries-repo/libraries/dl-streamer
+
     - name: Build deb pkg img using dev img
       run: |
-        if [ -z "${{ inputs.dev-img }}" ]; then
-          echo "Error: 'dev-img' input is required."
-          exit 1
-        fi
-
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           --build-arg DLSTREAMER_VERSION=2025.0.1.3 \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE=${{ inputs.dev-img }} \
-          -f ${{ matrix.path }} \
+          --build-arg BASE_IMAGE=$dev-img \
+          -f ${{ matrix.path_deb }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Extract .deb packages using script
