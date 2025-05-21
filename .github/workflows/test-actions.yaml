@@ -93,6 +93,7 @@ jobs:
           poetry install --no-root --with dev
           source scripts/setup_env.sh
           cd tests/
+          echo "Running pytest"
           poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
       
       - name: Upload Coverage Report
