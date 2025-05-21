@@ -22,7 +22,7 @@ on:
 
 jobs:
   detect-changes:
-    runs-on: ubuntu-24.04-16core-64GB
+    runs-on: ubuntu-22.04-32core-128GB
     outputs:
       core_changed: ${{ steps.filter.outputs.core_changed }}
       qa_changed: ${{ steps.filter.outputs.qa_changed }}
@@ -73,7 +73,7 @@ jobs:
   core-job:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.core_changed == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-32core-128GB
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -103,7 +103,7 @@ jobs:
   qa-job:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.qa_changed == 'true' }}
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-32core-128GB
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
