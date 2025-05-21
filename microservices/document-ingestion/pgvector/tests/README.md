@@ -72,7 +72,17 @@ If you prefer to run the tests in a virtual environment, please follow these ste
     poetry install --with dev
     ```
 
-6. **Navigate to the Tests Directory**
+6. **Setup Environment Variables**
+
+   Setup the environment variables:
+
+   ```bash
+   export HF_SECRET=<your_huggingface_token>
+
+   source run.sh --nosetup
+   ```
+
+7. **Navigate to the Tests Directory**
 
    Change to the directory containing the tests:
 
@@ -80,7 +90,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests
    ```
 
-7. **Run the Tests**
+8. **Run the Tests**
 
    Use the `pytest` command to run the tests:
 
@@ -90,7 +100,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
    This will discover and run all the test cases defined in the `tests` directory.
 
-8. **Deactivate Virtual Environment**
+9. **Deactivate Virtual Environment**
 
    Remember to deactivate the virtual environment when you are done with the test:
 
@@ -98,7 +108,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    deactivate
    ```
 
-9. **Delete the Virtual Environment [OPTIONAL]**
+10. **Delete the Virtual Environment [OPTIONAL]**
 
     If you no longer need the virtual environment, you can delete it:
 
@@ -131,7 +141,17 @@ If you prefer not to use virtual environment, please follow these steps:
    poetry install --with dev
    ```
 
-3. **Navigate to the Tests Directory**
+3. **Setup Environment Variables**
+
+   Setup the environment variables:
+
+   ```bash
+   export HF_SECRET=<your_huggingface_token>
+
+   source run.sh --nosetup
+   ```
+
+4. **Navigate to the Tests Directory**
 
     Change to the directory containing the tests:
 
@@ -139,7 +159,7 @@ If you prefer not to use virtual environment, please follow these steps:
     cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests
     ```
 
-4. **Run the Tests**
+5. **Run the Tests**
 
     Use the `poetry run pytest` command to run the tests:
 
