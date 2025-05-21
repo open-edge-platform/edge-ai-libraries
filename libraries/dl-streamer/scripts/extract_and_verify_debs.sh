@@ -24,7 +24,7 @@ docker create --name "$CONTAINER_NAME" "$IMAGE_NAME" bash
 
 echo "Copying .deb packages from container to host..."
 mkdir -p "$DEBS_DESTINATION_PATH"
-docker cp "$CONTAINER_NAME:/intel-dlstreamer*.deb" "$DEBS_DESTINATION_PATH" 2>/dev/null || {
+docker cp "$CONTAINER_NAME:/deb-pkg/intel-dlstreamer*.deb" "$DEBS_DESTINATION_PATH" 2>/dev/null || {
     echo "No matching .deb files found. Exiting."
     docker rm "$CONTAINER_NAME" >/dev/null
     exit 1
@@ -42,4 +42,3 @@ fi
 
 echo "✅ Extracted .deb packages to $DEBS_DESTINATION_PATH:"
 ls -lh "$DEBS_DESTINATION_PATH"
-

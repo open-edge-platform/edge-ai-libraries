@@ -70,7 +70,10 @@ jobs:
       run: |
         chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh
         ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
-
+        ls
+        ls ./deb_packages
+        cp -r deb_packages ./edge-ai-libraries-repo/libraries/dl-streamer
+    
     - name: Build Docker img from .deb
       run: |
         docker build \
