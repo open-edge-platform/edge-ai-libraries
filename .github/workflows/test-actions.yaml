@@ -1,0 +1,47 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Pre-Merge CI Pipeline
+
+on:
+  push:
+    branches: [ ga-main ]
+
+jobs:
+  unit-test-and-scan:
+    runs-on: ubuntu-24.04-16core-64GB
+    outputs:
+      filtered_projects: ${{ steps.filter-changes.outputs.filtered_projects }}
+      other_changed_projects: ${{ steps.filter-changes.outputs.other_changed_projects }}
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+      - name: "Verify Branch Name"
+        uses: open-edge-platform/orch-ci/verify-branch-name@main
+      - name: "Discover Changed Subfolders"
+        id: discover-changes
+        uses: open-edge-platform/orch-ci/discover-changed-subfolders@main
+      - name: "Filter Out Unwanted Changed Subfolders"
+        id: filter-changes
+        run: |
+          folders_to_remove='[".github",".reuse","LICENSES",".git","os-profiles","libraries","microservices","tools",".gitmodules",""]'
+
+          changed_projects='${{ steps.discover-changes.outputs.changed_projects }}'
+          filtered_projects=$(echo "$changed_projects" | jq -cr --argjson folders_to_remove "$folders_to_remove" 'map(select(. as $item | $folders_to_remove | index($item) | not))')
+          other_changed_projects=$(echo "$changed_projects" | jq -cr --argjson filtered_projects "$filtered_projects" 'map(select(. as $item | $filtered_projects | index($item) | not))')
+
+          echo "filtered_projects=$filtered_projects" >> $GITHUB_OUTPUT
+          echo "other_changed_projects=$other_changed_projects" >> $GITHUB_OUTPUT
+      # TODO: generalize this part of the CI for all subcomponents
+      - name: "Get PR Description"
+        id: get_pr_description
+        run: |
+          PR_DESCRIPTION=$(curl -s \
+            -H "Authorization: token ${{ secrets.GITHUB_TOKEN }}" \
+            -H "Accept: application/vnd.github.v3+json" \
+            "https://api.github.com/repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}" \
+            | jq -r '.body')
+
+          PUBLISH=$(echo "$PR_DESCRIPTION" | grep -q '/publish🚢' && echo true || echo false)
+          echo $PUBLISH
+          echo "PUBLISH=$PUBLISH" >> $GITHUB_ENV
