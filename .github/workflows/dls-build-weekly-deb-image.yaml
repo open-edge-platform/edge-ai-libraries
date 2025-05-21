@@ -3,7 +3,7 @@ run-name: "[DLS] [U22/U24] Build weekly imgs"
 on:
   push:
     branches:
-      - 'dls-cache-docker'
+      - 'main'
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
