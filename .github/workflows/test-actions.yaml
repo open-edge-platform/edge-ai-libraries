@@ -11,6 +11,13 @@ on:
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
+  
+  pull_request:
+    branches:
+      - ga-new-actions
+    paths:
+      - 'sample-applications/chat-question-and-answer-core/**'
+      - 'sample-applications/chat-question-and-answer/**'    
 
 jobs:
   detect-changes:
@@ -27,19 +34,38 @@ jobs:
       - name: Filter Changes
         id: filter
         run: |
-          git fetch origin ${{ github.base_ref }} --depth=1
+          # Determine the comparison based on event type
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Event: Pull Request"
+            # For pull requests, compare against the PR base
+            git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+            HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            echo "Event: Push"
+            # For pushes, compare against the previous commit
+            git fetch origin ${{ github.event.before }} --depth=1
+            BASE_SHA=${{ github.event.before }}
+            HEAD_SHA=${{ github.sha }}
+          fi
+          
+          echo "Comparing $BASE_SHA...$HEAD_SHA"
           
           # Check if core folder has changes
-          if git diff --name-only origin/${{ github.base_ref }} HEAD | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+            echo "Core folder has changes"
             echo "core_changed=true" >> $GITHUB_OUTPUT
           else
+            echo "No changes in core folder"
             echo "core_changed=false" >> $GITHUB_OUTPUT
           fi
           
           # Check if Q&A folder has changes
-          if git diff --name-only origin/${{ github.base_ref }} HEAD | grep -q "^sample-applications/chat-question-and-answer/"; then
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer/"; then
+            echo "Q&A folder has changes"
             echo "qa_changed=true" >> $GITHUB_OUTPUT
           else
+            echo "No changes in Q&A folder"
             echo "qa_changed=false" >> $GITHUB_OUTPUT
           fi
 
@@ -70,6 +96,3 @@ jobs:
           cd sample-applications/chat-question-and-answer
           # Add your commands here
           echo "Running commands for chat-question-and-answer"
-          PUBLISH=$(echo "$PR_DESCRIPTION" | grep -q '/publish🚢' && echo true || echo false)
-          echo $PUBLISH
-          echo "PUBLISH=$PUBLISH" >> $GITHUB_ENV
