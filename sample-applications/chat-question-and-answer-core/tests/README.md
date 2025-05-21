@@ -22,7 +22,7 @@ Before running the tests, ensure you have the following installed:
    - `pip` (Python package installer)
    - `Poetry` (Python dependency management and packaging tool)
 - For UI
-   - `npm` (Node package manager)
+   - `npm` (Node package manager).
    - `vitest` (Next generation testing framework)
 
 ## Poetry Installation
