@@ -82,6 +82,7 @@ jobs:
         uses: ./.github/actions/setup-tools
       
       - name: Run Unit Tests for Core
+        shell: bash
         env:
           HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
           LLM_MODEL: Intel/neural-chat-7b-v3-3
