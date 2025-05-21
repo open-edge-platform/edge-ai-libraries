@@ -90,12 +90,12 @@ jobs:
           RERANKER_MODEL: BAAI/bge-reranker-base
         run: |
           cd sample-applications/chat-question-and-answer-core
-          poetry install --no-root --with dev
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
           source scripts/setup_env.sh
-          cd tests/
-          echo "Running pytest"
-          #poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
-          poetry run pytest
+          pytest tests/
           coverage run --source=. -m pytest
           coverage report -m
       
