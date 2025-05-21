@@ -87,7 +87,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Change to the directory containing the tests:
 
    ```bash
-   cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests
+   cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests/unit_tests
    ```
 
 8. **Run the Tests**
@@ -156,7 +156,7 @@ If you prefer not to use virtual environment, please follow these steps:
     Change to the directory containing the tests:
 
     ```bash
-    cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests
+    cd ~/applications.ai.intel-gpt.generative-ai-examples/microservices/document-ingestion/pgvector/tests/unit_tests
     ```
 
 5. **Run the Tests**
