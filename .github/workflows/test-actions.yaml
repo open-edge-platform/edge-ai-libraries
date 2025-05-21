@@ -95,7 +95,7 @@ jobs:
           cd tests/
           echo "Running pytest"
           #poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
-          pytest tests/
+          poetry pytest tests/
           coverage run --source=. -m pytest
           coverage report -m
       
