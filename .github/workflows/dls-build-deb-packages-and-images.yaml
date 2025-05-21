@@ -3,7 +3,7 @@ run-name: "[DLS] [U22/24] Build .deb pkgs and imgs (by ${{ github.actor }})"
 on:
   push:
     branches:
-      - 'dls-cache-docker'
+      - 'main'
   workflow_call:
 permissions:
   packages: read
@@ -24,8 +24,8 @@ jobs:
             path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
     env:
-      dev-img: ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      dev-img-cached: ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:buildcache
+      dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+      dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -51,8 +51,8 @@ jobs:
       run: |
         docker buildx build \
           --load \
-          --tag "${{ env.dev-img }}" \
-          --cache-from="${{ env.dev-img-cached }}" \
+          --tag "${{ env.dev-release-img }}" \
+          --cache-from="${{ env.dev-release-img-cached }}" \
           --build-arg BUILD_ARG=release \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
@@ -63,7 +63,7 @@ jobs:
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           --build-arg DLSTREAMER_VERSION=2025.0.1.3 \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE="${{ env.dev-img }}" \
+          --build-arg BASE_IMAGE="${{ env.dev-release-img }}" \
           -f ${{ matrix.path_deb }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -72,13 +72,12 @@ jobs:
         chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh
         ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
         ls
-        ls ./deb_packages
         cp -r deb_packages ./edge-ai-libraries-repo/libraries/dl-streamer
     
     - name: Build Docker img from .deb
       run: |
         docker build \
-          -t dls-img/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} \
+          -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \ 
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -86,4 +85,4 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi dls-img/${{ github.repository }}/deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
