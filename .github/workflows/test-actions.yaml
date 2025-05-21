@@ -91,7 +91,7 @@ jobs:
         run: |
           cd sample-applications/chat-question-and-answer-core
           poetry install --no-root --with dev
-          source scripts/setup_env.sh llm=ModelServer embed=Embedding
+          bash source scripts/setup_env.sh llm=ModelServer embed=Embedding
           cd tests/
           poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
       
