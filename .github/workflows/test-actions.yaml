@@ -1,5 +1,10 @@
 name: Folder-Specific CI
 
+# Define concurrency at the workflow level
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # This ensures jobs don't cancel each other
+
 on:
   pull_request:
     branches:
