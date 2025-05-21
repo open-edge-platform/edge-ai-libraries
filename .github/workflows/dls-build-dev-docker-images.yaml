@@ -48,9 +48,9 @@ jobs:
     - name: Build dev with cache from GHCR
       run: |
         docker buildx build \
-          --tag $dev-img \
+          --tag "${{ env.dev-img }}" \
+          --cache-from="${{ env.dev-img-cached }}" \
           --build-arg=debug \
-          --cache-from=$dev-img-cached \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 

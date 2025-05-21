@@ -277,9 +277,12 @@ ENV TBB_DIR=$INTEL_OPENVINO_DIR/runtime/3rdparty/tbb/cmake
 ENV LD_LIBRARY_PATH=$INTEL_OPENVINO_DIR/tools/compile_tool:$INTEL_OPENVINO_DIR/runtime/3rdparty/tbb/lib:$INTEL_OPENVINO_DIR/runtime/3rdparty/hddl/lib:$INTEL_OPENVINO_DIR/runtime/lib/intel64:$LD_LIBRARY_PATH
 ENV PYTHONPATH=$INTEL_OPENVINO_DIR/python/${PYTHON_VERSION}:$PYTHONPATH
 
+RUN BUILD_ARG="${BUILD_ARG^}" && \
+    echo "Capitalized BUILD_ARG: ${BUILD_ARG}"
+
 # DLStreamer environment variables
-ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG^}/lib
-ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}^/bin
+ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
+ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/bin
 ENV PATH=${GSTREAMER_DIR}/bin:${BINDIR}:${PATH}
 ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
 ENV LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:${LIBRARY_PATH}
@@ -296,7 +299,7 @@ ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/pyth
 # Build DLStreamer
 RUN \
     cmake \
-    -DCMAKE_BUILD_TYPE=${BUILD_ARG^} \
+    -DCMAKE_BUILD_TYPE=${BUILD_ARG} \
     -DENABLE_PAHO_INSTALLATION=ON \
     -DENABLE_RDKAFKA_INSTALLATION=ON \
     -DENABLE_VAAPI=ON \
