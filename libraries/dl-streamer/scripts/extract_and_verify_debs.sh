@@ -39,9 +39,6 @@ echo "Finished."
 echo "Packages available in $DEBS_DESTINATION_PATH:"
 ls "$DEBS_DESTINATION_PATH"
 
-echo "Cleaning up..."
-docker rm "$CONTAINER_NAME" >/dev/null
-
 # === VERIFY .deb PACKAGES ===
 echo "Verifying if .deb packages were successfully extracted..."
 if ! compgen -G "$DEBS_DESTINATION_PATH/*.deb" > /dev/null; then

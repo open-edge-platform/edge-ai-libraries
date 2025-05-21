@@ -3,7 +3,7 @@ run-name: "[DLS] [U22/24] Build .deb pkgs and imgs (by ${{ github.actor }})"
 on:
   push:
     branches:
-      - 'main'
+      - 'dls-cache-docker'
   workflow_call:
 permissions:
   packages: read
@@ -47,7 +47,7 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build dev with cache from GHCR
+    - name: Build dev release img with cache from GHCR
       run: |
         docker buildx build \
           --load \
@@ -57,7 +57,7 @@ jobs:
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
-    - name: Build deb pkg img using dev img
+    - name: Build deb pkg img using dev release img
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
