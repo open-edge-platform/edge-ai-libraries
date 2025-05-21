@@ -68,4 +68,4 @@ WORKDIR /deb-pkg
 RUN \
     debuild -z1 -us -uc
 
-RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /deb-pkg/intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb
+RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb

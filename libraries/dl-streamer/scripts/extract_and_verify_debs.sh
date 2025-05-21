@@ -19,16 +19,25 @@ if [[ -z "$IMAGE_NAME" ]]; then
 fi
 
 # === RUN CONTAINER AND COPY FILES ===
-echo "Creating container from image: $IMAGE_NAME"
-docker create --name "$CONTAINER_NAME" "$IMAGE_NAME" bash
-
-echo "Copying .deb packages from container to host..."
+echo "Running container to extract .deb files..."
+docker run --name "$CONTAINER_NAME" "$IMAGE_NAME" bash -c '
+    mkdir -p /debs_to_copy
+    shopt -s nullglob
+    files=(/intel-dlstreamer*.deb)
+    if [ ${#files[@]} -eq 0 ]; then
+        echo "No .deb files found in /"
+        exit 1
+    fi
+    cp "${files[@]}" /debs_to_copy/
+'
+echo "Copying files from container to host..."
 mkdir -p "$DEBS_DESTINATION_PATH"
-docker cp "$CONTAINER_NAME:/deb-pkg/intel-dlstreamer*.deb" "$DEBS_DESTINATION_PATH" 2>/dev/null || {
-    echo "No matching .deb files found. Exiting."
-    docker rm "$CONTAINER_NAME" >/dev/null
-    exit 1
-}
+docker cp "$CONTAINER_NAME:/debs_to_copy/." "$DEBS_DESTINATION_PATH"
+echo "Cleaning up container..."
+docker rm "$CONTAINER_NAME"
+echo "Finished."
+echo "Packages available in $DEBS_DESTINATION_PATH:"
+ls "$DEBS_DESTINATION_PATH"
 
 echo "Cleaning up..."
 docker rm "$CONTAINER_NAME" >/dev/null
