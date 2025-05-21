@@ -9,7 +9,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 ## Documentation
 
 - **Overview**
-  - [Overview](docs/user-guide/overview.md): A high-level introduction..
+  - [Overview](docs/user-guide/overview.md): A high-level introduction.
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
