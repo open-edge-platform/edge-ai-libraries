@@ -1,0 +1,22 @@
+name: 'Setup Tools'
+description: 'Sets up Python, Trivy, and other required tools'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+        cache: 'pip'
+    
+    - name: Install Trivy
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+    
+    - name: Install Python Dependencies
+      shell: bash
+      run: |
+        pip install pytest pytest-cov
+        # Add other dependencies as needed
