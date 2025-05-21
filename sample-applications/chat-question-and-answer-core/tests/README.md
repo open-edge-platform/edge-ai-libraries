@@ -19,7 +19,7 @@ Before running the tests, ensure you have the following installed:
 
 - For backend
    - Python 3.11+
-   - `pip` (Python package installer)
+   - `pip` (Python package installer).
    - `Poetry` (Python dependency management and packaging tool)
 - For UI
    - `npm` (Node package manager).
