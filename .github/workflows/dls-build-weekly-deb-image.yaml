@@ -22,11 +22,11 @@ jobs:
           - path_deb: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
             path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-            build_arg: release
+            build_arg: Release
           - path_deb: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
             path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-            build_arg: release
+            build_arg: Release
     outputs:
       image: ${{ steps.save-image.outputs.image }}
     env:
@@ -113,10 +113,10 @@ jobs:
         include:
           - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-            build_arg: debug
+            build_arg: Debug
           - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-            build_arg: debug
+            build_arg: Debug
     outputs:
       image: ${{ steps.save-image.outputs.image }}
     env:

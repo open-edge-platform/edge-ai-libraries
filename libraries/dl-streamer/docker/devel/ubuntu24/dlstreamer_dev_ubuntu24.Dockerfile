@@ -182,7 +182,7 @@ RUN \
     -Dgstreamer-vaapi:glx=enabled \
     -Dgstreamer-vaapi:wayland=enabled \
     -Dgstreamer-vaapi:egl=enabled \
-    --buildtype=${BUILD_ARG} \
+    --buildtype=${BUILD_ARG,} \
     --prefix=${GSTREAMER_DIR} \
     --libdir=lib/ \
     --libexecdir=bin/ \
@@ -263,8 +263,6 @@ ENV HDDL_INSTALL_DIR=$INTEL_OPENVINO_DIR/runtime/3rdparty/hddl
 ENV TBB_DIR=$INTEL_OPENVINO_DIR/runtime/3rdparty/tbb/cmake
 ENV LD_LIBRARY_PATH=$INTEL_OPENVINO_DIR/tools/compile_tool:$INTEL_OPENVINO_DIR/runtime/3rdparty/tbb/lib:$INTEL_OPENVINO_DIR/runtime/3rdparty/hddl/lib:$INTEL_OPENVINO_DIR/runtime/lib/intel64:$LD_LIBRARY_PATH
 ENV PYTHONPATH=$INTEL_OPENVINO_DIR/python/${PYTHON_VERSION}:$PYTHONPATH
-
-ENV BUILD_ARG=${BUILD_ARG^}
 
 # DLStreamer environment variables
 ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
