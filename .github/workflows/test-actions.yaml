@@ -67,7 +67,7 @@ jobs:
   core-job:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.core_changed == 'true' }}
-    runs-on: ubuntu-24.04-16core-64GB
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -75,17 +75,29 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      - name: Run Commands for Core
+      - name: Run Unit Tests for Core
+        env:
+          HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+          LLM_MODEL: Intel/neural-chat-7b-v3-3
+          EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
+          RERANKER_MODEL: BAAI/bge-reranker-base
         run: |
           cd sample-applications/chat-question-and-answer-core
-          # Your commands here
-          trivy --version
-          python --version
+          poetry install --with dev
+          source setup.sh llm=ModelServer embed=Embedding
+          cd tests/unit_tests
+          poetry run pytest --cov=../../chat_question_and_answer_core --cov-report=xml
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: core-coverage-report
+          path: sample-applications/chat-question-and-answer-core/tests/unit_tests/coverage.xml
 
   qa-job:
     needs: detect-changes
     if: ${{ needs.detect-changes.outputs.qa_changed == 'true' }}
-    runs-on: ubuntu-24.04-16core-64GB
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -93,9 +105,21 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      - name: Run Commands for Q&A
+      - name: Run Unit Tests for Q&A
+        env:
+          HUGGINGFACE_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+          LLM_MODEL: Intel/neural-chat-7b-v3-3
+          EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
+          RERANKER_MODEL: BAAI/bge-reranker-base
         run: |
           cd sample-applications/chat-question-and-answer
-          # Your commands here
-          trivy --version
-          python --version
+          poetry install --with dev
+          source setup.sh llm=ModelServer embed=Embedding
+          cd tests/unit_tests
+          poetry run pytest --cov=../../chat_question_and_answer --cov-report=xml
+      
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v3
+        with:
+          name: qa-coverage-report
+          path: sample-applications/chat-question-and-answer/tests/unit_tests/coverage.xml
