@@ -60,6 +60,11 @@ Auxiliary plugins
 
        *[eg syntax]* *gst-launch-1.0 ... ! decodebin3 ! gvadetect ... ! gvafpscounter ! ... OUT*
 
+   * - :doc:`gvametaaggregate <gvametaaggregate>`
+     - Aggregates inference results from multiple pipeline branches.
+
+       *[eg syntax]* *gst-launch-1.0 ... ! decodebin3 ! tee name=t t. ! queue ! gvametaaggregate name=a ! gvaclassify ... ! gvaclassify ... ! gvametaconvert ... ! gvametapublish ... ! fakesink t. ! queue ! gvadetect ... ! a.*
+
    * - :doc:`gvametaconvert <gvametaconvert>`
      - Converts the metadata structure to JSON or raw text formats, can write output to a file.       
 
@@ -67,11 +72,6 @@ Auxiliary plugins
      - Publishes the JSON metadata to MQTT or Kafka message brokers or files.
 
        *[eg syntax]* *gst-launch-1.0 ... ! decodebin3 ! gvadetect model=$mDetect device=GPU ... ! gvametaconvert format=json ... ! gvametapublish ... ! ... OUT* 
-
-   * - :doc:`gvametaaggregate <gvametaaggregate>`
-     - Aggregates inference results from multiple pipeline branches.
-
-       *[eg syntax]* *gst-launch-1.0 ... ! decodebin3 ! tee name=t t. ! queue ! gvametaaggregate name=a ! gvaclassify ... ! gvaclassify ... ! gvametaconvert ... ! gvametapublish ... ! fakesink t. ! queue ! gvadetect ... ! a.*
 
    * - :doc:`gvapython <gvapython>`
      - Provides a callback to execute user-defined Python functions on every frame, used to augment DLStreamer with user-defined algorithms (e.g. metadata conversion, inference post-processing).
@@ -94,9 +94,9 @@ Auxiliary plugins
    gvaaudiodetect
    gvaattachroi
    gvafpscounter
+   gvametaaggregate
    gvametaconvert
    gvametapublish
-   gvametaaggregate
    gvapython
    gvawatermark
    gstelements
