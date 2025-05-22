@@ -122,8 +122,8 @@ jobs:
           path: |
             sample-applications/chat-question-and-answer-core/pytest-coverage.html
             sample-applications/chat-question-and-answer-core/pytest-report.html
-            sample-applications/chat-question-and-answer-core/htmlcov/**.html
-            sample-applications/chat-question-and-answer-core/coverage-html/**.html
+            sample-applications/chat-question-and-answer-core/htmlcov/index.html
+            sample-applications/chat-question-and-answer-core/coverage-html/index.html
 
   qa-job:
     needs: detect-changes
