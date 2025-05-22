@@ -1,10 +1,8 @@
 name: "[DLS] [U22/24] Build .deb pkgs and imgs"
 run-name: "[DLS] [U22/24] Build .deb pkgs and imgs (by ${{ github.actor }})"
 on:
-  push:
-    branches:
-      - 'dls-cache-docker'
   workflow_call:
+  workflow_dispatch:
 permissions:
   packages: read
   contents: read

@@ -1,12 +1,11 @@
-name: "[DLS] [U22/24] Build dev img"
-run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
+name: "[DLS] [U22/24] Build dev imgs"
+run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
-  push:
-    branches:
-      - 'dls-cache-docker'
   workflow_call:
   workflow_dispatch:
-permissions: read-all
+permissions:
+  packages: read
+  contents: read
 
 jobs:
   build:
