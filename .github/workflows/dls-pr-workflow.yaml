@@ -36,7 +36,4 @@ jobs:
 
   build-deb-and-img:
     name: Build .debs and .deb imgs
-    needs: build-dev-images
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
-    with:
-      dev-img: ${{ needs.build-dev-images.outputs.image }}
