@@ -111,7 +111,13 @@ When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify i
 ##### Configuration (config.json)
 
 DL Streamer Pipeline Server requires the following configuration properties to search, retrieve and store a model locally from the model registry microservice:
-Create a `config.json` file with below contents inside the `configs/` folder within your DL Streamer Pipeline Server work directory -`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/`. `WORKDIR` is your host machine workspace.
+A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. `WORKDIR` is your host machine workspace. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/model_registry/config.json:/home/pipeline-server/config.json"
+```
 The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
 Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice is in when started based on the value of `ENABLE_HTTPS_MODE` and the corresponding steps completed in the previous section.
 * **model_registry** (Object): The properties used to connect to the model registry microservice and the directory to save models locally within the context of DL Streamer Pipeline Server.

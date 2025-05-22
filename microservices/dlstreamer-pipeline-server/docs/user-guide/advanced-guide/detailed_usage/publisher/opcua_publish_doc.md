@@ -55,8 +55,15 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
           - OPCUA_SERVER_USERNAME=$OPCUA_SERVER_USERNAME
           - OPCUA_SERVER_PASSWORD=$OPCUA_SERVER_PASSWORD
     ```
-3. Update the default `config.json`. 
-    - A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_opcua/config.json`. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config.
+3. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_opcua/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_opcua/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_opcua/config.json:/home/pipeline-server/config.json"
+```
+
+
         
         - `variable` OPCUA server variable to which the meta data will be written.
             `ns=3;s=Demo.Static.Scalar.String` is an example OPC UA server variable supported by `OPC UA C++ Demo Server`

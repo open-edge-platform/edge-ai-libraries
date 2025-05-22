@@ -8,6 +8,8 @@ pipelines are defined and loaded by Deep Learning Streamer Pipeline Server (DL S
 
 # Pipeline Definition Files
 DL Streamer Pipeline Server exposes multiple application related fields in the config file.
+The default config is present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`.
+        
    
 The following table describes the essential attributes that are supported in the `config` section. 
 

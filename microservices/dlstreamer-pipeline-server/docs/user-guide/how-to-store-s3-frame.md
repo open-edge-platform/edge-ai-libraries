@@ -62,10 +62,15 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
               - MQTT_PORT=${MQTT_PORT}
         ```
         
-        > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `minio` service section at docker compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-serverdocker/docker-compose.yml`). In our example, its `minio-server`.
+        > **Note** Ensure that the value added to `no_proxy` matches the `container_name` specified for the `minio` service in the docker-compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In this example, it is `minio-server`.
 
-3. Update the default `config.json`. 
-    - A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json`. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config.
+3. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_s3write/config.json:/home/pipeline-server/config.json"
+```
        
         > **Note** Please note that there is no `gvawatermark` element in the pipeline string, which means unannotated frames will be being published to S3 storage. If you wish to publish annotated frames, consider adding it to your pipeline. In that case, the `"pipeline"` string may look like this.
         ```sh

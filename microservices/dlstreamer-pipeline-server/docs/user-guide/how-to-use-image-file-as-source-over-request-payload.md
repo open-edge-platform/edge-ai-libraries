@@ -22,7 +22,14 @@ Image request can be run in 2 modes - *sync* and *async*. This configuration is 
 ### Async mode
 
 By default, image ingestor runs in async mode i.e. `sync` is `false`.
-A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config.
+A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_image_ingestor/config.json:/home/pipeline-server/config.json"
+```
+
 
 Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 
@@ -81,7 +88,14 @@ Another way of queuing a image ingestor pipeline is in synchronous mode. The pip
     ```sh
     "pipeline": "appsrc name=source  ! decodebin  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
     ```
-- Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the modified sample config.
+    
+- We need to volume mount the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json` config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_image_ingestor/config.json:/home/pipeline-server/config.json"
+```
 
 Follow [this tutorial](how-to-change-dlstreamer-pipeline.md) to launch DL Streamer pipeline server with above config. 
 

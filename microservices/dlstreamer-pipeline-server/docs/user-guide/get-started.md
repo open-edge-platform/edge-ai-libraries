@@ -21,6 +21,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 - Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
   ```sh
+    cd [WORKDIR]
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
     ```
