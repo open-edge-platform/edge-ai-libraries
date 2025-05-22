@@ -214,49 +214,6 @@ class SmartNVRPipeline(GstPipeline):
             xpos = 640 * (i % grid_size)
             ypos = 360 * (i // grid_size)
             sinks += self._sink.format(id=i, xpos=xpos, ypos=ypos)
-
-        # # Find the available compositor in elements
-        # _compositor_element = next(
-        #     ("vacompositor" for element in elements if element[1] == "vacompositor"),
-        #     next(
-        #         ("compositor" for element in elements if element[1] == "compositor"),
-        #         None  # Fallback to None if no compositor is found
-        #     )
-        # )
-
-        # for element in elements:
-        #     print("-----------------Encoder element[1]:", element[1])
-
-        # # Find the available encoder in elements
-        # _encoder_element = next( 
-        #     ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
-        #     next(
-        #         ("vah264enc" for element in elements if element[1] == "vah264enc"),
-        #         next(
-        #             ("x264enc bitrate=16000 speed-preset=superfast" for element in elements if element[1] == "x264enc"),
-        #             None  # Fallback to None if no encoder is found
-        #         )
-        #     )
-        # )
-
-        # # Find the available decoder in elements
-        # _decoder_element = next(
-        #     ("vah264dec ! video/x-raw(memory:VAMemory) " for element in elements if element[1] == "vah264dec"),
-        #     next(
-        #         ("decodebin" for element in elements if element[1] == "decodebin"),
-        #         None  # Fallback to None if no decoder is found
-        #     )
-        # )
-
-        # # Find the postprocessing element
-        # _postprocessing_element = next(
-        #     ("vapostproc" for element in elements if element[1] == "vapostproc"),
-        #     next(
-        #         ("videoscale" for element in elements if element[1] == "videoscale"),
-        #         None  # Fallback to None if no postprocessing is found
-        #     )
-        # )
-
  
         if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
             gpu_index = parameters["object_detection_device"].split(".")[1]
@@ -298,10 +255,6 @@ class SmartNVRPipeline(GstPipeline):
                     )
                 )
             )
-        print(
-            f"---------------------DEBUG: device={parameters['object_detection_device']}, "
-            f"_encoder_element={_encoder_element}"
-        )
 
          # Find the available decoder and postprocessing elements dynamically
         if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
@@ -311,12 +264,6 @@ class SmartNVRPipeline(GstPipeline):
             vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
             _decoder_element = f"varenderD{vaapi_suffix}h264dec ! video/x-raw(memory:VAMemory)"
             _postprocessing_element = f"varenderD{vaapi_suffix}postproc"
-            print(
-                f"------------------DEBUG: device={parameters['object_detection_device']}, "
-                f"gpu_index={gpu_index}, vaapi_suffix={vaapi_suffix}, "
-                f"_decoder_element={_decoder_element}"
-                f"_postprocessing_element={_postprocessing_element}"
-            )
         else:
             # Fallback to default elements if no specific GPU is selected
             _decoder_element = next(
@@ -332,11 +279,6 @@ class SmartNVRPipeline(GstPipeline):
                     ("videoscale" for element in elements if element[1] == "videoscale"),
                     None  # Fallback to None if no postprocessing is found
                 )
-            )
-            print(
-                f"------------------DEBUG: device={parameters['object_detection_device']}, "
-                f"_decoder_element={_decoder_element}"
-                f"_postprocessing_element={_postprocessing_element}"
             )
 
         # Create the compositor
