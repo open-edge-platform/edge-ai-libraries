@@ -35,5 +35,5 @@ jobs:
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
   build-deb-and-img:
-    name: Build .debs and .deb imgs
+    name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml

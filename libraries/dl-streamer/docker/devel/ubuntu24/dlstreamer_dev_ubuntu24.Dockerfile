@@ -10,6 +10,7 @@ ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_ARG=Debug
 LABEL description="This is the development image of Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
+ARG DLSTREAMER_VERSION=2025.0.1.3
 
 ARG GST_VERSION=1.26.1
 ARG FFMPEG_VERSION=6.1.1

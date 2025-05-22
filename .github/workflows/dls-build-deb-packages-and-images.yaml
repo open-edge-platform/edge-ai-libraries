@@ -1,5 +1,5 @@
-name: "[DLS] [U22/24] Build .deb pkgs and imgs"
-run-name: "[DLS] [U22/24] Build .deb pkgs and imgs (by ${{ github.actor }})"
+name: "[DLS] [U22/24] Build .deb pkgs and deb imgs"
+run-name: "[DLS] [U22/24] Build .deb pkgs and deb imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
@@ -24,6 +24,7 @@ jobs:
     env:
       dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
       dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+      dlstreamer-version: "2025.0.1.3"
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -59,7 +60,7 @@ jobs:
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
-          --build-arg DLSTREAMER_VERSION=2025.0.1.3 \
+          --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           --build-arg BASE_IMAGE="${{ env.dev-release-img }}" \
           -f ${{ matrix.path_deb }} \
