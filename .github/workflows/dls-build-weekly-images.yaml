@@ -161,7 +161,7 @@ jobs:
   build-dls-pipeline-server-image:
     needs: build-dls-deb-img
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04
     strategy:
       fail-fast: false
       matrix:
