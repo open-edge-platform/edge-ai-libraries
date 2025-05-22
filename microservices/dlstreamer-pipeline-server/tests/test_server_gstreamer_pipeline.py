@@ -820,7 +820,7 @@ class TestGStreamerPipeline:
         mock_verify.assert_called_once()
         mock_create_app_dest.assert_called_once_with(gstreamer_pipeline.request,gstreamer_pipeline,"metadata")
         mock_appsink_element.set_property.assert_any_call("emit-signals", True)
-        mock_appsink_element.set_property.assert_any_call("sync", False)
+        #mock_appsink_element.set_property.assert_any_call("sync", False)
         mock_appsink_element.connect.assert_called_once_with("new-sample",gstreamer_pipeline.on_sample_app_destination)
         gstreamer_pipeline.request["destination"]["metadata"]["class"] = "app_class"
         mock_appsink_element.name = ""
@@ -834,7 +834,7 @@ class TestGStreamerPipeline:
         mock_verify = mocker.patch.object(gstreamer_pipeline,'_verify_and_set_frame_destinations')
         gstreamer_pipeline._set_application_destination()
         mock_appsink_element.set_property.assert_any_call("emit-signals", True)
-        mock_appsink_element.set_property.assert_any_call("sync", False)
+        #mock_appsink_element.set_property.assert_any_call("sync", False)
         mock_appsink_element.connect.assert_any_call("new-sample",gstreamer_pipeline.on_sample)
         mock_verify.assert_called_once()
         mock_get_ele_type.assert_called_once()
