@@ -108,7 +108,11 @@ jobs:
           # For a combined coverage and test report
           poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
           pwd
-          ls
+          echo "html-coverage"
+          ls coverage-html/
+          echo "htmlcov"
+          ls htmlcov/
+          ls 
           ls -lrt
           
       - name: Upload Coverage Report
@@ -118,6 +122,8 @@ jobs:
           path: |
             sample-applications/chat-question-and-answer-core/pytest-coverage.html
             sample-applications/chat-question-and-answer-core/pytest-report.html
+            sample-applications/chat-question-and-answer-core/htmlcov/**.html
+            sample-applications/chat-question-and-answer-core/coverage-html/**.html
 
   qa-job:
     needs: detect-changes
