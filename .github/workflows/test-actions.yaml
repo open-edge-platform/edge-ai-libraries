@@ -112,7 +112,9 @@ jobs:
         uses: actions/upload-artifact@v4
         with:
           name: core-coverage-report
-          path: sample-applications/chat-question-and-answer-core/pytest-coverage.html
+          path: |
+            sample-applications/chat-question-and-answer-core/pytest-coverage.html
+            sample-applications/chat-question-and-answer-core/pytest-report.html
 
   qa-job:
     needs: detect-changes
