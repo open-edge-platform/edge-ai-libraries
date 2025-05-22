@@ -1,22 +1,27 @@
 image:
   registry: "intel/"
-  backendTag: "core_1.1.2"
+  backendTag: "core_1.2.0"
+  backendGpuTag: "core_gpu_1.2.0"
   pullPolicy: IfNotPresent
 
 global:
-  http_proxy: ""
-  https_proxy: ""
-  no_proxy: ""
-  huggingface: 
-    apiToken: ""
-  EMBEDDING_MODEL_NAME: ""
-  RERANKER_MODEL: ""
-  LLM_MODEL: ""
+  http_proxy:
+  https_proxy:
+  no_proxy:
+  huggingface:
+    apiToken:
+  EMBEDDING_MODEL:
+  RERANKER_MODEL:
+  LLM_MODEL:
   model_cache_path: "/tmp/model_cache"
-  UI_NODEPORT: <ui-nodeport>
+  #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
+  EMBEDDING_DEVICE: "CPU"
+  RERANKER_DEVICE: "CPU"
+  LLM_DEVICE: "CPU"
+  UI_NODEPORT:
   pvc:
-    size: 40Gi
-  keeppvc: false 
+    size: 60Gi
+  keeppvc: false # true  to persist models across multiple deployments
 chatqna:
   name: chatqna-core
   service:
@@ -28,12 +33,18 @@ chatqna:
       port: 8888
     initialDelaySeconds: 30
     periodSeconds: 30
-  startupProbe:
-    httpGet:
-      path: /v1/chatqna/health
-      port: 8888
-    initialDelaySeconds: 1000 
-    periodSeconds: 30
+  env:
+    MAX_TOKENS: "1024"
+    ENABLE_RERANK: true
+    CACHE_DIR: "/tmp/model_cache"
+    HF_DATASETS_CACHE: "/tmp/model_cache"
+    TMP_FILE_PATH: "/tmp/chatqna/documents"
+
+gpu:
+  enabled: false
+  devices: /dev/dri
+  group_add: $(stat -c "%g" /dev/dri/render*)
+  key:  #update as per the cluster node label key for GPU assigned by device Plugin
 
 uiService:
   name: chatqna-core-ui

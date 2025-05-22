@@ -16,25 +16,28 @@ from langchain_core.runnables import (
 from langchain_core.vectorstores import VectorStoreRetriever as EGAIVectorStoreRetriever
 from langchain_community.llms import VLLMOpenAI as EGAIModelServing
 from langchain_openai import OpenAIEmbeddings as EGAIEmbeddings
+from .custom_reranker import CustomReranker
 import logging
+from opentelemetry import trace
+from opentelemetry.sdk.trace import TracerProvider
+from opentelemetry.sdk.trace.export import BatchSpanProcessor
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 
 set_verbose(True)
 
-from .custom_reranker import CustomReranker
-
-import openlit
-
 logging.basicConfig(level=logging.INFO)
 
+# Check if OTLP endpoint is set in environment variables
 otlp_endpoint = os.environ.get("OTLP_ENDPOINT", False)
-if otlp_endpoint:
-    openlit.init(
-        otlp_endpoint=os.environ.get("OTLP_ENDPOINT", "http://localhost:4318"),
-        application_name=os.environ.get("SERVICE_NAME", "chatqna"),
-        environment=os.environ.get("SERVICE_ENV", "chatqna"),
-    )
-    logging.info("OpenLit initialized")
 
+# Initialize OpenTelemetry
+trace.set_tracer_provider(TracerProvider())
+tracer = trace.get_tracer(__name__)
+
+if otlp_endpoint:
+    otlp_exporter = OTLPSpanExporter()
+    span_processor = BatchSpanProcessor(otlp_exporter)
+    trace.get_tracer_provider().add_span_processor(span_processor)
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
 MODEL_NAME = os.getenv("EMBEDDING_MODEL","BAAI/bge-small-en-v1.5")

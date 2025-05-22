@@ -1,3 +1,5 @@
+{{- include "chatqna-core.validateGpuSettings" . }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -13,23 +15,21 @@ spec:
         app: chatqna-core
     spec:
       securityContext:
-        runAsUser: 0 
+        runAsUser: 0
+        runAsGroup: 0
+        fsGroup: 0
       containers:
         - name: chatqna-core
-          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}"
+          image: "{{ if .Values.gpu.enabled }}{{ .Values.image.registry }}chatqna:{{ .Values.image.backendGpuTag }}{{ else }}{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}{{ end }}"
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
+          securityContext:
+            privileged: true
           readinessProbe:
             httpGet:
               path: {{ .Values.chatqna.readinessProbe.httpGet.path }}
               port: {{ .Values.chatqna.readinessProbe.httpGet.port }}
             initialDelaySeconds: {{ .Values.chatqna.readinessProbe.initialDelaySeconds }}
             periodSeconds: {{ .Values.chatqna.readinessProbe.periodSeconds }}
-          startupProbe:
-            httpGet:
-              path: {{ .Values.chatqna.startupProbe.httpGet.path }}
-              port: {{ .Values.chatqna.startupProbe.httpGet.port }}
-            initialDelaySeconds: {{ .Values.chatqna.startupProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.chatqna.startupProbe.periodSeconds }} 
           env:
             - name: http_proxy
               value: "{{ .Values.global.http_proxy }}"
@@ -40,17 +40,49 @@ spec:
             - name: HF_ACCESS_TOKEN
               value: "{{ .Values.global.huggingface.apiToken }}"
             - name: EMBEDDING_MODEL_ID
-              value: "{{ .Values.global.EMBEDDING_MODEL_NAME }}"
+              value: "{{ .Values.global.EMBEDDING_MODEL }}"
             - name: RERANKER_MODEL_ID
-              value: "{{ .Values.global.RERANKER_MODEL}}"
+              value: "{{ .Values.global.RERANKER_MODEL }}"
             - name: LLM_MODEL_ID
               value: "{{ .Values.global.LLM_MODEL }}"
+            - name: EMBEDDING_DEVICE
+              value: {{ .Values.global.EMBEDDING_DEVICE }}
+            - name: RERANKER_DEVICE
+              value: {{ .Values.global.RERANKER_DEVICE }}
+            - name: LLM_DEVICE
+              value: {{ .Values.global.LLM_DEVICE }}
+            - name: MAX_TOKENS
+              value: "{{ .Values.chatqna.env.MAX_TOKENS }}"
+            - name: ENABLE_RERANK
+              value: "{{ .Values.chatqna.env.ENABLE_RERANK }}"
+            - name: CACHE_DIR
+              value: "{{ .Values.chatqna.env.CACHE_DIR }}"
+            - name: HF_DATASETS_CACHE
+              value: "{{ .Values.chatqna.env.HF_DATASETS_CACHE }}"
+            - name: TMP_FILE_PATH
+              value: "{{ .Values.chatqna.env.TMP_FILE_PATH }}"
+          {{ if .Values.gpu.enabled }}
+          resources:
+            requests:
+              {{ .Values.gpu.key}}: 1
+            limits:
+              {{ .Values.gpu.key}}: 1
+          devices:
+            - name: dri-device
+              containerPath: /dev/dri
+          {{ end }}
           ports:
             - containerPort: 8888
           volumeMounts:
             - name: model-cache
-              mountPath: "{{ .Values.global.model_cache_path }}" 
+              mountPath: "{{ .Values.global.model_cache_path }}"
       volumes:
         - name: model-cache
           persistentVolumeClaim:
-            claimName: egai-pvc
+            claimName: chatqna-pvc
+      {{- if .Values.gpu.enabled }}
+        - name: dri-device
+          hostPath:
+            path: {{ .Values.gpu.devices }}
+            type: Directory
+      {{- end }}
