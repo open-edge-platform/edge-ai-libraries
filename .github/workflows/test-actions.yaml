@@ -107,7 +107,10 @@ jobs:
           
           # For a combined coverage and test report
           poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
-                
+          pwd
+          ls
+          ls -lrt
+          
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
         with:
