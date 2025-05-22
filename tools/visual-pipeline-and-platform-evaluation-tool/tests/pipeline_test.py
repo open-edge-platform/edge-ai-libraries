@@ -56,6 +56,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
 
         # Check that the number of inference channels is correct
         self.assertEqual(result.count("gvadetect"), inference_channels)
+        self.assertEqual(result.count("gvatrack"), inference_channels)
 
 
 if __name__ == "__main__":
