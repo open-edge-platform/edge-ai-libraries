@@ -1,13 +1,20 @@
-import time
+"""benchmark.py
+
+This module provides the Benchmark class for evaluating pipeline performance
+based on configurable parameters and stream counts.
+"""
 from typing import List, Dict, Tuple
+import math
 import logging
 from utils import run_pipeline_and_extract_metrics
-import math
 
 logging.basicConfig(level=logging.INFO)
 
 
 class Benchmark:
+
+    """Benchmarking class for pipeline evaluation."""
+
     def __init__(
         self,
         video_path: str,
@@ -16,7 +23,7 @@ class Benchmark:
         rate: int,
         parameters: Dict[str, str],
         constants: Dict[str, str],
-        elements: List[tuple[str, str, str]] = [],
+        elements: List[tuple[str, str, str]] = None,
     ):
         self.video_path = video_path
         self.pipeline_cls = pipeline_cls
@@ -24,74 +31,70 @@ class Benchmark:
         self.rate = rate
         self.parameters = parameters
         self.constants = constants
-        self.elements = elements
+        self.elements = elements if elements is not None else []
         self.best_result = None
         self.results = []
 
         self.logger = logging.getLogger("Benchmark")
 
-
-
-    def run(self) ->Tuple[int, int, int, float]:
-        start_time = time.time()
-        streams = 1
-        last_estimate = -1
-        max_duration = 300  # 5 minutes
-        last_good_config = []
+    def run(self) -> Tuple[int, int, int, float]:
+        """Run the benchmark and return the best configuration."""
+        n_streams = 1
+        increments = 1
+        incrementing = True
+        best_config = (0, 0, 0, 0.0)
 
         while True:
-            if time.time() - start_time > max_duration:
-                self.logger.info("Stopping: Max time reached.")
-                break
-            ai_streams = math.ceil(streams * (self.rate / 100))
-            non_ai_streams = streams - ai_streams
+            ai_streams = math.ceil(n_streams * (self.rate / 100))
+            non_ai_streams = n_streams - ai_streams
+
             results = run_pipeline_and_extract_metrics(
-                pipeline_cmd=self.pipeline_cls,
+                self.pipeline_cls,
                 constants=self.constants,
                 parameters=self.parameters,
                 channels=(non_ai_streams, ai_streams),
-                elements=self.elements
+                elements=self.elements,
             )
             if not results:
-                self.logger.warning("No results returned, exiting.")
+                self.logger.info("No results returned from run_pipeline_and_extract_metrics")
                 break
 
             result = results[0]
             try:
                 total_fps = float(result["total_fps"])
-                per_stream_fps = float(result["per_stream_fps"])
-                if per_stream_fps >= self.fps_floor:
-                    self.logger.info("Per stream FPS above floor")
-                    new_estimate = math.floor(total_fps / self.fps_floor)
-                    last_good_config.append((
-                        result["num_streams"],
-                        ai_streams,
-                        non_ai_streams,
-                        per_stream_fps,
-                    ))
-                    if new_estimate == last_estimate or \
-                        (len(last_good_config) >= 2 and new_estimate == last_good_config[-2][0]):
-                            self.logger.info(f"Estimate converged at {new_estimate}.")
-                            break
-                    last_estimate = new_estimate
-                    streams = new_estimate
-                else:
-                    self.logger.info("Per stream FPS below floor, decreasing stream count.")
-                    new_estimate = max(1, streams - 1)
-                    last_good_config.append((
-                        result["num_streams"],
-                        ai_streams,
-                        non_ai_streams,
-                        per_stream_fps,
-                    ))
-                    if new_estimate == last_estimate or \
-                        (len(last_good_config) >= 2 and new_estimate == last_good_config[-2][0]):
-                            self.logger.info(f"Estimate converged at lower {new_estimate}.")
-                            break
-                    last_estimate = new_estimate
-                    streams = new_estimate
-            except (KeyError, ValueError) as e:
-                self.logger.error(f"Invalid result encountered: {e}")
+                per_stream_fps = total_fps / n_streams if n_streams > 0 else 0.0
+            except (ValueError, TypeError, ZeroDivisionError):
+                self.logger.info("Invalid FPS value, skipping this result.")
                 break
 
-        return last_good_config[-1] if last_good_config else (0, 0, 0, 0.0)
+            self.logger.info(
+                "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
+                n_streams, total_fps, per_stream_fps, increments, incrementing
+            )
+
+            if incrementing:
+                if per_stream_fps >= self.fps_floor:
+                    increments = int(per_stream_fps / self.fps_floor)
+                    if increments <= 1:
+                        increments = 5
+                else:
+                    incrementing = False
+                    increments = -1
+            else:
+                if per_stream_fps >= self.fps_floor:
+                    best_config = (n_streams, ai_streams, non_ai_streams, per_stream_fps)
+                    break  # Success
+                else:
+                    if n_streams <= 1:
+                        self.logger.info("Failed to find a valid configuration.")
+                        break  # Fail
+
+            n_streams += increments
+            if n_streams <= 0:
+                n_streams = 1  # Prevent N from going below 1
+
+        return (
+            best_config
+            if best_config[0] > 0
+            else (n_streams, ai_streams, non_ai_streams, per_stream_fps)
+        )
