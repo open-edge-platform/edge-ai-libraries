@@ -138,7 +138,11 @@ def run_pipeline_and_extract_metrics(
 
         try:
             # Spawn command in a subprocess
-            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE)
+            # process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE)
+            env = os.environ.copy()
+            env["GST_VA_ALL_DRIVERS"] = "1"
+
+            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE, env=env)
 
             exit_code = None
             total_fps = None
