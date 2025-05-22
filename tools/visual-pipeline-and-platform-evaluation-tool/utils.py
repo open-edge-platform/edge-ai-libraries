@@ -148,6 +148,7 @@ def run_pipeline_and_extract_metrics(
             env = os.environ.copy()
             env["GST_VA_ALL_DRIVERS"] = "1"
 
+            # Spawn command in a subprocess
             process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE, env=env)
 
             exit_code = None

@@ -215,6 +215,7 @@ class SmartNVRPipeline(GstPipeline):
             ypos = 360 * (i // grid_size)
             sinks += self._sink.format(id=i, xpos=xpos, ypos=ypos)
  
+        # Find the available compositor in elements dynamically
         if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
