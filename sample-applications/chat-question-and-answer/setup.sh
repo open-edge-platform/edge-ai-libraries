@@ -55,6 +55,7 @@ export RERANKER_ENDPOINT=http://reranker/rerank
 # OpenTelemetry and OpenLit Configurations 
 export OTLP_SERVICE_NAME=chatqna
 export OTLP_SERVICE_ENV=chatqna
+export OTEL_SERVICE_VERSION=1.0.0
 
 # VLLM
 export TENSOR_PARALLEL_SIZE=1
