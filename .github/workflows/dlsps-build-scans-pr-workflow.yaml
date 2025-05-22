@@ -1,0 +1,140 @@
+name: "[DLSPS] PR workflow"
+run-name: "[DLSPS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'microservices/dlstreamer-pipeline-server/**'
+      
+  pull_request:
+    paths:
+      - 'microservices/dlstreamer-pipeline-server/**'
+      
+  workflow_call:
+permissions: read-all
+
+jobs:
+  build-dls-pipeline-server-image:
+    name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+    - name: Build dls-pipeline-server-img
+      run: |
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
+        docker compose build --no-cache --pull
+    
+    - name: Create summary
+      if: always()
+      run: |
+        echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "intel/dlstreamer-pipeline-server:3.0.0" >> $GITHUB_STEP_SUMMARY
+        echo '```' >> $GITHUB_STEP_SUMMARY
+        echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi intel/dlstreamer-pipeline-server:3.0.0 || true
+
+  unit-test-dls-pipeline-server:
+    name: Unit Test DLS Pipeline Server
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+    - name: Unit Test dls-pipeline-server
+      run: |
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+        make build
+        make test | tee /tmp/pytest_output.txt
+        exit ${PIPESTATUS[0]}
+        
+    - name: Create summary
+      if: always()
+      run: |
+        pytest_output=$(cat /tmp/pytest_output.txt)
+        summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
+        echo "### Unit Test Completed for DLSPS commit id ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+        echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
+        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+        echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
+        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+        
+    - name: Upload Scan artifact to Github
+      if: always()
+      uses: actions/upload-artifact@v4
+      with:
+        name: Coverage-reports
+        path: /tmp/htmlcov
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        sudo rm -rf /tmp/htmlcov
+        echo "Cleaning up run"
+           if [ -n "$(docker ps -aq)" ]; then
+               docker stop $(docker ps -aq) || true
+           fi
+           if [ -n "$(docker images -aq)" ]; then
+               docker rmi -f $(docker images -aq) || true
+           fi
+  bandit-virus-scans:
+    name: Run Bandit and Virus Scan
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Run Bandit Scan
+      run: |
+        mkdir -p reports
+        docker pull ghcr.io/pycqa/bandit/bandit
+        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
+        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Run Virus Scan
+      run: |
+        mkdir -p reports
+        docker pull clamav/clamav
+        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/dlstreamer-pipeline-server/ > ./reports/clamav-report.txt || true
+        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-virus-reports
+        path: reports/
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+               docker rmi -f $(docker images -aq) || true
+        fi
+
+        

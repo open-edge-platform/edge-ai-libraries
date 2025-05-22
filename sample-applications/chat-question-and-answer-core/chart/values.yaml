@@ -1,15 +1,16 @@
 image:
   registry: "intel/"
   backendTag: "core_1.2.0"
+  backendGpuTag: "core_gpu_1.2.0"
   pullPolicy: IfNotPresent
 
 global:
   http_proxy:
   https_proxy:
   no_proxy:
-  huggingface: 
+  huggingface:
     apiToken:
-  EMBEDDING_MODEL_NAME:
+  EMBEDDING_MODEL:
   RERANKER_MODEL:
   LLM_MODEL:
   model_cache_path: "/tmp/model_cache"
@@ -32,13 +33,13 @@ chatqna:
       port: 8888
     initialDelaySeconds: 30
     periodSeconds: 30
-  env: 
+  env:
     MAX_TOKENS: "1024"
     ENABLE_RERANK: true
     CACHE_DIR: "/tmp/model_cache"
     HF_DATASETS_CACHE: "/tmp/model_cache"
     TMP_FILE_PATH: "/tmp/chatqna/documents"
-    
+
 gpu:
   enabled: false
   devices: /dev/dri

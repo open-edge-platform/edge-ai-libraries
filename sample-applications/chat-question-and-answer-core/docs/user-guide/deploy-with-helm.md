@@ -37,12 +37,17 @@ cd chat-question-and-answer-core
 ```
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required. GPU support is enabled
+Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
+
+To enable GPU support, set the configuration parameter `gpu.enabled` to `True` and provide the corresponding `gpu.key` that assigned in your cluster node in the `values.yaml` file.
+
+For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./system-requirements.md) section.
+
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token      | `<your-huggingface-token>` |
-| `global.EMBEDDING_MODEL_NAME`|   embedding model name      | BAAI/bge-small-en-v1.5|
+| `global.EMBEDDING_MODEL`|   embedding model name      | BAAI/bge-small-en-v1.5|
 | `global.RERANKER_MODEL`  | reranker model name   | BAAI/bge-reranker-base   |
 | `global.LLM_MODEL` |  model to be used with ovms     | microsoft/Phi-3.5-mini-instruct|
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
@@ -53,7 +58,14 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `gpu.enabled` | Set is true for deploying on GPU  | false |
 | `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node| `<your-node-key-on-cluster>` |
 
-**NOTE**:Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
+**NOTE**:
+
+- If `gpu.enabled` is set to False, the parameters `global.EMBEDDING_DEVICE`, `global.RERANKER_DEVICE`, and `global.LLM_DEVICE` must not be set to `GPU`.
+A validation check is included and will throw an error if any of these parameters are incorrectly set to `GPU` while `GPU support is disabled`.
+
+- When GPU support is enabled, the default value for these device parameters is GPU. On systems with an integrated GPU, the device ID is always 0 (i.e., GPU.0), and GPU is treated as an alias for GPU.0.
+For systems with multiple GPUs (e.g., both integrated and discrete Intel GPUs), you can specify the desired devices using comma-separated IDs such as GPU.0, GPU.1 and etc.
+
 ### Option 2: Install from Source
 
 #### Step 1: Clone the Repository
