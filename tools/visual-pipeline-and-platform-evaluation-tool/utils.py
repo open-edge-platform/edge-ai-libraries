@@ -122,10 +122,8 @@ def run_pipeline_and_extract_metrics(
     """
     logger = logging.getLogger("utils")
     results = []
-    # Set the number of channels
-    channels = channels if isinstance(channels, int) else channels[0] + channels[1]
 
-    # Set the number if regular channels
+    # Set the number of regular channels
     # If no tuple is provided, the number of regular channels is 0
     regular_channels = 0 if isinstance(channels, int) else channels[0]
 
