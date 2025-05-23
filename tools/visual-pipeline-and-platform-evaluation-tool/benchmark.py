@@ -37,6 +37,23 @@ class Benchmark:
 
         self.logger = logging.getLogger("Benchmark")
 
+    def _run_pipeline_and_extract_metrics(
+        self,
+        pipeline_cls,
+        constants: Dict[str, str],
+        parameters: Dict[str, str],
+        channels: Tuple[int, int],
+        elements: List[tuple[str, str, str]],
+    ) -> List[Dict[str, float]]:
+        """Run the pipeline and extract metrics."""
+        return run_pipeline_and_extract_metrics(
+            pipeline_cls,
+            constants=constants,
+            parameters=parameters,
+            channels=channels,
+            elements=elements,
+        )
+
     def run(self) -> Tuple[int, int, int, float]:
         """Run the benchmark and return the best configuration."""
         n_streams = 1
@@ -48,24 +65,30 @@ class Benchmark:
             ai_streams = math.ceil(n_streams * (self.rate / 100))
             non_ai_streams = n_streams - ai_streams
 
-            results = run_pipeline_and_extract_metrics(
-                self.pipeline_cls,
-                constants=self.constants,
-                parameters=self.parameters,
-                channels=(non_ai_streams, ai_streams),
-                elements=self.elements,
-            )
-            if not results:
-                self.logger.info("No results returned from run_pipeline_and_extract_metrics")
-                break
+            try:
+                results = self._run_pipeline_and_extract_metrics(
+                    self.pipeline_cls,
+                    constants=self.constants,
+                    parameters=self.parameters,
+                    channels=(non_ai_streams, ai_streams),
+                    elements=self.elements,
+                )
+            except StopIteration:
+                return (0, 0, 0, 0.0)
 
+            if not results or results[0] is None or not isinstance(results[0], dict):
+                return (0, 0, 0, 0.0)
+            if results[0].get("exit_code") != 0:
+                return (0, 0, 0, 0.0)
+            
             result = results[0]
             try:
                 total_fps = float(result["total_fps"])
                 per_stream_fps = total_fps / n_streams if n_streams > 0 else 0.0
             except (ValueError, TypeError, ZeroDivisionError):
-                self.logger.info("Invalid FPS value, skipping this result.")
-                break
+                return (0, 0, 0, 0.0)
+            if total_fps == 0 or math.isnan(per_stream_fps):
+                return (0,0,0,0.0)
 
             self.logger.info(
                 "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
@@ -75,6 +98,10 @@ class Benchmark:
             if incrementing:
                 if per_stream_fps >= self.fps_floor:
                     increments = int(per_stream_fps / self.fps_floor)
+                    self.logger.info(
+                        "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
+                        n_streams, total_fps, per_stream_fps, increments, incrementing
+                    )
                     if increments <= 1:
                         increments = 5
                 else:
