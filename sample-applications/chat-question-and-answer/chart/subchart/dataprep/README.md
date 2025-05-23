@@ -2,7 +2,7 @@
 
 This Helm chart is used to deploy the `dataprep` service with pgVector.
 
-data-prep will use pgVector, dataStore and tei service, please specify the endpoints.
+data-prep will use pgVector, tei and MINIO service, please specify the endpoints.
 
 ## Prerequisites
 
@@ -10,7 +10,7 @@ Before deploying the `dataprep` service, ensure the following services are up an
 
 1. **pgVector**: A PostgreSQL extension for vector similarity search. [PgVector deployment steps](../pgvector/README.md)
 2. **TEI (Text Embedding Inference)**: A service for generating text embeddings. [TEI deployment steps](../tei/README.MD)
-3. **DataStore** : A service to store the documents [DataStore deployment steps](../datastore/README.md)
+3. **MinIO** : An object storage service to store the documents [MinIO deployment steps](../minioserver/README.md)
 
 ## Deployment Steps
 
@@ -27,18 +27,20 @@ Before deploying the `dataprep` service, ensure the following services are up an
     ```sh
      HUGGINGFACEHUB_API_TOKEN
      PG_CONNECTION_STRING
-     TEI_ENDPOINT_URL 
-     DATASTORE_ENDPOINT_URL
+     TEI_ENDPOINT_URL
+     MINIO_ACCESS_KEY
+     MINIO_SECRET_KEY
     ```
-    The values can also be set while running the deploy command with helm..
+    The values can also be set while running the deploy command with helm.
 
 3. **Deploy Using Helm**
 
-    ```sh   
+    ```sh
     helm install dataprep . --set global.huggingface.apiToken=<your-huggingface-token> \
     --set dataprepPgvector.env.PG_CONNECTION_STRING=<your-pg-connection-string> \
     --set dataprepPgvector.env.TEI_ENDPOINT_URL=<your-tei-endpoint-url> \
-    --set dataprepPgvector.env.DATASTORE_ENDPOINT_URL=<your-datastore-endpoint-url> \
+    --set dataprepPgvector.env.MINIO_ACCESS_KEY=<your-minio-access-key> \
+    --set dataprepPgvector.env.MINIO_SECRET_KEY=<yout-minio-secret-key> \
     --namespace <your-namespace>
     ```
 4. **Verify Deployment**
@@ -56,7 +58,7 @@ Before deploying the `dataprep` service, ensure the following services are up an
     kubectl port-forward svc/<service-name> <local-port>:<service-port>
     ```
     Replace `<service-name>`, `<local-port>`, and `<service-port>` with the appropriate values from your deployment.
-    
+
 ## Uninstall ##
     To uninstall the dataprep service, run the following command:
     ```sh
