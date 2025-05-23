@@ -21,7 +21,6 @@ def mock_request():
                 "cache-length": 30,
                 "sync-with-source": True,
                 "sync-with-destination": True,
-                "encode-cq-level": 10
             }
 
 @pytest.fixture
@@ -39,7 +38,6 @@ class TestGStreamerWebRTCDestination:
         assert gstreamer_webrtc_destination._cache_length == 30
         assert gstreamer_webrtc_destination._sync_with_source is True
         assert gstreamer_webrtc_destination._sync_with_destination is True
-        assert gstreamer_webrtc_destination._encode_cq_level == 10
         assert gstreamer_webrtc_destination._clock == Gst.SystemClock()
         assert gstreamer_webrtc_destination.overlay == True
 
@@ -49,7 +47,6 @@ class TestGStreamerWebRTCDestination:
         assert gstreamer_webrtc_destination._cache_length == 30
         assert gstreamer_webrtc_destination._sync_with_source is True
         assert gstreamer_webrtc_destination._sync_with_destination is True
-        assert gstreamer_webrtc_destination._encode_cq_level == 10
 
     def test_init_stream(self, gstreamer_webrtc_destination, mock_pipeline):
         mock_sample = MagicMock()
@@ -91,10 +88,9 @@ class TestGStreamerWebRTCDestination:
         mock_app_src.set_property.assert_any_call("block", True)
         mock_app_src.set_property.assert_any_call("min-percent", 100)
         mock_app_src.set_property.assert_any_call("max-bytes", 30000)
-        mock_encoder.set_property.assert_called_once_with("cq-level", 10)
         mock_app_src.connect.assert_any_call('need-data', gstreamer_webrtc_destination._on_need_data)
         mock_app_src.connect.assert_any_call('enough-data', gstreamer_webrtc_destination._on_enough_data)
-        mock_webrtc_pipeline.get_by_name.assert_called_once_with("vp8encoder")
+        mock_webrtc_pipeline.get_by_name.assert_called_once_with("h264enc")
 
     def test_push_buffer(self, gstreamer_webrtc_destination, mock_pipeline,Gst,mocker):
         mock_buffer = MagicMock()
