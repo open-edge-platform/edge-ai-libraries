@@ -99,6 +99,39 @@ By analyzing the **time** and **ts** values, you can determine the latency intro
 
 For example, the first line in Example 2 shows that the `detection` element experienced a latency of 367077652 nanoseconds between the source element and itself.
 
+## Timestamp benchmark at various stages of starting a pipeline
+
+We ran an experiment to understand latency at each stage of starting a pipeline. This has been captured below. 
+
+t1 - curl command sent to start a pipeline
+t2 - curl command received at endpoint 
+t3 - pipeline set to play state          
+t4 - first frame received on source gst element
+t5 - mqtt first message received   
+ 
+Benchmark 1
+| Time point | Time taken | Diff b/w 2 consecutive time points  |
+| ------------- |:-------------:| ------------- |
+| t1 | 1747391789369 | -
+| t2 | 1747391789374 | (+5ms)
+| t3 | 1747391789389 | (+15ms)
+| t4 | 1747391789391 | (+2ms)
+| t5 | 1747391789931 | (+540ms)
+ 
+Total time - 562ms
+
+Benchmark 2
+| Time point | Time taken | Diff b/w 2 consecutive time points  |
+| ------------- |:-------------:| ------------- |
+| t1 | 1747392132874 | -
+| t2 | 1747392132879 | (+5ms)
+| t3 | 1747392132893 | (+14ms)
+| t4 | 1747392132895 | (+2ms)
+| t5 | 1747392133430 | (+535ms)
+ 
+Total time - 556ms
+
+`NOTE` time difference b/w t1, t2 and t4, t5 will most likely vary a lot depending upon network traffic of the system. Hence the overall time taken from t1 to t5 is also like to vary a lot depending upon the netwrok traffic. 
 
 ## Learn More
 
