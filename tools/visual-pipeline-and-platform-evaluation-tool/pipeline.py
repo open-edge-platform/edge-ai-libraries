@@ -173,6 +173,8 @@ class SmartNVRPipeline(GstPipeline):
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
             "  max-size-time=0 ! "
+            "gvatrack "
+            "  tracking-type=short-term-imageless ! "
             "gvawatermark ! "
             "gvametaconvert "
             "  format=json "
