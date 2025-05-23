@@ -198,8 +198,7 @@ class SmartNVRPipeline(GstPipeline):
         inference_channels: int,
         elements: List[ tuple[str, str, str] ] = [],
     ) -> str:
-        print("------------------------------------------object_detection_device:", parameters.get("object_detection_device"))
-
+        
         parameters["object_detection_pre_process_backend"] = (
             "opencv"
             if parameters["object_detection_device"] in ["CPU", "NPU"] 
@@ -223,9 +222,6 @@ class SmartNVRPipeline(GstPipeline):
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
             vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
             _compositor_element = f"varenderD{vaapi_suffix}compositor"
-            print(
-                f"_compositor_element={_compositor_element}"
-            )
         else:
             _compositor_element = next(
             ("vacompositor" for element in elements if element[1] == "vacompositor"),
@@ -241,11 +237,6 @@ class SmartNVRPipeline(GstPipeline):
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
             vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
             _encoder_element = f"varenderD{vaapi_suffix}h264lpenc"
-            print(
-                f"------------------DEBUG: device={parameters['object_detection_device']}, "
-                f"gpu_index={gpu_index}, vaapi_suffix={vaapi_suffix}, "
-                f"_encoder_element={_encoder_element}"
-            )
         else:
             # Fallback to default encoder if no specific GPU is selected
             _encoder_element = next(
