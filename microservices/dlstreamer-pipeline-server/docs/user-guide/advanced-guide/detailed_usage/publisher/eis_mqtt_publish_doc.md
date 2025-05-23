@@ -26,8 +26,8 @@ Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber need
 
 ### Configure and start MQTT broker
 
-MQTT broker should be configured to accept connections. Start the broker from [WORKDIR]/ directory.
-For example, start [eclipse mosquitto](https://mosquitto.org/) MQTT broker using configuration in `[WORKDIR]/utils/mosquitto` as below. Make sure `echo $PWD` shows the root of DL Streamer Pipeline Server repository.
+MQTT broker should be configured to accept connections. Start the broker from [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/ directory.
+For example, start [eclipse mosquitto](https://mosquitto.org/) MQTT broker using configuration in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/utils/mosquitto` as below. Make sure `echo $PWD` shows the root of DL Streamer Pipeline Server repository.
 
   ```sh
   docker run -d --name=mqtt_broker -p 1883:1883 -v $PWD/utils/mosquitto/mosquitto.conf:/mosquitto/config/mosquitto.conf eclipse-mosquitto
@@ -94,7 +94,7 @@ Once the mqtt broker is configured and up, connect to the mqtt broker and subscr
 
 ## Configure DL Streamer Pipeline Server for MQTT Publishing
 ### Configuration options
-Add values to following parameters present in `[WORKDIR]/docker/.env` file
+Add values to following parameters present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file
 ```sh
 MQTT_HOST=<mqtt broker address>
 MQTT_PORT=1883
@@ -102,7 +102,7 @@ MQTT_PORT=1883
   - `host` mqtt broker hostname or IP address
   - `port` port to connect to the broker
 
-Add below configuration in appropriate config.json file in in `[WORKDIR]/configs/default/` directory to enable publishing to the mqtt broker.
+Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
   ```json
     "mqtt_publisher": {
       "publish_frame": false
@@ -226,7 +226,7 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
 2. Configure and start MQTT broker
 
-   - Modify the `[WORKDIR]/utils/mosquitto/mosquitto.conf` file as below.
+   - Modify the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/utils/mosquitto/mosquitto.conf` file as below.
 
     ```sh
       allow_anonymous true
@@ -306,13 +306,13 @@ Follow the below steps to establish a secure connection with MQTT broker,
 
 4. Configure DL Streamer Pipeline Server for establishing secure connection with MQTT broker
 
-   Add values to following parameters present in `[WORKDIR]/docker/.env` file
+   Add values to following parameters present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file
     ```sh
     MQTT_HOST=<mqtt broker address>
     MQTT_PORT=1883
     ```
 
-   Add below configuration in appropriate config.json file in in `[WORKDIR]/configs/default/` directory to enable publishing to the mqtt broker.
+   Add below configuration in appropriate config.json file in in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/` directory to enable publishing to the mqtt broker.
 
     ```json
       "mqtt_publisher": {

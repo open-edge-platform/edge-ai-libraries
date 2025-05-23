@@ -1,6 +1,6 @@
 # RTSP Cameras
 
-- Refer the following pipeline for RTSP camera and modify the appropriate config.json file in `[WORKDIR]/configs` directory.
+- Refer the following pipeline for RTSP camera and modify the appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
 ```sh
   "pipeline": "rtspsrc location=\"rtsp://<USERNAME>:<PASSWORD>@<RTSP_CAMERA_IP>:<PORT>/<FEED>\" latency=100 name=source ! rtph264depay ! h264parse ! decodebin ! videoconvert ! video/x-raw,format=RGB ! appsink name=destination"

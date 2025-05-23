@@ -5,8 +5,7 @@
 For inferencing with GPU backend, we will use the REST API to start a pipeline.
 
 
-Replace the following sections in `[WORKDIR]/configs/default/config.json` with the following
-Note: Follow instruction in the [Prerequisite section](./how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
+Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the following
 
 - replace `"pipeline"` section with  
     ```sh
@@ -39,7 +38,7 @@ Save the config.json and restart DL Streamer pipeline server
 Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned in this [document](./how-to-change-dlstreamer-pipeline.md)) it.
 
 ```sh
-    cd [WORKDIR]/docker/
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
     docker compose down
     docker compose up
 ```

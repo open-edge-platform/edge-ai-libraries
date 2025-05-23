@@ -12,7 +12,6 @@
 .. toctree::
    :caption: How to
 
-   how-to-update-default-config
    how-to-change-dlstreamer-pipeline
    how-to-use-gpu-for-inference
    how-to-autostart-pipelines

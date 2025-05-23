@@ -86,7 +86,7 @@ Refer the below config for the default config used for this Geti udf:
                 "device": "CPU",
                 "deployment": "./resources/geti/pallet_defect_detection/deployment",
                 "visualize": "false",
-                "metadata_converter": "geti_to_dcaas"
+                "metadata_converter": "null"
             }
         ]
 

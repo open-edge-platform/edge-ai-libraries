@@ -10,8 +10,7 @@ Autostart for a pipeline can be enabled by setting the flag `auto_start` to `tru
 
 ### Method 1 - Specifying all the information in the pipeline itself - 
 
-Replace the following sections in `[WORKDIR]/configs/default/config.json` with the following
-Note: Follow instruction in the [Prerequisite section](./how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
+Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the following
 
 - replace `"pipeline"` section with  
 
@@ -25,7 +24,7 @@ Note: Follow instruction in the [Prerequisite section](./how-to-update-default-c
 - After making changes to config.json, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned [above](./how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)) it.
 
     ```sh
-    cd [WORKDIR]/docker/    
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/    
     docker compose up
     ```
     We should see the metadata results in `/tmp/results.jsonl` file like the following snippet.
@@ -104,7 +103,7 @@ Note: Follow instruction in the [Prerequisite section](./how-to-update-default-c
 - Start DL Streamer Pipeline Server
 
     ```sh
-        cd [WORKDIR]/docker/
+        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
         docker compose up
     ```
   The pipeline would start automatically as soon as DL Streamer Pipeline Server starts. 

@@ -111,7 +111,13 @@ When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify i
 ##### Configuration (config.json)
 
 DL Streamer Pipeline Server requires the following configuration properties to search, retrieve and store a model locally from the model registry microservice:
-Create a `config.json` file with below contents inside the `configs/` folder within your DL Streamer Pipeline Server work directory -`[WORKDIR]/configs/`. `WORKDIR` is your host machine workspace.
+A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. `WORKDIR` is your host machine workspace. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/model_registry/config.json:/home/pipeline-server/config.json"
+```
 The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
 Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice is in when started based on the value of `ENABLE_HTTPS_MODE` and the corresponding steps completed in the previous section.
 * **model_registry** (Object): The properties used to connect to the model registry microservice and the directory to save models locally within the context of DL Streamer Pipeline Server.
@@ -164,57 +170,18 @@ Replace `<PROTOCOL>` in the following steps with `https` or `http` according to 
             * Example: `"pipeline": "....gvadetect model=./mr_models/yolo11s_m-v1_fp32/FP32/yolo11s.xml name=detection...."`
 
 Replace the `<PROTOCOL>` and `<IP_ADDRESS_OR_SERVICE_HOSTNAME>` accordingly.
-```json
-{
-    "config": {
-        "model_registry": {
-            "url": "<PROTOCOL>://<IP_ADDRESS_OR_SERVICE_HOSTNAME>:32002",
-            "saved_models_dir": "./mr_models",
-            "request_timeout": 300
-        },
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "gstreamer",
-                "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                             "element": {
-                                "name": "detection",
-                                "format": "element-properties"
-                              }
-                        }
-                    }
-                },
-                "auto_start": false,
-                "model_params": [{
-                    "project_name": "<PROJECT_NAME>",
-                    "version": "<VERSION>",
-                    "category": "<CATEGORY>",
-                    "architecture": "<ARCHITECTURE>",
-                    "precision": "<PRECISION>",
-                    "deploy": "<DEPLOY>",
-                    "pipeline_element_name": "<PIPELINE_ELEMENT_NAME>",
-                    "origin": "<ORIGIN>"
-                }]
-            }
-        ]
-    }
-}
-```
-The created `config.json` file must be volume mounted inside the `[WORKDIR]/docker/docker-compose.yml` to reflect the configuration changes when DL Streamer Pipeline Server is brought up.
+
+The `config.json` file must be volume mounted inside the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` to reflect the configuration changes when DL Streamer Pipeline Server is brought up.
+
 ```sh
 volumes:
-      # Volume mount [WORDDIR]/configs/config.json to config file that DL Streamer Pipeline Server container loads."
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/config.json to config file that DL Streamer Pipeline Server container loads."
       - "../configs/config.json:/home/pipeline-server/config.json"
 ```
 
 Next bring up the containers
 ```sh
-cd [WORKDIR]/docker
+cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
 docker compose up
 ```
 

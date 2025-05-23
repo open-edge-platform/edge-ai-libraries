@@ -21,7 +21,7 @@ The processed frames and metadata can be published over to a MQTT message broker
 - Broker receives messages from DL Streamer Pipeline Server and forwards the messages to MQTT subscribers.
 - Subscriber receives messages from broker on the subscribed topic. <br>
 
-The python script `[WORKDIR]/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to specified MQTT broker.
+The python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/user_scripts/gvapython/mqtt_publisher.py` supports publishing frames and metadata to specified MQTT broker.
 
 ## Prerequisites
 Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber needs to be configured and started.
@@ -39,39 +39,31 @@ For starting MQTT subscriber, refer [here](./eis_mqtt_publish_doc.md#start-mqtt-
 
 ### Configuration options
 Here is a sample configuration which performs Pallet Defect Detection and publishes the inference results to mqtt broker using gvapython script. 
-```json
-{
-    "config": {
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "gstreamer",
-                "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                             "element": {
-                                "name": "detection",
-                                "format": "element-properties"
-                              }
-                        },
-                        "mqtt_publisher": {
-                            "element": {
-                                "name": "mqtt_publisher",
-                                "property": "kwarg",
-                                "format": "json"
-                            },
-                            "type": "object"
+
+```bash 
+"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
+```
+
+```bash
+        "parameters": {
+            "type": "object",
+                "properties": {
+                    "detection-properties": {
+                        "element": {
+                            "name": "detection",
+                            "format": "element-properties"
                         }
+                    },
+                    "mqtt_publisher": {
+                        "element": {
+                            "name": "mqtt_publisher",
+                            "property": "kwarg",
+                            "format": "json"
+                        },
+                        "type": "object"
                     }
-                },
-                "auto_start": false
-            }
-        ]
-    }
-}
+                }
+        }
 ```
 
 Modify the config to change the pipeline configuration as needed.
@@ -119,7 +111,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
                 }
 }'
 ```
-`NOTE` `"host"` and `"port"` of mqtt publisher needs to be updated in `[WORKDIR]/docker/.env` file
+`NOTE` `"host"` and `"port"` of mqtt publisher needs to be updated in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file
 ```sh
 MQTT_HOST=<mqtt broker address>
 MQTT_PORT=1883
@@ -135,13 +127,13 @@ Follow the steps 1, 2 and 3 from [here](./eis_mqtt_publish_doc.md#secure-publish
 
 Upon completing the broker and subscriber setup, refer to the below steps to configuring DL Streamer Pipeline Server for secure connection.
 
-- Add values to following parameters present in `[WORKDIR]/docker/.env` file
+- Add values to following parameters present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file
     ```sh
     MQTT_HOST=<mqtt broker address>
     MQTT_PORT=8883
     ```
 
-- Modify `docker-compose.yml`. The port number should match with the value specified in the `[WORKDIR]/docker/.env` file. In the above example we have used port `8883`, hence we need to add the ports with same value in `docker-compose.yml` file as shown below
+- Modify `docker-compose.yml`. The port number should match with the value specified in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file. In the above example we have used port `8883`, hence we need to add the ports with same value in `docker-compose.yml` file as shown below
 
     ```yaml
         ports:
