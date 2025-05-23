@@ -315,36 +315,3 @@ class SmartNVRPipeline(GstPipeline):
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + compositor + " " + streams
-
-
-# Example usage
-if __name__ == "__main__":
-    pipeline = SmartNVRPipeline()
-    print("Diagram Path:", pipeline.diagram())
-    print("Bounding Boxes:", pipeline.bounding_boxes())
-    print("Pipeline:", pipeline.pipeline())
-    print(
-        "Evaluate:",
-        pipeline.evaluate(
-            constant = {
-                "VIDEO_OUTPUT_PATH": "output.mp4",
-                "VIDEO_PATH": "input.mp4",
-                "OBJECT_DETECTION_MODEL_PATH": "model.xml",
-                "OBJECT_DETECTION_MODEL_PROC": "model_proc.xml",
-            },
-            parameters = {
-                "object_detection_device": "CPU",
-                "batch_size": 16,  
-                "inference_interval": 2, 
-                "nireq": 4,  
-            },
-            regular_channels = 2,
-            inference_channels = 1,
-            elements = [
-                "compositor",
-                "x264enc",
-                "decodebin",
-                "videoscale"
-            ]
-        ),
-    )
