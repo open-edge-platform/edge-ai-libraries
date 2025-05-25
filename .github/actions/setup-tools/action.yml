@@ -24,3 +24,25 @@ runs:
       shell: bash
       run: |
         pip install pytest pytest-cov
+
+    - name: Setup Node.js with NVM
+      shell: bash
+      run: |
+        # Download and install nvm
+        curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.40.2/install.sh | bash
+        
+        # In lieu of restarting the shell
+        . "$HOME/.nvm/nvm.sh"
+        
+        # Download and install Node.js
+        nvm install 22
+        
+        # Verify the Node.js version
+        node -v
+        nvm current
+        
+        # Verify npm version
+        npm -v
+        
+        # Install vitest
+        npm install -D vitest@2.1.9
