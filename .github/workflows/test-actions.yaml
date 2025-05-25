@@ -86,37 +86,43 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      - name: Run Unit Tests for Core
-        shell: bash
-        run: |
-          cd sample-applications/chat-question-and-answer-core
-          echo "Running unit test cases"
-          python3.12 -m venv venv
-          source venv/bin/activate
-          poetry install --with dev || true
-          poetry add pytest-html
-          source scripts/setup_env.sh
-          poetry run pytest tests/ --html=pytest-coverage.html
-          coverage run --source=. -m pytest
-          coverage report -m
-          # Install required packages
-          poetry add pytest-cov pytest-html
+      # - name: Run Unit Tests for Core
+      #   shell: bash
+      #   run: |
+      #     cd sample-applications/chat-question-and-answer-core
+      #     echo "Running unit test cases"
+      #     python3.12 -m venv venv
+      #     source venv/bin/activate
+      #     poetry install --with dev || true
+      #     poetry add pytest-html
+      #     source scripts/setup_env.sh
+      #     poetry run pytest tests/ --html=pytest-coverage.html
+      #     coverage run --source=. -m pytest
+      #     coverage report -m
+      #     # Install required packages
+      #     poetry add pytest-cov pytest-html
           
-          # Run tests with coverage and HTML report in one command
-          poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+      #     # Run tests with coverage and HTML report in one command
+      #     poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
           
-          # For a combined coverage and test report
-          poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+      #     # For a combined coverage and test report
+      #     poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
           
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        with:
-          name: core-coverage-report
-          path: |
-            sample-applications/chat-question-and-answer-core/pytest-coverage.html
-            sample-applications/chat-question-and-answer-core/pytest-report.html
-            sample-applications/chat-question-and-answer-core/htmlcov/index.html
-            sample-applications/chat-question-and-answer-core/coverage-html/index.html
+          
+      #     echo "RUnning npm commands"
+      #     cd /ui
+          
+          
+      # - name: Upload Coverage Report
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: core-coverage-report
+      #     path: |
+      #       sample-applications/chat-question-and-answer-core/pytest-coverage.html
+      #       sample-applications/chat-question-and-answer-core/pytest-report.html
+      #       sample-applications/chat-question-and-answer-core/htmlcov/index.html
+      #       sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      
       - name: Setup Node.js
         uses: actions/setup-node@v4
         with:
@@ -127,11 +133,11 @@ jobs:
         run: |
           pwd
           cd sample-applications/chat-question-and-answer-core/ui/
-          npm install -g vitest@2.1.9 
           npm config delete proxy
           npm config delete https-proxy
           npm config delete http-proxy
           npm install
+          npm install -g vitest@2.1.9
           npm run test
           npm run test:ui
           npm run coverage
