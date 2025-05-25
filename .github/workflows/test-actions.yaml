@@ -154,7 +154,12 @@ jobs:
           which trivy
           trivy image --download-db-only
           # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
-          trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
+          # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+    
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+      
       - name: Upload trivy reports
         uses: actions/upload-artifact@v4
         if: always()
