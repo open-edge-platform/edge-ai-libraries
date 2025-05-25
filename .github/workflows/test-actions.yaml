@@ -224,7 +224,6 @@ jobs:
         run: |
               echo "print pwd"
               pwd
-              cd sample-applications/chat-question-and-answer-core/
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-core-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
