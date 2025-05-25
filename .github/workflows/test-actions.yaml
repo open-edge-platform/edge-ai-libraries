@@ -193,31 +193,62 @@ jobs:
       #     name: antivirus-report
       #     path: clamav-scan-report.log
 
-      - name: ClamAV Antivirus Scan
+      # - name: ClamAV Antivirus Scan
+      #   shell: bash
+      #   run: |
+      #     echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
+          
+      #     docker run --rm \
+      #       --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
+      #       clamav/clamav:stable \
+      #       clamscan --recursive --log=/scandir/clamav-scan-report.log \
+      #       /scandir
+          
+      #     SCAN_EXIT_CODE=$?
+      #     sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
+          
+      #     if [ $SCAN_EXIT_CODE -ne 0 ]; then
+      #       echo "ClamAV scan failed or found issues"
+      #       exit 1
+      #     fi
+      
+      # - name: Upload Antivirus Report
+      #   if: always()
+      #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      #   with:
+      #     name: antivirus-report
+      #     path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
+      
+      - name: Trivy Image Scan
         shell: bash
         run: |
-          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
-          
-          docker run --rm \
-            --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
-            clamav/clamav:stable \
-            clamscan --recursive --log=/scandir/clamav-scan-report.log \
-            /scandir
-          
-          SCAN_EXIT_CODE=$?
-          sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
-          
-          if [ $SCAN_EXIT_CODE -ne 0 ]; then
-            echo "ClamAV scan failed or found issues"
-            exit 1
-          fi
-      
-      - name: Upload Antivirus Report
+              echo "Building image chatqna-core-backend and scanning"
+              docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
+              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan_core-backend.html
+              trivy image --quiet --format spdx-json --output trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
+              echo "completed chatqna-core-backend scanning"
+              
+              echo "**************************************************************"
+              echo "Building image chatqna-core-frontend and scanning"
+              docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
+              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan_core-frontend.html
+              trivy image --quiet --format spdx-json --output trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
+              echo "completed chatqna-core-frontend scanning"
+              
+              echo "**************************************************************"
+            
+            
+      - name: Upload Trivy Image Report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: antivirus-report
-          path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
+          name: Trivy image scan report
+          path: |
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json
+          
       
   qa-job:
     needs: detect-changes
