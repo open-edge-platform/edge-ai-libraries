@@ -145,29 +145,49 @@ jobs:
       #         sample-applications/chat-question-and-answer-core/ui/ui-results.html
       #         sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
 
-      - name: trivy repo scan
-        shell: bash
-        run: |
-          pwd
-          cd sample-applications/chat-question-and-answer-core/
-          trivy --version
-          which trivy
-          trivy image --download-db-only
-          # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
-          # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
-          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+      # - name: trivy repo scan
+      #   shell: bash
+      #   run: |
+      #     pwd
+      #     cd sample-applications/chat-question-and-answer-core/
+      #     trivy --version
+      #     which trivy
+      #     trivy image --download-db-only
+      #     # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
+      #     # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
+      #     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
-          # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+      #     # Use the downloaded template
+      #     trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
       
-      - name: Upload trivy reports
-        uses: actions/upload-artifact@v4
+      # - name: Upload trivy reports
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: trivy-code-scan-results
+      #     path: |
+      #         sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
+      
+      - name: ClamAV
+        run: |
+          docker run --rm \
+          --mount type=bind,source=./,target=/scandir \
+          clamav/clamav:stable \
+          clamscan --recursive --log=/scandir/${{ env.OUTPUT_FILE }} \
+          /scandir
+
+          if [ $? -ne 0 ]; then
+            sudo chown $USER:$USER ${{ env.OUTPUT_FILE }}
+            exit 1
+          fi
+          sudo chown $USER:$USER ${{ env.OUTPUT_FILE }}
+
+      - name: Upload evidence
         if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
         with:
-          name: trivy-code-scan-results
-          path: |
-              sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
-    
+          name: antivirus-report
+          path: ${{ env.OUTPUT_FILE }}
       
   qa-job:
     needs: detect-changes
