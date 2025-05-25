@@ -227,15 +227,15 @@ jobs:
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-core-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
-              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan_core-backend.html
-              trivy image --quiet --format spdx-json --output trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
+              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
               echo "completed chatqna-core-backend scanning"
               
               echo "**************************************************************"
               echo "Building image chatqna-core-frontend and scanning"
               docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
-              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan_core-frontend.html
-              trivy image --quiet --format spdx-json --output trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
+              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
               echo "completed chatqna-core-frontend scanning"
               echo "print all the files"
               pwd
