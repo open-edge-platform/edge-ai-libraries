@@ -151,6 +151,7 @@ jobs:
           pwd
           cd sample-applications/chat-question-and-answer-core/
           trivy --version
+          which trivy
           trivy image --download-db-only
           trivy fs . --format template --template "@/usr/local/share/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
       - name: Upload trivy reports
