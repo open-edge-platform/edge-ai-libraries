@@ -122,6 +122,7 @@ jobs:
         shell: bash 
         run: |
             cd sample-applications/chat-question-and-answer-core/ui
+            npm install
             npm install -D vitest@2.1.9
             npm run test
             npm run test:ui
