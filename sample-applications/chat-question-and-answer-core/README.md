@@ -13,7 +13,7 @@ Below, you'll find links to detailed documentation to help you get started,. con
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
-  - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
+  - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application..
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building from source code.
