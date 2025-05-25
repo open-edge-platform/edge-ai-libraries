@@ -145,9 +145,6 @@ jobs:
           
           # Set registry explicitly and disable proxy
           npm config set registry https://registry.npmjs.org/
-          npm config set proxy null
-          npm config set https-proxy null
-          npm config set http-proxy null
     
           # Clear all caches
           npm cache clean --force
