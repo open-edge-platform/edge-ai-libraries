@@ -19,6 +19,14 @@ runs:
       shell: bash
       run: |
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+        # Create templates directory and download template
+        mkdir -p /usr/local/bin/trivy/templates
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o /usr/local/bin/trivy/templates/html.tpl
+        
+    # - name: Install Trivy
+    #   shell: bash
+    #   run: |
+    #     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
     
     - name: Install Python Dependencies
       shell: bash
