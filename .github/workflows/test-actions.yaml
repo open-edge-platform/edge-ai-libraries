@@ -119,31 +119,37 @@ jobs:
       #       sample-applications/chat-question-and-answer-core/htmlcov/index.html
       #       sample-applications/chat-question-and-answer-core/coverage-html/index.html
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        with:
-          node-version: '22'
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '22'
           #cache: 'npm'  
-      - name: Install npm dependencies
+      # - name: Install npm dependencies
+      #   shell: bash
+      #   run: |
+      #     pwd
+      #     cd sample-applications/chat-question-and-answer-core/ui/
+      #     # Install with verbose logging
+      #     npm install
+      #     npm install -D vitest@2.1.9
+      #     npm run test
+      #     npm run test:ui
+      #     npm run coverage
+      #     npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
+      # - name: Upload UI Results
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: ui-test-results
+      #     path: |
+      #         sample-applications/chat-question-and-answer-core/ui/ui-results.html
+      #         sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
+
+      - name: trivy repo scan
         shell: bash
         run: |
-          pwd
-          cd sample-applications/chat-question-and-answer-core/ui/
-          # Install with verbose logging
-          npm install
-          npm install -D vitest@2.1.9
-          npm run test
-          npm run test:ui
-          npm run coverage
-          npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
-      - name: Upload UI Results
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: ui-test-results
-          path: |
-              sample-applications/chat-question-and-answer-core/ui/ui-results.html
-              sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
+          trivy --version
+          
       
   qa-job:
     needs: detect-changes
