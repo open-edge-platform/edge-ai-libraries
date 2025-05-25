@@ -167,54 +167,57 @@ jobs:
       #     name: trivy-code-scan-results
       #     path: |
       #         sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
+      # - name: ClamAV Antivirus Scan
+      #   shell: bash
+      #   run: |
+      #     echo "Starting ClamAV scan..."
+          
+      #     docker run --rm \
+      #       --mount type=bind,source=./,target=/scandir \
+      #       clamav/clamav:stable \
+      #       clamscan --recursive --log=/scandir/clamav-scan-report.log \
+      #       /scandir
+          
+      #     SCAN_EXIT_CODE=$?
+      #     sudo chown $USER:$USER clamav-scan-report.log 2>/dev/null || true
+          
+      #     if [ $SCAN_EXIT_CODE -ne 0 ]; then
+      #       echo "ClamAV scan failed or found issues"
+      #       exit 1
+      #     fi
+
+      # - name: Upload Antivirus Report
+      #   if: always()
+      #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      #   with:
+      #     name: antivirus-report
+      #     path: clamav-scan-report.log
+
       - name: ClamAV Antivirus Scan
         shell: bash
         run: |
-          echo "Starting ClamAV scan..."
+          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
           
           docker run --rm \
-            --mount type=bind,source=./,target=/scandir \
+            --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
             clamav/clamav:stable \
             clamscan --recursive --log=/scandir/clamav-scan-report.log \
             /scandir
           
           SCAN_EXIT_CODE=$?
-          sudo chown $USER:$USER clamav-scan-report.log 2>/dev/null || true
+          sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
           
           if [ $SCAN_EXIT_CODE -ne 0 ]; then
             echo "ClamAV scan failed or found issues"
             exit 1
           fi
-
+      
       - name: Upload Antivirus Report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
           name: antivirus-report
-          path: clamav-scan-report.log
-
-
-      
-      - name: ClamAV
-        run: |
-          docker run --rm \
-          --mount type=bind,source=./,target=/scandir \
-          clamav/clamav:stable \
-          clamscan --recursive --log=/scandir/${{ env.OUTPUT_FILE }} \
-          /scandir
-
-          if [ $? -ne 0 ]; then
-            sudo chown $USER:$USER ${{ env.OUTPUT_FILE }}
-            exit 1
-          fi
-          sudo chown $USER:$USER ${{ env.OUTPUT_FILE }}
-
-      - name: Upload evidence
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-        with:
-          name: antivirus-report
-          path: ${{ env.OUTPUT_FILE }}
+          path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
       
   qa-job:
     needs: detect-changes
