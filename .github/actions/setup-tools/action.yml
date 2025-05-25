@@ -15,18 +15,18 @@ runs:
         curl -sSL https://install.python-poetry.org | python3 -
         echo "$HOME/.local/bin" >> $GITHUB_PATH
     
-    - name: Install Trivy
-      shell: bash
-      run: |
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
-        # Create templates directory and download template
-        mkdir -p /usr/local/share/trivy/templates
-        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o /usr/local/share/trivy/templates/html.tpl
-   
     # - name: Install Trivy
     #   shell: bash
     #   run: |
     #     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+    #     # Create templates directory and download template
+    #     mkdir -p /usr/local/share/trivy/templates
+    #     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o /usr/local/share/trivy/templates/html.tpl
+   
+    - name: Install Trivy
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
     
     - name: Install Python Dependencies
       shell: bash
