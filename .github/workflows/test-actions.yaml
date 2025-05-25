@@ -137,8 +137,13 @@ jobs:
           # npm config delete proxy
           # npm config delete https-proxy
           # npm config delete http-proxy
-          npm install
-          npm install -g vitest@2.1.9
+          
+          # Clear npm cache
+          npm cache clean --force
+          
+          # Install with verbose logging
+          npm install --verbose
+          npm install -D vitest@2.1.9 --verbose
           npm run test
           npm run test:ui
           npm run coverage
