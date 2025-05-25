@@ -137,9 +137,21 @@ jobs:
           # npm config delete proxy
           # npm config delete https-proxy
           # npm config delete http-proxy
+          # Completely reset npm configuration
+          npm config delete proxy 2>/dev/null || true
+          npm config delete https-proxy 2>/dev/null || true
+          npm config delete http-proxy 2>/dev/null || true
+          npm config delete registry 2>/dev/null || true
           
-          # Clear npm cache
+          # Set registry explicitly and disable proxy
+          npm config set registry https://registry.npmjs.org/
+          npm config set proxy null
+          npm config set https-proxy null
+          npm config set http-proxy null
+    
+          # Clear all caches
           npm cache clean --force
+
           
           # Install with verbose logging
           npm install --verbose
