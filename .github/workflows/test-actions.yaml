@@ -121,8 +121,8 @@ jobs:
       - name: Run Unit Tests for Core-UI
         shell: bash 
         run: |
-            cd sample-applications/chat-question-and-answer-core/ui
-            npm install
+            cd sample-applications/chat-question-and-answer-core/ui/
+            npm install package.json
             npm install -D vitest@2.1.9
             npm run test
             npm run test:ui
