@@ -125,7 +125,16 @@ jobs:
       - name: Install npm dependencies
         shell: bash
         run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/ui/
           npm install -g vitest@2.1.9 
+          npm config delete proxy
+          npm config delete https-proxy
+          npm config delete http-proxy
+          npm install
+          npm run test
+          npm run test:ui
+          npm run coverage
       
       # - name: Run Unit Tests for Core-UI
       #   run: |
