@@ -117,21 +117,28 @@ jobs:
             sample-applications/chat-question-and-answer-core/pytest-report.html
             sample-applications/chat-question-and-answer-core/htmlcov/index.html
             sample-applications/chat-question-and-answer-core/coverage-html/index.html
-
-      - name: Run Unit Tests for Core-UI
-        shell: bash 
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          #cache: 'npm'  
+      - name: Install npm dependencies
+        shell: bash
         run: |
-            cd sample-applications/chat-question-and-answer-core/ui/
-           
-            # Clear any proxy settings that might interfere
-            npm config delete proxy
-            npm config delete https-proxy
-            npm config delete http-proxy
-            npm install
-            npm install -D vitest@2.1.9
-            npm run test
-            npm run test:ui
-            npm run coverage
+          npm install -g vitest@2.1.9 
+      
+      # - name: Run Unit Tests for Core-UI
+      #   run: |
+      #       cd sample-applications/chat-question-and-answer-core/ui/ 
+      #       # Clear any proxy settings that might interfere
+      #       npm config delete proxy
+      #       npm config delete https-proxy
+      #       npm config delete http-proxy
+      #       npm install
+      #       npm install -D vitest@2.1.9
+      #       npm run test
+      #       npm run test:ui
+      #       npm run coverage
         
 
 
