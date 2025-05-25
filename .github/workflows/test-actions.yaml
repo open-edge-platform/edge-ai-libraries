@@ -148,8 +148,19 @@ jobs:
       - name: trivy repo scan
         shell: bash
         run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/
           trivy --version
-          
+          trivy image --download-db-only
+          trivy fs . --format template --template "@/usr/local/share/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
+      - name: Upload trivy reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results
+          path: |
+              sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
+    
       
   qa-job:
     needs: detect-changes
