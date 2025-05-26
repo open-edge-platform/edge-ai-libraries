@@ -4,46 +4,37 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-FROM ubuntu:24.04
+FROM fedora:41
 
-ARG DEBIAN_FRONTEND=noninteractive
-ARG BUILD_ARG=Debug
 LABEL description="This is the development image of Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
-ARG DLSTREAMER_VERSION=2025.0.1.3
 
 ARG GST_VERSION=1.26.1
 ARG FFMPEG_VERSION=6.1.1
 
 ARG OPENVINO_VERSION=2025.1
-ARG OPENVINO_FILENAME=openvino_toolkit_ubuntu24_2025.1.0.18503.6fec06580ab_x86_64
+ARG OPENVINO_FILENAME=openvino_toolkit_rhel8_2025.1.0.18503.6fec06580ab_x86_64
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
 ENV GSTREAMER_DIR=/opt/intel/dlstreamer/gstreamer
-ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+ENV LIBVA_DRIVERS_PATH=/usr/lib64/dri-nonfree
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_VA_ALL_DRIVERS=1
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
-RUN userdel -r ubuntu
-
-COPY scripts/DLS_install_prerequisites.sh /DLS_install_prerequisites.sh
-
 RUN \
-    chmod +x /DLS_install_prerequisites.sh && \
-    /DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
-    rm -f /DLS_install_prerequisites.sh && \
-    apt-get update && \
-    apt-get install -y -q --no-install-recommends wget=\* xz-utils=\* python3-pip=\* python3-gi=\* gcc-multilib=\* libglib2.0-dev=\* \
-    flex=\* bison=\* autoconf=\* automake=\* libtool=\* libogg-dev=\* make=\* g++=\* libva-dev=\* yasm=\* libglx-dev=\* libdrm-dev=\* \
-    python-gi-dev=\* python3-dev=\* libtbb12=\* gpg=\* unzip=\* libopencv-dev=\* libgflags-dev=\* \
-    libgirepository1.0-dev=\* libx265-dev=\* libx264-dev=\* libde265-dev=\* gudev-1.0=\* libusb-1.0=\* nasm=\* python3-venv=\* \
-    libcairo2-dev=\* libxt-dev=\* libgirepository1.0-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* libcurl4-openssl-dev=\* \
-    libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
-    linux-libc-dev=\* libpmix2t64=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    dnf install -y \
+    "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
+    "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" && \
+    dnf install -y wget libva-utils xz python3-pip python3-gobject gcc gcc-c++ glibc-devel glib2-devel \
+    flex bison autoconf automake libtool libogg-devel make libva-devel yasm mesa-libGL-devel libdrm-devel \
+    python3-gobject-devel python3-devel tbb gnupg2 unzip opencv-devel gflags-devel \
+    gobject-introspection-devel x265-devel x264-devel libde265-devel libgudev-devel libusb1 libusb1-devel nasm python3-virtualenv \
+    cairo-devel cairo-gobject-devel libXt-devel mesa-libGLES-devel wayland-protocols-devel libcurl-devel \
+    libssh2-devel cmake git valgrind numactl libvpx-devel opus-devel libsrtp-devel libXv-devel \
+    kernel-headers pmix pmix-devel hwloc hwloc-libs hwloc-devel libxcb-devel libX11-devel libatomic intel-media-driver && \
+    dnf clean all
 
 RUN \
     useradd -ms /bin/bash dlstreamer && \
@@ -103,6 +94,8 @@ RUN \
     --bindir="/bin" && \
     make -j "$(nproc)" && \
     make install
+
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 
 #Build GStreamer
 WORKDIR /home/dlstreamer
@@ -183,7 +176,7 @@ RUN \
     -Dgstreamer-vaapi:glx=enabled \
     -Dgstreamer-vaapi:wayland=enabled \
     -Dgstreamer-vaapi:egl=enabled \
-    --buildtype=${BUILD_ARG,} \
+    --buildtype=debug \
     --prefix=${GSTREAMER_DIR} \
     --libdir=lib/ \
     --libexecdir=bin/ \
@@ -266,14 +259,14 @@ ENV LD_LIBRARY_PATH=$INTEL_OPENVINO_DIR/tools/compile_tool:$INTEL_OPENVINO_DIR/r
 ENV PYTHONPATH=$INTEL_OPENVINO_DIR/python/${PYTHON_VERSION}:$PYTHONPATH
 
 # DLStreamer environment variables
-ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
-ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/bin
+ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/Debug/lib
+ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/Debug/bin
 ENV PATH=${GSTREAMER_DIR}/bin:${BINDIR}:${PATH}
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib64/pkgconfig:${PKG_CONFIG_PATH}
 ENV LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:${LD_LIBRARY_PATH}
 ENV LIB_PATH=$LIBDIR
-ENV GST_PLUGIN_PATH=${LIBDIR}:${GSTREAMER_DIR}/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0:${GST_PLUGIN_PATH}
+ENV GST_PLUGIN_PATH=${LIBDIR}:${GSTREAMER_DIR}/lib/gstreamer-1.0:/usr/lib64/gstreamer-1.0:${GST_PLUGIN_PATH}
 ENV LC_NUMERIC=C
 ENV C_INCLUDE_PATH=${DLSTREAMER_DIR}/include:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:${C_INCLUDE_PATH}
 ENV CPLUS_INCLUDE_PATH=${DLSTREAMER_DIR}/include:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:${CPLUS_INCLUDE_PATH}
@@ -284,7 +277,9 @@ ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/pyth
 # Build DLStreamer
 RUN \
     cmake \
-    -DCMAKE_BUILD_TYPE=${BUILD_ARG} \
+    -DCMAKE_BUILD_TYPE=Debug \
+    -DCMAKE_C_FLAGS="-Og -g" \
+    -DCMAKE_CXX_FLAGS="-Og -g" \
     -DENABLE_PAHO_INSTALLATION=ON \
     -DENABLE_RDKAFKA_INSTALLATION=ON \
     -DENABLE_VAAPI=ON \

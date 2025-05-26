@@ -51,13 +51,13 @@ class TestGStreamerWebRTCManager:
     def test_get_launch_string(self, gstreamer_webrtc_manager):
         mock_caps = ['video/x-raw', 'width=1920', 'height=1080']
         result2 = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",True)
-        assert result2 == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert ! gvawatermark  ! x264enc speed-preset=ultrafast bitrate=2000  ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+        assert result2 == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert ! gvawatermark  ! x264enc speed-preset=ultrafast name=h264enc ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
         result = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",False)
-        assert result == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert  ! x264enc speed-preset=ultrafast bitrate=2000  ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+        assert result == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="video/x-raw,width=1920,height=1080"  ! videoconvert  ! x264enc speed-preset=ultrafast name=h264enc ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
         mock_caps = ['image/jpeg', 'width=1920', 'height=1080']
         result_jpeg = gstreamer_webrtc_manager._get_launch_string(mock_caps, "peer1",True)
-        assert result_jpeg == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="image/jpeg,width=1920,height=1080"  ! jpegdec ! videoconvert ! gvawatermark  ! x264enc speed-preset=ultrafast bitrate=2000  ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
-        
+        assert result_jpeg == ' appsrc name=webrtc_source format=GST_FORMAT_TIME  caps="image/jpeg,width=1920,height=1080"  ! jpegdec ! videoconvert ! gvawatermark  ! x264enc speed-preset=ultrafast name=h264enc  ! video/x-h264,profile=baseline  ! whipclientsink signaller::whip-endpoint= http://10.10.10.10:8889/peer1/whip'
+    
     def test_remove_stream(self, gstreamer_webrtc_manager):
         mock_stream = MagicMock()
         gstreamer_webrtc_manager._streams = {'peer1': mock_stream}
