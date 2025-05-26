@@ -16,14 +16,14 @@ on:
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
-      - 'microservices/document-ingestion/**'
+      - 'microservices/document-ingestion/pgvector/**'
   push:
     branches:
       - ga-new-actions
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
-      - 'microservices/document-ingestion/**'
+      - 'microservices/document-ingestion/pgvector/**'
 
 jobs:
   detect-changes:
@@ -76,7 +76,7 @@ jobs:
           fi
 
           # Check if document-ingestion folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/"; then
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
             echo "document-ingestion folder has changes"
             echo "doc_changed=true" >> $GITHUB_OUTPUT
           else
