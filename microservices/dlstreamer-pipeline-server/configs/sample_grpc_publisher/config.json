@@ -1,9 +1,5 @@
 {
-    "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },        
+    "config": { 
         "pipelines": [
             {
                 "name": "pallet_defect_detection",

@@ -40,7 +40,7 @@ class GStreamerRtspDestination(AppDestination):
         # frame_config = destination_config.get("frame",
         #                                       {})
         self._cache_length = request.get("cache-length",30)
-        self._sync_with_source = request.get("sync-with-source", True)
+        self._sync_with_source = request.get("sync-with-source")
         self._sync_with_destination = request.get("sync-with-destination", True)
         self._encode_quality = request.get("encode-quality", 85)
         self.overlay = request.get("overlay", True)
@@ -52,9 +52,9 @@ class GStreamerRtspDestination(AppDestination):
         self._need_data = False
         self._rtsp_server.add_stream(self._identifier, self._rtsp_path, caps, self,self.overlay)
         self._last_timestamp = self._clock.get_time()
-        if self._sync_with_source:
-            self._pipeline.appsink_element.set_property("sync",
-                                                        True)
+        if self._sync_with_source is not None:
+            self._pipeline.appsink_element.set_property("sync", self._sync_with_source)
+            self._logger.info("Setting the appsink sync property to {}".format(self._sync_with_source))
 
     def on_need_data(self, _src, _):
         self._need_data = True

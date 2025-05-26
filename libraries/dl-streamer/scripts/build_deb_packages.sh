@@ -44,7 +44,7 @@ for i in "$@"; do
         ;;
         --ubuntu_version=*)
             ubuntu_version="${i#*=}"
-            if [[ "$MODEL" != "ubuntu22" ]] && [[ "$MODEL" != "ubuntu24" ]]; then
+            if [[ "$ubuntu_version" != "ubuntu22" ]] && [[ "$ubuntu_version" != "ubuntu24" ]]; then
                 echo "Error! Wrong Ubuntu version parameter. Supported versions: ubuntu22 | ubuntu24"
                 exit 1
             fi
@@ -88,23 +88,6 @@ else
 fi
 docker build -f $DOCKERFILE -t $IMAGE_NAME:latest --build-arg DLSTREAMER_VERSION=$DLSTREAMER_VERSION --build-arg DLSTREAMER_BUILD_NUMBER=$DLSTREAMER_BUILD .
 
-# Create container, extract .deb and cleanup
-echo "Running container to extract .deb files..."
-docker run --name "$CONTAINER_NAME" "$IMAGE_NAME" bash -c '
-    mkdir -p /debs_to_copy
-    shopt -s nullglob
-    files=(/intel-dlstreamer*.deb)
-    if [ ${#files[@]} -eq 0 ]; then
-        echo "No .deb files found in /"
-        exit 1
-    fi
-    cp "${files[@]}" /debs_to_copy/
-'
-echo "Copying files from container to host..."
-mkdir -p "$DEBS_DESTINATION_PATH"
-docker cp "$CONTAINER_NAME:/debs_to_copy/." "$DEBS_DESTINATION_PATH"
-echo "Cleaning up container..."
-docker rm "$CONTAINER_NAME"
-echo "Finished."
-echo "Packages available in $DEBS_DESTINATION_PATH:"
-ls "$DEBS_DESTINATION_PATH"
+# Extract end verify .debs
+chmod +x scripts/extract_and_verify_debs.sh
+./scripts/extract_and_verify_debs.sh $IMAGE_NAME:latest

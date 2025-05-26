@@ -40,3 +40,14 @@ After setting all the above information, we can start the WebRTC streaming:
     ```
 - Open `http://<HOST_IP>:8889/<peer-id>` in your browser to view the WebRTC stream:
     ![Stream output on browser using WebRTC](../../../images/sample_webrtc_mediamtx.png)
+
+`Note`: If you are using 4K or high resolution video make sure to increase the bitrate to avoid choppy video streaming. You can set the bitrate by adding `"bitrate" : 5000` with the webrtc configurations in your curl command.
+- ```sh
+    "frame": {
+                    "type": "webrtc",
+                    "peer-id": "pallet-defect-detection",
+                    "bitrate": 5000
+                }
+    ```
+
+`Note`: Mediamtx may fail to stream if the pipeline initialization takes longer than 10 seconds. To resolve this, you can increase the WHIP_SERVER_TIMEOUT value in the .env file located in the [WORKDIR]/docker/ directory.

@@ -16,6 +16,7 @@ import queue
 import string
 import random
 import re
+import copy
 import cv2
 import threading as th
 import numpy as np
@@ -121,6 +122,54 @@ class Publisher:
         self.pipeline_instance_id = instance_id
         self.get_pipeline_status = get_pipeline_status
 
+    def _get_meta_publisher_config(self,meta_destination):
+        """Get config for meta publishers
+        :param meta_destination: Frame destination
+        """
+        if isinstance(meta_destination, dict):
+            if "type" in meta_destination and meta_destination["type"] == "mqtt":
+                self.mqtt_config = meta_destination
+                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
+            elif "type" in meta_destination and meta_destination["type"] == "opcua":
+                self.opcua_config = meta_destination
+                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
+        elif isinstance(meta_destination, list):
+            for dest in meta_destination:
+                if "type" in dest and dest["type"] == "mqtt":
+                    self.mqtt_config = dest
+                elif "type" in dest and dest["type"] == "opcua":
+                    self.opcua_config = dest
+                self.request["destination"]["metadata"].remove(dest)
+            if len(self.request["destination"]["metadata"]) == 0: # Remove the metadata from destination if list is empty
+                self.request["destination"].pop("metadata")
+
+        # if no mqtt config in REST request, check if mqtt config is in app_cfg
+        if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
+            self.mqtt_config = self.app_cfg.get("mqtt_publisher")
+        if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
+            self.opcua_config = self.app_cfg.get("opcua_publisher")
+
+    def _get_frame_publisher_config(self,frame_destination):
+        """Get config for frame publishers
+        :param frame_destination: Frame destination
+        """
+        if isinstance(frame_destination, dict):
+            if "type" in frame_destination and frame_destination["type"] == "s3_write":
+                self.s3_config = frame_destination
+                self.request["destination"].pop("frame") # Remove frame from destination if no more frame publishers
+
+        elif isinstance(frame_destination, list):
+            for dest in frame_destination:
+                if "type" in dest and dest["type"] == "s3_write":
+                    self.s3_config = dest
+                    self.request["destination"]["frame"].remove(dest)
+            if len(self.request["destination"]["frame"]) == 0: # Remove the frame from destination if list is empty
+                self.request["destination"].pop("frame")
+
+        # if no s3 config in REST request, check if s3 config is in app_cfg
+        if not self.s3_config and self.app_cfg.get("S3_write"):
+            self.s3_config = self.app_cfg["S3_write"]
+        
     def _get_publishers(self):
         """Get publishers based on config.
 
@@ -132,63 +181,36 @@ class Publisher:
         self.opcua_publish_frame = False
         self.grpc_publish = False
         self.s3_config = None
+        self.mqtt_config = None
+        self.opcua_config = None
+
         try:
             launch_string = self.app_cfg.get("pipeline")
-            for elem in launch_string.split("!"):
-                if 'appsink' in elem:                    
-                    if ' name=destination' in elem:
-                        self.log.info("appsink destination found. Publisher will be initialized")
-                        # identify DLStreamer pipeline server publishers and pop them from the request
-                        # NOTE: always add S3_write first in the list of publishers, essential for blocking case
-                        if self.request is not None:
-                            if "destination" in self.request:
-                                if "frame" in self.request["destination"]:
-                                    destination_frame = self.request["destination"]["frame"]
-                                    if isinstance(destination_frame, list):
-                                        for dest in destination_frame:
-                                            if "type" in dest and dest["type"] == "s3_write":
-                                                self.s3_config = dest
-                                                publishers.append(S3Writer(self.s3_config))
-                                                self.request["destination"]["frame"].remove(dest)
-                                                # remove frame from destination if no more frame publishers
-                                                if len(self.request["destination"]["frame"]) == 0:
-                                                    self.request["destination"].pop("frame")
-                                                break
-                                    elif isinstance(destination_frame, dict):
-                                        if "type" in destination_frame and destination_frame["type"] == "s3_write":
-                                            self.s3_config = destination_frame
-                                            publishers.append(S3Writer(self.s3_config))
-                                            self.request["destination"].pop("frame")
-                                    else:
-                                        raise ValueError("Invalid frame destination container. Must be a list or dict.")
-                                            
-                                if "metadata" in self.request["destination"]:
-                                    metadata_request = self.request["destination"]["metadata"]
-                                    if "type" in metadata_request and metadata_request["type"]=="mqtt":  # this refers to DLStreamer pipeline server's mqtt publisher
-                                        mqtt_pub = MQTTPublisher(metadata_request)
-                                        publishers.append(mqtt_pub)
-                                        self.mqtt_publish_frame = mqtt_pub.publish_frame
-                                        # remove since only one type of metadata publisher is supported
-                                        self.request["destination"].pop("metadata")
+            pattern = r'appsink[^!]*name=destination'
+            if re.search(pattern, launch_string):
+                self.log.info("appsink destination found. Publisher will be initialized")
+                # identify DLStreamer pipeline server publishers and pop them from the request
+                if self.request is not None:
+                    frame_destination = copy.deepcopy(self.request.get("destination").get("frame", None))
+                    meta_destination = copy.deepcopy(self.request.get("destination").get("metadata", None))
+                    if frame_destination:
+                        self._get_frame_publisher_config(frame_destination)
+                    if meta_destination:
+                        self._get_meta_publisher_config(meta_destination)
+                    if not self.request["destination"]:
+                        self.request.pop("destination")
                                 
-                                # remove if empty destination
-                                if not self.request["destination"]:
-                                    self.request.pop("destination")
-                                
-                        if not self.s3_config and self.app_cfg.get("S3_write"):
-                            self.s3_config = self.app_cfg["S3_write"]
-                            publishers.append(S3Writer(self.s3_config))
-                            
-                        if self.app_cfg.get("mqtt_publisher"):
-                            mqtt_pub = MQTTPublisher(self.app_cfg.get("mqtt_publisher"))    #TODO: remove this and use REST with `mqtt` key only
-                            self.mqtt_publish_frame = mqtt_pub.publish_frame
-                            publishers.append(mqtt_pub)
-
-                        if self.app_cfg.get("opcua_publisher"):
-                            opcua_pub = OPCUAPublisher(self.app_cfg)
-                            self.opcua_publish_frame = opcua_pub.publish_frame
-                            publishers.append(opcua_pub)
-                        
+                # NOTE: always add S3_write first in the list of publishers, essential for blocking case
+                if self.s3_config:
+                    publishers.append(S3Writer(self.s3_config))
+                if self.mqtt_config:
+                    mqtt_pub = MQTTPublisher(self.mqtt_config)
+                    self.mqtt_publish_frame = mqtt_pub.publish_frame
+                    publishers.append(mqtt_pub)
+                if self.opcua_config:
+                    opcua_pub = OPCUAPublisher(self.opcua_config)
+                    self.opcua_publish_frame = opcua_pub.publish_frame
+                    publishers.append(opcua_pub)            
                         
             if os.getenv('RUN_MODE') == "EII":
                 dev_mode = os.getenv("DEV_MODE", "False")
@@ -486,11 +508,6 @@ class Publisher:
                     publisher.s3write_complete.clear()
                 continue
             
-            if hasattr(publisher, 'overlay_annotation'):
-                if self.overlayed_frame is not None and publisher.overlay_annotation:
-                    publisher.queue.append((self.overlayed_frame, meta_data))
-                    continue
-            # add data to other publishers
             publisher.queue.append((frame, meta_data))
 
     def _run(self):
@@ -542,19 +559,13 @@ class Publisher:
                                         self.send_overlayed_frame = False
                                         self.log.debug("task key is missing in metadata. overriding overlaying annotation to False")
                                     frame, meta_data['encoding_type'], meta_data[
-                                        'encoding_level'], overlayed_frame = utils.encode_frame(
+                                        'encoding_level'] = utils.encode_frame(
                                             self.encoding_type, self.encoding_level,
                                             frame, meta_data['height'],
                                             meta_data['width'],
                                             channels=meta_data['channels'],
-                                            send_overlayed_frame=self.send_overlayed_frame,
                                             meta_data=meta_data)
                                     frame = frame[1].tobytes()
-                                    if overlayed_frame is not None:
-                                        self.overlayed_frame = overlayed_frame[1].tobytes()
-                                    ret = meta_data.pop('geti_prediction', None)  # upon overlay, discard encoded geti pred obj, if present
-                                    if ret is not None:
-                                        self.log.debug("Discarded encoded geti prediction object from metadata")
                                     ret_ov = meta_data.pop('overlayText', None)  # upon overlay, discard overlay text, if present
                                     if ret_ov is not None:
                                         self.log.debug("Discarded overlay text from metadata")
