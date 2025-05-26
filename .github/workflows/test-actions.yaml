@@ -31,6 +31,7 @@ jobs:
     outputs:
       core_changed: ${{ steps.filter.outputs.core_changed }}
       qa_changed: ${{ steps.filter.outputs.qa_changed }}
+      doc_changed:  ${{ steps.filter.outputs.doc_changed }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -78,10 +79,10 @@ jobs:
           # Check if document-ingestion folder has changes
           if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
             echo "document-ingestion folder has changes"
-            echo "doc_changed=true" >> $GITHUB_OUTPUT
+            echo "doc_changed=true"  >>  $GITHUB_OUTPUT
           else
             echo "No changes in document-ingestion folder"
-            echo "doc_changed=false" >> $GITHUB_OUTPUT
+            echo "doc_changed=false"  >>  $GITHUB_OUTPUT
           fi
 
   core-job:
