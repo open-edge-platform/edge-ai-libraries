@@ -328,7 +328,7 @@ destination = {
               "sync-with-destination": {
                 "type": "boolean"
               },
-              "encode-cq-level": {
+              "bitrate": {
                 "type": "integer"
               },
               "overlay": {
@@ -409,7 +409,7 @@ destination = {
                 "sync-with-destination": {
                   "type": "boolean"
                 },
-                "encode-cq-level": {
+                "bitrate": {
                   "type": "integer"
                 },
                 "overlay": {

@@ -32,8 +32,10 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
+      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_TRACES_EXPORTER=otlp
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -230,8 +232,6 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
-      - WEIGHT_FORMAT=${WEIGHT_FORMAT}
-      - MODEL_DIRECTORY=${MODEL_DIRECTORY_NAME}
     ports:
       - "9300:9300"
       - "8300:80"
@@ -265,25 +265,30 @@ services:
       https_proxy: ${https_proxy}
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
 
-  openvino-model-server:
-    image: openvino/model_server:2025.0
+  ovms-service-gpu:
+    image: openvino/model_server:2025.0-gpu
+    container_name: ovms-service
     profiles:
-      - OVMS-EMBEDDING
-    container_name: openvino-embedding
-    ports:
-      - "8500:80"
+      - GPU-OVMS
     environment:
-      no_proxy: ${no_proxy}
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+    ports:
+      - "9000:9000"
+      - "8300:80"
     volumes:
       - "${VOLUME_OVMS}:/workspace:ro"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDER_DEVICE_GID}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
       interval: 30s
       timeout: 10s
       retries: 3
-    command: [ "--port", "9000", "--rest_port", "80", "--config_path", "workspace/models/config.json" ]
+    command: [ "--port", "9000", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json" ]
     networks:
       - my_network
 

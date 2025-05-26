@@ -686,7 +686,6 @@ class GStreamerPipeline(Pipeline):
 
         if self.appsink_element is not None:
             self.appsink_element.set_property("emit-signals", True)
-            self.appsink_element.set_property('sync', False)
 
             if not self._app_destinations:
                 self.appsink_element.connect("new-sample", self.on_sample)

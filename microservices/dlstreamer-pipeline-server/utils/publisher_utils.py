@@ -15,7 +15,7 @@ import pickle
 
 from geti_sdk.utils import show_image_with_annotation_scene
 
-def encode_frame(enc_type, enc_level, frame, height, width, channels, send_overlayed_frame=False, meta_data=None):
+def encode_frame(enc_type, enc_level, frame, height, width, channels, meta_data=None):
     """Helper method to encode given frame
 
     :param frame: input frame
@@ -28,13 +28,15 @@ def encode_frame(enc_type, enc_level, frame, height, width, channels, send_overl
     :rtype: tuple where the first item is (bool, numpy frame) followed by encoding type and level
     """
     enc_img = None
-    enc_overlayed_img = None
     
     if not enc_type:
         enc_type = "jpeg"
     
     if not enc_level:
         enc_level = 85
+
+    if meta_data is None:
+        raise ValueError("Meta data not given!")
     
     data = np.frombuffer(frame, dtype="uint8")
     if (meta_data["img_format"] == "NV12") or (meta_data["img_format"] == "I420"):
@@ -64,49 +66,13 @@ def encode_frame(enc_type, enc_level, frame, height, width, channels, send_overl
         bgr_data = data.copy()     # assuming data is already BGR, remove read-only property
     
     channel_order = "bgr"
-    if send_overlayed_frame:         
-        if meta_data is None:
-            raise ValueError("Meta data is required to overlay frame")
-        task = meta_data["task"]
-        
-        if task not in ["object_detection", "classification"]:
-            raise ValueError("Unsupported annotation task for overlay")
-
-        if task == "object_detection":
-            str_prediction = meta_data["geti_prediction"]
-            prediction = pickle.loads(codecs.decode(str_prediction.encode(), "base64"))            
-
-            overlayed_img = show_image_with_annotation_scene(bgr_data,
-                                                      prediction,
-                                                      channel_order=channel_order,
-                                                      show_results=False)
-        elif task == "classification":
-            overlayText = meta_data["overlayText"]
-            font = cv2.FONT_HERSHEY_SIMPLEX
-            topLeftCornerOfText = (10,30)
-            fontScale = 1
-            fontColor = (0,255,0)
-            thickness = 2
-            lineType = 2
-            overlayed_img = cv2.putText(bgr_data.copy(), overlayText,
-                                        topLeftCornerOfText,
-                                        font,
-                                        fontScale,
-                                        fontColor,
-                                        thickness,
-                                        lineType)
-
     if enc_type == 'jpeg':
         encode_param = [cv2.IMWRITE_JPEG_QUALITY, enc_level]
         enc_img = cv2.imencode('.jpg', bgr_data, encode_param)
-        if send_overlayed_frame:
-            enc_overlayed_img = cv2.imencode('.jpg', overlayed_img, encode_param)
     if enc_type == 'png':
         encode_param = [cv2.IMWRITE_PNG_COMPRESSION, enc_level]
         enc_img = cv2.imencode('.png', bgr_data, encode_param)
-        if send_overlayed_frame:
-            enc_overlayed_img = cv2.imencode('.png', overlayed_img, encode_param)
-    return enc_img, enc_type, enc_level, enc_overlayed_img
+    return enc_img, enc_type, enc_level
 
 def get_gva_tensors(video_frame):
     """Helper method to get gva tensors

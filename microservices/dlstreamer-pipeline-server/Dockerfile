@@ -395,7 +395,6 @@ COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
 COPY ./user_scripts/gvapython/mqtt_publisher/ /home/pipeline-server/gvapython/mqtt_publisher
 COPY ./user_scripts/gvapython/timestamp/ /home/pipeline-server/gvapython/timestamp
 COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva_event_meta
-COPY ./user_scripts/gvapython/spatial_analytics /home/pipeline-server/gvapython/spatial_analytics
 
 # Copy default config
 COPY ./configs/default/config.json /home/pipeline-server/config.json

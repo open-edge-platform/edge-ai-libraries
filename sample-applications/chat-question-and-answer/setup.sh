@@ -45,6 +45,7 @@ export RERANKER_ENDPOINT=http://reranker/rerank
 # OpenTelemetry and OpenLit Configurations 
 export OTLP_SERVICE_NAME=chatqna
 export OTLP_SERVICE_ENV=chatqna
+export OTEL_SERVICE_VERSION=1.0.0
 
 # VLLM
 export TENSOR_PARALLEL_SIZE=1
@@ -53,7 +54,7 @@ export KVCACHE_SPACE=50
 
 # OVMS
 export MODEL_DIRECTORY_NAME=$(basename $LLM_MODEL)
-export WEIGHT_FORMAT=fp16
+export WEIGHT_FORMAT=int8
 export VOLUME_OVMS=${PWD}/ovms_config
 
 #TGI
@@ -71,6 +72,14 @@ else
   export FE_IMAGE_NAME="chatqna-ui:latest"
 fi
 
+#GPU Configuration
+# Check if render device exist
+if compgen -G "/dev/dri/render*" > /dev/null; then
+    echo "RENDER device exist. Getting the GID..."
+    export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
+
+fi
+
 setup_inference() {
         local service=$1
         case "${service,,}" in
@@ -80,9 +89,17 @@ setup_inference() {
                         ;;
                 ovms)
                         export ENDPOINT_URL=http://ovms-service/v3
-                        export COMPOSE_PROFILES=OVMS
+                        #Target Device
+                        if [[ "$DEVICE" == "GPU" ]]; then
+                                export OVMS_CACHE_SIZE=2
+                                export COMPOSE_PROFILES=GPU-OVMS
+                        elif [[ "$DEVICE" == "CPU" ]]; then
+                                export OVMS_CACHE_SIZE=10
+                                export COMPOSE_PROFILES=OVMS
+
+                        fi
                         cd ./ovms_config
-                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device CPU
+                        python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
                         cd ..
                         ;;
                 tgi)
@@ -91,7 +108,6 @@ setup_inference() {
                         ;;
                 *)
                         echo "Invalid Model Server option: $service"
-                        exit 1
                         ;;
         esac
 }
@@ -104,15 +120,20 @@ setup_embedding() {
                         export COMPOSE_PROFILES=$COMPOSE_PROFILES,TEI
                         ;;
                 ovms)
-                        export EMBEDDING_ENDPOINT_URL=http://openvino-embedding/v3
-                        export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS-EMBEDDING
+                        export EMBEDDING_ENDPOINT_URL=http://ovms-service/v3
+                        #Target Device
+                        if [[ "$DEVICE" == "GPU" ]]; then
+                                export COMPOSE_PROFILES=$COMPOSE_PROFILES,GPU-OVMS
+                        elif [[ "$DEVICE" == "CPU" ]]; then
+                                export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS
+
+                        fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format int8 --config_file_path models/config.json --model_repository_path models --target_device CPU
+                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
                         cd ..
                         ;;
                 *)
                         echo "Invalid Embedding Service option: $service"
-                        exit 1
                         ;;
         esac
 }
@@ -131,7 +152,6 @@ if [[ -n "$1" && -n "$2" ]]; then
                                 echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
                                 echo "Model Server options: VLLM or TGI or OVMS"
                                 echo "Embedding Service options: TEI or OVMS"
-                                exit 1
                                 ;;
                 esac
         done
@@ -142,5 +162,4 @@ else
         echo "Usage: setup.sh llm=<Model Server> embed=<Embedding Service>"
         echo "Model Server options: VLLM or TGI or OVMS"
         echo "Embedding Service options: TEI or OVMS"
-        exit 1
 fi

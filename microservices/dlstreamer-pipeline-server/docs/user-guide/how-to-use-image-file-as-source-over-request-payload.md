@@ -26,10 +26,6 @@ A sample config has been provided in below snippet:
 ```json
 {
     "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },
         "pipelines": [
             {
                 "name": "pallet_defect_detection",
@@ -109,10 +105,6 @@ Another way of queuing a image ingestor pipeline is in synchronous mode. The pip
 ```json
 {
     "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },
         "pipelines": [
             {
                 "name": "pallet_defect_detection",
