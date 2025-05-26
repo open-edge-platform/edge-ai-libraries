@@ -138,7 +138,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'  
+ 
       - name: Install npm dependencies
         shell: bash
         run: |
@@ -151,6 +151,7 @@ jobs:
           npm run test:ui
           npm run coverage
           npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
+      
       - name: Upload UI Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -168,8 +169,6 @@ jobs:
           trivy --version
           which trivy
           trivy image --download-db-only
-          # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
-          # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
           # Use the downloaded template
@@ -182,31 +181,7 @@ jobs:
           name: trivy-code-scan-results
           path: |
               sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
-      - name: ClamAV Antivirus Scan
-        shell: bash
-        run: |
-          echo "Starting ClamAV scan..."
-          
-          docker run --rm \
-            --mount type=bind,source=./,target=/scandir \
-            clamav/clamav:stable \
-            clamscan --recursive --log=/scandir/clamav-scan-report.log \
-            /scandir
-          
-          SCAN_EXIT_CODE=$?
-          sudo chown $USER:$USER clamav-scan-report.log 2>/dev/null || true
-          
-          if [ $SCAN_EXIT_CODE -ne 0 ]; then
-            echo "ClamAV scan failed or found issues"
-            exit 1
-          fi
-
-      - name: Upload Antivirus Report
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-        with:
-          name: antivirus-report
-          path: clamav-scan-report.log
+  
 
       - name: ClamAV Antivirus Scan
         shell: bash
@@ -237,7 +212,6 @@ jobs:
       - name: Trivy Image Scan
         shell: bash
         run: |
-              echo "print pwd"
               pwd
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-core-backend and scanning"
@@ -340,7 +314,7 @@ jobs:
         uses: actions/setup-node@v4
         with:
           node-version: '22'
-          cache: 'npm'  
+ 
       - name: Install npm dependencies
         shell: bash
         run: |
@@ -411,7 +385,7 @@ jobs:
       - name: Trivy Image Scan
         shell: bash
         run: |
-              echo "print pwd"
+              pwd
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building image chatqna-backend and scanning"
               docker build -f ./sample-applications/chat-question-and-answer/Dockerfile -t chatqna-backend:latest ./sample-applications/chat-question-and-answer/
