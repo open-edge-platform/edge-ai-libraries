@@ -1,0 +1,40 @@
+name: 'Setup Tools'
+description: 'Sets up Python, Poetry, Trivy, and other required tools'
+
+runs:
+  using: "composite"
+  steps:
+    - name: Setup Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: '3.13'
+    
+    - name: Install Poetry
+      shell: bash
+      run: |
+        curl -sSL https://install.python-poetry.org | python3 -
+        echo "$HOME/.local/bin" >> $GITHUB_PATH
+    
+    
+    - name: Install Trivy
+      shell: bash
+      run: |
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/install.sh | sh -s -- -b /usr/local/bin
+    
+    - name: Install Python Dependencies
+      shell: bash
+      run: |
+        pip install pytest pytest-cov
+    
+    - name: Setup Node.js
+      uses: actions/setup-node@v4
+      with:
+        node-version: '22'
+        #cache: 'npm'  
+    
+    - name: Install Bandit
+      shell: bash
+      run: |
+        echo "Installing Bandit Python security scanner..."
+        pip install bandit[toml]
+        bandit --version  
