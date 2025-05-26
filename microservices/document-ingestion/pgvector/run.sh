@@ -53,8 +53,6 @@ else
 fi
 export IMAGE_REGISTRY="${REGISTRY}${PROJECT_NAME}/"
 
-# To set value of HUGGINGFACEHUB_API_TOKEN, export HF_SECRET from shell. There is no default value to be used here.
-export HUGGINGFACEHUB_API_TOKEN=${HF_SECRET}
 
 # ---------------------------------------------------------------------------------------
 

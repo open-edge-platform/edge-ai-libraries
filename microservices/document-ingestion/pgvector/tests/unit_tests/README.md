@@ -77,7 +77,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Setup the environment variables:
 
    ```bash
-   export HF_SECRET=<your_huggingface_token>
+   export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
 
    source run.sh --nosetup
    ```
@@ -146,7 +146,7 @@ If you prefer not to use virtual environment, please follow these steps:
    Setup the environment variables:
 
    ```bash
-   export HF_SECRET=<your_huggingface_token>
+   export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
 
    source run.sh --nosetup
    ```

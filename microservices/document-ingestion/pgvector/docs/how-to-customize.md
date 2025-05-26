@@ -39,7 +39,7 @@ Currently, TEI is used to host the embedding model. Following variables are requ
 
 #### Secrets and token variables
 
-- **HUGGINGFACEHUB_API_TOKEN:** This is the token required for running Huggingface based services and models. **It is mandatory  to set it and `run.sh` script.** To set it, set `HF_SECRET` variable from shell.
+- **HUGGINGFACEHUB_API_TOKEN:** This is the token required for running Huggingface based services and models. **It is mandatory  to set it and `run.sh` script.** To set it, export `HUGGINGFACEHUB_API_TOKEN` variable from shell.
 
 ## Build from source
 

@@ -33,7 +33,7 @@ The runner script in root of project `run.sh` sets default values for most of th
 
 ```bash
 # User MUST set all these! An error is thrown by docker compose if they are not set.
-export HF_SECRET="user_huggingface_token"
+export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
 
 # vectorDB and object store configuration
 export MINIO_USER=<minio_user_or_s3_access_token>
