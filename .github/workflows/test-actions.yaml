@@ -219,41 +219,63 @@ jobs:
       #     name: antivirus-report
       #     path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
       
-      - name: Trivy Image Scan
+      # - name: Trivy Image Scan
+      #   shell: bash
+      #   run: |
+      #         echo "print pwd"
+      #         pwd
+      #         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+      #         echo "Building image chatqna-core-backend and scanning"
+      #         docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
+      #         trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+      #         trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
+      #         echo "completed chatqna-core-backend scanning"
+              
+      #         echo "**************************************************************"
+      #         echo "Building image chatqna-core-frontend and scanning"
+      #         docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
+      #         trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+      #         trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
+      #         echo "completed chatqna-core-frontend scanning"
+      #         echo "print all the files"
+      #         pwd
+      #         ls -lrt
+      #         echo "**************************************************************"
+            
+            
+      # - name: Upload Trivy Image Report
+      #   if: always()
+      #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+      #   with:
+      #     name: Trivy image scan report
+      #     path: |
+      #           sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+      #           sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json
+      #           sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+      #           sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json
+
+      - name: Run Bandit Security Scan
         shell: bash
         run: |
-              echo "print pwd"
-              pwd
-              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
-              echo "Building image chatqna-core-backend and scanning"
-              docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
-              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
-              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
-              echo "completed chatqna-core-backend scanning"
-              
-              echo "**************************************************************"
-              echo "Building image chatqna-core-frontend and scanning"
-              docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
-              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
-              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
-              echo "completed chatqna-core-frontend scanning"
-              echo "print all the files"
-              pwd
-              ls -lrt
-              echo "**************************************************************"
-            
-            
-      - name: Upload Trivy Image Report
+          echo "Running Bandit security scan..."
+          
+          bandit -r sample-applications/chat-question-and-answer-core/ \
+            -f html -o bandit-security-report.html \
+            -f json -o bandit-security-report.json \
+            --severity-level medium \
+            --confidence-level medium \
+            || echo "Bandit found security issues"
+          
+          echo "Bandit scan completed"
+      
+      - name: Upload Bandit Security Report
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Trivy image scan report
+          name: bandit-security-report
           path: |
-                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
-                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json
-                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
-                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json
-          
+            bandit-security-report.html
+            bandit-security-report.json      
       
   qa-job:
     needs: detect-changes
