@@ -59,9 +59,9 @@ TensorsTable PaddleOCRConverter::convert(const OutputBlobs &output_blobs) {
                 const float *item_data = item.first;
 
                 std::string decoded_text =
-                    decodeOutputTensor(item_data, sequence_length, num_classes, used_character_set);
+                    decodeOutputTensor(item_data);
 
-                if (decoded_text.size() > seq_minlen)
+                if (decoded_text.size() > SEQ_MINLEN)
                     classification_result.set_string("label", decoded_text);
                 else
                     classification_result.set_string("label", "");
@@ -82,24 +82,23 @@ TensorsTable PaddleOCRConverter::convert(const OutputBlobs &output_blobs) {
 }
 
 // Function to decode output tensor into text using the charset
-std::string PaddleOCRConverter::decodeOutputTensor(const float *item_data, int sequence_length, int num_classes,
-                                                   const std::vector<std::string> &charset) {
+std::string PaddleOCRConverter::decodeOutputTensor(const float *item_data) {
 
-    std::vector<int> pred_indices(sequence_length); // Stores indices of max elements for each sequence
+    std::vector<int> pred_indices(SEQUENCE_LENGTH); // Stores indices of max elements for each sequence
 
-    for (int i = 0; i < sequence_length; ++i) {
-        const float *row_start = item_data + i * num_classes; // Pointer to the start of the current sequence
-        const float *max_element_ptr = std::max_element(row_start, row_start + num_classes); // Find max element
+    for (size_t i = 0; i < SEQUENCE_LENGTH; ++i) {
+        const float *row_start = item_data + i * CHARSET_LEN; // Pointer to the start of the current sequence
+        const float *max_element_ptr = std::max_element(row_start, row_start + CHARSET_LEN); // Find max element
         int max_index = std::distance(row_start, max_element_ptr); // Calculate index of max element
         pred_indices[i] = max_index;                               // Store the index
     }
 
     // Decode the indices into text using the charset
-    return decode(pred_indices, charset);
+    return decode(pred_indices);
 }
 
 // Function to decode text indices into text labels using a charset
-std::string PaddleOCRConverter::decode(const std::vector<int> &text_index, const std::vector<std::string> &charset) {
+std::string PaddleOCRConverter::decode(const std::vector<int> &text_index) {
 
     std::string char_list;                 // Accumulates characters for the sequence
     std::vector<int> ignored_tokens = {0}; // Tokens to ignore during decoding
@@ -119,7 +118,7 @@ std::string PaddleOCRConverter::decode(const std::vector<int> &text_index, const
         }
 
         // Append the corresponding character from charset
-        char_list += charset[current_index];
+        char_list += CHARACTER_SET[current_index];
     }
 
     return char_list; // Return the decoded text

@@ -8,13 +8,14 @@
 #include <deque>
 #include <string>
 #include <vector>
-
-#define DEF_PADDLE_MODEL_SEQ_LEN 24
-#define DEF_PADDLE_MODEL_CHARSET_LEN 6625
-#define DEF_PADDLE_MAXLEN 24
-#define DEF_PADDLE_MINLEN 2
-
 namespace post_processing {
+
+ /*
+PaddleOCR tensor output = [B, L, N] where:
+    B - batch size
+    L - sequence length (maximum number of characters in the recognized text)
+    N - number of elements in the model's character set
+*/ 
 
 class PaddleOCRConverter : public BlobToTensorConverter {
   public:
@@ -26,7 +27,10 @@ class PaddleOCRConverter : public BlobToTensorConverter {
     }
 
   private:
-    std::vector<std::string> used_character_set = {
+    const size_t SEQUENCE_LENGTH = 24; // maximum length of the recognized text
+    const size_t CHARSET_LEN = 6625;   // number of characters that the model can distinguish
+    const size_t SEQ_MINLEN = 2;       // minimum sequence length (shorter ones are discarded)
+    const std::vector<std::string> CHARACTER_SET = {
         " ",  "'",  "疗", "绚", "诚", "娇", "溜", "题", "贿", "者", "廖", "更", "纳", "加", "奉", "公", "一", "就",
         "汴", "计", "与", "路", "房", "原", "妇", "2",  "0",  "8",  "-",  "7",  "其", ">",  ":",  "]",  ",",  "，",
         "骑", "刈", "全", "消", "昏", "傈", "安", "久", "钟", "嗅", "不", "影", "处", "驽", "蜿", "资", "关", "椤",
@@ -395,15 +399,9 @@ class PaddleOCRConverter : public BlobToTensorConverter {
         "恁", "伢", "謝", "劃", "涑", "總", "衖", "踺", "砋", "凉", "籃", "駿", "苼", "瘋", "昽", "紡", "驊", "腎",
         "﹗", "響", "杋", "剛", "嚴", "禪", "歓", "槍", "傘", "檸", "檫", "炣", "勢", "鏜", "鎢", "銑", "尐", "減",
         "奪", "惡", "θ",  "僮", "婭", "臘", "ū",  "ì",  "殻", "鉄", "∑",  "蛲", "焼", "緖", "續", "紹", "懮", " "};
-    size_t sequence_length = DEF_PADDLE_MODEL_SEQ_LEN;
-    size_t num_classes = DEF_PADDLE_MODEL_CHARSET_LEN;
 
-    size_t seq_minlen = DEF_PADDLE_MINLEN;
-    size_t seq_maxlen = DEF_PADDLE_MAXLEN;
-
-    std::string decodeOutputTensor(const float *item_data, int sequence_length, int num_classes,
-                                   const std::vector<std::string> &charset);
-    std::string decode(const std::vector<int> &text_index, const std::vector<std::string> &charset);
+    std::string decodeOutputTensor(const float *item_data);
+    std::string decode(const std::vector<int> &text_index);
 
 }; // namespace post_processing
 } // namespace post_processing
