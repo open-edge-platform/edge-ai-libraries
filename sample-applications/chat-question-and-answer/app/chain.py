@@ -19,9 +19,11 @@ from langchain_openai import OpenAIEmbeddings as EGAIEmbeddings
 from .custom_reranker import CustomReranker
 import logging
 from opentelemetry import trace
+from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+import openlit
 
 set_verbose(True)
 
@@ -29,15 +31,31 @@ logging.basicConfig(level=logging.INFO)
 
 # Check if OTLP endpoint is set in environment variables
 otlp_endpoint = os.environ.get("OTLP_ENDPOINT", False)
+# Service name is required for most backends
+resource = Resource.create(attributes={
+    SERVICE_NAME: os.environ.get("OTEL_SERVICE_NAME", "chatqna"),
+})
 
 # Initialize OpenTelemetry
-trace.set_tracer_provider(TracerProvider())
-tracer = trace.get_tracer(__name__)
+if not isinstance(trace.get_tracer_provider(), TracerProvider):    
+    tracer_provider = TracerProvider(resource=resource)
+    trace.set_tracer_provider(tracer_provider)
 
-if otlp_endpoint:
-    otlp_exporter = OTLPSpanExporter()
-    span_processor = BatchSpanProcessor(otlp_exporter)
-    trace.get_tracer_provider().add_span_processor(span_processor)
+    # Set up OTLP exporter and span processor
+    if not otlp_endpoint:
+        logging.warning("OTLP endpoint not set. OpenTelemetry will not be configured.")
+    else:
+        otlp_exporter = OTLPSpanExporter(endpoint="{}".format(otlp_endpoint))
+        span_processor = BatchSpanProcessor(otlp_exporter)
+        tracer_provider.add_span_processor(span_processor)
+
+        openlit.init(
+            otlp_endpoint=otlp_endpoint,
+            application_name=os.environ.get("OTEL_SERVICE_NAME", "chatqna"),
+            environment=os.environ.get("OTEL_SERVICE_ENV", "chatqna"),
+        )
+
+        logging.info(f"Opentelemetry configured successfully with endpoint: {otlp_endpoint}")
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
 MODEL_NAME = os.getenv("EMBEDDING_MODEL","BAAI/bge-small-en-v1.5")
@@ -88,11 +106,29 @@ Answer:
 prompt = ChatPromptTemplate.from_template(template)
 
 ENDPOINT_URL = os.getenv("ENDPOINT_URL", "http://localhost:8080")
+
+# Check which LLM inference backend is being used
+LLM_BACKEND = None
+if "vllm" in ENDPOINT_URL.lower():
+    LLM_BACKEND = "vllm"
+elif "text-generation" in ENDPOINT_URL.lower():
+    LLM_BACKEND = "text-generation"
+elif "ovms" in ENDPOINT_URL.lower():
+    LLM_BACKEND = "ovms"
+else:
+    LLM_BACKEND = "unknown"
+
+logging.info(f"Using LLM inference backend: {LLM_BACKEND}")
 LLM_MODEL = os.getenv("LLM_MODEL", "Intel/neural-chat-7b-v3-3")
 RERANKER_ENDPOINT = os.getenv("RERANKER_ENDPOINT", "http://localhost:9090/rerank")
 callbacks = [streaming_stdout.StreamingStdOutCallbackHandler()]
 
 async def process_chunks(question_text,max_tokens):
+    if LLM_BACKEND in ["vllm", "unknown"]:
+        seed_value = None
+    else:
+        seed_value = int(os.getenv("SEED", 42))
+
     model = EGAIModelServing(
         openai_api_key="EMPTY",
         openai_api_base="{}".format(ENDPOINT_URL),
@@ -101,7 +137,7 @@ async def process_chunks(question_text,max_tokens):
         temperature=0.01,
         streaming=True,
         callbacks=callbacks,
-        seed=42,
+        seed=seed_value,
         max_tokens=max_tokens,
         stop=["\n\n"]
     )

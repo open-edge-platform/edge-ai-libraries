@@ -116,6 +116,8 @@ async def query_chain(payload: QuestionRequest):
     """
     question_text = payload.input
     max_tokens = payload.MAX_TOKENS if payload.MAX_TOKENS else 512
+    if max_tokens > 4096:
+        raise HTTPException(status_code=422, detail="MAX_TOKENS cannot be greater than 4096")
     if not question_text or question_text == "":
         raise HTTPException(status_code=422, detail="Question is required")
     return StreamingResponse(process_chunks(question_text,max_tokens), media_type="text/event-stream")

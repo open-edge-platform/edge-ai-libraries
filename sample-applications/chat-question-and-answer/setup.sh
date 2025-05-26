@@ -24,12 +24,14 @@ export HOST_IP=$(hostname -I | awk '{print $1}')
 # UI ENV variables
 export APP_ENDPOINT_URL=http://$HOST_IP:8100
 export APP_DATA_PREP_URL=http://$HOST_IP:8000
+export MAX_TOKENS=256
 
 # Required environment variables for the ChatQnA backend
 export CHUNK_SIZE=1500
 export CHUNK_OVERLAP=200
 export FETCH_K=10
 export BATCH_SIZE=32
+export SEED=42
 
 # Env variables for DataStore
 export DATASTORE_HOST=$HOST_IP
@@ -69,8 +71,6 @@ export VOLUME_OVMS=${PWD}/ovms_config
 
 #TGI
 #export VOLUME=$PWD/data
-
-export MAX_TOKENS=256
 
 if [[ -n "$REGISTRY" && -n "$TAG" ]]; then
   export BE_IMAGE_NAME="${REGISTRY}chatqna:${TAG}"
