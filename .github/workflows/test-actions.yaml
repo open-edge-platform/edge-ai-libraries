@@ -122,7 +122,8 @@ jobs:
           
           # For a combined coverage and test report
           poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
-          
+          deactivate
+          rm -rf venv
           
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
@@ -286,7 +287,7 @@ jobs:
           python3.12 -m venv venv
           source venv/bin/activate
           poetry install --with dev || true
-          poetry add pytest-html
+          #poetry add pytest-html
           source scripts/setup_env.sh
           poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
           coverage run --source=. -m pytest
@@ -299,6 +300,8 @@ jobs:
           
           # For a combined coverage and test report
           poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
+          deactivate
+          rm -rf venv
           
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
@@ -327,6 +330,7 @@ jobs:
           npm run test:ui
           npm run coverage
           npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
+      
       - name: Upload UI Results
         uses: actions/upload-artifact@v4
         if: always()
@@ -468,6 +472,8 @@ jobs:
           
           # For a combined coverage and test report
           poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc_ing.html     
+          deactivate
+          rm -rf venv
           
       - name: Upload Coverage Report
         uses: actions/upload-artifact@v4
