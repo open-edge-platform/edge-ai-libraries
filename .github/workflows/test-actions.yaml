@@ -259,12 +259,7 @@ jobs:
         run: |
           echo "Running Bandit security scan..."
           
-          bandit -r sample-applications/chat-question-and-answer-core/ \
-            -f html -o bandit-security-report.html \
-            -f json -o bandit-security-report.json \
-            --severity-level medium \
-            --confidence-level medium \
-            || echo "Bandit found security issues"
+          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --exit-zero > bandit_scan_report_summary.txt || echo "Bandit found security issues"
           
           echo "Bandit scan completed"
       
@@ -274,8 +269,7 @@ jobs:
         with:
           name: bandit-security-report
           path: |
-            bandit-security-report.html
-            bandit-security-report.json      
+            bandit_scan_report_summary.txt     
       
   qa-job:
     needs: detect-changes
