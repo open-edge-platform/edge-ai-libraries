@@ -3,7 +3,7 @@
 
 <!--
 **User Story US-1: Learning About the Microservice**
-- **As a developer**, I want to understand the purpose and benefits of the microservice so that I can determine if it fits my project.
+- **As a developer**, I want to understand the purpose and benefits of the microservice so that I can determine if it fits my project..
 
 **Acceptance Criteria**:
 1. A concise description of the microservice’s purpose.
