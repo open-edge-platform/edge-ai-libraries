@@ -8,7 +8,7 @@
 **Acceptance Criteria**:
 1. Clear instructions for downloading and running the microservice with Docker.
 2. Steps for building the microservice from source for advanced users.
-3. Verification steps to ensure successful setup.
+3. Verification steps to ensure successful setup..
 -->
 
 The following microservices will be deployed with each dedicated to providing a specific capability. The dataprep microservice is essentially the orchestrating microservice providing the ingestion capability and interacting with other microservices to manage the supported capabilities.
