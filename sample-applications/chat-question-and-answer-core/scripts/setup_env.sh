@@ -68,6 +68,8 @@ else
     mkdir "$MODEL_CACHE_PATH"
 fi
 
+
+# Export environment variables
 # Set COMPOSE_PROFILES based on device argument
 # If device is GPU, check if render device exists
 # If it exists, set to GPU-DEVICE
@@ -86,8 +88,6 @@ if [ "$DEVICE" == "GPU" ]; then
     fi
 fi
 
-# Export other environment variables
-export HOST_IP=$(hostname -I | awk '{print $1}')
 export GID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
@@ -97,5 +97,6 @@ export EMBEDDING_DEVICE="${DEVICE}"
 export RERANKER_DEVICE="${DEVICE}"
 export LLM_DEVICE="${DEVICE}"
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
-export APP_BACKEND_URL="http://$HOST_IP:8888"
+
+export APP_BACKEND_URL="/v1/chatqna"
 export COMPOSE_PROFILES=$PROFILES
