@@ -90,112 +90,112 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      # - name: Run Unit Tests for Core
-      #   shell: bash
-      #   run: |
-      #     cd sample-applications/chat-question-and-answer-core
-      #     echo "Running unit test cases"
-      #     python3.12 -m venv venv
-      #     source venv/bin/activate
-      #     poetry install --with dev || true
-      #     poetry add pytest-html
-      #     source scripts/setup_env.sh
-      #     poetry run pytest tests/ --html=pytest-coverage.html
-      #     coverage run --source=. -m pytest
-      #     coverage report -m
-      #     # Install required packages
-      #     poetry add pytest-cov pytest-html
+      - name: Run Unit Tests for Core
+        shell: bash
+        run: |
+          cd sample-applications/chat-question-and-answer-core
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          poetry add pytest-html
+          source scripts/setup_env.sh
+          poetry run pytest tests/ --html=pytest-coverage.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+          poetry add pytest-cov pytest-html
           
-      #     # Run tests with coverage and HTML report in one command
-      #     poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+          # Run tests with coverage and HTML report in one command
+          poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
           
-      #     # For a combined coverage and test report
-      #     poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+          # For a combined coverage and test report
+          poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
           
           
-      # - name: Upload Coverage Report
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: core-coverage-report
-      #     path: |
-      #       sample-applications/chat-question-and-answer-core/pytest-coverage.html
-      #       sample-applications/chat-question-and-answer-core/pytest-report.html
-      #       sample-applications/chat-question-and-answer-core/htmlcov/index.html
-      #       sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        with:
+          name: core-coverage-report
+          path: |
+            sample-applications/chat-question-and-answer-core/pytest-coverage.html
+            sample-applications/chat-question-and-answer-core/pytest-report.html
+            sample-applications/chat-question-and-answer-core/htmlcov/index.html
+            sample-applications/chat-question-and-answer-core/coverage-html/index.html
       
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '22'  
-      # - name: Install npm dependencies
-      #   shell: bash
-      #   run: |
-      #     pwd
-      #     cd sample-applications/chat-question-and-answer-core/ui/
-      #     # Install with verbose logging
-      #     npm install
-      #     npm install -D vitest@2.1.9
-      #     npm run test
-      #     npm run test:ui
-      #     npm run coverage
-      #     npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
-      # - name: Upload UI Results
-      #   uses: actions/upload-artifact@v4
-      #   if: always()
-      #   with:
-      #     name: ui-test-results
-      #     path: |
-      #         sample-applications/chat-question-and-answer-core/ui/ui-results.html
-      #         sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'  
+      - name: Install npm dependencies
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/ui/
+          # Install with verbose logging
+          npm install
+          npm install -D vitest@2.1.9
+          npm run test
+          npm run test:ui
+          npm run coverage
+          npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
+      - name: Upload UI Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ui-test-results
+          path: |
+              sample-applications/chat-question-and-answer-core/ui/ui-results.html
+              sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
 
-      # - name: trivy repo scan
-      #   shell: bash
-      #   run: |
-      #     pwd
-      #     cd sample-applications/chat-question-and-answer-core/
-      #     trivy --version
-      #     which trivy
-      #     trivy image --download-db-only
-      #     # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
-      #     # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
-      #     curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+      - name: trivy repo scan
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/
+          trivy --version
+          which trivy
+          trivy image --download-db-only
+          # trivy fs . --format template --template "@/usr/local/bin/trivy/templates/html.tpl" -o "trivy_code_scan_core.html"
+          # trivy fs . --format template --template "/usr/local/share/trivy/templates" -o "trivy_code_scan_core.html"    
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
     
-      #     # Use the downloaded template
-      #     trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
       
-      # - name: Upload trivy reports
-      #   uses: actions/upload-artifact@v4
-      #   if: always()
-      #   with:
-      #     name: trivy-code-scan-results
-      #     path: |
-      #         sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
+      - name: Upload trivy reports
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results
+          path: |
+              sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
 
-      # - name: ClamAV Antivirus Scan
-      #   shell: bash
-      #   run: |
-      #     echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
+      - name: ClamAV Antivirus Scan
+        shell: bash
+        run: |
+          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
           
-      #     docker run --rm \
-      #       --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
-      #       clamav/clamav:stable \
-      #       clamscan --recursive --log=/scandir/clamav-scan-report.log \
-      #       /scandir
+          docker run --rm \
+            --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
+            clamav/clamav:stable \
+            clamscan --recursive --log=/scandir/clamav-scan-report.log \
+            /scandir
           
-      #     SCAN_EXIT_CODE=$?
-      #     sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
+          SCAN_EXIT_CODE=$?
+          sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
           
-      #     if [ $SCAN_EXIT_CODE -ne 0 ]; then
-      #       echo "ClamAV scan failed or found issues"
-      #       exit 1
-      #     fi
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "ClamAV scan failed or found issues"
+            exit 1
+          fi
       
-      # - name: Upload Antivirus Report
-      #   if: always()
-      #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
-      #   with:
-      #     name: antivirus-report
-      #     path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
+      - name: Upload Antivirus Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: antivirus-report
+          path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
       
       - name: Trivy Image Scan
         shell: bash
