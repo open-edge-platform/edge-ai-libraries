@@ -1,10 +1,11 @@
-{    
+{
     "test_set_properties": {
         "test.type": "sample",
-        "sample.dir": "dlstreamer/samples/gstreamer",
-        "dataset.video": "video-examples",
-        "dataset.artifacts": "/tmp/results/",
-        "dataset.groundtruth.base": "groundtruth_ov2/docker/samples_TGL",
+        "sample.dir": "/home/runner/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer",
+        "tests.dir": "/home/runner/edge-ai-libraries/libraries/dl-streamer/tests",
+        "dataset.video": "/tmp/video-examples",
+        "dataset.artifacts": "/tmp/results/metadata",
+        "dataset.groundtruth.base": "groundtruth_ov2/on_host/samples_TGL",
         "benchmark_one_model_args_gap": ",,,,gvadetect,",
         "benchmark_two_model_args_gap": ",,,,,,",
         "benchmark_sink": "gvametaconvert add-tensor-data=true ! gvametapublish file-path=output.json file-format=json-lines ! fakesink",
@@ -14,7 +15,6 @@
         "identity_600": " ! identity eos-after=600 ",
         "identity_500": " ! identity eos-after=500 ",
         "identity_400": " ! identity eos-after=400 ",
-        "identity_200": " ! identity eos-after=200 ",
         "identity_150": " ! identity eos-after=150 ",
         "identity_100": " ! identity eos-after=100 "
     },
@@ -180,56 +180,6 @@
             "dataset.groundtruth": "benchmark_two_auto_multi.json",
             "sample.command": "{sample.dir}/benchmark/benchmark_two_models.sh,{dataset.video}/People_On_The_Street.mp4,,,AUTO,MULTI:GPU{benchmark_two_model_args_gap}{benchmark_sink}"
         },
-        "geti_obb_CPU": {
-            "name": "geti_obb_CPU",
-            "dataset.groundtruth": "geti_obb_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-obb,intel/geti-obb/FP16/geti-obb.xml,CPU,ie,{dataset.video}/images/Boxes-SideView-5fps-005.mp4,json"
-        },
-        "geti_obb_GPU": {
-            "name": "geti_obb_GPU",
-            "dataset.groundtruth": "geti_obb_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-obb,intel/geti-obb/FP16/geti-obb.xml,GPU,va-surface-sharing,{dataset.video}/images/Boxes-SideView-5fps-005.mp4,json"
-        },
-        "geti_segmentation_CPU": {
-            "name": "geti_segmentation_CPU",
-            "dataset.groundtruth": "geti_segmentation_CPU_identity_150.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-segmentation,intel/geti-segmentation/FP16/geti-segmentation.xml,CPU,ie,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4 {identity_150},json"
-        },
-        "geti_segmentation_GPU": {
-            "name": "geti_segmentation_GPU",
-            "dataset.groundtruth": "geti_segmentation_GPU_identity_150.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-segmentation,intel/geti-segmentation/FP16/geti-segmentation.xml,GPU,va-surface-sharing,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4 {identity_150},json"
-        },
-        "geti_classification_single_CPU": {
-            "name": "geti_classification_single_CPU",
-            "dataset.groundtruth": "geti_classification_single_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-classification-single,intel/geti-classification-single/FP16/geti-classification-single.xml,CPU,ie,{dataset.video}/Pexels_Videos_4786.mp4,json"
-        },
-        "geti_classification_single_GPU": {
-            "name": "geti_classification_single_GPU",
-            "dataset.groundtruth": "geti_classification_single_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-classification-single,intel/geti-classification-single/FP16/geti-classification-single.xml,GPU,va-surface-sharing,{dataset.video}/Pexels_Videos_4786.mp4,json"
-        },
-        "geti_classification_multi_CPU": {
-            "name": "geti_classification_multi_CPU",
-            "dataset.groundtruth": "geti_classification_multi_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-classification-multi,intel/geti-classification-multi/FP16/geti-classification-multi.xml,CPU,ie,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,json"
-        },
-        "geti_classification_multi_GPU": {
-            "name": "geti_classification_multi_GPU",
-            "dataset.groundtruth": "geti_classification_multi_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-classification-multi,intel/geti-classification-multi/FP16/geti-classification-multi.xml,GPU,va-surface-sharing,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,json"
-        },
-        "geti_detection_CPU": {
-            "name": "geti_detection_CPU",
-            "dataset.groundtruth": "geti_detection_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-detection,intel/geti-detection/FP16/geti-detection.xml,CPU,ie,{dataset.video}/workers_in_warehouse.mp4,json"
-        },
-        "geti_detection_GPU": {
-            "name": "geti_detection_GPU",
-            "dataset.groundtruth": "geti_detection_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,geti-detection,intel/geti-detection/FP16/geti-detection.xml,GPU,va-surface-sharing,{dataset.video}/workers_in_warehouse.mp4,json"
-        },
         "yolox_tiny_CPU": {
             "name": "yolox_tiny_CPU",
             "dataset.groundtruth": "detection_yolo_base_yolox-tiny_cpu.json",
@@ -383,12 +333,12 @@
         "cpp_draw_attributes_CPU": {
             "name": "cpp_draw_attributes_CPU",
             "dataset.groundtruth": "cpp_draw_face_attributes_CPU_identity_3000.json",
-            "sample.command": "{sample.dir}/cpp/draw_face_attributes/build_and_run.sh,/home/dlstreamer/{dataset.video}/face-demographics-walking-2min.mp4 {identity_3000},json,CPU"
+            "sample.command": "{sample.dir}/cpp/draw_face_attributes/build_and_run.sh,{dataset.video}/face-demographics-walking-2min.mp4 {identity_3000},json,CPU,{tests.dir}"
         },
         "cpp_draw_attributes_GPU": {
             "name": "cpp_draw_attributes_GPU",
             "dataset.groundtruth": "cpp_draw_face_attributes_GPU.json",
-            "sample.command": "{sample.dir}/cpp/draw_face_attributes/build_and_run.sh,/home/dlstreamer/{dataset.video}/face-demographics-walking-2min.mp4 {identity_1000},json,GPU"
+            "sample.command": "{sample.dir}/cpp/draw_face_attributes/build_and_run.sh,{dataset.video}/face-demographics-walking-2min.mp4 {identity_1000},json,GPU,{tests.dir}"
         },
         "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU": {
             "name": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU",
@@ -413,12 +363,12 @@
         "action_recognition_CPU": {
             "name": "action_recognition_CPU",
             "dataset.groundtruth": "action_recognition_CPU_ballerina.json",
-            "sample.command": "{sample.dir}/gst_launch/action_recognition/action_recognition.sh,{dataset.video}/ballerina.mp4,CPU,json"  
+            "sample.command": "{sample.dir}/gst_launch/action_recognition/action_recognition.sh,{dataset.video}/ballerina.mp4,CPU,json"
         },
         "action_recognition_GPU": {
             "name": "action_recognition_GPU",
             "dataset.groundtruth": "action_recognition_GPU_ballerina_identity_100.json",
-            "sample.command": "{sample.dir}/gst_launch/action_recognition/action_recognition.sh,{dataset.video}/ballerina.mp4 {identity_100},GPU,json"  
+            "sample.command": "{sample.dir}/gst_launch/action_recognition/action_recognition.sh,{dataset.video}/ballerina.mp4 {identity_100},GPU,json"
         },
         "lvm_clip_vit_large_patch14_CPU": {
             "name": "lvm_clip_vit_large_patch14_CPU",
@@ -449,56 +399,6 @@
             "name": "lvm_clip_vit_base_patch32_GPU",
             "dataset.groundtruth": "lvm_clip_vit_base_patch32_dog_sign_gpu.json",
             "sample.command": "{sample.dir}/gst_launch/lvm/generate_frame_embeddings.sh,{dataset.video}/dog_sign.mp4,GPU,json,clip-vit-base-patch32"
-        },
-        "geti-classification-deit-tiny-openvino-fp32_CPU": {
-            "name": "geti-classification-deit-tiny-openvino-fp32_CPU",
-            "dataset.groundtruth": "deit-tiny-openvino-fp32_ie_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/deit-tiny-openvino-fp32/FP32/deit-tiny-openvino-fp32.xml,CPU,ie,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-deit-tiny-openvino-fp32_GPU": {
-            "name": "geti-classification-deit-tiny-openvino-fp32_GPU",
-            "dataset.groundtruth": "deit-tiny-openvino-fp32_opencv_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/deit-tiny-openvino-fp32/FP32/deit-tiny-openvino-fp32.xml,GPU,opencv,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-efficientnet-b3-openvino-fp32_CPU": {
-            "name": "geti-classification-efficientnet-b3-openvino-fp32_CPU",
-            "dataset.groundtruth": "efficientnet-b3-openvino-fp32_ie_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/efficientnet-b3-openvino-fp32/FP32/efficientnet-b3-openvino-fp32.xml,CPU,ie,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-efficientnet-b3-openvino-fp32_GPU": {
-            "name": "geti-classification-efficientnet-b3-openvino-fp32_GPU",
-            "dataset.groundtruth": "efficientnet-b3-openvino-fp32_opencv_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/efficientnet-b3-openvino-fp32/FP32/efficientnet-b3-openvino-fp32.xml,GPU,opencv,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-mobilenet-v3-large-1x-openvino-fp32_CPU": {
-            "name": "geti-classification-mobilenet-v3-large-1x-openvino-fp32_CPU",
-            "dataset.groundtruth": "mobilenet-v3-large-1x-openvino-fp32_ie_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/mobilenet-v3-large-1x-openvino-fp32/FP32/mobilenet-v3-large-1x-openvino-fp32.xml,CPU,ie,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-mobilenet-v3-large-1x-openvino-fp32_GPU": {
-            "name": "geti-classification-mobilenet-v3-large-1x-openvino-fp32_GPU",
-            "dataset.groundtruth": "mobilenet-v3-large-1x-openvino-fp32_opencv_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/mobilenet-v3-large-1x-openvino-fp32/FP32/mobilenet-v3-large-1x-openvino-fp32.xml,GPU,opencv,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-mobilenet-v3-small-openvino-fp32_CPU": {
-            "name": "geti-classification-mobilenet-v3-small-openvino-fp32_CPU",
-            "dataset.groundtruth": "mobilenet-v3-small-openvino-fp32_ie_CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/mobilenet-v3-small-openvino-fp32/FP32/mobilenet-v3-small-openvino-fp32.xml,CPU,ie,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-classification-mobilenet-v3-small-openvino-fp32_GPU": {
-            "name": "geti-classification-mobilenet-v3-small-openvino-fp32_GPU",
-            "dataset.groundtruth": "mobilenet-v3-small-openvino-fp32_opencv_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,classification,intel/geti-classification-v2-7/mobilenet-v3-small-openvino-fp32/FP32/mobilenet-v3-small-openvino-fp32.xml,GPU,opencv,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-rotated-detection-maskrcnn-efficientnetb2b-openvino-fp32_CPU": {
-            "name": "geti-rotated-detection-maskrcnn-efficientnetb2b-openvino-fp32_CPU",
-            "dataset.groundtruth": "geti-rotated-detection-2-7-ie-CPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,rotated-detection,intel/geti-rotated_detection-v2-7/maskrcnn-efficientnetb2b-openvino-fp32/FP32/maskrcnn-efficientnetb2b-openvino-fp32.xml,CPU,ie,{dataset.video}/geti-card-king-spades.mp4,json"
-        },
-        "geti-rotated-detection-maskrcnn-efficientnetb2b-openvino-fp32_GPU": {
-            "name": "geti-rotated-detection-maskrcnn-efficientnetb2b-openvino-fp32_GPU",
-            "dataset.groundtruth": "geti-rotated-detection-2-7-opencv-GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/geti_deployment/geti_sample.sh,rotated-detection,intel/geti-rotated_detection-v2-7/maskrcnn-efficientnetb2b-openvino-fp32/FP32/maskrcnn-efficientnetb2b-openvino-fp32.xml,GPU,opencv,{dataset.video}/geti-card-king-spades.mp4,json"
         }
     }
 }

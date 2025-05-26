@@ -1,21 +1,18 @@
 {
     "test_set_properties": {
         "test.type": "sample",
-        "sample.dir": "/home/labrat/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer",
-        "tests.dir": "/home/labrat/edge-ai-libraries/libraries/dl-streamer/tests",
+        "sample.dir": "/home/runner/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer",
         "dataset.video": "/tmp/video-examples",
-        "dataset.artifacts": "/tmp/results/",
+        "dataset.artifacts": "/tmp/results/metadata",
         "dataset.groundtruth.base": "groundtruth_ov2/on_host/samples_ARL",
         "benchmark_one_model_args_gap": ",,,,gvadetect,",
         "benchmark_two_model_args_gap": ",,,,,,",
         "benchmark_sink": "gvametaconvert add-tensor-data=true ! gvametapublish file-path=output.json file-format=json-lines ! fakesink",
-        "identity_3000": " ! identity eos-after=3000 ",
         "identity_1000": " ! identity eos-after=1000 ",
         "identity_800": " ! identity eos-after=800 ",
         "identity_600": " ! identity eos-after=600 ",
         "identity_500": " ! identity eos-after=500 ",
         "identity_400": " ! identity eos-after=400 ",
-        "identity_200": " ! identity eos-after=200 ",
         "identity_150": " ! identity eos-after=150 ",
         "identity_100": " ! identity eos-after=100 "
     },

@@ -137,6 +137,7 @@ class BaseGTComparator:
         test_prediction_folder = re.search("(.*)/.*.json", self._pred_path).group(1)
         if not os.path.exists(test_prediction_folder) and not os.path.islink(test_prediction_folder):
             self._logger.info("Directory for meta publishing was not found. Create it myself...")
+            self._logger.info(test_prediction_folder)
             os.mkdir(test_prediction_folder)
         # to prevent mixing results from different pipelines
         if os.path.exists(self._pred_path):
