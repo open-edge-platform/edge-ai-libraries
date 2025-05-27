@@ -1,6 +1,6 @@
 # Running Tests for ChatQnA
 
-This guide will help you run the tests for the ChatQnA project using the pytest framework.
+This guide will help you run the tests for the ChatQnA project using the pytest framework..
 
 ---
 
