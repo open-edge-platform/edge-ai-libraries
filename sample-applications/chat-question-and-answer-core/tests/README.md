@@ -1,6 +1,6 @@
 # Running Tests for ChatQnA-Core
 
-This guide will help you run the tests for the ChatQnA-Core project using the pytest framework.
+This guide will help you run the tests for the ChatQnA-Core project using the pytest framework..
 
 ---
 
@@ -19,10 +19,10 @@ Before running the tests, ensure you have the following installed:
 
 - For backend
    - Python 3.11+
-   - `pip` (Python package installer)
+   - `pip` (Python package installer).
    - `Poetry` (Python dependency management and packaging tool)
 - For UI
-   - `npm` (Node package manager)
+   - `npm` (Node package manager).
    - `vitest` (Next generation testing framework)
 
 ## Poetry Installation

@@ -1,0 +1,606 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: Folder-Specific CI
+
+# Define concurrency at the workflow level
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: false  # This ensures jobs don't cancel each other
+
+on:
+  pull_request:
+    branches:
+      - ga-new-actions
+    paths:
+      - 'sample-applications/chat-question-and-answer-core/**'
+      - 'sample-applications/chat-question-and-answer/**'
+      - 'microservices/document-ingestion/pgvector/**'
+  push:
+    branches:
+      - ga-new-actions
+    paths:
+      - 'sample-applications/chat-question-and-answer-core/**'
+      - 'sample-applications/chat-question-and-answer/**'
+      - 'microservices/document-ingestion/pgvector/**'
+
+jobs:
+  detect-changes:
+    runs-on: ubuntu-22.04-32core-128GB
+    outputs:
+      core_changed: ${{ steps.filter.outputs.core_changed }}
+      qa_changed: ${{ steps.filter.outputs.qa_changed }}
+      doc_changed:  ${{ steps.filter.outputs.doc_changed }}
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          
+      - name: Filter Changes
+        id: filter
+        run: |
+          # Determine the comparison based on event type
+          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+            echo "Event: Pull Request"
+            # For pull requests, compare against the PR base
+            git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
+            BASE_SHA=${{ github.event.pull_request.base.sha }}
+            HEAD_SHA=${{ github.event.pull_request.head.sha }}
+          else
+            echo "Event: Push"
+            # For pushes, compare against the previous commit
+            git fetch origin ${{ github.event.before }} --depth=1
+            BASE_SHA=${{ github.event.before }}
+            HEAD_SHA=${{ github.sha }}
+          fi
+          
+          echo "Comparing $BASE_SHA...$HEAD_SHA"
+          
+          # Check if core folder has changes
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+            echo "Core folder has changes"
+            echo "core_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes in core folder"
+            echo "core_changed=false" >> $GITHUB_OUTPUT
+          fi
+          
+          # Check if Q&A folder has changes
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer/"; then
+            echo "Q&A folder has changes"
+            echo "qa_changed=true" >> $GITHUB_OUTPUT
+          else
+            echo "No changes in Q&A folder"
+            echo "qa_changed=false" >> $GITHUB_OUTPUT
+          fi
+
+          # Check if document-ingestion folder has changes
+          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
+            echo "document-ingestion folder has changes"
+            echo "doc_changed=true"  >>  $GITHUB_OUTPUT
+          else
+            echo "No changes in document-ingestion folder"
+            echo "doc_changed=false"  >>  $GITHUB_OUTPUT
+          fi
+
+  core-job:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.core_changed == 'true' }}
+    runs-on: ubuntu-22.04-32core-128GB
+    env:
+      HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+      LLM_MODEL: Intel/neural-chat-7b-v3-3
+      EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
+      RERANKER_MODEL: BAAI/bge-reranker-base    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+      
+      - name: Run Unit Tests for Core
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd sample-applications/chat-question-and-answer-core
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          poetry add pytest-html
+          source scripts/setup_env.sh
+          poetry run pytest tests/ --html=pytest-coverage.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+          poetry add pytest-cov pytest-html
+          
+          # Run tests with coverage and HTML report in one command
+          poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+          
+          # For a combined coverage and test report
+          poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+          deactivate
+          rm -rf venv
+          
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: core-coverage-report
+          path: |
+            sample-applications/chat-question-and-answer-core/pytest-coverage.html
+            sample-applications/chat-question-and-answer-core/pytest-report.html
+            sample-applications/chat-question-and-answer-core/htmlcov/index.html
+            sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        continue-on-error: true
+        with:
+          node-version: '22'
+ 
+      - name: Install npm dependencies
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/ui/
+          # Install with verbose logging
+          npm install
+          npm install -D vitest@2.1.9
+          npm run test
+          npm run test:ui
+          npm run coverage
+          npx vitest run --reporter=html --outputFile=ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=ui-coverage-html
+      
+      - name: Upload UI Results
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        if: always()
+        with:
+          name: ui-test-results
+          path: |
+              sample-applications/chat-question-and-answer-core/ui/ui-results.html
+              sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
+
+      - name: trivy repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer-core/
+          trivy --version
+          which trivy
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+    
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_core.html"   
+      
+      - name: Upload trivy reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results
+          path: |
+              sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
+  
+
+      - name: ClamAV Antivirus Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer-core/..."
+          
+          docker run --rm \
+            --mount type=bind,source=./sample-applications/chat-question-and-answer-core/,target=/scandir \
+            clamav/clamav:stable \
+            clamscan --recursive --log=/scandir/clamav-scan-report.log \
+            /scandir
+          
+          SCAN_EXIT_CODE=$?
+          sudo chown $USER:$USER sample-applications/chat-question-and-answer-core/clamav-scan-report.log 2>/dev/null || true
+          
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "ClamAV scan failed or found issues"
+            exit 1
+          fi
+      
+      - name: Upload Antivirus Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: antivirus-report
+          path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Building image chatqna-core-backend and scanning"
+              docker build -f ./sample-applications/chat-question-and-answer-core/docker/Dockerfile -t chatqna-core-backend:latest ./sample-applications/chat-question-and-answer-core/
+              trivy image chatqna-core-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json chatqna-core-backend:latest
+              echo "completed chatqna-core-backend scanning"
+              
+              echo "**************************************************************"
+              echo "Building image chatqna-core-frontend and scanning"
+              docker build -t="chatqna-core-frontend:latest" ./sample-applications/chat-question-and-answer-core/ui
+              trivy image chatqna-core-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json chatqna-core-frontend:latest
+              echo "completed chatqna-core-frontend scanning"
+              echo "print all the files"
+              pwd
+              ls -lrt
+              echo "**************************************************************"
+            
+            
+      - name: Upload Trivy Image Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report
+          path: |
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.html
+                sample-applications/chat-question-and-answer-core/trivy_image_scan_core-frontend.spdx.json
+
+      - name: Run Bandit Security Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running Bandit security scan..."
+          
+          python -m bandit -r sample-applications/chat-question-and-answer-core/ -v --exit-zero > bandit_scan_report_summary.txt || echo "Bandit found security issues"
+          
+          echo "Bandit scan completed"
+      
+      - name: Upload Bandit Security Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bandit-security-report
+          path: |
+            bandit_scan_report_summary.txt  
+
+      
+      
+  qa-job:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.qa_changed == 'true' }}
+    runs-on: ubuntu-22.04-32core-128GB
+    env:
+      HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+      LLM_MODEL: Intel/neural-chat-7b-v3-3
+      EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
+      RERANKER_MODEL: BAAI/bge-reranker-base    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+      
+      # - name: Run Unit Tests for Core
+      #   continue-on-error: true
+      #   shell: bash
+      #   run: |
+      #     cd sample-applications/chat-question-and-answer
+      #     echo "Running unit test cases"
+      #     python3.12 -m venv venv
+      #     source venv/bin/activate
+      #     poetry install --with dev || true
+      #     #poetry add pytest-html
+      #     #source setup.sh
+      #     source setup.sh llm=TGI embed=TEI
+      #     poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
+      #     coverage run --source=. -m pytest
+      #     coverage report -m
+      #     # Install required packages
+      #     poetry add pytest-cov pytest-html 
+          
+      #     # Run tests with coverage and HTML report in one command
+      #     poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
+          
+      #     # For a combined coverage and test report
+      #     poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
+      #     deactivate
+      #     rm -rf venv
+          
+      # - name: Upload Coverage Report
+        # continue-on-error: true
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: chatqna-coverage-report
+          # path: |
+          #   sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
+          #   sample-applications/chat-question-and-answer/pytest-report-chatqna.html
+          #   sample-applications/chat-question-and-answer/htmlcov/index.html
+          #   sample-applications/chat-question-and-answer/coverage-html/index.html
+      
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v4
+      #   with:
+      #     node-version: '22'
+ 
+      - name: Install npm dependencies
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer/ui/react
+          npm install
+          npm install -D vitest@2.1.9
+          npm run test
+          npm run test:ui
+          npm run coverage
+          npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
+      
+      - name: Upload UI Results
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chatqna-ui-test-results
+          path: |
+              sample-applications/chat-question-and-answer/ui/react/ui-results.html
+              sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
+
+      - name: trivy repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer/
+          trivy --version
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+    
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_chatqna.html"   
+      
+      - name: Upload trivy reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results-chatqna
+          path: |
+              sample-applications/chat-question-and-answer/trivy_code_scan_chatqna.html
+
+      - name: ClamAV Antivirus Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer/..."
+          
+          docker run --rm \
+            --mount type=bind,source=./sample-applications/chat-question-and-answer/,target=/scandir \
+            clamav/clamav:stable \
+            clamscan --recursive --log=/scandir/clamav-scan-report.log \
+            /scandir
+          
+          SCAN_EXIT_CODE=$?
+          sudo chown $USER:$USER sample-applications/chat-question-and-answer/clamav-scan-report.log 2>/dev/null || true
+          
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "ClamAV scan failed or found issues"
+            exit 1
+          fi
+      
+      - name: Upload Antivirus Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: antivirus-report
+          path: sample-applications/chat-question-and-answer/clamav-scan-report.log
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Building image chatqna-backend and scanning"
+              docker build -f ./sample-applications/chat-question-and-answer/Dockerfile -t chatqna-backend:latest ./sample-applications/chat-question-and-answer/
+              trivy image chatqna-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json chatqna-backend:latest
+              echo "completed chatqna-backend scanning"
+              
+              echo "**************************************************************"
+              echo "Building image chatqna-frontend and scanning"
+              docker build -t="chatqna-frontend:latest" ./sample-applications/chat-question-and-answer/ui/react
+              trivy image chatqna-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
+              trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json chatqna-frontend:latest
+              echo "completed chatqna-frontend scanning"
+              echo "print all the files"
+              pwd
+              ls -lrt
+              echo "**************************************************************"
+            
+            
+      - name: Upload Trivy Image Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report
+          path: |
+                sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
+                sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json
+                sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
+                sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json
+
+      - name: Run Bandit Security Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running Bandit security scan..."
+          
+          python -m bandit -r sample-applications/chat-question-and-answer/ -v --exit-zero > bandit_scan_report_summary_chatqna.txt || echo "Bandit found security issues"
+          
+          echo "Bandit scan completed"
+      
+      - name: Upload Bandit Security Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bandit-security-report
+          path: |
+            bandit_scan_report_summary_chatqna.txt
+
+
+  doc-ingestion-job:
+    needs: detect-changes
+    if: ${{ needs.detect-changes.outputs.doc_changed == 'true' }}
+    runs-on: ubuntu-22.04-32core-128GB
+    env:
+      HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}   
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+      
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+      
+      - name: Run Unit Tests for Core
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd microservices/document-ingestion/pgvector/
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          poetry add pytest-html
+          source run.sh --nosetup
+          poetry run pytest tests/unit_tests/ --html=pytest-coverage-doc_ing.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+          poetry add pytest-cov pytest-html 
+          
+          # Run tests with coverage and HTML report in one command
+          poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-doc_ing.html
+          
+          # For a combined coverage and test report
+          poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc_ing.html     
+          deactivate
+          rm -rf venv
+          
+      - name: Upload Coverage Report
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: doc_ing-coverage-report
+          path: |
+            microservices/document-ingestion/pgvector/pytest-coverage-doc_ing.html
+            microservices/document-ingestion/pgvector/pytest-report-doc_ing.html
+            microservices/document-ingestion/pgvector/htmlcov/index.html
+            microservices/document-ingestion/pgvector/coverage-html/index.html
+      
+     
+      - name: trivy repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd microservices/document-ingestion/pgvector/
+          trivy --version
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+    
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_ing.html"   
+      
+      - name: Upload trivy reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results-doc_ing
+          path: |
+              microservices/document-ingestion/pgvector/trivy_code_scan_doc_ing.html
+
+      - name: ClamAV Antivirus Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Starting ClamAV scan on sample-applications/chat-question-and-answer/..."
+          
+          docker run --rm \
+            --mount type=bind,source=./microservices/document-ingestion/pgvector/,target=/scandir \
+            clamav/clamav:stable \
+            clamscan --recursive --log=/scandir/clamav-scan-report.log \
+            /scandir
+          
+          SCAN_EXIT_CODE=$?
+          sudo chown $USER:$USER microservices/document-ingestion/pgvector/clamav-scan-report.log 2>/dev/null || true
+          
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "ClamAV scan failed or found issues"
+            exit 1
+          fi
+      
+      - name: Upload Antivirus Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: antivirus-report
+          path: microservices/document-ingestion/pgvector/clamav-scan-report.log
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              echo "print pwd"
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Building image doc_ing-backend and scanning"
+              docker build -f ./microservices/document-ingestion/pgvector/docker/Dockerfile -t doc_ing-backend:latest ./microservices/document-ingestion/pgvector/
+              trivy image doc_ing-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
+              trivy image --quiet --format spdx-json --output microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json doc_ing-backend:latest
+              echo "completed doc_ing-backend scanning"
+            
+              
+            
+      - name: Upload Trivy Image Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report
+          path: |
+                microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
+                microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json
+
+      - name: Run Bandit Security Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running Bandit security scan..."
+          
+          python -m bandit -r microservices/document-ingestion/ -v --exit-zero > bandit_scan_report_summary_doc_ing.txt || echo "Bandit found security issues"
+          
+          echo "Bandit scan completed"
+      
+      - name: Upload Bandit Security Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bandit-security-report
+          path: |
+            bandit_scan_report_summary_doc_ing.txt
