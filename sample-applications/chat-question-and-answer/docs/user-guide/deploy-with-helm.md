@@ -47,7 +47,7 @@ Choose the appropriate `values*.yaml` file based on the model server you want to
 - **For vLLM**: Use `values_vllm.yaml`.
 - **For TGI**: Use `values_tgi.yaml`.
 
-Edit the selected `values*.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -61,6 +61,11 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `global.teiEmbeddingService.enabled` | Flag to enable TEI embedding model server | `false` |
 | `global.ovmsEmbeddingService.enabled` | Flag to enable OVMS embedding model server | `true` |
 | `global.UI_NODEPORT` | Sets the static port (in the 30000–32767 range) | |
+| `global.keeppvc` | Set true to persists the storage. Default is false | false |
+| `global.ovmsEmbeddinggpuService.enabled` | To Enable OVMS Embedding on GPU | false |
+| `global.GPU.enabled` | For model server deployed on GPU | false |
+| `global.GPU.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node <gpu-node> | `<your-node-key-on-cluster>` |
+| `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
 | `Chatqna.image.tag` | latest image tag                                  | `1.1.2`   |
@@ -72,6 +77,7 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | `Intel/neural-chat-7b-v3-3`|
 | `Chatqna.env.RERANKER_MODEL` |  model to be used with tei               | `BAAI/bge-reranker-base`|
 
+NOTE: GPU is only enabled for openvino model server (OVMS)
 
 ### Option 2: Install from Source
 
@@ -89,9 +95,9 @@ Navigate to the chart directory:
 cd <repository-url>/sample-applications/chat-question-and-answer/chart
 ```
 
-#### Step 3: Configure the `values*.yaml` File
+#### Step 3: Configure the `values.yaml` File
 
-Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
 
 #### Step 4: Build Helm Dependencies
@@ -133,7 +139,7 @@ kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
+### Step 7: Access the Application 
 
 Open the UI in a browser at http://\<node-ip\>:\<ui-node-port\>
 

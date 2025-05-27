@@ -190,13 +190,11 @@ class Publisher:
             if re.search(pattern, launch_string):
                 self.log.info("appsink destination found. Publisher will be initialized")
                 # identify DLStreamer pipeline server publishers and pop them from the request
-                if self.request is not None:
+                if self.request is not None and "destination" in self.request:
                     frame_destination = copy.deepcopy(self.request.get("destination").get("frame", None))
                     meta_destination = copy.deepcopy(self.request.get("destination").get("metadata", None))
-                    if frame_destination:
-                        self._get_frame_publisher_config(frame_destination)
-                    if meta_destination:
-                        self._get_meta_publisher_config(meta_destination)
+                    self._get_frame_publisher_config(frame_destination)
+                    self._get_meta_publisher_config(meta_destination)
                     if not self.request["destination"]:
                         self.request.pop("destination")
                                 
@@ -508,11 +506,6 @@ class Publisher:
                     publisher.s3write_complete.clear()
                 continue
             
-            if hasattr(publisher, 'overlay_annotation'):
-                if self.overlayed_frame is not None and publisher.overlay_annotation:
-                    publisher.queue.append((self.overlayed_frame, meta_data))
-                    continue
-            # add data to other publishers
             publisher.queue.append((frame, meta_data))
 
     def _run(self):
@@ -564,19 +557,13 @@ class Publisher:
                                         self.send_overlayed_frame = False
                                         self.log.debug("task key is missing in metadata. overriding overlaying annotation to False")
                                     frame, meta_data['encoding_type'], meta_data[
-                                        'encoding_level'], overlayed_frame = utils.encode_frame(
+                                        'encoding_level'] = utils.encode_frame(
                                             self.encoding_type, self.encoding_level,
                                             frame, meta_data['height'],
                                             meta_data['width'],
                                             channels=meta_data['channels'],
-                                            send_overlayed_frame=self.send_overlayed_frame,
                                             meta_data=meta_data)
                                     frame = frame[1].tobytes()
-                                    if overlayed_frame is not None:
-                                        self.overlayed_frame = overlayed_frame[1].tobytes()
-                                    ret = meta_data.pop('geti_prediction', None)  # upon overlay, discard encoded geti pred obj, if present
-                                    if ret is not None:
-                                        self.log.debug("Discarded encoded geti prediction object from metadata")
                                     ret_ov = meta_data.pop('overlayText', None)  # upon overlay, discard overlay text, if present
                                     if ret_ov is not None:
                                         self.log.debug("Discarded overlay text from metadata")

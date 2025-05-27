@@ -25,6 +25,7 @@ x-vippet: &vippet
   # The following config applies to Linux:
   environment:
     GST_DEBUG: "1"
+    TZ: America/Los_Angeles
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
@@ -44,7 +45,8 @@ services:
           cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/pipeline-zoo-models &&
           cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/pipeline-zoo-models/ &&
           cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/
+          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/ &&
+          cp -r pipeline-zoo-models/storage/yolov5m-640_INT8/ /output/pipeline-zoo-models/
         ) &&
         touch /output/.done &&
         tail -f /dev/null
@@ -74,8 +76,8 @@ services:
   collector:
     image: docker.io/intel/vippet-collector:v1.0.0
     build:
-      context: .
-      dockerfile: Dockerfile.collector
+      context: ./collector
+      dockerfile: Dockerfile
     container_name: collector
     privileged: true
     devices:
@@ -87,11 +89,8 @@ services:
     ipc: host
     pid: host
     volumes:
-      - "collector-signals:/usr/src/app/.collector-signals"
-    command: bash -xc '
-        chmod a+rwx /usr/src/app/.collector-signals &&
-        bash /usr/src/app/collector.sh
-      '
+      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
+      - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0
