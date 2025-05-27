@@ -5,6 +5,8 @@ ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
 USER root
 
+ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
+
 WORKDIR /home/pipeline-server
 
 RUN export no_proxy= && \
