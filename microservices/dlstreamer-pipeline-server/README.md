@@ -139,7 +139,7 @@ Run the following commands:
      docker compose build
    ```
    
-   The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
+   The docker image `intel/dlstreamer-pipeline-server:3.1.0` is now built and available for you to run.
    
    ```sh
      docker compose up

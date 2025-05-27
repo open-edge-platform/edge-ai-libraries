@@ -12,7 +12,7 @@ export DIR=$(cd $(dirname $0) && pwd)
 # build image from DLStreamer pipeline server Dockerfile
 docker build ${DIR}/../ \
     --network host \
-    -t intel/dlstreamer-pipeline-server-test:3.0.0 \
+    -t intel/dlstreamer-pipeline-server-test:3.1.0 \
     --build-arg MSGBUS_LIB_VERSION="4.0.0" \
     --build-arg UTILS_LIB_VERSION="4.0.0" \
     --build-arg UID=1999 \

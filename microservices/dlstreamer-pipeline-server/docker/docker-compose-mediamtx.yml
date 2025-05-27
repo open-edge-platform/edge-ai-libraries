@@ -6,7 +6,7 @@
 
 services:
   dlstreamer-pipeline-server:
-    image: intel/dlstreamer-pipeline-server:3.0.0
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
     read_only: true
