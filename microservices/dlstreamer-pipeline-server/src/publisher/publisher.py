@@ -35,7 +35,7 @@ from src.publisher.eis.grpc_publisher import EdgeGrpcPublisher
 from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
-
+from src.publisher.influx.influx_writer import InfluxdbWriter
 
 class Publisher:
     """EII Pipeline Server publisher thread.
@@ -133,12 +133,17 @@ class Publisher:
             elif "type" in meta_destination and meta_destination["type"] == "opcua":
                 self.opcua_config = meta_destination
                 self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
+            elif "type" in meta_destination and meta_destination["type"] == "influx_write":
+                self.influx_config = meta_destination
+                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
         elif isinstance(meta_destination, list):
             for dest in meta_destination:
                 if "type" in dest and dest["type"] == "mqtt":
                     self.mqtt_config = dest
                 elif "type" in dest and dest["type"] == "opcua":
                     self.opcua_config = dest
+                elif "type" in dest and dest["type"] == "influx_write":
+                    self.influx_config = dest
                 self.request["destination"]["metadata"].remove(dest)
             if len(self.request["destination"]["metadata"]) == 0: # Remove the metadata from destination if list is empty
                 self.request["destination"].pop("metadata")
@@ -148,6 +153,8 @@ class Publisher:
             self.mqtt_config = self.app_cfg.get("mqtt_publisher")
         if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
             self.opcua_config = self.app_cfg.get("opcua_publisher")
+        if not self.influx_config and self.app_cfg.get("influx_write"):
+            self.influx_config = self.app_cfg.get("influx_write")
 
     def _get_frame_publisher_config(self,frame_destination):
         """Get config for frame publishers
@@ -183,6 +190,7 @@ class Publisher:
         self.s3_config = None
         self.mqtt_config = None
         self.opcua_config = None
+        self.influx_config = None
 
         try:
             launch_string = self.app_cfg.get("pipeline")
@@ -208,7 +216,10 @@ class Publisher:
                 if self.opcua_config:
                     opcua_pub = OPCUAPublisher(self.opcua_config)
                     self.opcua_publish_frame = opcua_pub.publish_frame
-                    publishers.append(opcua_pub)            
+                    publishers.append(opcua_pub)
+                if self.influx_config:
+                    influx_pub = InfluxdbWriter(self.influx_config)
+                    publishers.append(influx_pub)          
                         
             if os.getenv('RUN_MODE') == "EII":
                 dev_mode = os.getenv("DEV_MODE", "False")
