@@ -289,7 +289,7 @@ jobs:
           poetry install --with dev || true
           #poetry add pytest-html
           #source setup.sh
-          source setup.sh llm=OVMS embed=TEI
+          source setup.sh llm=TGI embed=TEI
           poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
           coverage run --source=. -m pytest
           coverage report -m
