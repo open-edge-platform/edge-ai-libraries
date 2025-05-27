@@ -325,6 +325,7 @@ jobs:
           pwd
           cd sample-applications/chat-question-and-answer/ui/react
           # Install with verbose logging
+          npm cache clean --force
           npm install
           npm install -D vitest@2.1.9
           npm run test
