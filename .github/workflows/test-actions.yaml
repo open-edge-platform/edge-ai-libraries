@@ -162,7 +162,7 @@ jobs:
         continue-on-error: true
         if: always()
         with:
-          name: ui-test-results
+          name: ui-test-results-core
           path: |
               sample-applications/chat-question-and-answer-core/ui/ui-results.html
               sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
@@ -186,7 +186,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: trivy-code-scan-results
+          name: trivy-code-scan-results-core
           path: |
               sample-applications/chat-question-and-answer-core/trivy_code_scan_core.html
   
@@ -216,7 +216,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: antivirus-report
+          name: antivirus-report-core
           path: sample-applications/chat-question-and-answer-core/clamav-scan-report.log
       
       - name: Trivy Image Scan
@@ -248,7 +248,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Trivy image scan report
+          name: Trivy image scan report-core
           path: |
                 sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.html
                 sample-applications/chat-question-and-answer-core/trivy_image_scan_core-backend.spdx.json
@@ -269,7 +269,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bandit-security-report
+          name: bandit-security-report-core
           path: |
             bandit_scan_report_summary.txt  
 
@@ -321,7 +321,7 @@ jobs:
         # continue-on-error: true
       #   uses: actions/upload-artifact@v4
       #   with:
-      #     name: chatqna-coverage-report
+      #     name: chatqna-coverage-report-qa
           # path: |
           #   sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
           #   sample-applications/chat-question-and-answer/pytest-report-chatqna.html
@@ -351,7 +351,7 @@ jobs:
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: chatqna-ui-test-results
+          name: chatqna-ui-test-results-qa
           path: |
               sample-applications/chat-question-and-answer/ui/react/ui-results.html
               sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
@@ -403,7 +403,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: antivirus-report
+          name: antivirus-report-qa
           path: sample-applications/chat-question-and-answer/clamav-scan-report.log
       
       - name: Trivy Image Scan
@@ -435,7 +435,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Trivy image scan report
+          name: Trivy image scan report-qa
           path: |
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.html
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json
@@ -457,7 +457,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bandit-security-report
+          name: bandit-security-report-qa
           path: |
             bandit_scan_report_summary_chatqna.txt
 
@@ -559,7 +559,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: antivirus-report
+          name: antivirus-report-doc
           path: microservices/document-ingestion/pgvector/clamav-scan-report.log
       
       - name: Trivy Image Scan
@@ -581,7 +581,7 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Trivy image scan report
+          name: Trivy image scan report-doc
           path: |
                 microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
                 microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json
@@ -601,6 +601,6 @@ jobs:
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: bandit-security-report
+          name: bandit-security-report-doc
           path: |
             bandit_scan_report_summary_doc_ing.txt
