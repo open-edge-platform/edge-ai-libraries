@@ -323,7 +323,7 @@ For alternative ways to set up the microservice, see:
 
 ## Next Steps
 
-- [How to interface with a remote Intel® Geti™ Platform using the Model Registry microservice](./how-to-interface-with-intel-geti-platform.md)
+- [How to interface with a remote Intel® Geti™ Software using the Model Registry microservice](./how-to-interface-with-intel-geti-platform.md)
 
 ## Troubleshooting
 

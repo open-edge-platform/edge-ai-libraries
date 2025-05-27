@@ -14,10 +14,12 @@
 #include "converters/to_roi/yolo_v3.h"
 #include "converters/to_roi/yolo_v8.h"
 #include "converters/to_tensor/clip_token_converter.h"
+#include "converters/to_tensor/docTR_ocr.h"
 #include "converters/to_tensor/keypoints_3d.h"
 #include "converters/to_tensor/keypoints_hrnet.h"
 #include "converters/to_tensor/keypoints_openpose.h"
 #include "converters/to_tensor/label.h"
+#include "converters/to_tensor/paddle_ocr.h"
 #include "converters/to_tensor/raw_data_copy.h"
 #include "converters/to_tensor/semantic_mask.h"
 #include "converters/to_tensor/text.h"
@@ -102,15 +104,15 @@ std::string checkOnNameDeprecation(const std::string &converter_name) {
     const std::string YOLOv8OBB = "YOLOv8-OBB";
     const std::string YOLOv8SEG = "YOLOv8-SEG";
     const std::unordered_map<std::string, std::string> deprecatedNameToName = {
-        {DetectionOutputConverter::getDepricatedName(), DetectionOutputConverter::getName()},
-        {BoxesLabelsConverter::getDepricatedName(), BoxesLabelsConverter::getName()},
-        {YOLOv2Converter::getDepricatedName(), YOLOv2Converter::getName()},
-        {YOLOv3Converter::getDepricatedName(), YOLOv3Converter::getName()},
-        {LabelConverter::getDepricatedName(), LabelConverter::getName()},
-        {TextConverter::getDepricatedName(), TextConverter::getName()},
-        {KeypointsHRnetConverter::getDepricatedName(), KeypointsHRnetConverter::getName()},
-        {Keypoints3DConverter::getDepricatedName(), Keypoints3DConverter::getName()},
-        {KeypointsOpenPoseConverter::getDepricatedName(), KeypointsOpenPoseConverter::getName()},
+        {DetectionOutputConverter::getDeprecatedName(), DetectionOutputConverter::getName()},
+        {BoxesLabelsConverter::getDeprecatedName(), BoxesLabelsConverter::getName()},
+        {YOLOv2Converter::getDeprecatedName(), YOLOv2Converter::getName()},
+        {YOLOv3Converter::getDeprecatedName(), YOLOv3Converter::getName()},
+        {LabelConverter::getDeprecatedName(), LabelConverter::getName()},
+        {TextConverter::getDeprecatedName(), TextConverter::getName()},
+        {KeypointsHRnetConverter::getDeprecatedName(), KeypointsHRnetConverter::getName()},
+        {Keypoints3DConverter::getDeprecatedName(), Keypoints3DConverter::getName()},
+        {KeypointsOpenPoseConverter::getDeprecatedName(), KeypointsOpenPoseConverter::getName()},
         {GetiDetection, BoxesLabelsConverter::getName()},
         {GetiClassification, LabelConverter::getName()},
         {GetiInstanceSegmentation, MaskRCNNConverter::getName()},
@@ -179,6 +181,10 @@ BlobToMetaConverter::Ptr BlobToMetaConverter::create(Initializer initializer, Co
             return std::make_unique<TextConverter>(std::move(initializer));
         else if (converter_name == SemanticMaskConverter::getName())
             return std::make_unique<SemanticMaskConverter>(std::move(initializer));
+        else if (converter_name == docTROCRConverter::getName())
+            return std::make_unique<docTROCRConverter>(std::move(initializer));
+        else if (converter_name == PaddleOCRConverter::getName())
+            return std::make_unique<PaddleOCRConverter>(std::move(initializer));
         else
             throw std::runtime_error("Unsupported converter: " + converter_name);
     default:

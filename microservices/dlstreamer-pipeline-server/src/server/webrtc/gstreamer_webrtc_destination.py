@@ -37,10 +37,10 @@ class GStreamerWebRTCDestination(AppDestination):
         # frame_config = destination_config.get("frame", {})
         self._webrtc_peerid = request["peer-id"]
         self._cache_length = request.get("cache-length", 30)
-        self._sync_with_source = request.get("sync-with-source", True)
+        self._sync_with_source = request.get("sync-with-source")
         self._sync_with_destination = request.get("sync-with-destination", True)
-        self._encode_cq_level = request.get("encode-cq-level", 10)
         self.overlay = request.get("overlay",True)
+        self.bitrate = request.get("bitrate", 2048)
 
     def _init_stream(self, sample):
         self._frame_size = sample.get_buffer().get_size()
@@ -48,8 +48,9 @@ class GStreamerWebRTCDestination(AppDestination):
         self._pipeline.appsink_element.props.caps = caps
         self._need_data = False
         self._last_timestamp = self._clock.get_time()
-        if self._sync_with_source:
-            self._pipeline.appsink_element.set_property("sync", True)
+        if self._sync_with_source is not None:
+            self._pipeline.appsink_element.set_property("sync", self._sync_with_source)
+            self._logger.info("Setting the appsink sync property to {}".format(self._sync_with_source))
         self._logger.info("Adding WebRTC frame destination stream for peer_id {}.".format(self._webrtc_peerid))
         self._logger.debug("WebRTC Stream frame caps == {}".format(caps))
         self._webrtc_manager.add_stream(self._webrtc_peerid, caps, self,self.overlay)
@@ -72,9 +73,9 @@ class GStreamerWebRTCDestination(AppDestination):
         if self._cache_length:
             self._app_src.set_property("max-bytes",
                                        int(self._frame_size*self._cache_length))
-        encoder = webrtc_pipeline.get_by_name("vp8encoder")
-        if self._encode_cq_level and encoder:
-            encoder.set_property("cq-level", self._encode_cq_level)
+        encoder = webrtc_pipeline.get_by_name("h264enc")
+        if self.bitrate and encoder:
+            encoder.set_property("bitrate", self.bitrate)
         self._app_src.connect('need-data', self._on_need_data)
         self._app_src.connect('enough-data', self._on_enough_data)
 

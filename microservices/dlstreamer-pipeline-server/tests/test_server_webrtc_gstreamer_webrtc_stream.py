@@ -44,29 +44,31 @@ class TestGStreamerWebRTCStream:
         assert gstreamer_webrtc_stream._check_plugins() is False
 
     def test_start_pipeline(self, gstreamer_webrtc_stream, mocker):
-        mock_pipeline = MagicMock()
-        mock_reset = mocker.patch.object(gstreamer_webrtc_stream,'_reset')
-        mock_response = MagicMock()
-        mock_request = mocker.patch.object(requests,'get',return_value=mock_response)
-        mock_response.status_code = 404
-        mock_response.headers = {'Server': 'mediamtx'}
+        mock_reset = mocker.patch.object(gstreamer_webrtc_stream, '_reset')
         mock_logger = MagicMock()
         gstreamer_webrtc_stream._logger = mock_logger
         mock_pipeline = MagicMock()
         mock_gstpipeline = mocker.patch('src.server.webrtc.gstreamer_webrtc_stream.GstPipeline.GStreamerPipeline', return_value=mock_pipeline)
-        mocker.patch.object(gstreamer_webrtc_stream,'prepare_destination_pads')
+        mock_pipeline.start = MagicMock()
+
         gstreamer_webrtc_stream._start_pipeline()
-        mock_request.assert_called_once_with(gstreamer_webrtc_stream._server)
-        mock_logger.info.assert_any_call("Mediamtx server is up and running.")
-        mock_gstpipeline.assert_called_once_with("peer1",{"type": gstreamer_webrtc_stream._webrtc_pipeline_type,"template": gstreamer_webrtc_stream._launch_string,"prepare-pads": gstreamer_webrtc_stream.prepare_destination_pads},None,{"source": { "type": "webrtc_destination" }, "peer_id": "peer1"},gstreamer_webrtc_stream._finished_callback,None)
+
+        mock_logger.info.assert_any_call("Starting WebRTC pipeline for peer_id:peer1")
         mock_reset.assert_called_once()
+        mock_gstpipeline.assert_called_once_with(
+            "peer1",
+            {
+                "type": gstreamer_webrtc_stream._webrtc_pipeline_type,
+                "template": gstreamer_webrtc_stream._launch_string,
+                "prepare-pads": gstreamer_webrtc_stream.prepare_destination_pads
+            },
+            None,
+            {"source": {"type": "webrtc_destination"}, "peer_id": "peer1"},
+            gstreamer_webrtc_stream._finished_callback,
+            None
+        )
         mock_pipeline.start.assert_called_once()
-        mock_response.status_code = 200
-        gstreamer_webrtc_stream._start_pipeline()
-        mock_logger.error.assert_called_once_with("Error connecting to Mediamtx server.")
-        mock_request.side_effect = RequestException("Connection error")
-        gstreamer_webrtc_stream._start_pipeline()
-        mock_logger.error.assert_any_call("Error connecting to http://10.10.10.10.8889: Connection error")
+        mock_logger.info.assert_any_call("WebRTC pipeline started for peer_id:peer1")
 
     def test_thread_launcher(self, gstreamer_webrtc_stream, mocker):
         mock_start_pipeline = mocker.patch.object(gstreamer_webrtc_stream, '_start_pipeline')
@@ -90,7 +92,8 @@ class TestGStreamerWebRTCStream:
         mock_webrtc = MagicMock()
         gstreamer_webrtc_stream._webrtc_pipeline = mock_webrtc
         gstreamer_webrtc_stream._reset()
-        mock_webrtc.stop.assert_called_once()
+        if mock_webrtc is not None:
+            mock_webrtc.stop.assert_called_once()
         assert gstreamer_webrtc_stream._webrtc_pipeline is None
         assert gstreamer_webrtc_stream._pipe is None
 
@@ -100,7 +103,8 @@ class TestGStreamerWebRTCStream:
         gstreamer_webrtc_stream._thread = mock_thread
         gstreamer_webrtc_stream.stop()
         mock_reset.assert_called_once()
-        mock_thread.join.assert_called_once()
+        if mock_thread is not None:
+            mock_thread.join.assert_called_once()
         assert gstreamer_webrtc_stream._thread is None
         assert gstreamer_webrtc_stream._stopped is True
     

@@ -8,10 +8,6 @@ Ensure that you have a `[WORKDIR]/configs/default/config.json` file with the bel
 ```sh
 {
     "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },
         "pipelines": [
             {
                 "name": "pallet_defect_detection",

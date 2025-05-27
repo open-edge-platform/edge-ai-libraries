@@ -69,10 +69,6 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
         ```json
         {
             "config": {
-                "logging": {
-                    "C_LOG_LEVEL": "INFO",
-                    "PY_LOG_LEVEL": "INFO"
-                },
                 "pipelines": [
                     {
                         "name": "pallet_defect_detection",

@@ -59,3 +59,4 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 - **MTLS_VERIFICATION**=false : Enable/disable client certificate verification for mTLS Model Registry Microservice
 - **MR_VERIFY_CERT**=/run/secrets/ModelRegistry_Server/ca-bundle.crt : Path to Model Registry certificate
 - **APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC**=false: Add pipeline name to a published topic(optional)
+- **LOG_LEVEL**=INFO : Set the logging level for DL Streamer Pipeline Server
