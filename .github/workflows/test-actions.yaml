@@ -319,27 +319,27 @@ jobs:
         with:
           node-version: '22'
  
-      # - name: Install npm dependencies
-      #   shell: bash
-      #   run: |
-      #     pwd
-      #     cd sample-applications/chat-question-and-answer/ui/react
-      #     # Install with verbose logging
-      #     npm install
-      #     npm install -D vitest@2.1.9
-      #     npm run test
-      #     npm run test:ui
-      #     npm run coverage
-      #     npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
+      - name: Install npm dependencies
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/chat-question-and-answer/ui/react
+          # Install with verbose logging
+          npm install
+          npm install -D vitest@2.1.9
+          npm run test
+          npm run test:ui
+          npm run coverage
+          npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
       
-      # - name: Upload UI Results
-      #   uses: actions/upload-artifact@v4
-      #   if: always()
-      #   with:
-      #     name: chatqna-ui-test-results
-      #     path: |
-      #         sample-applications/chat-question-and-answer/ui/react/ui-results.html
-      #         sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
+      - name: Upload UI Results
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: chatqna-ui-test-results
+          path: |
+              sample-applications/chat-question-and-answer/ui/react/ui-results.html
+              sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
 
       - name: trivy repo scan
         shell: bash
@@ -359,7 +359,7 @@ jobs:
         with:
           name: trivy-code-scan-results-chatqna
           path: |
-              sample-applications/chat-question-and-answer/trivy_code_scan_core_chatqna.html
+              sample-applications/chat-question-and-answer/trivy_code_scan_chatqna.html
 
       - name: ClamAV Antivirus Scan
         shell: bash
@@ -399,7 +399,7 @@ jobs:
               echo "completed chatqna-backend scanning"
               
               echo "**************************************************************"
-              echo "Building image chatqna-core-frontend and scanning"
+              echo "Building image chatqna-frontend and scanning"
               docker build -t="chatqna-frontend:latest" ./sample-applications/chat-question-and-answer/ui/react
               trivy image chatqna-frontend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
               trivy image --quiet --format spdx-json --output sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json chatqna-frontend:latest
