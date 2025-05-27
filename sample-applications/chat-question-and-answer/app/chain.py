@@ -22,7 +22,7 @@ from opentelemetry import trace
 from opentelemetry.sdk.resources import SERVICE_NAME, Resource
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
-from opentelemetry.exporter.otlp.proto.grpc.trace_exporter import OTLPSpanExporter
+from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 import openlit
 
 set_verbose(True)
@@ -109,12 +109,12 @@ ENDPOINT_URL = os.getenv("ENDPOINT_URL", "http://localhost:8080")
 
 # Check which LLM inference backend is being used
 LLM_BACKEND = None
-if "vllm" in ENDPOINT_URL.lower():
-    LLM_BACKEND = "vllm"
+if "ovms" in ENDPOINT_URL.lower():
+    LLM_BACKEND = "ovms"
 elif "text-generation" in ENDPOINT_URL.lower():
     LLM_BACKEND = "text-generation"
-elif "ovms" in ENDPOINT_URL.lower():
-    LLM_BACKEND = "ovms"
+elif "vllm" in ENDPOINT_URL.lower():
+    LLM_BACKEND = "vllm"
 else:
     LLM_BACKEND = "unknown"
 

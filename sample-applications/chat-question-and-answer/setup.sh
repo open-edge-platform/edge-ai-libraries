@@ -13,7 +13,7 @@ export INDEX_NAME=intel-rag
 export EMBEDDING_ENDPOINT_URL=http://tei-embedding-service
 
 # UI ENV variables
-export MAX_TOKENS=256
+export MAX_TOKENS=1024
 export APP_ENDPOINT_URL=/v1/chatqna
 export APP_DATA_PREP_URL=/v1/dataprep
 

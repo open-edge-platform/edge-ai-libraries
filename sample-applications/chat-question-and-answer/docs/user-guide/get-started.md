@@ -124,7 +124,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
    ```bash
    export REGISTRY="intel/"
-   export TAG=1.1.3
+   export TAG=1.1.2
    source setup.sh llm=<model-server> embed=<embedding>
    # Below are the options
    # model-server: VLLM , OVMS, TGI
