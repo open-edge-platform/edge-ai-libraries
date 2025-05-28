@@ -67,14 +67,21 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
             )
-        case "YOLO v5m":
+        case "YOLO v5m 416x416":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
             )
-        case "YOLO v5s":
+        case "YOLO v5m 640x640":
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json"
+            )
+        case "YOLO v5s 416x416":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
             )
@@ -115,10 +122,8 @@ def run_pipeline_and_extract_metrics(
     """
     logger = logging.getLogger("utils")
     results = []
-    # Set the number of channels
-    channels = channels if isinstance(channels, int) else channels[0] + channels[1]
 
-    # Set the number if regular channels
+    # Set the number of regular channels
     # If no tuple is provided, the number of regular channels is 0
     regular_channels = 0 if isinstance(channels, int) else channels[0]
 
@@ -137,8 +142,12 @@ def run_pipeline_and_extract_metrics(
         logger.info(f"Pipeline Command: {_pipeline}")
 
         try:
+            # Set the environment variable to enable all drivers
+            env = os.environ.copy()
+            env["GST_VA_ALL_DRIVERS"] = "1"
+
             # Spawn command in a subprocess
-            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE)
+            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE, env=env)
 
             exit_code = None
             total_fps = None

@@ -1,4 +1,16 @@
 services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8101:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - chatqna 
+      - chatqna-ui
+      - dataprep_pgvector 
+    networks:
+      - my_network
   chatqna:
     image: ${BE_IMAGE_NAME}
     build:
@@ -20,8 +32,10 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
+      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_TRACES_EXPORTER=otlp
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -94,7 +108,7 @@ services:
 
   chatqna-ui:
     image: ${FE_IMAGE_NAME}
-    container_name: chatqna-ui_server
+    container_name: chatqna-ui
     build:
       context: ./ui/react/
     ports:
