@@ -5,6 +5,8 @@ ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
 USER root
 
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
 ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
 
 WORKDIR /home/pipeline-server
@@ -78,7 +80,7 @@ ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
     CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
-    PATH=${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
+    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
     PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
 
 RUN export no_proxy= && \
@@ -149,7 +151,7 @@ RUN pip3 install ntplib==0.4.0
 #Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
 RUN pip3 install openvino-model-api==0.2.5
-RUN cd /usr/local/lib/python3.10/dist-packages/model_api && \
+RUN cd $VIRTUAL_ENV/lib/python3.10/site-packages/model_api && \
     git apply /home/pipeline-server/model_api.patch
 
 # Install Geti SDK
@@ -239,13 +241,6 @@ WORKDIR /home/pipeline-server
 
 USER $USER
 
-# Install gRPC
-COPY packages/gRPC-py-2.0.0.zip ${WORKDIR}
-RUN mkdir -p grpc && unzip -o gRPC-py-2.0.0.zip -d grpc && \
-    rm -rf gRPC-py-2.0.0.zip
-
-RUN pip3 install --no-cache-dir grpcio==1.66.0 grpcio-tools==1.66.0
-
 # Copy source code
 COPY ./docker/run.sh .
 COPY ./utils/*.py ./utils/
@@ -298,6 +293,5 @@ COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva
 COPY ./configs/default/config.json /home/pipeline-server/config.json
 
 ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
-ENV PYTHONPATH $PYTHONPATH:/home/pipeline-server/grpc:/home/pipeline-server/grpc/protos
 
 ENTRYPOINT ["./run.sh"]
