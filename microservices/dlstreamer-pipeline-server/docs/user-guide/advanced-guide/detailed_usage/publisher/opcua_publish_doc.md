@@ -99,6 +99,38 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
         }'
     ```
 
+    Alternatively, we can launch pipeline by sending OPCUA through curl request.
+    
+    ``` sh
+    curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+        "source": {
+            "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+            "type": "uri"
+        },
+        "destination": {
+            "metadata": [
+                {
+                    "type": "opcua",
+                    "publish_frame": true,
+                    "variable" : "<OPCUA-server-variable>"
+                }
+            ],
+            "frame": [
+                {
+                    "type": "rtsp",
+                    "path": "pallet_defect_detection"
+                }
+            ]
+        },
+        "parameters": {
+            "detection-properties": {
+                "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+                "device": "CPU"
+            }
+        }
+    }'
+    ```
+
 7. Run the following sample subscriber on the same/different machine by updating the `<IP-Address of OPCUA Server>` and `<OPCUA-server-variable>` to read the meta-data written to OPC UA server variable from DL Streamer Pipeline Server. Please update the below script with `ip`, `username` and `password` as mentioned in the step 1.
 
     ```python
