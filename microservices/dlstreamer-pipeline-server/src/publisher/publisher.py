@@ -190,13 +190,11 @@ class Publisher:
             if re.search(pattern, launch_string):
                 self.log.info("appsink destination found. Publisher will be initialized")
                 # identify DLStreamer pipeline server publishers and pop them from the request
-                if self.request is not None:
+                if self.request is not None and "destination" in self.request:
                     frame_destination = copy.deepcopy(self.request.get("destination").get("frame", None))
                     meta_destination = copy.deepcopy(self.request.get("destination").get("metadata", None))
-                    if frame_destination:
-                        self._get_frame_publisher_config(frame_destination)
-                    if meta_destination:
-                        self._get_meta_publisher_config(meta_destination)
+                    self._get_frame_publisher_config(frame_destination)
+                    self._get_meta_publisher_config(meta_destination)
                     if not self.request["destination"]:
                         self.request.pop("destination")
                                 
