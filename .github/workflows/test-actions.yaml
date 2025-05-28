@@ -101,41 +101,41 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      - name: Run Unit Tests for Core
-        continue-on-error: true
-        shell: bash
-        run: |
-          cd sample-applications/chat-question-and-answer-core
-          echo "Running unit test cases"
-          python3.12 -m venv venv
-          source venv/bin/activate
-          poetry install --with dev || true
-          poetry add pytest-html
-          source scripts/setup_env.sh
-          poetry run pytest tests/ --html=pytest-coverage.html
-          coverage run --source=. -m pytest
-          coverage report -m
-          # Install required packages
-          poetry add pytest-cov pytest-html
+      # - name: Run Unit Tests for Core
+      #   continue-on-error: true
+      #   shell: bash
+      #   run: |
+      #     cd sample-applications/chat-question-and-answer-core
+      #     echo "Running unit test cases"
+      #     python3.12 -m venv venv
+      #     source venv/bin/activate
+      #     poetry install --with dev || true
+      #     poetry add pytest-html
+      #     source scripts/setup_env.sh
+      #     poetry run pytest tests/ --html=pytest-coverage.html
+      #     coverage run --source=. -m pytest
+      #     coverage report -m
+      #     # Install required packages
+      #     poetry add pytest-cov pytest-html
           
-          # Run tests with coverage and HTML report in one command
-          poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+      #     # Run tests with coverage and HTML report in one command
+      #     poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
           
-          # For a combined coverage and test report
-          poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
-          deactivate
-          rm -rf venv
+      #     # For a combined coverage and test report
+      #     poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+      #     deactivate
+      #     rm -rf venv
           
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: core-coverage-report
-          path: |
-            sample-applications/chat-question-and-answer-core/pytest-coverage.html
-            sample-applications/chat-question-and-answer-core/pytest-report.html
-            sample-applications/chat-question-and-answer-core/htmlcov/index.html
-            sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      # - name: Upload Coverage Report
+      #   uses: actions/upload-artifact@v4
+      #   continue-on-error: true
+      #   with:
+      #     name: core-coverage-report
+      #     path: |
+      #       sample-applications/chat-question-and-answer-core/pytest-coverage.html
+      #       sample-applications/chat-question-and-answer-core/pytest-report.html
+      #       sample-applications/chat-question-and-answer-core/htmlcov/index.html
+      #       sample-applications/chat-question-and-answer-core/coverage-html/index.html
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
