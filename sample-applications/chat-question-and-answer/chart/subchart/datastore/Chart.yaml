@@ -1,8 +1,0 @@
-# Copyright (C) 2024 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-
-apiVersion: v2
-name: dataStore
-description: The Helm chart for objectStore
-type: application
-version: 0.1.0

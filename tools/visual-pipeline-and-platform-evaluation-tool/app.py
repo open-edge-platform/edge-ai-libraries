@@ -487,10 +487,11 @@ def create_interface():
         label="Object Detection Model",
         choices=[
             "SSDLite MobileNet V2",
-            "YOLO v5m",
-            "YOLO v5s",
+            "YOLO v5m 416x416",
+            "YOLO v5s 416x416",
+            "YOLO v5m 640x640"
         ],
-        value="YOLO v5s",
+        value="YOLO v5s 416x416",
     )
 
     # Object detection device

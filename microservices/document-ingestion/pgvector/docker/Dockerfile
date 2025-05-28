@@ -27,6 +27,11 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 # Upgrade pip and setuptools to the latest version to fix vuln
 RUN /usr/local/bin/pip install --upgrade pip setuptools
 
+# Create a non-root user
+RUN groupadd -g 1001 intelgai && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
+    chown -R intelgai:intelgai $HOME
+
 
 FROM python-base AS builder-base
 RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential
@@ -63,7 +68,7 @@ WORKDIR /app
 
 EXPOSE 8000
 
-CMD ["uvicorn", "--host", "0.0.0.0", "--reload", "main:app"]
+CMD ["uvicorn", "--host", "0.0.0.0", "--reload", "app.main:app"]
 
 
 # `prod` image used for runtime
@@ -79,6 +84,8 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 COPY . /app/
 WORKDIR /app
 
+USER intelgai
+
 EXPOSE 8000
 
-CMD ["uvicorn", "--host", "0.0.0.0", "main:app"]
+CMD ["uvicorn", "--host", "0.0.0.0", "app.main:app"]

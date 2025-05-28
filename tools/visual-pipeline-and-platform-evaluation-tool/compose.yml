@@ -45,7 +45,8 @@ services:
           cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/pipeline-zoo-models &&
           cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/pipeline-zoo-models/ &&
           cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/
+          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/ &&
+          cp -r pipeline-zoo-models/storage/yolov5m-640_INT8/ /output/pipeline-zoo-models/
         ) &&
         touch /output/.done &&
         tail -f /dev/null

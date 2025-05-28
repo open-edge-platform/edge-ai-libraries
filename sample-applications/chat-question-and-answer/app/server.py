@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from .chain import process_chunks
 import httpx
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 app = FastAPI(root_path="/v1/chatqna")
 
@@ -117,6 +118,7 @@ async def query_chain(payload: QuestionRequest):
         raise HTTPException(status_code=422, detail="Question is required")
     return StreamingResponse(process_chunks(question_text), media_type="text/event-stream")
 
+FastAPIInstrumentor.instrument_app(app)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)

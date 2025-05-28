@@ -1,21 +1,28 @@
-name: "[DLS] [U22/24] Build dev img"
-run-name: "[DLS] [U22/24] Build dev img (by ${{ github.actor }})"
+name: "[DLS] [U22/24] Build dev imgs"
+run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
   workflow_call:
-permissions: read-all
+  workflow_dispatch:
+permissions:
+  packages: read
+  contents: read
 
 jobs:
   build:
-    name: Build ${{ matrix.image }} img
+    name: Build dev ${{ matrix.ubuntu_version }} imgs
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
       matrix:
         include:
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
-            image: dev-ubuntu22
-          - path: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
-            image: dev-ubuntu24
+          - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+            ubuntu_version: ubuntu22
+          - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+            ubuntu_version: ubuntu24
+    env:
+      dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+      dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
+
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -27,12 +34,27 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-    - name: Build dev img
+    - name: Set up Docker Buildx
+      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build dev debug img with cache from GHCR
       run: |
-        docker build -t dls-img/${{ github.repository }}/${{ matrix.image }}:${{ github.sha }} -f ${{ matrix.path }} ./edge-ai-libraries-repo/libraries/dl-streamer
+        docker buildx build \
+          --tag "${{ env.dev-debug-img }}" \
+          --cache-from="${{ env.dev-debug-img-cached}}" \
+          --build-arg BUILD_ARG=Debug \
+          -f ${{ matrix.path_dev }} \
+          ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi dls-img/${{ github.repository }}/one-binary-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
+        docker rmi ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }} || true

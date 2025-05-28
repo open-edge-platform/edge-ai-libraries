@@ -1,4 +1,16 @@
 services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8101:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - chatqna 
+      - chatqna-ui
+      - dataprep_pgvector 
+    networks:
+      - my_network
   chatqna:
     image: ${BE_IMAGE_NAME}
     build:
@@ -20,8 +32,10 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
+      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_TRACES_EXPORTER=otlp
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
@@ -69,7 +83,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:1.1.1
+    image: ${REGISTRY:-}document-ingestion:1.2
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -78,23 +92,25 @@ services:
       INDEX_NAME: ${INDEX_NAME}
       TEI_ENDPOINT_URL: ${EMBEDDING_ENDPOINT_URL}
       EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
-      DATASTORE_ENDPOINT_URL: ${DATASTORE_ENDPOINT_URL}
       CHUNK_SIZE: ${CHUNK_SIZE}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP}
       BATCH_SIZE: ${BATCH_SIZE}
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      MINIO_HOST: ${MINIO_HOST:-minio-server}
+      MINIO_API_PORT: ${MINIO_API_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?error}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?error}
     ports:
       - "8000:8000"
     depends_on:
       - pgvector
-      - data-store
     networks:
       - my_network
 
   chatqna-ui:
     image: ${FE_IMAGE_NAME}
-    container_name: chatqna-ui_server
+    container_name: chatqna-ui
     build:
       context: ./ui/react/
     ports:
@@ -124,25 +140,6 @@ services:
       server /data
       --address ":${MINIO_API_PORT:-9000}"
       --console-address ":${MINIO_CONSOLE_PORT:-9001}"
-
-  data-store:
-    image: ${REGISTRY:-}object-store:1.1.1
-    hostname: data_store
-    environment:
-      - http_proxy
-      - https_proxy
-      - no_proxy
-      - MINIO_HOST=${MINIO_HOST:-minio-server}
-      - MINIO_API_PORT=${MINIO_API_PORT:-9000}
-      # Raise error if following required env vars is not set
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?error}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?error}
-    ports:
-      - "${DATASTORE_HOST_PORT:-8888}:8000"
-    depends_on:
-      - minio-server
-    networks:
-      - my_network
 
   #Model Server
   vllm-service:
