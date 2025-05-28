@@ -17,6 +17,7 @@ on:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
       - 'microservices/document-ingestion/pgvector/**'
+permissions: read-all
 
 jobs:
   detect-changes:
