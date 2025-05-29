@@ -45,10 +45,10 @@ jobs:
         include:
           - name: dlstreamer_ubuntu22
             path: libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
-            output: reports/${{ matrix.name }}.txt
+            output: reports/dlstreamer_ubuntu22.txt
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
-            output: reports/${{ matrix.name }}.txt
+            output: reports/dlstreamer_ubuntu24.txt
 
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
