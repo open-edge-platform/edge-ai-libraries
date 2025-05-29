@@ -3,21 +3,6 @@ run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
-permissions:
-  actions: none
-  attestations: none
-  checks: none
-  contents: none
-  deployments: none
-  id-token: none
-  issues: none
-  models: none
-  discussions: none
-  packages: none
-  pages: none
-  pull-requests: none
-  security-events: none
-  statuses: none
 
 jobs:
   build:
