@@ -37,3 +37,22 @@ jobs:
   build-deb-and-img:
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+
+  trivy-config-scan:
+    name: Scan ${{ matrix.dockerfile-path }}
+    strategy:
+      matrix:
+        include:
+          - name: dlstreamer_ubuntu22
+            path: libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
+            output: reports/${{ matrix.name }}.txt
+          - name: dlstreamer_ubuntu24
+            path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
+            output: reports/${{ matrix.name }}.txt
+
+    uses: ./.github/workflows/trivy-config-scan.yml
+    with:
+      dockerfile-path: ${{ matrix.path }}
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: ${{ matrix.output }}

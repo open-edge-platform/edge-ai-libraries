@@ -1,0 +1,77 @@
+name: Trivy Dockerfile Config Scan
+
+on:
+  workflow_call:
+    inputs:
+      dockerfile-path:
+        description: 'Path to the Dockerfile to scan'
+        required: true
+        type: string
+
+      trivy-report-format:
+        description: 'Trivy report format (e.g. json, table, sarif)'
+        required: false
+        default: 'json'
+        type: string
+
+      severity-levels:
+        description: 'Severity levels to check (comma-separated, e.g. LOW,MEDIUM,HIGH,CRITICAL)'
+        required: false
+        default: 'HIGH,CRITICAL'
+        type: string
+
+      output-report-path:
+        description: 'Path to save the Trivy output report (e.g. reports/trivy.json)'
+        required: true
+        type: string
+
+jobs:
+  trivy-config-scan:
+    name: Trivy Dockerfile Config Scan
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Trivy
+        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 #0.30.0
+        with:
+          persist-credentials: false
+
+      - name: Create report directory if needed
+        run: |
+          mkdir -p "$(dirname "${{ inputs.output-report-path }}")"
+
+      - name: Run Trivy config scan and save output
+        run: |
+          echo "🔍 Scanning: ${{ inputs.dockerfile-path }}"
+          echo "📁 Saving report to: ${{ inputs.output-report-path }}"
+          trivy config \
+            --severity "${{ inputs.severity-levels }}" \
+            --format "${{ inputs.trivy-report-format }}" \
+            --file "${{ inputs.dockerfile-path }}" > "${{ inputs.output-report-path }}"
+
+          echo "📄 Report preview:"
+          head -n 100 "${{ inputs.output-report-path }}"
+
+      - name: Fail if selected severity vulnerabilities are found
+        run: |
+          SEVERITIES="${{ inputs.severity-levels }}"
+          REGEX=$(echo "$SEVERITIES" | sed 's/,/|/g')
+          echo "Checking for vulnerabilities matching severities: $SEVERITIES"
+          if grep -Eq "$REGEX" "${{ inputs.output-report-path }}"; then
+            echo "🚨 Found vulnerabilities matching: $SEVERITIES"
+            exit 1
+          else
+            echo "✅ No vulnerabilities found
+
+      - name: Upload Trivy report as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        with:
+          persist-credentials: false
+          name: trivy-config-report
+          path: ${{ inputs.output-report-path }}
