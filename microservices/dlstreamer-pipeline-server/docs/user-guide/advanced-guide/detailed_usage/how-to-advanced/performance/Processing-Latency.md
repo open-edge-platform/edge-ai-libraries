@@ -101,7 +101,38 @@ For example, the first line in Example 2 shows that the `detection` element expe
 
 ## Timestamp benchmark at various stages of starting a pipeline
 
-We ran an experiment to understand latency at each stage of starting a pipeline. This has been captured below. 
+We ran an experiment to understand and benchmark latency at each stage of starting a pipeline. This has been captured below. 
+
+* Config from `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` was used for this experiment. In the config, `"topic"` field was set to `"pallet_defect_detection"` under `"mqtt_publisher"`. To learn more about enabling mqtt, you can refer this [document](../../publisher/eis_mqtt_publish_doc.md)
+
+* Following curl command was used to start the pipeline - 
+```sh
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
+                "source": {
+                    "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
+                    "type": "uri"
+                },
+                "destination": {
+                    "metadata": {
+                        "type": "mqtt",
+                        "publish_frame":true,
+                        "topic": "pallet_defect_detection"
+                    },
+                    "frame": {
+                        "type": "rtsp",
+                        "path": "pallet_defect_detection"
+                    }
+                },
+                "parameters": {
+                    "detection-properties": {
+                        "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+                        "device": "CPU"
+                    }
+                }
+}'
+```
+
+* Benchmark report as shown below -
 
 t1 - curl command sent to start a pipeline
 t2 - curl command received at endpoint 
@@ -131,7 +162,11 @@ Benchmark 2
  
 Total time - 556ms
 
-`NOTE` time difference b/w t1, t2 and t4, t5 will most likely vary a lot depending upon network traffic of the system. Hence the overall time taken from t1 to t5 is also like to vary a lot depending upon the netwrok traffic. 
+`NOTE` time difference b/w t1, t2 and t4, t5 will most likely vary a lot depending upon network traffic of the system. Hence the overall time taken from t1 to t5 is also like to vary a lot depending upon the network traffic. 
+
+* Hardware details used for benchmarking - 
+| **Processor**       | Intel(R) Core(TM) i7-10710U CPU |
+| **Memory**          | 32 GB                     |
 
 ## Learn More
 
