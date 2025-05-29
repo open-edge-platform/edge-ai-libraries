@@ -50,7 +50,7 @@ jobs:
             path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
             output: reports/${{ matrix.name }}.txt
 
-    uses: ./.github/workflows/trivy-config-scan.yml
+    uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
       trivy-report-format: 'json'
