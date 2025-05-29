@@ -4,14 +4,14 @@
 To enable HTTPS for DL Streamer Pipeline Server, you'll need to provide the necessary certificate and key.
 1. Execute the `generate_tls_certs_keys.sh` script to create the relevant self-signed certificates and keys for the certificate authority (CA) and DL Streamer Pipeline Server's server.
     ```bash
-    cd <WORKDIR>
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/
     cd utils
 
     sudo ./generate_tls_certs_keys.sh
     ```
     **Note**: When you execute `generate_tls_certs_keys.sh`, the `<WORKDIR>/Certificates/ssl_server` directory and files will be created in the parent directory. 
 
-    To learn more about the supported arguments for the `generate_tls_certs_keys.sh` script, please refer `README.md` file present at `[WORKDIR]/utils/` detailing the shell scripts or execute `./generate_tls_certs_keys.sh --help` in the Terminal.
+    To learn more about the supported arguments for the `generate_tls_certs_keys.sh` script, please refer `README.md` file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/utils/` detailing the shell scripts or execute `./generate_tls_certs_keys.sh --help` in the Terminal.
 
 1. Set the `HTTPS` environment variable to `true` in the `docker-compose.yml` file.
     ```YAML
@@ -33,14 +33,14 @@ To enable HTTPS for DL Streamer Pipeline Server, you'll need to provide the nece
 ## (Optional) Enable mTLS Verification
 1. Execute the `generate_tls_certs_keys.sh` script to create the relevant self-signed certificates and keys for the CA, DL Streamer Pipeline Server's REST API server, and a client.
     ```bash
-    cd <WORKDIR>
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/
     cd utils
 
     sudo ./generate_tls_certs_keys.sh true [server_ip]
     ```
     **Note**: When you execute `generate_tls_certs_keys.sh`, the `<WORKDIR>/Certificates/ssl_server` directory and files will be created in the parent directory. 
     
-    To learn more about the supported arguments for the `generate_tls_certs_keys.sh` script, please refer `README.md` file present at `[WORKDIR]/utils/` detailing the shell scripts or execute `./generate_tls_certs_keys.sh --help` in the Terminal.
+    To learn more about the supported arguments for the `generate_tls_certs_keys.sh` script, please refer `README.md` file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/utils/` detailing the shell scripts or execute `./generate_tls_certs_keys.sh --help` in the Terminal.
 
 1. Set the `MTLS_VERIFICATION` environment variable to `true` in the `docker-compose.yml` file.
     ```YAML

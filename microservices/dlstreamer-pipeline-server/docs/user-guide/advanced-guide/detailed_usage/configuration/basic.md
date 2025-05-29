@@ -1,34 +1,7 @@
 # Basic Deep Learning Streamer Pipeline Server Configuration
 
-DL Streamer Pipeline Server exposes multiple application related fields in the config file. The configuration file is expected to be created at **[WORKDIR]/configs/default/config.json** on your host machine.
+DL Streamer Pipeline Server exposes multiple application related fields in the config file. The configuration file is present in **[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json** on your host machine.
 
-Here is a sample of basic config file. 
-    
-```json
-{
-    "config": {
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "gstreamer",
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                             "element": {
-                                "name": "detection",
-                                "format": "element-properties"
-                              }
-                        }
-                    }
-                },
-                "auto_start": false
-            }
-        ]
-    }
-}
-```
 The following table describes the essential attributes that are supported in the `config` section. 
 
 |      Parameter      |                                                     Description                                                |

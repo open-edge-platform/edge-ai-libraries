@@ -6,13 +6,13 @@ DL Streamer Pipeline Server supports storing frames from media source into an S3
 
 First you must add server configuration details such as host, port, credentials, etc. as environment variables to DL Streamer Pipeline Server. 
 
-If you are launching the service along with DL Streamer Pipeline Server, you should add the S3 storage server service details to DL Streamer Pipeline Server's docker-compose.yml file present at `[WORKDIR]/docker/docker-compose.yml`. For this tutorial we will be following this approach.
+If you are launching the service along with DL Streamer Pipeline Server, you should add the S3 storage server service details to DL Streamer Pipeline Server's docker-compose.yml file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`. For this tutorial we will be following this approach.
 
 > **Note** In an production deployment, you should get the server details from your system admin and update the environment variables or compose file accordingly.
 
 For the sake of demonstration, we will be using MinIO database as the S3 storage for storing frames and will be launched together with DL Streamer Pipeline Server. To get started, follow the steps below.
 
-1. Modify environment variables in `[WORKDIR]/docker/.env` file.
+1. Modify environment variables in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file.
     - Provide the S3 storage server details and credentials.
 
         ```sh
@@ -62,40 +62,16 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
               - MQTT_PORT=${MQTT_PORT}
         ```
         
-        > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `minio` service section at docker compose file (`[WORKDIR]/docker/docker-compose.yml`). In our example, its `minio-server`.
+        > **Note** Ensure that the value added to `no_proxy` matches the `container_name` specified for the `minio` service in the docker-compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In this example, it is `minio-server`.
 
-3. Update the default `config.json`. 
-    - A sample config has been provided for this demonstration at `[WORKDIR]/configs/sample_s3write/config.json`. Replace the contents in default config present at `[WORKDIR]/configs/default/config.json` with the contents of the sample config. The config.json looks something like this.
-        ```json
-        {
-            "config": {
-                "pipelines": [
-                    {
-                        "name": "pallet_defect_detection",
-                        "source": "gstreamer",
-                        "queue_maxsize": 50,
-                        "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "detection-properties": {
-                                    "element": {
-                                        "name": "detection",
-                                        "format": "element-properties"
-                                    }
-                                }
-                            }
-                        },
-                        "auto_start": false,
-                        "mqtt_publisher": {
-                            "publish_frame": false,
-                            "topic": "dlstreamer_pipeline_results"
-                        }
-                    }
-                ]
-            }
-        }
-        ```
+3. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_s3write/config.json:/home/pipeline-server/config.json"
+```
+       
         > **Note** Please note that there is no `gvawatermark` element in the pipeline string, which means unannotated frames will be being published to S3 storage. If you wish to publish annotated frames, consider adding it to your pipeline. In that case, the `"pipeline"` string may look like this.
         ```sh
          "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvawatermark ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
@@ -168,7 +144,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
     The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
     
     **Note**: DL Streamer pipeline server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. Also, as mentioned before DL Streamer pipeline server assumes that the user already has a S3 storage with buckets configured.
-8. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
+8. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
     
     **Note**: Minio console runs at port 9090 by default.
 9. To stop DL Streamer pipeline server and other services, run the following. Since the data is stored inside the MinIO container for this demonstration, the frames will not persists after the containers are brought down.
