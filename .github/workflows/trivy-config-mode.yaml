@@ -40,7 +40,7 @@ jobs:
       - name: Install Trivy from Aqua Security APT repo
         run: |
           sudo apt-get update
-          sudo apt-get install -y gnupg lsb-release wget apt-transport-https curl
+          sudo apt-get install -y gnupg lsb-release wget apt-transport-https curl jq
           curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
           echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | \
           sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
@@ -64,16 +64,17 @@ jobs:
           echo "📄 Report preview:"
           head -n 100 "${{ inputs.output-report-path }}"
 
-      - name: Fail if selected severity vulnerabilities are found
+      - name: Check Trivy scan failures
         run: |
-          SEVERITIES="${{ inputs.severity-levels }}"
-          REGEX=$(echo "$SEVERITIES" | sed 's/,/|/g')
-          echo "Checking for vulnerabilities matching severities: $SEVERITIES"
-          if grep -Eq "$REGEX" "${{ inputs.output-report-path }}"; then
-            echo "🚨 Found vulnerabilities matching: $SEVERITIES"
+          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${{ inputs.output-report-path }}")
+          echo "Failures found: $FAILURE_COUNT"
+
+          if [ "$FAILURE_COUNT" -gt 0 ]; then
+            echo "❌ Found $FAILURE_COUNT failures! Failing the job."
             exit 1
           else
-            echo "✅ No vulnerabilities found
+            echo "✅ No failures found. Passing."
+          fi
 
       - name: Upload Trivy report as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
