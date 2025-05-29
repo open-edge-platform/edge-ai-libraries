@@ -30,7 +30,7 @@ Following parameters are supported to configure S3 publishing.
 
 After making changes to config.json, make sure to save it and restart DL Streamer Pipeline Server. Ensure that the changes made to the config.json are reflected in the container by volume mounting it as mentioned [here](../../../how-to-change-dlstreamer-pipeline.md).
 
-- Once you start DL Streamer Pipeline Server with above changes, you should be able to see frames written to S3 storage. Since we are using Minio storage for our demonstration, you can see the frames being written to Minio by logging into Minio console. You can access the console in your browser - http://<S3_STORAGE_HOST>:9090 You can use the credentials specified above in the `[WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
+- Once you start DL Streamer Pipeline Server with above changes, you should be able to see frames written to S3 storage. Since we are using Minio storage for our demonstration, you can see the frames being written to Minio by logging into Minio console. You can access the console in your browser - http://<S3_STORAGE_HOST>:9090 You can use the credentials specified above in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
 
 `Note` Minio console is running at port 9090 by default.
 

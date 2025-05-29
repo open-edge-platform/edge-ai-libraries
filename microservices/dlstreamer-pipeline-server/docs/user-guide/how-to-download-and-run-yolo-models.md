@@ -37,7 +37,7 @@ deactivate
 
 ### Run YOLO model
 
-Volume mount YOLO model directory from host to DL Streamer Pipeline Server container by adding below lines to `[WORKDIR]/docker/docker-compose.yml`
+Volume mount YOLO model directory from host to DL Streamer Pipeline Server container by adding below lines to `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`
 
 ```sh
     volumes:
@@ -48,7 +48,7 @@ Bring up DL Streamer Pipeline Server containers,
 
 Next bring up the containers
 ```sh
-cd [WORKDIR]/docker
+cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
 ```
 
 ```sh
