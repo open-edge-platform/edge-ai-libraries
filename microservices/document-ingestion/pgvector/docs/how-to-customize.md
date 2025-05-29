@@ -19,15 +19,6 @@ Following environment variables are required for setting up the services. It is 
 - **MINIO_ROOT_USER:** Username for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_PASSWD` variable on shell, if not using the default value.
 - **MINIO_ROOT_PASSWORD:** Password for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_USER` variable on shell, if not using the default value.
 
-#### Data store related variables:
-
-The data store microservice as an abstraction layer will be removed and instead direct access to minIO using standard API will be used. The following variables will be deprecated with the data store microservice. Currently, data store microservice abstracts the access to minIO.
-- **DATASTORE_CODE_DIR:** Contains the location of DataStore source code. This location is mounted to docker container in dev environment to facilitate auto-reload of server while code changes during development.
-- **DATASTORE_HOST_PORT:** Port on host machine where we want to access DataStore Service outside container.
-- **DATASTORE_HOST:** Host IP address or service name for DataStore application to help other services connect to it.
-- **DATASTORE_ENDPOINT_URL:** DataStore service API endpoint URL used by other docker containers to hit the datastore APIs.
-- **DATAPREP_HOST_PORT:** Port on host machine where we want to access DataPrep Service outside container.
-
 #### Embedding service related variables:
 Currently, TEI is used to host the embedding model. Following variables are required as a result.
 
@@ -48,7 +39,7 @@ Currently, TEI is used to host the embedding model. Following variables are requ
 
 #### Secrets and token variables
 
-- **HUGGINGFACEHUB_API_TOKEN:** This is the token required for running Huggingface based services and models. **It is mandatory  to set it and `run.sh` script.** To set it, set `HF_SECRET` variable from shell.
+- **HUGGINGFACEHUB_API_TOKEN:** This is the token required for running Huggingface based services and models. **It is mandatory  to set it and `run.sh` script.** To set it, export `HUGGINGFACEHUB_API_TOKEN` variable from shell.
 
 ## Build from source
 
@@ -57,16 +48,6 @@ Currently, TEI is used to host the embedding model. Following variables are requ
 
 # image_name:tag in below command are optional. If not provided `intel/document-ingestion:1.1` tag would be used.
 source ./run.sh --build dataprep <image_name:tag>
-
-# To build DataStore development image
-
-# image_name:tag in below command are optional. If not provided `intel/object-store:1.1-dev` tag would be used.
-source ./run.sh --build-dev datastore <image_name:tag>
-
-# To build DataStore production image
-
-# image_name:tag in below command are optional. If not provided `intel/object-store:1.1` tag would be used.
-source ./run.sh --build datastore <image_name:tag>
 ```
 
 
