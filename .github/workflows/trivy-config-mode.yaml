@@ -58,7 +58,8 @@ jobs:
           trivy config \
             --severity "${{ inputs.severity-levels }}" \
             --format "${{ inputs.trivy-report-format }}" \
-            --file "${{ inputs.dockerfile-path }}" > "${{ inputs.output-report-path }}"
+            --output "${{ inputs.output-report-path }}" \
+            "${{ inputs.dockerfile-path }}"
 
           echo "📄 Report preview:"
           head -n 100 "${{ inputs.output-report-path }}"
