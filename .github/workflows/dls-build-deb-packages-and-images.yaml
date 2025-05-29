@@ -3,9 +3,7 @@ run-name: "[DLS] [U22/24] Build .deb pkgs and deb imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
-permissions:
-  packages: read
-  contents: read
+permissions: {}
 
 jobs:
   build:
@@ -28,7 +26,10 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      permissions:
+          contents: read
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -47,6 +48,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build dev release img with cache from GHCR
+      permissions:
+          contents: read
       run: |
         docker buildx build \
           --load \
@@ -72,7 +75,7 @@ jobs:
         ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
         ls
         cp -r deb_packages ./edge-ai-libraries-repo/libraries/dl-streamer
-    
+
     - name: Build Docker img from .deb
       run: |
         docker build \

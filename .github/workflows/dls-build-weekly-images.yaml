@@ -4,9 +4,7 @@ on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
-permissions:
-  packages: write
-  contents: read
+permissions: {}
 
 jobs:
   build-dls-deb-img:
@@ -34,7 +32,10 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      permissions:
+          contents: read
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -53,6 +54,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev release img
+      permissions:
+          packages: write
       run: |
         docker buildx build \
           --push \
@@ -90,6 +93,8 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Push Docker img from .deb
+      permissions:
+          packages: write
       run: |
         docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest
 
@@ -128,7 +133,10 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      permissions:
+          contents: read
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -147,6 +155,8 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev img
+      permissions:
+          packages: write
       run: |
         docker buildx build \
           --push \
@@ -175,7 +185,10 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      permissions:
+          contents: read
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -199,6 +212,8 @@ jobs:
         docker compose build --no-cache --pull
 
     - name: Push Docker img
+      permissions:
+          packages: write
       run: |
         docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
 
