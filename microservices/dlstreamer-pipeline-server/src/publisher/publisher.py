@@ -143,12 +143,6 @@ class Publisher:
             if len(self.request["destination"]["metadata"]) == 0: # Remove the metadata from destination if list is empty
                 self.request["destination"].pop("metadata")
 
-        # if no mqtt config in REST request, check if mqtt config is in app_cfg
-        if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
-            self.mqtt_config = self.app_cfg.get("mqtt_publisher")
-        if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
-            self.opcua_config = self.app_cfg.get("opcua_publisher")
-
     def _get_frame_publisher_config(self,frame_destination):
         """Get config for frame publishers
         :param frame_destination: Frame destination
@@ -165,11 +159,17 @@ class Publisher:
                     self.request["destination"]["frame"].remove(dest)
             if len(self.request["destination"]["frame"]) == 0: # Remove the frame from destination if list is empty
                 self.request["destination"].pop("frame")
-
-        # if no s3 config in REST request, check if s3 config is in app_cfg
+    
+    def _get_publisher_config_from_config_file(self):
+        """Get publisher config from config file
+        """
+        if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
+            self.mqtt_config = self.app_cfg.get("mqtt_publisher")
+        if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
+            self.opcua_config = self.app_cfg.get("opcua_publisher")
         if not self.s3_config and self.app_cfg.get("S3_write"):
             self.s3_config = self.app_cfg["S3_write"]
-        
+
     def _get_publishers(self):
         """Get publishers based on config.
 
@@ -197,6 +197,7 @@ class Publisher:
                     self._get_meta_publisher_config(meta_destination)
                     if not self.request["destination"]:
                         self.request.pop("destination")
+                self._get_publisher_config_from_config_file()
                                 
                 # NOTE: always add S3_write first in the list of publishers, essential for blocking case
                 if self.s3_config:
