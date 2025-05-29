@@ -9,6 +9,9 @@ jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -24,8 +27,7 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      permissions:
-          contents: read
+
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -46,8 +48,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build dev debug img with cache from GHCR
-      permissions:
-          packages: read
       run: |
         docker buildx build \
           --tag "${{ env.dev-debug-img }}" \

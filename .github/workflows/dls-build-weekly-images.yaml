@@ -10,6 +10,9 @@ jobs:
   build-dls-deb-img:
     name: Build DLS ${{ matrix.ubuntu_version }} .deb and deb img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -32,8 +35,6 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      permissions:
-          contents: read
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -54,8 +55,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev release img
-      permissions:
-          packages: write
       run: |
         docker buildx build \
           --push \
@@ -93,8 +92,6 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Push Docker img from .deb
-      permissions:
-          packages: write
       run: |
         docker push ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:latest
 
@@ -117,6 +114,9 @@ jobs:
   build-dls-dev-img:
     name: Build DLS ${{ matrix.ubuntu_version }} dev debug img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -133,8 +133,6 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      permissions:
-          contents: read
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -155,8 +153,6 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev img
-      permissions:
-          packages: write
       run: |
         docker buildx build \
           --push \
@@ -177,6 +173,9 @@ jobs:
     needs: build-dls-deb-img
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -185,8 +184,6 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      permissions:
-          contents: read
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
@@ -212,8 +209,6 @@ jobs:
         docker compose build --no-cache --pull
 
     - name: Push Docker img
-      permissions:
-          packages: write
       run: |
         docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
 
