@@ -114,12 +114,6 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
                     "publish_frame": true,
                     "variable" : "<OPCUA-server-variable>"
                 }
-            ],
-            "frame": [
-                {
-                    "type": "rtsp",
-                    "path": "pallet_defect_detection"
-                }
             ]
         },
         "parameters": {
