@@ -4,7 +4,21 @@ on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
-permissions: {}
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  id-token: none
+  issues: none
+  models: none
+  discussions: none
+  packages: none
+  pages: none
+  pull-requests: none
+  security-events: none
+  statuses: none
 
 jobs:
   build-dls-deb-img:

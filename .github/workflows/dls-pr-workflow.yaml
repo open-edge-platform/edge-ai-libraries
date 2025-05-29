@@ -27,7 +27,21 @@ on:
       - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
-permissions: {}
+permissions:
+  actions: none
+  attestations: none
+  checks: none
+  contents: none
+  deployments: none
+  id-token: none
+  issues: none
+  models: none
+  discussions: none
+  packages: none
+  pages: none
+  pull-requests: none
+  security-events: none
+  statuses: none
 
 jobs:
   build-dev-images:
