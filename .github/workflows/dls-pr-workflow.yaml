@@ -41,6 +41,7 @@ jobs:
   trivy-config-scan:
     name: Scan ${{ matrix.name }}
     strategy:
+      fail-fast: false
       matrix:
         include:
           - name: dlstreamer_ubuntu22
@@ -49,10 +50,19 @@ jobs:
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
             output: reports/dlstreamer_ubuntu24.txt
-
+          - name: dlstreamer_dev_ubuntu22
+            path: libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+            output: reports/dlstreamer_dev_ubuntu22.txt
+          - name: dlstreamer_dev_ubuntu24
+            path: libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+            output: reports/dlstreamer_dev_ubuntu24.txt
+          - name: fedora41
+            path: libraries/dl-streamer/docker/devel/fedora41/dlstreamer_dev_fedora41.Dockerfile
+            output: reports/fedora41.txt
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
       trivy-report-format: 'json'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
+      name: ${{ matrix.name }}

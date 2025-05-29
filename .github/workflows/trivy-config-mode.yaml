@@ -25,6 +25,12 @@ on:
         required: true
         type: string
 
+      name:
+        description: 'Additional part of scan name'
+        required: false
+        type: string
+        default: '1'
+
 jobs:
   trivy-config-scan:
     name: Trivy Dockerfile Config Scan
@@ -80,5 +86,8 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
           persist-credentials: false
-          name: trivy-config-report
+          name: trivy-config-report-${{ inputs.name }}
           path: ${{ inputs.output-report-path }}
+
+      - name: Clean up
+        run: rm -rf ${{ inputs.output-report-path }}
