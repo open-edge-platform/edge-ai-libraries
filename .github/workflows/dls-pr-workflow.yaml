@@ -39,7 +39,7 @@ jobs:
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
 
   trivy-config-scan:
-    name: Scan ${{ matrix.dockerfile-path }}
+    name: Scan ${{ matrix.name }}
     strategy:
       matrix:
         include:
