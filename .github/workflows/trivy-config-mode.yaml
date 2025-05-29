@@ -37,10 +37,14 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Trivy
-        uses: aquasecurity/trivy-action@6c175e9c4083a92bbca2f9724c8a5e33bc2d97a5 #0.30.0
-        with:
-          persist-credentials: false
+      - name: Install Trivy from Aqua Security APT repo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg lsb-release wget apt-transport-https curl
+          curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | \
+          sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+          sudo apt-get update            sudo apt-get install -y trivy
 
       - name: Create report directory if needed
         run: |
@@ -53,7 +57,6 @@ jobs:
           trivy config \
             --severity "${{ inputs.severity-levels }}" \
             --format "${{ inputs.trivy-report-format }}" \
-            --scan-type "config" \
             --file "${{ inputs.dockerfile-path }}" > "${{ inputs.output-report-path }}"
 
           echo "📄 Report preview:"
