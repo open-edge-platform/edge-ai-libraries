@@ -53,6 +53,7 @@ jobs:
           trivy config \
             --severity "${{ inputs.severity-levels }}" \
             --format "${{ inputs.trivy-report-format }}" \
+            --scan-type "config" \
             --file "${{ inputs.dockerfile-path }}" > "${{ inputs.output-report-path }}"
 
           echo "📄 Report preview:"
