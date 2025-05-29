@@ -102,7 +102,7 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
             volumes:
               - "../configs/default/config.json:/home/pipeline-server/config.json"
         ```
-5. Start DL Streamer Pipeline Server and MinIO.
+5. Start DL Streamer Pipeline Server and InfluxDB.
     ```sh
     docker compose up -d
     ```
@@ -166,6 +166,8 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
     |> group()
     |> sort(columns: ["_time"])
     ```
+    Example of metadata stored in InfluxDB:
+    ![Metadata stored in InfluxDB](./images/influx_metadata.png)
     
 9. To stop DL Streamer pipeline server and other services, run the following. Since the data is stored inside the InfluxDB container for this demonstration, the metadata will not persists after the containers are brought down.
     ```sh

@@ -617,7 +617,7 @@ components:
         - bucket
         - folder_prefix
       type: object
-    Influx_write:
+    InfluxWrite:
       properties:
         type:
           enum:
@@ -661,7 +661,7 @@ components:
             - $ref: '#/components/schemas/MQTTDestination'
             - $ref: '#/components/schemas/FileDestination'
             - $ref: '#/components/schemas/OPCUADestination'
-            - $ref: '#/components/schemas/Influx_write'
+            - $ref: '#/components/schemas/InfluxWrite'
         - type: array
           items:
             discriminator:
@@ -671,7 +671,7 @@ components:
               - $ref: '#/components/schemas/MQTTDestination'
               - $ref: '#/components/schemas/FileDestination'
               - $ref: '#/components/schemas/OPCUADestination'
-              - $ref: '#/components/schemas/Influx_write'
+              - $ref: '#/components/schemas/InfluxWrite'
     FrameAndMetadataDestination:
       type: object
       properties:
