@@ -173,7 +173,7 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
         invalid_urls = 0
         for url in url_list:
             if url.startswith('http://') or url.startswith('https://'):
-                response = requests.get(url, timeout=5, allow_redirects=True)
+                response = requests.get(url, timeout=5, allow_redirects=False)
                 if response.status_code == 200:
                     continue
             invalid_urls += 1
