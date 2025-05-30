@@ -1,13 +1,28 @@
 services:
-  nginx:
+  nginx-cpu:
     image: nginx:latest
+    profiles:
+      - DEFAULT
     ports:
       - "8102:80"
     volumes:
-      - ../nginx.conf:/etc/nginx/nginx.conf:ro
+      - ../nginx_config/nginx-cpu.conf:/etc/nginx/nginx.conf:ro
     depends_on:
-      - chatqna-core 
-      - chatqna-core-ui 
+      - chatqna-core
+      - chatqna-core-ui
+
+  nginx-gpu:
+    image: nginx:latest
+    profiles:
+      - GPU-DEVICE
+    ports:
+      - "8102:80"
+    volumes:
+      - ../nginx_config/nginx-gpu.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - chatqna-core-gpu
+      - chatqna-core-ui
+
   chatqna-core:
     image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
     profiles:
