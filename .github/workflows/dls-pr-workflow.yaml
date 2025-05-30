@@ -36,9 +36,6 @@ jobs:
       packages: read  
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
-    permissions:
-      contents: read
-      packages: read
 
   build-deb-and-img:
     permissions:
@@ -65,7 +62,7 @@ jobs:
         run: git fetch origin main
 
       - id: check
-        name: Detect changes in docker/
+        name: Detect changes in docker directory
         run: |
           echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
           CHANGED_FILES=$(git diff --name-only origin/main HEAD)
