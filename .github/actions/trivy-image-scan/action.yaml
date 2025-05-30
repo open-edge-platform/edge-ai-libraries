@@ -24,7 +24,7 @@ inputs:
 runs:
   using: "docker"
   image: "Dockerfile"
-  entrypoint: ["/entrypoint.sh"]
+  entrypoint: "/entrypoint.sh"
   args:
     - ${{ inputs.image }}
     - ${{ inputs.severity }}
