@@ -23,7 +23,7 @@ INDEX_NAME: str = os.getenv("INDEX_NAME", "intel-rag-xeon")
 #supported file formats
 SUPPORTED_FORMATS: set = {".pdf", ".txt", ".docx"}
 #allowed hosts for url ingestion
-ALLOWED_HOSTS = set(host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip())
+ALLOWED_HOSTS = set(os.getenv("ALLOWED_HOSTS", "").split(",")) if os.getenv("ALLOWED_HOSTS") else set()
 
 
 # chunk parameters
