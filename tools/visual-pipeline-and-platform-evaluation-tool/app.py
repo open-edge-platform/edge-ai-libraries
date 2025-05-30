@@ -489,7 +489,9 @@ def create_interface():
             "SSDLite MobileNet V2",
             "YOLO v5m 416x416",
             "YOLO v5s 416x416",
-            "YOLO v5m 640x640"
+            "YOLO v5m 640x640",
+            "YOLO v10s 640x640",
+            "YOLO v10m 640x640",
         ],
         value="YOLO v5s 416x416",
     )
