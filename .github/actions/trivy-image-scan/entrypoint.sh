@@ -10,12 +10,9 @@ echo "🔍 Scanning image: $IMAGE"
 echo "⚠️ Severity filter: $SEVERITY"
 echo "📄 Output format: $OUTPUT_FORMAT"
 
-CMD="trivy image --severity \"$SEVERITY\" --format \"$OUTPUT_FORMAT\""
-
 if [ -n "$OUTPUT_FILE" ]; then
   echo "💾 Saving report to: $OUTPUT_FILE"
-  CMD="$CMD --output \"$OUTPUT_FILE\""
+  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" --output "$OUTPUT_FILE" "$IMAGE"
+else
+  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" "$IMAGE"
 fi
-
-CMD="$CMD \"$IMAGE\""
-bash -c "$CMD"
