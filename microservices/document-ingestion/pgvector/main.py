@@ -180,24 +180,34 @@ def is_public_ip(ip: str) -> bool:
 
 
 def validate_url(url: str) -> bool:
-    """Validate the URL against a whitelist and ensure it resolves to a public IP."""
+    """Validate the URL against a whitelist and prevent DNS rebinding attacks."""
     try:
         parsed_url = urlparse(url)
         if parsed_url.scheme not in ["http", "https"]:
             return False
 
-        ip = socket.gethostbyname(parsed_url.hostname)
-        if not is_public_ip(ip):
+        hostname = parsed_url.hostname
+        if not hostname:
             return False
 
-        # If ALLOWED_HOSTS is empty, allow all public URLS else check against ALLOWED_HOSTS
+        # Resolve the hostname to get its IP address
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+        except socket.gaierror:
+            return False
+
+        # Ensure the resolved IP is public
+        if not is_public_ip(resolved_ip):
+            return False
+
+        # Check against the allowed hosts
         if ALLOWED_HOSTS:
-            if parsed_url.hostname not in ALLOWED_HOSTS:
+            if hostname not in ALLOWED_HOSTS:
                 return False
-        else:
-            # If ALLOWED_HOSTS is empty, allow all public URLs
-            return True
-    except Exception:
+
+        return True
+    except Exception as e:
+        logging.error(f"URL validation failed: {e}")
         return False
 
 def ingest_url_to_pgvector(url_list: List[str]) -> None:
@@ -206,24 +216,29 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
     try:
         invalid_urls = 0
         for url in url_list:
-            if validate_url(url):
+            if not validate_url(url):
+                logging.warning(f"Invalid URL skipped: {url}")
+                invalid_urls += 1
+                continue
+
+            try:
                 response = requests.get(url, timeout=5, allow_redirects=False)
-                if response.status_code == 200:
-                    continue
-            invalid_urls += 1
+                if response.status_code != 200:
+                    logging.warning(f"Failed to fetch URL: {url} with status code {response.status_code}")
+                    invalid_urls += 1
+            except Exception as e:
+                logging.error(f"Error fetching URL {url}: {e}")
+                invalid_urls += 1
 
         if invalid_urls > 0:
             raise Exception(
-                f"{invalid_urls} / {len(url_list)} URL(s) are invalid.",
-                response.status_code
+                f"{invalid_urls} / {len(url_list)} URL(s) are invalid."
             )
 
-    # If the domain name is wrong, SSLError will be thrown
     except requests.exceptions.SSLError as e:
         raise HTTPException(
             status_code=HTTPStatus.FORBIDDEN, detail=f"SSL Error: {str(e)}"
         )
-
     except Exception as e:
         raise HTTPException(
             status_code=e.args[1], detail=e.args[0]
