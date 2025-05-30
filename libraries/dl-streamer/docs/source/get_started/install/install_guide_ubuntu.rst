@@ -1,6 +1,6 @@
 Install Guide Ubuntu
 ====================
-Dummy change
+
 The easiest way to install Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework is installation :ref:`from Debian packages using APT repository <2>`.
 If you prefer containerized environment based on Docker, the Intel® DL Streamer Pipeline Framework :ref:`Docker image <3>` is available as well as Dockerfile to build runtime Docker image.
 Regardless of chosen installations process, please follow :ref:`prerequisites <1>`.
