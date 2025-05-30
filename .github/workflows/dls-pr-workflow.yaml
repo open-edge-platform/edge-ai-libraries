@@ -47,7 +47,7 @@ jobs:
   filter-docker-related-changes:
     permissions:
       contents: read   
-    name: Detect changes in docker/
+    name: Detect changes in docker directory
     runs-on: ubuntu-latest
     outputs:
       docker_changed: ${{ steps.check.outputs.docker_changed }}
