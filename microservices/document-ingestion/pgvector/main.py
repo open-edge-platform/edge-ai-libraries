@@ -5,6 +5,9 @@ import os
 import requests
 import psycopg
 import logging
+import ipaddress
+from urllib.parse import urlparse
+import socket
 from requests.exceptions import HTTPError
 from http import HTTPStatus
 from pathlib import Path
@@ -23,7 +26,8 @@ from config import (
     APP_TITLE,
     APP_DESC,
     BATCH_SIZE,
-    EMBEDDING_MODEL_NAME
+    EMBEDDING_MODEL_NAME,
+    ALLOWED_HOSTS
 )
 from langchain.text_splitter import RecursiveCharacterTextSplitter
 from langchain_community.document_loaders import UnstructuredFileLoader
@@ -112,7 +116,7 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
     """Ingest document to PGVector."""
 
     try:
-        
+
         if doc_path.suffix.lower() == ".pdf":
             loader = PyPDFLoader(doc_path)
         else:
@@ -121,11 +125,11 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
         text_splitter = RecursiveCharacterTextSplitter(
             chunk_size=CHUNK_SIZE, chunk_overlap=CHUNK_OVERLAP, add_start_index=True,separators=get_separators()
         )
-        
+
         chunks = loader.load_and_split(text_splitter)
         if not chunks:
             raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="No text found in the document for ingestion.")
-        
+
         documents = [
             Document(
                 page_content=chunk.page_content,
@@ -133,10 +137,10 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
             )
             for chunk in chunks
         ]
-        
+
         embedder = OpenAIEmbeddings(
-            openai_api_key="EMPTY", 
-            openai_api_base="{}".format(TEI_ENDPOINT), 
+            openai_api_key="EMPTY",
+            openai_api_base="{}".format(TEI_ENDPOINT),
             model=EMBEDDING_MODEL_NAME,
             tiktoken_enabled=False
         )
@@ -160,11 +164,41 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
 
     except HTTPException as e:
         raise e
-    
+
     except Exception as e:
         logging.error(f"Error during ingestion: {e}")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Internal Server Error")
 
+
+def is_public_ip(ip: str) -> bool:
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return ip_obj.is_global  # True if public, False if private/reserved
+
+    except ValueError:
+        return False  # Invalid IPs are treated as non-public
+
+
+def validate_url(url: str) -> bool:
+    """Validate the URL against a whitelist and ensure it resolves to a public IP."""
+    try:
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ["http", "https"]:
+            return False
+
+        ip = socket.gethostbyname(parsed_url.hostname)
+        if not is_public_ip(ip):
+            return False
+
+        # If ALLOWED_HOSTS is empty, allow all public URLS else check against ALLOWED_HOSTS
+        if ALLOWED_HOSTS:
+            if parsed_url.hostname not in ALLOWED_HOSTS:
+                return False
+        else:
+            # If ALLOWED_HOSTS is empty, allow all public URLs
+            return True
+    except Exception:
+        return False
 
 def ingest_url_to_pgvector(url_list: List[str]) -> None:
     """Ingest URL to PGVector."""
@@ -172,9 +206,11 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
     try:
         invalid_urls = 0
         for url in url_list:
-            response = requests.get(url, timeout=5, allow_redirects=True)
-            if response.status_code != 200:
-                invalid_urls += 1
+            if validate_url(url):
+                response = requests.get(url, timeout=5, allow_redirects=False)
+                if response.status_code == 200:
+                    continue
+            invalid_urls += 1
 
         if invalid_urls > 0:
             raise Exception(
@@ -202,8 +238,8 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
         )
 
         embedder = OpenAIEmbeddings(
-            openai_api_key="EMPTY", 
-            openai_api_base="{}".format(TEI_ENDPOINT), 
+            openai_api_key="EMPTY",
+            openai_api_base="{}".format(TEI_ENDPOINT),
             model=EMBEDDING_MODEL_NAME,
             tiktoken_enabled=False
         )
@@ -304,7 +340,7 @@ async def delete_embeddings(
 
     except ValueError as e:
         raise e
-    
+
     except HTTPException as e:
         raise e
 
@@ -321,7 +357,7 @@ async def delete_embeddings_url(url: Optional[str], delete_all: bool = False) ->
             )
 
         url_list = await get_urls()
-        
+
         # If `delete_all` is True, embeddings for all urls will deleted,
         #  irrespective of whether a `url` is provided or not.
         if delete_all:
@@ -653,10 +689,10 @@ async def delete_documents(
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to delete embeddings from the database."
         )
-    
+
     except HTTPException as e:
         raise e
-    
+
     except Exception as ex:
         logging.error(f"Internal error: {ex}")
         raise HTTPException(
@@ -699,7 +735,7 @@ async def delete_urls(
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="Failed to delete embeddings from the database."
         )
-    
+
     except HTTPException as e:
         raise e
 

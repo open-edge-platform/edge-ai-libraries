@@ -32,23 +32,18 @@ x-vippet: &vippet
 
 services:
   models:
-    image: docker.io/openvino/ubuntu22_dev:2025.0.0
+    image: docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
+      - ./models.sh:/tmp/models.sh
+    environment:
+      - MODELS_PATH=/output/
     user: root
     command: bash -xc '
-        test -f /output/.done || (
-          mkdir -p /output/pipeline-zoo-models &&
-          git clone --depth 1 https://github.com/dlstreamer/pipeline-zoo-models.git &&
-          cp -r pipeline-zoo-models/storage/efficientnet-b0_INT8 /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/pipeline-zoo-models &&
-          cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5m-640_INT8/ /output/pipeline-zoo-models/
-        ) &&
-        touch /output/.done &&
+        cp /tmp/models.sh . &&
+        chmod +x models.sh &&
+        bash -cx ./models.sh &&
         tail -f /dev/null
       '
     restart: on-failure:5
