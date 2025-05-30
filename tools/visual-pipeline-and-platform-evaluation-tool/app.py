@@ -838,9 +838,10 @@ def create_interface():
     return demo
 
 
-# Launch the app
-demo = create_interface()
-demo.launch(
-    server_name="0.0.0.0",
-    server_port=7860,
-)
+if __name__ == "__main__":
+    # Launch the app
+    demo = create_interface()
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )
