@@ -43,31 +43,15 @@ async def get_urls_embedding() -> List[str]:
 
     return url_list
 
-def is_url_public_ip(ip: str) -> bool:
-    """
-    Determines whether the given IP address is a public (global) IP.
-    Args:
-        ip (str): The IP address to check.
-    Returns:
-        bool: True if the IP address is public (global), False if it is private, reserved, or invalid.
-    """
-
-    try:
-        ip_obj = ipaddress.ip_address(ip)
-        return ip_obj.is_global  # True if public, False if private/reserved
-
-    except ValueError:
-        logger.error(f"Invalid IP address: {ip}")
-        return False  # Invalid IPs are treated as non-public
-
 
 def validate_url(url: str) -> bool:
     """
-    Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts and prevent DNS rebinding attacks.
+    Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks.
     The function checks if the URL:
       - Uses the "http" or "https" scheme.
       - Contains a valid hostname.
       - Resolves the hostname to a public IP address.
+      - The resolved IP is not private or internal.
       - (If configured) The hostname is present in the allowed hosts list.
     Args:
         url (str): The URL to validate.
@@ -89,16 +73,17 @@ def validate_url(url: str) -> bool:
         # Resolve the hostname to get its IP address
         try:
             resolved_ip = socket.gethostbyname(hostname)
+
+            # Ensure the resolved IP is public and not private/internal
+            if ipaddress.ip_address(resolved_ip).is_private:
+                return False
+
             # Verify that the resolved IP matches the hostname's IP to prevent DNS rebinding
             resolved_ips = socket.gethostbyname_ex(hostname)[2]
             if resolved_ip not in resolved_ips:
                 return False
 
         except socket.gaierror:
-            return False
-
-        # Ensure the resolved IP is public
-        if not is_url_public_ip(resolved_ip):
             return False
 
         # Check against the allowed hosts
@@ -143,7 +128,7 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
                     session.mount("https://", adapter)
                     response = session.get(url, timeout=5, allow_redirects=False)
 
-                if response.status_code != 200:
+                if response.status_code != HTTPStatus.OK:
                     logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
                     invalid_urls += 1
             except Exception as e:
