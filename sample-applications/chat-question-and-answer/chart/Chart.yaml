@@ -32,9 +32,6 @@ dependencies:
   - name: dataprepPgvector
     version: 0.1.0
     repository: "file://subchart/dataprep"
-  - name: dataStore
-    version: 0.1.0
-    repository: "file://subchart/datastore"
   - name: reranker
     version: 0.1.0
     repository: "file://subchart/reranker"
