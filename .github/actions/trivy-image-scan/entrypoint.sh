@@ -12,7 +12,7 @@ echo "📄 Output format: $OUTPUT_FORMAT"
 
 if [ -n "$OUTPUT_FILE" ]; then
   echo "💾 Saving report to: $OUTPUT_FILE"
-  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" --output "$OUTPUT_FILE" "$IMAGE"
+  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" --output "$OUTPUT_FILE" --exit-code 1 "$IMAGE"
 else
-  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" "$IMAGE"
+  trivy image --severity "$SEVERITY" --format "$OUTPUT_FORMAT" --exit-code 1 "$IMAGE"
 fi

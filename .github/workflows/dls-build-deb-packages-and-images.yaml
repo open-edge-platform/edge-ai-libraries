@@ -87,17 +87,18 @@ jobs:
       with:
         image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "HIGH,CRITICAL"
-        output-format: "json"
-        output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json"
+        # output-format: "json"
+        output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
 
     - name: Upload Trivy report as artifact
+      if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
-        path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json
+        path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
 
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries-repo
+        rm -rf edge-ai-libraries-repo dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
         docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
