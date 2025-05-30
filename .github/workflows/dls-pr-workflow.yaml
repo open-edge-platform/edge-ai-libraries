@@ -3,31 +3,30 @@ run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name
 on:
   push:
     branches:
-      - 'main'
-    paths:
-      - 'libraries/dl-streamer/cmake/**'
-      - 'libraries/dl-streamer/docker/**'
-      - 'libraries/dl-streamer/include/**'
-      - 'libraries/dl-streamer/python/**'
-      - 'libraries/dl-streamer/samples/**'
-      - 'libraries/dl-streamer/scripts/**'
-      - 'libraries/dl-streamer/src/**'
-      - 'libraries/dl-streamer/tests/**'
-      - 'libraries/dl-streamer/thirdparty/**'
-  pull_request:
-    paths:
-      - 'libraries/dl-streamer/cmake/**'
-      - 'libraries/dl-streamer/docker/**'
-      - 'libraries/dl-streamer/include/**'
-      - 'libraries/dl-streamer/python/**'
-      - 'libraries/dl-streamer/samples/**'
-      - 'libraries/dl-streamer/scripts/**'
-      - 'libraries/dl-streamer/src/**'
-      - 'libraries/dl-streamer/tests/**'
-      - 'libraries/dl-streamer/thirdparty/**'
+      - 'trivy-config-scan'
+  #   paths:
+  #     - 'libraries/dl-streamer/cmake/**'
+  #     - 'libraries/dl-streamer/docker/**'
+  #     - 'libraries/dl-streamer/include/**'
+  #     - 'libraries/dl-streamer/python/**'
+  #     - 'libraries/dl-streamer/samples/**'
+  #     - 'libraries/dl-streamer/scripts/**'
+  #     - 'libraries/dl-streamer/src/**'
+  #     - 'libraries/dl-streamer/tests/**'
+  #     - 'libraries/dl-streamer/thirdparty/**'
+  # pull_request:
+  #   paths:
+  #     - 'libraries/dl-streamer/cmake/**'
+  #     - 'libraries/dl-streamer/docker/**'
+  #     - 'libraries/dl-streamer/include/**'
+  #     - 'libraries/dl-streamer/python/**'
+  #     - 'libraries/dl-streamer/samples/**'
+  #     - 'libraries/dl-streamer/scripts/**'
+  #     - 'libraries/dl-streamer/src/**'
+  #     - 'libraries/dl-streamer/tests/**'
+  #     - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
-permissions: {}
 
 jobs:
   build-dev-images:
@@ -88,19 +87,19 @@ jobs:
         include:
           - name: dlstreamer_ubuntu22
             path: libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
-            output: reports/dlstreamer_ubuntu22.txt
+            output: reports/dlstreamer_ubuntu22.json
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
-            output: reports/dlstreamer_ubuntu24.txt
+            output: reports/dlstreamer_ubuntu24.json
           - name: dlstreamer_dev_ubuntu22
             path: libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
-            output: reports/dlstreamer_dev_ubuntu22.txt
+            output: reports/dlstreamer_dev_ubuntu22.json
           - name: dlstreamer_dev_ubuntu24
             path: libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
-            output: reports/dlstreamer_dev_ubuntu24.txt
+            output: reports/dlstreamer_dev_ubuntu24.json
           - name: fedora41
             path: libraries/dl-streamer/docker/devel/fedora41/dlstreamer_dev_fedora41.Dockerfile
-            output: reports/fedora41.txt
+            output: reports/fedora41.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
