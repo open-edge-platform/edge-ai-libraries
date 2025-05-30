@@ -60,11 +60,15 @@ def validate_url(url: str) -> bool:
     """
 
     try:
-        ALLOWED_HOSTS = config.ALLOWED_HOSTS
 
         parsed_url = urlparse(url)
         if parsed_url.scheme not in ["http", "https"]:
             return False
+
+        # Check against the allowed URLs
+        if config.ALLOWED_URLS:
+            if url not in config.ALLOWED_URLS:
+                return False
 
         hostname = parsed_url.hostname
         if not hostname:
@@ -87,8 +91,8 @@ def validate_url(url: str) -> bool:
             return False
 
         # Check against the allowed hosts
-        if ALLOWED_HOSTS:
-            if hostname not in ALLOWED_HOSTS:
+        if config.ALLOWED_HOSTS:
+            if hostname not in config.ALLOWED_HOSTS:
                 return False
 
         return True
