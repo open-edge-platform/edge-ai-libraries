@@ -89,6 +89,10 @@ def validate_url(url: str) -> bool:
         # Resolve the hostname to get its IP address
         try:
             resolved_ip = socket.gethostbyname(hostname)
+            # Verify that the resolved IP matches the hostname's IP to prevent DNS rebinding
+            resolved_ips = socket.gethostbyname_ex(hostname)[2]
+            if resolved_ip not in resolved_ips:
+                return False
 
         except socket.gaierror:
             return False
@@ -132,7 +136,13 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
                 continue
 
             try:
-                response = requests.get(url, timeout=5, allow_redirects=False)
+                # Use a custom HTTP adapter to enforce IP-based restrictions
+                with requests.Session() as session:
+                    adapter = requests.adapters.HTTPAdapter()
+                    session.mount("http://", adapter)
+                    session.mount("https://", adapter)
+                    response = session.get(url, timeout=5, allow_redirects=False)
+
                 if response.status_code != 200:
                     logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
                     invalid_urls += 1
