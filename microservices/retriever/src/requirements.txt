@@ -1,5 +1,5 @@
 cn-clip==1.5.1
-fastapi==0.114.0
+fastapi==0.115.12
 huggingface-hub==0.31.1
 moviepy==1.0.3
 openai==1.70.0
