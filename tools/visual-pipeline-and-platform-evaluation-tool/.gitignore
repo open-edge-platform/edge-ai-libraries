@@ -7,3 +7,4 @@ qmassa_output.json
 turbostat_output.log
 videos/
 models/*
+.coverage

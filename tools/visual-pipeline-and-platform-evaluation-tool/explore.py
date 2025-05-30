@@ -1,6 +1,7 @@
 import subprocess
 from threading import Lock
 
+
 class GstInspector:
     """
     A singleton class to inspect GStreamer elements using gst-inspect-1.0.
@@ -21,6 +22,7 @@ class GstInspector:
         ("videoanalytics", "gvainference", "<description>")
     ]
     """
+
     _instance = None
     _lock = Lock()
 
@@ -41,7 +43,7 @@ class GstInspector:
                 stdout=subprocess.PIPE,
                 stderr=subprocess.PIPE,
                 text=True,
-                check=True
+                check=True,
             )
             lines = result.stdout.splitlines()
             elements = []
@@ -50,7 +52,9 @@ class GstInspector:
                     plugin, rest = line.split(":  ", 1)
                     if ": " in rest:
                         element, description = rest.split(": ", 1)
-                        elements.append((plugin.strip(), element.strip(), description.strip()))
+                        elements.append(
+                            (plugin.strip(), element.strip(), description.strip())
+                        )
 
             return sorted(elements)
 
@@ -60,8 +64,3 @@ class GstInspector:
 
     def get_elements(self):
         return self.elements
-
-if __name__ == "__main__":
-    inspector = GstInspector()
-    for element in inspector.get_elements():
-        print(element)

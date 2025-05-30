@@ -1,15 +1,7 @@
 import logging
-import pprint
-import re
-import subprocess
-import time
 from dataclasses import dataclass
-from itertools import product
-from subprocess import PIPE, Popen
 from typing import Dict, List
 from utils import run_pipeline_and_extract_metrics
-
-import psutil as ps
 
 from pipeline import GstPipeline
 
@@ -68,7 +60,7 @@ class PipelineOptimizer:
             constants=self.constants,
             parameters=self.param_grid,
             channels=(self.regular_channels, self.inference_channels),
-            elements=self.elements
+            elements=self.elements,
         )
 
         # Iterate over the list of metrics
@@ -80,13 +72,13 @@ class PipelineOptimizer:
 
             # Save results
             self.results.append(
-            OptimizationResult(
-                params=metrics["params"],
-                exit_code=metrics["exit_code"],
-                total_fps=metrics["total_fps"],
-                per_stream_fps=metrics["per_stream_fps"],
+                OptimizationResult(
+                    params=metrics["params"],
+                    exit_code=metrics["exit_code"],
+                    total_fps=metrics["total_fps"],
+                    per_stream_fps=metrics["per_stream_fps"],
+                )
             )
-        )
 
     def evaluate(self) -> OptimizationResult:
         if not self.results:
@@ -103,39 +95,3 @@ class PipelineOptimizer:
         self.logger.info(best_result)
 
         return best_result
-
-
-if __name__ == "__main__":
-
-    # Define constants grid
-    constants = {"NUM_BUFFERS": "1000"}
-
-    # Define parameter grid
-    # param_grid = {"pattern": ["snow", "ball", "gradient"]}
-    param_grid = {"pattern": ["snow"]}
-
-    class TestPipeline(GstPipeline):
-        def __init__(self):
-            super().__init__()
-            self._pipeline = (
-                "videotestsrc "
-                " num-buffers={NUM_BUFFERS} "
-                " pattern={pattern} ! "
-                "videoconvert ! "
-                "gvafpscounter ! "
-                "fakesink"
-            )
-
-        def evaluate(self, constants, parameters, inference_channels, regular_channels):
-            return "gst-launch-1.0 -q " + " ".join(
-                [self._pipeline.format(**parameters, **constants)]
-                * (inference_channels + regular_channels)
-            )
-
-    # Define parametrized pipeline
-    pipeline = TestPipeline()
-    optimizer = PipelineOptimizer(
-        pipeline=pipeline, constants=constants, param_grid=param_grid, channels=20
-    )
-    optimizer.optimize()
-    _ = optimizer.evaluate()

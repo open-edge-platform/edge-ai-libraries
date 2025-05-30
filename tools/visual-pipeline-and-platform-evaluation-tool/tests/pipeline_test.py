@@ -1,9 +1,33 @@
 import unittest
 from pathlib import Path
 
-from pipeline import (
-    SmartNVRPipeline,
-)
+from pipeline import GstPipeline, SmartNVRPipeline
+
+
+class TestGstPipeline(unittest.TestCase):
+    def setUp(self):
+        self.pipeline = GstPipeline()
+
+    def test_pipeline_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.pipeline()
+
+    def test_diagram_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.diagram()
+
+    def test_bounding_boxes_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.bounding_boxes()
+
+    def test_evaluate_method(self):
+        with self.assertRaises(NotImplementedError):
+            self.pipeline.evaluate(**{
+                "constants": {},
+                "parameters": {},
+                "regular_channels": 1,
+                "inference_channels": 1,
+            })
 
 
 class TestSmartNVRPipeline(unittest.TestCase):
@@ -124,6 +148,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
 
         # Check that no model proc is used
         self.assertNotIn("model-proc=", result)
+
 
 if __name__ == "__main__":
     unittest.main()
