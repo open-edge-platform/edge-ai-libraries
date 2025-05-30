@@ -1,0 +1,106 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  milvus-etcd:
+    container_name: milvus-etcd
+    image: quay.io/coreos/etcd:v3.5.18
+    environment:
+      - ETCD_AUTO_COMPACTION_MODE=revision
+      - ETCD_AUTO_COMPACTION_RETENTION=1000
+      - ETCD_QUOTA_BACKEND_BYTES=4294967296
+      - ETCD_SNAPSHOT_COUNT=50000
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-}/volumes/etcd:/etcd
+    command: etcd -advertise-client-urls=http://127.0.0.1:2379 -listen-client-urls http://0.0.0.0:2379 --data-dir /etcd
+    healthcheck:
+      test: ["CMD", "etcdctl", "endpoint", "health"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus-minio:
+    container_name: milvus-minio
+    image: minio/minio:RELEASE.2023-03-20T20-16-18Z
+    environment:
+      MINIO_ACCESS_KEY: minioadmin
+      MINIO_SECRET_KEY: minioadmin
+    ports:
+      - "9001:9001"
+      - "9000:9000"
+    volumes:
+      - ${DOCKER_VOLUME_DIRECTORY:-}/volumes/minio:/minio_data
+    command: minio server /minio_data --console-address ":9001"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 20s
+      retries: 3
+
+  milvus-standalone:
+    container_name: milvus-standalone
+    image: milvusdb/milvus:v2.5.10
+    command: ["milvus", "run", "standalone"]
+    security_opt:
+    - seccomp:unconfined
+    environment:
+      ETCD_ENDPOINTS: milvus-etcd:2379
+      MINIO_ADDRESS: milvus-minio:9000
+    volumes:
+      - ./config/milvus.yaml:/milvus/configs/milvus.yaml
+      - ${DOCKER_VOLUME_DIRECTORY:-}/volumes/milvus:/var/lib/milvus
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9091/healthz"]
+      interval: 30s
+      start_period: 90s
+      timeout: 20s
+      retries: 3
+    ports:
+      - "19530:19530"
+      - "9091:9091"
+    depends_on:
+      - "milvus-etcd"
+      - "milvus-minio"
+
+  dataprep-visualdata-milvus:
+    image: ${REGISTRY:-}dataprep-visualdata-milvus:${TAG:-latest}
+    container_name: dataprep-visualdata-milvus
+    ports:
+      - "${DATAPREP_SERVICE_PORT}:9990"
+    ipc: host
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - HF_ENDPOINT=${HF_ENDPOINT}
+      - DEVICE=${DEVICE}
+      - HOST_DATA_PATH=${HOST_DATA_PATH}
+      - LOCAL_EMBED_MODEL_ID=${LOCAL_EMBED_MODEL_ID}
+      - MODEL_DIR=${MODEL_DIR}
+      - MILVUS_HOST=${MILVUS_HOST}
+      - MILVUS_PORT=${MILVUS_PORT}
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID-1000} 
+      - ${VIDEO_GROUP_ID}    
+      - ${RENDER_GROUP_ID}    
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/health || exit 1"]
+      interval: 60s
+      timeout: 10s
+      retries: 30
+      start_period: 30s
+    networks:
+      - default
+    depends_on:
+      - milvus-standalone
+    volumes:
+      - $HOME/.cache/huggingface:/home/user/.cache/huggingface:rw
+      - ${MODEL_DIR}:/home/user/models:rw
+      - ${HOST_DATA_PATH}:/home/user/data:rw
+
+networks:
+  default:
+    driver: bridge

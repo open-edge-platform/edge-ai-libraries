@@ -1,0 +1,8 @@
+th
+huggingface
+embeddings
+URLs
+webUI
+extracture
+frontend
+Faiss
