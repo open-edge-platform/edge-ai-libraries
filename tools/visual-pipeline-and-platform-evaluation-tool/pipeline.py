@@ -161,8 +161,7 @@ class SmartNVRPipeline(GstPipeline):
             "{decoder} ! "
             "gvafpscounter starting-frame=1000 ! "
             "gvadetect "
-            "  model={OBJECT_DETECTION_MODEL_PATH} "
-            "  model-proc={OBJECT_DETECTION_MODEL_PROC} "
+            "  {model_config} "
             "  model-instance-id=detect0 "
             "  pre-process-backend={object_detection_pre_process_backend} "
             "  device={object_detection_device} "
@@ -287,12 +286,23 @@ class SmartNVRPipeline(GstPipeline):
         streams = ""
 
         for i in range(inference_channels):
+            model_config = (
+                f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
+            )
+            
+            if not constants["OBJECT_DETECTION_MODEL_PROC"]:
+                model_config = (
+                    f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                )
+
             streams += self._inference_stream.format(
                 **parameters,
                 **constants,
                 id=i,
                 decoder=_decoder_element,
-                postprocessing=_postprocessing_element
+                postprocessing=_postprocessing_element,
+                model_config=model_config
             )
 
         for i in range(inference_channels, channels):

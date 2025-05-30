@@ -4,14 +4,15 @@ on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
-permissions:
-  packages: write
-  contents: read
+permissions: {}
 
 jobs:
   build-dls-deb-img:
     name: Build DLS ${{ matrix.ubuntu_version }} .deb and deb img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -35,6 +36,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -112,6 +114,9 @@ jobs:
   build-dls-dev-img:
     name: Build DLS ${{ matrix.ubuntu_version }} dev debug img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -129,6 +134,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -167,6 +173,9 @@ jobs:
     needs: build-dls-deb-img
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
@@ -176,6 +185,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules

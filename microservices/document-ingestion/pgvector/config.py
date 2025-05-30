@@ -22,6 +22,9 @@ DATASTORE_DATA_ENDPOINT: str = f"{DATASTORE_BASE_URL}/data"
 INDEX_NAME: str = os.getenv("INDEX_NAME", "intel-rag-xeon")
 #supported file formats
 SUPPORTED_FORMATS: set = {".pdf", ".txt", ".docx"}
+#allowed hosts for url ingestion
+ALLOWED_HOSTS = set(host.strip() for host in os.getenv("ALLOWED_HOSTS", "").split(",") if host.strip())
+
 
 # chunk parameters
 CHUNK_SIZE = int(os.getenv("CHUNK_SIZE")) if os.getenv("CHUNK_SIZE") and os.getenv("CHUNK_SIZE").isdigit() else 1500
