@@ -87,6 +87,10 @@ services:
       - OTEL_COLLECTOR_HOST=${OTEL_COLLECTOR_HOST}
       - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT}
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
+      - INFLUXDB_HOST=${INFLUXDB_HOST}
+      - INFLUXDB_PORT=${INFLUXDB_PORT}
+      - INFLUXDB_USER=${INFLUXDB_USER}
+      - INFLUXDB_PASS=${INFLUXDB_PASS}
     volumes:
       # - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
