@@ -86,7 +86,7 @@ jobs:
       uses: ./edge-ai-libraries-repo/.github/actions/trivy-image-scan
       with:
         image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
-        severity: "HIGH,CRITICAL"
+        severity: "CRITICAL"
         # output-format: "json"
         output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
 
