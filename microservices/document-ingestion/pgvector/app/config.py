@@ -2,7 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from pydantic_settings import BaseSettings
+from pydantic import Field, computed_field
 from os.path import dirname, abspath, join
+from typing import List
 
 class Settings(BaseSettings):
 
@@ -43,6 +45,16 @@ It generates embeddings for documents, stores them in PGVector, and saves the do
     MINIO_API_PORT: str = ...
     MINIO_ACCESS_KEY: str = ...
     MINIO_SECRET_KEY: str = ...
+
+    #Allowed host domains for url ingestion
+    DOMAINS: str = Field("", alias="ALLOWED_HOSTS", description="Comma separated list of allowed host domains for URL ingestion")
+
+
+    @computed_field
+    @property
+    def ALLOWED_HOSTS(self) -> List[str]:
+        return [h.strip() for h in self.DOMAINS.split(",") if h.strip()]
+
 
     class Config:
         env_file = join(dirname(abspath(__file__)), ".env")

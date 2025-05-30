@@ -3,6 +3,9 @@
 
 import requests
 import psycopg
+import ipaddress
+import socket
+from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
 from typing import List, Optional
@@ -40,6 +43,71 @@ async def get_urls_embedding() -> List[str]:
 
     return url_list
 
+def is_url_public_ip(ip: str) -> bool:
+    """
+    Determines whether the given IP address is a public (global) IP.
+    Args:
+        ip (str): The IP address to check.
+    Returns:
+        bool: True if the IP address is public (global), False if it is private, reserved, or invalid.
+    """
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return ip_obj.is_global  # True if public, False if private/reserved
+
+    except ValueError:
+        logger.error(f"Invalid IP address: {ip}")
+        return False  # Invalid IPs are treated as non-public
+
+
+def validate_url(url: str) -> bool:
+    """
+    Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts and prevent DNS rebinding attacks.
+    The function checks if the URL:
+      - Uses the "http" or "https" scheme.
+      - Contains a valid hostname.
+      - Resolves the hostname to a public IP address.
+      - (If configured) The hostname is present in the allowed hosts list.
+    Args:
+        url (str): The URL to validate.
+    Returns:
+        bool: True if the URL is valid and meets all criteria, False otherwise.
+    """
+
+    try:
+        ALLOWED_HOSTS = config.ALLOWED_HOSTS
+
+        parsed_url = urlparse(url)
+        if parsed_url.scheme not in ["http", "https"]:
+            return False
+
+        hostname = parsed_url.hostname
+        if not hostname:
+            return False
+
+        # Resolve the hostname to get its IP address
+        try:
+            resolved_ip = socket.gethostbyname(hostname)
+
+        except socket.gaierror:
+            return False
+
+        # Ensure the resolved IP is public
+        if not is_url_public_ip(resolved_ip):
+            return False
+
+        # Check against the allowed hosts
+        if ALLOWED_HOSTS:
+            if hostname not in ALLOWED_HOSTS:
+                return False
+
+        return True
+
+    except Exception as e:
+        logger.error(f"URL validation failed: {e}")
+        return False
+
 
 def ingest_url_to_pgvector(url_list: List[str]) -> None:
     """
@@ -58,8 +126,18 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
     try:
         invalid_urls = 0
         for url in url_list:
-            response = requests.get(url, timeout=5, allow_redirects=True)
-            if response.status_code != 200:
+            if not validate_url(url):
+                logger.info(f"Invalid URL skipped: {url}")
+                invalid_urls += 1
+                continue
+
+            try:
+                response = requests.get(url, timeout=5, allow_redirects=False)
+                if response.status_code != 200:
+                    logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
+                    invalid_urls += 1
+            except Exception as e:
+                logger.error(f"Error fetching URL {url}: {e}")
                 invalid_urls += 1
 
         if invalid_urls > 0:
