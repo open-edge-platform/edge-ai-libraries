@@ -134,7 +134,7 @@ def main(cfg: PipelineServerConfig):
             rest_server.stop()
         #exit_handler()
 
-    # identify load pipleines
+    # identify load pipelines
     loaded_pl = pipeline_server_mgr.get_loaded_pipelines()
     log.info("="*10+" Loaded pipelines:  "+"="*10)
     for pl in loaded_pl:
