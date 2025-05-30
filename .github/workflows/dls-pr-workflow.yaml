@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
     paths:
+      - 'libraries/dl-streamer/*'
       - 'libraries/dl-streamer/cmake/**'
       - 'libraries/dl-streamer/docker/**'
       - 'libraries/dl-streamer/include/**'
@@ -16,6 +17,7 @@ on:
       - 'libraries/dl-streamer/thirdparty/**'
   pull_request:
     paths:
+      - 'libraries/dl-streamer/*'
       - 'libraries/dl-streamer/cmake/**'
       - 'libraries/dl-streamer/docker/**'
       - 'libraries/dl-streamer/include/**'
@@ -33,20 +35,20 @@ jobs:
   build-dev-images:
     permissions:
       contents: read
-      packages: read  
+      packages: read
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
   build-deb-and-img:
     permissions:
       contents: read
-      packages: read  
+      packages: read
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
 
   filter-docker-related-changes:
     permissions:
-      contents: read   
+      contents: read
     name: Detect changes in docker directory
     runs-on: ubuntu-latest
     outputs:
@@ -78,7 +80,7 @@ jobs:
 
   trivy-config-scan:
     permissions:
-      contents: read   
+      contents: read
     needs: [filter-docker-related-changes]
     if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
     name: Scan ${{ matrix.name }}
