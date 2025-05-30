@@ -33,7 +33,11 @@ jobs:
   build-dev-images:
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
+    permissions:
+      contents: read
 
   build-deb-and-img:
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+    permissions:
+      contents: read
