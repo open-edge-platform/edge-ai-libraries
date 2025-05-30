@@ -1,10 +1,7 @@
 import unittest
 from pathlib import Path
 
-from pipeline import (
-    GstPipeline,
-    SmartNVRPipeline,
-)
+from pipeline import GstPipeline, SmartNVRPipeline
 
 
 class TestGstPipeline(unittest.TestCase):

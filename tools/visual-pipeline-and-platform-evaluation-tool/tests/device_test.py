@@ -1,6 +1,8 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from device import DeviceInfo, DeviceDiscovery
+from unittest.mock import MagicMock, patch
+
+from device import DeviceDiscovery, DeviceInfo
+
 
 class TestDeviceInfo(unittest.TestCase):
     def test_device_info_defaults(self):
@@ -23,6 +25,14 @@ class TestDeviceInfo(unittest.TestCase):
         self.assertEqual(info.device_type, "Type.INTEGRATED")
 
 class TestDeviceDiscovery(unittest.TestCase):
+    def setUp(self):
+        # Reset the singleton instance before each test
+        DeviceDiscovery._instance = None
+
+    def tearDown(self):
+        # Reset the singleton instance after each test
+        DeviceDiscovery._instance = None
+
     @patch("device.ov.Core")
     def test_singleton(self, mock_core):
         # Ensure singleton property

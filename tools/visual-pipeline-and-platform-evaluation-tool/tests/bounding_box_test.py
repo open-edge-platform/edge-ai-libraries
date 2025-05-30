@@ -1,6 +1,7 @@
-import unittest
-import tempfile
 import os
+import tempfile
+import unittest
+
 from bounding_box import extract_rectangles_with_labels, parse_numeric
 
 

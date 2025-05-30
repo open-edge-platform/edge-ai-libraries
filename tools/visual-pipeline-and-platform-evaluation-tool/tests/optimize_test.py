@@ -1,6 +1,7 @@
 import unittest
-from unittest.mock import patch, MagicMock
-from optimize import PipelineOptimizer, OptimizationResult
+from unittest.mock import MagicMock, patch
+
+from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import GstPipeline
 
 
