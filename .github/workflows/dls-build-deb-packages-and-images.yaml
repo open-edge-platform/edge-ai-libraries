@@ -89,8 +89,8 @@ jobs:
         output-format: "json"
         output-file: "reports/dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json"
 
-    - name: Upload Trivy report artifact
-      uses: actions/upload-artifact@v3
+    - name: Upload Trivy report as artifact
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
         path: reports/dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json
