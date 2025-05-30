@@ -1,30 +1,51 @@
-name: Trivy Dockerfile Config Scan
-
+name: "[SCANS] Trivy Dockerfile Config Scan"
+run-name: "[SCANS] Trivy Dockerfile Config Scan (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
+  workflow_dispatch:
+    inputs:
+      dockerfile-path:
+        description: 'Path to the Dockerfile to scan'
+        required: true
+        type: string
+      trivy-report-format:
+        description: 'Trivy report format (e.g. json, table, sarif)'
+        required: false
+        default: 'json'
+        type: string
+      severity-levels:
+        description: 'Severity levels to check (comma-separated, e.g. LOW,MEDIUM,HIGH,CRITICAL)'
+        required: false
+        default: 'HIGH,CRITICAL'
+        type: string
+      output-report-path:
+        description: 'Path to save the Trivy output report (e.g. reports/trivy.json)'
+        required: true
+        type: string
+      name:
+        description: 'Additional part of scan name'
+        required: false
+        type: string
+        default: '1'
   workflow_call:
     inputs:
       dockerfile-path:
         description: 'Path to the Dockerfile to scan'
         required: true
         type: string
-
       trivy-report-format:
         description: 'Trivy report format (e.g. json, table, sarif)'
         required: false
         default: 'json'
         type: string
-
       severity-levels:
         description: 'Severity levels to check (comma-separated, e.g. LOW,MEDIUM,HIGH,CRITICAL)'
         required: false
         default: 'HIGH,CRITICAL'
         type: string
-
       output-report-path:
         description: 'Path to save the Trivy output report (e.g. reports/trivy.json)'
         required: true
         type: string
-
       name:
         description: 'Additional part of scan name'
         required: false
@@ -85,7 +106,6 @@ jobs:
       - name: Upload Trivy report as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
-          persist-credentials: false
           name: trivy-config-report-${{ inputs.name }}
           path: ${{ inputs.output-report-path }}
 

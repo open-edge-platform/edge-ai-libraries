@@ -38,7 +38,39 @@ jobs:
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
 
+  filter:
+    name: Detect changes in Dockerfiles
+    runs-on: ubuntu-latest
+    outputs:
+      docker_changed: ${{ steps.check.outputs.docker_changed }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch main branch for comparison
+        run: git fetch origin main
+
+      - id: check
+        name: Detect changes in docker/
+        run: |
+          echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
+          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
+          echo "📄 Changed files:"
+          echo "$CHANGED_FILES"
+          if echo "$CHANGED_FILES" | grep -q '^libraries/dl-streamer/docker/'; then
+            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
+            echo "🟡 Docker-related changes detected."
+          else
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ No docker-related changes."
+          fi
+
   trivy-config-scan:
+    needs: [filter]
+    if: needs.filter.outputs.docker_changed == 'true'
     name: Scan ${{ matrix.name }}
     strategy:
       fail-fast: false
