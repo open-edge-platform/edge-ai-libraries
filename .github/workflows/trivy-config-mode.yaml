@@ -51,6 +51,7 @@ on:
         required: false
         type: string
         default: '1'
+permissions: {}
 
 jobs:
   trivy-config-scan:

@@ -3,30 +3,31 @@ run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name
 on:
   push:
     branches:
-      - 'trivy-config-scan'
-  #   paths:
-  #     - 'libraries/dl-streamer/cmake/**'
-  #     - 'libraries/dl-streamer/docker/**'
-  #     - 'libraries/dl-streamer/include/**'
-  #     - 'libraries/dl-streamer/python/**'
-  #     - 'libraries/dl-streamer/samples/**'
-  #     - 'libraries/dl-streamer/scripts/**'
-  #     - 'libraries/dl-streamer/src/**'
-  #     - 'libraries/dl-streamer/tests/**'
-  #     - 'libraries/dl-streamer/thirdparty/**'
-  # pull_request:
-  #   paths:
-  #     - 'libraries/dl-streamer/cmake/**'
-  #     - 'libraries/dl-streamer/docker/**'
-  #     - 'libraries/dl-streamer/include/**'
-  #     - 'libraries/dl-streamer/python/**'
-  #     - 'libraries/dl-streamer/samples/**'
-  #     - 'libraries/dl-streamer/scripts/**'
-  #     - 'libraries/dl-streamer/src/**'
-  #     - 'libraries/dl-streamer/tests/**'
-  #     - 'libraries/dl-streamer/thirdparty/**'
+      - 'main'
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
+permissions: {}
 
 jobs:
   build-dev-images:
@@ -43,10 +44,10 @@ jobs:
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
 
-  filter:
+  filter-docker-related-changes:
     permissions:
       contents: read   
-    name: Detect changes in Dockerfiles
+    name: Detect changes in docker/
     runs-on: ubuntu-latest
     outputs:
       docker_changed: ${{ steps.check.outputs.docker_changed }}
@@ -78,8 +79,8 @@ jobs:
   trivy-config-scan:
     permissions:
       contents: read   
-    needs: [filter]
-    if: needs.filter.outputs.docker_changed == 'true'
+    needs: [filter-docker-related-changes]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
     name: Scan ${{ matrix.name }}
     strategy:
       fail-fast: false
