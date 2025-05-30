@@ -42,7 +42,7 @@ jobs:
             model-registry:
               - 'microservices/model-registry/docs/**'
             object-store:
-              - 'microservices/object-store/docs**'
+              - 'microservices/object-store/docs/**'
             chat-question-and-answer:
               - 'sample-applications/chat-question-and-answer/docs/**'
             visual-pipeline-platform-tool:
