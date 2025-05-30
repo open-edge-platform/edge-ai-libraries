@@ -151,11 +151,44 @@ RUN pip3 install ntplib==0.4.0
 #Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
 RUN pip3 install openvino-model-api==0.2.5
-RUN cd $VIRTUAL_ENV/lib/python3.10/site-packages/model_api && \
+# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    cd $MODEL_API_PATH && \
     git apply /home/pipeline-server/model_api.patch
 
-# Install Geti SDK
-RUN pip3 install geti-sdk==2.7.1
+# # Install Geti SDK
+# RUN pip3 install geti-sdk==2.7.1
+
+# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused — but harmlessly installed.
+# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for buildinbg datumaro - used by geti-sdk).
+# Future-proof: Even if more dependencies start using Rust, your image is now ready.
+# Safe: cargo and the Rust toolchain live in /root/.cargo, won’t interfere with system-level packages.
+# APT and intermediate files are cleaned up to reduce image size
+# Install Rust for building datumaro (required by geti-sdk>=2.7.1)
+# RUN apt-get update && \
+#     apt-get install -y curl build-essential && \
+#     curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+#     echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+#     export PATH="/root/.cargo/bin:$PATH" && \
+#     pip install --upgrade pip && \
+#     pip install geti-sdk==2.7.1 && \
+#     apt-get clean && \
+#     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
+# Detect Ubuntu version and install Rust only on Ubuntu 24
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt-get update && \
+        apt-get install -y curl build-essential && \
+        curl https://sh.rustup.rs -sSf | sh -s -- -y && \
+        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+        export PATH="/root/.cargo/bin:$PATH"; \
+    fi && \
+    pip install --upgrade pip && \
+    pip install geti-sdk==2.7.1 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
 
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 RUN pip3 uninstall -y cuda-python aiohappyeyeballs

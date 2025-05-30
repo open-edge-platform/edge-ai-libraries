@@ -9,6 +9,9 @@ set -x
 # get abs path to this script
 export DIR=$(cd $(dirname $0) && pwd)
 
+# Use bash-compatible source
+. "${DIR}/../docker/.env"
+
 # build image from DLStreamer pipeline server Dockerfile
 docker build ${DIR}/../ \
     --network host \
@@ -16,7 +19,7 @@ docker build ${DIR}/../ \
     --build-arg MSGBUS_LIB_VERSION="4.0.0" \
     --build-arg UTILS_LIB_VERSION="4.0.0" \
     --build-arg UID=1999 \
-    --build-arg USER=intelmicroserviceuser \
-    --build-arg BASE_IMAGE="ubuntu:22.04" \
+    --build-arg USER=${PIPELINE_SERVER_USER} \
+    --build-arg BASE_IMAGE=${DLSTREAMER_PIPELINE_SERVER_IMAGE} \
     --build-arg CMAKE_INSTALL_PREFIX="/opt/intel/eii" \
     --build-arg DOWNLOAD_GPL_SOURCES="no"
