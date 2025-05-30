@@ -82,7 +82,7 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Scan Docker image with Trivy
-      uses: ./.github/actions/trivy-image-scan
+      uses: ./edge-ai-libraries-repo/.github/actions/trivy-image-scan
       with:
         image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "HIGH,CRITICAL"
