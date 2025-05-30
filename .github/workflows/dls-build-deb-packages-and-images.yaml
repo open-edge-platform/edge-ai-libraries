@@ -81,6 +81,20 @@ jobs:
           -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
+    - name: Scan Docker image with Trivy
+      uses: ./.github/actions/trivy-image-scan
+      with:
+        image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+        severity: "HIGH,CRITICAL"
+        output-format: "json"
+        output-file: "reports/dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json"
+
+    - name: Upload Trivy report artifact
+      uses: actions/upload-artifact@v3
+      with:
+        name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
+        path: reports/dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.json
+
     - name: Clean up
       if: always()
       run: |
