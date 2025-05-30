@@ -44,6 +44,23 @@ async def get_urls_embedding() -> List[str]:
     return url_list
 
 
+def is_public_ip(ip: str) -> bool:
+    """
+    Determines whether the given IP address is a public (global) IP address.
+    Args:
+        ip (str): The IP address to check.
+    Returns:
+        bool: True if the IP address is public (global), False if it is private, reserved, or invalid.
+    """
+
+    try:
+        ip_obj = ipaddress.ip_address(ip)
+        return ip_obj.is_global  # True if public, False if private/reserved
+
+    except ValueError:
+        return False  # Invalid IPs are treated as non-public
+
+
 def validate_url(url: str) -> bool:
     """
     Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks.
@@ -68,26 +85,16 @@ def validate_url(url: str) -> bool:
         try:
             resolved_ip = socket.gethostbyname(hostname)
 
-            # Ensure the resolved IP is public and not private/internal
-            if ipaddress.ip_address(resolved_ip).is_private:
-                return False
-
-            # Verify that the resolved IP matches the hostname's IP to prevent DNS rebinding
-            resolved_ips = socket.gethostbyname_ex(hostname)[2]
-            if resolved_ip not in resolved_ips:
-                return False
-
         except socket.gaierror:
             return False
 
-         # Check against the allowed URLs
-        if config.ALLOWED_URLS:
-            if url not in config.ALLOWED_URLS:
-                return False
+        # Ensure the resolved IP is public
+        if not is_public_ip(resolved_ip):
+            return False
 
-        # Check against the allowed hosts
-        if config.ALLOWED_HOSTS:
-            if hostname not in config.ALLOWED_HOSTS:
+        # Check against the allowed hosts domains
+        if config.ALLOWED_DOMAINS:
+            if hostname not in config.ALLOWED_DOMAINS:
                 return False
 
         return True

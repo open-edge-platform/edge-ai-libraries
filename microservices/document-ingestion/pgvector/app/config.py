@@ -47,13 +47,12 @@ It generates embeddings for documents, stores them in PGVector, and saves the do
     MINIO_SECRET_KEY: str = ...
 
     #Allowed host domains for url ingestion
-    ALLOWED_URLS: List[str] = []
     DOMAINS: str = Field("", alias="ALLOWED_HOSTS", description="Comma separated list of allowed host domains for URL ingestion")
 
 
     @computed_field
     @property
-    def ALLOWED_HOSTS(self) -> List[str]:
+    def ALLOWED_DOMAINS(self) -> List[str]:
         return [h.strip() for h in self.DOMAINS.split(",") if h.strip()]
 
 
