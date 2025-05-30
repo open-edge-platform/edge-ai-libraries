@@ -190,9 +190,12 @@ def validate_url(url: str) -> bool:
         if not is_public_ip(ip):
             return False
 
-        # Check for DNS rebinding by resolving the hostname multiple times
-        resolved_ips = {socket.gethostbyname(parsed_url.hostname) for _ in range(3)}
-        if len(resolved_ips) > 1 or not all(is_public_ip(ip) for ip in resolved_ips):
+        # Resolve the hostname to get all associated IPs
+        _, _, resolved_ips = socket.gethostbyname_ex(parsed_url.hostname)
+        resolved_ips = set(resolved_ips)
+
+        if not all(is_public_ip(ip) for ip in resolved_ips):
+            logging.error("Non-public IPs resolved.")
             return False
 
         # If ALLOWED_HOSTS is empty, allow all public URLs else check against ALLOWED_HOSTS
