@@ -3,42 +3,48 @@ run-name: "[DLS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name
 on:
   push:
     branches:
-      - 'trivy-config-scan'
-  #   paths:
-  #     - 'libraries/dl-streamer/cmake/**'
-  #     - 'libraries/dl-streamer/docker/**'
-  #     - 'libraries/dl-streamer/include/**'
-  #     - 'libraries/dl-streamer/python/**'
-  #     - 'libraries/dl-streamer/samples/**'
-  #     - 'libraries/dl-streamer/scripts/**'
-  #     - 'libraries/dl-streamer/src/**'
-  #     - 'libraries/dl-streamer/tests/**'
-  #     - 'libraries/dl-streamer/thirdparty/**'
-  # pull_request:
-  #   paths:
-  #     - 'libraries/dl-streamer/cmake/**'
-  #     - 'libraries/dl-streamer/docker/**'
-  #     - 'libraries/dl-streamer/include/**'
-  #     - 'libraries/dl-streamer/python/**'
-  #     - 'libraries/dl-streamer/samples/**'
-  #     - 'libraries/dl-streamer/scripts/**'
-  #     - 'libraries/dl-streamer/src/**'
-  #     - 'libraries/dl-streamer/tests/**'
-  #     - 'libraries/dl-streamer/thirdparty/**'
+      - 'main'
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
+  pull_request:
+    paths:
+      - 'libraries/dl-streamer/cmake/**'
+      - 'libraries/dl-streamer/docker/**'
+      - 'libraries/dl-streamer/include/**'
+      - 'libraries/dl-streamer/python/**'
+      - 'libraries/dl-streamer/samples/**'
+      - 'libraries/dl-streamer/scripts/**'
+      - 'libraries/dl-streamer/src/**'
+      - 'libraries/dl-streamer/tests/**'
+      - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
-permissions: read-all
+permissions: {}
 
 jobs:
   build-dev-images:
+    permissions:
+      contents: read   
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
   build-deb-and-img:
+    permissions:
+      contents: read   
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
 
   filter:
+    permissions:
+      contents: read   
     name: Detect changes in Dockerfiles
     runs-on: ubuntu-latest
     outputs:
@@ -69,6 +75,8 @@ jobs:
           fi
 
   trivy-config-scan:
+    permissions:
+      contents: read   
     needs: [filter]
     if: needs.filter.outputs.docker_changed == 'true'
     name: Scan ${{ matrix.name }}
