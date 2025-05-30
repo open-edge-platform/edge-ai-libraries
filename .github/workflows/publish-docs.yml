@@ -16,15 +16,16 @@ on:
         - visual-pipeline-platform-tool
         - chat-question-and-answer-core
 
-permissions:
-  contents: read          # needed for actions/checkout
-  pull-requests: read     # needed for gh pr list
-  issues: write           # needed to post PR comment
+permissions: {}
 
 jobs:
   build_dlstreamer-pipeline-server:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'dlstreamer-pipeline-server') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -32,8 +33,12 @@ jobs:
     with:
       docs_directory: microservices/dlstreamer-pipeline-server
   build_document-ingestion:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'document-ingestion') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -41,8 +46,12 @@ jobs:
     with:
       docs_directory: microservices/document-ingestion
   build_model-registry:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'model-registry') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -50,8 +59,12 @@ jobs:
     with:
       docs_directory: microservices/model-registry
   build_object-store:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'object-store') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -59,8 +72,12 @@ jobs:
     with:
       docs_directory: microservices/object-store
   build_chat-question-and-answer:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -68,8 +85,12 @@ jobs:
     with:
       docs_directory: sample-applications/chat-question-and-answer
   build_visual-pipeline-platform-tool:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'visual-pipeline-platform-tool') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -77,8 +98,12 @@ jobs:
     with:
       docs_directory: tools/visual-pipeline-and-platform-evaluation-tool
   build_chat-question-and-answer-core:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'chat-question-and-answer-core') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
