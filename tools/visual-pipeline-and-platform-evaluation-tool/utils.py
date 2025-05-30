@@ -10,6 +10,11 @@ import psutil as ps
 from itertools import product
 import logging
 from pipeline import GstPipeline
+import select
+import utils
+
+
+utils.cancelled = False
 
 
 def prepare_video_and_constants(
@@ -165,30 +170,33 @@ def run_pipeline_and_extract_metrics(
 
             # Poll the process to check if it is still running
             while process.poll() is None:
+                logger.warning(f"Cancelled flag value: {utils.cancelled}")  # Use logger instead of print
+                if utils.cancelled:
+                    process.terminate()
+                    utils.cancelled = False
+                    break
 
-                time.sleep(poll_interval)
+                reads, _, _ = select.select([process.stdout], [], [], poll_interval)
+                for r in reads:
+                    line = r.readline()
+                    if not line:
+                        continue
+                    process_output.append(line)
 
-                # Read the process output
-                if process.stdout:
-                    for line in iter(process.stdout.readline, b""):
-
-                        # Save it to a buffer for later processing
-                        process_output.append(line)
-
-                        # Write the average FPS to the log
-                        line_str = line.decode("utf-8")
-                        match = re.search(avg_pattern, line_str)
-                        if match:
-                            result = {
-                                "total_fps": float(match.group(2)),
-                                "number_streams": int(match.group(3)),
-                                "per_stream_fps": float(match.group(4)),
-                            }
-                            latest_fps = result["per_stream_fps"]
-                            
-                            # Write latest FPS to a file
-                            with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
-                                f.write(f"{latest_fps}\n")
+                    # Write the average FPS to the log
+                    line_str = line.decode("utf-8")
+                    match = re.search(avg_pattern, line_str)
+                    if match:
+                        result = {
+                            "total_fps": float(match.group(2)),
+                            "number_streams": int(match.group(3)),
+                            "per_stream_fps": float(match.group(4)),
+                        }
+                        latest_fps = result["per_stream_fps"]
+                        
+                        # Write latest FPS to a file
+                        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                            f.write(f"{latest_fps}\n")
 
                 if ps.Process(process.pid).status() == "zombie":
                     exit_code = process.wait()
