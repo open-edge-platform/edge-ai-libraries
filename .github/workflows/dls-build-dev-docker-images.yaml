@@ -3,6 +3,7 @@ run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
+permissions: {}
 
 jobs:
   build:

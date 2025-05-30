@@ -27,6 +27,7 @@ on:
       - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
+permissions: {}
 
 jobs:
   build-dev-images:

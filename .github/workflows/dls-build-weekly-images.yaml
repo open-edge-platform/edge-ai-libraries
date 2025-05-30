@@ -4,6 +4,7 @@ on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
+permissions: {}
 
 jobs:
   build-dls-deb-img:

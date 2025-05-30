@@ -9,6 +9,7 @@ on:
   pull_request:
     paths:
       - 'libraries/dl-streamer/docs/**'
+permissions: {}
 
 jobs:
   build-docs:
