@@ -47,12 +47,7 @@ async def get_urls_embedding() -> List[str]:
 def validate_url(url: str) -> bool:
     """
     Validates a given URL based on scheme, hostname, IP resolution, and allowed hosts, and prevents DNS rebinding attacks.
-    The function checks if the URL:
-      - Uses the "http" or "https" scheme.
-      - Contains a valid hostname.
-      - Resolves the hostname to a public IP address.
-      - The resolved IP is not private or internal.
-      - (If configured) The hostname is present in the allowed hosts list.
+
     Args:
         url (str): The URL to validate.
     Returns:
@@ -64,11 +59,6 @@ def validate_url(url: str) -> bool:
         parsed_url = urlparse(url)
         if parsed_url.scheme not in ["http", "https"]:
             return False
-
-        # Check against the allowed URLs
-        if config.ALLOWED_URLS:
-            if url not in config.ALLOWED_URLS:
-                return False
 
         hostname = parsed_url.hostname
         if not hostname:
@@ -89,6 +79,11 @@ def validate_url(url: str) -> bool:
 
         except socket.gaierror:
             return False
+
+         # Check against the allowed URLs
+        if config.ALLOWED_URLS:
+            if url not in config.ALLOWED_URLS:
+                return False
 
         # Check against the allowed hosts
         if config.ALLOWED_HOSTS:
