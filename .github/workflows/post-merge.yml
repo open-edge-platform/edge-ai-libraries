@@ -36,19 +36,19 @@ jobs:
         with:
           filters: |
             dlstreamer-pipeline-server:
-              - 'microservices/dlstreamer-pipeline-server/docs**'
+              - 'microservices/dlstreamer-pipeline-server/docs/**'
             document-ingestion:
-              - 'microservices/document-ingestion/docs**'
+              - 'microservices/document-ingestion/docs/**'
             model-registry:
-              - 'microservices/model-registry/docs**'
+              - 'microservices/model-registry/docs/**'
             object-store:
               - 'microservices/object-store/docs**'
             chat-question-and-answer:
-              - 'sample-applications/chat-question-and-answer/docs**'
+              - 'sample-applications/chat-question-and-answer/docs/**'
             visual-pipeline-platform-tool:
-              - 'tools/visual-pipeline-and-platform-evaluation-tool/docs**'
+              - 'tools/visual-pipeline-and-platform-evaluation-tool/docs/**'
             chat-question-and-answer-core:
-              - 'sample-applications/chat-question-and-answer-core/docs**'
+              - 'sample-applications/chat-question-and-answer-core/docs/**'
 
   build_dlstreamer-pipeline-server:
     permissions:
