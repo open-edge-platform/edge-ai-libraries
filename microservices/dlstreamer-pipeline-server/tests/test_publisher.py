@@ -15,7 +15,6 @@ from gi.repository import Gst
 from gstgva.util import gst_buffer_data
 from src.server.gstreamer_app_source import GvaFrameData
 
-from src.publisher.eis.grpc_publisher import EdgeGrpcPublisher
 from src.publisher.publisher import Publisher
 from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 
@@ -35,7 +34,6 @@ def setup(mocker):
     mocker.patch('distutils.util.strtobool', return_value=False)
     pub_cfg.get_topics.return_value = ['test1', 'test2']
     mocker.patch('src.publisher.publisher.MQTTPublisher')
-    mocker.patch('src.publisher.publisher.EdgeGrpcPublisher')
     yield app_cfg, pub_cfg
 
 # Publisher object for tests

@@ -25,7 +25,7 @@ spec:
       {{- end }}
       containers:
       - name: dlstreamer-pipeline-server
-        image: {{ $.Values.DOCKER_REGISTRY }}intel/dlstreamer-pipeline-server:3.0.0
+        image: {{ $.Values.DOCKER_REGISTRY }}intel/dlstreamer-pipeline-server:3.1.0
         imagePullPolicy: {{ $.Values.imagePullPolicy }}
         {{- if $.Values.privileged_access_required }}
         securityContext:

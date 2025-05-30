@@ -31,7 +31,6 @@ from src.server.gstreamer_app_source import GvaFrameData
 from src.common.log import get_logger
 
 from utils import publisher_utils as utils
-from src.publisher.eis.grpc_publisher import EdgeGrpcPublisher
 from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
