@@ -190,7 +190,12 @@ def validate_url(url: str) -> bool:
         if not is_public_ip(ip):
             return False
 
-        # If ALLOWED_HOSTS is empty, allow all public URLS else check against ALLOWED_HOSTS
+        # Check for DNS rebinding by resolving the hostname multiple times
+        resolved_ips = {socket.gethostbyname(parsed_url.hostname) for _ in range(3)}
+        if len(resolved_ips) > 1 or not all(is_public_ip(ip) for ip in resolved_ips):
+            return False
+
+        # If ALLOWED_HOSTS is empty, allow all public URLs else check against ALLOWED_HOSTS
         if ALLOWED_HOSTS:
             if parsed_url.hostname not in ALLOWED_HOSTS:
                 return False
@@ -206,16 +211,17 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
     try:
         invalid_urls = 0
         for url in url_list:
-            if validate_url(url):
-                response = requests.get(url, timeout=5, allow_redirects=False)
-                if response.status_code == 200:
-                    continue
-            invalid_urls += 1
+            if not validate_url(url):
+                invalid_urls += 1
+                continue
+
+            response = requests.get(url, timeout=5, allow_redirects=False)
+            if response.status_code != 200:
+                invalid_urls += 1
 
         if invalid_urls > 0:
             raise Exception(
-                f"{invalid_urls} / {len(url_list)} URL(s) are invalid.",
-                response.status_code
+                f"{invalid_urls} / {len(url_list)} URL(s) are invalid."
             )
 
     # If the domain name is wrong, SSLError will be thrown
