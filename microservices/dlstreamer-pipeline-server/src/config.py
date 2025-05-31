@@ -237,28 +237,36 @@ class PipelineServerConfig:
         app_cfg = self.get_app_config()
         return app_cfg['pipelines']
 
-    def get_model_registry_config(self) -> Dict[str,Any]:
+    def get_model_registry_config(self) -> Dict[str,Any] | None:
         """Get the properties related to the model registry microservice in 
         the config.json file. 
 
         Returns:
-            Dict[str,Any]: The properties for establishing a 
+            Dict[str,Any] | None: The properties for establishing a 
             connection to a model registry microservice and storing the 
             model artifacts locally.
         """
-        req_timeout = None
-        if os.getenv("MR_REQUEST_TIMEOUT") is not None:
-            try:
-                req_timeout = int(os.getenv("MR_REQUEST_TIMEOUT"))
-            except ValueError:
-                self.log.error("Invalid MR_REQUEST_TIMEOUT value, must "
-                               "be an integer. Using default value.")
+        req_timeout = os.getenv("MR_REQUEST_TIMEOUT")
+        url = os.getenv("MR_URL")
+        saved_models_dir = os.getenv("MR_SAVED_MODELS_DIR")
+        model_registry_cfg = None
 
-        model_registry_cfg = {
-            "url": os.getenv("MR_URL"),
-            "saved_models_dir": os.getenv("MR_SAVED_MODELS_DIR"),
-            "request_timeout": req_timeout
-        }
+        try:
+            req_timeout = int(req_timeout) if req_timeout is not None else None
+        except ValueError:
+            default_timeout = 300
+            self.log.error("Invalid MR_REQUEST_TIMEOUT value, must be an integer."
+                           "Defaulting to %d seconds.", default_timeout)
+            req_timeout = default_timeout
+
+        if url:
+            model_registry_cfg = {
+                "url": url,
+                "saved_models_dir": saved_models_dir,
+                "request_timeout": req_timeout
+            }
+
+        self.log.debug("Model Registry configuration: %s", model_registry_cfg)
         return model_registry_cfg
 
     def set_app_config(self, new_config: Dict[str, Any]) -> None:

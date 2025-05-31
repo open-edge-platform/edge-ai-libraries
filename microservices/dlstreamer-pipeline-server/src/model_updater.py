@@ -71,7 +71,7 @@ class ModelRegistryClient:
 
             # self._user_password = os.getenv("MR_USER_PASSWORD")
             self._saved_models_dir = model_registry_cfg["saved_models_dir"]
-            self._request_timeout = model_registry_cfg.get("request_timeout", 300)
+            self._request_timeout = model_registry_cfg["request_timeout"]
             if not isinstance(self._request_timeout, int):
                 raise ValueError("request_timeout must be an integer")          
             # if not self._url or not self._user_password:
