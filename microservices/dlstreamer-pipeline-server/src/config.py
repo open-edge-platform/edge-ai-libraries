@@ -246,14 +246,14 @@ class PipelineServerConfig:
             connection to a model registry microservice and storing the 
             model artifacts locally.
         """
-        req_timeout = os.getenv("MR_REQUEST_TIMEOUT")
+        default_timeout = 300
+        req_timeout = os.getenv("MR_REQUEST_TIMEOUT", str(default_timeout))
         url = os.getenv("MR_URL")
         model_registry_cfg = None
 
         try:
             req_timeout = int(req_timeout) if req_timeout is not None else None
         except ValueError:
-            default_timeout = 300
             self.log.error("Invalid MR_REQUEST_TIMEOUT value, must be an integer."
                            "Defaulting to %d seconds.", default_timeout)
             req_timeout = default_timeout
