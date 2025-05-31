@@ -248,7 +248,6 @@ class PipelineServerConfig:
         """
         req_timeout = os.getenv("MR_REQUEST_TIMEOUT")
         url = os.getenv("MR_URL")
-        saved_models_dir = os.getenv("MR_SAVED_MODELS_DIR")
         model_registry_cfg = None
 
         try:
@@ -262,7 +261,7 @@ class PipelineServerConfig:
         if url:
             model_registry_cfg = {
                 "url": url,
-                "saved_models_dir": saved_models_dir,
+                "saved_models_dir": os.getenv("MR_SAVED_MODELS_DIR", "./mr_models"),
                 "request_timeout": req_timeout
             }
 
