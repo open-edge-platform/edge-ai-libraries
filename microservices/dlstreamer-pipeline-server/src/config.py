@@ -246,10 +246,18 @@ class PipelineServerConfig:
             connection to a model registry microservice and storing the 
             model artifacts locally.
         """
+        req_timeout = None
+        if os.getenv("MR_REQUEST_TIMEOUT") is not None:
+            try:
+                req_timeout = int(os.getenv("MR_REQUEST_TIMEOUT"))
+            except ValueError:
+                self.log.error("Invalid MR_REQUEST_TIMEOUT value, must "
+                               "be an integer. Using default value.")
+
         model_registry_cfg = {
             "url": os.getenv("MR_URL"),
             "saved_models_dir": os.getenv("MR_SAVED_MODELS_DIR"),
-            "request_timeout": int(os.getenv("MR_REQUEST_TIMEOUT"))
+            "request_timeout": req_timeout
         }
         return model_registry_cfg
 
