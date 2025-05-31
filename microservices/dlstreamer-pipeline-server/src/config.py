@@ -246,8 +246,12 @@ class PipelineServerConfig:
             connection to a model registry microservice and storing the 
             model artifacts locally.
         """
-        app_cfg = self.get_app_config()
-        return app_cfg.get('model_registry')
+        model_registry_cfg = {
+            "url": os.getenv("MR_URL"),
+            "saved_models_dir": os.getenv("MR_SAVED_MODELS_DIR"),
+            "request_timeout": int(os.getenv("MR_REQUEST_TIMEOUT"))
+        }
+        return model_registry_cfg
 
     def set_app_config(self, new_config: Dict[str, Any]) -> None:
         """Set the application configuration with a new configuration.
