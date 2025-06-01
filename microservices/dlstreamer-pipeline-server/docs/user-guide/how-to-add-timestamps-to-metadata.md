@@ -62,7 +62,7 @@ Your default config.json would look like this after above modifications -
 }
 ```
 
-Ensure that the changes made to the config.json are reflected in the container by volume mounting it as menioned in this -[tutorial](../../../how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)
+Ensure that the changes made to the config.json are reflected in the container by volume mounting it as menioned in this [tutorial](../../../how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)
 
 2. Update environment variables file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` with below mentioned variables. Please add corresponding IP address in place of `<MQTT_BROKER_IP_ADDRESS>` below -
 ```sh
@@ -76,7 +76,7 @@ cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
 docker compose up
 ```
 
-4. Open another terminal and run the following command to sgtart the MQTT subscriber. 
+4. Open another terminal and run the following command to start the MQTT subscriber. 
 ```sh
 docker run -d --name=mqtt_broker -p 8883:8883 -v $PWD/utils/mosquitto:/mosquitto/config eclipse-mosquitto
 ```
