@@ -46,41 +46,53 @@ class ModelQueryParams(BaseModel):
 class ModelRegistryClient:
     """Model Registry Client class"""
     _pipelines_cfg = None
-    # _auth_header = {}
-    # _is_connected = False
     _verify_cert = False
 
     _logger = get_logger(__name__)
 
-    def __init__(self, model_registry_cfg: dict) -> None:
+    def __init__(self) -> None:
         """Create an instance of the Model Registry Client for connecting and 
         interacting with the Model Registry microservice
-
-        Args:
-            model_registry_cfg (dict): The properties for connecting and storing models locally
-              from the model_registry such as the `url`, `saved_models_dir`
-              and `request_timeout`.
-            pipelines_cfg (list): A list of configurations associated to each pipeline
         """
+        self.is_ready = False
         try:
-            self._url = model_registry_cfg["url"]
+            default_timeout = 300
+            request_timeout = os.getenv("MR_REQUEST_TIMEOUT", str(default_timeout))
+            try:
+                self._request_timeout = int(request_timeout)
+            except ValueError:
+                self._logger.debug("The 'MR_REQUEST_TIMEOUT' environment variable "
+                                   " is not an integer. Using default value: "
+                                   "%s", default_timeout)
+                self._request_timeout = default_timeout
+
+            self._url = os.getenv("MR_URL")
+            if not self._url:
+                self._logger.debug("The 'MR_URL' environment variable is not set. "
+                                   "The Model Registry Client will not connect to "
+                                   "the model registry microservice.")
 
             if self._url.startswith("https://"):
-                self._verify_cert = ModelRegistryClient._get_verify_cert(os.getenv("MR_VERIFY_CERT",
-                                                                                   "/run/secrets/ModelRegistry_Server/ca-bundle.crt"))
+                self._verify_cert = ModelRegistryClient._get_verify_cert(
+                    os.getenv("MR_VERIFY_CERT",
+                              "/run/secrets/ModelRegistry_Server/ca-bundle.crt"))
 
-            # self._user_password = os.getenv("MR_USER_PASSWORD")
-            self._saved_models_dir = model_registry_cfg["saved_models_dir"]
-            self._request_timeout = model_registry_cfg["request_timeout"]
-            if not isinstance(self._request_timeout, int):
-                raise ValueError("request_timeout must be an integer")          
-            # if not self._url or not self._user_password:
-            #     raise ValueError(
-            #         "URL and/or User Password cannot be an empty string or None.")
+            self._saved_models_dir = os.getenv("MR_SAVED_MODELS_DIR", "./mr_models")
+            if not self._saved_models_dir:
+                self._logger.debug("The 'MR_SAVED_MODELS_DIR' environment variable is not set. "
+                                   "Using default value: ./mr_models")
+                self._saved_models_dir = "./mr_models"
 
-            # self._login_to_mr_microservice()
+            if self._url:
+                self.is_ready = True
+
+            self._logger.debug(
+                "ModelRegistryClient initialized with url=%s, request_timeout=%s, "
+                "saved_models_dir=%s, verify_cert=%s, is_ready=%s", self._url, 
+                self._request_timeout, self._saved_models_dir, self._verify_cert,
+                self.is_ready)
         except Exception as e:
-            self._logger.error("Exception occurred while initializing Model "
+            self._logger.debug("Exception occurred while initializing Model "
                                 "Registry Client: %s", e)
     @classmethod
     def _get_verify_cert(cls, string: str) -> Union[str, bool]:

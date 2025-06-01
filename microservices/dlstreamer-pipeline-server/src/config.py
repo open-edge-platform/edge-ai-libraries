@@ -237,37 +237,6 @@ class PipelineServerConfig:
         app_cfg = self.get_app_config()
         return app_cfg['pipelines']
 
-    def get_model_registry_config(self) -> Dict[str,Any] | None:
-        """Get the properties related to the model registry microservice in 
-        the config.json file. 
-
-        Returns:
-            Dict[str,Any] | None: The properties for establishing a 
-            connection to a model registry microservice and storing the 
-            model artifacts locally.
-        """
-        default_timeout = 300
-        req_timeout = os.getenv("MR_REQUEST_TIMEOUT", str(default_timeout))
-        url = os.getenv("MR_URL")
-        model_registry_cfg = None
-
-        try:
-            req_timeout = int(req_timeout) if req_timeout is not None else None
-        except ValueError:
-            self.log.error("Invalid MR_REQUEST_TIMEOUT value, must be an integer."
-                           "Defaulting to %d seconds.", default_timeout)
-            req_timeout = default_timeout
-
-        if url:
-            model_registry_cfg = {
-                "url": url,
-                "saved_models_dir": os.getenv("MR_SAVED_MODELS_DIR", "./mr_models"),
-                "request_timeout": req_timeout
-            }
-
-        self.log.debug("Model Registry configuration: %s", model_registry_cfg)
-        return model_registry_cfg
-
     def set_app_config(self, new_config: Dict[str, Any]) -> None:
         """Set the application configuration with a new configuration.
 
