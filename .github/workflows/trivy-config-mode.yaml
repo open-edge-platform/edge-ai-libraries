@@ -76,25 +76,34 @@ jobs:
           sudo apt-get install -y trivy
 
       - name: Create report directory if needed
+        env:
+          output-report-path: ${{ inputs.output-report-path }}
         run: |
-          mkdir -p "$(dirname "${{ inputs.output-report-path }}")"
+          mkdir -p "$(dirname "$output-report-path")"
 
       - name: Run Trivy config scan and save output
+        env:
+          dockerfile-path: ${{ inputs.dockerfile-path }}
+          output-report-path: ${{ inputs.output-report-path }}
+          severity-levels: ${{ inputs.severity-levels }}
+          trivy-report-format: ${{ inputs.trivy-report-format }}
         run: |
-          echo "🔍 Scanning: ${{ inputs.dockerfile-path }}"
-          echo "📁 Saving report to: ${{ inputs.output-report-path }}"
+          echo "🔍 Scanning: $dockerfile-path"
+          echo "📁 Saving report to: $output-report-path"
           trivy config \
-            --severity "${{ inputs.severity-levels }}" \
-            --format "${{ inputs.trivy-report-format }}" \
-            --output "${{ inputs.output-report-path }}" \
-            "${{ inputs.dockerfile-path }}"
+            --severity "$inputs.severity-levels" \
+            --format "$trivy-report-format" \
+            --output "$output-report-path" \
+            "$dockerfile-path"
 
           echo "📄 Report preview:"
           head -n 100 "${{ inputs.output-report-path }}"
 
       - name: Check Trivy scan failures
+        env:  
+          output-report-path: ${{ inputs.output-report-path }}
         run: |
-          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${{ inputs.output-report-path }}")
+          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "$output-report-path")
           echo "Failures found: $FAILURE_COUNT"
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
@@ -105,10 +114,15 @@ jobs:
           fi
 
       - name: Upload Trivy report as artifact
+        env:  
+          output-report-path: ${{ inputs.output-report-path }}        
+          name: ${{ inputs.name }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
-          name: trivy-config-report-${{ inputs.name }}
-          path: ${{ inputs.output-report-path }}
+          name: trivy-config-report-$name
+          path: $output-report-path
 
       - name: Clean up
-        run: rm -rf ${{ inputs.output-report-path }}
+        env:  
+          output-report-path: ${{ inputs.output-report-path }}
+        run: rm -rf "$output-report-path"
