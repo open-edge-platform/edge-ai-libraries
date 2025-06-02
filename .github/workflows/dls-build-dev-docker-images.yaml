@@ -49,8 +49,8 @@ jobs:
         dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-          --tag "${{ env.dev-debug-img }}" \
-          --cache-from="${{ env.dev-debug-img-cached}}" \
+          --tag "${dev-debug-img}" \
+          --cache-from="${dev-debug-img-cached}" \
           --build-arg BUILD_ARG=Debug \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer

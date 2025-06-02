@@ -72,14 +72,14 @@ jobs:
           curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
           echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | \
           sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
-          sudo apt-get update 
+          sudo apt-get update
           sudo apt-get install -y trivy
 
       - name: Create report directory if needed
         env:
           output-report-path: ${{ inputs.output-report-path }}
         run: |
-          mkdir -p "$(dirname "${{ env.output-report-path }}")"
+          mkdir -p "$(dirname "${output-report-path}")"
 
       - name: Run Trivy config scan and save output
         env:
@@ -88,22 +88,22 @@ jobs:
           severity-levels: ${{ inputs.severity-levels }}
           trivy-report-format: ${{ inputs.trivy-report-format }}
         run: |
-          echo "🔍 Scanning: $dockerfile-path"
-          echo "📁 Saving report to: $output-report-path"
+          echo "🔍 Scanning: ${dockerfile-path}"
+          echo "📁 Saving report to: ${output-report-path}"
           trivy config \
-            --severity "${{ env.severity-levels }}" \
-            --format "${{ env.trivy-report-format }}" \
-            --output "${{ env.output-report-path }}" \
-            "${{ env.dockerfile-path }}"
+            --severity "${severity-levels}" \
+            --format "${trivy-report-format}" \
+            --output "${output-report-path}" \
+            "${dockerfile-path}"
 
           echo "📄 Report preview:"
-          head -n 100 "${{ env.output-report-path }}"
+          head -n 100 "${output-report-path}"
 
       - name: Check Trivy scan failures
-        env:  
+        env:
           output-report-path: ${{ inputs.output-report-path }}
         run: |
-          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${{ env.output-report-path }}")
+          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${output-report-path}")
           echo "Failures found: $FAILURE_COUNT"
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
@@ -114,8 +114,8 @@ jobs:
           fi
 
       - name: Upload Trivy report as artifact
-        env:  
-          output-report-path: ${{ inputs.output-report-path }}        
+        env:
+          output-report-path: ${{ inputs.output-report-path }}
           name: ${{ inputs.name }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
@@ -123,7 +123,6 @@ jobs:
           path: ${output-report-path}
 
       - name: Clean up
-        env:  
+        env:
           output-report-path: ${{ inputs.output-report-path }}
         run: rm -rf "${output-report-path}"
-        
