@@ -9,28 +9,31 @@ on:
   pull_request:
     paths:
       - 'libraries/dl-streamer/docs/**'
-permissions: read-all
+permissions: {}
 
 jobs:
   build-docs:
     name: Build DL Streamer documentation
     runs-on: ubuntu-latest # Change to self-hosted when ready to unblock linkcheck: [self-hosted, linux]
+    permissions:
+      contents: read
     steps:
       - name: Check out edge-ai-libraries repository/libraries/dl-streamer
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
+          persist-credentials: false
           sparse-checkout: |
             libraries/dl-streamer
 
       - name: Run build script
         run: |
           ./libraries/dl-streamer/docs/build_html.sh "actions-gh-pages:latest" gh-pages
-          
+
       - name: Documentation build summary
         if: always()
         run: |
           summary_content=""
-          
+
           # Check if index.html for documentation exists
           index_file_path='./libraries/dl-streamer/docs/build-html/index.html'
           if [ -f "$index_file_path" ]; then
@@ -40,7 +43,7 @@ jobs:
           fi
           echo "$result"
           summary_content+="$result\n"
-          
+
           # Check broken links in linkcheck
           linkcheck_file_path='./libraries/dl-streamer/docs/build-linkcheck/output.txt'
           broken_count=$(grep -o '\[broken\]' "$linkcheck_file_path" | wc -l)
@@ -51,12 +54,12 @@ jobs:
           fi
           echo "$result"
           summary_content+="$result\n"
-          
+
           # Spelling
           result="Spelling: check report from artifacts"
           echo "$result"
           summary_content+="$result\n"
-          
+
           echo -e "$summary_content" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload linkcheck report
