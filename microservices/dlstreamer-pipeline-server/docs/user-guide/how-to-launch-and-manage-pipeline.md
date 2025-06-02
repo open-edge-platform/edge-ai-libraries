@@ -4,9 +4,13 @@ Within a running DL Streamer Pipeline Server container, you can start and stop a
 
 ## Steps
 
-1. Replace default config.json present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with sample mqtt config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. 
-
-Ensure that the changes made to the config.json are reflected in the container by volume mounting it as menioned in this -[tutorial](../../../how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)
+1. A sample config has been provided for this tutorial at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+ 
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_mqtt_publisher/config.json:/home/pipeline-server/config.json"
+```
 
 2. Update environment variables file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` with below mentioned variables. Please add corresponding IP address in place of `<MQTT_BROKER_IP_ADDRESS>` below -
 ```sh
