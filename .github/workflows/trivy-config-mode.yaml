@@ -119,11 +119,11 @@ jobs:
           name: ${{ inputs.name }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
-          name: trivy-config-report-${{ env.name }}
-          path: ${{ env.output-report-path }}
+          name: trivy-config-report-${name}
+          path: ${output-report-path}
 
       - name: Clean up
         env:  
           output-report-path: ${{ inputs.output-report-path }}
-        run: rm -rf "${{ env.output-report-path }}"
+        run: rm -rf "${output-report-path}"
         
