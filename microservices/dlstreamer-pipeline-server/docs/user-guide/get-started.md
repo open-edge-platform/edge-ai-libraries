@@ -14,8 +14,13 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Pull the image with the latest tag from dockerhub registry
 
+   For Ubuntu 22.04:
    ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.0.0
+     docker pull intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+   ```
+   For Ubuntu 24.04:
+   ```sh
+     docker pull intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
    ```
 
 - Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
