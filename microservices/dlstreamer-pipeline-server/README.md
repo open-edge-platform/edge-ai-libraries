@@ -129,6 +129,18 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
+Update the following lines for choosing the right base image and also for naming the image that gets built.
+
+  ``` sh
+  # For Ubuntu 22.04: intel/dlstreamer:2025.0.1.3-ubuntu22
+  # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
+  BASE_IMAGE=
+
+  # For Ubuntu 22.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+  # For Ubuntu 24.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
+  DLSTREAMER_PIPELINE_SERVER_IMAGE=
+  ```
+
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 
 Run the following commands:
@@ -139,7 +151,7 @@ Run the following commands:
      docker compose build
    ```
    
-   The docker image `intel/dlstreamer-pipeline-server:3.0.0` is now built and available for you to run.
+   The docker image `intel/dlstreamer-pipeline-server:3.1.0-ubuntu22` or `intel/dlstreamer-pipeline-server:3.1.0-ubuntu24` is now built (based on the .env changes done above) and available for you to run.
    
    ```sh
      docker compose up

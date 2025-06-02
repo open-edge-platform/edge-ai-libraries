@@ -1,113 +1,13 @@
-#
-# Copyright (C) 2024 Intel Corporation
-# SPDX-License-Identifier: Apache-2.0
-#
-
-# Specify all Docker arguments for the Dockerfile
-ARG BASE_IMAGE=ubuntu:22.04
+ARG BASE_IMAGE
 FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
-LABEL description="DL Streamer Pipeline Server"
-LABEL vendor="Intel Corporation"
-
-ARG DLSTREAMER_VERSION=2025.0.1.2
-
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-RUN \
-    apt-get update && \
-    apt-get install -y -q --no-install-recommends gnupg=\* ca-certificates=\* wget=\* libtbb-dev=\* cmake=\* git=\* git-lfs=\* vim=\* numactl=\* && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-# Intel® NPU drivers (optional)
-RUN export no_proxy= && \
-    mkdir debs && \
-    dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu level-zero && \
-    wget -q https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb -P ./debs && \
-    wget -q --no-check-certificate -nH --accept-regex="ubuntu22" --cut-dirs=5 -r https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 -P ./debs && \
-    apt-get install -y -q --no-install-recommends ./debs/*.deb && \
-    rm -r -f debs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    rm -f /etc/ssl/certs/Intel*
-
-# Intel® Data Center GPU Flex Series drivers (optional)
-# hadolint ignore=SC1091
-RUN export no_proxy= && \
-    apt-get update && \
-    . /etc/os-release && \
-    if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
-        echo "Ubuntu version ${VERSION_CODENAME} not supported"; \
-    else \
-        wget --no-check-certificate -qO- https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/gpu-intel-graphics.gpg && \
-        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gpu-intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
-        tee /etc/apt/sources.list.d/intel-gpu-"${VERSION_CODENAME}".list && \
-        apt-get update; \
-    fi && \
-    apt-get install -y --no-install-recommends \
-    intel-opencl-icd=\* ocl-icd-opencl-dev=\* intel-level-zero-gpu=\* level-zero=\* \
-    libmfx1=\* libmfxgen1=\* libvpl2=\* intel-media-va-driver-non-free=\* \
-    libgbm1=\* libigdgmm12=\* libxatracker2=\* libdrm-amdgpu1=\* \
-    va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN export no_proxy= && \
-    echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
-    wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
-    wget -q -O- https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg | tee /usr/share/keyrings/sed-archive-keyring.gpg > /dev/null && \
-    echo "deb [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/jammy sed main" | tee /etc/apt/sources.list.d/sed.list && \
-    echo "deb-src [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/jammy sed main" | tee -a /etc/apt/sources.list.d/sed.list && \
-    bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000" > /etc/apt/preferences.d/sed'
-
-ARG DEBIAN_FRONTEND=noninteractive
-
-RUN export no_proxy= && \
-    apt-get update -y && \
-    apt-get install -y -q --no-install-recommends intel-dlstreamer=${DLSTREAMER_VERSION} && \
-    apt-get clean -y && \
-    rm -rf /var/lib/apt/lists/* && \
-    useradd -ms /bin/bash dlstreamer && \
-    chown -R dlstreamer: /opt && \
-    chmod -R u+rw /opt
-
-RUN \
-    mkdir /python3venv && \
-    chown -R dlstreamer: /python3venv && \
-    chmod -R u+w /python3venv
-
-ENV LIBVA_DRIVER_NAME=iHD
-ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
-ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
-ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-ENV GST_VA_ALL_DRIVERS=1
-ENV MODEL_PROC_PATH=/opt/intel/dlstreamer/samples/gstreamer/model_proc
-ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:$PATH
-ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
-ENV TERM=xterm
-ENV GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
-
-RUN \
-    usermod -a -G video dlstreamer && \
-    ln -s /opt/intel/dlstreamer /home/dlstreamer/dlstreamer
-
-WORKDIR /home/dlstreamer
-USER dlstreamer
-
-RUN \
-    python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==75.8.0
-
-# DL Streamer Runtime ends
-
-######################## DL Streamer Pipeline Server builder ################################
-
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
 USER root
+
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
 
 WORKDIR /home/pipeline-server
 
@@ -180,7 +80,7 @@ ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
     CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
-    PATH=${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
+    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
     PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
 
 RUN export no_proxy= && \
@@ -251,11 +151,34 @@ RUN pip3 install ntplib==0.4.0
 #Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
 RUN pip3 install openvino-model-api==0.2.5
-RUN cd /usr/local/lib/python3.10/dist-packages/model_api && \
-    git apply /home/pipeline-server/model_api.patch   
 
-# Install Geti SDK
-RUN pip3 install geti-sdk==2.7.1
+# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    cd $MODEL_API_PATH && \
+    git apply /home/pipeline-server/model_api.patch
+
+# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
+# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
+# Detect Ubuntu version and install Rust only on Ubuntu 24
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends curl build-essential && \
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
+        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+        export PATH="/root/.cargo/bin:$PATH" && \
+        pip install --upgrade pip && \
+        pip install geti-sdk==2.7.1 && \
+        # clean up Rust installation files
+        rm -rf /root/.cargo /root/.rustup; \
+    else \
+        pip install --upgrade pip && \
+        pip install geti-sdk==2.7.1; \
+    fi && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
+
 
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 RUN pip3 uninstall -y cuda-python aiohappyeyeballs
@@ -341,13 +264,6 @@ WORKDIR /home/pipeline-server
 
 USER $USER
 
-# Install gRPC
-COPY packages/gRPC-py-2.0.0.zip ${WORKDIR}
-RUN mkdir -p grpc && unzip -o gRPC-py-2.0.0.zip -d grpc && \
-    rm -rf gRPC-py-2.0.0.zip
-
-RUN pip3 install --no-cache-dir grpcio==1.66.0 grpcio-tools==1.66.0
-
 # Copy source code
 COPY ./docker/run.sh .
 COPY ./utils/*.py ./utils/
@@ -400,6 +316,5 @@ COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva
 COPY ./configs/default/config.json /home/pipeline-server/config.json
 
 ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
-ENV PYTHONPATH $PYTHONPATH:/home/pipeline-server/grpc:/home/pipeline-server/grpc/protos
 
 ENTRYPOINT ["./run.sh"]
