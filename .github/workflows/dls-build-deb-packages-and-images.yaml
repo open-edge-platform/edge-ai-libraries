@@ -22,10 +22,6 @@ jobs:
           - path_deb: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
             path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-    env:
-      dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
-      dlstreamer-version: "2025.0.1.3"
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -49,6 +45,10 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build dev release img with cache from GHCR
+      env:
+        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+        dlstreamer-version: "2025.0.1.3"
       run: |
         docker buildx build \
           --load \
@@ -59,6 +59,9 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Build deb pkg img using dev release img
+      env:
+        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dlstreamer-version: "2025.0.1.3"
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
