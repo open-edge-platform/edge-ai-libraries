@@ -4,52 +4,7 @@ Within a running DL Streamer Pipeline Server container, you can start and stop a
 
 ## Steps
 
-1. Update default config.json present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with below configurations. 
-
-* Update "pipeline" variable as follows -
-```sh
-"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
-```
-
-* Add below mqtt config under "pipelines" section. 
-```json
-"mqtt_publisher":{
-    "publish_frame": true,
-    "topic": "pallet_defect_detection"
-},
-```
-
-Your default config.json would look like this after above modifications - 
-```json
-{
-    "config": {
-        "pipelines": [
-            {
-                "name": "pallet_defect_detection",
-                "source": "gstreamer",
-                "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
-                "parameters": {
-                    "type": "object",
-                    "properties": {
-                        "detection-properties": {
-                             "element": {
-                                "name": "detection",
-                                "format": "element-properties"
-                              }
-                        }
-                    }
-                },
-                "mqtt_publisher":{
-                    "publish_frame": true,
-                    "topic": "pallet_defect_detection"
-                },
-                "auto_start": false
-            }
-        ]
-    }
-}
-```
+1. Replace default config.json present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with sample mqtt config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. 
 
 Ensure that the changes made to the config.json are reflected in the container by volume mounting it as menioned in this -[tutorial](../../../how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)
 
@@ -87,11 +42,11 @@ data = {
         "metadata": {
             "type": "mqtt",
             "publish_frame": False,
-            "topic": "pallet_defect_detection"
+            "topic": "dlstreamer_pipeline_results"
         },
         "frame": {
             "type": "rtsp",
-            "path": "pallet_defect_detection"
+            "path": "dlstreamer_pipeline_results"
         }
     },
     "parameters": {
@@ -125,11 +80,11 @@ curl -X POST http://localhost:8080/pipelines/user_defined_pipelines/pallet_defec
             "metadata": {
                 "type": "mqtt",
                 "publish_frame": false,
-                "topic": "pallet_defect_detection"
+                "topic": "dlstreamer_pipeline_results"
             },
             "frame": {
                 "type": "rtsp",
-                "path": "pallet_defect_detection"
+                "path": "dlstreamer_pipeline_results"
             }
         },
         "parameters": {
@@ -143,6 +98,7 @@ curl -X POST http://localhost:8080/pipelines/user_defined_pipelines/pallet_defec
 
 Execute the following shell script as follows-
 ```sh
+chmod +x start_pipeline.sh
 ./start_pipeline.sh
 ```
 
@@ -150,26 +106,36 @@ Execute the following shell script as follows-
 
 5. Run the following command to check MQTT messages. Replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address.
 ```sh
-docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h <SYSTEM_IP_ADDRESS>
+docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic dlstreamer_pipeline_results -p 1883 -h <SYSTEM_IP_ADDRESS>
 ```
 
-6. RTSP stream can also be viewed at rtsp://<SYSTEM_IP_ADDRESS>:8554/pallet_defect_detection. Please replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address.
+6. RTSP stream can also be viewed at rtsp://<SYSTEM_IP_ADDRESS>:8554/dlstreamer_pipeline_results. Please replace `<SYSTEM_IP_ADDRESS>` with corresponding IP address.
 
-7. Stop the pipeline either via python snippet or shell script. Replace `<instance-id>` with corresponding ID obtained from step 4.
+7. Stop the pipeline either via python snippet or shell script. Replace `<instance-id>` with corresponding ID obtained from step 4 below.
 
-* To use python snippet, save the below snippet on your system and run it. 
+* To use python snippet, save the below snippet on your system as `stop_pipeline.py`.
 ```
 import requests
 url = "http://localhost:8080/pipelines/<instance-id>"
 response = requests.delete(url)
 print(f"Status Code: {response.status_code}")
 print(f"Response Body: {response.text}")
-
 ```
 
-* To use shell script, save the below script and execute it.
+Run the file using following command 
+```sh
+python3 stop_pipeline.py
+```
+
+* To use shell script, save the below script as `stop_pipeline.sh`.
 ```sh
 #!/bin/bash
 URL="http://localhost:8080/pipelines/<instance-id>"
 curl --location -X DELETE "$URL"
+```
+
+Execute the following shell script as follows-
+```sh
+chmod +x stop_pipeline.sh
+./stop_pipeline.sh
 ```

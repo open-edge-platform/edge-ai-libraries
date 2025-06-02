@@ -101,7 +101,7 @@ For example, the first line in Example 2 shows that the `detection` element expe
 
 ## Timestamp benchmark at various stages of starting a pipeline
 
-We ran an experiment to understand and benchmark latency at each stage of starting a pipeline. This has been captured below. 
+Following are results of an experiment to understand and benchmark latency at each stage of starting a pipeline. This has been captured below. 
 
 * Config from `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json` was used for this experiment. In the config, `"topic"` field was set to `"pallet_defect_detection"` under `"mqtt_publisher"`. To learn more about enabling mqtt, you can refer this [document](../../publisher/eis_mqtt_publish_doc.md)
 
