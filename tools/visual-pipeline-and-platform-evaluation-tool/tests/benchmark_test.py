@@ -145,7 +145,7 @@ class TestBenchmark(unittest.TestCase):
                 [
                     {
                         "params": {},
-                        "exit_code": 0,
+                        "exit_code": 1,
                         "total_fps": 30,
                         "per_stream_fps": 30,
                         "num_streams": 1,
