@@ -3,14 +3,15 @@ run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
-permissions:
-  packages: read
-  contents: read
+permissions: {}
 
 jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -26,7 +27,9 @@ jobs:
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules

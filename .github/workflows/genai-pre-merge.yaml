@@ -12,7 +12,7 @@ concurrency:
 on:
   pull_request:
     branches:
-      - ga-new-actions
+      - main
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'

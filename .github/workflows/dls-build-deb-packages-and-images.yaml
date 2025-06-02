@@ -3,14 +3,15 @@ run-name: "[DLS] [U22/24] Build .deb pkgs and deb imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
-permissions:
-  packages: read
-  contents: read
+permissions: {}
 
 jobs:
   build:
     name: Build ${{ matrix.ubuntu_version }} .debs and imgs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -29,6 +30,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -72,7 +74,7 @@ jobs:
         ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
         ls
         cp -r deb_packages ./edge-ai-libraries-repo/libraries/dl-streamer
-    
+
     - name: Build Docker img from .deb
       run: |
         docker build \
@@ -80,8 +82,23 @@ jobs:
           -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
+    - name: Scan Docker image with Trivy
+      uses: ./edge-ai-libraries-repo/.github/actions/trivy-image-scan
+      with:
+        image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+        severity: "CRITICAL"
+        # output-format: "json"
+        output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+
+    - name: Upload Trivy report as artifact
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+      with:
+        name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
+        path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
+
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries-repo
+        rm -rf edge-ai-libraries-repo dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
         docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true

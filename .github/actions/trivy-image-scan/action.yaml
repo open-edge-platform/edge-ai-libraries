@@ -1,0 +1,32 @@
+name: "Trivy Image Scan"
+description: "Scan a Docker image using Trivy with configurable severity levels and output options"
+#This action will fail if any vulnerbailities will be found
+inputs:
+  image:
+    description: "Docker image to scan (e.g. nginx:latest)"
+    required: true
+    type: string
+  severity:
+    description: "Comma-separated severity levels (e.g. LOW,MEDIUM,HIGH,CRITICAL)"
+    required: false
+    default: "LOW,MEDIUM,HIGH,CRITICAL"
+    type: string
+  output-format:
+    description: "Trivy output format (json, table, template, etc.)"
+    required: false
+    default: "table"
+    type: string
+  output-file:
+    description: "File path to save Trivy report (optional)"
+    required: false
+    type: string
+
+runs:
+  using: "docker"
+  image: "Dockerfile"
+  entrypoint: "/entrypoint.sh"
+  args:
+    - ${{ inputs.image }}
+    - ${{ inputs.severity }}
+    - ${{ inputs.output-format }}
+    - ${{ inputs.output-file }}
