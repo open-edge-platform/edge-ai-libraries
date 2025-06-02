@@ -33,12 +33,9 @@ services:
       - SEED=${SEED}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
-      - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
       - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
-      - OTEL_METRICS_EXPORTER=otlp
-      - OTEL_TRACES_EXPORTER=otlp
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
     networks:
@@ -169,6 +166,8 @@ services:
       - "8080:80"
     volumes:
       - "~/.cache/huggingface:/root/.cache/huggingface"
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /etc/ssl/certs:/etc/ssl/certs
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -187,6 +186,7 @@ services:
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT_TRACE}
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
     cap_add:
       - SYS_NICE
     healthcheck:
