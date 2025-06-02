@@ -63,6 +63,9 @@ services:
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
+      - MR_URL=${MR_URL}
+      - MR_SAVED_MODELS_DIR=${MR_SAVED_MODELS_DIR}
+      - MR_REQUEST_TIMEOUT=${MR_REQUEST_TIMEOUT}
       - MR_VERIFY_CERT=${MR_VERIFY_CERT}
       # Append pipeline name to a publisher topic
       - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
