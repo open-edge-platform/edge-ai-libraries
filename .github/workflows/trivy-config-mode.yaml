@@ -86,7 +86,7 @@ jobs:
           dockerfile-path: ${{ inputs.dockerfile-path }}
           output-report-path: ${{ inputs.output-report-path }}
           severity-levels: ${{ inputs.severity-levels }}
-          report-format: ${{ inputs.trivy-report-format }}
+          report-format: "${{ inputs.trivy-report-format }}"
         run: |
           echo "🔍 Scanning: ${dockerfile-path}"
           echo "📁 Saving report to: ${output-report-path}"
