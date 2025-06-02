@@ -205,11 +205,14 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set BASE_IMAGE
+      env:
+        BASE_IMAGE22: ${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}
+        BASE_IMAGE24: ${{ needs.build-dls-deb-img.outputs.ubuntu24_image }}
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
-          echo "BASE_IMAGE=${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}" >> $GITHUB_ENV
+          echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
         elif [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
-          echo "BASE_IMAGE=${{ needs.build-dls-deb-img.outputs.ubuntu24_image }}" >> $GITHUB_ENV
+          echo "BASE_IMAGE=${BASE_IMAGE24}" >> $GITHUB_ENV
         fi
 
     - name: Build dls-pipeline-server-img
