@@ -29,8 +29,6 @@ jobs:
       ubuntu22_image: ${{ steps.save-image-ubuntu22.outputs.image }}
       ubuntu24_image: ${{ steps.save-image-ubuntu24.outputs.image }}
     env:
-      dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
-      dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
       dlstreamer-version: "2025.0.1.3"
     steps:
     - name: Check out edge-ai-libraries repository
@@ -55,12 +53,15 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev release img
+      env:
+        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
+        dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --push \
-          --tag ${{ env.dev-release-img}} \
-          --cache-from=${{ env.dev-release-img-cached }} \
-          --cache-to=type=registry,ref=${{ env.dev-release-img-cached }},mode=max \
+          --tag ${dev-release-img} \
+          --cache-from=${dev-release-img-cached} \
+          --cache-to=type=registry,ref=${dev-release-img-cached},mode=max \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           --build-arg BUILD_ARG=${{ matrix.build_arg }} \
@@ -68,12 +69,14 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Build deb pkg img using dev release img
+      env:
+        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE="${{ env.dev-release-img }}" \
+          --build-arg BASE_IMAGE="${dev-release-img}" \
           -f ${{ matrix.path_deb }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -127,9 +130,6 @@ jobs:
           - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
             build_arg: Debug
-    env:
-      dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
-      dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -153,13 +153,16 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build and push Docker dev img
+      env:
+        dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+        dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --push \
           --build-arg BUILD_ARG=${{ matrix.build_arg }} \
-          --tag ${{ env.dev-debug-img }} \
-          --cache-from=type=registry,ref=${{ env.dev-debug-img-cached }} \
-          --cache-to=type=registry,ref=${{ env.dev-debug-img-cached }},mode=max \
+          --tag ${dev-debug-img} \
+          --cache-from=type=registry,ref=${dev-debug-img-cached} \
+          --cache-to=type=registry,ref=${env.dev-debug-img-cached},mode=max \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -202,11 +205,14 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Set BASE_IMAGE
+      env:
+        BASE_IMAGE22: ${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}
+        BASE_IMAGE24: ${{ needs.build-dls-deb-img.outputs.ubuntu24_image }}
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
-          echo "BASE_IMAGE=${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}" >> $GITHUB_ENV
+          echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
         elif [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
-          echo "BASE_IMAGE=${{ needs.build-dls-deb-img.outputs.ubuntu24_image }}" >> $GITHUB_ENV
+          echo "BASE_IMAGE=${BASE_IMAGE24}" >> $GITHUB_ENV
         fi
 
     - name: Build dls-pipeline-server-img
