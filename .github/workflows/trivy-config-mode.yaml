@@ -97,7 +97,7 @@ jobs:
             "${dockerfile_path}"
 
           echo "📄 Report preview:"
-          head -n 100 "${output-report-path}"
+          head -n 100 "${output_report_path}"
 
       - name: Check Trivy scan failures
         env:
