@@ -204,9 +204,11 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build dls-pipeline-server-img
+      env:
+        ubuntu22_image: ${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
-        export BASE_IMAGE=${{ needs.build-dls-deb-img.outputs.ubuntu22_image }}
+        export BASE_IMAGE=${ubuntu22_image}
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=dlstreamer-pipeline-server.Dockerfile
         docker compose build --no-cache --pull
