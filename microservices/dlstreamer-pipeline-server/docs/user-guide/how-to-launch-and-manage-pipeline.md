@@ -134,7 +134,7 @@ URL="http://localhost:8080/pipelines/<instance-id>"
 curl --location -X DELETE "$URL"
 ```
 
-Execute the following shell script as follows-
+Execute the shell script as follows-
 ```sh
 chmod +x stop_pipeline.sh
 ./stop_pipeline.sh
