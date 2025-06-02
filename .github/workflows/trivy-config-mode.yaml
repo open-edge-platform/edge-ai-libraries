@@ -79,7 +79,7 @@ jobs:
         env:
           output-report-path: ${{ inputs.output-report-path }}
         run: |
-          mkdir -p "$(dirname "$output-report-path")"
+          mkdir -p "$(dirname "${{ env.output-report-path }}")"
 
       - name: Run Trivy config scan and save output
         env:
@@ -126,3 +126,4 @@ jobs:
         env:  
           output-report-path: ${{ inputs.output-report-path }}
         run: rm -rf "$output-report-path"
+        
