@@ -101,9 +101,9 @@ jobs:
 
       - name: Check Trivy scan failures
         env:
-          output-report-path: ${{ inputs.output-report-path }}
+          output_report_path: ${{ inputs.output-report-path }}
         run: |
-          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${output-report-path}")
+          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${output_report_path}")
           echo "Failures found: $FAILURE_COUNT"
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
@@ -115,14 +115,14 @@ jobs:
 
       - name: Upload Trivy report as artifact
         env:
-          output-report-path: ${{ inputs.output-report-path }}
+          output_report_path: ${{ inputs.output-report-path }}
           name: ${{ inputs.name }}
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
           name: trivy-config-report-${name}
-          path: ${output-report-path}
+          path: ${output_report_path}
 
       - name: Clean up
         env:
-          output-report-path: ${{ inputs.output-report-path }}
-        run: rm -rf "${output-report-path}"
+          output_report_path: ${{ inputs.output-report-path }}
+        run: rm -rf "${output_report_path}"
