@@ -12,8 +12,4 @@ SECURITY.md @xwu2intel
 /microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
 /microservices/model-registry/ @rrajore @elroyashjr
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-
-
-
-
-
+/microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel
