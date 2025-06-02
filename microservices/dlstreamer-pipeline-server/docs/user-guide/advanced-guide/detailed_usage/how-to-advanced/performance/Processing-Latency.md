@@ -168,6 +168,8 @@ Total time - 556ms
 | **Processor**       | Intel(R) Core(TM) i7-10710U CPU |
 | **Memory**          | 32 GB                     |
 
+Conclusion: For the above hardware, we can conclude that there is a latency of ~21 ms from the pipeline start curl command (t1) to the first frame received on source element in the pipeline (t4)
+
 ## Learn More
 
 For more information on the Gstreamer tracing and debug log levels, refer to the following links:
