@@ -91,7 +91,7 @@ jobs:
           echo "🔍 Scanning: $dockerfile-path"
           echo "📁 Saving report to: $output-report-path"
           trivy config \
-            --severity "$inputs.severity-levels" \
+            --severity "$severity-levels" \
             --format "$trivy-report-format" \
             --output "$output-report-path" \
             "$dockerfile-path"
