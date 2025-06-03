@@ -54,14 +54,14 @@ jobs:
 
     - name: Build and push Docker dev release img
       env:
-        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
-        dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
+        dev_release_img_cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --push \
-          --tag ${dev-release-img} \
-          --cache-from=${dev-release-img-cached} \
-          --cache-to=type=registry,ref=${dev-release-img-cached},mode=max \
+          --tag ${dev_release_img} \
+          --cache-from=${dev_release_img_cached} \
+          --cache-to=type=registry,ref=${dev_release_img_cached},mode=max \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           --build-arg BUILD_ARG=${{ matrix.build_arg }} \
@@ -70,13 +70,13 @@ jobs:
 
     - name: Build deb pkg img using dev release img
       env:
-        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
+        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:latest
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE="${dev-release-img}" \
+          --build-arg BASE_IMAGE="${dev_release_img}" \
           -f ${{ matrix.path_deb }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -154,15 +154,15 @@ jobs:
 
     - name: Build and push Docker dev img
       env:
-        dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
-        dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
+        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+        dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --push \
           --build-arg BUILD_ARG=${{ matrix.build_arg }} \
-          --tag ${dev-debug-img} \
-          --cache-from=type=registry,ref=${dev-debug-img-cached} \
-          --cache-to=type=registry,ref=${dev-debug-img-cached},mode=max \
+          --tag ${dev_debug_img} \
+          --cache-from=type=registry,ref=${dev_debug_img_cached} \
+          --cache-to=type=registry,ref=${dev_debug_img_cached},mode=max \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
