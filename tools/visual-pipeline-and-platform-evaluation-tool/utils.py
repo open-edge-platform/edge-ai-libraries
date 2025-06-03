@@ -25,8 +25,6 @@ def prepare_video_and_constants(
     object_classification_nireq,
     object_classification_inference_interval,
     object_classification_reclassify_interval,
-    
-
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
