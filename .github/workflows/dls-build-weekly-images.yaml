@@ -162,7 +162,7 @@ jobs:
           --build-arg BUILD_ARG=${{ matrix.build_arg }} \
           --tag ${dev-debug-img} \
           --cache-from=type=registry,ref=${dev-debug-img-cached} \
-          --cache-to=type=registry,ref=${env.dev-debug-img-cached},mode=max \
+          --cache-to=type=registry,ref=${dev-debug-img-cached},mode=max \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
