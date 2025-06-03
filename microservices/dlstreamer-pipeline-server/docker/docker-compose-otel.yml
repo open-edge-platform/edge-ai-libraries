@@ -17,7 +17,7 @@ services:
       - app_network
 
   dlstreamer-pipeline-server:
-    image: intel/dlstreamer-pipeline-server:3.0.0
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
     read_only: true
@@ -26,12 +26,13 @@ services:
     build:
       context: ..
       target: dlstreamer-pipeline-server
+      dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
         UTILS_LIB_VERSION: 4.0.0
         UID: ${UID}
         USER: ${PIPELINE_SERVER_USER}
-        BASE_IMAGE: "ubuntu:22.04"
+        BASE_IMAGE: ${BASE_IMAGE}
         CMAKE_INSTALL_PREFIX: "/opt/intel/eii"
         # Download sources for GPL/LGPL/AGPL binary distributed components (yes/no)
         DOWNLOAD_GPL_SOURCES: "no"
@@ -105,6 +106,8 @@ services:
       - "109"
       # render group ID for ubuntu 22.04 host OS
       - "110"
+      # render group ID for ubuntu 24.04 host OS
+      - "992"
     device_cgroup_rules:
       # Default run - device-cgroup-rule='c 189:* rmw'
       # Selective rules can be applied for deployment
