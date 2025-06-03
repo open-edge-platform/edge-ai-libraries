@@ -61,27 +61,22 @@ class ModelRegistryClient:
             try:
                 self._request_timeout = int(request_timeout)
             except ValueError:
-                self._logger.debug("The 'MR_REQUEST_TIMEOUT' environment variable "
-                                   " is not an integer. Using default value: "
-                                   "%s", default_timeout)
-                self._request_timeout = default_timeout
+                self._request_timeout = self._get_env_var_or_default_value(
+                    var_name="MR_REQUEST_TIMEOUT",
+                    default_value=default_timeout,
+                    use_default=True)
 
-            self._url = os.getenv("MR_URL")
-            if not self._url:
-                self._logger.debug("The 'MR_URL' environment variable is not set. "
-                                   "The Model Registry Client will not connect to "
-                                   "the model registry microservice.")
+            self._url = self._get_env_var_or_default_value(var_name="MR_URL",
+                                                           default_value="")
 
-            if self._url.startswith("https://"):
+            if isinstance(self._url, str) and self._url.startswith("https://"):
                 self._verify_cert = ModelRegistryClient._get_verify_cert(
                     os.getenv("MR_VERIFY_CERT",
                               "/run/secrets/ModelRegistry_Server/ca-bundle.crt"))
 
-            self._saved_models_dir = os.getenv("MR_SAVED_MODELS_DIR", "./mr_models")
-            if not self._saved_models_dir:
-                self._logger.debug("The 'MR_SAVED_MODELS_DIR' environment variable is not set. "
-                                   "Using default value: ./mr_models")
-                self._saved_models_dir = "./mr_models"
+            self._saved_models_dir = self._get_env_var_or_default_value(
+                var_name="MR_SAVED_MODELS_DIR",
+                default_value="./mr_models")
 
             if self._url:
                 self.is_ready = True
@@ -94,6 +89,7 @@ class ModelRegistryClient:
         except Exception as e:
             self._logger.debug("Exception occurred while initializing Model "
                                 "Registry Client: %s", e)
+
     @classmethod
     def _get_verify_cert(cls, string: str) -> Union[str, bool]:
         """Return a file path or boolean to be used for enabling or disabling SSL certificate verification
@@ -122,24 +118,31 @@ class ModelRegistryClient:
 
         return val
 
-    # def _login_to_mr_microservice(self):
-    #     """Connect to a running model registry microservice
-    #     """
-    #     try:
-    #         login_form_data = {"username": "admin", "password": self._user_password}
-    #         self._logger.debug(
-    #             "Connection to the model registry microservice requested.")
-    #         resp = requests.post(
-    #             url=self._url+"/login", data=login_form_data, verify=self._verify_cert,
-    #             timeout=self._request_timeout)
-    #         self._auth_header = {
-    #             "Authorization": "Bearer "+resp.json()["access_token"]}
-    #         self._logger.info(
-    #             "Connection to the model registry microservice successful.")
-    #         self._is_connected = True
-    #     except Exception as e:
-    #         self._logger.error("Exception occurred while connecting to the"
-    #                            " model registry microservice: %s", e)
+    def _get_env_var_or_default_value(self,
+                                      var_name: str,
+                                      default_value: Union[str, int, bool],
+                                      use_default=False):
+        """
+        Returns the value of an environment variable, or a default if not set or empty.
+        Logs a debug message if the environment variable is not set or is empty.
+
+        Args:
+            var_name (str): The name of the environment variable.
+            default_value (Union[str, int, bool]): The default value to use if the 
+            environment variable is not set or empty.
+
+        Returns:
+            The value of the environment variable or the default value.
+        """
+        value = os.getenv(var_name)
+
+        if not value or use_default:
+            self._logger.debug("The '%s' environment variable is empty, not set "
+                                "or an invalid value. Using default value: %s.",
+                                var_name, default_value)
+            return default_value
+
+        return value
 
     def _send_request(self, url: str, method: RequestMethod = RequestMethod.GET,
                        params=None, data=None, stream: bool=False) -> Response:
