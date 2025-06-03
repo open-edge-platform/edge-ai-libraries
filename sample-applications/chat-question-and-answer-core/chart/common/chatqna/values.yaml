@@ -1,6 +1,6 @@
 image:
   registry: "intel/"
-  uiTag: "core_1.2"
+  uiTag: "core_1.2.0"
   pullPolicy: IfNotPresent
 
 global:
