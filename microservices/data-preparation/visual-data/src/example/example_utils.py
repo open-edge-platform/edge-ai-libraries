@@ -9,7 +9,7 @@ from pathlib import Path
 import shutil
 import argparse
 
-DAVIS_SUBSET_CATAGORIES = ["car-race", "deer", "guitar-violin", "gym", "helicopter", "carousel", "monkeys-trees", "golf", "rollercoaster", "horsejump-stick", "planes-crossing", "tractor"]
+DAVIS_SUBSET_CATEGORIES = ["car-race", "deer", "guitar-violin", "gym", "helicopter", "carousel", "monkeys-trees", "golf", "rollercoaster", "horsejump-stick", "planes-crossing", "tractor"]
 
 
 def images_to_video(image_folder: str, video_name: str, fps: int = 24) -> None:
