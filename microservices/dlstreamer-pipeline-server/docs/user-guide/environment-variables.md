@@ -57,6 +57,9 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 - **ADD_UTCTIME_TO_METADATA**=true : Add UTC timestamp in metadata by DL Streamer Pipeline Server publisher
 - **HTTPS**=false : Make it `true` to enable SSL/TLS secure mode, mount the generated certificates
 - **MTLS_VERIFICATION**=false : Enable/disable client certificate verification for mTLS Model Registry Microservice
-- **MR_VERIFY_CERT**=/run/secrets/ModelRegistry_Server/ca-bundle.crt : Path to Model Registry certificate
+- **MR_URL**= : URL where the model registry microservice is accessible (e.g., `http://10.100.10.100:32002`). If not set or left empty, the DL Streamer Pipeline Server will not be able to connect to the model registry successfully.
+- **MR_SAVED_MODELS_DIR**=./mr_models : Default directory to store models downloaded from the model registry microservice
+- **MR_REQUEST_TIMEOUT**=300 : Default timeout for requests sent to the model registry microservice
+- **MR_VERIFY_CERT**=/run/secrets/ModelRegistry_Server/ca-bundle.crt : Default path to the certificate bundle associated with the model registry microservice
 - **APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC**=false: Add pipeline name to a published topic(optional)
 - **LOG_LEVEL**=INFO : Set the logging level for DL Streamer Pipeline Server
