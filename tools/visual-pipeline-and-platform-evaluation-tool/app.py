@@ -517,8 +517,8 @@ def create_interface():
         value=preferred_device,
     )
 
-    # Batch size
-    batch_size = gr.Slider(
+    # Object detection batch size
+    object_detection_batch_size = gr.Slider(
         minimum=0,
         maximum=32,
         value=0,
@@ -527,8 +527,8 @@ def create_interface():
         interactive=True,
     )
 
-    # Inference interval
-    inference_interval = gr.Slider(
+    # Object detection inference interval
+    object_detection_inference_interval = gr.Slider(
         minimum=1,
         maximum=5,
         value=1,
@@ -537,8 +537,8 @@ def create_interface():
         interactive=True,
     )
 
-    # Number of inference requests (nireq)
-    nireq = gr.Slider(
+    # Object Detection number of inference requests (nireq)
+    object_detection_nireq = gr.Slider(
         minimum=0,
         maximum=4,
         value=0,
@@ -622,11 +622,11 @@ def create_interface():
                     inferencing_channels,
                     object_detection_model,
                     object_detection_device,
+                    object_detection_batch_size,
+                    object_detection_inference_interval,
+                    object_detection_nireq,
                     object_classification_model,
                     object_classification_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
                     input_video_player,
                 ):
                     global stream_dfs
@@ -637,15 +637,18 @@ def create_interface():
                     with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
                         f.write(f"0.0\n")
 
+                    print(object_classification_model)
+                    print(object_classification_device)
+
                     video_output_path, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        object_classification_model,
-                        object_classification_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
+                        input_video_player=input_video_player,
+                        object_detection_model=object_detection_model,
+                        object_detection_device=object_detection_device,
+                        object_detection_batch_size=object_detection_batch_size,
+                        object_detection_nireq=object_detection_nireq,
+                        object_detection_inference_interval=object_detection_inference_interval,
+                        object_classification_model=object_classification_model,
+                        object_classification_device=object_classification_device,
                     )
 
                     # Validate channels
@@ -675,23 +678,23 @@ def create_interface():
                     rate,
                     object_detection_model,
                     object_detection_device,
+                    object_detection_batch_size,
+                    object_detection_inference_interval,
+                    object_detection_nireq,
                     object_classification_model,
                     object_classification_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
                     input_video_player,
                 ):
                     
                     _, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        object_classification_model,
-                        object_classification_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
+                        input_video_player=input_video_player,
+                        object_detection_model=object_detection_model,
+                        object_detection_device=object_detection_device,
+                        object_detection_batch_size=object_detection_batch_size,
+                        object_detection_nireq=object_detection_nireq,
+                        object_detection_inference_interval=object_detection_inference_interval,
+                        object_classification_model=object_classification_model,
+                        object_classification_device=object_classification_device,
                     )
 
                     # Initialize the benchmark class
@@ -753,11 +756,11 @@ def create_interface():
                         inferencing_channels,
                         object_detection_model,
                         object_detection_device,
+                        object_detection_batch_size,
+                        object_detection_inference_interval,
+                        object_detection_nireq,
                         object_classification_model,
                         object_classification_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
                         input_video_player,
                     ],
                     outputs=[output_video_player] + plots + [best_config_textbox],
@@ -780,11 +783,11 @@ def create_interface():
                         rate,
                         object_detection_model,
                         object_detection_device,
+                        object_detection_batch_size,
+                        object_detection_inference_interval,
+                        object_detection_nireq,
                         object_classification_model,
                         object_classification_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
                         input_video_player,
                     ],
                     outputs=[best_config_textbox],
@@ -806,9 +809,9 @@ def create_interface():
                 with object_detection_accordion.render():
                     object_detection_model.render()
                     object_detection_device.render()
-                    batch_size.render()
-                    inference_interval.render()
-                    nireq.render()
+                    object_detection_batch_size.render()
+                    object_detection_inference_interval.render()
+                    object_detection_nireq.render()
 
                 with object_classification_accordion.render():
                     object_classification_model.render()

@@ -27,14 +27,14 @@ class TestUtils(unittest.TestCase):
     ):
         mock_exists.return_value = True
         output_path, constants, param_grid = prepare_video_and_constants(
-            self.input_video,
-            "SSDLite MobileNet V2",
-            "CPU",
-            "ResNet-50 TF",
-            "CPU",
-            batch_size=1,
-            nireq=1,
-            inference_interval=1,
+            input_video_player=self.input_video,
+            object_detection_model="SSDLite MobileNet V2",
+            object_detection_device="CPU",
+            object_detection_batch_size=1,
+            object_detection_nireq=1,
+            object_detection_inference_interval=1,
+            object_classification_model="ResNet-50 TF",
+            object_classification_device="CPU",
         )
         mock_remove.assert_called_once()
         self.assertTrue(output_path.endswith(".mp4"))
