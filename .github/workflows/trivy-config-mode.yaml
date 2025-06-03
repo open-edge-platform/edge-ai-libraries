@@ -88,8 +88,8 @@ jobs:
           severity_levels: ${{ inputs.severity-levels }}
           trivy_report_format: ${{ inputs.trivy-report-format }}
         run: |
-          echo "🔍 Scanning: ${dockerfile-path}"
-          echo "📁 Saving report to: ${output-report-path}"
+          echo "🔍 Scanning: ${dockerfile_path}"
+          echo "📁 Saving report to: ${output_report_path}"
           trivy config \
             --severity "${severity_levels}" \
             --format "${trivy_report_format}" \
