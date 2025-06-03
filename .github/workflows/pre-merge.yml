@@ -11,11 +11,12 @@ on:  # yamllint disable-line rule:truthy
       - release-*
   workflow_dispatch:
 
-permissions:
-  contents: read          # needed for actions/checkout
+permissions: {}
 
 jobs:
   filter:
+    permissions:
+      contents: read          # needed for actions/checkout
     runs-on: ubuntu-latest
     outputs:
       dlstreamer-pipeline-server_changed: ${{ steps.filter.outputs.dlstreamer-pipeline-server }}
@@ -27,29 +28,33 @@ jobs:
       chat-question-and-answer-core_changed: ${{ steps.filter.outputs.chat-question-and-answer-core }}
     steps:
       - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Set paths filter
         id: filter
         uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
         with:
           filters: |
             dlstreamer-pipeline-server:
-              - 'microservices/dlstreamer-pipeline-server/docs**'
+              - 'microservices/dlstreamer-pipeline-server/docs/**'
             document-ingestion:
-              - 'microservices/document-ingestion/docs**'
+              - 'microservices/document-ingestion/docs/**'
             model-registry:
-              - 'microservices/model-registry/docs**'
+              - 'microservices/model-registry/docs/**'
             object-store:
-              - 'microservices/object-store/docs**'
+              - 'microservices/object-store/docs/**'
             chat-question-and-answer:
-              - 'sample-applications/chat-question-and-answer/docs**'
+              - 'sample-applications/chat-question-and-answer/docs/**'
             visual-pipeline-platform-tool:
-              - 'tools/visual-pipeline-and-platform-evaluation-tool/docs**'
+              - 'tools/visual-pipeline-and-platform-evaluation-tool/docs/**'
             chat-question-and-answer-core:
-              - 'sample-applications/chat-question-and-answer-core/docs**'
+              - 'sample-applications/chat-question-and-answer-core/docs/**'
   build_dlstreamer-pipeline-server:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.dlstreamer-pipeline-server_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -57,9 +62,11 @@ jobs:
     with:
       docs_directory: microservices/dlstreamer-pipeline-server
   build_document-ingestion:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.document-ingestion_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -67,9 +74,11 @@ jobs:
     with:
       docs_directory: microservices/document-ingestion
   build_model-registry:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.model-registry_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -77,9 +86,11 @@ jobs:
     with:
       docs_directory: microservices/model-registry
   build_object-store:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.object-store_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -87,9 +98,11 @@ jobs:
     with:
       docs_directory: microservices/object-store
   build_chat-question-and-answer:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -97,9 +110,11 @@ jobs:
     with:
       docs_directory: sample-applications/chat-question-and-answer
   build_visual-pipeline-platform-tool:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.visual-pipeline-platform-tool_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -107,9 +122,11 @@ jobs:
     with:
       docs_directory: tools/visual-pipeline-and-platform-evaluation-tool
   build_chat-question-and-answer-core:
+    permissions:
+      contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer-core_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
