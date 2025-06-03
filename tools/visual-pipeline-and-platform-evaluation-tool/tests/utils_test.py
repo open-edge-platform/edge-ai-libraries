@@ -4,6 +4,7 @@ import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
 
+import utils
 from utils import prepare_video_and_constants, run_pipeline_and_extract_metrics
 
 
@@ -46,10 +47,9 @@ class TestUtils(unittest.TestCase):
     def test_run_pipeline_and_extract_metrics(self, mock_select, mock_ps, mock_popen):
         # Mock pipeline command
         class DummyPipeline:
-            def evaluate(
-                self, constants, params, regular_channels, inference_channels, elements
-            ):
-                return "echo FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps"
+            def evaluate(self, *_):
+                return "gst-launch-1.0 videotestsrc ! fakesink"
+                return "gst-launch-1.0 videotestsrc ! fakesink"
 
         # Mock process
         process_mock = MagicMock()
@@ -77,6 +77,40 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(results[0]["total_fps"], 100.0)
         self.assertEqual(results[0]["per_stream_fps"], 100.0)
         self.assertEqual(results[0]["num_streams"], 1)
+
+    @patch("utils.Popen")
+    def test_stop_pipeline(self, mock_popen):
+        # Mock pipeline command
+        class DummyPipeline:
+            def evaluate(self, *_):
+                return "gst-launch-1.0 videotestsrc ! fakesink"
+
+        # Mock process
+        process_mock = MagicMock()
+        process_mock.poll.side_effect = [None]
+        mock_popen.return_value = process_mock
+
+        constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
+        parameters = {"object_detection_device": ["CPU"]}
+
+        # Signal to stop the pipeline
+        utils.cancelled = True
+
+        # Run the pipeline
+        results = run_pipeline_and_extract_metrics(
+            DummyPipeline(),
+            constants,
+            parameters,
+            channels=1,
+            elements=[],
+            poll_interval=0,
+        )
+        self.assertIsInstance(results, list)
+        self.assertEqual(utils.cancelled, False)
+        process_mock.terminate.assert_called_once()
+        self.assertEqual(results[0]["total_fps"], "N/A")
+        self.assertEqual(results[0]["per_stream_fps"], "N/A")
+        self.assertEqual(results[0]["num_streams"], "N/A")
 
 
 if __name__ == "__main__":
