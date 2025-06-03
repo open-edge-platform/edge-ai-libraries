@@ -170,7 +170,6 @@ def run_pipeline_and_extract_metrics(
 
             # Poll the process to check if it is still running
             while process.poll() is None:
-                logger.warning(f"Cancelled flag value: {utils.cancelled}")  # Use logger instead of print
                 if utils.cancelled:
                     process.terminate()
                     utils.cancelled = False

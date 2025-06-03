@@ -810,7 +810,7 @@ def create_interface():
                 benchmark_button.click(
                     on_run_click,
                     outputs=[run_button, benchmark_button, stop_button],
-                    queue=True,
+                    queue=False,
                 ).then(
                     on_benchmark,
                     inputs=[
