@@ -5,7 +5,7 @@ services:
   dataprep_microservice:
     build:
       target: dev
-    image: intel/document-ingestion:1.2-dev
+    image: intel/document-ingestion:1.2.0-dev
     environment:
       DEFAULT_BUCKET: "intel.gai.dev.test"
       OBJECT_PREFIX: "test"
