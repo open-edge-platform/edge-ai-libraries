@@ -108,23 +108,6 @@ def download_file(url, local_filename):
                 file.write(chunk)  # Write each chunk to the local file
 
 
-# This elements are not used in the current version of the app
-# # Function to check if a click is inside any bounding box
-# def detect_click(evt: gr.SelectData):
-#     x, y = evt.index
-
-#     for x_min, y_min, x_max, y_max, label, description in pipeline.bounding_boxes():
-#         if x_min <= x <= x_max and y_min <= y <= y_max:
-
-#             match label:
-#                 case "Object Detection":
-#                     return gr.update(open=True), gr.update(open=False)
-#                 case "Object Classification":
-#                     return gr.update(open=False), gr.update(open=True)
-
-#     return gr.update(open=False), gr.update(open=False)
-
-
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
     x, y = evt.index
@@ -483,6 +466,9 @@ def create_interface():
         interactive=True
     )
 
+    # Inference accordion
+    inference_accordion = gr.Accordion("Inference Parameters", open=True)
+
     # Get available and preferred devices for inference
     device_choices = [
         (device.full_device_name, device.device_name)
@@ -491,11 +477,6 @@ def create_interface():
     preferred_device = next(
         ( "GPU" for device_name in device_choices if "GPU" in device_name),
         ( "CPU" ),
-    )
-
-    # Object detection accordion
-    object_detection_accordion = gr.Accordion(
-        "Object Detection Parameters", open=True
     )
 
     # Object detection model
@@ -525,7 +506,7 @@ def create_interface():
         maximum=32,
         value=0,
         step=1,
-        label="Batch Size",
+        label="Object Detection Batch Size",
         interactive=True,
     )
 
@@ -535,7 +516,7 @@ def create_interface():
         maximum=5,
         value=1,
         step=1,
-        label="Inference Interval",
+        label="Object Detection Inference Interval",
         interactive=True,
     )
 
@@ -545,13 +526,8 @@ def create_interface():
         maximum=4,
         value=0,
         step=1,
-        label="Number of Inference Requests (nireq)",
+        label=" Object Detection Number of Inference Requests (nireq)",
         interactive=True,
-    )
-
-    # Object classification accordion
-    object_classification_accordion = gr.Accordion(
-        "Object Classification Parameters", open=True
     )
 
     # Object classification model
@@ -578,7 +554,7 @@ def create_interface():
         maximum=32,
         value=0,
         step=1,
-        label="Batch Size",
+        label="Object Classification Batch Size",
         interactive=True,
     )
 
@@ -588,7 +564,7 @@ def create_interface():
         maximum=5,
         value=1,
         step=1,
-        label="Inference Interval",
+        label="Object Classification Inference Interval",
         interactive=True,
     )
 
@@ -598,7 +574,7 @@ def create_interface():
         maximum=4,
         value=0,
         step=1,
-        label="Number of Inference Requests (nireq)",
+        label="Object Classification Number of Inference Requests (nireq)",
         interactive=True,
     )
 
@@ -608,7 +584,7 @@ def create_interface():
         maximum=5,
         value=1,
         step=1,
-        label="Reclassification Interval",
+        label="Object Classification Reclassification Interval",
         interactive=True,
     )
 
@@ -636,8 +612,7 @@ def create_interface():
                 pipeline_image.select(
                     detect_click,
                     None,
-                    # [object_detection_accordion, object_classification_accordion],
-                    [object_detection_accordion],
+                    [inference_accordion],
                 )
                 run_button.render()
                 benchmark_button.render()
@@ -872,14 +847,14 @@ def create_interface():
                     fps_floor.render()
                     rate.render()
                 
-                with object_detection_accordion.render():
+                with inference_accordion.render():
+
                     object_detection_model.render()
                     object_detection_device.render()
                     object_detection_batch_size.render()
                     object_detection_inference_interval.render()
                     object_detection_nireq.render()
 
-                with object_classification_accordion.render():
                     object_classification_model.render()
                     object_classification_device.render()
                     object_classification_batch_size.render()
