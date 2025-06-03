@@ -49,7 +49,6 @@ class TestUtils(unittest.TestCase):
         class DummyPipeline:
             def evaluate(self, *_):
                 return "gst-launch-1.0 videotestsrc ! fakesink"
-                return "gst-launch-1.0 videotestsrc ! fakesink"
 
         # Mock process
         process_mock = MagicMock()
