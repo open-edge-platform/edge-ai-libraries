@@ -21,7 +21,7 @@ cd edge-ai-libraries/microservices
 Run the command to build image:
 
 ```bash
-docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f dataprep/dataprep-visual-data/src/Dockerfile .
+docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f data-preparation/visual-data/src/Dockerfile .
 ```
 
 ### Step 2: Prepare host directories for models and data
@@ -41,8 +41,8 @@ Make sure to put all your data (images and video) in the created data directory 
 1. Go to the deployment files
 
     ``` bash
-    cd microservices/dataprep/dataprep-visual-data
-    cd deployment/docker_compose/
+    cd microservices/data-preparation/visual-data
+    cd deployment/docker-compose/
     ```
 
 2.  Set up environment variables
@@ -87,7 +87,7 @@ milvus-standalone            "/tini -- milvus run…"   milvus-standalone       
 If you have customized requirements for the Milvus Server, you may start the Milvus Server separately and run the commands for dateprep service only
 
 ``` bash
-cd deployment/docker_compose/
+cd deployment/docker-compose/
 
 source env.sh # refer to Option 1 for model selection
 

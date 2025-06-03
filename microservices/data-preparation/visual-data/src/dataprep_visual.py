@@ -117,7 +117,7 @@ async def ingest(request: Union[IngestHostDirRequest, IngestHostFileRequest] = B
         logger.info(f"Received IngestHostFileRequest: {request}")
         return await ingest_host_file(request)
     else:
-        raise HTTPException(status_code=400, detail="Invalid request type.")
+        raise HTTPException(status_code=500, detail="Invalid request type.")
 
 async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
     """
@@ -138,7 +138,7 @@ async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
 
         # Validate the directory
         if not os.path.isdir(file_dir_cont):
-            raise HTTPException(status_code=400, detail="Invalid directory path.")
+            raise HTTPException(status_code=500, detail="Invalid directory path.")
 
         proc_files = []
         metas = []
@@ -196,7 +196,7 @@ async def ingest_host_file(request: IngestHostFileRequest = Body(...)):
         file_path_cont = helper_map2container(file_path)
 
         if not os.path.exists(file_path_cont):
-            raise HTTPException(status_code=400, detail="Invalid file path.")
+            raise HTTPException(status_code=500, detail="Invalid file path.")
                 
         meta["file_path"] = file_path
         res = indexer.add_embedding([file_path_cont], [meta], frame_extract_interval=frame_extract_interval, do_detect_and_crop=do_detect_and_crop)

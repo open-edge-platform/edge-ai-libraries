@@ -39,7 +39,7 @@ mkdir -p $HOME/models
 
     ``` bash
     cd microservices/retriever
-    cd deployment/docker_compose/
+    cd deployment/docker-compose/
     ```
 
 2.  Set up environment variables
@@ -84,7 +84,7 @@ retriever-milvus             "uvicorn retriever_s…"   retriever-milvus        
 If you have customized requirements for the Milvus Server, you may start the Milvus Server separately and run the commands for retriever service only
 
 ``` bash
-cd deployment/docker_compose/
+cd deployment/docker-compose/
 
 source env.sh # refer to Option 1 for model selection
 

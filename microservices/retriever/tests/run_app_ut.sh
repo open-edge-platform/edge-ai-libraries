@@ -14,5 +14,5 @@ for file in test_*.py; do
 done
 
 for test_file in test_*.py; do
-  docker exec -it ${CONTAINER_IDS[0]} bash -c "cd /home/user/retriever/src && python -m pytest $test_file_name --tb=short"
+  docker exec -it ${CONTAINER_IDS[0]} bash -c "cd /home/user/retriever/src && python -m pytest $test_file --tb=short"
 done

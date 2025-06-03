@@ -74,11 +74,11 @@ class MilvusClientWrapper:
         
         return res
     
-    def get(self, ids: list, output_fileds: list, collection_name: str):
+    def get(self, ids: list, output_fields: list, collection_name: str):
         res = self.client.get(
                 collection_name=collection_name,
                 ids=ids,
-                output_fields=output_fileds
+                output_fields=output_fields
             )
         
         return res
