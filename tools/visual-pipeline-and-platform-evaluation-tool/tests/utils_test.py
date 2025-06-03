@@ -42,7 +42,8 @@ class TestUtils(unittest.TestCase):
 
     @patch("utils.Popen")
     @patch("utils.ps")
-    def test_run_pipeline_and_extract_metrics(self, mock_ps, mock_popen):
+    @patch("utils.select.select")
+    def test_run_pipeline_and_extract_metrics(self, mock_select, mock_ps, mock_popen):
         # Mock pipeline command
         class DummyPipeline:
             def evaluate(
@@ -58,6 +59,7 @@ class TestUtils(unittest.TestCase):
             b"",
         ]
         process_mock.pid = 1234
+        mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         mock_ps.Process.return_value.status.return_value = "zombie"
 
