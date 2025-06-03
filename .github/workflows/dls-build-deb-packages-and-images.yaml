@@ -48,26 +48,26 @@ jobs:
 
     - name: Build dev release img with cache from GHCR
       env:
-        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        dev-release-img-cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_release_img_cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --load \
-          --tag "${dev-release-img}" \
-          --cache-from="${dev-release-img-cached}" \
+          --tag "${dev_release_img}" \
+          --cache-from="${dev_release_img_cached}" \
           --build-arg BUILD_ARG=Release \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Build deb pkg img using dev release img
       env:
-        dev-release-img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
       run: |
         docker build \
           --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE="${dev-release-img}" \
+          --build-arg BASE_IMAGE="${dev_release_img}" \
           -f ${{ matrix.path_deb }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
@@ -86,7 +86,7 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Scan Docker image with Trivy
-      uses: ./edge-ai-libraries-repo/.github/actions/trivy-image-scan
+      uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
         image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "CRITICAL"

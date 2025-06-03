@@ -51,9 +51,3 @@ def extract_rectangles_with_labels(svg_file):
             rectangles.append((x_min, y_min, x_max, y_max, label))
 
     return rectangles
-
-
-# Example Usage
-bounding_boxes = extract_rectangles_with_labels("diagrams/smartnvr.svg")
-print("Extracted Bounding Boxes:")
-pprint.pprint(bounding_boxes)
