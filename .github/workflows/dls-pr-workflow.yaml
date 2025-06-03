@@ -5,6 +5,7 @@ on:
     branches:
       - 'main'
     paths:
+      - 'libraries/dl-streamer/*'
       - 'libraries/dl-streamer/cmake/**'
       - 'libraries/dl-streamer/docker/**'
       - 'libraries/dl-streamer/include/**'
@@ -16,6 +17,7 @@ on:
       - 'libraries/dl-streamer/thirdparty/**'
   pull_request:
     paths:
+      - 'libraries/dl-streamer/*'
       - 'libraries/dl-streamer/cmake/**'
       - 'libraries/dl-streamer/docker/**'
       - 'libraries/dl-streamer/include/**'
@@ -27,13 +29,87 @@ on:
       - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
   workflow_dispatch:
-permissions: read-all
+permissions: {}
 
 jobs:
   build-dev-images:
+    permissions:
+      contents: read
+      packages: read
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
   build-deb-and-img:
+    permissions:
+      contents: read
+      packages: read
     name: Build .deb pkgs and deb imgs
     uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+
+  filter-docker-related-changes:
+    permissions:
+      contents: read
+    name: Detect changes in docker directory
+    runs-on: ubuntu-latest
+    outputs:
+      docker_changed: ${{ steps.check.outputs.docker_changed }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch main branch for comparison
+        run: git fetch origin main
+
+      - id: check
+        name: Detect changes in docker directory
+        run: |
+          echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
+          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
+          echo "📄 Changed files:"
+          echo "$CHANGED_FILES"
+          if echo "$CHANGED_FILES" | grep -q '^libraries/dl-streamer/docker/'; then
+            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
+            echo "🟡 Docker-related changes detected."
+          else
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ No docker-related changes."
+          fi
+
+  trivy-config-scan:
+    permissions:
+      contents: read
+    needs: [filter-docker-related-changes]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: Scan ${{ matrix.name }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: dlstreamer_ubuntu22
+            path: libraries/dl-streamer/docker/onebinary/ubuntu22/dlstreamer_ubuntu22.Dockerfile
+            output: reports/dlstreamer_ubuntu22.json
+          - name: dlstreamer_ubuntu24
+            path: libraries/dl-streamer/docker/onebinary/ubuntu24/dlstreamer_ubuntu24.Dockerfile
+            output: reports/dlstreamer_ubuntu24.json
+          - name: dlstreamer_dev_ubuntu22
+            path: libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+            output: reports/dlstreamer_dev_ubuntu22.json
+          - name: dlstreamer_dev_ubuntu24
+            path: libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+            output: reports/dlstreamer_dev_ubuntu24.json
+          - name: dlstreamer_fedora41
+            path: libraries/dl-streamer/docker/onebinary/fedora41/dlstreamer_fedora41.Dockerfile
+            output: reports/dlstreamer_fedora41.json
+          - name: dlstreamer_dev_fedora41
+            path: libraries/dl-streamer/docker/devel/fedora41/dlstreamer_dev_fedora41.Dockerfile
+            output: reports/dlstreamer_dev_fedora41.json
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: ${{ matrix.path }}
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: ${{ matrix.output }}
+      name: ${{ matrix.name }}

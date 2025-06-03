@@ -3,7 +3,7 @@
 ## Steps
 
 ### Prerequisites
-Add the following lines in `[WORKDIR]/docker/.env` if you are behind a proxy.
+Add the following lines in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` if you are behind a proxy.
 
   ``` sh
   http_proxy= # example: http_proxy=http://proxy.example.com:891
@@ -11,13 +11,25 @@ Add the following lines in `[WORKDIR]/docker/.env` if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
+Update the following lines for choosing the right base image and also for naming the image that gets built.
+
+  ``` sh
+  # For Ubuntu 22.04: intel/dlstreamer:2025.0.1.3-ubuntu22
+  # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
+  BASE_IMAGE=
+
+  # For Ubuntu 22.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+  # For Ubuntu 24.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
+  DLSTREAMER_PIPELINE_SERVER_IMAGE=
+  ```
+
 ### Build DL Streamer Pipeline Server image and start container
 
-1. Clone the repository and change to the project directory for DL Streamer Pipeline Server
+1.  Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
 ```sh
-git clone <link-to-repository>
-cd <path/to/dlstreamer-pipeline-server/>
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
 ```
 ---
 
@@ -34,7 +46,7 @@ docker compose build
 ```sh
 docker image ls
 ```
-Verify that following image `intel/dlstreamer-pipeline-server:<latest-version-number>` is present in the system after the build is successful
+Verify the following image `intel/dlstreamer-pipeline-server:<latest-version-number>-ubuntu22` or `intel/dlstreamer-pipeline-server:<latest-version-number>-ubuntu24` is present in the system after the build is successful
 
 ---
 

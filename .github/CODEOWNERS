@@ -3,6 +3,7 @@ LICENSE @xwu2intel
 CONTRIBUTING.md @xwu2intel
 CODE_OF_CONDUCT.md @xwu2intel
 SECURITY.md @xwu2intel
+/.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
 /microservices/document-ingestion/ @bharagha @ganesanintel @yogeshmpandey
 /microservices/object-store/ @bharagha @ganesanintel @yogeshmpandey
 /sample-applications/chat-question-and-answer/  @bharagha @ganesanintel @yogeshmpandey
@@ -11,8 +12,4 @@ SECURITY.md @xwu2intel
 /microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
 /microservices/model-registry/ @rrajore @elroyashjr
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-
-
-
-
-
+/microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel

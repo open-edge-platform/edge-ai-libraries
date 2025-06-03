@@ -3,14 +3,15 @@ run-name: "[DLS] [U22/24] Build dev imgs (by ${{ github.actor }})"
 on:
   workflow_call:
   workflow_dispatch:
-permissions:
-  packages: read
-  contents: read
+permissions: {}
 
 jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -19,14 +20,12 @@ jobs:
             ubuntu_version: ubuntu22
           - path_dev: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-    env:
-      dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
-
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Init submodules
@@ -45,10 +44,13 @@ jobs:
         password: ${{ secrets.GITHUB_TOKEN }}
 
     - name: Build dev debug img with cache from GHCR
+      env:
+        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-          --tag "${{ env.dev-debug-img }}" \
-          --cache-from="${{ env.dev-debug-img-cached}}" \
+          --tag "${dev_debug_img}" \
+          --cache-from="${dev_debug_img_cached}" \
           --build-arg BUILD_ARG=Debug \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer

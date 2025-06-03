@@ -95,7 +95,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
     }
 }'
 ```
-A local file can also be used as a source. In the following example, `warehouse.avi` that has been copied to `/tmp` from `[WORKDIR]/resources/videos/` is used as video source and Pipeline can be started with below curl request:
+A local file can also be used as a source. In the following example, `warehouse.avi` that has been copied to `/tmp` from `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/resources/videos/` is used as video source and Pipeline can be started with below curl request:
 
 ```bash
 curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H \
@@ -379,7 +379,7 @@ Use the following parameters to customize the request:
 
 ## Parameters
 Pipeline parameters as specified in the pipeline definition file, can be set in the REST request.
-For example, below is a the snippets from [WORKDIR]/config/default/config.json file:
+For example, below is a the snippets from [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/config/default/config.json file:
 
 ```json
 {

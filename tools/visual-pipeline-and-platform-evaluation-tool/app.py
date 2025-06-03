@@ -489,7 +489,9 @@ def create_interface():
             "SSDLite MobileNet V2",
             "YOLO v5m 416x416",
             "YOLO v5s 416x416",
-            "YOLO v5m 640x640"
+            "YOLO v5m 640x640",
+            "YOLO v10s 640x640",
+            "YOLO v10m 640x640",
         ],
         value="YOLO v5s 416x416",
     )
@@ -876,9 +878,10 @@ def create_interface():
     return demo
 
 
-# Launch the app
-demo = create_interface()
-demo.launch(
-    server_name="0.0.0.0",
-    server_port=7860,
-)
+if __name__ == "__main__":
+    # Launch the app
+    demo = create_interface()
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )

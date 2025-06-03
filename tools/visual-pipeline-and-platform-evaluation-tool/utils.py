@@ -93,6 +93,26 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
             )
+        case "YOLO v10s 640x640":
+            if object_detection_device == "NPU":
+                raise ValueError(
+                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/yolov10s/FP16/yolov10s.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = None
+        case "YOLO v10m 640x640":
+            if object_detection_device == "NPU":
+                raise ValueError(
+                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
             raise ValueError("Unrecognized Object Detection Model")
 
