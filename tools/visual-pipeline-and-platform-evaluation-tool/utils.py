@@ -21,6 +21,12 @@ def prepare_video_and_constants(
     object_detection_inference_interval,
     object_classification_model,
     object_classification_device,
+    object_classification_batch_size,
+    object_classification_nireq,
+    object_classification_inference_interval,
+    object_classification_reclassify_interval,
+    
+
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -49,6 +55,10 @@ def prepare_video_and_constants(
         "object_detection_inference_interval": [object_detection_inference_interval],
         "object_detection_nireq": [object_detection_nireq],
         "object_classification_device": object_classification_device.split(", "),
+        "object_classification_batch_size": [object_classification_batch_size],
+        "object_classification_inference_interval": [object_classification_inference_interval],
+        "object_classification_reclassify_interval": [object_classification_reclassify_interval],
+        "object_classification_nireq": [object_classification_nireq],
     }
 
     constants = {

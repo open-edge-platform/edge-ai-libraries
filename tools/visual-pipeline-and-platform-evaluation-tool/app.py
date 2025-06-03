@@ -483,8 +483,20 @@ def create_interface():
         interactive=True
     )
 
+    # Get available and preferred devices for inference
+    device_choices = [
+        (device.full_device_name, device.device_name)
+        for device in device_discovery.list_devices()
+    ]
+    preferred_device = next(
+        ( "GPU" for device_name in device_choices if "GPU" in device_name),
+        ( "CPU" ),
+    )
+
     # Object detection accordion
-    object_detection_accordion = gr.Accordion("Object Detection Parameters", open=True)
+    object_detection_accordion = gr.Accordion(
+        "Object Detection Parameters", open=True
+    )
 
     # Object detection model
     object_detection_model = gr.Dropdown(
@@ -498,16 +510,6 @@ def create_interface():
             "YOLO v10m 640x640",
         ],
         value="YOLO v5s 416x416",
-    )
-
-    # Get available and preferred devices for inference
-    device_choices = [
-        (device.full_device_name, device.device_name)
-        for device in device_discovery.list_devices()
-    ]
-    preferred_device = next(
-        ( "GPU" for device_name in device_choices if "GPU" in device_name),
-        ( "CPU" ),
     )
 
     # Object detection device
@@ -549,7 +551,7 @@ def create_interface():
 
     # Object classification accordion
     object_classification_accordion = gr.Accordion(
-        "Object Classification Parameters", open=False
+        "Object Classification Parameters", open=True
     )
 
     # Object classification model
@@ -568,6 +570,46 @@ def create_interface():
         label="Object Classification Device",
         choices=device_choices,
         value=preferred_device,
+    )
+
+    # Object classification batch size
+    object_classification_batch_size = gr.Slider(
+        minimum=0,
+        maximum=32,
+        value=0,
+        step=1,
+        label="Batch Size",
+        interactive=True,
+    )
+
+    # Object classification inference interval
+    object_classification_inference_interval = gr.Slider(
+        minimum=1,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Inference Interval",
+        interactive=True,
+    )
+
+    # Object classification number of inference requests (nireq)
+    object_classification_nireq = gr.Slider(
+        minimum=0,
+        maximum=4,
+        value=0,
+        step=1,
+        label="Number of Inference Requests (nireq)",
+        interactive=True,
+    )
+
+    # Object classification reclassify interval
+    object_classification_reclassify_interval = gr.Slider(
+        minimum=0,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Reclassification Interval",
+        interactive=True,
     )
 
     # Run button
@@ -627,6 +669,10 @@ def create_interface():
                     object_detection_nireq,
                     object_classification_model,
                     object_classification_device,
+                    object_classification_batch_size,
+                    object_classification_inference_interval,
+                    object_classification_nireq,
+                    object_classification_reclassify_interval,
                     input_video_player,
                 ):
                     global stream_dfs
@@ -645,10 +691,14 @@ def create_interface():
                         object_detection_model=object_detection_model,
                         object_detection_device=object_detection_device,
                         object_detection_batch_size=object_detection_batch_size,
-                        object_detection_nireq=object_detection_nireq,
                         object_detection_inference_interval=object_detection_inference_interval,
+                        object_detection_nireq=object_detection_nireq,
                         object_classification_model=object_classification_model,
                         object_classification_device=object_classification_device,
+                        object_classification_batch_size=object_classification_batch_size,
+                        object_classification_inference_interval=object_classification_inference_interval,
+                        object_classification_nireq=object_classification_nireq,
+                        object_classification_reclassify_interval=object_classification_reclassify_interval,
                     )
 
                     # Validate channels
@@ -683,6 +733,10 @@ def create_interface():
                     object_detection_nireq,
                     object_classification_model,
                     object_classification_device,
+                    object_classification_batch_size,
+                    object_classification_inference_interval,
+                    object_classification_nireq,
+                    object_classification_reclassify_interval,
                     input_video_player,
                 ):
                     
@@ -691,10 +745,14 @@ def create_interface():
                         object_detection_model=object_detection_model,
                         object_detection_device=object_detection_device,
                         object_detection_batch_size=object_detection_batch_size,
-                        object_detection_nireq=object_detection_nireq,
                         object_detection_inference_interval=object_detection_inference_interval,
+                        object_detection_nireq=object_detection_nireq,
                         object_classification_model=object_classification_model,
                         object_classification_device=object_classification_device,
+                        object_classification_batch_size=object_classification_batch_size,
+                        object_classification_inference_interval=object_classification_inference_interval,
+                        object_classification_nireq=object_classification_nireq,
+                        object_classification_reclassify_interval=object_classification_reclassify_interval,
                     )
 
                     # Initialize the benchmark class
@@ -761,6 +819,10 @@ def create_interface():
                         object_detection_nireq,
                         object_classification_model,
                         object_classification_device,
+                        object_classification_batch_size,
+                        object_classification_inference_interval,
+                        object_classification_nireq,
+                        object_classification_reclassify_interval,
                         input_video_player,
                     ],
                     outputs=[output_video_player] + plots + [best_config_textbox],
@@ -788,6 +850,10 @@ def create_interface():
                         object_detection_nireq,
                         object_classification_model,
                         object_classification_device,
+                        object_classification_batch_size,
+                        object_classification_inference_interval,
+                        object_classification_nireq,
+                        object_classification_reclassify_interval,
                         input_video_player,
                     ],
                     outputs=[best_config_textbox],
@@ -816,6 +882,10 @@ def create_interface():
                 with object_classification_accordion.render():
                     object_classification_model.render()
                     object_classification_device.render()
+                    object_classification_batch_size.render()
+                    object_classification_inference_interval.render()
+                    object_classification_nireq.render()
+                    object_classification_reclassify_interval.render()
 
         footer = gr.HTML(
             "<div class='spark-footer'>"

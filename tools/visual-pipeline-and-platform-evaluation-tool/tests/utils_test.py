@@ -35,6 +35,10 @@ class TestUtils(unittest.TestCase):
             object_detection_inference_interval=1,
             object_classification_model="ResNet-50 TF",
             object_classification_device="CPU",
+            object_classification_batch_size=1,
+            object_classification_nireq=1,
+            object_classification_inference_interval=1,
+            object_classification_reclassify_interval=1,
         )
         mock_remove.assert_called_once()
         self.assertTrue(output_path.endswith(".mp4"))
