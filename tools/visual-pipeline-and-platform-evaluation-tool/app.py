@@ -461,7 +461,10 @@ def create_interface():
         label="Number of Recording only channels",
         interactive=True,
     )
+
+    # Benchmark parameters accordion
     benchmark_parameters_accordion = gr.Accordion("Benchmark Parameters", open=True)
+
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
@@ -470,6 +473,7 @@ def create_interface():
         interactive=True
     )
 
+    # AI stream rate
     rate = gr.Slider(
         label="AI Stream Rate (%)",
         value=20,  # Default value
@@ -496,7 +500,7 @@ def create_interface():
         value="YOLO v5s 416x416",
     )
 
-    # Object detection device
+    # Get available and preferred devices for inference
     device_choices = [
         (device.full_device_name, device.device_name)
         for device in device_discovery.list_devices()
@@ -505,6 +509,8 @@ def create_interface():
         ( "GPU" for device_name in device_choices if "GPU" in device_name),
         ( "CPU" ),
     )
+
+    # Object detection device
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
         choices=device_choices,
@@ -541,32 +547,28 @@ def create_interface():
         interactive=True,
     )
 
-    # This elements are not used in the current version of the app
-    # # Object classification accordion
-    # object_classification_accordion = gr.Accordion(
-    #     "Object Classification Parameters", open=False
-    # )
+    # Object classification accordion
+    object_classification_accordion = gr.Accordion(
+        "Object Classification Parameters", open=False
+    )
 
-    # # Object classification model
-    # object_classification_model = gr.Dropdown(
-    #     label="Object Classification Model",
-    #     choices=[
-    #         "ResNet-50 TF",
-    #         "EfficientNet B0",
-    #         "Vehicle Attributes Recognition Barrier",
-    #     ],
-    #     value="Vehicle Attributes Recognition Barrier",
-    # )
+    # Object classification model
+    object_classification_model = gr.Dropdown(
+        label="Object Classification Model",
+        choices=[
+            "EfficientNet B0",
+            "SSDLite MobileNet V2",
+            "ResNet-50 TF",
+        ],
+        value="ResNet-50 TF",
+    )
 
-    # # Object classification device
-    # object_classification_device = gr.Dropdown(
-    #     label="Object Classification Device",
-    #     choices=[
-    #         "CPU",
-    #         "GPU",
-    #     ],
-    #     value="CPU",
-    # )
+    # Object classification device
+    object_classification_device = gr.Dropdown(
+        label="Object Classification Device",
+        choices=device_choices,
+        value=preferred_device,
+    )
 
     # Run button
     run_button = gr.Button("Run")
@@ -620,9 +622,8 @@ def create_interface():
                     inferencing_channels,
                     object_detection_model,
                     object_detection_device,
-                    # This elements are not used in the current version of the app
-                    # object_classification_model,
-                    # object_classification_device,
+                    object_classification_model,
+                    object_classification_device,
                     batch_size,
                     inference_interval,
                     nireq,
@@ -640,29 +641,12 @@ def create_interface():
                         input_video_player,
                         object_detection_model,
                         object_detection_device,
+                        object_classification_model,
+                        object_classification_device,
                         batch_size,
                         nireq,
                         inference_interval,
                     )
-             
-                    # This elements are not used in the current version of the app
-                    # match object_classification_model:
-                    #     case "ResNet-50 TF":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
-                    #         )
-                    #     case "EfficientNet B0":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
-                    #         )
-                    #     case _:
-                    #         raise ValueError("Unrecognized Object Classification Model")
 
                     # Validate channels
                     if recording_channels + inferencing_channels == 0:
@@ -691,6 +675,8 @@ def create_interface():
                     rate,
                     object_detection_model,
                     object_detection_device,
+                    object_classification_model,
+                    object_classification_device,
                     batch_size,
                     inference_interval,
                     nireq,
@@ -701,6 +687,8 @@ def create_interface():
                         input_video_player,
                         object_detection_model,
                         object_detection_device,
+                        object_classification_model,
+                        object_classification_device,
                         batch_size,
                         nireq,
                         inference_interval,
@@ -765,9 +753,8 @@ def create_interface():
                         inferencing_channels,
                         object_detection_model,
                         object_detection_device,
-                        # This elements are not used in the current version of the app
-                        # object_classification_model,
-                        # object_classification_device,
+                        object_classification_model,
+                        object_classification_device,
                         batch_size,
                         inference_interval,
                         nireq,
@@ -793,6 +780,8 @@ def create_interface():
                         rate,
                         object_detection_model,
                         object_detection_device,
+                        object_classification_model,
+                        object_classification_device,
                         batch_size,
                         inference_interval,
                         nireq,
@@ -821,10 +810,9 @@ def create_interface():
                     inference_interval.render()
                     nireq.render()
 
-                # This elements are not used in the current version of the app
-                # with object_classification_accordion.render():
-                #     object_classification_model.render()
-                #     object_classification_device.render()
+                with object_classification_accordion.render():
+                    object_classification_model.render()
+                    object_classification_device.render()
 
         footer = gr.HTML(
             "<div class='spark-footer'>"

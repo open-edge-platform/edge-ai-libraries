@@ -30,6 +30,8 @@ class TestUtils(unittest.TestCase):
             self.input_video,
             "SSDLite MobileNet V2",
             "CPU",
+            "ResNet-50 TF",
+            "CPU",
             batch_size=1,
             nireq=1,
             inference_interval=1,
@@ -39,6 +41,7 @@ class TestUtils(unittest.TestCase):
         self.assertIn("VIDEO_PATH", constants)
         self.assertIn("VIDEO_OUTPUT_PATH", constants)
         self.assertIn("object_detection_device", param_grid)
+        self.assertIn("object_classification_device", param_grid)
 
     @patch("utils.Popen")
     @patch("utils.ps")
@@ -62,7 +65,7 @@ class TestUtils(unittest.TestCase):
         mock_ps.Process.return_value.status.return_value = "zombie"
 
         constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
-        parameters = {"object_detection_device": ["CPU"]}
+        parameters = {"object_detection_device": ["CPU"], "object_classification_device": ["CPU"]}
         results = run_pipeline_and_extract_metrics(
             DummyPipeline(),
             constants,

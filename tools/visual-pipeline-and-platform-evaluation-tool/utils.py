@@ -16,6 +16,8 @@ def prepare_video_and_constants(
     input_video_player,
     object_detection_model,
     object_detection_device,
+    object_classification_model,
+    object_classification_device,
     batch_size,
     nireq,
     inference_interval,
@@ -46,10 +48,7 @@ def prepare_video_and_constants(
         "batch_size": [batch_size],
         "inference_interval": [inference_interval],
         "nireq": [nireq],
-        # This elements are not used in the current version of the app
-        # "vehicle_classification_device": object_classification_device.split(
-        #     ", "
-        # ),
+        "object_classification_device": object_classification_device.split(", "),
     }
 
     constants = {
@@ -110,6 +109,31 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
             raise ValueError("Unrecognized Object Detection Model")
+
+    match object_classification_model:
+        case "ResNet-50 TF":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
+            )
+        case "EfficientNet B0":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
+            )
+        case "SSD MobileNet V2":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+            )
+        case _:
+            raise ValueError("Unrecognized Object Classification Model")
 
     return video_output_path, constants, param_grid
 
