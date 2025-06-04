@@ -19,7 +19,7 @@ fi
 
 # Command-line parameters
 INPUT=${1:-https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4}
-DEVICE=${2:-GPU}     # Device for decode and inference in OpenVINO(TM) format, examples: AUTO, CPU, GPU, GPU.0
+DEVICE=${2:-GPU}              # Device for decode and inference in OpenVINO(TM) format, examples: AUTO, CPU, GPU, GPU.0
 OUTPUT=${3:-fps}     # Output type, valid values: display, fps, json, display-and-json, file
 
 
@@ -35,13 +35,13 @@ OCR_CLASSIFICATION_MODEL=${MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-
 
 # Check if model exists in local directory
 if [ ! -f "$DETECTION_MODEL" ]; then
-    echo "ERROR - model not found: $DETECTION_MODEL" >&2
+    echo "ERROR - model not found: $MODEL_PATH" >&2
     exit 1
 fi
 
 # Check if model exists in local directory
 if [ ! -f "$DETECTION_MODEL" ]; then
-    echo "ERROR - model not found: $OCR_CLASSIFICATION_MODEL" >&2
+    echo "ERROR - model not found: $MODEL_PATH" >&2
     exit 1
 fi
 
@@ -55,12 +55,13 @@ fi
 
 if [[ $DEVICE == "CPU" ]]; then
   DECODE_ELEMENT="decodebin3 "
-  DETECTION_PREPROC=""
+  PREPROC="pre-process-backend=opencv"
 elif [[ $DEVICE == "GPU" ]]; then
   DECODE_ELEMENT="decodebin3 ! vapostproc ! video/x-raw\(memory:VAMemory\)"
-  DETECTION_PREPROC="pre-process-backend=va-surface-sharing"
+  PREPROC="pre-process-backend=va-surface-sharing"
 else
   DECODE_ELEMENT="decodebin3"
+  PREPROC=""
 fi
 
 if [[ $OUTPUT == "display" ]]; then
@@ -86,7 +87,7 @@ elif [[ $OUTPUT == "file" ]]; then
     echo "Error - VA-API H.264 encoder not found."
     exit
   fi
-  SINK_ELEMENT="gvawatermark ! gvafpscounter ! ${ENCODER} ! avimux name=mux ! filesink location=lpr_${FILE}_${DEVICE}.mp4"
+  SINK_ELEMENT="gvawatermark ! gvafpscounter ! ${ENCODER} ! h264parse ! mp4mux ! filesink location=lpr_${FILE}_${DEVICE}.mp4"
 else
   echo Error wrong value for OUTPUT parameter
   echo Valid values: "display" - render to screen, "fps" - print FPS, "json" - write to output.json, "display-and-json" - render to screen and write to output.json
@@ -95,8 +96,8 @@ fi
 
 
 PIPELINE="gst-launch-1.0 ${SOURCE_ELEMENT} ! ${DECODE_ELEMENT} ! queue ! \
-gvadetect model=$DETECTION_MODEL device=${DEVICE} ${DETECTION_PREPROC} ! queue ! videoconvert ! \
-gvaclassify model=$OCR_CLASSIFICATION_MODEL device=${DEVICE} pre-process-backend=opencv ! queue !  $SINK_ELEMENT"
+gvadetect model=$DETECTION_MODEL device=${DEVICE} ${PREPROC} ! queue ! videoconvert ! \
+gvaclassify model=$OCR_CLASSIFICATION_MODEL device=${DEVICE} ${PREPROC} ! queue !  $SINK_ELEMENT"
 
 echo "${PIPELINE}"
 eval "$PIPELINE"
