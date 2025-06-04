@@ -7,7 +7,8 @@ x-vippet: &vippet
     - "7860:7860"
   command: gradio app.py
   depends_on:
-    - models
+    models:
+      condition: service_healthy
   restart: on-failure:5
   # # The following config applies to WSL2:
   # environment:
@@ -47,6 +48,11 @@ services:
         tail -f /dev/null
       '
     restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "test", "-f", "healthcheck.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu
