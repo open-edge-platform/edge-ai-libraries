@@ -127,6 +127,11 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
             )
         case "EfficientNet B0":
+            if object_classification_device == "NPU":
+                raise ValueError(
+                    "EfficientNet B0 model is not supported on NPU device. Please select another model."
+                )
+
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
             )
