@@ -19,14 +19,14 @@ jobs:
 
     - name: Download public models
       env:
-        MODELS_PATH: edge-ai-libraries-repo/models
+        MODELS_PATH: /home/runner/dls-models
       run: |
         export MODELS_PATH=${MODELS_PATH}
         edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
 
     - name: Download omz models
       env:
-        MODELS_PATH: edge-ai-libraries-repo/models
+        MODELS_PATH: /home/runner/dls-models
       run: |
         mkdir -p edge-ai-libraries-repo/.virtualenvs/dlstreamer
         python3 -m venv edge-ai-libraries-repo/.virtualenvs/dlstreamer
@@ -38,4 +38,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        sudo rm -rf edge-ai-libraries-repo
+        sudo rm -rf edge-ai-libraries-repo /home/runner/dls-models
