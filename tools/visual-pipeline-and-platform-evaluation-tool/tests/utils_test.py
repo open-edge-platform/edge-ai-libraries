@@ -28,18 +28,25 @@ class TestUtils(unittest.TestCase):
     ):
         mock_exists.return_value = True
         output_path, constants, param_grid = prepare_video_and_constants(
-            self.input_video,
-            "SSDLite MobileNet V2",
-            "CPU",
-            batch_size=1,
-            nireq=1,
-            inference_interval=1,
+            input_video_player=self.input_video,
+            object_detection_model="SSDLite MobileNet V2",
+            object_detection_device="CPU",
+            object_detection_batch_size=1,
+            object_detection_nireq=1,
+            object_detection_inference_interval=1,
+            object_classification_model="ResNet-50 TF",
+            object_classification_device="CPU",
+            object_classification_batch_size=1,
+            object_classification_nireq=1,
+            object_classification_inference_interval=1,
+            object_classification_reclassify_interval=1,
         )
         mock_remove.assert_called_once()
         self.assertTrue(output_path.endswith(".mp4"))
         self.assertIn("VIDEO_PATH", constants)
         self.assertIn("VIDEO_OUTPUT_PATH", constants)
         self.assertIn("object_detection_device", param_grid)
+        self.assertIn("object_classification_device", param_grid)
 
     @patch("utils.Popen")
     @patch("utils.ps")
@@ -63,7 +70,7 @@ class TestUtils(unittest.TestCase):
         mock_ps.Process.return_value.status.return_value = "zombie"
 
         constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
-        parameters = {"object_detection_device": ["CPU"]}
+        parameters = {"object_detection_device": ["CPU"], "object_classification_device": ["CPU"]}
         results = run_pipeline_and_extract_metrics(
             DummyPipeline(),
             constants,

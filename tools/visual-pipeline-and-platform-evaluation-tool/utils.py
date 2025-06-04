@@ -21,9 +21,15 @@ def prepare_video_and_constants(
     input_video_player,
     object_detection_model,
     object_detection_device,
-    batch_size,
-    nireq,
-    inference_interval,
+    object_detection_batch_size,
+    object_detection_nireq,
+    object_detection_inference_interval,
+    object_classification_model,
+    object_classification_device,
+    object_classification_batch_size,
+    object_classification_nireq,
+    object_classification_inference_interval,
+    object_classification_reclassify_interval,
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -48,13 +54,14 @@ def prepare_video_and_constants(
 
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
-        "batch_size": [batch_size],
-        "inference_interval": [inference_interval],
-        "nireq": [nireq],
-        # This elements are not used in the current version of the app
-        # "vehicle_classification_device": object_classification_device.split(
-        #     ", "
-        # ),
+        "object_detection_batch_size": [object_detection_batch_size],
+        "object_detection_inference_interval": [object_detection_inference_interval],
+        "object_detection_nireq": [object_detection_nireq],
+        "object_classification_device": object_classification_device.split(", "),
+        "object_classification_batch_size": [object_classification_batch_size],
+        "object_classification_inference_interval": [object_classification_inference_interval],
+        "object_classification_reclassify_interval": [object_classification_reclassify_interval],
+        "object_classification_nireq": [object_classification_nireq],
     }
 
     constants = {
@@ -115,6 +122,36 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
             raise ValueError("Unrecognized Object Detection Model")
+
+    match object_classification_model:
+        case "ResNet-50 TF":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
+            )
+        case "EfficientNet B0":
+            if object_classification_device == "NPU":
+                raise ValueError(
+                    "EfficientNet B0 model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
+            )
+        case "MobileNet V2 PyTorch":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
+            )
+        case _:
+            raise ValueError("Unrecognized Object Classification Model")
 
     return video_output_path, constants, param_grid
 
