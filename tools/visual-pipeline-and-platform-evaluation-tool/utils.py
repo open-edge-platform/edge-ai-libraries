@@ -11,10 +11,10 @@ from itertools import product
 import logging
 from pipeline import GstPipeline
 import select
-import utils
 
 
-utils.cancelled = False
+
+cancelled = False
 
 
 def prepare_video_and_constants(
@@ -133,6 +133,7 @@ def run_pipeline_and_extract_metrics(
     elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
 ) -> Tuple[Dict[str, float], str, str]:
+    global cancelled
     """
 
     Runs a GStreamer pipeline and extracts FPS metrics.
@@ -190,9 +191,9 @@ def run_pipeline_and_extract_metrics(
 
             # Poll the process to check if it is still running
             while process.poll() is None:
-                if utils.cancelled:
+                if cancelled:
                     process.terminate()
-                    utils.cancelled = False
+                    cancelled = False
                     break
 
                 reads, _, _ = select.select([process.stdout], [], [], poll_interval)
