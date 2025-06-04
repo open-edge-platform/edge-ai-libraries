@@ -1,9 +1,6 @@
 name: "[DLS] Download public models"
 run-name: "[DLS] Download public models (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  push:
-    branches:
-      - 'nsz-download-models'
   workflow_dispatch:
 
 jobs:
@@ -27,7 +24,7 @@ jobs:
         source edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/activate
         export MODELS_PATH=${MODELS_PATH}
         edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
-        
+
     - name: Download public models
       env:
         MODELS_PATH: /home/runner/dls-models
