@@ -17,13 +17,6 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - name: Download public models
-      env:
-        MODELS_PATH: /home/runner/dls-models
-      run: |
-        export MODELS_PATH=${MODELS_PATH}
-        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
-
     - name: Download omz models
       env:
         MODELS_PATH: /home/runner/dls-models
@@ -34,6 +27,13 @@ jobs:
         source edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/activate
         export MODELS_PATH=${MODELS_PATH}
         edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
+        
+    - name: Download public models
+      env:
+        MODELS_PATH: /home/runner/dls-models
+      run: |
+        export MODELS_PATH=${MODELS_PATH}
+        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
 
     - name: Clean up
       if: always()
