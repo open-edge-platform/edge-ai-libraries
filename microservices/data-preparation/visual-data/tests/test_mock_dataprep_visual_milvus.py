@@ -110,7 +110,7 @@ def test_ingest_host_file_notexist(mock_indexer):
     mock_indexer.add_embedding.return_value = "mock_db_response"
 
     request_data = {
-        "file_dir": "/mock/host/dir",
+        "file_path": "/mock/host/file.mp4",
         "frame_extract_interval": 15,
         "do_detect_and_crop": True,
     }

@@ -32,14 +32,14 @@ class IngestHostDirRequest(BaseModel):
 
 class IngestHostFileRequest(BaseModel):
     file_path: str
-    meta: dict
+    meta: dict = {}  # Metadata for the file
     frame_extract_interval: int = 15  # Default value is 15
     do_detect_and_crop: bool = True  # Default value is True
 
 #placeholder for IngestFileURLRequest
 class IngestFileURLRequest(BaseModel):
     file_url: str
-    meta: dict
+    meta: dict = {}  # Metadata for the file
     frame_extract_interval: int = 15  # Default value is 15
     do_detect_and_crop: bool = True  # Default value is True
 
@@ -156,12 +156,12 @@ async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
                 if os.path.exists(meta_path):
                     with open(meta_path, "r") as meta_file:
                         meta = json.load(meta_file)
-                    meta["file_path"] = os.path.join(file_dir, file_name)
+                    meta["file_path"] = helper_map2host(file_path)
                     proc_files.append(file_path)
                     metas.append(meta)
                 else:
                     meta = {}
-                    meta["file_path"] = os.path.join(file_dir, file_name)
+                    meta["file_path"] = helper_map2host(file_path)
                     proc_files.append(file_path)
                     metas.append(meta)
                 
