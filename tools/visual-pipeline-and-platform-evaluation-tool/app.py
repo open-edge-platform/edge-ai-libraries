@@ -658,9 +658,6 @@ def create_interface():
                     with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
                         f.write(f"0.0\n")
 
-                    print(object_classification_model)
-                    print(object_classification_device)
-
                     video_output_path, constants, param_grid = prepare_video_and_constants(
                         input_video_player=input_video_player,
                         object_detection_model=object_detection_model,
