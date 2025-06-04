@@ -13,6 +13,7 @@ from device import DeviceDiscovery
 from explore import GstInspector
 from benchmark import Benchmark
 from utils import prepare_video_and_constants
+import utils
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -370,7 +371,6 @@ def generate_stream_data(i, timestamp_ns=None):
 
     return fig
 
-
 # Create the interface
 def create_interface():
 
@@ -594,6 +594,9 @@ def create_interface():
     # Add a Benchmark button
     benchmark_button = gr.Button("Benchmark")
 
+    # Add a Stop button
+    stop_button = gr.Button("Stop", variant="stop",visible=False)
+
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
 
@@ -616,6 +619,7 @@ def create_interface():
                 )
                 run_button.render()
                 benchmark_button.render()
+                stop_button.render()  
                 best_config_textbox.render()
 
                 # Metrics plots
@@ -686,12 +690,15 @@ def create_interface():
                     )
                     optimizer.optimize()
                     best_result = optimizer.evaluate()
-                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
+                    if best_result is None:
+                        best_result_message = "No valid result was returned by the optimizer."
+                    else:
+                        best_result_message = (
+                            f"Total FPS: {best_result.total_fps:.2f}, "
+                            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+                        )
 
-                    best_result_message = (
-                        f"Total FPS: {best_result.total_fps:.2f}, "
-                        f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
-                    )
+                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
 
                     return [video_output_path] + plot_updates + [best_result_message]
 
@@ -744,6 +751,14 @@ def create_interface():
                     # Return results
                     return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
                     
+                def on_stop():
+                    utils.cancelled = True
+                    logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")  # This will appear in docker logs
+                    return [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ]
 
                 input_video_player.change(
                     lambda v: (
@@ -758,10 +773,17 @@ def create_interface():
                     outputs=[run_button, output_video_player],
                     queue=False,
                 )
+                def on_run_click(*args):
+                    # Hide Run and Benchmark, show Stop
+                    return [
+                        gr.update(visible=False),  # run_button
+                        gr.update(visible=False),  # benchmark_button
+                        gr.update(visible=True)    # stop_button
+                    ]
 
                 run_button.click(
-                    fn=lambda: gr.update(interactive=False),
-                    outputs=[run_button],
+                    on_run_click,
+                    outputs=[run_button, benchmark_button, stop_button],
                     queue=True,
                 ).then(
                     lambda: (
@@ -803,14 +825,19 @@ def create_interface():
                     inputs=None,
                     outputs=timer,
                 ).then(
-                    fn=lambda: gr.update(
-                        interactive=True
-                    ),  # Re-enable Run button
-                    outputs=[run_button],
+                    lambda: [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ],
+                    outputs=[run_button, benchmark_button, stop_button],
                 )
 
-
                 benchmark_button.click(
+                    on_run_click,
+                    outputs=[run_button, benchmark_button, stop_button],
+                    queue=False,
+                ).then(
                     on_benchmark,
                     inputs=[
                         fps_floor,
@@ -828,8 +855,21 @@ def create_interface():
                         object_classification_reclassify_interval,
                         input_video_player,
                     ],
-                    outputs=[best_config_textbox],
+                    outputs=[best_config_textbox],  
+                ).then(
+                    lambda: [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ],
+                    outputs=[run_button, benchmark_button, stop_button],
                 )
+
+                stop_button.click(
+                    on_stop,
+                    outputs=[run_button, benchmark_button, stop_button],  # Remove gr.Info
+                    queue=False,
+                ) 
 
             with gr.Column(scale=1, min_width=150):
                 with gr.Accordion("Video Player", open=True):
