@@ -5,7 +5,12 @@ x-vippet: &vippet
     dockerfile: Dockerfile.vippet
   ports:
     - "7860:7860"
-  command: gradio app.py
+  command: python app.py
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:7860/"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
   depends_on:
     models:
       condition: service_healthy
