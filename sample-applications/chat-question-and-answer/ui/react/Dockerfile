@@ -9,7 +9,6 @@ USER user
 WORKDIR /user/app
 
 COPY package*.json /user/app/
-COPY .npmrc /user/app/
 
 RUN ["npm", "ci"]
 
