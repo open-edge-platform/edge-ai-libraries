@@ -1,10 +1,9 @@
 name: "[DLS] Download public models"
 run-name: "[DLS] Download public models (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  workflow_call:
-    push:
-      branches:
-        - 'nsz-download-models'
+  push:
+    branches:
+      - 'nsz-download-models'
   workflow_dispatch:
 
 jobs:
