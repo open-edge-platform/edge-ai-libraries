@@ -526,7 +526,7 @@ def create_interface():
         maximum=4,
         value=0,
         step=1,
-        label=" Object Detection Number of Inference Requests (nireq)",
+        label="Object Detection Number of Inference Requests (nireq)",
         interactive=True,
     )
 
@@ -535,7 +535,7 @@ def create_interface():
         label="Object Classification Model",
         choices=[
             "EfficientNet B0",
-            "SSDLite MobileNet V2",
+            "MobileNet V2 PyTorch",
             "ResNet-50 TF",
         ],
         value="ResNet-50 TF",

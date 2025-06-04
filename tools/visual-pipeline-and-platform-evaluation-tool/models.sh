@@ -42,3 +42,13 @@ for model in "${download_public_models[@]}"; do
     [ -d "/output/public/$model" ] ||
     bash /opt/intel/dlstreamer/samples/download_public_models.sh "$model"
 done
+
+# TEMPORARY: download mobilenet-v2-pytorch until the download script supports it
+[ -d /output/public/mobilenet-v2-pytorch ] || \
+    python3 -m pip install openvino-dev[onnx] torch torchvision \
+        --extra-index-url https://download.pytorch.org/whl/cpu && \
+    omz_downloader --name mobilenet-v2-pytorch && \
+    omz_converter --name mobilenet-v2-pytorch && \
+    cp -r ./public/mobilenet-v2-pytorch /output/public/ && \
+    cp /opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json \
+       /output/public/mobilenet-v2-pytorch/mobilenet-v2.json

@@ -133,12 +133,12 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
             )
-        case "SSD MobileNet V2":
+        case "MobileNet V2 PyTorch":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
             )
         case _:
             raise ValueError("Unrecognized Object Classification Model")
