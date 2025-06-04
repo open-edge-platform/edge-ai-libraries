@@ -1,0 +1,28 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
+namespace: apps
+DOCKER_REGISTRY: ''
+DOCKER_USERNAME: ''
+DOCKER_PASSWORD: ''
+imagePullPolicy: IfNotPresent
+storageClassName: manual
+env:
+  # SECURE_MODE environment variable should not be changed as it may cause unexpected behavior or system failure.
+  SECURE_MODE: false 
+  TIMESERIES_USER_NAME: timeseries_user
+  TIMESERIES_UID: 1999
+  TIMESERIES_NO_PROXY: influxdb,time-series-analytics-microservice,mqttbroker,ia-mqtt-broker,ia-opcua-server
+  INFLUXDB_USERNAME: 
+  INFLUXDB_PASSWORD:  
+  timeseries_no_proxy: localhost,127.0.0.1,.intel.com
+  HTTP_PROXY: 
+  HTTPS_PROXY: 
+  LOG_LEVEL: INFO
+config:
+  time_series_analytics_microservice:
+    name: time-series-analytics-microservice
+    kapacitor_port: 9092

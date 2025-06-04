@@ -1,0 +1,14 @@
+{
+    "config": {
+        "fetch_from_model_registry": false,
+        "version": "1.0",
+        "task": {
+            "tick_script": "temperature_classifier.tick",
+            "task_name": "temperature_classifier",
+            "udfs": {
+                "type": "python",
+                "name": "temperature_classifier"
+            }
+        }
+    }
+}
