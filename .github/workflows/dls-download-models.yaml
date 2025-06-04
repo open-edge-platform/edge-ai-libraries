@@ -1,0 +1,42 @@
+name: "[DLS] Download public models"
+run-name: "[DLS] Download public models (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  workflow_call:
+    push:
+      branches:
+        - 'nsz-download-models'
+  workflow_dispatch:
+
+jobs:
+  download-models:
+    name: Download models
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Download public models
+      env:
+        MODELS_PATH: edge-ai-libraries-repo/models
+      run: |
+        export MODELS_PATH=${MODELS_PATH}
+        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
+
+    - name: Download omz models
+      env:
+        MODELS_PATH: edge-ai-libraries-repo/models
+      run: |
+        mkdir -p edge-ai-libraries-repo/.virtualenvs/dlstreamer
+        python3 -m venv edge-ai-libraries-repo/.virtualenvs/dlstreamer
+        edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip tensorflow openvino-dev[onnx]
+        source edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/activate
+        export MODELS_PATH=${MODELS_PATH}
+        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
+
+    - name: Clean up
+      if: always()
+      run: |
+        sudo rm -rf edge-ai-libraries-repo
