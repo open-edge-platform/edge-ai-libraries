@@ -71,10 +71,7 @@ jobs:
         uses: ./.github/actions/discover-changed-subfolder
         with:
           project_folder: "."
-          include_folders: >
-            sample-applications/chat-question-and-answer-core,
-            sample-applications/chat-question-and-answer,
-            microservices/document-ingestion/pgvector
+          include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,microservices/document-ingestion/pgvector"
 
       - name: Debug Changed Projects
         run: echo "Changed Projects: ${{ steps.discover.outputs.changed_projects }}"
