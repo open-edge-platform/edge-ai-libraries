@@ -27,7 +27,7 @@ on:
 
 jobs:
   zizmor-workflow-scan:
-    runs-on: ubuntu-latest  # Lightweight runner
+    runs-on: ubuntu-22.04-32core-128GB  # Lightweight runner
     permissions:
       contents: read
     env:
