@@ -68,7 +68,7 @@ jobs:
 
       - name: Discover Changed Subfolders
         id: discover
-        uses: ./.github/actions/discover-changed-subfolder
+        uses: ./.github/actions/discover-changed-subfolders
         with:
           project_folder: "."
           include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,microservices/document-ingestion/pgvector"
