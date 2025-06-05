@@ -62,7 +62,6 @@ Generate the `.env` file with default values by running the following script:
 > **_NOTE:_** You can change the model name, model compression format, device and the number of Uvicorn workers by editing the `setup.sh` file.
 
 ```bash
-chmod +x setup.sh
 source setup.sh
 ```
 
