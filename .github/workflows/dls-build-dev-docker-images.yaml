@@ -45,12 +45,12 @@ jobs:
 
     - name: Build dev debug img with cache from GHCR
       env:
-        dev-debug-img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        dev-debug-img-cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
+        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-          --tag "${dev-debug-img}" \
-          --cache-from="${dev-debug-img-cached}" \
+          --tag "${dev_debug_img}" \
+          --cache-from="${dev_debug_img_cached}" \
           --build-arg BUILD_ARG=Debug \
           -f ${{ matrix.path_dev }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
