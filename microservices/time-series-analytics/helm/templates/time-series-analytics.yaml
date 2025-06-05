@@ -10,9 +10,12 @@ metadata:
   name: {{ .Values.config.time_series_analytics_microservice.name }}
   namespace: {{ .Values.namespace }}
 spec:
+  type: NodePort
   ports:
-  - port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
-    name: kapacitor-port
+  - name: kapacitor-port
+    port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
+    targetPort: {{ $.Values.config.time_series_analytics_microservice.int.port }}
+    nodePort: {{ $.Values.config.time_series_analytics_microservice.ext.port }}
   selector:
     app: time-series-analytics-microservice
 ---

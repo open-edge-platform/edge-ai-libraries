@@ -39,6 +39,9 @@
 
     ```bash
     cd <helm-directory>
+    # Copy the config.json file to helm directory
+    cp ../config.json .
+    # Install helm charts
     helm install time-series-analytics-microservice . -n apps --create-namespace
     ```
 
@@ -46,6 +49,15 @@ Use the following command to verify if all the application resources got install
 
 ```bash
    kubectl get all -n apps
+```
+
+## Ingesting Temperature Data into the Time Series Analytics Microservice
+
+Run the following script to ingest temperature data into the Time Series Analytics Microservice:
+
+```sh
+cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
+python3 src/temperature_input.py --mode helm
 ```
 
 ## Verify the Temperature Classifier Results

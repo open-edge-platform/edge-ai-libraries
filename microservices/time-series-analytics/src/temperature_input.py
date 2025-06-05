@@ -8,16 +8,39 @@ import requests
 import random
 import time
 import socket
+import argparse
+
+parser = argparse.ArgumentParser(description="Send temperature data to Time Series Analytics Microservice.")
+parser.add_argument(
+    "--mode",
+    choices=["helm", "docker"],
+    required=True,
+    help="Deployment mode: 'helm' or 'docker'"
+)
+args = parser.parse_args()
+
+print(f"Running in {args.mode} mode.")
 
 def is_port_open(host, port, timeout=3):
-    try:
-        with socket.create_connection((host, port), timeout=timeout):
-            return True
-    except Exception:
+    retries = 0
+    while(retries < 10):
+        try:
+            with socket.create_connection((host, port), timeout=timeout):
+                return True
+        except (socket.timeout, socket.error) as e:
+            pass
+            time.sleep(1)
+            retries += 1
+    if retries == 10:
+        print(f"Failed to connect to {host}:{port} after multiple attempts.")
         return False
-
+    
 host = "localhost"
-port = 9092
+
+if args.mode == "helm":
+    port = 30009
+else:
+    port = 9092
 
 if not is_port_open(host, port):
     print(f"Port {port} on {host} is not accessible.")
@@ -25,7 +48,7 @@ if not is_port_open(host, port):
 else:
     print(f"Port {port} on {host} is accessible.") 
 
-url = "http://localhost:9092/kapacitor/v1/write"
+url = f"http://localhost:{port}/kapacitor/v1/write"
 params = {
     "db": "datain",
     "rp": "autogen"
