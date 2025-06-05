@@ -7,23 +7,24 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **Overview**
   - [Overview](docs/user-guide/Overview.md): A high-level introduction to the Time Series Analytics Microservice.
 
-- **Deployment**
-  - [How to Deploy](docs/user-guide/Temperature-classifier.md): Instructions for building the microservice from source code.
+- **Docker compose Deployment**
+  - [Docker compose deployment](docs/user-guide/get-started.md): Instructions for building the microservice from source code.
 
-- ** Custom User Configuration**
-    - [Custom User Configuration](./docs/user-guide/Custom-User-Configuration.md): Instructions for advanced configuration.
+- **Helm deployment**
+  - [Helm deployment](./docs/user-guide/how-to-deploy-with-helm.md): Instructions for advanced configuration.
 
 - **API Reference**
-  - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
+  - TBD
 
 - **Release Notes**
-  - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
+  - [Release Notes](docs/user-guide/release_notes/Overview.md): Information on the latest updates, improvements, and bug fixes.
 
 ## Running Unit tests
 
 Follow the steps below to run the unit tests.
 
 ```bash
-cd ~/timeseries-ai-stack/microservices/time_series_analytics_microservice
+cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
+echo "Running unit tests"
 ./tests/run_tests.sh
 ```
