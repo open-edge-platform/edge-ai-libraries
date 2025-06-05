@@ -1,7 +1,7 @@
 import unittest
-from pathlib import Path
 
-from pipeline import GstPipeline, SmartNVRPipeline
+from pipeline import GstPipeline
+from pipelines.smartnvr.pipeline import SmartNVRPipeline
 
 
 class TestGstPipeline(unittest.TestCase):
@@ -22,12 +22,14 @@ class TestGstPipeline(unittest.TestCase):
 
     def test_evaluate_method(self):
         with self.assertRaises(NotImplementedError):
-            self.pipeline.evaluate(**{
-                "constants": {},
-                "parameters": {},
-                "regular_channels": 1,
-                "inference_channels": 1,
-            })
+            self.pipeline.evaluate(
+                **{
+                    "constants": {},
+                    "parameters": {},
+                    "regular_channels": 1,
+                    "inference_channels": 1,
+                }
+            )
 
 
 class TestSmartNVRPipeline(unittest.TestCase):
