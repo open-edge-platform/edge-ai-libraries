@@ -13,7 +13,14 @@ runs:
       shell: bash
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        #echo "$HOME/.local/bin" >> $GITHUB_PATH
+        POETRY_BIN="$HOME/.local/bin"
+        if [[ -d "$POETRY_BIN" ]]; then
+          echo "$POETRY_BIN" >> "$GITHUB_PATH"
+        else
+          echo "❌ Poetry bin directory not found: $POETRY_BIN" >&2
+          exit 1
+        fi
     
     
     - name: Install Trivy
