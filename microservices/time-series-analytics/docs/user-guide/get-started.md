@@ -147,6 +147,15 @@ cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker
 docker compose up -d
 ```
 
+### Ingesting Temperature Data into the Time Series Analytics Microservice
+
+Run the following script to ingest temperature data into the Time Series Analytics Microservice:
+
+```sh
+cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
+python3 src/temperature_input.py
+```
+
 ### Verify the Temperature Classifier Results
 
 Run below commands to see the filtered temperature results:

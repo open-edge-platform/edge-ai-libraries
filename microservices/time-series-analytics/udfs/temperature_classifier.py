@@ -7,10 +7,18 @@
 from kapacitor.udf.agent import Agent, Handler, Server
 from kapacitor.udf import udf_pb2
 import logging
-logging.basicConfig(level=logging.DEBUG,
-                    format='%(asctime)s %(levelname)s:%(name)s: %(message)s')
-logger = logging.getLogger()
+import os
 
+log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
+logging_level = getattr(logging, log_level, logging.INFO)
+
+# Configure logging
+logging.basicConfig(
+    level=logging_level,  # Set the log level
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Log format
+)
+
+logger = logging.getLogger()
 
 # Mirrors all points it receives back to Kapacitor
 class MirrorHandler(Handler):
@@ -45,9 +53,11 @@ class MirrorHandler(Handler):
     def point(self, point):
         point_dict = point.fieldsDouble
         temp = point_dict['temperature']
+        logger.debug(f"Received temperature point data {temp}")
         if temp < 20 or temp > 25:
             response = udf_pb2.Response()
             response.point.CopyFrom(point)
+            logger.info(f"Temperature {temp} is outside the range 20-25.")
             self._agent.write_response(response, True)
 
     def end_batch(self, end_req):
