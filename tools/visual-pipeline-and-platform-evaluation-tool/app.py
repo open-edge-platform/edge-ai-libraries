@@ -7,7 +7,6 @@ import plotly.graph_objects as go
 
 from datetime import datetime
 from optimize import OptimizationResult, PipelineOptimizer
-#from pipeline import SmartNVRPipeline, Transportation2Pipeline
 from pipelines.smartnvr.pipeline import SmartNVRPipeline
 from pipelines.transportation2.pipeline import Transportation2Pipeline
 
