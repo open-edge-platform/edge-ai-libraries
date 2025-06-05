@@ -12,7 +12,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [Overview](docs/user-guide/overview.md): A high-level introduction.  
 
 - **Getting Started**
-  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
+  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application..
   - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
 
 - **Deployment**
