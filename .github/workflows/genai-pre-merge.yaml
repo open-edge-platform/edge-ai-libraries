@@ -74,7 +74,10 @@ jobs:
           include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,microservices/document-ingestion/pgvector"
 
       - name: Debug Changed Projects
-        run: echo "Changed Projects: ${{ steps.discover.outputs.changed_projects }}"
+        run: |
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "PWD: $(pwd)"
+          echo "Changed Projects: ${{ steps.discover.outputs.changed_projects }}"
         
  
   
