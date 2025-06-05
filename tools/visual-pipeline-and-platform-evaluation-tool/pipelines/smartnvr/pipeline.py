@@ -1,15 +1,16 @@
-from pathlib import Path
 import math
-from typing import List
 import os
-import sys
+from pathlib import Path
+from typing import List
+
 from pipeline import GstPipeline
+
 
 class SmartNVRPipeline(GstPipeline):
     def __init__(self):
         super().__init__()
 
-        self._diagram = Path(os.path.dirname(__file__))/"diagram.png"
+        self._diagram = Path(os.path.dirname(__file__)) / "diagram.png"
 
         self._bounding_boxes = [
             (325, 108, 445, 168, "Inference", "Object Detection"),
@@ -69,9 +70,9 @@ class SmartNVRPipeline(GstPipeline):
             "  model-instance-id=detect0 "
             "  pre-process-backend={object_detection_pre_process_backend} "
             "  device={object_detection_device} "
-            "  batch-size={object_detection_batch_size} "  
-            "  inference-interval={object_detection_inference_interval} " 
-            "  nireq={object_detection_nireq} ! "  
+            "  batch-size={object_detection_batch_size} "
+            "  inference-interval={object_detection_inference_interval} "
+            "  nireq={object_detection_nireq} ! "
             "queue2 "
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
@@ -109,20 +110,19 @@ class SmartNVRPipeline(GstPipeline):
             "comp.sink_{id} "
         )
 
-    
     def evaluate(
         self,
         constants: dict,
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: List[ tuple[str, str, str] ] = [],
+        elements: List[tuple[str, str, str]] = [],
     ) -> str:
-        
+
         # Set pre process backed for object detection
         parameters["object_detection_pre_process_backend"] = (
             "opencv"
-            if parameters["object_detection_device"] in ["CPU", "NPU"] 
+            if parameters["object_detection_device"] in ["CPU", "NPU"]
             else "va-surface-sharing"
         )
 
@@ -143,27 +143,45 @@ class SmartNVRPipeline(GstPipeline):
             xpos = 640 * (i % grid_size)
             ypos = 360 * (i // grid_size)
             sinks += self._sink.format(id=i, xpos=xpos, ypos=ypos)
- 
+
         # Find the available compositor in elements dynamically
-        if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
+        if (
+            parameters["object_detection_device"].startswith("GPU.")
+            and int(parameters["object_detection_device"].split(".")[1]) > 0
+        ):
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
-            vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
+            vaapi_suffix = str(
+                128 + int(gpu_index)
+            )  # 128 + 1 = 129, 128 + 2 = 130, etc.
             _compositor_element = f"varenderD{vaapi_suffix}compositor"
         else:
             _compositor_element = next(
-            ("vacompositor" for element in elements if element[1] == "vacompositor"),
-            next(
-                ("compositor" for element in elements if element[1] == "compositor"),
-                None  # Fallback to None if no compositor is found
+                (
+                    "vacompositor"
+                    for element in elements
+                    if element[1] == "vacompositor"
+                ),
+                next(
+                    (
+                        "compositor"
+                        for element in elements
+                        if element[1] == "compositor"
+                    ),
+                    None,  # Fallback to None if no compositor is found
+                ),
             )
-        )
 
         # Find the available encoder dynamically
-        if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
+        if (
+            parameters["object_detection_device"].startswith("GPU.")
+            and int(parameters["object_detection_device"].split(".")[1]) > 0
+        ):
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
-            vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
+            vaapi_suffix = str(
+                128 + int(gpu_index)
+            )  # 128 + 1 = 129, 128 + 2 = 130, etc.
             _encoder_element = f"varenderD{vaapi_suffix}h264lpenc"
         else:
             # Fallback to default encoder if no specific GPU is selected
@@ -172,43 +190,62 @@ class SmartNVRPipeline(GstPipeline):
                 next(
                     ("vah264enc" for element in elements if element[1] == "vah264enc"),
                     next(
-                        ("x264enc bitrate=16000 speed-preset=superfast" for element in elements if element[1] == "x264enc"),
-                        None  # Fallback to None if no encoder is found
-                    )
-                )
+                        (
+                            "x264enc bitrate=16000 speed-preset=superfast"
+                            for element in elements
+                            if element[1] == "x264enc"
+                        ),
+                        None,  # Fallback to None if no encoder is found
+                    ),
+                ),
             )
 
-         # Find the available decoder and postprocessing elements dynamically
-        if parameters["object_detection_device"].startswith("GPU.") and int(parameters["object_detection_device"].split(".")[1]) > 0:
+        # Find the available decoder and postprocessing elements dynamically
+        if (
+            parameters["object_detection_device"].startswith("GPU.")
+            and int(parameters["object_detection_device"].split(".")[1]) > 0
+        ):
             # Extract the GPU index (e.g., "1" from "GPU.1")
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
-            vaapi_suffix = str(128 + int(gpu_index))  # 128 + 1 = 129, 128 + 2 = 130, etc.
-            _decoder_element = f"varenderD{vaapi_suffix}h264dec ! video/x-raw(memory:VAMemory)"
+            vaapi_suffix = str(
+                128 + int(gpu_index)
+            )  # 128 + 1 = 129, 128 + 2 = 130, etc.
+            _decoder_element = (
+                f"varenderD{vaapi_suffix}h264dec ! video/x-raw(memory:VAMemory)"
+            )
             _postprocessing_element = f"varenderD{vaapi_suffix}postproc"
         else:
             # Fallback to default elements if no specific GPU is selected
             _decoder_element = next(
-                ("vah264dec ! video/x-raw(memory:VAMemory)" for element in elements if element[1] == "vah264dec"),
+                (
+                    "vah264dec ! video/x-raw(memory:VAMemory)"
+                    for element in elements
+                    if element[1] == "vah264dec"
+                ),
                 next(
                     ("decodebin" for element in elements if element[1] == "decodebin"),
-                    None  # Fallback to None if no decoder is found
-                )
+                    None,  # Fallback to None if no decoder is found
+                ),
             )
             _postprocessing_element = next(
                 ("vapostproc" for element in elements if element[1] == "vapostproc"),
                 next(
-                    ("videoscale" for element in elements if element[1] == "videoscale"),
-                    None  # Fallback to None if no postprocessing is found
-                )
+                    (
+                        "videoscale"
+                        for element in elements
+                        if element[1] == "videoscale"
+                    ),
+                    None,  # Fallback to None if no postprocessing is found
+                ),
             )
 
         # Create the compositor
         compositor = self._compositor.format(
-            **constants, 
-            sinks=sinks, 
-            encoder=_encoder_element, 
-            compositor=_compositor_element
+            **constants,
+            sinks=sinks,
+            encoder=_encoder_element,
+            compositor=_compositor_element,
         )
 
         # Create the streams
@@ -229,7 +266,7 @@ class SmartNVRPipeline(GstPipeline):
                 f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                 f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
             )
-            
+
             if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
                 classification_model_config = (
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
@@ -242,16 +279,16 @@ class SmartNVRPipeline(GstPipeline):
                 decoder=_decoder_element,
                 postprocessing=_postprocessing_element,
                 detection_model_config=detection_model_config,
-                classification_model_config=classification_model_config
+                classification_model_config=classification_model_config,
             )
 
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(
-                **parameters, 
-                **constants, 
-                id=i, 
+                **parameters,
+                **constants,
+                id=i,
                 decoder=_decoder_element,
-                postprocessing=_postprocessing_element
+                postprocessing=_postprocessing_element,
             )
 
         # Evaluate the pipeline
