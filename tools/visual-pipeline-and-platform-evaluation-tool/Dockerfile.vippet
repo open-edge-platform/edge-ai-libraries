@@ -31,6 +31,7 @@ ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
 RUN pip install -r requirements.txt
 
 ADD diagrams/ /home/dlstreamer/vippet/diagrams
+ADD pipelines/ /home/dlstreamer/vippet/pipelines
 
 ADD app.py optimize.py pipeline.py device.py explore.py benchmark.py utils.py /home/dlstreamer/vippet/
 
