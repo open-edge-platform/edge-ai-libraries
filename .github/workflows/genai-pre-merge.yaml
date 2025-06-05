@@ -58,69 +58,97 @@ jobs:
     permissions:
       contents: read
     outputs:
-      core_changed: ${{ steps.filter.outputs.core_changed }}
-      qa_changed: ${{ steps.filter.outputs.qa_changed }}
-      doc_changed:  ${{ steps.filter.outputs.doc_changed }}
+      changed_projects: ${{ steps.discover.outputs.changed_projects }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false  
+          persist-credentials: false
 
-      - name: Filter Changes
-        id: filter
-        run: |
-          # Determine the comparison based on event type
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "Event: Pull Request"
-            # Safely get and validate SHA values
-            BASE_SHA="${{ github.event.pull_request.base.sha }}"
-            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+      - name: Discover Changed Subfolders
+        id: discover
+        uses: ./.github/actions/discover-changed-subfolder
+        with:
+          project_folder: "."
+          include_folders: >
+            sample-applications/chat-question-and-answer-core,
+            sample-applications/chat-question-and-answer,
+            microservices/document-ingestion/pgvector
+
+      - name: Debug Changed Projects
+        run: echo "Changed Projects: ${{ steps.discover.outputs.changed_projects }}"
+        
+ 
+  
+  # detect-changes:
+  #   runs-on: ubuntu-22.04-32core-128GB
+  #   permissions:
+  #     contents: read
+  #   outputs:
+  #     core_changed: ${{ steps.filter.outputs.core_changed }}
+  #     qa_changed: ${{ steps.filter.outputs.qa_changed }}
+  #     doc_changed:  ${{ steps.filter.outputs.doc_changed }}
+  #   steps:
+  #     - name: Checkout Code
+  #       uses: actions/checkout@v4
+  #       with:
+  #         fetch-depth: 0
+  #         persist-credentials: false  
+
+  #     - name: Filter Changes
+  #       id: filter
+  #       run: |
+  #         # Determine the comparison based on event type
+  #         if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+  #           echo "Event: Pull Request"
+  #           # Safely get and validate SHA values
+  #           BASE_SHA="${{ github.event.pull_request.base.sha }}"
+  #           HEAD_SHA="${{ github.event.pull_request.head.sha }}"
             
-            # Validate SHA format (40 character hex)
-            if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
-              echo "Invalid base SHA format: $BASE_SHA"
-              exit 1
-            fi
+  #           # Validate SHA format (40 character hex)
+  #           if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+  #             echo "Invalid base SHA format: $BASE_SHA"
+  #             exit 1
+  #           fi
             
-            if [[ ! "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]; then
-              echo "Invalid head SHA format: $HEAD_SHA"
-              exit 1
-            fi
+  #           if [[ ! "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+  #             echo "Invalid head SHA format: $HEAD_SHA"
+  #             exit 1
+  #           fi
             
-            # Fetch with validated SHAs
-            git fetch origin "$BASE_SHA" --depth=1
-          fi
+  #           # Fetch with validated SHAs
+  #           git fetch origin "$BASE_SHA" --depth=1
+  #         fi
           
-          echo "Comparing $BASE_SHA...$HEAD_SHA"
+  #         echo "Comparing $BASE_SHA...$HEAD_SHA"
           
-          # Check if core folder has changes
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer-core/"; then
-            echo "Core folder has changes"
-            echo "core_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in core folder"
-            echo "core_changed=false" >> $GITHUB_OUTPUT
-          fi
+  #         # Check if core folder has changes
+  #         if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+  #           echo "Core folder has changes"
+  #           echo "core_changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "No changes in core folder"
+  #           echo "core_changed=false" >> $GITHUB_OUTPUT
+  #         fi
           
-          # Check if Q&A folder has changes
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer/"; then
-            echo "Q&A folder has changes"
-            echo "qa_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in Q&A folder"
-            echo "qa_changed=false" >> $GITHUB_OUTPUT
-          fi
+  #         # Check if Q&A folder has changes
+  #         if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer/"; then
+  #           echo "Q&A folder has changes"
+  #           echo "qa_changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "No changes in Q&A folder"
+  #           echo "qa_changed=false" >> $GITHUB_OUTPUT
+  #         fi
           
-          # Check if document-ingestion folder has changes
-          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^microservices/document-ingestion/pgvector/"; then
-            echo "document-ingestion folder has changes"
-            echo "doc_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in document-ingestion folder"
-            echo "doc_changed=false" >> $GITHUB_OUTPUT
-          fi 
+  #         # Check if document-ingestion folder has changes
+  #         if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^microservices/document-ingestion/pgvector/"; then
+  #           echo "document-ingestion folder has changes"
+  #           echo "doc_changed=true" >> $GITHUB_OUTPUT
+  #         else
+  #           echo "No changes in document-ingestion folder"
+  #           echo "doc_changed=false" >> $GITHUB_OUTPUT
+  #         fi 
           
       # - name: Filter Changes
       #   id: filter
@@ -165,7 +193,7 @@ jobs:
     needs: detect-changes
     permissions:
       contents: read    
-    if: ${{ needs.detect-changes.outputs.core_changed == 'true' }}
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'sample-applications/chat-question-and-answer-core')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
@@ -356,7 +384,7 @@ jobs:
     needs: detect-changes
     permissions:
       contents: read    
-    if: ${{ needs.detect-changes.outputs.qa_changed == 'true' }}
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'sample-applications/chat-question-and-answer')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
@@ -409,10 +437,7 @@ jobs:
             sample-applications/chat-question-and-answer/htmlcov/index.html
             sample-applications/chat-question-and-answer/coverage-html/index.html
       
-      # - name: Setup Node.js
-      #   uses: actions/setup-node@v4
-      #   with:
-      #     node-version: '22'
+
  
       - name: Install npm dependencies
         continue-on-error: true
@@ -543,7 +568,7 @@ jobs:
     permissions:
       contents: read
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.doc_changed == 'true' }}
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'microservices/document-ingestion/pgvector')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}   
