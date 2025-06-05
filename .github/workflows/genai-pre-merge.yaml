@@ -66,24 +66,37 @@ jobs:
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          persist-credentials: false          
-          
+          persist-credentials: false  
+
       - name: Filter Changes
         id: filter
         run: |
           # Determine the comparison based on event type
           if [[ "${{ github.event_name }}" == "pull_request" ]]; then
             echo "Event: Pull Request"
-            # For pull requests, compare against the PR base
-            git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
-            HEAD_SHA=${{ github.event.pull_request.head.sha }}
+            # Safely get and validate SHA values
+            BASE_SHA="${{ github.event.pull_request.base.sha }}"
+            HEAD_SHA="${{ github.event.pull_request.head.sha }}"
+            
+            # Validate SHA format (40 character hex)
+            if [[ ! "$BASE_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo "Invalid base SHA format: $BASE_SHA"
+              exit 1
+            fi
+            
+            if [[ ! "$HEAD_SHA" =~ ^[a-f0-9]{40}$ ]]; then
+              echo "Invalid head SHA format: $HEAD_SHA"
+              exit 1
+            fi
+            
+            # Fetch with validated SHAs
+            git fetch origin "$BASE_SHA" --depth=1
           fi
           
           echo "Comparing $BASE_SHA...$HEAD_SHA"
           
           # Check if core folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer-core/"; then
             echo "Core folder has changes"
             echo "core_changed=true" >> $GITHUB_OUTPUT
           else
@@ -92,21 +105,62 @@ jobs:
           fi
           
           # Check if Q&A folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer/"; then
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^sample-applications/chat-question-and-answer/"; then
             echo "Q&A folder has changes"
             echo "qa_changed=true" >> $GITHUB_OUTPUT
           else
             echo "No changes in Q&A folder"
             echo "qa_changed=false" >> $GITHUB_OUTPUT
           fi
+          
           # Check if document-ingestion folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
+          if git diff --name-only "$BASE_SHA" "$HEAD_SHA" | grep -q "^microservices/document-ingestion/pgvector/"; then
             echo "document-ingestion folder has changes"
-            echo "doc_changed=true"  >>  $GITHUB_OUTPUT
+            echo "doc_changed=true" >> $GITHUB_OUTPUT
           else
             echo "No changes in document-ingestion folder"
-            echo "doc_changed=false"  >>  $GITHUB_OUTPUT
-          fi
+            echo "doc_changed=false" >> $GITHUB_OUTPUT
+          fi 
+          
+      # - name: Filter Changes
+      #   id: filter
+      #   run: |
+      #     # Determine the comparison based on event type
+      #     if [[ "${{ github.event_name }}" == "pull_request" ]]; then
+      #       echo "Event: Pull Request"
+      #       # For pull requests, compare against the PR base
+      #       git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
+      #       BASE_SHA=${{ github.event.pull_request.base.sha }}
+      #       HEAD_SHA=${{ github.event.pull_request.head.sha }}
+      #     fi
+          
+      #     echo "Comparing $BASE_SHA...$HEAD_SHA"
+          
+      #     # Check if core folder has changes
+      #     if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer-core/"; then
+      #       echo "Core folder has changes"
+      #       echo "core_changed=true" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "No changes in core folder"
+      #       echo "core_changed=false" >> $GITHUB_OUTPUT
+      #     fi
+          
+      #     # Check if Q&A folder has changes
+      #     if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer/"; then
+      #       echo "Q&A folder has changes"
+      #       echo "qa_changed=true" >> $GITHUB_OUTPUT
+      #     else
+      #       echo "No changes in Q&A folder"
+      #       echo "qa_changed=false" >> $GITHUB_OUTPUT
+      #     fi
+      #     # Check if document-ingestion folder has changes
+      #     if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
+      #       echo "document-ingestion folder has changes"
+      #       echo "doc_changed=true"  >>  $GITHUB_OUTPUT
+      #     else
+      #       echo "No changes in document-ingestion folder"
+      #       echo "doc_changed=false"  >>  $GITHUB_OUTPUT
+      #     fi
   chat-question-and-answer-core-job:
     needs: detect-changes
     permissions:
