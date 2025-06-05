@@ -126,12 +126,6 @@ cmake_dependent_option(ENABLE_PAHO_INSTALLATION "Enables paho-mqtt3c installatio
 cmake_dependent_option(ENABLE_RDKAFKA_INSTALLATION "Enables rdkafka installation" OFF "UNIX" OFF)
 option(ENABLE_AUDIO_INFERENCE_ELEMENTS "Enables audio inference elements" ON)
 option(ENABLE_VPUX "Enables VPUX specific features" OFF)
-# [INTERNAL-ANCHOR-BEGIN]
-cmake_dependent_option(ENABLE_TESTS "Parameter to enable tests building" ON "UNIX" OFF)
-cmake_dependent_option(ENABLE_MTCNN "Parameter to enable mtcnn elements" ON "UNIX" OFF)
-option(ENABLE_FUZZING "Enables fuzzing specific compile flags" OFF)
-# [INTERNAL-ANCHOR-END]
-
 message("ENABLE_PAHO_INSTALLATION=${ENABLE_PAHO_INSTALLATION}")
 message("ENABLE_RDKAFKA_INSTALLATION=${ENABLE_RDKAFKA_INSTALLATION}")
 
@@ -190,24 +184,6 @@ include_directories(${CMAKE_CURRENT_BINARY_DIR}/configs)
 set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -DHAVE_CONFIG_H")
 set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -DHAVE_CONFIG_H")
 
-# [INTERNAL-ANCHOR-BEGIN]
-# Code coverage
-if(${ENABLE_CODE_COVERAGE})
-    include(${CMAKE_CURRENT_SOURCE_DIR}/cmake/CodeCoverage.cmake)
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_COVERAGE}")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_COVERAGE}")
-    set(COVERAGE_GCOVR_EXCLUDES samples thirdparty tests)
-    set(COVERAGE_COMAND ${CMAKE_CURRENT_SOURCE_DIR}/scripts/code_coverage_command.sh)
-    set(COVERAGE_COMAND_ARGS ${CMAKE_CURRENT_SOURCE_DIR} ${CMAKE_BINARY_DIR})
-    SETUP_TARGET_FOR_COVERAGE_GCOVR_HTML(NAME code_coverage EXECUTABLE ${COVERAGE_COMAND} ${COVERAGE_COMAND_ARGS})
-endif()
-if(${ENABLE_FUZZING})
-    set(ENV{AFL_HARDEN} "1")
-    set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${CMAKE_CXX_FLAGS_COVERAGE} -fprofile-arcs -ftest-coverage -Wno-unknown-warning-option")
-    set(CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${CMAKE_C_FLAGS_COVERAGE} -fprofile-arcs -ftest-coverage")
-    set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -lgcov --coverage -fprofile-arcs")
-endif()
-# [INTERNAL-ANCHOR-END]
 
 # Find common packages
 
@@ -233,9 +209,3 @@ if(${ENABLE_SAMPLES})
     #add_subdirectory(samples/ffmpeg_dpcpp/rgb_to_grayscale)
 endif()
 
-# [INTERNAL-ANCHOR-BEGIN]
-if(${ENABLE_TESTS})
-    enable_testing()
-    add_subdirectory(tests)
-endif()
-# [INTERNAL-ANCHOR-END]
