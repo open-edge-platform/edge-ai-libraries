@@ -1,0 +1,96 @@
+name: "Discover Changed Subfolder"
+inputs:
+  project_folder:
+    description: "Project subfolder where the job will run, defaults to ."
+    required: false
+    default: "."
+    type: string
+
+  # NEW: comma-separated list of subfolders to skip
+  exclude_folders:
+    description: >
+      Comma-separated list of top-level folders to ignore
+      (e.g. ".github,node_modules,tools").
+    required: false
+    default: ""
+    type: string
+
+outputs:
+  changed_projects:
+    description: "The list of subfolders that have changed"
+    value: ${{ steps.discover-changes.outputs.changed_projects }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: ${{ github.base_ref == '' && 2 || 0 }}
+
+    - name: Discover Changed Subfolders
+      id: discover-changes
+      shell: bash
+      working-directory: ${{ inputs.project_folder }}
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        EXCLUDE: ${{ inputs.exclude_folders }}
+      run: |
+        set -euo pipefail
+
+        # 1) Fetch refs
+        if [[ -n "$BASE_REF" ]]; then
+          git fetch origin "$BASE_REF"
+        fi
+
+        # 2) Parse the comma-separated excludes into an array
+        IFS=',' read -r -a EXCLUDES <<< "${EXCLUDE}"
+
+        # 3) Enumerate all top-level dirs, excluding .git
+        mapfile -t projects < <(
+          find . -mindepth 1 -maxdepth 1 -type d \
+            ! -name .git \
+            -printf '%f\n'
+        )
+
+        changed_projects=()
+
+        check_and_add() {
+          local dir=$1
+          local skip=false
+          for ex in "${EXCLUDES[@]}"; do
+            [[ -n "$ex" && "$dir" == "$ex" ]] && skip=true && break
+          done
+          $skip && return 0
+
+          # pick correct diff range
+          if [[ -n "$BASE_REF" ]]; then
+            git diff --quiet origin/"$BASE_REF"...HEAD -- "$dir" || changed_projects+=("$dir")
+          else
+            git diff --quiet HEAD~1...HEAD    -- "$dir" || changed_projects+=("$dir")
+          fi
+        }
+
+        # 4) Loop through each project, skip as needed
+        for proj in "${projects[@]}"; do
+          check_and_add "$proj"
+        done
+
+        # 5) Serialize to JSON (or empty array)
+        if (( ${#changed_projects[@]} > 0 )); then
+          changed_projects_list=$(
+            printf '%s\n' "${changed_projects[@]}" | jq -R . | jq -s -c .
+          )
+        else
+          changed_projects_list="[]"
+        fi
+
+        # 6) Export composite output
+        echo "changed_projects=$changed_projects_list" >> "$GITHUB_OUTPUT"
+
+    - name: Debug Changed Projects
+      shell: bash
+      env:
+        CHANGED_PROJECTS: ${{ steps.discover-changes.outputs.changed_projects }}
+      run: |
+        echo "Changed Projects (JSON): $CHANGED_PROJECTS"
