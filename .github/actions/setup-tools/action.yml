@@ -15,18 +15,6 @@ runs:
         curl -sSL https://install.python-poetry.org | python3 -
         # on ubuntu-latest runners HOME is always /home/runner
         echo "/home/runner/.local/bin" >> $GITHUB_PATH
-
-    
-    - name: Safely add Poetry to PATH
-      shell: bash
-      run: |
-        POETRY_BIN="$HOME/.local/bin"
-        if [[ -d "$POETRY_BIN" ]]; then
-          echo "$POETRY_BIN" >> "$GITHUB_PATH"
-        else
-          echo "❌ Poetry bin directory not found: $POETRY_BIN" >&2
-          exit 1
-        fi
     
     
     - name: Install Trivy
