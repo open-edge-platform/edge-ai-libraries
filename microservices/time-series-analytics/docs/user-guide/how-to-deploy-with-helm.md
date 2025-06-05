@@ -69,11 +69,12 @@ kubectl get all -n apps # it takes few mins to have all application resources cl
 - Check pod details or container logs to catch any failures:
  
   ```bash
-  kubectl describe pod deployment-time-series-analytics-microservice -n apps # shows details of the pod
-  kubectl logs -f deployment-time-series-analytics-microservice -n apps | grep -i error
+  POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
+  kubectl describe pod $POD_NAME $ -n apps # shows details of the pod
+  kubectl logs -f $POD_NAME -n apps | grep -i error
 
 
   # Debugging UDF errors if container is not restarting and providing expected results
-  kubectl exec -it deployment-time-series-analytics-microservice bash
+  kubectl exec -it $POD_NAME bash
   $ cat /tmp/log/kapacitor/kapacitor.log | grep -i error
   ```
