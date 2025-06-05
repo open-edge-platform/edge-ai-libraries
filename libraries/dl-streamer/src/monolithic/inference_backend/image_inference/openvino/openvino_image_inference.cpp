@@ -657,7 +657,7 @@ class OpenVinoNewApiImpl {
                 gst_structure_set_value(s, "mean", &gvalue);
                 g_value_unset(&gvalue);
             }
-            if ((element.first == "resize_type")) {
+            if (element.first == "resize_type") {
                 GValue gvalue = G_VALUE_INIT;
                 g_value_init(&gvalue, G_TYPE_STRING);
 
@@ -679,15 +679,14 @@ class OpenVinoNewApiImpl {
                 }
                 g_value_unset(&gvalue);
             }
-            if ((element.first == "reverse_input_channels") && (element.second.as<std::string>() == "True")) {
-                // Separate case for LVM
+            if (element.first == "color_space") {
                 GValue gvalue = G_VALUE_INIT;
                 g_value_init(&gvalue, G_TYPE_STRING);
-                g_value_set_string(&gvalue, "RGB");
+                g_value_set_string(&gvalue, element.second.as<std::string>().c_str());
                 gst_structure_set_value(s, "color_space", &gvalue);
                 g_value_unset(&gvalue);
             }
-            if ((element.first == "reverse_input_channels")) {
+            if (element.first == "reverse_input_channels") {
                 GValue gvalue = G_VALUE_INIT;
                 g_value_init(&gvalue, G_TYPE_INT);
                 g_value_set_int(&gvalue, gint(false));
