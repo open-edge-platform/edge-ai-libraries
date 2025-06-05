@@ -14,6 +14,11 @@ runs:
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
         #echo "$HOME/.local/bin" >> $GITHUB_PATH
+
+    
+    - name: Safely add Poetry to PATH
+      shell: bash
+      run: |
         POETRY_BIN="$HOME/.local/bin"
         if [[ -d "$POETRY_BIN" ]]; then
           echo "$POETRY_BIN" >> "$GITHUB_PATH"
