@@ -13,6 +13,7 @@ from device import DeviceDiscovery
 from explore import GstInspector
 from benchmark import Benchmark
 from utils import prepare_video_and_constants
+import utils
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -106,23 +107,6 @@ def download_file(url, local_filename):
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
-
-
-# This elements are not used in the current version of the app
-# # Function to check if a click is inside any bounding box
-# def detect_click(evt: gr.SelectData):
-#     x, y = evt.index
-
-#     for x_min, y_min, x_max, y_max, label, description in pipeline.bounding_boxes():
-#         if x_min <= x <= x_max and y_min <= y <= y_max:
-
-#             match label:
-#                 case "Object Detection":
-#                     return gr.update(open=True), gr.update(open=False)
-#                 case "Object Classification":
-#                     return gr.update(open=False), gr.update(open=True)
-
-#     return gr.update(open=False), gr.update(open=False)
 
 
 # Function to check if a click is inside any bounding box
@@ -387,7 +371,6 @@ def generate_stream_data(i, timestamp_ns=None):
 
     return fig
 
-
 # Create the interface
 def create_interface():
 
@@ -461,7 +444,10 @@ def create_interface():
         label="Number of Recording only channels",
         interactive=True,
     )
+
+    # Benchmark parameters accordion
     benchmark_parameters_accordion = gr.Accordion("Benchmark Parameters", open=True)
+
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
@@ -470,6 +456,7 @@ def create_interface():
         interactive=True
     )
 
+    # AI stream rate
     rate = gr.Slider(
         label="AI Stream Rate (%)",
         value=20,  # Default value
@@ -479,8 +466,18 @@ def create_interface():
         interactive=True
     )
 
-    # Object detection accordion
-    object_detection_accordion = gr.Accordion("Object Detection Parameters", open=True)
+    # Inference accordion
+    inference_accordion = gr.Accordion("Inference Parameters", open=True)
+
+    # Get available and preferred devices for inference
+    device_choices = [
+        (device.full_device_name, device.device_name)
+        for device in device_discovery.list_devices()
+    ]
+    preferred_device = next(
+        ( "GPU" for device_name in device_choices if "GPU" in device_name),
+        ( "CPU" ),
+    )
 
     # Object detection model
     object_detection_model = gr.Dropdown(
@@ -497,82 +494,108 @@ def create_interface():
     )
 
     # Object detection device
-    device_choices = [
-        (device.full_device_name, device.device_name)
-        for device in device_discovery.list_devices()
-    ]
-    preferred_device = next(
-        ( "GPU" for device_name in device_choices if "GPU" in device_name),
-        ( "CPU" ),
-    )
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
         choices=device_choices,
         value=preferred_device,
     )
 
-    # Batch size
-    batch_size = gr.Slider(
+    # Object detection batch size
+    object_detection_batch_size = gr.Slider(
         minimum=0,
         maximum=32,
         value=0,
         step=1,
-        label="Batch Size",
+        label="Object Detection Batch Size",
         interactive=True,
     )
 
-    # Inference interval
-    inference_interval = gr.Slider(
+    # Object detection inference interval
+    object_detection_inference_interval = gr.Slider(
         minimum=1,
         maximum=5,
         value=1,
         step=1,
-        label="Inference Interval",
+        label="Object Detection Inference Interval",
         interactive=True,
     )
 
-    # Number of inference requests (nireq)
-    nireq = gr.Slider(
+    # Object Detection number of inference requests (nireq)
+    object_detection_nireq = gr.Slider(
         minimum=0,
         maximum=4,
         value=0,
         step=1,
-        label="Number of Inference Requests (nireq)",
+        label="Object Detection Number of Inference Requests (nireq)",
         interactive=True,
     )
 
-    # This elements are not used in the current version of the app
-    # # Object classification accordion
-    # object_classification_accordion = gr.Accordion(
-    #     "Object Classification Parameters", open=False
-    # )
+    # Object classification model
+    object_classification_model = gr.Dropdown(
+        label="Object Classification Model",
+        choices=[
+            "EfficientNet B0",
+            "MobileNet V2 PyTorch",
+            "ResNet-50 TF",
+        ],
+        value="ResNet-50 TF",
+    )
 
-    # # Object classification model
-    # object_classification_model = gr.Dropdown(
-    #     label="Object Classification Model",
-    #     choices=[
-    #         "ResNet-50 TF",
-    #         "EfficientNet B0",
-    #         "Vehicle Attributes Recognition Barrier",
-    #     ],
-    #     value="Vehicle Attributes Recognition Barrier",
-    # )
+    # Object classification device
+    object_classification_device = gr.Dropdown(
+        label="Object Classification Device",
+        choices=device_choices,
+        value=preferred_device,
+    )
 
-    # # Object classification device
-    # object_classification_device = gr.Dropdown(
-    #     label="Object Classification Device",
-    #     choices=[
-    #         "CPU",
-    #         "GPU",
-    #     ],
-    #     value="CPU",
-    # )
+    # Object classification batch size
+    object_classification_batch_size = gr.Slider(
+        minimum=0,
+        maximum=32,
+        value=0,
+        step=1,
+        label="Object Classification Batch Size",
+        interactive=True,
+    )
+
+    # Object classification inference interval
+    object_classification_inference_interval = gr.Slider(
+        minimum=1,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Object Classification Inference Interval",
+        interactive=True,
+    )
+
+    # Object classification number of inference requests (nireq)
+    object_classification_nireq = gr.Slider(
+        minimum=0,
+        maximum=4,
+        value=0,
+        step=1,
+        label="Object Classification Number of Inference Requests (nireq)",
+        interactive=True,
+    )
+
+    # Object classification reclassify interval
+    object_classification_reclassify_interval = gr.Slider(
+        minimum=0,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Object Classification Reclassification Interval",
+        interactive=True,
+    )
 
     # Run button
     run_button = gr.Button("Run")
 
     # Add a Benchmark button
     benchmark_button = gr.Button("Benchmark")
+
+    # Add a Stop button
+    stop_button = gr.Button("Stop", variant="stop",visible=False)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
@@ -592,11 +615,11 @@ def create_interface():
                 pipeline_image.select(
                     detect_click,
                     None,
-                    # [object_detection_accordion, object_classification_accordion],
-                    [object_detection_accordion],
+                    [inference_accordion],
                 )
                 run_button.render()
                 benchmark_button.render()
+                stop_button.render()  
                 best_config_textbox.render()
 
                 # Metrics plots
@@ -620,12 +643,15 @@ def create_interface():
                     inferencing_channels,
                     object_detection_model,
                     object_detection_device,
-                    # This elements are not used in the current version of the app
-                    # object_classification_model,
-                    # object_classification_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
+                    object_detection_batch_size,
+                    object_detection_inference_interval,
+                    object_detection_nireq,
+                    object_classification_model,
+                    object_classification_device,
+                    object_classification_batch_size,
+                    object_classification_inference_interval,
+                    object_classification_nireq,
+                    object_classification_reclassify_interval,
                     input_video_player,
                 ):
                     global stream_dfs
@@ -637,32 +663,19 @@ def create_interface():
                         f.write(f"0.0\n")
 
                     video_output_path, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
+                        input_video_player=input_video_player,
+                        object_detection_model=object_detection_model,
+                        object_detection_device=object_detection_device,
+                        object_detection_batch_size=object_detection_batch_size,
+                        object_detection_inference_interval=object_detection_inference_interval,
+                        object_detection_nireq=object_detection_nireq,
+                        object_classification_model=object_classification_model,
+                        object_classification_device=object_classification_device,
+                        object_classification_batch_size=object_classification_batch_size,
+                        object_classification_inference_interval=object_classification_inference_interval,
+                        object_classification_nireq=object_classification_nireq,
+                        object_classification_reclassify_interval=object_classification_reclassify_interval,
                     )
-             
-                    # This elements are not used in the current version of the app
-                    # match object_classification_model:
-                    #     case "ResNet-50 TF":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
-                    #         )
-                    #     case "EfficientNet B0":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
-                    #         )
-                    #     case _:
-                    #         raise ValueError("Unrecognized Object Classification Model")
 
                     # Validate channels
                     if recording_channels + inferencing_channels == 0:
@@ -677,12 +690,15 @@ def create_interface():
                     )
                     optimizer.optimize()
                     best_result = optimizer.evaluate()
-                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
+                    if best_result is None:
+                        best_result_message = "No valid result was returned by the optimizer."
+                    else:
+                        best_result_message = (
+                            f"Total FPS: {best_result.total_fps:.2f}, "
+                            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+                        )
 
-                    best_result_message = (
-                        f"Total FPS: {best_result.total_fps:.2f}, "
-                        f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
-                    )
+                    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
 
                     return [video_output_path] + plot_updates + [best_result_message]
 
@@ -691,19 +707,31 @@ def create_interface():
                     rate,
                     object_detection_model,
                     object_detection_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
+                    object_detection_batch_size,
+                    object_detection_inference_interval,
+                    object_detection_nireq,
+                    object_classification_model,
+                    object_classification_device,
+                    object_classification_batch_size,
+                    object_classification_inference_interval,
+                    object_classification_nireq,
+                    object_classification_reclassify_interval,
                     input_video_player,
                 ):
                     
                     _, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
+                        input_video_player=input_video_player,
+                        object_detection_model=object_detection_model,
+                        object_detection_device=object_detection_device,
+                        object_detection_batch_size=object_detection_batch_size,
+                        object_detection_inference_interval=object_detection_inference_interval,
+                        object_detection_nireq=object_detection_nireq,
+                        object_classification_model=object_classification_model,
+                        object_classification_device=object_classification_device,
+                        object_classification_batch_size=object_classification_batch_size,
+                        object_classification_inference_interval=object_classification_inference_interval,
+                        object_classification_nireq=object_classification_nireq,
+                        object_classification_reclassify_interval=object_classification_reclassify_interval,
                     )
 
                     # Initialize the benchmark class
@@ -723,6 +751,14 @@ def create_interface():
                     # Return results
                     return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
                     
+                def on_stop():
+                    utils.cancelled = True
+                    logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")  # This will appear in docker logs
+                    return [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ]
 
                 input_video_player.change(
                     lambda v: (
@@ -737,10 +773,17 @@ def create_interface():
                     outputs=[run_button, output_video_player],
                     queue=False,
                 )
+                def on_run_click(*args):
+                    # Hide Run and Benchmark, show Stop
+                    return [
+                        gr.update(visible=False),  # run_button
+                        gr.update(visible=False),  # benchmark_button
+                        gr.update(visible=True)    # stop_button
+                    ]
 
                 run_button.click(
-                    fn=lambda: gr.update(interactive=False),
-                    outputs=[run_button],
+                    on_run_click,
+                    outputs=[run_button, benchmark_button, stop_button],
                     queue=True,
                 ).then(
                     lambda: (
@@ -765,12 +808,15 @@ def create_interface():
                         inferencing_channels,
                         object_detection_model,
                         object_detection_device,
-                        # This elements are not used in the current version of the app
-                        # object_classification_model,
-                        # object_classification_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
+                        object_detection_batch_size,
+                        object_detection_inference_interval,
+                        object_detection_nireq,
+                        object_classification_model,
+                        object_classification_device,
+                        object_classification_batch_size,
+                        object_classification_inference_interval,
+                        object_classification_nireq,
+                        object_classification_reclassify_interval,
                         input_video_player,
                     ],
                     outputs=[output_video_player] + plots + [best_config_textbox],
@@ -779,27 +825,51 @@ def create_interface():
                     inputs=None,
                     outputs=timer,
                 ).then(
-                    fn=lambda: gr.update(
-                        interactive=True
-                    ),  # Re-enable Run button
-                    outputs=[run_button],
+                    lambda: [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ],
+                    outputs=[run_button, benchmark_button, stop_button],
                 )
 
-
                 benchmark_button.click(
+                    on_run_click,
+                    outputs=[run_button, benchmark_button, stop_button],
+                    queue=False,
+                ).then(
                     on_benchmark,
                     inputs=[
                         fps_floor,
                         rate,
                         object_detection_model,
                         object_detection_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
+                        object_detection_batch_size,
+                        object_detection_inference_interval,
+                        object_detection_nireq,
+                        object_classification_model,
+                        object_classification_device,
+                        object_classification_batch_size,
+                        object_classification_inference_interval,
+                        object_classification_nireq,
+                        object_classification_reclassify_interval,
                         input_video_player,
                     ],
-                    outputs=[best_config_textbox],
+                    outputs=[best_config_textbox],  
+                ).then(
+                    lambda: [
+                        gr.update(visible=True),   # run_button
+                        gr.update(visible=True),   # benchmark_button
+                        gr.update(visible=False),  # stop_button
+                    ],
+                    outputs=[run_button, benchmark_button, stop_button],
                 )
+
+                stop_button.click(
+                    on_stop,
+                    outputs=[run_button, benchmark_button, stop_button],  # Remove gr.Info
+                    queue=False,
+                ) 
 
             with gr.Column(scale=1, min_width=150):
                 with gr.Accordion("Video Player", open=True):
@@ -814,17 +884,20 @@ def create_interface():
                     fps_floor.render()
                     rate.render()
                 
-                with object_detection_accordion.render():
+                with inference_accordion.render():
+
                     object_detection_model.render()
                     object_detection_device.render()
-                    batch_size.render()
-                    inference_interval.render()
-                    nireq.render()
+                    object_detection_batch_size.render()
+                    object_detection_inference_interval.render()
+                    object_detection_nireq.render()
 
-                # This elements are not used in the current version of the app
-                # with object_classification_accordion.render():
-                #     object_classification_model.render()
-                #     object_classification_device.render()
+                    object_classification_model.render()
+                    object_classification_device.render()
+                    object_classification_batch_size.render()
+                    object_classification_inference_interval.render()
+                    object_classification_nireq.render()
+                    object_classification_reclassify_interval.render()
 
         footer = gr.HTML(
             "<div class='spark-footer'>"
