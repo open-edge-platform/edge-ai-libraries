@@ -1,0 +1,6 @@
+services:
+  vlm-inference-microservice:
+    image: ${REGISTRY:-}vlm-inference-microservice-gpu:${TAG:-latest}
+    devices:
+      - /dev/dri:/dev/dri
+

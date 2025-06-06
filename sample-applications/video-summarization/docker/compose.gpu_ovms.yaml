@@ -1,0 +1,7 @@
+services:
+  ovms-service:
+    image: openvino/model_server:2025.1-gpu
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDER_DEVICE_GID}
