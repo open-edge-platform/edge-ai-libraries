@@ -7,14 +7,21 @@ RED='\033[0;31m'
 YELLOW='\033[0;33m'
 NC='\033[0m' # No Color
 
-export REGISTRY_URL=${REGISTRY_URL:?}
-export PROJECT_NAME=${PROJECT_NAME:?}
+export REGISTRY_URL=${REGISTRY_URL:-}
+export PROJECT_NAME=${PROJECT_NAME:-}
 export TAG=${TAG:-latest}
 
 [[ -n "$REGISTRY_URL" ]] && REGISTRY_URL="${REGISTRY_URL%/}/"
 [[ -n "$PROJECT_NAME" ]] && PROJECT_NAME="${PROJECT_NAME%/}/"
 REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
-echo "Using registry: ${REGISTRY}"
+
+# Display info about the registry being used
+if [ -z "$REGISTRY" ]; then
+  echo -e "${YELLOW}Warning: No registry prefix set. Images will be tagged without a registry prefix.${NC}"
+  echo "Using local image names with tag: ${TAG}"
+else
+  echo "Using registry prefix: ${REGISTRY}"
+fi
 
 # Usage information
 show_usage() {
