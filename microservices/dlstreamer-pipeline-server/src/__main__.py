@@ -19,7 +19,7 @@ from src.rest_api.server import RestServer
 from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
-VERSION = "3.0.0"
+VERSION = "3.1.0"
 EII_MODE = True if os.getenv('RUN_MODE') == "EII" else False
 
 if EII_MODE:
@@ -134,7 +134,7 @@ def main(cfg: PipelineServerConfig):
             rest_server.stop()
         #exit_handler()
 
-    # identify load pipleines
+    # identify load pipelines
     loaded_pl = pipeline_server_mgr.get_loaded_pipelines()
     log.info("="*10+" Loaded pipelines:  "+"="*10)
     for pl in loaded_pl:

@@ -48,6 +48,7 @@ SUPPORTED_MODELS=(
   "yolov8m-seg"
   "yolov8l-seg"
   "yolov8x-seg"
+  "yolov8_license_plate_detector"
   "yolov9t"
   "yolov9s"
   "yolov9m"
@@ -163,13 +164,13 @@ pip install openvino==2024.6.0 || handle_error $LINENO
 pip install openvino-dev || handle_error $LINENO
 
 pip install onnx || handle_error $LINENO
-
+pip install seaborn || handle_error $LINENO
 # Install or upgrade NNCF
 pip install nncf --upgrade || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
-  pip install ultralytics --upgrade || handle_error $LINENO
+  pip install ultralytics --upgrade --extra-index-url https://download.pytorch.org/whl/cpu || handle_error $LINENO
 fi
 
 # Install dependencies for CLIP models
@@ -508,6 +509,46 @@ for MODEL_NAME in "${!YOLO_MODELS[@]}"; do
   fi
 done
 
+# A model from https://github.com/Muhammad-Zeerak-Khan/Automatic-License-Plate-Recognition-using-YOLOv8 
+if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]]; then
+  MODEL_NAME="yolov8_license_plate_detector"
+  MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
+  DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
+  DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
+
+  if [[ ! -f "$DST_FILE1" || ! -f "$DST_FILE2" ]]; then
+    echo "Downloading and converting: ${MODEL_DIR}"
+    mkdir -p "$MODEL_DIR"
+    cd "$MODEL_DIR"
+
+    wget --no-check-certificate 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw' -O ${MODEL_NAME}.pt
+    
+    python3 - <<EOF "$MODEL_NAME" 
+from ultralytics import YOLO
+import openvino, sys, shutil, os
+
+model_name = sys.argv[1]
+weights = model_name + '.pt'
+
+model = YOLO(weights)
+model.info()
+converted_path = model.export(format='openvino')
+converted_model = converted_path + '/' + model_name + '.xml'
+core = openvino.Core()
+ov_model = core.read_model(model=converted_model)
+
+ov_model.set_rt_info('YOLOv8', ['model_info', 'model_type'])
+
+openvino.save_model(ov_model, './FP32/' + model_name + '.xml', compress_to_fp16=False)
+openvino.save_model(ov_model, './FP16/' + model_name + '.xml', compress_to_fp16=True)
+shutil.rmtree(converted_path)
+os.remove(f"{model_name}.pt")
+EOF
+    
+  else
+    echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
+  fi
+fi
 
 if [[ "$MODEL" == "centerface" ]] || [[ "$MODEL" == "all" ]]; then
   MODEL_NAME="centerface"
@@ -624,7 +665,7 @@ for input in ov_model.inputs:
 ov_model.set_rt_info("clip_token", ['model_info', 'model_type'])
 ov_model.set_rt_info("68.500,66.632,70.323", ['model_info', 'scale_values'])
 ov_model.set_rt_info("122.771,116.746,104.094", ['model_info', 'mean_values'])
-ov_model.set_rt_info("True", ['model_info', 'reverse_input_channels'])
+ov_model.set_rt_info("RGB", ['model_info', 'color_space'])
 ov_model.set_rt_info("crop", ['model_info', 'resize_type'])
 
 ov.save_model(ov_model, MODEL + ".xml")
@@ -709,7 +750,7 @@ ov_model.reshape({"x": [-1, 3, 48, 192]})
 ov_model.set_rt_info("paddle_ocr", ['model_info', 'model_type'])
 ov_model.set_rt_info("58.395, 57.12, 57.375", ['model_info', 'scale_values'])  #std = [0.229, 0.224, 0.225]
 ov_model.set_rt_info("123.675, 116.28, 103.53", ['model_info', 'mean_values'])  #mean = [0.485, 0.456, 0.406]
-ov_model.set_rt_info("True", ['model_info', 'reverse_input_channels'])
+ov_model.set_rt_info("true", ['model_info', 'reverse_input_channels'])
 ov_model.set_rt_info("standard", ['model_info', 'resize_type'])
 
 ov.save_model(ov_model, './FP32/' + 'ch_PP-OCRv4_rec_infer.xml', compress_to_fp16=False)
