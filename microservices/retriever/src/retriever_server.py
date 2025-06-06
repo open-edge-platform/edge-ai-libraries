@@ -54,6 +54,20 @@ def retrieval(request: RetrievalRequest):
         JSONResponse: A response containing the top-k retrieved results.
     """
     try:
+        # Validate the query field
+        if not request.query or not isinstance(request.query, str):
+            raise HTTPException(status_code=400, detail="Invalid query. It must be a non-empty string.")
+
+        # Validate the max_num_results field
+        if not isinstance(request.max_num_results, int) or request.max_num_results <= 0:
+            raise HTTPException(status_code=400, detail="Invalid max_num_results. It must be a positive integer.")
+        if request.max_num_results > 16384:
+            raise HTTPException(status_code=400, detail="Invalid max_num_results. It must be in the range [1, 16384].")
+
+        # Validate the filter field (if provided)
+        if request.filter and not isinstance(request.filter, dict):
+            raise HTTPException(status_code=400, detail="Invalid filter. It must be a dictionary.")
+        
         results = retriever.search(request.query, request.filter, top_k=request.max_num_results)
         ret = []
         for hit in results:
@@ -70,7 +84,9 @@ def retrieval(request: RetrievalRequest):
             },
             status_code=200,
         )
-
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions to preserve their status code and message
+        raise http_exc
     except Exception as e:
         logger.error(f"Error during retrieval: {e}")
         raise HTTPException(status_code=500, detail=f"Error during retrieval: {str(e)}")

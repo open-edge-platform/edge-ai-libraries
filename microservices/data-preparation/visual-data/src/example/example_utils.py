@@ -75,10 +75,10 @@ def process_davis_dataset(dataset_path: str, skip_num: int, ratio: float, check_
     dst_dataset_path = os.path.join(dataset_path, "subset")
     os.makedirs(dst_dataset_path, exist_ok=True)
 
-    cut_point = len(DAVIS_SUBSET_CATAGORIES) * ratio  # 50% for images, 50% for videos
+    cut_point = len(DAVIS_SUBSET_CATEGORIES) * ratio  # 50% for images, 50% for videos
     cnt = 0
 
-    for category in DAVIS_SUBSET_CATAGORIES:
+    for category in DAVIS_SUBSET_CATEGORIES:
         category_path = os.path.join(dataset_path, "JPEGImages", "480p", category)
         is_image = cnt < cut_point
         if os.path.exists(category_path):
