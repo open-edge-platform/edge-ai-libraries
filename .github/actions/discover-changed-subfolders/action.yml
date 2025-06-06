@@ -1,0 +1,73 @@
+name: "Discover Changed Subfolder"
+description: >
+  Detect which top-level subfolders have changed,
+  optionally restricting to an inclusion list.
+inputs:
+  project_folder:
+    description: "Project subfolder where the job will run (default is root)."
+    required: false
+    default: "."
+    type: string
+
+  include_folders:
+    description: >
+      Comma-separated list of top-level subfolders to *include* in the diff.
+      If empty, all top-level folders are considered.
+    required: false
+    default: ""
+    type: string
+
+outputs:
+  changed_projects:
+    description: "JSON array of changed subfolder names."
+    value: ${{ steps.discover-changes.outputs.changed_projects }}
+
+runs:
+  using: "composite"
+  steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 0
+
+    - name: Discover Changed Subfolders
+      id: discover-changes
+      shell: bash
+      working-directory: ${{ inputs.project_folder }}
+      env:
+        BASE_REF: ${{ github.base_ref }}
+        INCLUDES: ${{ inputs.include_folders }}
+      run: |
+        set -euo pipefail
+
+        # 1) Fetch base branch if PR
+        [[ -n "$BASE_REF" ]] && git fetch origin "$BASE_REF"
+
+        # 2) Build list of projects
+        IFS=',' read -r -a INCLUDE_ARR <<< "$INCLUDES"
+        if [[ -n "${INCLUDE_ARR[0]}" ]]; then
+          projects=("${INCLUDE_ARR[@]}")
+        else
+          mapfile -t projects < <(find . -mindepth 1 -maxdepth 1 -type d -printf '%f\n')
+        fi
+
+        # 3) Diff each dir
+        changed=()
+        for dir in "${projects[@]}"; do
+          if [[ -n "$BASE_REF" ]]; then
+            git diff --quiet origin/"$BASE_REF"...HEAD -- "$dir" \
+              || changed+=("$dir")
+          else
+            git diff --quiet HEAD~1...HEAD -- "$dir" \
+              || changed+=("$dir")
+          fi
+        done
+
+        # 4) Serialize to JSON array
+        if (( ${#changed[@]} )); then
+          json=$(printf '%s\n' "${changed[@]}" | jq -R . | jq -s -c .)
+        else
+          json="[]"
+        fi
+
+        echo "changed_projects=$json" >> "$GITHUB_OUTPUT"
