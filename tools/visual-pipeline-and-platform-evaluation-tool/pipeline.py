@@ -161,19 +161,36 @@ class SmartNVRPipeline(GstPipeline):
             "{decoder} ! "
             "gvafpscounter starting-frame=1000 ! "
             "gvadetect "
-            "  {model_config} "
+            "  {detection_model_config} "
             "  model-instance-id=detect0 "
             "  pre-process-backend={object_detection_pre_process_backend} "
             "  device={object_detection_device} "
-            "  batch-size={batch_size} "  
-            "  inference-interval={inference_interval} " 
-            "  nireq={nireq} ! "  
+            "  batch-size={object_detection_batch_size} "  
+            "  inference-interval={object_detection_inference_interval} " 
+            "  nireq={object_detection_nireq} ! "  
             "queue2 "
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
             "  max-size-time=0 ! "
             "gvatrack "
             "  tracking-type=short-term-imageless ! "
+            "queue2 "
+            "  max-size-buffers=0 "
+            "  max-size-bytes=0 "
+            "  max-size-time=0 ! "
+            "gvaclassify "
+            "  {classification_model_config} "
+            "  model-instance-id=classify0 "
+            "  pre-process-backend={object_classification_pre_process_backend} "
+            "  device={object_classification_device} "
+            "  batch-size={object_classification_batch_size} "
+            "  inference-interval={object_classification_inference_interval} "
+            "  nireq={object_classification_nireq} "
+            "  reclassify-interval={object_classification_reclassify_interval} ! "
+            "queue2 "
+            "  max-size-buffers=0 "
+            "  max-size-bytes=0 "
+            "  max-size-time=0 ! "
             "gvawatermark ! "
             "gvametaconvert "
             "  format=json "
@@ -198,9 +215,17 @@ class SmartNVRPipeline(GstPipeline):
         elements: List[ tuple[str, str, str] ] = [],
     ) -> str:
         
+        # Set pre process backed for object detection
         parameters["object_detection_pre_process_backend"] = (
             "opencv"
             if parameters["object_detection_device"] in ["CPU", "NPU"] 
+            else "va-surface-sharing"
+        )
+
+        # Set pre process backed for object classification
+        parameters["object_classification_pre_process_backend"] = (
+            "opencv"
+            if parameters["object_classification_device"] in ["CPU", "NPU"]
             else "va-surface-sharing"
         )
 
@@ -286,14 +311,24 @@ class SmartNVRPipeline(GstPipeline):
         streams = ""
 
         for i in range(inference_channels):
-            model_config = (
+            detection_model_config = (
                 f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
                 f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
             )
-            
+
             if not constants["OBJECT_DETECTION_MODEL_PROC"]:
-                model_config = (
+                detection_model_config = (
                     f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                )
+
+            classification_model_config = (
+                f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+            )
+            
+            if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
+                classification_model_config = (
+                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                 )
 
             streams += self._inference_stream.format(
@@ -302,7 +337,8 @@ class SmartNVRPipeline(GstPipeline):
                 id=i,
                 decoder=_decoder_element,
                 postprocessing=_postprocessing_element,
-                model_config=model_config
+                detection_model_config=detection_model_config,
+                classification_model_config=classification_model_config
             )
 
         for i in range(inference_channels, channels):

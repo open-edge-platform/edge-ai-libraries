@@ -159,14 +159,3 @@ class DeviceDiscovery:
     def list_devices(self):
         """List all available devices."""
         return self.devices
-
-
-if __name__ == "__main__":
-    device_discovery = DeviceDiscovery()
-    devices = device_discovery.list_devices()
-
-    print("Available devices:")
-    for device in devices:
-        print(f"\nDevice: {device.device_name}")
-        for key, value in device.__dict__.items():
-            print(f"  {key}: {value}")
