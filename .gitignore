@@ -22,3 +22,4 @@ ov_models
 .coverage
 ov_model_venv
 ovms_config
+!sample-applications/video-summarization/ui/react/.env
