@@ -48,7 +48,6 @@ class MRHandler:
         self.logger = logger
         self.fetch_from_model_registry = False
         self.unique_id = str(uuid.uuid4())
-        print(f"Generated UUID: {self.unique_id}")
         os.environ["REQUESTS_CA_BUNDLE"] = "/run/secrets/server-ca.crt"
         if "fetch_from_model_registry" in self.tasks and self.tasks["fetch_from_model_registry"] is True:
             data = self.get_model_info(self.tasks["task_name"], self.tasks["version"])
@@ -131,6 +130,7 @@ class MRHandler:
                 file_path = os.path.join("/tmp", "temp.zip")
                 with open(file_path, 'wb') as f:
                     f.write(response2.content)
+                    f.close()
                 model_dir = os.path.join("/tmp", f"{self.unique_id}")
                 Path(model_dir).mkdir(parents=True, exist_ok=True)
                 with ZipFile(file_path, 'r') as zobj:
