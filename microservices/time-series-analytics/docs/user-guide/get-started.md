@@ -153,7 +153,7 @@ Run the following script to ingest temperature data into the Time Series Analyti
 
 ```sh
 cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
-python3 src/temperature_input.py
+python3 src/temperature_input.py --mode docker
 ```
 
 ### Verify the Temperature Classifier Results

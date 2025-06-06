@@ -26,3 +26,7 @@ config:
   time_series_analytics_microservice:
     name: time-series-analytics-microservice
     kapacitor_port: 9092
+    int:
+      port: "9092"
+    ext:
+      port: "30009"
