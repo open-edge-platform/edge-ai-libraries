@@ -1,0 +1,130 @@
+name: ${PROJECT_NAME}
+services:
+  nginx:
+    image: nginx:1.27.5
+    ports:
+      - "${APP_HOST_PORT}:80"
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy},${MINIO_HOST},vss-ui,pipeline-manager
+      APP_UI: vss-ui
+      APP_MANAGER: pipeline-manager:3000
+      APP_ASSETS: ${MINIO_HOST}
+      NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
+      NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
+    volumes:
+      - ${NGINX_CONFIG}:/etc/nginx/templates/nginx.conf.template
+    depends_on:
+      vss-ui:
+        condition: service_started
+      pipeline-manager:
+        condition: service_started
+      minio-service:
+        condition: service_started
+    networks:
+      - vs_network
+
+  vss-ui:
+    build:
+      context: ui/react
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}vss-ui:${TAG:-latest}
+    ipc: host
+    ports:
+      - "${UI_HOST_PORT}:80"
+    environment:
+      no_proxy: ${no_proxy},${HOST_IP},pipeline-manager,minio-service
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
+      APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
+      APP_FEATURE_MUX: ATOMIC
+    depends_on:
+      pipeline-manager:
+        condition: service_started
+    restart: unless-stopped
+    networks:
+      - vs_network
+
+  pipeline-manager:
+    build:
+      context: pipeline-manager
+      dockerfile: Dockerfile
+    image: ${REGISTRY:-}pipeline-manager:${TAG:-latest}
+    ports:
+      - "${PM_HOST_PORT}:3000"
+    ipc: host
+    depends_on:
+      minio-service:
+        condition: service_started
+    environment:
+      no_proxy: ${no_proxy},${EVAM_HOST},${VLM_HOST},${AUDIO_HOST},${RABBITMQ_HOST},${MINIO_HOST},${POSTGRES_HOST},${OVMS_HOST},${VDMS_DATAPREP_HOST},${VS_HOST}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      MINIO_PROTOCOL: "http:"
+      MINIO_HOST: ${MINIO_HOST}
+      MINIO_PORT: 80
+      MINIO_BUCKET: ${PM_MINIO_BUCKET}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+      DB_HOST: ${POSTGRES_HOST}
+      DB_PORT: ${POSTGRES_HOST_PORT}
+      DB_USER: ${POSTGRES_USER}
+      DB_PASSWORD: ${POSTGRES_PASSWORD}
+      DB_NAME: ${POSTGRES_DB}
+      OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
+    restart: unless-stopped
+    networks:
+      - vs_network
+
+  postgres-service:
+    image: postgres:17.4
+    ports:
+      - "${POSTGRES_HOST_PORT}:5432"
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
+      POSTGRES_DB: ${POSTGRES_DB}
+    volumes:
+      - pg_data:/var/lib/postgresql/data
+    networks:
+      - vs_network
+
+  minio-service:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
+    ports:
+      - "${MINIO_API_HOST_PORT}:80"
+      - "${MINIO_CONSOLE_HOST_PORT}:81"
+    environment:
+      no_proxy: ${no_proxy}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
+      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
+    command: |
+      server /data 
+      --address ":80"
+      --console-address ":81"
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    restart: unless-stopped
+    volumes:
+      - "minio_data:/data"
+    networks:
+      - vs_network
+
+volumes:
+  minio_data:
+    driver: local
+  pg_data:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+networks:
+  vs_network:
+    driver: bridge
