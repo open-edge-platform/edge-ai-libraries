@@ -139,8 +139,8 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
     ```bash
-    git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git intel.genai.examples
-    cd intel.genai.examples/sample-applications/video-summarization
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    cd edge-ai-libraries/sample-applications/video-summarization
     ```
 
 2. Set the required environment variables as [described above](#setting-required-environment-variables).
