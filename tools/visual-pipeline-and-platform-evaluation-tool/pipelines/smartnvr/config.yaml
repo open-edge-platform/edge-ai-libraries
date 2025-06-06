@@ -1,0 +1,5 @@
+metadata:
+name: Smart Network Video Recorder (NVR) Proxy Pipeline
+definition: >
+  The Smart Network Video Recorder (NVR) Proxy Pipeline builds on top of the
+  Simple NVR Proxy Pipeline to add support for video analytics on a subset of input channels.
