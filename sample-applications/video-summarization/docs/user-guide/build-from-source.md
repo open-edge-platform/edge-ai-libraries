@@ -11,13 +11,13 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the Video summarization Sample Application repository:
       ```bash
-      git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
       ```
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd applications.ai.intel-gpt.generative-ai-examples/reference_apps/videosummary
+      cd edge-ai-libraries/sample-applications/video-summarization
       ```
 
 3. **Set Up Environment Variables**:

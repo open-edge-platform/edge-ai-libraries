@@ -31,7 +31,7 @@ To deploy the **Video Summarization** Application with the Edge Orchestrator, fo
     cd <repository-url>/sample-applications/video-summarization
     ```
 
-    The official `repository-url` is `https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git`. In case of forked repos, please ensure the right url is used when cloning the repo.
+    The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries.git`. In case of forked repos, please ensure the right url is used when cloning the repo.
 
 1. From the web browser, open the URL of the Edge Orchestrator and import the Deployment Package present in the folder **deployment-package** following the steps described in [Import Deployment Package](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/package_software/import_deployment.html#import-deployment-package>).
 
