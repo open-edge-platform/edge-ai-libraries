@@ -111,7 +111,7 @@ services:
       - vs_network
 
   vclip-embedding-ms:
-    image: ${REGISTRY:-}multimodal-embedding-microservice:${TAG:-latest}
+    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
     ports:
       - "${VCLIP_HOST_PORT}:8000"
     ipc: host

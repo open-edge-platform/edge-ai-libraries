@@ -7,7 +7,7 @@ services:
 
   pipeline-manager:
     depends_on:
-      vlm-inference-microservice:
+      vlm-ov-serving:
         condition: service_healthy
       video-ingestion:
         condition: service_started
@@ -44,8 +44,8 @@ services:
       SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
       USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
 
-  vlm-inference-microservice:
-    image: ${REGISTRY:-}vlm-inference-microservice:${TAG:-latest}
+  vlm-ov-serving:
+    image: ${REGISTRY:-}vlm-ov-serving:${TAG:-latest}
     ipc: host
     ports:
       - "${VLM_HOST_PORT}:8000"

@@ -1,10 +1,9 @@
-FROM python:3.10.12
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    libgl1-mesa-glx \
-    libjemalloc-dev
+FROM python:3.12.10-slim AS build
 
-RUN pip install poetry langchain-cli
+RUN pip install poetry
 
 RUN poetry config virtualenvs.create false
 
