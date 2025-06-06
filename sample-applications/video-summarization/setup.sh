@@ -74,13 +74,13 @@ export TAG=${TAG:-latest}
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
-# env for vlm-inference-microservice
+# env for vlm-ov-serving
 export VLM_HOST_PORT=9766
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
-export VLM_HOST=vlm-inference-microservice
+export VLM_HOST=vlm-ov-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 
 # env for ovms-service
@@ -138,7 +138,7 @@ export VDMS_DATAPREP_UPLOAD=$VDMS_DATAPREP_ENDPOINT/videos/upload
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
-export VCLIP_MODEL=openai/clip-vit-base-patch32
+export VCLIP_MODEL=${VCLIP_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
@@ -219,6 +219,13 @@ if [ "$1" != "--down" ]; then
     fi
     if [ -z "$RABBITMQ_PASSWORD" ]; then
         echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
+        return
+    fi
+    if [ -z "$VCLIP_MODEL" ]; then
+        echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
+        return
+    elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
+        echo -e "${RED}ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'.${NC}"
         return
     fi
     if [ -z "$VLM_MODEL_NAME" ]; then

@@ -50,8 +50,8 @@ build_dependencies() {
     }
   fi
 # Check if the directory exists first
-if [ -d "${uservices_dir}/model-serving/multimodal-embedding-microservice" ]; then
-  cd "${uservices_dir}/model-serving/multimodal-embedding-microservice" || {
+if [ -d "${uservices_dir}/multimodal-embedding-serving" ]; then
+  cd "${uservices_dir}/multimodal-embedding-serving" || {
     log_info "${RED}Multimodal embedding directory not found${NC}";
     build_success=false;
   }
@@ -65,11 +65,11 @@ if [ -d "${uservices_dir}/model-serving/multimodal-embedding-microservice" ]; th
   fi
 fi
   
-  # Build VLM inference microservice
-  cd "${uservices_dir}/model-serving/vlm-inference-microservice" || return 0
+  # Build vlm-ov-serving
+  cd "${uservices_dir}/vlm-ov-serving" || return 0
   if [ -f "compose.yaml" ]; then
     source setup.sh && docker compose build || { 
-      log_info "${RED}Failed to build vlm-inference-microservice${NC}"; 
+      log_info "${RED}Failed to build vlm-ov-serving${NC}"; 
       build_success=false; 
     }
   fi
@@ -86,11 +86,11 @@ fi
   fi
 
 
-  # Build VLM GPU inference microservice
-  cd "${uservices_dir}/model-serving/vlm-inference-microservice" || return 0
+  # Build VLM GPU ov serving
+  cd "${uservices_dir}/vlm-ov-serving" || return 0
   if [ -f "compose.gpu.yaml" ]; then
     source setup.sh && docker compose -f compose.gpu.yaml build || { 
-      log_info "${RED}Failed to build GPU vlm-inference-microservice${NC}"; 
+      log_info "${RED}Failed to build GPU vlm-ov-serving${NC}"; 
       build_success=false; 
     }
   fi
