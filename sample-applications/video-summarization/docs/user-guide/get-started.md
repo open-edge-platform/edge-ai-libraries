@@ -97,8 +97,21 @@ Before running the application, you need to set several environment variables:
 
     # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
     export OD_MODEL_NAME="yolov8l-worldv2"
+
+    # Multimodal embedding model. Only openai/clip-vit-base models are supported
+    export VCLIP_MODEL=openai/clip-vit-base-patch32
     ```
 
+**🔐 Working with Gated Models**
+
+Some models on HuggingFace require authentication. To use these models, set these environment variable:
+
+   ```bash
+   export GATED_MODEL=true
+   export HUGGINGFACE_TOKEN=<your_huggingface_token>
+   ```
+
+Once exported, run the setup script as mentioned [here](#running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ## 📊 Application Stacks Overview
 
@@ -112,12 +125,12 @@ The Video Summarization application offers multiple stacks and deployment option
 
 ### 🧩 Deployment Options for Video Summarization
 
-| Option | Chunk-Wise Summary | Final Summarization | Environment Variables | Default Models |
+| Option | Chunk-Wise Summary | Final Summarization | Environment Variables | Recommended Models |
 |--------|--------------------|---------------------|-----------------------|----------------|
-| VLM-CPU | VLM Inference on CPU | VLM Inference on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
-| VLM-GPU | VLM Inference on GPU | VLM Inference on GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
-| VLM-OVMS-CPU | VLM Inference on CPU | OVMS on CPU | `USE_OVMS=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
-| VLM-CPU-OVMS-GPU | VLM Inference on CPU | OVMS on GPU | `USE_OVMS_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-CPU |vlm-ov-serving on CPU | vlm-ov-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
+| VLM-GPU | vlm-ov-serving |vlm-ov-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
+| VLM-OVMS-CPU | vlm-ov-serving on CPU | OVMS Microservice on CPU | `USE_OVMS=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-CPU-OVMS-GPU | vlm-ov-serving on CPU | OVMS Microservice on GPU | `USE_OVMS_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
 ## ▶️ Running the Application
 
@@ -126,8 +139,8 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    cd edge-ai-libraries/sample-applications/video-summarization
+    git clone https://github.com/intel-innersource/applications.ai.intel-gpt.generative-ai-examples.git intel.genai.examples
+    cd intel.genai.examples/sample-applications/video-summarization
     ```
 
 2. Set the required environment variables as [described above](#setting-required-environment-variables).
@@ -172,18 +185,6 @@ Follow these steps to run the application:
     # To see resolved configurations for summarization services with OVMS setup on CPU without starting containers
     USE_OVMS=true source setup.sh --summary config
     ```
-
-
-#### 🔐 Working with Gated Models
-
-Some models on HuggingFace require authentication. To use these models, set these environment variable:
-
-   ```bash
-   export GATED_MODEL=true
-   export HUGGINGFACE_TOKEN=<your_huggingface_token>
-   ```
-
-Once exported, run the setup script as mentioned [here](#running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ### ⚡ Using GPU Acceleration
 
@@ -242,7 +243,7 @@ The build script provides several options:
 
 ```bash
 sudo chmod +x ./build.sh
-# Build all microservice dependencies (VLM-inference-service, multimodal-embedding-microservice, vdms-dataprep etc.)
+# Build all microservice dependencies (vlm-ov-serving, multimodal-embedding-serving, vdms-dataprep etc.)
 ./build.sh
 
 # Build only the sample applications (pipeline-manager, search-ms and UI)
