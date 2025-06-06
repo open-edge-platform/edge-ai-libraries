@@ -5,7 +5,7 @@ from fastapi import FastAPI, File, UploadFile, HTTPException, Request, Body
 from fastapi.responses import JSONResponse, FileResponse
 from fastapi.staticfiles import StaticFiles
 import os
-import shutil
+import re
 import logging
 import json
 from tqdm import tqdm
@@ -109,7 +109,7 @@ async def ingest(request: Union[IngestHostDirRequest, IngestHostFileRequest] = B
 
     Returns:
         JSONResponse: A response indicating success or failure.
-    """
+    """   
     if isinstance(request, IngestHostDirRequest):
         logger.info(f"Received IngestHostDirRequest: {request}")
         return await ingest_host_dir(request)
@@ -117,7 +117,7 @@ async def ingest(request: Union[IngestHostDirRequest, IngestHostFileRequest] = B
         logger.info(f"Received IngestHostFileRequest: {request}")
         return await ingest_host_file(request)
     else:
-        raise HTTPException(status_code=500, detail="Invalid request type.")
+        raise HTTPException(status_code=422, detail="Invalid request type. Provide either 'file_dir' or 'file_path'.")
 
 async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
     """
@@ -138,7 +138,7 @@ async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
 
         # Validate the directory
         if not os.path.isdir(file_dir_cont):
-            raise HTTPException(status_code=500, detail="Invalid directory path.")
+            raise HTTPException(status_code=404, detail="Invalid directory path.")
 
         proc_files = []
         metas = []
@@ -173,6 +173,9 @@ async def ingest_host_dir(request: IngestHostDirRequest = Body(...)):
             },
             status_code=200,
         )
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions to preserve their status code and message
+        raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing files: {str(e)}")
     
@@ -196,7 +199,7 @@ async def ingest_host_file(request: IngestHostFileRequest = Body(...)):
         file_path_cont = helper_map2container(file_path)
 
         if not os.path.exists(file_path_cont):
-            raise HTTPException(status_code=500, detail="Invalid file path.")
+            raise HTTPException(status_code=404, detail="Invalid file path.")
                 
         meta["file_path"] = file_path
         res = indexer.add_embedding([file_path_cont], [meta], frame_extract_interval=frame_extract_interval, do_detect_and_crop=do_detect_and_crop)
@@ -207,6 +210,9 @@ async def ingest_host_file(request: IngestHostFileRequest = Body(...)):
             },
             status_code=200,
         )
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions to preserve their status code and message
+        raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error processing file: {str(e)}")
     
@@ -222,6 +228,9 @@ def get_file_info(file_path: str):
         FileResponse: The requested file info.
     """
     try:
+        if not file_path or not isinstance(file_path, str):
+            raise HTTPException(status_code=400, detail="Invalid file_path parameter. It must be a non-empty string.")
+
         file_path_cont = helper_map2container(file_path)
         if not os.path.exists(file_path_cont):
             raise HTTPException(status_code=404, detail="File not found.")
@@ -235,6 +244,9 @@ def get_file_info(file_path: str):
             },
             status_code=200,
         )
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions to preserve their status code and message
+        raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error retrieving file: {str(e)}")
 
@@ -250,6 +262,9 @@ def delete_file_in_db(file_path: str):
         JSONResponse: A response indicating success or failure.
     """
     try:
+        if not file_path or not isinstance(file_path, str):
+            raise HTTPException(status_code=400, detail="Invalid file_path parameter. It must be a non-empty string.")
+
         file_path_cont = helper_map2container(file_path)
         if not os.path.exists(file_path_cont):
             raise HTTPException(status_code=404, detail="File not found.")
@@ -263,6 +278,9 @@ def delete_file_in_db(file_path: str):
             },
             status_code=200,
         )
+    except HTTPException as http_exc:
+        # Re-raise HTTPExceptions to preserve their status code and message
+        raise http_exc
     except Exception as e:
         raise HTTPException(status_code=500, detail=f"Error deleting file: {str(e)}")
 

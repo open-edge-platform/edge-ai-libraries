@@ -99,8 +99,7 @@ def test_ingest_host_dir_api_notexist(download_test_data):
 
     response = requests.post(url, json=payload, timeout=10)  
 
-    assert response.status_code == 500
-    assert "Error" in response.json()["detail"]
+    assert response.status_code == 404
 
 
 def test_ingest_host_file_api(download_test_data):
@@ -137,8 +136,7 @@ def test_ingest_host_file_api_notexist(download_test_data):
 
     response = requests.post(url, json=payload, timeout=10)  
 
-    assert response.status_code == 500
-    assert "Error" in response.json()["detail"]
+    assert response.status_code == 404
 
 def test_ingest_api_wo_detect(download_test_data):
     ingest_url = f"{BACKEND_DATAPREP_BASE_URL}/v1/dataprep/ingest"  

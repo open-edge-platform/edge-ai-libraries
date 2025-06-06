@@ -78,8 +78,7 @@ def test_ingest_host_dir_notexist(mock_indexer):
 
     response = client.post("/v1/dataprep/ingest", json=request_data)
 
-    assert response.status_code == 500
-    assert "Error" in response.json()["detail"]
+    assert response.status_code == 404
 
 
 def test_ingest_host_file(mock_indexer):
@@ -117,8 +116,7 @@ def test_ingest_host_file_notexist(mock_indexer):
 
     response = client.post("/v1/dataprep/ingest", json=request_data)
 
-    assert response.status_code == 500
-    assert "Error" in response.json()["detail"]
+    assert response.status_code == 404
 
 
 def test_get_file_info(mock_indexer):
