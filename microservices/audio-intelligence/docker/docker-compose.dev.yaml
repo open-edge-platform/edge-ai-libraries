@@ -1,0 +1,16 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
+services:
+  audio-intelligence:
+    build:
+      target: dev
+    image: ${REGISTRY:-}audio-intelligence:dev
+    volumes:
+      # Mount the code directory to enable hot reloading
+      - ../:/app
+    environment:
+      - DEBUG=true
