@@ -396,12 +396,15 @@ def main():
     with open("/tmp/" + conf_file, 'r') as file:
         config_data = tomlkit.parse(file.read())
     udf_name = config['task']['udfs']['name']
+    dir_name = udf_name
+    if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
+        dir_name = mrHandlerObj.unique_id
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
 
     udf_section[udf_name]['prog'] = 'python3'
     
-    udf_section[udf_name]['args'] = ["-u", "/tmp/"+udf_name+"/udfs/" + udf_name + ".py"]
+    udf_section[udf_name]['args'] = ["-u", "/tmp/"+ dir_name +"/udfs/" + udf_name + ".py"]
     
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
