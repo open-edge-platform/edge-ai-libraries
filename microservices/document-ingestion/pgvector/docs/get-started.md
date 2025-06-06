@@ -32,10 +32,10 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 The runner script in root of project `run.sh` sets default values for most of the required environment variables when executed. For sensitive values like `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWD`, `HUGGINGFACEHUB_API_TOKEN` etc. user can export following environment variables in their shell before running the script.
 
 ```bash
-# User MUST set this! An error is thrown by docker compose if this is not set.
-export HF_SECRET="user_huggingface_token"
+# User MUST set all these! An error is thrown by docker compose if they are not set.
+export HUGGINGFACEHUB_API_TOKEN=<your_huggingface_token>
 
-# Set following variables to any desired value, only if the user does not want to use the default values in run.sh script.
+# vectorDB and object store configuration
 export MINIO_USER=<minio_user_or_s3_access_token>
 export MINIO_PASSWD=<minio_password_or_s3_secret>
 export PGDB_USER=<user_db_user_name>

@@ -1,9 +1,33 @@
 import unittest
 from pathlib import Path
 
-from pipeline import (
-    SmartNVRPipeline,
-)
+from pipeline import GstPipeline, SmartNVRPipeline
+
+
+class TestGstPipeline(unittest.TestCase):
+    def setUp(self):
+        self.pipeline = GstPipeline()
+
+    def test_pipeline_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.pipeline()
+
+    def test_diagram_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.diagram()
+
+    def test_bounding_boxes_property(self):
+        with self.assertRaises(ValueError):
+            self.pipeline.bounding_boxes()
+
+    def test_evaluate_method(self):
+        with self.assertRaises(NotImplementedError):
+            self.pipeline.evaluate(**{
+                "constants": {},
+                "parameters": {},
+                "regular_channels": 1,
+                "inference_channels": 1,
+            })
 
 
 class TestSmartNVRPipeline(unittest.TestCase):
@@ -12,8 +36,10 @@ class TestSmartNVRPipeline(unittest.TestCase):
         self.constants = {
             "VIDEO_OUTPUT_PATH": "output.mp4",
             "VIDEO_PATH": "input.mp4",
-            "OBJECT_DETECTION_MODEL_PATH": "model.xml",
-            "OBJECT_DETECTION_MODEL_PROC": "model_proc.json",
+            "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
+            "OBJECT_DETECTION_MODEL_PROC": "detection_model_proc.json",
+            "OBJECT_CLASSIFICATION_MODEL_PATH": "classification_model.xml",
+            "OBJECT_CLASSIFICATION_MODEL_PROC": "classification_model_proc.json",
         }
         self.regular_channels = 1
         self.inference_channels = 1
@@ -35,15 +61,21 @@ class TestSmartNVRPipeline(unittest.TestCase):
         # Check that the number of inference channels is correct
         self.assertEqual(result.count("gvadetect"), self.inference_channels)
         self.assertEqual(result.count("gvatrack"), self.inference_channels)
+        self.assertEqual(result.count("gvaclassify"), self.inference_channels)
 
     def test_evaluate_cpu(self):
         result = self.pipeline.evaluate(
             constants=self.constants,
             parameters={
                 "object_detection_device": "CPU",
-                "batch_size": 0,
-                "inference_interval": 1,
-                "nireq": 0,
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "CPU",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -59,7 +91,8 @@ class TestSmartNVRPipeline(unittest.TestCase):
         self.common_checks(result)
 
         # Check that model proc is used
-        self.assertIn("model-proc=model_proc.json", result)
+        self.assertIn("model-proc=detection_model_proc.json", result)
+        self.assertIn("model-proc=classification_model_proc.json", result)
 
         # Check that opencv is used for pre-processing
         self.assertIn("pre-process-backend=opencv", result)
@@ -69,9 +102,14 @@ class TestSmartNVRPipeline(unittest.TestCase):
             constants=self.constants,
             parameters={
                 "object_detection_device": "GPU.1",
-                "batch_size": 0,
-                "inference_interval": 1,
-                "nireq": 0,
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "GPU.1",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -87,7 +125,8 @@ class TestSmartNVRPipeline(unittest.TestCase):
         self.common_checks(result)
 
         # Check that model proc is used
-        self.assertIn("model-proc=model_proc.json", result)
+        self.assertIn("model-proc=detection_model_proc.json", result)
+        self.assertIn("model-proc=classification_model_proc.json", result)
 
         # Check that va-surface-sharing is used for pre-processing
         self.assertIn("pre-process-backend=va-surface-sharing", result)
@@ -100,14 +139,21 @@ class TestSmartNVRPipeline(unittest.TestCase):
             constants={
                 "VIDEO_OUTPUT_PATH": "output.mp4",
                 "VIDEO_PATH": "input.mp4",
-                "OBJECT_DETECTION_MODEL_PATH": "model.xml",
+                "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": None,
+                "OBJECT_CLASSIFICATION_MODEL_PATH": "classification_model.xml",
+                "OBJECT_CLASSIFICATION_MODEL_PROC": None,
             },
             parameters={
                 "object_detection_device": "CPU",
-                "batch_size": 0,
-                "inference_interval": 1,
-                "nireq": 0,
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "CPU",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -124,6 +170,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
 
         # Check that no model proc is used
         self.assertNotIn("model-proc=", result)
+
 
 if __name__ == "__main__":
     unittest.main()
