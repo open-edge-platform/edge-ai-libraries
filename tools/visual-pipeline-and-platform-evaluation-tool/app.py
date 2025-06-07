@@ -1,19 +1,20 @@
-import requests
 import logging
+import os
+from datetime import datetime
 
 import gradio as gr
 import pandas as pd
 import plotly.graph_objects as go
+import requests
 
-from datetime import datetime
-from optimize import OptimizationResult, PipelineOptimizer
-from pipeline import SmartNVRPipeline, Transportation2Pipeline
-
+import utils
+from benchmark import Benchmark
 from device import DeviceDiscovery
 from explore import GstInspector
-from benchmark import Benchmark
+from optimize import OptimizationResult, PipelineOptimizer
+from pipelines.smartnvr.pipeline import SmartNVRPipeline
+from pipelines.transportation2.pipeline import Transportation2Pipeline
 from utils import prepare_video_and_constants
-import utils
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -92,8 +93,17 @@ theme = gr.themes.Default(
     font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],
 )
 
-# pipeline = Transportation2Pipeline()
-pipeline = SmartNVRPipeline()
+# Initialize the pipeline based on the PIPELINE environment variable
+pipeline = None
+
+match os.environ.get("PIPELINE", "").lower():
+    case "smartnvr":
+        pipeline = SmartNVRPipeline()
+    case "transportation2":
+        pipeline = Transportation2Pipeline()
+    case _:
+        pipeline = SmartNVRPipeline()
+
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
