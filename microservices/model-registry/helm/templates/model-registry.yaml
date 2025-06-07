@@ -4,7 +4,7 @@
 apiVersion: v1
 kind: Service
 metadata:
-  namespace: {{ .Values.namespace }}
+  namespace: {{ $.Values.namespace }}
   name: {{ $.Values.config.model_registry.name }}
 spec:
   type: NodePort
@@ -22,7 +22,7 @@ metadata:
   labels:
     app: {{ $.Values.env.AppName }}
   name: deployment-{{ $.Values.config.model_registry.name }}
-  namespace: {{ .Values.namespace }}
+  namespace: {{ $.Values.namespace }}
 spec:
   replicas: 1
   selector:
@@ -39,7 +39,7 @@ spec:
       {{- end }}
       initContainers:
       - name: copy-files
-        image: {{ $.Values.DOCKER_REGISTRY }}{{ .Values.images.model_registry }}
+        image: {{ $.Values.DOCKER_REGISTRY }}{{ $.Values.images.model_registry }}
         command: ['sh', '-c', 'cp -a /src/* /data/']
         volumeMounts:
         - name: src-dir
@@ -49,42 +49,42 @@ spec:
           - name: AppName
             value: {{ $.Values.env.AppName }}
           - name: CA_CERT
-            value: "{{ .Values.env.CA_CERT }}"
+            value: "{{ $.Values.env.CA_CERT }}"
           - name: ENABLE_HTTPS_MODE
-            value: "{{ .Values.env.ENABLE_HTTPS_MODE }}"
+            value: "{{ $.Values.env.ENABLE_HTTPS_MODE }}"
           - name: LSHOST
             value: host.docker.internal
           - name: MINIO_ACCESS_KEY
-            value: "{{ .Values.env.MINIO_ACCESS_KEY }}"
+            value: "{{ $.Values.env.MINIO_ACCESS_KEY }}"
           - name: MINIO_BUCKET_NAME
-            value: "{{ .Values.env.MINIO_BUCKET_NAME }}"
+            value: "{{ $.Values.env.MINIO_BUCKET_NAME }}"
           - name: MINIO_HOSTNAME
-            value: "{{ .Values.env.MINIO_HOSTNAME }}"
+            value: "{{ $.Values.env.MINIO_HOSTNAME }}"
           - name: MINIO_SECRET_KEY
-            value: "{{ .Values.env.MINIO_SECRET_KEY }}"
+            value: "{{ $.Values.env.MINIO_SECRET_KEY }}"
           - name: MINIO_SERVER_PORT
-            value: "{{ .Values.env.MINIO_SERVER_PORT }}"
+            value: "{{ $.Values.env.MINIO_SERVER_PORT }}"
           - name: MIN_LOG_LEVEL
-            value: "{{ .Values.env.MIN_LOG_LEVEL }}"
+            value: "{{ $.Values.env.MIN_LOG_LEVEL }}"
           - name: MLFLOW_S3_ENDPOINT_URL
-            value: "{{ .Values.env.MLFLOW_S3_ENDPOINT_URL }}"
+            value: "{{ $.Values.env.MLFLOW_S3_ENDPOINT_URL }}"
           - name: MLFLOW_TRACKING_URI
-            value: postgresql+psycopg2://{{ .Values.env.MR_USER_NAME }}:{{ .Values.env.POSTGRES_PASSWORD }}@mr-postgres:5432/{{ .Values.env.POSTGRES_DB }}
+            value: postgresql+psycopg2://{{ $.Values.env.MR_USER_NAME }}:{{ $.Values.env.POSTGRES_PASSWORD }}@mr-postgres:5432/{{ $.Values.env.POSTGRES_DB }}
           - name: SERVER_CERT
-            value: "{{ .Values.env.SERVER_CERT }}"
+            value: "{{ $.Values.env.SERVER_CERT }}"
           - name: SERVER_PORT
-            value: "{{ .Values.env.SERVER_PORT }}"
+            value: "{{ $.Values.env.SERVER_PORT }}"
           - name: SERVER_PRIVATE_KEY
-            value: "{{ .Values.env.SERVER_PRIVATE_KEY }}"
+            value: "{{ $.Values.env.SERVER_PRIVATE_KEY }}"
           - name: https_proxy
-            value: "{{ .Values.env.https_proxy }}"
+            value: "{{ $.Values.env.https_proxy }}"
           - name: http_proxy
-            value: "{{ .Values.env.http_proxy }}"
+            value: "{{ $.Values.env.http_proxy }}"
           - name: no_proxy
-            value: "{{ .Values.env.no_proxy }}"
+            value: "{{ $.Values.env.no_proxy }}"
           - name: NO_PROXY
-            value: "{{ .Values.env.NO_PROXY }}"
-        image: {{ $.Values.DOCKER_REGISTRY }}{{ .Values.images.model_registry }}
+            value: "{{ $.Values.env.NO_PROXY }}"
+        image: {{ $.Values.DOCKER_REGISTRY }}{{ $.Values.images.model_registry }}
         volumeMounts:
           - name: src-dir
             mountPath: /src
@@ -94,7 +94,7 @@ spec:
         name: {{ $.Values.config.model_registry.name }}
         securityContext:
           readOnlyRootFilesystem: true
-          runAsUser: {{ .Values.env.MR_UID }}
+          runAsUser: {{ $.Values.env.MR_UID }}
         ports:
           - containerPort: 8111
             protocol: TCP
