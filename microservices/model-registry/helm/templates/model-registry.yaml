@@ -45,7 +45,28 @@ spec:
         - name: src-dir
           mountPath: /data
       containers:
-        - env:
+      - name: {{ $.Values.config.model_registry.name }}
+        image: {{ $.Values.DOCKER_REGISTRY }}{{ $.Values.images.model_registry }}
+        volumeMounts:
+        - name: src-dir
+          mountPath: /src
+        - name: tmp-dir
+          mountPath: /tmp
+        imagePullPolicy: {{ $.Values.imagePullPolicy }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          runAsUser: {{ $.Values.env.MR_UID }}
+        ports:
+          - containerPort: 8111
+            protocol: TCP
+        resources:
+          limits:
+            cpu: 300m
+            memory: "4294967296"
+          requests:
+            cpu: 150m
+            memory: "2147483648"
+        env:
           - name: AppName
             value: {{ $.Values.env.AppName }}
           - name: CA_CERT
@@ -84,27 +105,6 @@ spec:
             value: "{{ $.Values.env.no_proxy }}"
           - name: NO_PROXY
             value: "{{ $.Values.env.NO_PROXY }}"
-        image: {{ $.Values.DOCKER_REGISTRY }}{{ $.Values.images.model_registry }}
-        volumeMounts:
-          - name: src-dir
-            mountPath: /src
-          - name: tmp-dir
-            mountPath: /tmp
-        imagePullPolicy: {{ $.Values.imagePullPolicy }}
-        name: {{ $.Values.config.model_registry.name }}
-        securityContext:
-          readOnlyRootFilesystem: true
-          runAsUser: {{ $.Values.env.MR_UID }}
-        ports:
-          - containerPort: 8111
-            protocol: TCP
-        resources:
-          limits:
-            cpu: 300m
-            memory: "4294967296"
-          requests:
-            cpu: 150m
-            memory: "2147483648"
       hostname: {{ $.Values.config.model_registry.name }}
       restartPolicy: Always
       volumes:
