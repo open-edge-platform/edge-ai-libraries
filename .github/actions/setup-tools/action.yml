@@ -13,7 +13,8 @@ runs:
       shell: bash
       run: |
         curl -sSL https://install.python-poetry.org | python3 -
-        echo "$HOME/.local/bin" >> $GITHUB_PATH
+        # on ubuntu-latest runners HOME is always /home/runner
+        echo "/home/runner/.local/bin" >> $GITHUB_PATH
     
     
     - name: Install Trivy
