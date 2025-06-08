@@ -1,4 +1,4 @@
-# Video Search
+# Video Search Overview
 
 Video Search using Vision Language Models (VLMs) leverages generative AI for enabling natural language querying of video content. By combining contextual and perceptual understanding, Video Search can interpret and respond to user queries with high accuracy. This approach allows users to search for specific information within a video corpus, including private video collections, using natural language. The technology enhances video understanding by integrating visual and textual data, making it possible to retrieve relevant video segments based on the content and context of the query. This results in a more intuitive and efficient video search experience that is suitable for various applications such as media analysis, content management, and personalized video recommendations.
 

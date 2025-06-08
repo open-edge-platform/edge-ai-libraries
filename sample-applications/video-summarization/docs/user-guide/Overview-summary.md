@@ -1,4 +1,4 @@
-# Video Summarization
+# Video Summarization Overview
 
 Video summarization sample application using Generative AI Vision Language Models (VLMs) leverages advanced AI techniques to create concise and informative summaries of long-form videos. This technology combines visual, audio, and textual data to understand and extract the most relevant content from videos, enabling efficient content review and improved searchability. 
 
