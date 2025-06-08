@@ -1,8 +1,11 @@
-# Video Summarization Sample Application
+# Video Search and Summarization (VSS) Sample Application
 
-Video summarization sample application using Generative AI Vision Language Models (VLMs) leverages advanced AI techniques to create concise and informative summaries of long-form videos. This technology combines visual, audio, and textual data to understand and extract the most relevant content from videos, enabling efficient content review and improved searchability. 
+Video search and summarization is a foundational sample application that provides the following set of video analytics capabilities:
+1. Video Summarization: This functionality utilizes Vision Language Models (VLMs), computer vision, and audio analysis to generate concise and informative summaries of long-form videos. By combining insights from visual, audio, and textual data, the system identifies and extracts the most relevant segments, enabling efficient content review, improved searchability, and quick understanding of lengthy video material. All processing can be performed at the edge to ensure low latency and data privacy.
+2. Video Search: This functionality leverages LangChain and multimodal embedding models to enable efficient and intelligent search over video content directly at the edge. By extracting and indexing visual, audio, and textual features from video frames using advanced embedding models, the system allows users to perform natural language or multimodal queries. LangChain orchestrates the retrieval and ranking process, ensuring relevant video segments are quickly identified and returned, all while minimizing latency and preserving data privacy by processing content locally on edge devices.
+3. Combined Search and Summarization capality: This feature integrates video search and summarization, allowing users to search directly over the generated video summaries. By leveraging the summary as a knowledge base, the system enhances the relevance and accuracy of search results, reducing the risk of hallucinations and irrelevant matches. This approach enables efficient retrieval of key information from long-form videos, ensuring that search queries are answered with contextually grounded and concise content.
 
-Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
+Below, you'll find links to detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices. The documentation is structured to provide required details into each mode the sample application can be used in.
 
 ## Documentation
 
