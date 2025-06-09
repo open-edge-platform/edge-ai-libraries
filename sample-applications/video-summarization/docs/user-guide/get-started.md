@@ -3,21 +3,21 @@
 <!--
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
-The Video summarization sample application is designed to help developers create summary of long form video. This guide will help you set up, run, and modify the sample application on local and Edge AI systems.
+The Video search and summarization (VSS) sample application helps developers create summary of long form video, search for the right video, and combine both search and summary pipelines. This guide will help you set up, run, and modify the sample application on local and Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
 -->
-By following this guide, you will learn how to:
+This guide shows how to:
 - **Set up the sample application**: Use Setup script to quickly deploy the application in your environment.
 - **Run different application stacks**: Execute different application stacks available in the application to perform video search and summarization.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## ✅ Prerequisites
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
-- Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
-- Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
-- Python v3.10 or higher
+- Install Docker tool: [Installation Guide](https://docs.docker.com/get-docker/).
+- Install Docker Compose tool: [Installation Guide](https://docs.docker.com/compose/install/).
+- Install Python\* programming language v3.11
 
 ## 📂 Project Structure
 

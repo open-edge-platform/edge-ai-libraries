@@ -1,6 +1,6 @@
 # Video Search Architecture Overview
 
-The Video Search mode allows developers to customize and deploy the sample application in an on-premises environment and on their private video store without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
+The Video Search mode allows developers to customize and deploy the sample application in an on-premises environment and on their private video store without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain\* framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
 
 ## Purpose
 
@@ -23,7 +23,7 @@ The Video Search pipeline is designed to:
 3. How components interact and support extensibility.
 -->
 
-Video Search pipeline is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the video search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The VLM and embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The video ingestion microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
+Video Search pipeline is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the video search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The VLM and embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face\* Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The video ingestion microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
 
 ### Technical Architecture Diagram
 ![Technical Architecture Diagram of video ingestion](./images/TEAI_VideoSearch_Arch-ingest.png)
@@ -36,11 +36,11 @@ Video Search pipeline is a combination of the core LangChain application logic t
 
 ### Application Flow
 1. **Input Sources**:
-   - **Videos**: The video ingestion microservice supports ingesting from common video formats. The application supports the MP4 format as a start. 
+   - **Videos**: The video ingestion microservice supports ingesting from common video formats. Currently, the ingestion supports ingesting video only from video files. Support for live streaming input is not provided yet.
    
 2. **Create the context**
 
-   - **Upload input videos**: The UI microservice allows the developer to interact with the application through the defined application API. The UI microservice provides the interface to upload the videos on which the search pipeline will be executed. The videos are uploaded and stored in object store. The application stores videos in the MinIO\* database.
+   - **Upload input videos**: The UI microservice allows the developer to interact with the application through the defined application API. The UI microservice provides the interface to upload the videos on which the search pipeline will be executed. The videos are uploaded and stored in object store. The application stores videos in the MinIO\* database. The ingestion of videos can be done on a continuous basis from pre-configured folder locations. This allows for deployment of the pipeline in live surveillance kind of scenarios.
    
    - **Convert to embeddings space**: The Video ingestion microservice creates the embeddings from the uploaded videos using the embedded microservice. The applicaion stores the embeddings in a vector database. The sample application uses VDMS.
    

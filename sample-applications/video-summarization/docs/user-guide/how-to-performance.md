@@ -1,10 +1,10 @@
 # How to Test Performance [Document yet to be updated]
 
-This guide provides step-by-step instructions for testing the performance of the Video Summarization Sample Application.
+This section shows how to test the performance of the Video Search and Summarization (VSS) sample application.
 
 ## Prerequisites
-Before you begin, ensure that you have the following prerequisites:
-- The Video Summarization Sample Application is set up and running. Refer to the [Get Started](./get-started.md) guide for setup instructions.
+Before you begin, ensure that you have the following:
+- VSS is set up and running. Refer to the [Get Started](./get-started.md) section for setup instructions.
 
 ## Steps to Test Performance
 

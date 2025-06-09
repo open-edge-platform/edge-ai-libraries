@@ -14,12 +14,12 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
 
 - **Getting Started**
-  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
+  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to get started with the sample application.
   - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building from source code.
-  - [How to Deploy with Helm](docs/user-guide/deploy-with-helm.md): Guide for deploying using Helm.
+  - [How to Deploy with Helm](docs/user-guide/deploy-with-helm.md): Guide for deploying using Helm\* chart.
 
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.

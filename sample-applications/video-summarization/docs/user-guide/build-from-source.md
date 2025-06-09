@@ -1,10 +1,13 @@
 # How to Build from Source [Document yet to be updated]
 
-This guide provides step-by-step instructions for building the Video summarization Sample Application from source.
+This section shows how to build the Video search and summarization sample application from source.
 
 ## Prerequisites
-Before you begin, ensure that you have the following prerequisites:
-- Docker installed on your system: [Installation Guide](https://docs.docker.com/get-docker/).
+1. Follow the instructions given in the [Get Started](./get-started.md) section.
+
+2. Address all [prerequisites](./get-started.md#-prerequisites).
+
+3. Configure the required [environment variables](./get-started.md#️-setting-required-environment-variables). 
 
 ## Steps to Build from Source
 
@@ -20,7 +23,7 @@ Before you begin, ensure that you have the following prerequisites:
       cd edge-ai-libraries/sample-applications/video-summarization
       ```
 
-3. **Set Up Environment Variables**:
+3. **Generate env file and create Docker\* volume to store the vision-language model**:
 
 
 4. **Build the Docker Image**:

@@ -1,16 +1,16 @@
-# How to deploy with Helm
+# How to deploy with Helm\* Chart
 
-This guide provides step-by-step instructions for deploying the Video summarization Sample Application using Helm.
+This section shows how to deploy the Video Search and Summarization Sample Application using Helm chart.
 
 ## Prerequisites
-Before you begin, ensure that you have the following prerequisites:
-- Kubernetes cluster set up and running.
+Before you begin, ensure that you have the following:
+- Kubernetes\* cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
-- Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
-- Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
+- Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
+- Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
 
 ## Steps to deploy with Helm
-Following steps should be followed to deploy Video summarization using Helm. You can install from source code or pull the chart from Docker hub.
+Do the following to deploy VSS using Helm chart. 
 
 **_Steps 1 to 3 varies depending on if the user prefers to build or pull the Helm details._**
 
