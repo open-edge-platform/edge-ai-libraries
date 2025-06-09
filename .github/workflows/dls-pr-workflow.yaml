@@ -129,3 +129,10 @@ jobs:
     - uses: open-edge-platform/orch-ci/.github/actions/clamav@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
       with:
         project-folder: edge-ai-libraries-repo/libraries/dl-streamer
+        report-path: clamav_scan_report-dlstreamer.txt
+
+    - name: Upload ClamAV Scan Report
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+      with:
+        name: ${{ env.CLAMAV_ARTIFACT_NAME }}
+        path: ${{ env.SANITIZED_CLAMAV_REPORT_PATH }}
