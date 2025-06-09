@@ -31,8 +31,8 @@ jobs:
 
     - name: Build time-series-analytics-microservices
       run: |
-        sed -i "s|DOCKER_REGISTRY=.*|DOCKER_REGISTRY=ghcr.io/${{ github.repository }}/edge-ai-libraries/|g" .env
         cd microservices/time-series-analytics/docker
+        sed -i "s|DOCKER_REGISTRY=.*|DOCKER_REGISTRY=ghcr.io/${{ github.repository }}/edge-ai-libraries/|g" .env
         docker compose build --no-cache --pull
 
     - name: Push Docker img
