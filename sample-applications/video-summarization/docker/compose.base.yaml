@@ -26,7 +26,7 @@ services:
 
   vss-ui:
     build:
-      context: ui/react
+      context: ../ui/react
       dockerfile: Dockerfile
     image: ${REGISTRY:-}vss-ui:${TAG:-latest}
     ipc: host
@@ -48,7 +48,7 @@ services:
 
   pipeline-manager:
     build:
-      context: pipeline-manager
+      context: ../pipeline-manager
       dockerfile: Dockerfile
     image: ${REGISTRY:-}pipeline-manager:${TAG:-latest}
     ports:
