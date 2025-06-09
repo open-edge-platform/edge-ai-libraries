@@ -158,8 +158,8 @@ jobs:
 
     - name: Install DL Streamer on-host
       run: |
-        chmod +x $DLS_PATH/tests/scripts/installation-script-entrypoint.sh
-        $DLS_PATH/tests/scripts/installation-script-entrypoint.sh $DLS_PATH/deb_packages
+        chmod +x $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh
+        $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_PATH/deb_packages
 
     - name: Test hello_dlstreamer script
       run: |
@@ -204,8 +204,8 @@ jobs:
     - name: Uninstall dlstreamer
       if: always ()
       run: |
-        chmod +x $DLS_PATH /tests/scripts/uninstall-dlstreamer.sh
-        $DLS_PATH /tests/scripts/uninstall-dlstreamer.sh
+        chmod +x $DLS_PATH/tests/scripts/uninstall-dlstreamer.sh
+        $DLS_PATH/tests/scripts/uninstall-dlstreamer.sh
 
     # ======================================================== CLEAUP PART ========================================================
     - name: Clean up
