@@ -46,7 +46,7 @@ Video Search pipeline is a combination of the core LangChain application logic t
    
 3. **Query flow**
 
-   - **Ask a query**: The UI microservice provides a prompt window for your queries.
+   - **Ask a query**: The UI microservice provides a prompt window for user queries.
    
    - **Execute the search pipeline**: The Video Search backend microservice do the following to generate the output response using the search pipeline:
       - Converts the query into an embedding space using the Embeddings microservice.
@@ -113,5 +113,4 @@ Intel designed the Video Search sample application with modularity, allowing dev
    - Follow the system requirements guidelines on the different options available.
 
 ## Next Steps
-
 - [Get Started](./get-started.md)

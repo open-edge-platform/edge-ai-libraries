@@ -1,6 +1,6 @@
 # How to deploy with Helm\* Chart
 
-This section shows how to deploy the Video Search and Summarization Sample Application using Helm chart.
+This section shows how to deploy the Video Search and Summary Sample Application using Helm chart.
 
 ## Prerequisites
 Before you begin, ensure that you have the following:
@@ -100,7 +100,7 @@ Deploy the Helm chart using the following command:
 ```bash
 helm install video-summary . -n <your-namespace>
 ```
-If the users want to use OVMS for LLM summarization they can, Deploy the OVMS override values:
+If the users want to use OVMS for LLM Summarization they can, Deploy the OVMS override values:
 
 ```bash
 helm install video-summary . --values values.yaml --values ovms_override.yaml -n <your-namespace>
@@ -122,17 +122,17 @@ Ensure all pods are in the "Running" state before proceeding.
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access the video-summary-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
+To access the video-summarization-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service (default is 31998 as specified in values.yaml).
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=video-summary-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=video-summarization-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
 ```
 
-Simply copy and paste the output into your browser to access the Video Summarization application UI.
+Simply copy and paste the output into your browser to access the Video Summary application UI.
 
 ### Step 7: Update Helm Dependencies
 
@@ -144,7 +144,7 @@ helm dependency update
 
 ### Step 8: Uninstall Helm chart
 
-To uninstall the Video Summarization Helm chart, use the following command:
+To uninstall the Video Summary Helm chart, use the following command:
 
 ```bash
 helm uninstall video-summary -n <your-namespace>
@@ -153,8 +153,8 @@ helm uninstall video-summary -n <your-namespace>
 ## Verification
 
 - Ensure that all pods are running and the services are accessible.
-- Access the Video Summarization application dashboard and verify that it is functioning as expected.
-- Upload a test video to verify that the ingestion, processing, and summarization pipeline works correctly.
+- Access the Video Summary application dashboard and verify that it is functioning as expected.
+- Upload a test video to verify that the ingestion, processing, and Summary pipeline works correctly.
 - Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio intelligence) are functioning properly.
 
 ## Troubleshooting

@@ -1,6 +1,6 @@
 # How to Build from Source [Document yet to be updated]
 
-This section shows how to build the Video search and summarization sample application from source.
+This section shows how to build the Video Search and Summary sample application from source.
 
 ## Prerequisites
 1. Follow the instructions given in the [Get Started](./get-started.md) section.
@@ -12,7 +12,7 @@ This section shows how to build the Video search and summarization sample applic
 ## Steps to Build from Source
 
 1. **Clone the Repository**:
-    - Clone the Video summarization Sample Application repository:
+    - Clone the Video Summary Sample Application repository:
       ```bash
       git clone https://github.com/open-edge-platform/edge-ai-libraries.git
       ```

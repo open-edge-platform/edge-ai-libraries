@@ -1,6 +1,6 @@
 # How to Test Performance [Document yet to be updated]
 
-This section shows how to test the performance of the Video Search and Summarization (VSS) sample application.
+This section shows how to test the performance of the Video Search and Summary (VSS) sample application.
 
 ## Prerequisites
 Before you begin, ensure that you have the following:

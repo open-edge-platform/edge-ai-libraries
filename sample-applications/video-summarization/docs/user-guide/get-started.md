@@ -3,14 +3,14 @@
 <!--
 **Sample Description**: Provide a brief overview of the application and its purpose.
 -->
-The Video search and summarization (VSS) sample application helps developers create summary of long form video, search for the right video, and combine both search and summary pipelines. This guide will help you set up, run, and modify the sample application on local and Edge AI systems.
+The Video Search and Summary (VSS) sample application helps developers create summary of long form video, search for the right video, and combine both search and summary pipelines. This guide will help you set up, run, and modify the sample application on local and Edge AI systems.
 
 <!--
 **What You Can Do**: Highlight the developer workflows supported by the guide.
 -->
 This guide shows how to:
 - **Set up the sample application**: Use Setup script to quickly deploy the application in your environment.
-- **Run different application stacks**: Execute different application stacks available in the application to perform video search and summarization.
+- **Run different application stacks**: Execute different application stacks available in the application to perform video search and summary.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
 ## ✅ Prerequisites
@@ -31,7 +31,7 @@ sample-applications/video-summarization/
 ├── data                       # Data directory for video files
 ├── docker                     # Docker compose files
 │   ├── compose.base.yaml      # Base services configuration
-│   ├── compose.summary.yaml   # Video summarization services
+│   ├── compose.summary.yaml   # Video Summary services
 │   ├── compose.search.yaml    # Video search services 
 │   ├── compose.gpu_vlm.yaml   # GPU configuration for VLM
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OVMS
@@ -80,14 +80,14 @@ Before running the application, you need to set several environment variables:
     These environment variables **MUST** be set on your current shell. Setting these variables help you customize which models are used for deployment.
 
     ```bash
-    # For VLM-based chunk captioning and video summarization on CPU
+    # For VLM-based chunk captioning and video summary on CPU
     export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"  # or any other supported VLM model on CPU
 
-    # For VLM-based chunk captioning and video summarization on GPU
+    # For VLM-based chunk captioning and video summary on GPU
     export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
 
 
-    # (Optional) For OVMS-based video summarization (when using with USE_OVMS=true or USE_OVMS_GPU=true)
+    # (Optional) For OVMS-based video summary (when using with USE_OVMS=true or USE_OVMS_GPU=true)
     export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
     # Model used by Audio Intelligence service. Only Whisper models variants are supported.
@@ -115,17 +115,17 @@ Once exported, run the setup script as mentioned [here](#running-the-application
 
 ## 📊 Application Stacks Overview
 
-The Video Summarization application offers multiple stacks and deployment options:
+The Video Summary application offers multiple stacks and deployment options:
 
 | Stack | Description | Flag (used with setup script) |
 |-------|-------------|------|
-| Video Summarization | Video frame captioning and summarization | `--summary` |
+| Video Summary | Video frame captioning and Summary | `--summary` |
 | Video Search | Video indexing and semantic search | `--search` |
-| Video Search + Summarization **_(Under Construction)_** | Both summarization and search capabilities | `--all` |
+| Video Search + Summary **_(Under Construction)_** | Both Summary and search capabilities | `--all` |
 
-### 🧩 Deployment Options for Video Summarization
+### 🧩 Deployment Options for Video Summary
 
-| Option | Chunk-Wise Summary | Final Summarization | Environment Variables | Recommended Models |
+| Option | Chunk-Wise Summary | Final Summary | Environment Variables | Recommended Models |
 |--------|--------------------|---------------------|-----------------------|----------------|
 | VLM-CPU |vlm-ov-serving on CPU | vlm-ov-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
 | VLM-GPU | vlm-ov-serving |vlm-ov-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
@@ -140,7 +140,7 @@ Follow these steps to run the application:
 
     ```bash
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-    cd edge-ai-libraries/sample-applications/video-summarization
+    cd edge-ai-libraries/sample-applications/video-Summary
     ```
 
 2. Set the required environment variables as [described above](#setting-required-environment-variables).
@@ -148,16 +148,16 @@ Follow these steps to run the application:
 3. Run the setup script with the appropriate flag:
 
     ```bash
-    # To run Video Summarization
+    # To run Video Summary
     source setup.sh --summary
 
     # To run Video Search
     source setup.sh --search
 
-    # To run both Video Summarization and Video Search
+    # To run both Video Summary and Video Search
     source setup.sh --all
 
-    # To run final video summarization on OVMS Microservice
+    # To run final video Summary on OVMS Microservice
     USE_OVMS=true source setup.sh --summary
     ```
 
@@ -173,16 +173,16 @@ Follow these steps to run the application:
     # To just set environment variables without starting containers
     source setup.sh --setenv
 
-    # To see resolved configurations for summarization services without starting containers
+    # To see resolved configurations for Summary services without starting containers
     source setup.sh --summary config
 
     # To see resolved configurations for search services without starting containers
     source setup.sh --search config
 
-    # To see resolved configurations for both search and summarization services combined without starting containers
+    # To see resolved configurations for both search and Summary services combined without starting containers
     source setup.sh --all config
 
-    # To see resolved configurations for summarization services with OVMS setup on CPU without starting containers
+    # To see resolved configurations for Summary services with OVMS setup on CPU without starting containers
     USE_OVMS=true source setup.sh --summary config
     ```
 
@@ -194,7 +194,7 @@ To use GPU acceleration for VLM inference:
 USE_VLM_GPU=true source setup.sh --summary
 ```
 
-To use GPU acceleration for OVMS-based summarization:
+To use GPU acceleration for OVMS-based Summary:
 
 ```bash
 USE_OVMS_GPU=true source setup.sh --summary
