@@ -113,3 +113,20 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
       name: ${{ matrix.name }}
+
+  clamav:
+    permissions:
+      contents: read
+    name: ClamAV antivirus scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Run clamav scan
+    - uses: open-edge-platform/orch-ci/clamav@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+      with:
+        project-folder: edge-ai-libraries-repo/libraries/dl-streamer
