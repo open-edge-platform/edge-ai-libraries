@@ -62,9 +62,10 @@ jobs:
     - name: Build deb pkg img using dev release img
       env:
         dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
       run: |
         docker build \
-          --tag ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }} \
+          --tag ${deb_pkg_img} \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           --build-arg BASE_IMAGE="${dev_release_img}" \
@@ -72,23 +73,36 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Extract .deb packages using script
+      env:  
+        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
       run: |
         chmod +x ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh
-        ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        ./edge-ai-libraries-repo/libraries/dl-streamer/scripts/extract_and_verify_debs.sh ${deb_pkg_img}
         ls
         cp -r deb_packages ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Build Docker img from .deb
+      env:
+        deb_img: ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}
       run: |
         docker build \
-          -t ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} \
+          -t ${deb_img} \
           -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
+    - name: Remove Docker images
+      env:
+        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_release_img_cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+      run: docker rmi ${dev_release_img} ${dev_release_img_cached} ${deb_pkg_img}
+
     - name: Scan Docker image with Trivy
+      env:
+        deb_img: ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}
       uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
-        image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+        image: "${deb_img}"
         severity: "CRITICAL"
         # output-format: "json"
         output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
@@ -101,7 +115,9 @@ jobs:
         path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
 
     - name: Clean up
+      env:
+        deb_img: ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
-        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
+        docker rmi ${deb_img} || true
