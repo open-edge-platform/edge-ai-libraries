@@ -46,9 +46,9 @@
 ## How it works
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
-By default, we have a simple UDF python script at `<path-to-edge-ai-libraries-repo>/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for
+By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for
 inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25. 
-The corresponding tick script is available at `<path-to-edge-ai-libraries-repo>/microservices/time-series-analtyics/temperature_classifier.tick`. 
+The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analtyics/temperature_classifier.tick`. 
 
 Directory details is as below:
   
@@ -104,7 +104,6 @@ The `mqtt` section specifies the MQTT broker details for sending alerts.
 ## Clone source code
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
@@ -123,7 +122,7 @@ docker compose build
 
 To push images to a Docker registry:
 
-1. Update the following fields in `<path-to-edge-ai-libraries-repo>/edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
+1. Update the following fields in `edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
    - `DOCKER_REGISTRY`
    - `DOCKER_USERNAME`
    - `DOCKER_PASSWORD`

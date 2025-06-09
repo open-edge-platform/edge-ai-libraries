@@ -13,7 +13,7 @@
 
 ## Access to the helm charts - use one of the below options
 
-- Use helm charts available at `<path-to-edge-ai-libaries-repo>/edge-ai-libraries/microservices/time-series-analytics/helm`
+- Use helm charts available at `edge-ai-libraries/microservices/time-series-analytics/helm`
 
 - Using pre-built helm charts:
 
@@ -38,7 +38,7 @@
 > 2. If the worker nodes are running behind proxy server, then please additionally set env.HTTP_PROXY and env.HTTPS_PROXY env like the way env.TELEGRAF_INPUT_PLUGIN is being set below with helm install command
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/edge-ai-libraries/microservices/time-series-analytics/helm
+cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
 # Copy the config.json file to helm directory
 cp ../config.json .
 # Install helm charts
@@ -56,7 +56,7 @@ Use the following command to verify if all the application resources got install
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-cd <path-to-edge-ai-libraries-repo>/edge-ai-libraries/microservices/time-series-analytics
+cd edge-ai-libraries/microservices/time-series-analytics # path relative to git clone folder
 python3 src/temperature_input.py --mode helm
 ```
 
