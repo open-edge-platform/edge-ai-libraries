@@ -24,7 +24,7 @@ services:
   video-search:
     image: ${REGISTRY:-}video-search:${TAG:-latest}
     build:
-      context: search-ms
+      context: ../search-ms
       dockerfile: docker/Dockerfile
     depends_on:
       vdms-vector-db:
