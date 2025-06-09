@@ -37,7 +37,7 @@ jobs:
 
     - name: Push Docker img
       run: |
-        docker compose push
+        docker push ghcr.io/${{ github.repository }}/intel/ia-time-series-analytics-microservice:1.0.0
 
     - name: Clean up
       if: always()
