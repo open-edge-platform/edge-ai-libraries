@@ -1,13 +1,13 @@
 # Video Search Architecture Overview
 
-The Video Search sample application allows developers to customize and deploy the sample application in an on-premises environment and on their private video store without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
+The Video Search mode allows developers to customize and deploy the sample application in an on-premises environment and on their private video store without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
 
 ## Purpose
 
-The Video Search sample application is designed to:
+The Video Search pipeline is designed to:
 - Demonstrate how you can use Intel® Edge AI catalog of inference microservices to quickly build and deploy on Intel Edge AI systems' portfolio. 
 - Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Edge AI systems.
-- Showcase how popular frameworks like LangChain framework can be used to quickly implement a sample application and deploy the same on Intel Edge AI systems.
+- Showcase how popular frameworks like LangChain framework can be used to quickly implement or customize a video search pipeline and deploy the same on Intel Edge AI systems.
 - Showcase the competitiveness of Intel Edge AI systems to address varied deployment scenario requirements (edge-to-cloud).
 - Provide reference sample microservices for capabilities like video ingestion and UI frontend that reduces the effort to customize the application.
 
@@ -23,7 +23,7 @@ The Video Search sample application is designed to:
 3. How components interact and support extensibility.
 -->
 
-Video Search application is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the video search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The VLM and embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face\* Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The video ingestion microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
+Video Search pipeline is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the video search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The VLM and embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The video ingestion microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
 
 ### Technical Architecture Diagram
 ![Technical Architecture Diagram of video ingestion](./images/TEAI_VideoSearch_Arch-ingest.png)
