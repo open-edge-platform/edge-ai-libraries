@@ -31,6 +31,11 @@ jobs:
 
     - name: Build time-series-analytics-microservices
       run: |
+        ls -la
+        ls -la edge-ai-libraries-repo/
+        ls -la edge-ai-libraries-repo/microservices/
+        ls -la edge-ai-libraries-repo/microservices/time-series-analytics/
+        ls -la edge-ai-libraries-repo/microservices/time-series-analytics/docker
         cd edge-ai-libraries-repo/microservices/time-series-analytics/docker
         docker compose build --no-cache --pull
 
