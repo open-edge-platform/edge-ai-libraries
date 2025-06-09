@@ -2,10 +2,5 @@
 **Version: 1.0.3**
 
 ```{eval-rst}
-.. swagger-plugin:: api-docs/videosumm-api.yml
+.. swagger-plugin:: api-docs/vss-api.yaml
 ```
-
-```{eval-rst}
-.. swagger-plugin:: api-docs/videosearch-api.yml
-```
-
