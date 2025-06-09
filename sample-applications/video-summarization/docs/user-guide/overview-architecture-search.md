@@ -46,19 +46,19 @@ Video Search pipeline is a combination of the core LangChain application logic t
    
 3. **Query flow**
 
-   - **Ask a query**: The UI microservice provides a prompt window for user queries.
+   - **Ask a query**: The UI microservice provides a prompt window for user queries. The queries can be saved for any future reference and usage. It is possible to enable up to 8 queries to run in the background continuously on any new video being ingested. This is a critical capability required in using this pipeline for agentic reasoning.
    
-   - **Execute the search pipeline**: The Video Search backend microservice do the following to generate the output response using the search pipeline:
+   - **Execute the search pipeline**: The Video Search backend microservice does the following to generate the output response using the search pipeline:
       - Converts the query into an embedding space using the Embeddings microservice.
 	  
       - Does a semantic retrieval to fetch the relevant videos from the vector database. Currently, the top-k (with k being configurable) video is used. Does not use a reranker microservice currently.
 	  
-      - Uses the retrieved videos and associated metadata as part of the prompt to the VLM model, and generates a response using the VLM microservice that hosts the configured VLM model.
-	  
 4. **Output Generation**:
-   - **Response**: Sends the generated response from the VLM microservice to the UI for your display and use.
+   - **Response**: Sends the generated response to the UI for your display and use.
    
    - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application.  
+
+Note: The VLM microservice provides an additional option to query the videos returned from search. It should be seen as a place holder for integration to the richer video summary pipeline.
 
 The following figure shows the application flow, including the APIs and data sharing protocols:
 ![Data flow figure](./images/VideoSearch-request.jpg)
@@ -72,7 +72,7 @@ The following figure shows the application flow, including the APIs and data sha
 -->
 
 1. **Intel Edge AI Inference microservices**:
-   - **What it is**: Inference microservices are the VLM, embeddings, and reranker microservices that run the chosen models on the hardware, optimally. 
+   - **What it is**: Inference microservices are the embeddings, VLM (if used), and reranker microservices that run the chosen models on the hardware, optimally. 
    - **How it is used**: Each microservice uses OpenAI\* APIs to support their functionality. The microservices are configured to use the required models and are ready. The Video Search backend accesses these microservices in the LangChain\* application which creates a chain out of these microservices.
    - **Benefits**: Intel guarantees that the sample application's default microservices configuration is optimal for the chosen models and the target deployment hardware. Standard OpenAI APIs ensure easy portability of different inference microservices.
 
