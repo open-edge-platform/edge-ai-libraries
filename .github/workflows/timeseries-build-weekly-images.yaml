@@ -1,5 +1,5 @@
-name: "[TimeSeries] Build weekly imgs"
-run-name: "[TimeSeries] Build weekly imgs"
+name: "[Time Series Analytics] Build weekly imgs"
+run-name: "[Time Series Analytics] Build weekly imgs"
 on:
   schedule:
     - cron: '0 14 * * 2' # 14:00 UTC
@@ -7,7 +7,7 @@ on:
 permissions: {}
 
 jobs:
-  build-timeseries-analytics-microservices:
+  time-series-analytics-microservice-weekly-job:
     name: Build TimeSeries Analytics Microservice img
     runs-on: ubuntu-latest
     permissions:
