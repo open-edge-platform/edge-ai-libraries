@@ -136,3 +136,23 @@ jobs:
       with:
         name: ${{ env.CLAMAV_ARTIFACT_NAME }}
         path: ${{ env.SANITIZED_CLAMAV_REPORT_PATH }}
+
+  bandit:
+    permissions:
+      contents: read
+    name: Bandit scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Run Bandit scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+      with:
+        scan-scope: "all"
+        severity-level: "HIGH"
+        confidence-level: "HIGH"
+        output-format: "txt"
