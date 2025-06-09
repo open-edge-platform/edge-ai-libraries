@@ -6,9 +6,9 @@ on:
 permissions: {}
 env:
   dlstreamer-version: "2025.0.1.3"
-  MODELS_PATH: $HOME/models
-  VIDEO_INPUTS_PATH: $HOME/videos
-  DLS_PATH: ./edge-ai-libraries-repo/libraries/dl-streamer
+  MODELS_PATH: "$HOME/models"
+  VIDEO_INPUTS_PATH: "$HOME/videos"
+  DLS_PATH: "./edge-ai-libraries-repo/libraries/dl-streamer"
 
 jobs:
   build:
@@ -21,18 +21,18 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path_deb: $DLS_PATH /docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
-            path_dev: $DLS_PATH /docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+          - path_deb: $DLS_PATH/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
+            path_dev: $DLS_PATH/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
             runner_labels: [ubuntu-latest] # Build and run tests on Tiger Lake system with Ubuntu 22
             runner_print_label: TGL
-          - path_deb: $DLS_PATH /docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
-            path_dev: $DLS_PATH /docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+          - path_deb: $DLS_PATH/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
+            path_dev: $DLS_PATH/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
             runner_labels: [ubuntu-latest] # Build and run tests on Tiger Lake system with Ubuntu 24
             runner_print_label: TGL
-          - path_deb: $DLS_PATH /docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
-            path_dev: $DLS_PATH /docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+          - path_deb: $DLS_PATH/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
+            path_dev: $DLS_PATH/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
             runner_labels: [ubuntu-latest] # Build and run tests on Arrow Lake system with Ubuntu 24
             runner_print_label: ARL
@@ -133,7 +133,7 @@ jobs:
     - name: Download models [TEMPORARY]
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        $DLS_PATH /samples/download_public_models.sh
+        $DLS_PATH/samples/download_public_models.sh
 
     - name: Check models
       run: |
@@ -153,13 +153,13 @@ jobs:
 
     - name: Install DL Streamer on-host
       run: |
-        chmod +x $DLS_PATH /tests/scripts/installation-script-entrypoint.sh
-        $DLS_PATH /tests/scripts/installation-script-entrypoint.sh $DLS_PATH /deb_packages
+        chmod +x $DLS_PATH/tests/scripts/installation-script-entrypoint.sh
+        $DLS_PATH/tests/scripts/installation-script-entrypoint.sh $DLS_PATH/deb_packages
 
     - name: Test hello_dlstreamer script
       run: |
-        mkdir -p $DLS_PATH /test_hello_dlstreamer
-        cd $DLS_PATH /test_hello_dlstreamer
+        mkdir -p $DLS_PATH/test_hello_dlstreamer
+        cd $DLS_PATH/test_hello_dlstreamer
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Running hello_dlstreamer.sh on CPU with model yolo11s"
         /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=CPU --model=yolo11s
@@ -180,8 +180,8 @@ jobs:
       uses: actions/upload-artifact@v4.4.0
       if: always()
       with:
-        name: hello_dlstreamer_output_video_${{ matrix.ubuntu_version }}_CPU_yolo11s
-        path: $DLS_PATH /test_hello_dlstreamer
+        name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }_${{ matrix.ubuntu_version }}_CPU_yolo11s
+        path: $DLS_PATH/test_hello_dlstreamer
 
 
     - name: Init tests configurations and environment
