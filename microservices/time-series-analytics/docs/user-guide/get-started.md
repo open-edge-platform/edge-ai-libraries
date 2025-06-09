@@ -106,6 +106,7 @@ Directory details is as below:
 ```bash
 cd <path-to-edge-ai-libraries-repo>
 git clone https://github.com/open-edge-platform/edge-ai-libraries
+cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
 
 ## Build Docker Image
@@ -113,7 +114,6 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries
 Navigate to the application directory and build the Docker image:
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker
 docker compose build
 ```
 
@@ -123,7 +123,7 @@ docker compose build
 
 To push images to a Docker registry:
 
-1. Update the following fields in <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker/.env`:
+1. Update the following fields in `<path-to-edge-ai-libraries-repo>/edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
    - `DOCKER_REGISTRY`
    - `DOCKER_USERNAME`
    - `DOCKER_PASSWORD`
@@ -143,7 +143,6 @@ To push images to a Docker registry:
 Navigate to the application directory and run the Docker container:
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker
 docker compose up -d
 ```
 
@@ -152,7 +151,6 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
 python3 src/temperature_input.py --mode docker
 ```
 
