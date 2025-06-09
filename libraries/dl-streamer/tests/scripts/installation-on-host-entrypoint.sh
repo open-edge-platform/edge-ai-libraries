@@ -5,9 +5,8 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 set -e
-dls_package=$1
 
-DEB_PKGS_PATH="$(dirname "$0")/../../deb_packages"
+DEB_PKGS_PATH=$1
 PREREQUISITES_SCRIPT_PATH="$(dirname "$0")/../../scripts"
 
 # Function to display text in a given color
@@ -58,6 +57,7 @@ if [ -f $HOME/.cache/gstreamer-1.0/ ]; then
     sudo rm -rf $HOME/.cache/gstreamer-1.0/
     echo_color "Removed $HOME/.cache/gstreamer-1.0/" "blue"
 fi
+
 #Remove repos if they exist
 echo_color "Checking $HOME/.cache/gstreamer-1.0/..." "blue"
 if [ -f /etc/apt/sources.list.d/intel-graphics.list ]; then
@@ -91,8 +91,8 @@ for file in /usr/share/keyrings/intel-graphics*; do
     fi
 done
 
-chmod +x /home/labrat/intel/dlstreamer/scripts/DLS_install_prerequisites.sh
-/home/labrat/intel/dlstreamer/scripts/DLS_install_prerequisites.sh --reinstall-npu-driver=no
+chmod +x $PREREQUISITES_SCRIPT_PATH/DLS_install_prerequisites.sh
+$PREREQUISITES_SCRIPT_PATH/DLS_install_prerequisites.sh --reinstall-npu-driver=no
 
 # Configure repositories before installation
 echo_color "Starting to configure OpenVINO™ repository access before DL Streamer installation" "blue"
@@ -121,18 +121,8 @@ echo_color "Executing: sudo apt update" "blue"
 sudo apt-get update
 echo_color  "Completed: sudo apt update" "magenta"
 
-mkdir /home/labrat/intel/dls_package
-cd /home/labrat/intel/dls_package
-
-echo_color "Downloading DLS deb package version: $dls_package" "blue"
-wget -r -np -nH --cut-dirs=7 -A '*intel-dlstreamer*' "$dls_package"
-echo_color "Downloaded DLS package version: $dls_package" "magenta"
-
-echo_color "Executing: sudo apt update" "blue"
-sudo apt update
-echo_color  "Completed: sudo apt update" "magenta"
-
 echo_color "Executing: sudo apt install -y ./intel-dlstreamer*" "blue"
+cd $DEB_PKGS_PATH
 sudo apt install -y ./intel-dlstreamer*
 echo_color "Completed: sudo apt install -y ./intel-dlstreamer*" "magenta"
 
