@@ -15,6 +15,7 @@ on:
         - chat-question-and-answer
         - visual-pipeline-platform-tool
         - chat-question-and-answer-core
+        - time-series-analytics
 
 permissions: {}
 
@@ -110,3 +111,17 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: sample-applications/chat-question-and-answer-core
+  build_time-series-analytics:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
+    if: ${{ (github.event.inputs.target == 'time-series-analytics') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    secrets:
+      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
+      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+    with:
+      docs_directory: microservices/time-series-analytics
+      branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
