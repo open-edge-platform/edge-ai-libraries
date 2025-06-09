@@ -9,7 +9,7 @@ services:
       no_proxy: ${no_proxy},${MINIO_HOST},vss-ui,pipeline-manager
       APP_UI: vss-ui
       APP_MANAGER: pipeline-manager:3000
-      APP_ASSETS: ${MINIO_HOST}
+      APP_ASSETS: minio-service
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     volumes:
