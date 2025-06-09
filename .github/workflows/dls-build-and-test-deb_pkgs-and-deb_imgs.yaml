@@ -130,23 +130,23 @@ jobs:
         path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
 
     # ======================================================== OH HOST TESTING PART ========================================================
-    - name: Download models [TEMPORARY]
-      run: |
-        export MODELS_PATH=${{ env.MODELS_PATH }}
-        $DLS_PATH/samples/download_public_models.sh
+    # - name: Download models [TEMPORARY]
+    #   run: |
+    #     export MODELS_PATH=${{ env.MODELS_PATH }}
+    #     $DLS_PATH/samples/download_public_models.sh
 
     - name: Clean up Docker image [TEMPORARY]
       if: always()
       run: |
         docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
 
-    - name: Check models
-      run: |
-        if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
-          echo "Folder "${{ env.MODELS_PATH }}" with models exists and has content."
-        else
-          echo "Folder "${{ env.MODELS_PATH }}" with models DOES NOT EXIST or is empty."
-        fi
+    # - name: Check models
+    #   run: |
+    #     if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
+    #       echo "Folder "${{ env.MODELS_PATH }}" with models exists and has content."
+    #     else
+    #       echo "Folder "${{ env.MODELS_PATH }}" with models DOES NOT EXIST or is empty."
+    #     fi
 
     - name: Check videos
       run: |
