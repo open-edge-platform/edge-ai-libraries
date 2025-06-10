@@ -9,6 +9,7 @@ env:
   MODELS_PATH: "$HOME/models"
   VIDEO_INPUTS_PATH: "$HOME/videos"
   DLS_PATH: "./edge-ai-libraries-repo/libraries/dl-streamer"
+  DLS_TESTS_RESULTS_PATH: $DLS_PATH/tests/functional_tests_results
 
 jobs:
   build:
@@ -130,35 +131,26 @@ jobs:
         path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
 
     # ======================================================== OH HOST TESTING PART ========================================================
-    # - name: Download models [TEMPORARY]
-    #   run: |
-    #     export MODELS_PATH=${{ env.MODELS_PATH }}
-    #     $DLS_PATH/samples/download_public_models.sh
-
-    - name: Clean up Docker image [TEMPORARY]
-      if: always()
+    - name: Check models
       run: |
-        docker rmi ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
-
-    # - name: Check models
-    #   run: |
-    #     if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
-    #       echo "Folder "${{ env.MODELS_PATH }}" with models exists and has content."
-    #     else
-    #       echo "Folder "${{ env.MODELS_PATH }}" with models DOES NOT EXIST or is empty."
-    #     fi
+        if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
+          echo "Models: found ✅" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Models: folder not found or it is empty ❌" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        fi
 
     - name: Check videos
       run: |
         if [ -d "${{ env.VIDEO_INPUTS_PATH }}" ] && [ "$(ls -A "${{ env.VIDEO_INPUTS_PATH }}")" ]; then
-          echo "Folder "${{ env.VIDEO_INPUTS_PATH }}" with video inputs exists and has content."
+          echo "Tests input videos: found ✅" >> $GITHUB_STEP_SUMMARY
         else
-          echo "Folder "${{ env.VIDEO_INPUTS_PATH }}" with video inputs DOES NOT EXIST or is empty."
+          echo "Tests input videos: folder not found or it is empty ❌" >> $GITHUB_STEP_SUMMARY
+          exit 1
         fi
 
     - name: Install DL Streamer on-host
       run: |
-        chmod +x $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh
         $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_PATH/deb_packages
 
     - name: Test hello_dlstreamer script
@@ -172,39 +164,61 @@ jobs:
         for file in *.mp4; do
             # Check if the file exists and is at least 1kB in size
             if [[ -f "$file" && $(stat --printf="%s" "$file") -ge 1024 ]]; then
-                echo "Valid .mp4 file found: $file"
+                echo "✅ Valid .mp4 file found: $file"
+                echo "Testing hello_dlstreamer: PASS ✅" >> $GITHUB_STEP_SUMMARY
                 OUTPUT_FILE_FOUND=1
             fi
         done
         if [[ $OUTPUT_FILE_FOUND -eq 0 ]]; then
-            echo "No .mp4 file(s) found or it has less than 1kB size."
+            echo "❌ No .mp4 file(s) found or it has less than 1kB size. Exiting..."
+            echo "Testing hello_dlstreamer: FAIL ❌" >> $GITHUB_STEP_SUMMARY
             exit 1
         fi
 
     - name: Upload hello_dlstreamer output video
-      uses: actions/upload-artifact@v4.4.0
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       if: always()
       with:
         name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
         path: $DLS_PATH/test_hello_dlstreamer
 
-
     - name: Init tests configurations and environment
       run: |
-        echo "TODO"
+        if [[ ${{ matrix.runner_print_label }} == "TGL" ]]; then
+          echo "TEST_CONFIGS=on_host/samples_TGL.json" >> $GITHUB_ENV
+          echo "✅ Selected test configuration file: on_host/samples_TGL.json" >> $GITHUB_STEP_SUMMARY
+        elif [[ ${{ matrix.runner_print_label }} == "ARL" ]]; then
+          echo "TEST_CONFIGS=on_host/samples_ARL.json" >> $GITHUB_ENV
+          echo "✅ Selected test configuration file: on_host/samples_ARL.json" >> $GITHUB_STEP_SUMMARY
+        else
+          echo "Test configuration file: not found ❌" >> $GITHUB_STEP_SUMMARY
+          echo "❌ Cannot assign correct test configuration JSON file for runner based on label: ${{ matrix.runner_print_label }}"
+          echo "Please review and fix! Exiting..."
+          exit 1
+        fi
 
     - name: Run tests
       run: |
-        echo "TODO"
+        cd $DLS_PATH/tests/functional_tests
+        echo "Starting to execute FUNCTIONAL TESTS main sctipt :rocket:"
+        ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="${{ env.DLS_TESTS_RESULTS_PATH }}" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
 
     - name: Upload test results
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+      if: always()
+      with:
+        name: functional_tests_${{ matrix.runner_print_label }}_on_host_results
+        path: "${{ env.DLS_TESTS_RESULTS_PATH }}"
+
+    - name: Print tests summary in workflow
+      if: always ()
       run: |
-        echo "TODO"
+        echo "## Tests summary" >> $GITHUB_STEP_SUMMARY
+        sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${{ env.DLS_TESTS_RESULTS_PATH }}"/functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
 
     - name: Uninstall dlstreamer
       if: always ()
       run: |
-        chmod +x $DLS_PATH/tests/scripts/uninstall-dlstreamer.sh
         $DLS_PATH/tests/scripts/uninstall-dlstreamer.sh
 
     # ======================================================== CLEAUP PART ========================================================
