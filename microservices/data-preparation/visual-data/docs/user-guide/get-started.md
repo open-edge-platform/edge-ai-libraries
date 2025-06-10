@@ -34,6 +34,8 @@ mkdir -p $HOME/data
 
 Make sure to put all your data (images and video) in the created data directory (`$HOME/data` in the example commands) BEFORE deploying the service.
 
+Note: supported media types: jpg, png, mp4
+
 ### Step 3: Deploy
 
 #### Option1 (**Recommended**): Deploy the application together with the Milvus Server

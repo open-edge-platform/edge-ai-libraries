@@ -207,7 +207,7 @@ class Indexer:
                 meta["type"] = "local_image"
                 entities.extend(self.process_image(file, meta, do_detect_and_crop))
             else:
-                print(f"Unsupported file type: {file}. Supported types are: jpg, png, mp4, avi, mkv, mov")
+                print(f"Unsupported file type: {file}. Supported types are: jpg, png, mp4")
 
         res = {}
         if entities:
