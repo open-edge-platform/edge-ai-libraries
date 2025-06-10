@@ -116,9 +116,7 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
-## Deploy with Docker Compose (Single Node)
-
-### Push Docker Images (Optional)
+## Push Docker Images (Optional)
 
 To push images to a Docker registry:
 
