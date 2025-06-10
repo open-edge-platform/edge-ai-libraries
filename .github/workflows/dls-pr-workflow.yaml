@@ -38,10 +38,10 @@ jobs:
     name: License headers
     runs-on: ubuntu-latest
     steps:
-    # - name: Check out edge-ai-libraries repository
-    #   uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-    #   with:
-    #     persist-credentials: false
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
 
     # - uses: open-edge-platform/orch-ci/discover-changed-files@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
     #   id: discover_files
