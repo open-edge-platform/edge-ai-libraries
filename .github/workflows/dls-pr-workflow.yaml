@@ -44,13 +44,15 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
+    - name: Discover Changed Files
+      id: discover_files
     - uses: open-edge-platform/orch-ci/discover-changed-files@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
       with:
-        project-folder: edge-ai-libraries-repo/libraries/dl-streamer
+        project_folder: edge-ai-libraries-repo/libraries/dl-streamer
 
     - uses: ./.github/actions/common/license-namespace-checker
       with:
-        changed_files: ${{ env.CHANGED_FILES }}
+        changed_files: ${{ steps.discover_files.outputs.changed_files }}
 
   build-dev-images:
     permissions:
