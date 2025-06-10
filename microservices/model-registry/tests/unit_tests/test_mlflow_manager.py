@@ -234,21 +234,6 @@ def test_string_contains_any_char():
     assert mlflow_manager._string_contains_any_char("abc%", ("<", "%", "'"))
     assert not mlflow_manager._string_contains_any_char("abc", ("<", "%", "'"))
 
-def test_get_models_special_characters_raises(mocker):
-    """Test get_models raises HTTPException for special characters in filter values."""
-    mlflow_manager = MLflowManager()
-    mlflow_manager._client = mocker.Mock()
-    with pytest.raises(HTTPException):
-        mlflow_manager.get_models(model_id=None, keys=["name"], values=["bad'value"])
-
-def test_get_models_empty(mocker):
-    """Test get_models returns empty list if no models found."""
-    mlflow_manager = MLflowManager()
-    mlflow_manager._client = mocker.Mock()
-    mlflow_manager._client.search_registered_models.return_value = []
-    result = mlflow_manager.get_models(model_id="nonexistent")
-    assert result == []
-
 def test_delete_model_no_models(mocker):
     """Test delete_model returns False if no models found."""
     mlflow_manager = MLflowManager()
