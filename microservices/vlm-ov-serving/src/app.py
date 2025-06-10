@@ -87,12 +87,13 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],
+    allow_origins=os.getenv("VLM_CORS_ALLOW_ORIGINS", "*").split(
+        ","
+    ),
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    allow_methods=os.getenv("VLM_CORS_ALLOW_METHODS", "*").split(","),
+    allow_headers=os.getenv("VLM_CORS_ALLOW_HEADERS", "*").split(","),
 )
-
 
 class RequestQueueMiddleware(BaseHTTPMiddleware):
     """
@@ -562,15 +563,15 @@ async def chat_completions(request: ChatRequest):
                     padding=True,
                     return_tensors="pt",
                 )
-            elif len(image_urls) == 1:
-                logger.info("processing as single image prompt")
+            elif len(image_urls) > 0:
+                logger.info("processing as single/multiple image prompt")
                 messages = [
                     {
                         "role": "user",
                         "content": [
-                            {"type": "image", "image": image_urls[0]},
-                            {"type": "text", "text": prompt},
-                        ],
+                            {"type": "image", "image": img} for img in image_urls
+                        ]
+                        + [{"type": "text", "text": prompt}],
                     }
                 ]
                 text = processor.apply_chat_template(
@@ -653,26 +654,10 @@ async def chat_completions(request: ChatRequest):
                     **video_kwargs,
                 )
             else:
-                logger.info("processing multiple images as separate inputs")
-                messages = [
-                    {
-                        "role": "user",
-                        "content": [
-                            {"type": "image", "image": img} for img in image_urls
-                        ]
-                        + [{"type": "text", "text": prompt}],
-                    }
-                ]
-                text = processor.apply_chat_template(
-                    messages, tokenize=False, add_generation_prompt=True
-                )
-                image_inputs, video_inputs = process_vision_info(messages)
-                inputs = processor(
-                    text=[text],
-                    images=image_inputs,
-                    videos=video_inputs,
-                    padding=True,
-                    return_tensors="pt",
+                logger.error("Invalid input: No valid image, video, or text prompt provided.")
+                return JSONResponse(
+                    status_code=400,
+                    content={"error": "Invalid input: No valid image, video, or text prompt provided."},
                 )
 
             streamer = TextIteratorStreamer(
