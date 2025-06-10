@@ -153,7 +153,7 @@ jobs:
 
     - name: Install DL Streamer on-host
       run: |
-        # $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_PATH/deb_packages
+        $DLS_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_PATH/deb_packages
 
     - name: Test hello_dlstreamer script
       id: test_hello_dlstreamer_script
