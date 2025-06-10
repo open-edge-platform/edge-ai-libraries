@@ -32,6 +32,26 @@ on:
 permissions: {}
 
 jobs:
+  check-license-headers:
+    permissions:
+      contents: read
+    name: License headers
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - uses: open-edge-platform/orch-ci/.github/discover-changed-files@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+      with:
+        project-folder: edge-ai-libraries-repo/libraries/dl-streamer
+
+    - uses: ./.github/actions/common/license-namespace-checker
+      with:
+        changed_files: ${{ env.CHANGED_FILES }}
+
   build-dev-images:
     permissions:
       contents: read
