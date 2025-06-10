@@ -14,6 +14,7 @@ runs:
         persist-credentials: false
 
     - name: Get list of changed files
+      shell: bash
       run: |
         cd edge-ai-libraries-repo
         if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
