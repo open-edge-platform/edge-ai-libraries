@@ -185,20 +185,31 @@ jobs:
         name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
         path: $DLS_PATH/test_hello_dlstreamer
 
-    - name: Init tests configurations and environment
+    - name: Init tests configurations
       run: |
         if [[ ${{ matrix.runner_print_label }} == "TGL" ]]; then
           echo "TEST_CONFIGS=on_host/samples_TGL.json" >> $GITHUB_ENV
-          echo "✅ Selected test configuration file: on_host/samples_TGL.json" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: on_host/samples_TGL.json ✅" >> $GITHUB_STEP_SUMMARY
         elif [[ ${{ matrix.runner_print_label }} == "ARL" ]]; then
           echo "TEST_CONFIGS=on_host/samples_ARL.json" >> $GITHUB_ENV
-          echo "✅ Selected test configuration file: on_host/samples_ARL.json" >> $GITHUB_STEP_SUMMARY
+          echo "Selected test configuration file: on_host/samples_ARL.json ✅" >> $GITHUB_STEP_SUMMARY
         else
           echo "Test configuration file: not found ❌" >> $GITHUB_STEP_SUMMARY
           echo "❌ Cannot assign correct test configuration JSON file for runner based on label: ${{ matrix.runner_print_label }}"
           echo "Please review and fix! Exiting..."
           exit 1
         fi
+
+    - name: Init test environemtnt
+      run: |
+        if [ -d "$HOME/.virtualenvs" ]; then
+          echo "Directory $HOME/.virtualenvs exists - removing it"
+          rm -rf $HOME/.virtualenvs
+        fi
+        mkdir -p $HOME/.virtualenvs/dlstreamer
+        python3 -m venv $HOME/.virtualenvs/dlstreamer
+        $HOME/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip -r $DLS_PATH/requirements.txt
+        source $HOME/.virtualenvs/dlstreamer/bin/activate
 
     - name: Run tests
       id: run_tests
