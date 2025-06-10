@@ -45,10 +45,8 @@ jobs:
 
     - uses: open-edge-platform/orch-ci/discover-changed-files@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
       id: discover_files
-      with:
-        project_folder: libraries/dl-streamer
 
-    - uses: ./.github/actions/common/license-namespace-checker
+    - uses: .github/actions/common/license-namespace-checker
       with:
         changed_files: ${{ steps.discover_files.outputs.changed_files }}
 
