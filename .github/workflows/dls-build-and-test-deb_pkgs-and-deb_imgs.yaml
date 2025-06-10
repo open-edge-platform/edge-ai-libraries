@@ -218,9 +218,9 @@ jobs:
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD
         echo "DLS_TESTS_RESULTS_PATH=$DLS_TESTS_RESULTS_PATH" >> $GITHUB_ENV
-        cd ..
+        cd ../functional_tests
 
-        echo "Starting to execute FUNCTIONAL TESTS main sctipt :rocket:"
+        echo "Starting to execute FUNCTIONAL TESTS main sctipt"
         source $HOME/.virtualenvs/dlstreamer/bin/activate
         ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
 
