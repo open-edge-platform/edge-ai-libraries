@@ -35,7 +35,7 @@ jobs:
   check-license-headers:
     permissions:
       contents: read
-    name: License headers
+    name: Check license headers
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
