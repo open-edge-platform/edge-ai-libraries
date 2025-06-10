@@ -114,10 +114,10 @@ jobs:
           #poetry add pytest-cov pytest-html
           
           # Run tests with coverage and HTML report in one command
-         # poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+          # poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
           
           # For a combined coverage and test report
-          #poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+          # poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
           deactivate
           rm -rf venv
           
@@ -304,13 +304,13 @@ jobs:
           coverage run --source=. -m pytest
           coverage report -m
           # Install required packages
-         # poetry add pytest-cov pytest-html 
+          # poetry add pytest-cov pytest-html 
           
           # Run tests with coverage and HTML report in one command
           #poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
           
           # For a combined coverage and test report
-         # poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
+          # poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
           deactivate
           rm -rf venv
           
