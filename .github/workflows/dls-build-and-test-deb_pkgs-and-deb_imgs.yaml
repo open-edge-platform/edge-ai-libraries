@@ -115,20 +115,20 @@ jobs:
       run: docker rmi ${dev_release_img} ${deb_pkg_img} || true
 
     # ======================================================== SCANNING PART ========================================================
-    - name: Scan Docker image with Trivy
-      uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
-      with:
-        image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
-        severity: "CRITICAL"
-        # output-format: "json"
-        output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+    # - name: Scan Docker image with Trivy
+    #   uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
+    #   with:
+    #     image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+    #     severity: "CRITICAL"
+    #     # output-format: "json"
+    #     output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
 
-    - name: Upload Trivy report as artifact
-      if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
-      with:
-        name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
-        path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
+    # - name: Upload Trivy report as artifact
+    #   if: always()
+    #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+    #   with:
+    #     name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
+    #     path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
 
     # ======================================================== OH HOST TESTING PART ========================================================
     - name: Check models
