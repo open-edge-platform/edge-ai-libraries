@@ -88,7 +88,7 @@ jobs:
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           --build-arg BASE_IMAGE="${dev_release_img}" \
           -f ${{ matrix.path_deb }} \
-          $DLS_PATH
+          ${{ env.DLS_PATH }}
 
     - name: Extract .deb packages using script
       env:
@@ -97,7 +97,7 @@ jobs:
         chmod +x ${{ env.DLS_PATH }}/scripts/extract_and_verify_debs.sh
         ${{ env.DLS_PATH }}/scripts/extract_and_verify_debs.sh ${deb_pkg_img}
         ls
-        cp -r deb_packages $DLS_PATH
+        cp -r deb_packages ${{ env.DLS_PATH }}
 
     - name: Build Docker img from .deb
       env:
