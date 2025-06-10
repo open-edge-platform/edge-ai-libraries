@@ -18,7 +18,7 @@ services:
         INSTALL_SOURCES: "no"
     container_name: ia-time-series-analytics-microservice
     hostname: ia-time-series-analytics-microservice
-    image: ${DOCKER_REGISTRY}ia-time-series-analytics-microservice:1.0.0
+    image: ${DOCKER_REGISTRY}intel/ia-time-series-analytics-microservice:1.0.0
     restart: unless-stopped
     security_opt:
     - no-new-privileges
@@ -47,6 +47,8 @@ services:
       MODEL_REGISTRY_URL: http://model-registry:8111
     networks:
     - timeseries_network
+    ports:
+    - 9092:9092
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
     - ../config.json:/app/config.json
