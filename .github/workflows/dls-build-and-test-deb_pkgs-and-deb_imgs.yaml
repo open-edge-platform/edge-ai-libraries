@@ -210,11 +210,11 @@ jobs:
         mkdir -p $HOME/.virtualenvs/dlstreamer
         python3 -m venv $HOME/.virtualenvs/dlstreamer
         $HOME/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip -r $DLS_PATH/requirements.txt
-        source $HOME/.virtualenvs/dlstreamer/bin/activate
 
     - name: Run tests
       id: run_tests
       run: |
+        source $HOME/.virtualenvs/dlstreamer/bin/activate
         cd $DLS_PATH/tests/functional_tests
         echo "Starting to execute FUNCTIONAL TESTS main sctipt :rocket:"
         ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="${{ env.DLS_TESTS_RESULTS_PATH }}" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
