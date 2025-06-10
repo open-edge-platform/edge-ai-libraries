@@ -13,6 +13,7 @@ export INDEX_NAME=intel-rag
 export EMBEDDING_ENDPOINT_URL=http://tei-embedding-service
 
 # UI ENV variables
+export MAX_TOKENS=1024
 export APP_ENDPOINT_URL=/v1/chatqna
 export APP_DATA_PREP_URL=/v1/dataprep
 
@@ -21,6 +22,7 @@ export CHUNK_SIZE=1500
 export CHUNK_OVERLAP=200
 export FETCH_K=10
 export BATCH_SIZE=32
+export SEED=42
 
 # Env variables for DataStore
 export DATASTORE_HOST_PORT=8200
