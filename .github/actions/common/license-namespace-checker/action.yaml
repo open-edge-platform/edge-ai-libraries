@@ -1,9 +1,5 @@
 name: 'License and Namespace Checker'
 description: 'Checks license headers and namespace usage in headers'
-# inputs:
-#   changed_files:
-#     description: 'List of changed files to scan'
-#     required: true
 runs:
   using: 'composite'
   steps:
