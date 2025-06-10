@@ -13,5 +13,5 @@ runs:
         if [ -z "${{ inputs.changed_files }}" ]; then
           echo "No new files to scan."
         else
-          ./run.sh ${{ inputs.changed_files }}
+          ./.github/actions/common/license-checker/run.sh ${{ inputs.changed_files }}
         fi
