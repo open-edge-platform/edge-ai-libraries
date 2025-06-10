@@ -28,17 +28,18 @@ sample-applications/video-summarization/
 ├── config                     # Configuration files
 │   ├── nginx.conf             # Nginx configuration
 │   └── rmq.conf               # RabbitMQ configuration
-├── data                       # Data directory for video files
 ├── docker                     # Docker compose files
 │   ├── compose.base.yaml      # Base services configuration
-│   ├── compose.summary.yaml   # Video summarization services
-│   ├── compose.search.yaml    # Video search services 
+│   ├── compose.summary.yaml   # Compose override file for video summarization services
+│   ├── compose.search.yaml    # Compose override file for Video search services 
 │   ├── compose.gpu_vlm.yaml   # GPU configuration for VLM
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OVMS
 ├── docs                       # Documentation
-├── ov_models                  # OpenVINO models directory
-├── pipeline-manager           # Maintains state of all operations
-├── ui                         # Video Summary UI code
+│   └── user-guide             # User guides and tutorials
+├── pipeline-manager           # Backend service which orchestrates the Video Summarization and Search
+├── search-ms                  # Video Search Microservice
+├── ui                         # Video Summary and Search UI code
+├── build.sh                   # Script for building application images
 ├── setup.sh                   # Setup script for environment and deployment
 └── README.md                  # Project documentation
 ```

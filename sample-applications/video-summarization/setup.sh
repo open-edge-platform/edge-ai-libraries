@@ -7,6 +7,13 @@ YELLOW='\033[0;33m'
 BLUE='\033[0;34m'
 NC='\033[0m' # No Color
 
+# Setting variables for directories used as volume mounts. Could be required during stopping containers as well.
+export OVMS_CONFIG_DIR=${PWD}/config/ovms_config
+export OV_MODEL_DIR=${PWD}/ov_models
+export CONFIG_DIR=${PWD}/config
+export NGINX_CONFIG=${CONFIG_DIR}/nginx.conf
+export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
+
 # Setting command usage and invalid arguments handling before the actual setup starts
 if [ "$#" -eq 0 ] ||  ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     # If no valid argument is passed, print usage information
@@ -49,8 +56,13 @@ elif [ "$#" -eq 2 ] && [ "$2" = "config" ] && [ "$1" != "--summary" ] && [ "$1" 
 
 elif [ "$1" = "--down" ]; then
     # If --down is passed, bring down the Docker containers
-    echo -e "${GREEN}Bringing down the Docker containers... ${NC}"
+    echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
     docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
     return 0
 fi
 
@@ -176,13 +188,6 @@ export UI_PM_ENDPOINT=${UI_PM_ENDPOINT:-/manager}
 export UI_ASSETS_ENDPOINT=${UI_ASSETS_ENDPOINT:-/datastore}
 
 export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in your shell, if nginx not being used
-
-# Directories containing models and various configs for mounting in containers
-export OVMS_CONFIG_DIR=${PWD}/config/ovms_config
-export OV_MODEL_DIR=${PWD}/ov_models
-export CONFIG_DIR=${PWD}/config
-export NGINX_CONFIG=${CONFIG_DIR}/nginx.conf
-export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
