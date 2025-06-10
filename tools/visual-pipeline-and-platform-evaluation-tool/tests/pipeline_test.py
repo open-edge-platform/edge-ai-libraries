@@ -49,7 +49,8 @@ class TestPipelineLoader(unittest.TestCase):
         pipelines = PipelineLoader.list(self.test_dir.name)
         self.assertIsInstance(pipelines, list)
         self.assertEqual(len(pipelines), 2)
-        [self.assertNotIn("/", pipeline_name) for pipeline_name in pipelines]
+        for pipeline_name in pipelines:
+            self.assertNotIn("/", pipeline_name)
         self.assertIn("pipeline1", pipelines)
         self.assertIn("pipeline2", pipelines)
 
