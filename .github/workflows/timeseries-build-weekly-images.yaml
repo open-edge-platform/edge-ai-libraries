@@ -8,7 +8,7 @@ permissions: {}
 
 jobs:
   time-series-analytics-microservice-weekly:
-    name: Build TimeSeries Analytics Microservice img
+    name: Weekly-Build TimeSeries Analytics Microservice img
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -29,9 +29,10 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build timeseries-analytics-microservices
+    - name: Build time-series-analytics-microservices
       run: |
-        cd edge-ai-libraries-repo/microservices/timeseries-analytics/docker
+        cd microservices/time-series-analytics/docker
+        sed -i "s|DOCKER_REGISTRY=.*|DOCKER_REGISTRY=ghcr.io/${{ github.repository }}/|g" .env
         docker compose build --no-cache --pull
 
     - name: Push Docker img
