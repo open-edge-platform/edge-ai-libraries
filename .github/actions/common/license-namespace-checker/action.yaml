@@ -7,6 +7,11 @@ inputs:
 runs:
   using: 'composite'
   steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+
     - name: Check License header and namespace usage in headers
       shell: bash
       run: |
