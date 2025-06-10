@@ -1,5 +1,5 @@
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
+FROM ${BASE_IMAGE} AS builder
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
@@ -57,8 +57,8 @@ RUN apt-get install -y --no-install-recommends python3-dev
 
 # Build UDF loader lib
 RUN /bin/bash -c "echo $PATH && \
-                  pip3 install numpy==1.26.4 && \
-                  pip3 install Cython==0.29.34 && \
+                  pip3 install --no-cache-dir numpy==1.26.4 && \
+                  pip3 install --no-cache-dir Cython==0.29.34 && \
                   cd /home/pipeline-server/UDFLoader && \
                   rm -rf build && \
                   mkdir build && \
@@ -143,14 +143,14 @@ RUN apt-get update && apt-get install -y --no-install-recommends git
 ENV PATH=$PATH:/home/pipeline-server/.local/bin
 
 COPY ./tests/requirements.txt /home/pipeline-server/tests/requirements.txt
-RUN pip3 install -r /home/pipeline-server/tests/requirements.txt
+RUN pip3 install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
 
 # Install for ntp timestamping
-RUN pip3 install ntplib==0.4.0
+RUN pip3 install --no-cache-dir ntplib==0.4.0
 
 #Patch and install OpenVINO model api
 COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-RUN pip3 install openvino-model-api==0.2.5
+RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
 
 # site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
 RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
@@ -167,100 +167,40 @@ RUN . /etc/os-release && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
-        pip install --upgrade pip && \
-        pip install geti-sdk==2.7.1 && \
+        pip install --no-cache-dir --upgrade pip && \
+        pip install --no-cache-dir geti-sdk==2.7.1 && \
         # clean up Rust installation files
         rm -rf /root/.cargo /root/.rustup; \
     else \
-        pip install --upgrade pip && \
-        pip install geti-sdk==2.7.1; \
+        pip install --no-cache-dir --upgrade pip && \
+        pip install --no-cache-dir geti-sdk==2.7.1; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
 
 
-
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
-RUN pip3 uninstall -y cuda-python aiohappyeyeballs
+RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
 
 # Install schedule for python job scheduling
-RUN pip3 install schedule==1.2.1
+RUN pip3 install --no-cache-dir schedule==1.2.1
 
 # Install opcua
-RUN pip3 install asyncua==1.1.5
+RUN pip3 install --no-cache-dir asyncua==1.1.5
 
 # Downgrading Flask due to an atttribute error(JSONEncoder)
-RUN pip3 uninstall -y Flask && \
-    pip3 install Flask==2.2.5
+RUN pip3 uninstall --no-cache-dir -y Flask && \
+    pip3 install --no-cache-dir Flask==2.2.5
 
 # Visualizer webtrc requirements
 RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends
 #RUN cp /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnice.so /opt/intel/dlstreamer/lib/gstreamer-1.0
 
-WORKDIR /thirdparty
-
 USER root
-RUN pip3 install pydantic==2.8.2
+RUN pip3 install --no-cache-dir pydantic==2.8.2
 
 RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends
-RUN pip3 install deep_sort_realtime
-
-ARG DOWNLOAD_GPL_SOURCES
-
-ARG UBUNTU_COPYLEFT_DEPS=""
-
-ARG PYTHON_COPYLEFT_DEPS="https://git.launchpad.net/launchpadlib \
-                          https://github.com/GNOME/pygobject \
-                          https://github.com/FreeOpcUa/opcua-asyncio \
-                          https://github.com/Lucretiel/autocommand \
-                          https://github.com/certifi/python-certifi \
-                          https://git.launchpad.net/wadllib \
-                          https://git.launchpad.net/ubuntu/+source/python-apt \
-                          https://git.launchpad.net/lazr.restfulclient \
-                          https://git.launchpad.net/lazr.uri"
-
-ARG PYTHON_NO_REPO_SOURCE="https://files.pythonhosted.org/packages/32/12/0409b3992c9a023d1521d9352d4c41bb1d43684ccb82899e716103e2bd88/bubblewrap-1.2.0.zip"
-
-COPY ./thirdparty/third_party_deb_apk_deps.txt /thirdparty/
-COPY ./thirdparty/third_party_programs.txt /thirdparty/
-
-RUN if [ "$DOWNLOAD_GPL_SOURCES" = "yes" ]; then \
-        sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
-        apt-get update && \
-        root_dir=$PWD && \
-        mkdir -p ./apt-sources/dlstreamer-pipeline-server && cd ./apt-sources/dlstreamer-pipeline-server && \
-        cp ../../third_party_deb_apk_deps.txt . && \
-        for line in $(cat third_party_deb_apk_deps.txt | xargs -n1); \
-        do \
-        package=$(echo $line); \
-        grep -l GPL /usr/share/doc/${package}/copyright; \
-        exit_status=$?; \
-        if [ $exit_status -eq 0 ]; then \
-            apt-get source -q --download-only $package;  \
-        fi \
-        done && \
-        cd $root_dir && \
-        echo "Cloning Debian and Ubuntu github deps..." && \
-        mkdir -p ./github-sources/Ubuntu_Deb && cd ./github-sources/Ubuntu_Deb && \
-        for f in `echo $UBUNTU_COPYLEFT_DEPS | xargs -n1`; do git clone $f && \
-        cd "$(basename "$f")" && \
-        rm -rf .git && \
-        cd ..; done && \
-        cd ../ && \
-        mkdir -p Python && cd Python && \
-        echo "Cloning Python github dependency" && \
-        for f in `echo $PYTHON_COPYLEFT_DEPS | xargs -n1`; do git clone $f && \
-        wget $PYTHON_NO_REPO_SOURCE && \
-        cd "$(basename "$f")" && \
-        rm -rf .git && \
-        cd ..; done && \
-        cd $root_dir && \
-        echo "Download source for $(ls | wc -l) third-party packages: $(du -sh)"; \
-        rm -rf /var/lib/apt/lists/*;\
-    fi
-
-
-WORKDIR /home/pipeline-server
+RUN pip3 install --no-cache-dir deep_sort_realtime
 
 USER $USER
 
@@ -271,17 +211,18 @@ COPY ./src/ ./src
 
 # Install server requirements
 USER root
-RUN pip3 install PyYAML==5.4.1 --no-build-isolation && \
-    pip3 install -r  /home/pipeline-server/src/server/requirements.service.txt \
+RUN pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
+    pip3 install --no-cache-dir \
+                 -r  /home/pipeline-server/src/server/requirements.service.txt \
                  -r /home/pipeline-server/src/server/requirements.webrtc.txt \
                  -r /home/pipeline-server/src/server/requirements.txt && \
-    python3 -m pip install --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
+    python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
 USER ${USER}
 
 # OpenTelemetry
 USER root
-RUN pip3 install --no-cache -r  /home/pipeline-server/src/opentelemetry/requirements.txt
-RUN pip3 install --upgrade opentelemetry-exporter-otlp
+RUN pip3 install --no-cache-dir -r  /home/pipeline-server/src/opentelemetry/requirements.txt
+RUN pip3 install --no-cache-dir --upgrade opentelemetry-exporter-otlp
 USER ${USER}
 
 # Disable OpenVINO Telemetry

@@ -34,8 +34,6 @@ services:
         USER: ${PIPELINE_SERVER_USER}
         BASE_IMAGE: ${BASE_IMAGE}
         CMAKE_INSTALL_PREFIX: "/opt/intel/eii"
-        # Download sources for GPL/LGPL/AGPL binary distributed components (yes/no)
-        DOWNLOAD_GPL_SOURCES: "no"
         no_proxy: ${no_proxy}
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
