@@ -42,7 +42,7 @@ spec:
       {{- end }}
       containers:
       - name: ia-time-series-analytics-microservice
-        image: {{ .Values.DOCKER_REGISTRY }}ia-time-series-analytics-microservice:1.0.0
+        image: {{ .Values.DOCKER_REGISTRY }}intel/ia-time-series-analytics-microservice:1.0.0
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         securityContext:
           readOnlyRootFilesystem: true
