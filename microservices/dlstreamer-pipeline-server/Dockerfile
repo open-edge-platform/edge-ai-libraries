@@ -1,5 +1,5 @@
 ARG BASE_IMAGE
-FROM ${BASE_IMAGE} AS builder
+FROM ${BASE_IMAGE} AS gstudfloader-builder
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
@@ -100,6 +100,54 @@ RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
 
 ############################# DL Streamer Pipeline Server runtime ################################
 
+FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
+
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
+ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
+
+USER root
+
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
+
+WORKDIR /home/pipeline-server
+
+RUN export no_proxy= && \
+    apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
+    libglib2.0-0 \
+    libusb-1.0-0 \
+    libtool \
+    zlib1g \
+    zip \
+    unzip \
+    libopencv-core4.5d \
+    libcjson1 && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+
+ARG CMAKE_INSTALL_PREFIX
+ARG UTILS_LIB_VERSION
+ARG MSGBUS_LIB_VERSION
+
+COPY packages/eii-utils-${UTILS_LIB_VERSION}-Linux.deb ${WORKDIR}
+COPY packages/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb ${WORKDIR}
+
+# Installation of utils, eiimessagebus and debian packages. Needed for UDFLoader build
+RUN dpkg -i /home/pipeline-server/eii-utils-${UTILS_LIB_VERSION}-Linux.deb && \
+    dpkg -i /home/pipeline-server/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb && \
+    rm -rf /home/pipeline-server/eii-*.deb && \
+    rm -rf /home/pipeline-server/packages
+
+ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
+    LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \
+    CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
+    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
+    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
+
+
 USER root
 
 WORKDIR /home/pipeline-server
@@ -114,8 +162,9 @@ ENV GST_DEBUG="1"
 
 ARG CMAKE_INSTALL_PREFIX
 
-RUN cp ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
-RUN cp /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/udf.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
 
 ARG USER
 ARG UID
@@ -138,12 +187,9 @@ ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:${CM
 
 ### To install other/newer Genicam camera SDKs add the installation steps here
 
-RUN apt-get update && apt-get install -y --no-install-recommends git
+# RUN apt-get update && apt-get install -y --no-install-recommends git
 
 ENV PATH=$PATH:/home/pipeline-server/.local/bin
-
-COPY ./tests/requirements.txt /home/pipeline-server/tests/requirements.txt
-RUN pip3 install --no-cache-dir -r /home/pipeline-server/tests/requirements.txt
 
 # Install for ntp timestamping
 RUN pip3 install --no-cache-dir ntplib==0.4.0
@@ -192,14 +238,15 @@ RUN pip3 install --no-cache-dir asyncua==1.1.5
 RUN pip3 uninstall --no-cache-dir -y Flask && \
     pip3 install --no-cache-dir Flask==2.2.5
 
-# Visualizer webtrc requirements
-RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends
-#RUN cp /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnice.so /opt/intel/dlstreamer/lib/gstreamer-1.0
+# # Visualizer webtrc requirements
+# RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends
 
 USER root
 RUN pip3 install --no-cache-dir pydantic==2.8.2
 
-RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends
+RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
 RUN pip3 install --no-cache-dir deep_sort_realtime
 
 USER $USER
@@ -228,17 +275,14 @@ USER ${USER}
 # Disable OpenVINO Telemetry
 RUN opt_in_out --opt_out
 
-# Create Models directory
-RUN mkdir -p /home/pipeline-server/models
+# # Create Models directory
+# RUN mkdir -p /home/pipeline-server/models
 
 # Copy python UDFs for user_defined_pipelines/udfloader_sample pipeline
 COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy.py
 COPY ./user_scripts/udfs/python/add_label.py /home/pipeline-server/udfs/python/add_label.py
 COPY ./user_scripts/udfs/python/dummy_publisher.py /home/pipeline-server/udfs/python/dummy_publisher.py
 COPY ./user_scripts/udfs/python/geti_udf/ /home/pipeline-server/udfs/python/geti_udf/
-
-# Copy unit tests
-COPY ./tests /home/pipeline-server/tests
 
 # Copy geti pallet defect detection sample
 COPY ./resources/models/geti /home/pipeline-server/resources/models/geti
