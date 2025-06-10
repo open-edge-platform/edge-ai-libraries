@@ -13,7 +13,7 @@
 
 ## Access to the helm charts - use one of the below options
 
-- Use helm charts available at `<path-to-edge-ai-libaries-repo>/edge-ai-libraries/microservices/time-series-analytics/helm`
+- Use helm charts available at `edge-ai-libraries/microservices/time-series-analytics/helm`
 
 - Using pre-built helm charts:
 
@@ -37,15 +37,27 @@
 > 1. Please uninstall the helm charts if already installed.
 > 2. If the worker nodes are running behind proxy server, then please additionally set env.HTTP_PROXY and env.HTTPS_PROXY env like the way env.TELEGRAF_INPUT_PLUGIN is being set below with helm install command
 
-    ```bash
-    cd <helm-directory>
-    helm install time-series-analytics-microservice . -n apps --create-namespace
-    ```
+```bash
+cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
+# Copy the config.json file to helm directory
+cp ../config.json .
+# Install helm charts
+helm install time-series-analytics-microservice . -n apps --create-namespace
+```
 
 Use the following command to verify if all the application resources got installed w/ their status:
 
 ```bash
    kubectl get all -n apps
+```
+
+## Ingesting Temperature Data into the Time Series Analytics Microservice
+
+Run the following script to ingest temperature data into the Time Series Analytics Microservice:
+
+```sh
+cd edge-ai-libraries/microservices/time-series-analytics # path relative to git clone folder
+python3 src/temperature_input.py --mode helm
 ```
 
 ## Verify the Temperature Classifier Results
@@ -69,11 +81,12 @@ kubectl get all -n apps # it takes few mins to have all application resources cl
 - Check pod details or container logs to catch any failures:
  
   ```bash
-  kubectl describe pod deployment-time-series-analytics-microservice -n apps # shows details of the pod
-  kubectl logs -f deployment-time-series-analytics-microservice -n apps | grep -i error
+  POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
+  kubectl describe pod $POD_NAME $ -n apps # shows details of the pod
+  kubectl logs -f $POD_NAME -n apps | grep -i error
 
 
   # Debugging UDF errors if container is not restarting and providing expected results
-  kubectl exec -it deployment-time-series-analytics-microservice bash
+  kubectl exec -it $POD_NAME bash
   $ cat /tmp/log/kapacitor/kapacitor.log | grep -i error
   ```
