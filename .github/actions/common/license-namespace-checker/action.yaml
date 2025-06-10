@@ -12,6 +12,7 @@ runs:
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
+        fetch-depth: 0
 
     - name: Get list of changed files
       shell: bash
