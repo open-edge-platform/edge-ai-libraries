@@ -2,12 +2,14 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-name: GenAI-Scans-and-Unit-tests
+name: "[GENAI] PR Scans and Unit Tests"
+run-name: "[GENAI] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
-# Define concurrency at the workflow level
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
 concurrency:
-  group: ${{ github.workflow }}-${{ github.ref }}
-  cancel-in-progress: false  # This ensures jobs don't cancel each other
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   pull_request:
@@ -17,63 +19,68 @@ on:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
       - 'microservices/document-ingestion/pgvector/**'
-permissions: read-all
 
 jobs:
+  zizmor-workflow-scan:
+    runs-on: ubuntu-22.04-32core-128GB  
+    permissions:
+      contents: read
+    env:
+      ZIZMOR_VERSION: 1.5.2
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          
+      - name: Install uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb
+        
+      - name: Run Zizmor Workflow Security Scan
+        continue-on-error: true
+        run: uvx zizmor=="$ZIZMOR_VERSION" "$GITHUB_WORKSPACE" --no-exit-codes > zizmor_workflow_scan_report.txt
+          
+      - name: Upload Zizmor Scan Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zizmor-workflow-security-report
+          path: zizmor_workflow_scan_report.txt
+  
   detect-changes:
     runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
     outputs:
-      core_changed: ${{ steps.filter.outputs.core_changed }}
-      qa_changed: ${{ steps.filter.outputs.qa_changed }}
-      doc_changed:  ${{ steps.filter.outputs.doc_changed }}
+      changed_projects: ${{ steps.discover.outputs.changed_projects }}
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
         with:
           fetch-depth: 0
-          
-      - name: Filter Changes
-        id: filter
+          persist-credentials: false
+
+      - name: Discover Changed Subfolders
+        id: discover
+        uses: ./.github/actions/discover-changed-subfolders
+        with:
+          project_folder: "."
+          include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,microservices/document-ingestion/pgvector"
+
+      - name: Debug Changed Projects
+        shell: bash
+        env:
+          CHANGED_PROJECTS: ${{ steps.discover.outputs.changed_projects }}
         run: |
-          # Determine the comparison based on event type
-          if [[ "${{ github.event_name }}" == "pull_request" ]]; then
-            echo "Event: Pull Request"
-            # For pull requests, compare against the PR base
-            git fetch origin ${{ github.event.pull_request.base.sha }} --depth=1
-            BASE_SHA=${{ github.event.pull_request.base.sha }}
-            HEAD_SHA=${{ github.event.pull_request.head.sha }}
-          fi
-          
-          echo "Comparing $BASE_SHA...$HEAD_SHA"
-          
-          # Check if core folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer-core/"; then
-            echo "Core folder has changes"
-            echo "core_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in core folder"
-            echo "core_changed=false" >> $GITHUB_OUTPUT
-          fi
-          
-          # Check if Q&A folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^sample-applications/chat-question-and-answer/"; then
-            echo "Q&A folder has changes"
-            echo "qa_changed=true" >> $GITHUB_OUTPUT
-          else
-            echo "No changes in Q&A folder"
-            echo "qa_changed=false" >> $GITHUB_OUTPUT
-          fi
-          # Check if document-ingestion folder has changes
-          if git diff --name-only $BASE_SHA $HEAD_SHA | grep -q "^microservices/document-ingestion/pgvector/"; then
-            echo "document-ingestion folder has changes"
-            echo "doc_changed=true"  >>  $GITHUB_OUTPUT
-          else
-            echo "No changes in document-ingestion folder"
-            echo "doc_changed=false"  >>  $GITHUB_OUTPUT
-          fi
+          echo "GITHUB_WORKSPACE: $GITHUB_WORKSPACE"
+          echo "PWD: $(pwd)"
+          echo "Changed Projects: $CHANGED_PROJECTS"
+  
   chat-question-and-answer-core-job:
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.core_changed == 'true' }}
+    permissions:
+      contents: read    
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'sample-applications/chat-question-and-answer-core')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
@@ -83,45 +90,47 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false   
       
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      # - name: Run Unit Tests for Core
-      #   continue-on-error: true
-      #   shell: bash
-      #   run: |
-      #     cd sample-applications/chat-question-and-answer-core
-      #     echo "Running unit test cases"
-      #     python3.12 -m venv venv
-      #     source venv/bin/activate
-      #     poetry install --with dev || true
-      #     poetry add pytest-html
-      #     source scripts/setup_env.sh
-      #     poetry run pytest tests/ --html=pytest-coverage.html
-      #     coverage run --source=. -m pytest
-      #     coverage report -m
-      #     # Install required packages
-      #     poetry add pytest-cov pytest-html
+      - name: Run Unit Tests for Core
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd sample-applications/chat-question-and-answer-core
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          poetry add pytest-html
+          source scripts/setup_env.sh
+          poetry run pytest tests/ --html=pytest-coverage.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+          #poetry add pytest-cov pytest-html
           
-      #     # Run tests with coverage and HTML report in one command
-      #     poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
+          # Run tests with coverage and HTML report in one command
+         # poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report.html
           
-      #     # For a combined coverage and test report
-      #     poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
-      #     deactivate
-      #     rm -rf venv
+          # For a combined coverage and test report
+          #poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report.html
+          deactivate
+          rm -rf venv
           
-      # - name: Upload Coverage Report
-      #   uses: actions/upload-artifact@v4
-      #   continue-on-error: true
-      #   with:
-      #     name: core-coverage-report
-      #     path: |
-      #       sample-applications/chat-question-and-answer-core/pytest-coverage.html
-      #       sample-applications/chat-question-and-answer-core/pytest-report.html
-      #       sample-applications/chat-question-and-answer-core/htmlcov/index.html
-      #       sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      - name: Upload Coverage Report
+        uses: actions/upload-artifact@v4
+        continue-on-error: true
+        with:
+          name: core-coverage-report
+          path: |
+            sample-applications/chat-question-and-answer-core/pytest-coverage.html
+            sample-applications/chat-question-and-answer-core/pytest-report.html
+            # sample-applications/chat-question-and-answer-core/htmlcov/index.html
+            # sample-applications/chat-question-and-answer-core/coverage-html/index.html
       
       - name: Setup Node.js
         uses: actions/setup-node@v4
@@ -152,6 +161,7 @@ jobs:
           path: |
               sample-applications/chat-question-and-answer-core/ui/ui-results.html
               sample-applications/chat-question-and-answer-core/ui/ui-coverage-html/
+      
       - name: trivy repo scan
         continue-on-error: true
         shell: bash
@@ -260,7 +270,9 @@ jobs:
       
   chat-question-and-answer-job:
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.qa_changed == 'true' }}
+    permissions:
+      contents: read    
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'sample-applications/chat-question-and-answer')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
@@ -270,46 +282,48 @@ jobs:
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      # - name: Run Unit Tests for Core
-      #   continue-on-error: true
-      #   shell: bash
-      #   run: |
-      #     cd sample-applications/chat-question-and-answer
-      #     echo "Running unit test cases"
-      #     python3.12 -m venv venv
-      #     source venv/bin/activate
-      #     poetry install --with dev || true
-      #     #poetry add pytest-html
-      #     #source setup.sh
-      #     source setup.sh llm=TGI embed=TEI
-      #     poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
-      #     coverage run --source=. -m pytest
-      #     coverage report -m
-      #     # Install required packages
-      #     poetry add pytest-cov pytest-html 
+      - name: Run Unit Tests for Core
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd sample-applications/chat-question-and-answer
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          #poetry add pytest-html
+          #source setup.sh
+          source setup.sh llm=TGI embed=TEI
+          poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+         # poetry add pytest-cov pytest-html 
           
-      #     # Run tests with coverage and HTML report in one command
-      #     poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
+          # Run tests with coverage and HTML report in one command
+          #poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
           
-      #     # For a combined coverage and test report
-      #     poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
-      #     deactivate
-      #     rm -rf venv
+          # For a combined coverage and test report
+         # poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
+          deactivate
+          rm -rf venv
           
-      # - name: Upload Coverage Report
-        # continue-on-error: true
-      #   uses: actions/upload-artifact@v4
-      #   with:
-      #     name: chatqna-coverage-report-qa
-          # path: |
-          #   sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
-          #   sample-applications/chat-question-and-answer/pytest-report-chatqna.html
-          #   sample-applications/chat-question-and-answer/htmlcov/index.html
-          #   sample-applications/chat-question-and-answer/coverage-html/index.html
+      - name: Upload Coverage Report
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        with:
+          name: chatqna-coverage-report-qa
+          path: |
+            sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
+            sample-applications/chat-question-and-answer/pytest-report-chatqna.html
+            # sample-applications/chat-question-and-answer/htmlcov/index.html
+            # sample-applications/chat-question-and-answer/coverage-html/index.html
       
       # - name: Setup Node.js
       #   uses: actions/setup-node@v4
@@ -443,13 +457,17 @@ jobs:
   
   document-ingestion-job:
     needs: detect-changes
-    if: ${{ needs.detect-changes.outputs.doc_changed == 'true' }}
+    permissions:
+      contents: read
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'microservices/document-ingestion/pgvector')
     runs-on: ubuntu-22.04-32core-128GB
     env:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}   
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false   
       
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
@@ -469,13 +487,13 @@ jobs:
           coverage run --source=. -m pytest
           coverage report -m
           # Install required packages
-          poetry add pytest-cov pytest-html 
+          #poetry add pytest-cov pytest-html 
           
           # Run tests with coverage and HTML report in one command
-          poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-doc_ing.html
+          #poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-doc_ing.html
           
           # For a combined coverage and test report
-          poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc_ing.html     
+          #poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc_ing.html     
           deactivate
           rm -rf venv
           
@@ -487,8 +505,8 @@ jobs:
           path: |
             microservices/document-ingestion/pgvector/pytest-coverage-doc_ing.html
             microservices/document-ingestion/pgvector/pytest-report-doc_ing.html
-            microservices/document-ingestion/pgvector/htmlcov/index.html
-            microservices/document-ingestion/pgvector/coverage-html/index.html
+            # microservices/document-ingestion/pgvector/htmlcov/index.html
+            # microservices/document-ingestion/pgvector/coverage-html/index.html
       
      
       - name: trivy repo scan
@@ -512,6 +530,7 @@ jobs:
           name: trivy-code-scan-results-doc_ing
           path: |
               microservices/document-ingestion/pgvector/trivy_code_scan_doc_ing.html
+      
       - name: ClamAV Antivirus Scan
         continue-on-error: true
         shell: bash
@@ -563,6 +582,7 @@ jobs:
           path: |
                 microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.html
                 microservices/document-ingestion/pgvector/trivy_image_scan_doc_ing.spdx.json
+      
       - name: Run Bandit Security Scan
         continue-on-error: true
         shell: bash
