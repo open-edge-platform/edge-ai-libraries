@@ -218,6 +218,7 @@ jobs:
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD
         echo "DLS_TESTS_RESULTS_PATH=$DLS_TESTS_RESULTS_PATH" >> $GITHUB_ENV
+        cd ..
 
         echo "Starting to execute FUNCTIONAL TESTS main sctipt :rocket:"
         source $HOME/.virtualenvs/dlstreamer/bin/activate
