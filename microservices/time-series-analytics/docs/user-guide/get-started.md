@@ -136,7 +136,7 @@ To push images to a Docker registry:
 
 ## Deployment Options
 
-### Deploy with Docker Compose (Single Node)
+### Deploy with Docker Compose
 
 Navigate to the application directory and run the Docker container:
 
