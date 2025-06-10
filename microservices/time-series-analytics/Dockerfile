@@ -41,6 +41,7 @@ ENV LD_LIBRARY_PATH $LD_LIBRARY_PATH:/app/idp/lib
 COPY ./src/classifier_startup.py /app
 COPY ./src/opcua_alerts.py /app
 COPY ./src/mr_interface.py /app
+COPY ./src/rest_api.py /app
 COPY ./config.json /app
 # Add configs
 COPY ./config/kapacitor*.conf /app/config/
@@ -53,4 +54,4 @@ USER $TIMESERIES_USER_NAME
 
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "./classifier_startup.py"]
+ENTRYPOINT ["python3", "./rest_api.py"]
