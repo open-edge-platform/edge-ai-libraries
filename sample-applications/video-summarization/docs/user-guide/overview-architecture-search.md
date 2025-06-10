@@ -54,7 +54,7 @@ Video Search pipeline is a combination of the core LangChain application logic t
       - Does a semantic retrieval to fetch the relevant videos from the vector database. Currently, the top-k (with k being configurable) video is used. Does not use a reranker microservice currently.
 	  
 4. **Output Generation**:
-   - **Response**: Sends the generated response to the UI for your display and use.
+   - **Response**: Sends the search results including the retrieved video from object store to the UI for display and use.
    
    - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application.  
 
@@ -97,7 +97,7 @@ Intel designed the Video Search sample application with modularity, allowing dev
 
 1. **Change inference microservices**:
 
-   - The default option is OpenVINO model server. Use other model servers like Very Large Language Model (VLLM) with OpenVINO model server as backend and Text Generation Inference (TGI) to host Vision-Language Models (VLMs).
+   - The default option is OpenVINO model server. It is possible to use other model servers like Virtual Large Language Model (vLLM) with OpenVINO as backend and Text Generation Inference (TGI) to host Vision-Language Models (VLMs) too though the options have not been validated.
    - The mandatory requirement is OpenAI API compliance. Note that Intel does not guarantee that other model servers can provide the same performance compared to the default options.
    
 2. **Load different VLM, embedding, and reranker models**:

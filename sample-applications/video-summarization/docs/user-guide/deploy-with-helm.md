@@ -122,14 +122,14 @@ Ensure all pods are in the "Running" state before proceeding.
 
 ### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access the video-summarization-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
+To access the video-summary-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service (default is 31998 as specified in values.yaml).
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=video-summarization-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=video-summary-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
 ```
 
 Simply copy and paste the output into your browser to access the Video Summary application UI.
@@ -154,7 +154,7 @@ helm uninstall video-summary -n <your-namespace>
 
 - Ensure that all pods are running and the services are accessible.
 - Access the Video Summary application dashboard and verify that it is functioning as expected.
-- Upload a test video to verify that the ingestion, processing, and Summary pipeline works correctly.
+- Upload a test video to verify that the ingestion, processing, and summary pipeline works correctly.
 - Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio intelligence) are functioning properly.
 
 ## Troubleshooting

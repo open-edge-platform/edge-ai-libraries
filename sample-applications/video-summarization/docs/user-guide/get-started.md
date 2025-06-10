@@ -121,7 +121,7 @@ The Video Summary application offers multiple stacks and deployment options:
 |-------|-------------|------|
 | Video Summary | Video frame captioning and Summary | `--summary` |
 | Video Search | Video indexing and semantic search | `--search` |
-| Video Search + Summary **_(Under Construction)_** | Both Summary and search capabilities | `--all` |
+| Video Search + Summary **_(Under Construction)_** | Both summary and search capabilities | `--all` |
 
 ### 🧩 Deployment Options for Video Summary
 
@@ -140,7 +140,7 @@ Follow these steps to run the application:
 
     ```bash
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-    cd edge-ai-libraries/sample-applications/video-Summary
+    cd edge-ai-libraries/sample-applications/video-summarization
     ```
 
 2. Set the required environment variables as [described above](#setting-required-environment-variables).
@@ -173,16 +173,16 @@ Follow these steps to run the application:
     # To just set environment variables without starting containers
     source setup.sh --setenv
 
-    # To see resolved configurations for Summary services without starting containers
+    # To see resolved configurations for summary services without starting containers
     source setup.sh --summary config
 
     # To see resolved configurations for search services without starting containers
     source setup.sh --search config
 
-    # To see resolved configurations for both search and Summary services combined without starting containers
+    # To see resolved configurations for both search and summary services combined without starting containers
     source setup.sh --all config
 
-    # To see resolved configurations for Summary services with OVMS setup on CPU without starting containers
+    # To see resolved configurations for summary services with OVMS setup on CPU without starting containers
     USE_OVMS=true source setup.sh --summary config
     ```
 
@@ -194,7 +194,7 @@ To use GPU acceleration for VLM inference:
 USE_VLM_GPU=true source setup.sh --summary
 ```
 
-To use GPU acceleration for OVMS-based Summary:
+To use GPU acceleration for OVMS-based summary:
 
 ```bash
 USE_OVMS_GPU=true source setup.sh --summary
