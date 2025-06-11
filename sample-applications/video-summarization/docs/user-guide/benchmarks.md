@@ -1,6 +1,6 @@
 # Benchmarks [Document yet to be updated]
 
-This document provides reference benchmark results for the Video summarization sample application. The benchmark numbers published here are indicative of the performance to be expected on given test environment. 
+This document provides reference benchmark results for the Video Search and Summary sample application. The benchmark numbers here indicate the expected performance on given test environment.  
 
 ## Test Environment
 
@@ -10,9 +10,9 @@ This document provides reference benchmark results for the Video summarization s
 - **Operating System:** 
 
 ## Benchmark Results
-The benchmark was done at a microservice level and for end-to-end application. Numbers under each bucket is provided below.
+Intel performs the benchmark at the microservice level for an end-to-end application. Numbers under each bucket is provided in the following table:
 
-### Models served with OVMS 
+### Models served with OpenVINO™ Model Server
 
 | Metric       | Average  | Min |  Max |
 |-----------------|-----------------------------|-------------------------|--------------------------|

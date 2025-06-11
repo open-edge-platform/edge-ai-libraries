@@ -1,8 +1,11 @@
-# Video Summarization Sample Application
+# Video Search and Summarization (VSS) Sample Application
 
-Video summarization sample application using Generative AI Vision Language Models (VLMs) leverages advanced AI techniques to create concise and informative summaries of long-form videos. This technology combines visual, audio, and textual data to understand and extract the most relevant content from videos, enabling efficient content review and improved searchability. 
+Video search and summarization is a foundational sample application that provides the following set of video analytics capabilities:
+1. Video Summarization: This functionality utilizes Vision Language Models (VLMs), Computer Vision, and Audio analysis to generate concise and informative summaries of long-form videos. By combining insights from visual, audio, and textual data, the system identifies and extracts the most relevant segments, enabling efficient content review, improved searchability, and quick understanding of lengthy video material. All processing can be performed at the edge to ensure low latency and data privacy.
+2. Video Search: This functionality leverages LangChain, multimodal embedding models, and agentic reasoning to enable efficient and intelligent search over video content directly at the edge. By extracting and indexing visual, audio, and textual features from video frames using advanced embedding models, the system allows users to perform natural language or multimodal queries. Agentic reasoning allows the system to break down complex user queries, orchestrate multi-step retrievals, and combine insights from multiple video segments for more comprehensive and context-aware answers. LangChain orchestrates the retrieval and ranking process, ensuring relevant video segments are quickly identified and returned, all while minimizing latency and preserving data privacy by processing content locally on edge devices.
+3. Combined Search and Summarization capability: This feature integrates video search and summarization, allowing users to search directly over the generated video summaries. By leveraging the summary as a knowledge base, the system enhances the relevance and accuracy of search results, reducing the risk of hallucinations and irrelevant matches. This approach enables efficient retrieval of key information from long-form videos, ensuring that search queries are answered with contextually grounded and concise content.
 
-Below, you'll find links to detailed documentation to help you get started, configure, and deploy the microservice.
+Below, you'll find links to detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices. The documentation is structured to provide required details into each mode the sample application can be used in.
 
 ## Documentation
 
@@ -11,12 +14,12 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
 
 - **Getting Started**
-  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
+  - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to get started with the sample application.
   - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building from source code.
-  - [How to Deploy with Helm](docs/user-guide/deploy-with-helm.md): Guide for deploying using Helm.
+  - [How to Deploy with Helm](docs/user-guide/deploy-with-helm.md): Guide for deploying using Helm\* chart.
 
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
