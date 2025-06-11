@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 [tool.poetry]
-name = "vlm-ov-serving"
+name = "vlm-openvino-serving"
 version = "0.1.0"
 description = "FastAPI server wrapping OpenVINO runtime to serve `/chat/completion` endpoint to consume multimodal image input/video input and serve inference with VLM models."
 authors = []

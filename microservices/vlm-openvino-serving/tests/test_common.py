@@ -52,7 +52,7 @@ def test_all_model_names():
 
 
 def test_settings():
-    assert settings.APP_NAME == "vlm-ov-serving"
+    assert settings.APP_NAME == "vlm-openvino-serving"
     assert settings.SEED == 42
 
 

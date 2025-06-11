@@ -2,9 +2,9 @@
 # SPDX-License-Identifier: Apache-2.0
 
 services:
-  vlm-ov-serving:
-    image: ${REGISTRY:-}vlm-ov-serving:${TAG:-latest}
-    container_name: vlm-ov-serving
+  vlm-openvino-serving:
+    image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
+    container_name: vlm-openvino-serving
     build:
       context: .
       dockerfile: docker/Dockerfile
@@ -22,6 +22,8 @@ services:
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
     restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
