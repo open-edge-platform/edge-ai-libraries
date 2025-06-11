@@ -42,11 +42,17 @@ with open(LOCK_FILE, "w") as lock_fp:
             data = json.load(f)
 
         states = data.get("states", [])
+        # Debug: log number of states
+        with open("/tmp/debug.txt", "a") as debug_f:
+            print(f"len(states) = {len(states)}", file=debug_f)
         if not states:
             exit(0)
 
         last_seen, last_ts_ns = load_last_state()
         current_ts_ns = int(time.time() * 1e9)
+        # Debug: log last seen info
+        with open("/tmp/debug.txt", "a") as debug_f:
+            print(f"last_seen = {last_seen}, last_ts_ns = {last_ts_ns}", file=debug_f)
 
         for i in range(last_seen + 1, len(states)):
             state = states[i]
@@ -54,7 +60,15 @@ with open(LOCK_FILE, "w") as lock_fp:
             if not devs_state:
                 continue
 
-            dev_stats = devs_state[-1].get("dev_stats", {})
+            with open("/tmp/debug.txt", "a") as debug_f:
+                print(f"i = {i}, len(states) = {len(states)}, last_seen = {last_seen}", file=debug_f)
+
+            # Use the second-to-last device state
+            dev = devs_state[-1]
+            dev_stats = dev.get("dev_stats", {})
+            # Debug: log vdr_dev_rev if present
+            with open("/tmp/debug.txt", "a") as debug_f:
+                print(f"vdr_dev_rev: {dev.get('vdr_dev_rev')}", file=debug_f)
             eng_usage = dev_stats.get("eng_usage", {})
             freqs = dev_stats.get("freqs", [])
             power = dev_stats.get("power", [])
@@ -64,18 +78,44 @@ with open(LOCK_FILE, "w") as lock_fp:
             # === Emit engine usage
             for eng, vals in eng_usage.items():
                 if vals:
-                    print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME} usage={vals[-1]} {ts}")
+                    print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=1 usage={vals[-1]} {ts}")
 
             # === Emit frequency
             if freqs and isinstance(freqs[-1], list):
                 freq_entry = freqs[-1][0]
                 if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
-                    print(f"gpu_frequency,type=cur_freq,host={HOSTNAME} value={freq_entry['cur_freq']} {ts}")
+                    print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=1 value={freq_entry['cur_freq']} {ts}")
 
             # === Emit power values
             if power:
                 for key, val in power[-1].items():
-                    print(f"power,type={key},host={HOSTNAME} value={val} {ts}")
+                    print(f"power,type={key},host={HOSTNAME},gpu_id=1 value={val} {ts}")
+
+            # --- Repeat for devs_state[-2] if it exists ---
+            if len(devs_state) >= 2:
+                dev2 = devs_state[-2]
+                dev_stats2 = dev2.get("dev_stats", {})
+                with open("/tmp/debug.txt", "a") as debug_f:
+                    print(f"vdr_dev_rev (devs_state[-2]): {dev2.get('vdr_dev_rev')}", file=debug_f)
+                eng_usage2 = dev_stats2.get("eng_usage", {})
+                freqs2 = dev_stats2.get("freqs", [])
+                power2 = dev_stats2.get("power", [])
+
+                # === Emit engine usage
+                for eng, vals in eng_usage2.items():
+                    if vals:
+                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=0 usage={vals[-1]} {ts}")
+
+                # === Emit frequency
+                if freqs2 and isinstance(freqs2[-1], list):
+                    freq_entry2 = freqs2[-1][0]
+                    if isinstance(freq_entry2, dict) and "cur_freq" in freq_entry2:
+                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=0 value={freq_entry2['cur_freq']} {ts}")
+
+                # === Emit power values
+                if power2:
+                    for key, val in power2[-1].items():
+                        print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
 
             # Update last seen
             save_last_state(i, current_ts_ns)
