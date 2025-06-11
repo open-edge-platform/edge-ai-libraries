@@ -459,11 +459,6 @@ def on_benchmark(
 def on_stop():
     utils.cancelled = True
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
-    return [
-        gr.update(visible=True),  # run_button
-        gr.update(visible=True),  # benchmark_button
-        gr.update(visible=False),  # stop_button
-    ]
 
 
 # Create the interface
@@ -742,14 +737,16 @@ def create_interface():
 
         # Handle run button clicks
         run_button.click(
+            # Update the state of the buttons
             lambda: [
-                gr.update(visible=False),  # run_button
-                gr.update(visible=False),  # benchmark_button
-                gr.update(visible=True),  # stop_button
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(visible=True),
             ],
             outputs=[run_button, benchmark_button, stop_button],
             queue=True,
         ).then(
+            # Reset the telemetry plots
             lambda: (
                 globals().update(
                     stream_dfs=[
@@ -758,17 +755,19 @@ def create_interface():
                     ]
                 )
                 or [
-                    plots[i].value.update(data=[])  # Clear data, keep layout
+                    plots[i].value.update(data=[])
                     for i in range(len(plots))
                 ]
-                or plots  # Return updated plot objects
+                or plots
             ),
             outputs=plots,
         ).then(
-            lambda: gr.update(active=True),  # This updates the same timer
+            # Start the telemetry timer
+            lambda: gr.update(active=True),
             inputs=None,
             outputs=timer,
         ).then(
+            # Execute the pipeline
             on_run,
             inputs=[
                 recording_channels,
@@ -788,14 +787,17 @@ def create_interface():
             ],
             outputs=[output_video_player, best_config_textbox],
         ).then(
-            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
-            inputs=None,
-            outputs=plots,
-        ).then(
+            # Stop the telemetry timer
             lambda: gr.update(active=False),
             inputs=None,
             outputs=timer,
         ).then(
+            # Generate the persistent telemetry data
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            inputs=None,
+            outputs=plots,
+        ).then(
+            # Update the visibility of the buttons
             lambda: [
                 gr.update(visible=True),
                 gr.update(visible=True),
@@ -806,6 +808,7 @@ def create_interface():
 
         # Handle benchmark button clicks
         benchmark_button.click(
+            # Update the state of the buttons
             lambda: [
                 gr.update(visible=False),
                 gr.update(visible=False),
@@ -814,6 +817,7 @@ def create_interface():
             outputs=[run_button, benchmark_button, stop_button],
             queue=False,
         ).then(
+            # Execute the benchmark
             on_benchmark,
             inputs=[
                 fps_floor,
@@ -833,17 +837,26 @@ def create_interface():
             ],
             outputs=[best_config_textbox],
         ).then(
+            # Reset the state of the buttons
             lambda: [
-                gr.update(visible=True),  # run_button
-                gr.update(visible=True),  # benchmark_button
-                gr.update(visible=False),  # stop_button
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
             ],
             outputs=[run_button, benchmark_button, stop_button],
         )
 
         # Handle stop button clicks
         stop_button.click(
+            # Execute the stop function
             on_stop,
+        ).then(
+            # Reset the state of the buttons
+            lambda: [
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
+            ],
             outputs=[run_button, benchmark_button, stop_button],
             queue=False,
         )
