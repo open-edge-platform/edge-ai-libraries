@@ -1,14 +1,16 @@
-from typing import Any, Dict, List
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 
 import requests
+from typing import Any, List
+
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 
-from src.common import Strings
-from src.logger import logger
+from src.common import Strings, logger
 
 
-class vCLIPEmbeddingsWrapper(BaseModel, Embeddings):
+class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
     """Wrapper for vCLIP Embeddings that makes API calls to /embeddings endpoint."""
 
     api_url: str

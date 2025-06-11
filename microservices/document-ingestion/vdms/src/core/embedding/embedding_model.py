@@ -7,7 +7,7 @@ import torchvision.transforms as T
 from einops import rearrange
 from transformers import AutoProcessor, AutoTokenizer, CLIPModel
 
-from src.logger import logger
+from src.common import logger
 
 toPIL = T.ToPILImage()
 

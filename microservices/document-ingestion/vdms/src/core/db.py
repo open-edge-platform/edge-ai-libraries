@@ -6,13 +6,11 @@ from typing import Any
 
 from langchain_community.vectorstores import VDMS
 from langchain_community.vectorstores.vdms import VDMS_Client
-from langchain_core.runnables import ConfigurableField
 
-from src.common import Strings
+from src.common import Strings, logger
 from src.core.embedding import vCLIPEmbeddings
-from src.core.embedding_wrapper import vCLIPEmbeddingsWrapper
+from src.core.embedding import vCLIPEmbeddingServiceWrapper
 from src.core.util import read_config
-from src.logger import logger
 
 
 class VDMSClient:
@@ -33,7 +31,7 @@ class VDMSClient:
         self.video_search_type = video_search_type
         self.constraints = None
         self.video_collection = collection_name
-        if isinstance(model, vCLIPEmbeddingsWrapper):
+        if isinstance(model, vCLIPEmbeddingServiceWrapper):
             self.video_embedder = model
         else:
             self.video_embedder = vCLIPEmbeddings(model=model)
@@ -104,4 +102,31 @@ class VDMSClient:
             return videos_ids
         except Exception as ex:
             logger.error(f"Error in store_embeddings: {ex}")
+            raise Exception(Strings.embedding_error)
+    
+    def store_text_embedding(self, text: str, metadata: dict) -> list[str]:
+        """
+        Embeds text and stores it in the VDMS Vector DB with associated metadata.
+        
+        Args:
+            text (str): Text content to embed
+            metadata (dict): Metadata to store with the embedding, including video reference information
+
+        Returns:
+            ids (list): List of string IDs for documents added to vector DB
+        """
+        
+        logger.info("Storing text embedding...")
+        try:
+            # Add text embedding to the vector DB
+            ids: list = self.video_db.add_texts(
+                texts=[text],
+                metadatas=[metadata]
+            )
+            
+            logger.info(f"Text embedding stored with ids: {ids}")
+            return ids
+            
+        except Exception as ex:
+            logger.error(f"Error in store_text_embedding: {ex}")
             raise Exception(Strings.embedding_error)
