@@ -443,8 +443,6 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = core_temp
     elif title == "Memory Utilization [%]" and mem_val is not None:
         new_y = mem_val
-   # elif title == "GPU Package Power Usage [W]" and gpu_package_power is not None:
-    #    new_y = gpu_package_power
     elif title == "Discrete GPU Power Usage [W] (Package & Total)":
         metrics = {
             "Package Power": gpu_package_power,
@@ -487,11 +485,6 @@ def generate_stream_data(i, timestamp_ns=None):
         for key in metrics.keys():
             fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
         return fig
-    # GPU 0 metrics (for future charts or debugging, not currently in chart_titles)
-   # elif title == "GPU 0 Package Power Usage [W]" and gpu_package_power_0 is not None:
-    #    new_y = gpu_package_power_0
-    #elif title == "GPU 0 Power Usage [W]" and gpu_power_0 is not None:
-     #   new_y = gpu_power_0
     elif title == "Integrated GPU Power Usage [W] (Package & Total)":
         metrics = {
             "Package Power": gpu_package_power_0,
@@ -510,7 +503,7 @@ def generate_stream_data(i, timestamp_ns=None):
         for key in metrics.keys():
             fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
         return fig    
-    elif title == "Integrated GPU 0 Frequency [MHz]" and gpu_freq_0 is not None:
+    elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
         new_y = gpu_freq_0
     # Consolidated GPU 0 Engine Utilization chart
     elif title == "Integrated GPU 0 Engine Utilization [%]":

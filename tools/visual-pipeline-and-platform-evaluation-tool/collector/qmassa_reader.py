@@ -42,17 +42,11 @@ with open(LOCK_FILE, "w") as lock_fp:
             data = json.load(f)
 
         states = data.get("states", [])
-        # Debug: log number of states
-        with open("/tmp/debug.txt", "a") as debug_f:
-            print(f"len(states) = {len(states)}", file=debug_f)
         if not states:
             exit(0)
 
         last_seen, last_ts_ns = load_last_state()
         current_ts_ns = int(time.time() * 1e9)
-        # Debug: log last seen info
-        with open("/tmp/debug.txt", "a") as debug_f:
-            print(f"last_seen = {last_seen}, last_ts_ns = {last_ts_ns}", file=debug_f)
 
         for i in range(last_seen + 1, len(states)):
             state = states[i]
@@ -63,12 +57,9 @@ with open(LOCK_FILE, "w") as lock_fp:
             with open("/tmp/debug.txt", "a") as debug_f:
                 print(f"i = {i}, len(states) = {len(states)}, last_seen = {last_seen}", file=debug_f)
 
-            # Use the second-to-last device state
+            # Use the last device state
             dev = devs_state[-1]
             dev_stats = dev.get("dev_stats", {})
-            # Debug: log vdr_dev_rev if present
-            with open("/tmp/debug.txt", "a") as debug_f:
-                print(f"vdr_dev_rev: {dev.get('vdr_dev_rev')}", file=debug_f)
             eng_usage = dev_stats.get("eng_usage", {})
             freqs = dev_stats.get("freqs", [])
             power = dev_stats.get("power", [])
