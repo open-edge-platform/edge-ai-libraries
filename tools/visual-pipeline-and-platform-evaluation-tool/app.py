@@ -363,15 +363,6 @@ def on_run(
     object_classification_reclassify_interval,
     input_video_player,
 ):
-    global stream_dfs
-    stream_dfs = [
-        pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))
-    ]  # Reset all data
-    gr.update(active=True)
-
-    # Reset the FPS file
-    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
-        f.write(f"0.0\n")
 
     video_output_path, constants, param_grid = prepare_video_and_constants(
         input_video_player=input_video_player,
@@ -412,9 +403,7 @@ def on_run(
             f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
         )
 
-    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
-
-    return [video_output_path] + plot_updates + [best_result_message]
+    return [video_output_path, best_result_message]
 
 
 def on_benchmark(
@@ -469,9 +458,7 @@ def on_benchmark(
 
 def on_stop():
     utils.cancelled = True
-    logging.warning(
-        f"utils.cancelled in on_stop: {utils.cancelled}"
-    )
+    logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
     return [
         gr.update(visible=True),  # run_button
         gr.update(visible=True),  # benchmark_button
@@ -799,16 +786,20 @@ def create_interface():
                 object_classification_reclassify_interval,
                 input_video_player,
             ],
-            outputs=[output_video_player] + plots + [best_config_textbox],
+            outputs=[output_video_player, best_config_textbox],
         ).then(
-            lambda: gr.update(active=False),  # This updates the same timer
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            inputs=None,
+            outputs=plots,
+        ).then(
+            lambda: gr.update(active=False),
             inputs=None,
             outputs=timer,
         ).then(
             lambda: [
-                gr.update(visible=True),  # run_button
-                gr.update(visible=True),  # benchmark_button
-                gr.update(visible=False),  # stop_button
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
             ],
             outputs=[run_button, benchmark_button, stop_button],
         )
@@ -816,9 +807,9 @@ def create_interface():
         # Handle benchmark button clicks
         benchmark_button.click(
             lambda: [
-                gr.update(visible=False),  # run_button
-                gr.update(visible=False),  # benchmark_button
-                gr.update(visible=True),  # stop_button
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(visible=True),
             ],
             outputs=[run_button, benchmark_button, stop_button],
             queue=False,

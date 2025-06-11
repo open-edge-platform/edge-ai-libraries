@@ -52,6 +52,10 @@ def prepare_video_and_constants(
     if os.path.exists(video_output_path):
         os.remove(video_output_path)
 
+    # Reset the FPS file
+    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+        f.write(f"0.0\n")
+
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
         "object_detection_batch_size": [object_detection_batch_size],
