@@ -12,9 +12,15 @@ govern your use of the third party programs as set forth in the
 Third party programs and their corresponding required notices and/or license
 terms are listed below.
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------
-Time series analytics microservice:
+---------------------------------------------------------------------------------------------------------------------------
 
+ia-time-series-analytics-microservice:
+======================================
+
+1. Base docker image: kapacitor:1.7.7
+License-Identifier: MIT License
+
+2. requirements.txt
 License-Identifier: Apache License 2.0
 
 anyio==4.9.0
@@ -83,6 +89,6 @@ pyOpenSSL==25.1.0
 tcmlib==1.3.0
 
 
-------------------------------------------------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------------
 
 * Other names and brands may be claimed as the property of others.
