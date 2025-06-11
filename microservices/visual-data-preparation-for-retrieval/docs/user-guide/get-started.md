@@ -21,7 +21,7 @@ cd edge-ai-libraries/microservices
 Run the command to build image:
 
 ```bash
-docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f data-preparation/visual-data/src/Dockerfile .
+docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/src/Dockerfile .
 ```
 
 ### Step 2: Prepare host directories for models and data
@@ -43,7 +43,7 @@ Note: supported media types: jpg, png, mp4
 1. Go to the deployment files
 
     ``` bash
-    cd microservices/data-preparation/visual-data
+    cd microservices/visual-data-preparation-for-retrieval
     cd deployment/docker-compose/
     ```
 
@@ -152,5 +152,6 @@ curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ## Learn More
 
 -    Check the [API reference](./api-reference.md)
+-    The visual data preparation microservice usually pairs with a retriever microservice, check the retriever's [get-started-guide](../../../retriever/docs/user-guide/get-started.md)
 
 

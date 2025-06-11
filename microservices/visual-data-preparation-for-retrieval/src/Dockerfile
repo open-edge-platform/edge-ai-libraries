@@ -25,7 +25,7 @@ RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \
 chown -R user /home/user/
 
-COPY data-preparation/visual-data /home/user/dataprep
+COPY visual-data-preparation-for-retrieval /home/user/dataprep
 COPY dependency /home/user/dependency
 RUN chown -R user /home/user/dataprep && \
     chown -R user /home/user/dependency

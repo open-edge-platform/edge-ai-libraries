@@ -1,4 +1,4 @@
-# Dateprep microservice - for visual data
+# Visual data preparation microservice
 
 Preprocess visual data including images and videos and store their feature embeddings into a vector DB
 
