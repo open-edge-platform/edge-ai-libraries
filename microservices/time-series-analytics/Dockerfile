@@ -42,7 +42,7 @@ COPY ./src/classifier_startup.py /app
 COPY ./src/opcua_alerts.py /app
 COPY ./src/mr_interface.py /app
 COPY ./src/rest_api.py /app
-COPY ./config.json /app
+#COPY ./config.json /app
 # Add configs
 COPY ./config/kapacitor*.conf /app/config/
 COPY ./tick_scripts /app/temperature_classifier/tick_scripts

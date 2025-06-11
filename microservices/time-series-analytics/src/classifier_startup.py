@@ -37,7 +37,6 @@ FAILURE = -1
 KAPACITOR_PORT = 9092
 KAPACITOR_NAME = 'kapacitord'
 
-logging.getLogger("watchdog.observers.inotify_buffer").setLevel(logging.WARNING)
 mrHandlerObj = None
 
 def KapacitorDaemonLogs(logger):
@@ -47,8 +46,8 @@ def KapacitorDaemonLogs(logger):
             break
         else:
             time.sleep(1)
-    f = subprocess.Popen(['tail','-F',kapacitor_log_file],\
-                                stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    f = subprocess.Popen(['tail','-F',kapacitor_log_file],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p = select.poll()
     p.register(f.stdout)
     while True:
@@ -63,6 +62,7 @@ class KapacitorClassifier():
     def __init__(self, logger):
         self.logger = logger
         self.kapacitor_proc = None
+        self.stop_check_udf = False
 
     def write_cert(self, file_name, cert):
         """Write certificate to given file path
@@ -78,17 +78,22 @@ class KapacitorClassifier():
         """ Check if udf package is present in the container
         """
         logger.info("Checking if UDF package is present in the container...")
-        path = "/tmp/" + dir_name +"/"
-        udf_dir = os.path.join(path, "udfs") 
-        model_dir = os.path.join(path, "models") 
-        tick_scripts_dir = os.path.join(path, "tick_scripts") 
+        path = "/tmp/" + dir_name + "/"
+        udf_dir = os.path.join(path, "udfs")
+        model_dir = os.path.join(path, "models")
+        tick_scripts_dir = os.path.join(path, "tick_scripts")
         found_udf = False
         found_tick_scripts = False
         found_model = False
         while True:
+            if getattr(self, "stop_check_udf", False):
+                self.logger.info("Exiting check_udf_package loop due to config API call.")
+                break
+
+            self.logger.info(f"Checking for udf package in the container...{path}")
             if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir, config['udfs']["name"] + ".py")):
                 found_udf = True
-        
+
             if os.path.isdir(tick_scripts_dir) and os.path.isfile(os.path.join(tick_scripts_dir, config['udfs']["name"] + ".tick")):
                 found_tick_scripts = True
 
@@ -101,14 +106,17 @@ class KapacitorClassifier():
                             break
             else:
                 found_model = True
-            if not(found_model and found_udf and found_tick_scripts):
+            if not (found_model and found_udf and found_tick_scripts):
                 missing_items = []
                 if not found_model:
                     missing_items.append(f"model file for task {mrHandlerObj.config['udfs']['name']}")
+                    self.logger.info("Missing model")
                 if not found_udf:
                     missing_items.append(f"udf file for task {mrHandlerObj.config['udfs']['name']}")
+                    self.logger.info("Missing udf")
                 if not found_tick_scripts:
                     missing_items.append(f"tick script for task {mrHandlerObj.config['udfs']['name']}")
+                    self.logger.info("Missing tick script")
                 self.logger.error(
                     "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the udf package."
                 )
@@ -159,8 +167,19 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
 
-            self.kapacitor_proc = subprocess.Popen(["kapacitord", "-hostname", kapacitor_url_hostname,
-                              "-config", kapacitor_conf])
+            self.kapacitor_proc = subprocess.Popen(
+                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
+            )
+
+            # Start a thread to reap the kapacitor process when it exits
+            def reap_kapacitor_proc(proc, logger):
+                try:
+                    proc.wait()
+                    logger.info("Kapacitor daemon process has exited and was reaped.")
+                except Exception as e:
+                    logger.error(f"Error while reaping kapacitor process: {e}")
+
+            threading.Thread(target=reap_kapacitor_proc, args=(self.kapacitor_proc, self.logger), daemon=True).start()
             self.logger.info("Started kapacitor Successfully...")
             return True
         except subprocess.CalledProcessError as err:
@@ -293,17 +312,6 @@ class KapacitorClassifier():
         while True:
             time.sleep(1)
 
-    def stop_kapacitor(self):
-        if self.kapacitor_proc:
-            self.logger.info("Stopping Kapacitor daemon...")
-            self.kapacitor_proc.terminate()
-            try:
-                self.kapacitor_proc.wait(timeout=10)
-            except subprocess.TimeoutExpired:
-                self.logger.warning("Kapacitor did not terminate, killing...")
-                self.kapacitor_proc.kill()
-                self.kapacitor_proc.wait()
-            self.logger.info("Kapacitor daemon stopped.")
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -355,6 +363,7 @@ def main(CONFIG):
     """Main to start kapacitor service
     """
     config = CONFIG
+    kapacitor_classifier.stop_check_udf = True
     mode = os.getenv("SECURE_MODE", "false")
     secure_mode = mode.lower() == "true"
 
@@ -422,6 +431,7 @@ def main(CONFIG):
     if status is FAILURE:
         kapacitor_classifier.exit_with_failure_message(msg)
 
+    kapacitor_classifier.stop_check_udf = False
     kapacitor_classifier.check_udf_package(config, dir_name)
     kapacitor_classifier.install_udf_package(config, dir_name)
     kapacitor_started = False
@@ -452,9 +462,6 @@ def main(CONFIG):
             logger.error(f"Failed to start command '{command}': {e}")
 
 
-    t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
-    t1.start()
-
     kapacitor_url_hostname = (os.environ["KAPACITOR_URL"].split("://")[1]).split(":")[0]
     if(kapacitor_classifier.start_kapacitor(config,
                                             kapacitor_url_hostname,
@@ -472,5 +479,8 @@ def main(CONFIG):
         kapacitor_classifier.exit_with_failure_message(msg)
 
 kapacitor_classifier = KapacitorClassifier(logger)
+t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
+t1.start()
+
 if __name__ == '__main__':
     main()
