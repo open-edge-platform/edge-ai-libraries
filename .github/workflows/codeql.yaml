@@ -141,7 +141,7 @@ jobs:
         run: |  
           docker run --rm dev24-codeql bash -c "\
             codeql database create codeql-db --language=cpp --source-root=. --overwrite && \
-            codeql database analyze codeql-db cpp-security-extended.qls --format=sarifv2 --output=results.sarif"
+            codeql database analyze codeql-db github/codeql-cpp-queries --format=sarifv2 --output=results.sarif"
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
