@@ -75,8 +75,7 @@ Replace `<PROTOCOL>` in the following steps with `https` or `http` according to 
 
 The following environment variables are used to establish a connection with the model registry microservice.
 * **MR_URL**: The URL where the model registry microservice is accessible. 
-    * If not set or left empty, the DL Streamer Pipeline Server will not be able to connect to the model registry successfully.
-    * Default: `""`
+    * If not set or left empty, the DL Streamer Pipeline Server will not be able to connect to the model registry successfully and an **error** message will be displayed in the logs.
     * Example: `MR_URL=<PROTOCOL>://10.101.10.101:32002`
 * **MR_SAVED_MODELS_DIR**: The directory where models are saved when downloaded from the model registry microservice.
     * If this directory does not exist in the container, it will be created when a model is saved for the first time.
@@ -87,8 +86,9 @@ The following environment variables are used to establish a connection with the 
     * Default: `300`
     * Example: `MR_REQUEST_TIMEOUT=300`
 
+> **Tip:** Set the `LOG_LEVEL` environment variable to `DEBUG` to see detailed log messages about the model registry client's configuration and its communication with the model registry microservice. This is especially useful for troubleshooting, as it will display which environment variables are being used, when defaults are applied, and details about connection attempts and responses.
 
-Model registry microservice supports both HTTPS and HTTP protocols. HTTP mode is enabled by default.
+The model registry microservice supports both HTTPS and HTTP protocols. HTTP mode is enabled by default.
 When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify its SSL certificate using the file(s) in the `/run/secrets/ModelRegistry_Server` directory within the Docker container by default.
 
 
