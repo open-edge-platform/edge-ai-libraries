@@ -83,8 +83,6 @@ with open(LOCK_FILE, "w") as lock_fp:
             if len(devs_state) >= 2:
                 dev2 = devs_state[-2]
                 dev_stats2 = dev2.get("dev_stats", {})
-                with open("/tmp/debug.txt", "a") as debug_f:
-                    print(f"vdr_dev_rev (devs_state[-2]): {dev2.get('vdr_dev_rev')}", file=debug_f)
                 eng_usage2 = dev_stats2.get("eng_usage", {})
                 freqs2 = dev_stats2.get("freqs", [])
                 power2 = dev_stats2.get("power", [])
