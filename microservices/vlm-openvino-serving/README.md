@@ -6,8 +6,7 @@ FastAPI server wrapping OpenVINO runtime to serve OpenAI style `/v1/chat/complet
 
 - [Prerequisites](#-prerequisites)
 - [Repository Structure](#repository-structure)
-- [Building CPU Docker Image](#building-cpu-docker-image)
-- [Building GPU Docker Image](#building-gpu-docker-image)
+- [Building Docker Image](#building-docker-image)
 - [Running the Server with CPU](#running-the-server-with-cpu)
 - [Running the Server with GPU](#running-the-server-with-gpu)
 - [Supported Models](#supported-models)
@@ -17,7 +16,7 @@ FastAPI server wrapping OpenVINO runtime to serve OpenAI style `/v1/chat/complet
 ## Repository Structure
 
 ```plaintext
-vlm-ov-serving/ 
+vlm-openvino-serving/ 
 ├── README.md 
 ├── .dockerignore 
 ├── .env 
@@ -54,7 +53,7 @@ vlm-ov-serving/
     ```
 > **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url. 
 
-> **_EXAMPLE:_** If variables are set using above command, the final image names for _Video Summary Reference Application_ would be `<your-container-registry-url>/<your-project-name>/vlm-ov-serving:<your-tag>`. If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be : `vlm-ov-serving:latest`.
+> **_EXAMPLE:_** If variables are set using above command, the final image names for _Video Summary Reference Application_ would be `<your-container-registry-url>/<your-project-name>/vlm-openvino-serving:<your-tag>`. If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be : `vlm-openvino-serving:latest`.
 
 ## Set Environment Values
 
@@ -73,20 +72,12 @@ Set the environment with default values by running the following script:
 source setup.sh
 ```
 
-## Building CPU Docker Image
+## Building Docker Image
 
 To build the Docker image, run the following command:
 
 ```bash
 docker compose build
-```
-
-## Building GPU Docker Image
-
-To build the GPU Docker image, run the following command:
-
-```bash
-docker compose -f compose.gpu.yaml build
 ```
 
 ## Running the Server with CPU
@@ -105,7 +96,7 @@ Change the `VLM_DEVICE=GPU` in `setup.sh` script and run it again.
 To run the server using the GPU Docker Compose file, use the following command:
 
 ```bash
-docker compose -f compose.gpu.yaml up -d
+docker compose up -d
 ```
 
 ### .env file parameters
