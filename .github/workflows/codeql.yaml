@@ -18,11 +18,13 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
+          path: edge-ai-libraries-repo
           fetch-depth: 0
 
       - name: Get list of changed files
         id: changed
         run: |
+          cd edge-ai-libraries-repo
           git fetch origin ${{ github.base_ref }}
           git diff --name-only origin/${{ github.base_ref }} > changed.txt
           cat changed.txt
