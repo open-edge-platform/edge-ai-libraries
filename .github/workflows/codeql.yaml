@@ -21,17 +21,10 @@ jobs:
           path: edge-ai-libraries-repo
           fetch-depth: 0
 
-      - name: Get list of changed files
-        id: changed
-        run: |
-          cd edge-ai-libraries-repo
-          git fetch origin ${{ github.base_ref }}
-          git diff --name-only origin/${{ github.base_ref }} > changed.txt
-          cat changed.txt
-
       - name: Detect file extensions and map to CodeQL languages
         id: set-langs
         run: |
+          git fetch origin main
           extensions=$(git diff --name-only origin/main...HEAD | awk -F. '{if (NF>1) print $NF}' | sort | uniq)
           declare -A langmap=( ["c"]=c-cpp ["cpp"]=c-cpp ["h"]=c-cpp ["hpp"]=c-cpp ["py"]=python ["java"]=java-kotlin ["js"]=javascript-typescript ["ts"]=javascript-typescript )
           declare -A langs
