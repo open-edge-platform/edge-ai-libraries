@@ -27,31 +27,25 @@ jobs:
           git diff --name-only origin/${{ github.base_ref }} > changed.txt
           cat changed.txt
 
-      - name: Set affected CodeQL languages
+      - name: Detect file extensions and map to CodeQL languages
         id: set-langs
         run: |
-          LANGS=()
-          while read file; do
-            case "$file" in
-              *.c|*.cpp|*.h|*.hpp) LANGS+=("c-cpp") ;;
-              *.py) LANGS+=("python") ;;
-              *.js|*.jsx|*.ts|*.tsx) LANGS+=("javascript-typescript") ;;
-              *.java|*.kt) LANGS+=("java-kotlin") ;;
-              *.yml|*.yaml|*.github/*) LANGS+=("actions") ;;
-            esac
-          done < changed.txt
-          UNIQUE_LANGS=$(printf "%s\n" "${LANGS[@]}" | sort -u | paste -sd "," -)
-          echo "langs=$UNIQUE_LANGS" >> $GITHUB_OUTPUT
-          echo "Detected languages: $UNIQUE_LANGS"
+          extensions=$(git diff --name-only origin/main...HEAD | awk -F. '{if (NF>1) print $NF}' | sort | uniq)
+          declare -A langmap=( ["c"]=c-cpp ["cpp"]=c-cpp ["h"]=c-cpp ["hpp"]=c-cpp ["py"]=python ["java"]=java-kotlin ["js"]=javascript-typescript ["ts"]=javascript-typescript )
+          declare -A langs
+          for ext in $extensions; do
+            [[ ${langmap[$ext]} ]] && langs[${langmap[$ext]}]=1
+          done
+          result=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s .)
+          echo "Detected languages: $result"
+          echo "langs=$result" >> $GITHUB_OUTPUT
 
   analyze:
-    name: Analyze with CodeQL
     needs: detect-languages
-    if: needs.detect-languages.outputs.langs != ''
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        language: ${{ fromJson('["' }}${{ needs.detect-languages.outputs.langs }}${{ '"]') }}
+        language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
     permissions:
       security-events: write
       actions: read
