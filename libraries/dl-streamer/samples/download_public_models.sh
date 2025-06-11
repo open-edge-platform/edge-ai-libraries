@@ -537,7 +537,7 @@ fi
 
 
 # -------------- YOLOv7 FP32 & FP16
-if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolos_all" ] || [ "$MODEL" == "all" ]; then
+if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
   MODEL_NAME="yolov7"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
