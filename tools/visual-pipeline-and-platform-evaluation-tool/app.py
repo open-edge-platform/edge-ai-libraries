@@ -13,8 +13,6 @@ from device import DeviceDiscovery
 from explore import GstInspector
 from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import PipelineLoader
-from pipelines.smartnvr.pipeline import SmartNVRPipeline
-from pipelines.transportation2.pipeline import Transportation2Pipeline
 from utils import prepare_video_and_constants
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -119,16 +117,7 @@ theme = gr.themes.Default(
 )
 
 # Initialize the pipeline based on the PIPELINE environment variable
-current_pipeline = None
-
-match os.environ.get("PIPELINE", "").lower():
-    case "smartnvr":
-        current_pipeline = SmartNVRPipeline()
-    case "transportation2":
-        current_pipeline = Transportation2Pipeline()
-    case _:
-        current_pipeline = SmartNVRPipeline()
-
+current_pipeline = PipelineLoader.load(os.environ.get("PIPELINE", "").lower())[0]
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
@@ -671,6 +660,7 @@ def create_interface():
                                 show_download_button=False,
                                 show_fullscreen_button=False,
                                 interactive=False,
+                                width=710,
                             )
 
                             gr.Markdown(
