@@ -48,7 +48,7 @@ The Video summarization sample application and the constituent components are sh
 
 3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be summarized. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server (formerly called EVAM) to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.  
 
-4. **VLM as the captioning block**: The vlm-ov-serving is responsible for generating captions for the specific video chunk. The VLM accepts prompts which also includes additional information from configured capabilities (like object detection) and generates the caption. The caption information is stored to the object store.
+4. **VLM as the captioning block**: The vlm-openvino-serving is responsible for generating captions for the specific video chunk. The VLM accepts prompts which also includes additional information from configured capabilities (like object detection) and generates the caption. The caption information is stored to the object store.
 
 5. **LLM as the summarizer of captions**: The LLM microservice is used to generate the summary of the individual captions. It is also possible to use the LLM to summarize at a chunk level (captions of individual frames of the chunk) but it is optional.
 
