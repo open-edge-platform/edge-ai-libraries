@@ -66,8 +66,8 @@ jobs:
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        language: ${{ fromJson(needs.detect-langs.outputs.langs) }}
-        project: ${{ fromJson(needs.detect-langs.outputs.projects) }}
+        language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
+        project: ${{ fromJson(needs.detect-languages.outputs.projects) }}
     permissions:
       security-events: write
       actions: read
