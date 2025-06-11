@@ -25,7 +25,18 @@ css_code = """
   margin: 0px;
   padding: 0px;
   background: #0054ae;
-  height:60px;
+  height: 70px;
+}
+
+.spark-header-line {
+    width: 100%;
+    height: 10px;
+    background: linear-gradient(
+        90deg,
+        #5400c0 5%,
+        #057aff 50%,
+        #16cfb1 98.99%
+    );
 }
 
 .spark-logo {
@@ -84,6 +95,14 @@ footer {display:none !important}
 #pipeline_image img{
     cursor: pointer !important;
     padding: 40px;
+}
+
+#device_table table {
+    width: 100%;
+}
+
+#device_table table > thead {
+    display: none;
 }
 
 .configure-and-run-button {
@@ -618,6 +637,7 @@ def create_interface():
 
         header = gr.HTML(
             "<div class='spark-header'>"
+            "  <div class='spark-header-line'></div>"
             "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
             "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool</div>"
             "</div>"
@@ -637,18 +657,8 @@ def create_interface():
                     """
                 )
 
-                def thumbnail_1():
-                    return "/home/dlstreamer/vippet/pipelines/transportation2/thumbnail.png"
-
-                def thumbnail_2():
-                    return "/home/dlstreamer/vippet/pipelines/smartnvr/thumbnail.png"
-
-                thumbnails = {
-                    "transportation2": thumbnail_1,
-                    "smartnvr": thumbnail_2,
-                }
-
                 with gr.Row():
+
                     for pipeline in PipelineLoader.list():
 
                         pipeline_info = PipelineLoader.config(pipeline)
@@ -656,7 +666,7 @@ def create_interface():
                         with gr.Column(scale=1, min_width=100):
 
                             gr.Image(
-                                value=thumbnails[pipeline],
+                                value=lambda x = pipeline: f"./pipelines/{x}/thumbnail.png",
                                 show_label=False,
                                 show_download_button=False,
                                 show_fullscreen_button=False,
@@ -673,6 +683,14 @@ def create_interface():
                                 elem_classes="configure-and-run-button",
                                 interactive=True,
                             ).click(
+                                lambda x = pipeline: globals().__setitem__('current_pipeline', PipelineLoader.load(x)[0]),
+                                None,
+                                None,
+                            ).then(
+                                lambda: gr.Image(value=current_pipeline.diagram()),
+                                None,
+                                pipeline_image,
+                            ).then(
                                 lambda: gr.Tabs(selected=1),
                                 None,
                                 tabs,
@@ -686,18 +704,16 @@ def create_interface():
                     """
                 )
 
-                gr.Dataframe(
-                    headers=None,
-                    value= pd.DataFrame([
-                        {
-                            "Name": device.device_name,
-                            "Description": device.full_device_name
-                        }
-                        for device in device_discovery.list_devices()
-                    ]),
-                    wrap=True,
-                    interactive=False,
-                    column_widths=['20%', '70%'],
+                devices = device_discovery.list_devices()
+                if devices:
+                    device_table_md = "| Name | Description |\n|------|-------------|\n"
+                    for device in devices:
+                        device_table_md += f"| {device.device_name} | {device.full_device_name} |\n"
+                else:
+                    device_table_md = "No devices found."
+                gr.Markdown(
+                    value=device_table_md,
+                    elem_id="device_table",
                 )
 
             with gr.Tab("Run", id=1):
