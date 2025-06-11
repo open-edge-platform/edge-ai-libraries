@@ -43,7 +43,7 @@ jobs:
             ext="${file##*.}"
             [[ ${langmap[$ext]} ]] && langs[${langmap[$ext]}]=1
           done
-          result=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s .)
+          result=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s -c .)
           echo "Detected languages: $result"
           echo "langs=$result" >> $GITHUB_OUTPUT
 
