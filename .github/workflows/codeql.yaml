@@ -46,13 +46,18 @@ jobs:
           for file in $changed_files; do
             ext="${file##*.}"
             [[ ${langmap[$ext]} ]] && langs[${langmap[$ext]}]=1
-            proj="$(echo "$file" | cut -d/ -f2)"  # drugi folder jako projekt
+            proj="$(echo "$file" | cut -d/ -f2)"
             projects[$proj]=1
           done
 
           langs_json=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s -c .)
           projects_json=$(printf '%s\n' "${!projects[@]}" | sort | jq -R . | jq -s -c .)
-
+          echo "Changed files:"
+          echo "$changed_files"
+          echo "Detected langs:"
+          echo "$langs_json"
+          echo "Detected projects:"
+          echo "$projects_json"
           echo "langs=$langs_json" >> $GITHUB_OUTPUT
           echo "projects=$projects_json" >> $GITHUB_OUTPUT
 
