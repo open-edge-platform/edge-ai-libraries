@@ -1,0 +1,73 @@
+name: "CodeQL Conditional"
+run-name: "CodeQL Conditional"
+on:
+  push:
+    branches: [ "nsz-codeql" ]
+  pull_request:
+    branches: [ "main" ]
+permissions: {}
+
+jobs:
+  detect-languages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      langs: ${{ steps.set-langs.outputs.langs }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        fetch-depth: 0
+
+      - name: Get list of changed files
+        id: changed
+        run: |
+          git fetch origin ${{ github.base_ref }}
+          git diff --name-only origin/${{ github.base_ref }} > changed.txt
+          cat changed.txt
+
+      - name: Set affected CodeQL languages
+        id: set-langs
+        run: |
+          LANGS=()
+          while read file; do
+            case "$file" in
+              *.c|*.cpp|*.h|*.hpp) LANGS+=("c-cpp") ;;
+              *.py) LANGS+=("python") ;;
+              *.js|*.jsx|*.ts|*.tsx) LANGS+=("javascript-typescript") ;;
+              *.java|*.kt) LANGS+=("java-kotlin") ;;
+              *.yml|*.yaml|*.github/*) LANGS+=("actions") ;;
+            esac
+          done < changed.txt
+          UNIQUE_LANGS=$(printf "%s\n" "${LANGS[@]}" | sort -u | paste -sd "," -)
+          echo "langs=$UNIQUE_LANGS" >> $GITHUB_OUTPUT
+          echo "Detected languages: $UNIQUE_LANGS"
+
+  analyze:
+    name: Analyze with CodeQL
+    needs: detect-languages
+    if: needs.detect-languages.outputs.langs != ''
+    runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        language: ${{ fromJson('["' + needs.detect-languages.outputs.langs + '"]') }}
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: autobuild
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{ matrix.language }}"
