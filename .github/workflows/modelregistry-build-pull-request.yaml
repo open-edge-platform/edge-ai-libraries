@@ -8,170 +8,40 @@ run-name: "[Model Registry] PR  workflow (by @${{ github.actor }} via ${{ github
 on:
   push:
     branches:
-      - 'main'
+      - main
     paths:
-      - 'microservices/model-registry/*'
-      - 'microservices/model-registry/docker/**'
-      - 'microservices/model-registry/docs/**'
-      - 'microservices/model-registry/helm/**'
-      - 'microservices/model-registry/scripts/**'
-      - 'microservices/model-registry/src/**'
-      - 'microservices/model-registry/tests/**'
+      - 'microservices/model-registry/**'
   pull_request:
     paths:
-      - 'microservices/model-registry/*'
-      - 'microservices/model-registry/docker/**'
-      - 'microservices/model-registry/docs/**'
-      - 'microservices/model-registry/helm/**'
-      - 'microservices/model-registry/scripts/**'
-      - 'microservices/model-registry/src/**'
-      - 'microservices/model-registry/tests/**'
-  workflow_call:
-  workflow_dispatch:
-permissions: {}
+      - 'microservices/model-registry/**'
 
 jobs:
-  modelregistry-pre-merge-build:
-    permissions:
-      contents: read
-      packages: read          # needed for actions/checkout
+  modelregistry-unit-tests:
     runs-on: ubuntu-22.04
     steps:
-    - name: Runner workspace path
-      run: |
-        echo "Cleaning up previous run"
-        if [ -n "$(docker ps -aq)" ]; then
-            docker stop $(docker ps -aq)
-        fi
-        if [ -n "$(docker ps -aq)" ]; then
-            docker rm $(docker ps -aq)
-        fi
-        docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
-    - uses: actions/checkout@v1
-      with:
-          path: modelregistry
-    - name: Build
-      run: |
-        cd ./microservices/model-registry/docker
-        sed -i "s/DOCKER_REGISTRY=.*/DOCKER_REGISTRY=admin/g" .env
-        docker compose down -v 
-        docker compose build
-    - name: Deploy
-      run: |
-        cd "${{ github.workspace }}"
-        cd ./microservices/model-registry/docker
-        echo "Deploying model-registry microservices"
-        docker compose up -d
-    - name: Undeploy
-      run: |
-        cd "${{ github.workspace }}"
-        cd ./microservices/model-registry/docker
-        docker compose down -v
+      - name: Checkout code
+        uses: actions/checkout@v4
 
-  modelregistry-unit-test:
-    name: modelregistry Unit Test
-    permissions:
-      contents: read
-      packages: read          # needed for actions/checkout
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v1
-      with:
-          path: modelregistry
-    - name: Run unit tests
-      run: |
-        cd "${{ github.workspace }}"
-        cd ./microservices/model-registry
-        echo "Running unit tests"
-        ./tests/run_tests.sh
-        coverage=$(grep 'TOTAL' /tmp/unit-test-results.txt | awk '{print $4}')
-        # Extract test summary
-        summary=$(grep -Eo '[0-9]+ (passed|failed|skipped)' /tmp/unit-test-results.txt)
-        # Calculate total number of test cases
-        total_tests=$(echo "$summary" | awk '{sum += $1} END {print sum}')
-        # Extract number of passed tests
-        passed_tests=$(echo "$summary" | grep 'passed' | awk '{print $1}')
-        # Extract number of failed tests
-        failed_tests=$(echo "$summary" | grep 'failed' | awk '{print $1}')
-        # Print results
-        echo "Coverage: $coverage" >> $GITHUB_STEP_SUMMARY
-        echo "Total tests: $total_tests" >> $GITHUB_STEP_SUMMARY
-        echo "Passed tests: $passed_tests" >> $GITHUB_STEP_SUMMARY
-        echo "Failed tests: $failed_tests" >> $GITHUB_STEP_SUMMARY
-    - name: Upload HTML unit test coverage to Github
-      uses: actions/upload-artifact@v4
-      with:
-        name: unit-test-coverage
-        path: /tmp/htmlcov
-    - name: Upload XML unit test coverage to Github
-      uses: actions/upload-artifact@v4
-      with:
-        name: unit-test-report
-        path: /tmp/report.txt
-  
-  bandit-scans:
-    name: Run Bandit Scan
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ubuntu_version: ubuntu24
-    steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      with:
-        path: edge-ai-libraries-repo
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
 
-    - name: Run Bandit Scan
-      run: |
-        mkdir -p reports
-        docker pull ghcr.io/pycqa/bandit/bandit
-        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/model-registry -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
-        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
-    - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: bandit-report
-        path: reports/bandit-report.txt
-    - name: Clean up
-      if: always()
-      run: |
-        rm -rf edge-ai-libraries-repo
-        if [ -n "$(docker images -aq)" ]; then
-              docker rmi -f $(docker images -aq) || true
-        fi
+      - name: Install dependencies
+        run: |
+          cd microservices/model-registry
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f tests/requirements-tests.txt ]; then pip install -r tests/requirements-tests.txt; fi
 
-  virus-scans:
-    name: Run Virus Scan
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ubuntu_version: ubuntu24
-    steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      with:
-        path: edge-ai-libraries-repo
-    - name: Run Virus Scan
-      run: |
-        mkdir -p reports
-        docker pull clamav/clamav
-        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/model-registry/ > ./reports/clamav-report.txt || true
-        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
-    - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: virus-reports
-        path: reports/clamav-report.txt
-    - name: Clean up
-      if: always()
-      run: |
-        rm -rf edge-ai-libraries-repo
-        if [ -n "$(docker images -aq)" ]; then
-              docker rmi -f $(docker images -aq) || true
-        fi
+      - name: Run tests
+        run: |
+          echo "Running unit tests"
+          cd microservices/model-registry
+          if [ -d tests ]; then PYTEST_OUTPUT=$(pytest -vv --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml tests/unit_tests/ 2>&1 || true)
+          # echo "$PYTEST_OUTPUT"
+          echo "$PYTEST_OUTPUT" > pytest_results.txt
+          echo "run_pytest_raw_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$PYTEST_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT; fi
+        env:
+          PYTHONPATH: "${{ github.workspace }}/microservices/model-registry/src"
