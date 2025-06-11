@@ -14,6 +14,7 @@ jobs:
       contents: read
     outputs:
       langs: ${{ steps.detect-langs.outputs.langs }}
+      projects: ${{ steps.detect-langs.outputs.projects }}
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -35,24 +36,33 @@ jobs:
           if [ -z "$changed_files" ]; then
             echo "No relevant changed files detected."
             echo "langs=[]" >> $GITHUB_OUTPUT
+            echo "projects=[]" >> $GITHUB_OUTPUT
             exit 0
           fi
           declare -A langmap=( ["c"]=c-cpp ["cpp"]=c-cpp ["h"]=c-cpp ["hpp"]=c-cpp ["py"]=python ["java"]=java-kotlin ["js"]=javascript-typescript ["ts"]=javascript-typescript )
           declare -A langs
+          declare -A projects
+
           for file in $changed_files; do
             ext="${file##*.}"
             [[ ${langmap[$ext]} ]] && langs[${langmap[$ext]}]=1
+            proj="$(echo "$file" | cut -d/ -f2)"  # drugi folder jako projekt
+            projects[$proj]=1
           done
-          result=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s -c .)
-          echo "Detected languages: $result"
-          echo "langs=$result" >> $GITHUB_OUTPUT
+
+          langs_json=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s -c .)
+          projects_json=$(printf '%s\n' "${!projects[@]}" | sort | jq -R . | jq -s -c .)
+
+          echo "langs=$langs_json" >> $GITHUB_OUTPUT
+          echo "projects=$projects_json" >> $GITHUB_OUTPUT
 
   analyze:
     needs: detect-languages
     runs-on: ubuntu-latest
     strategy:
       matrix:
-        language: ${{fromJson(needs.detect-languages.outputs.langs)}}
+        language: ${{ fromJson(needs.detect-langs.outputs.langs) }}
+        project: ${{ fromJson(needs.detect-langs.outputs.projects) }}
     permissions:
       security-events: write
       actions: read
@@ -63,11 +73,72 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
 
+      - name: Build project conditionally
+        id: build-project
+        env:
+          MATRIX_PROJECT: ${{ matrix.project }}
+          MATRIX_LANGUAGE: ${{ matrix.language }}
+        run: |
+          if [[ "$MATRIX_PROJECT" == *dl-streamer* ]] && [[ "$MATRIX_LANGUAGE" == "c-cpp" ]]; then
+            echo "Building project $MATRIX_PROJECT for C/C++"
+            echo "build_project=true" >> "$GITHUB_OUTPUT"
+          else
+            echo "No build needed for project $MATRIX_PROJECT and language $MATRIX_LANGUAGE"
+          fi
+
+      - name: Init submodules
+        if: steps.build-project.outputs.build_project == 'true'
+        run: |
+          cd edge-ai-libraries-repo
+          git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+      - name: Set up Docker Buildx
+        if: steps.build-project.outputs.build_project == 'true'
+        uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+
+      - name: Log in to GitHub Container Registry
+        if: steps.build-project.outputs.build_project == 'true'
+        uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+        with:
+          registry: ghcr.io
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Build dev debug img with cache from GHCR
+        if: steps.build-project.outputs.build_project == 'true'
+        env:
+          dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+          dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
+        run: |
+          docker buildx build \
+            --tag "${dev_debug_img}" \
+            --cache-from="${dev_debug_img_cached}" \
+            --build-arg BUILD_ARG=Debug \
+            -f ${{ matrix.path_dev }} \
+            ./edge-ai-libraries-repo/libraries/dl-streamer
+
+      - name: Build CodeQL image based on dev debug image
+        if: steps.build-project.outputs.build_project == 'true'
+        env:
+          dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        run: |
+          docker build --build-arg BASE_IMAGE=${dev_debug_img} \
+          -f ./edge-ai-libraries-repo/libraries/dl-streamer/docker/codeql.Dockerfile \
+          -t dev24-codeql \
+          ./edge-ai-libraries-repo/libraries/dl-streamer
+
+      - name: Run CodeQL analysis
+        if: steps.build-project.outputs.build_project == 'true'
+        run: |  
+          docker run --rm -v $(pwd):/src -w /src dev24-codeql bash -c "\
+            codeql database create codeql-db --language=cpp --source-root=/src --overwrite && \
+            codeql database analyze codeql-db cpp-security-extended.qls --format=sarifv2 --output=results.sarif"
+
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          build-mode: autobuild
+          build-mode: ${{ matrix.language == 'c-cpp' && 'manual' || 'none' }}
 
       - name: Perform CodeQL Analysis
         uses: github/codeql-action/analyze@v3
