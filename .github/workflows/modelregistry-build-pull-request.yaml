@@ -34,6 +34,7 @@ jobs:
           if [ -f tests/requirements-tests.txt ]; then pip install -r tests/requirements-tests.txt; fi
 
       - name: Run tests
+        id: run_tests
         run: |
           echo "Running unit tests"
           cd microservices/model-registry
@@ -43,5 +44,47 @@ jobs:
           echo "run_pytest_raw_output<<EOF" >> $GITHUB_OUTPUT
           echo "$PYTEST_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT; fi
+          pwd
+          ls
         env:
           PYTHONPATH: "${{ github.workspace }}/microservices/model-registry/src"
+      - name: Parse Pytest Results
+        id: extract_summary
+        run: |
+          echo "${{ steps.run_tests.outputs.run_pytest_raw_output }}" > pytest_output.txt
+
+          # Extract coverage percentage (e.g., 95%)
+          COVERAGE=$(awk '/^TOTAL/{print $4; exit}' pytest_output.txt)
+
+          # Extract passed and failed test counts
+          PASSED=$(grep -oP '\d+(?= passed)' pytest_output.txt | head -n1)
+          if [ -z "$PASSED" ]; then
+            PASSED="0"
+          fi
+          
+          FAILED=$(grep -oP '\d+(?= failed)' pytest_output.txt | head -n1)
+          if [ -z "$FAILED" ]; then
+            FAILED="0"
+          fi
+
+          # Output to screen
+          echo "Coverage: $COVERAGE"
+          echo "Passed: $PASSED"
+          echo "Failed: $FAILED"
+
+          # Output to file
+          echo "Coverage: $COVERAGE" > pytest_summary.txt
+          echo "Passed: $PASSED" >> pytest_summary.txt
+          echo "Failed: $FAILED" >> pytest_summary.txt
+          pwd
+          ls
+        env:
+          run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
+      - name: Upload Pytest Results File
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: |
+            ${{ github.workspace }}/microservices/model-registry/pytest_results.txt
+            ${{ github.workspace }}/pytest_summary.txt
+            ${{ github.workspace }}/microservices/model-registry/coverage.xml
