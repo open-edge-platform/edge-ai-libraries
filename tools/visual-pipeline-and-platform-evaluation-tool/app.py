@@ -687,7 +687,7 @@ def create_interface():
                                 None,
                                 None,
                             ).then(
-                                lambda: gr.Image(value=current_pipeline.diagram()),
+                                lambda: current_pipeline.diagram(),
                                 None,
                                 pipeline_image,
                             ).then(
