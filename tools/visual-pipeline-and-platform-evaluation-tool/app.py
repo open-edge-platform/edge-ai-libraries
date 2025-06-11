@@ -30,13 +30,14 @@ current_pipeline = PipelineLoader.load(os.environ.get("PIPELINE", "").lower())[0
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
+
 # Download File
 def download_file(url, local_filename):
     # Send a GET request to the URL
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open(local_filename, 'wb') as file:
+        with open(local_filename, "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
@@ -46,7 +47,14 @@ def download_file(url, local_filename):
 def detect_click(evt: gr.SelectData):
     x, y = evt.index
 
-    for x_min, y_min, x_max, y_max, label, description in current_pipeline.bounding_boxes():
+    for (
+        x_min,
+        y_min,
+        x_max,
+        y_max,
+        label,
+        description,
+    ) in current_pipeline.bounding_boxes():
         if x_min <= x <= x_max and y_min <= y <= y_max:
 
             match label:
@@ -69,23 +77,23 @@ chart_titles = [
     "GPU Video Enhance Engine Utilization [%]",
     "GPU Video Engine Utilization [%]",
     "GPU Copy Engine Utilization [%]",
-    "GPU Compute Engine Utilization [%]"
+    "GPU Compute Engine Utilization [%]",
 ]
 
 y_labels = [
-    "Throughput", 
+    "Throughput",
     "Frequency",
     "Utilization",
     "Temperature",
     "Utilization",
-    "Power", 
+    "Power",
     "Power",
     "Frequency",
     "Utilization",
     "Utilization",
     "Utilization",
     "Utilization",
-    "Utilization"
+    "Utilization",
 ]
 
 # Create a dataframe for each chart
@@ -101,18 +109,20 @@ def read_latest_metrics(target_ns: int = None):
         return [None] * 11
 
     if target_ns is not None:
-        # Filter only lines near the target timestamp 
+        # Filter only lines near the target timestamp
         surrounding_lines = [
-            line for line in lines
-            if line.split() and line.split()[-1].isdigit()
-            and abs(int(line.split()[-1]) - target_ns) < 1e9  
+            line
+            for line in lines
+            if line.split()
+            and line.split()[-1].isdigit()
+            and abs(int(line.split()[-1]) - target_ns) < 1e9
         ]
         lines = surrounding_lines if surrounding_lines else []
-  
-
 
     cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
-    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy =  gpu_compute = None
+    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = (
+        None
+    )
 
     for line in reversed(lines):
         if cpu_user is None and "cpu" in line:
@@ -174,7 +184,7 @@ def read_latest_metrics(target_ns: int = None):
                     cpu_freq = float(parts[0].split("=")[1])
             except:
                 pass
-        
+
         if gpu_render is None and "engine=render" in line:
             for part in line.split():
                 if part.startswith("usage="):
@@ -206,7 +216,7 @@ def read_latest_metrics(target_ns: int = None):
                         gpu_video = float(part.split("=")[1])
                     except:
                         pass
-        
+
         if gpu_compute is None and "engine=compute" in line:
             for part in line.split():
                 if part.startswith("usage="):
@@ -214,52 +224,85 @@ def read_latest_metrics(target_ns: int = None):
                         gpu_compute = float(part.split("=")[1])
                     except:
                         pass
-        
-        if all(v is not None for v in [
-            cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
-            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute]):
+
+        if all(
+            v is not None
+            for v in [
+                cpu_user,
+                mem_used_percent,
+                gpu_package_power,
+                core_temp,
+                gpu_power,
+                gpu_freq,
+                gpu_render,
+                gpu_ve,
+                gpu_video,
+                gpu_copy,
+                cpu_freq,
+                gpu_compute,
+            ]
+        ):
             break
 
     return [
-        cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
+        cpu_user,
+        mem_used_percent,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
     ]
 
 
 def create_empty_fig(title, y_axis_label):
     fig = go.Figure()
-    fig.update_layout(
-        title=title,
-        xaxis_title="Time",
-        yaxis_title=y_axis_label
-    )
+    fig.update_layout(title=title, xaxis_title="Time", yaxis_title=y_axis_label)
     return fig
 
 
 # Store figures globally
 figs = [
-    create_empty_fig(chart_titles[i], y_labels[i])
-    for i in range(len(chart_titles))
+    create_empty_fig(chart_titles[i], y_labels[i]) for i in range(len(chart_titles))
 ]
 
 
 def generate_stream_data(i, timestamp_ns=None):
-    new_x = datetime.now() if timestamp_ns is None else datetime.fromtimestamp(timestamp_ns / 1e9)
+    new_x = (
+        datetime.now()
+        if timestamp_ns is None
+        else datetime.fromtimestamp(timestamp_ns / 1e9)
+    )
 
     new_y = 0
     (
-        cpu_val, mem_val, gpu_package_power, core_temp, gpu_power, 
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute
+        cpu_val,
+        mem_val,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
     ) = read_latest_metrics(timestamp_ns)
 
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
             lines = [line.strip() for line in f.readlines()[-500:]]
             latest_fps = float(lines[-1])
-        
+
     except FileNotFoundError:
         latest_fps = 0
-    
+
     except IndexError:
         latest_fps = 0
 
@@ -271,7 +314,7 @@ def generate_stream_data(i, timestamp_ns=None):
         new_y = cpu_freq
     elif title == "CPU Utilization [%]" and cpu_val is not None:
         new_y = cpu_val
-    elif title ==  "CPU Temperature [C°]" and core_temp is not None:
+    elif title == "CPU Temperature [C°]" and core_temp is not None:
         new_y = core_temp
     elif title == "Memory Utilization [%]" and mem_val is not None:
         new_y = mem_val
@@ -294,8 +337,7 @@ def generate_stream_data(i, timestamp_ns=None):
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
     stream_dfs[i] = pd.concat(
-        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], 
-        ignore_index=True
+        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], ignore_index=True
     ).tail(50)
 
     fig = figs[i]
@@ -304,8 +346,146 @@ def generate_stream_data(i, timestamp_ns=None):
 
     return fig
 
+
+def on_run(
+    recording_channels,
+    inferencing_channels,
+    object_detection_model,
+    object_detection_device,
+    object_detection_batch_size,
+    object_detection_inference_interval,
+    object_detection_nireq,
+    object_classification_model,
+    object_classification_device,
+    object_classification_batch_size,
+    object_classification_inference_interval,
+    object_classification_nireq,
+    object_classification_reclassify_interval,
+    input_video_player,
+):
+    global stream_dfs
+    stream_dfs = [
+        pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))
+    ]  # Reset all data
+    gr.update(active=True)
+
+    # Reset the FPS file
+    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+        f.write(f"0.0\n")
+
+    video_output_path, constants, param_grid = prepare_video_and_constants(
+        input_video_player=input_video_player,
+        object_detection_model=object_detection_model,
+        object_detection_device=object_detection_device,
+        object_detection_batch_size=object_detection_batch_size,
+        object_detection_inference_interval=object_detection_inference_interval,
+        object_detection_nireq=object_detection_nireq,
+        object_classification_model=object_classification_model,
+        object_classification_device=object_classification_device,
+        object_classification_batch_size=object_classification_batch_size,
+        object_classification_inference_interval=object_classification_inference_interval,
+        object_classification_nireq=object_classification_nireq,
+        object_classification_reclassify_interval=object_classification_reclassify_interval,
+    )
+
+    # Validate channels
+    if recording_channels + inferencing_channels == 0:
+        raise gr.Error(
+            "Please select at least one channel for recording or inferencing.",
+            duration=10,
+        )
+
+    optimizer = PipelineOptimizer(
+        pipeline=current_pipeline,
+        constants=constants,
+        param_grid=param_grid,
+        channels=(recording_channels, inferencing_channels),
+        elements=gst_inspector.get_elements(),
+    )
+    optimizer.optimize()
+    best_result = optimizer.evaluate()
+    if best_result is None:
+        best_result_message = "No valid result was returned by the optimizer."
+    else:
+        best_result_message = (
+            f"Total FPS: {best_result.total_fps:.2f}, "
+            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+        )
+
+    plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
+
+    return [video_output_path] + plot_updates + [best_result_message]
+
+
+def on_benchmark(
+    fps_floor,
+    rate,
+    object_detection_model,
+    object_detection_device,
+    object_detection_batch_size,
+    object_detection_inference_interval,
+    object_detection_nireq,
+    object_classification_model,
+    object_classification_device,
+    object_classification_batch_size,
+    object_classification_inference_interval,
+    object_classification_nireq,
+    object_classification_reclassify_interval,
+    input_video_player,
+):
+
+    _, constants, param_grid = prepare_video_and_constants(
+        input_video_player=input_video_player,
+        object_detection_model=object_detection_model,
+        object_detection_device=object_detection_device,
+        object_detection_batch_size=object_detection_batch_size,
+        object_detection_inference_interval=object_detection_inference_interval,
+        object_detection_nireq=object_detection_nireq,
+        object_classification_model=object_classification_model,
+        object_classification_device=object_classification_device,
+        object_classification_batch_size=object_classification_batch_size,
+        object_classification_inference_interval=object_classification_inference_interval,
+        object_classification_nireq=object_classification_nireq,
+        object_classification_reclassify_interval=object_classification_reclassify_interval,
+    )
+
+    # Initialize the benchmark class
+    bm = Benchmark(
+        video_path=input_video_player,
+        pipeline_cls=current_pipeline,
+        fps_floor=fps_floor,
+        rate=rate,
+        parameters=param_grid,
+        constants=constants,
+        elements=gst_inspector.get_elements(),
+    )
+
+    # Run the benchmark
+    s, ai, non_ai, fps = bm.run()
+
+    # Return results
+    return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
+
+
+def on_stop():
+    utils.cancelled = True
+    logging.warning(
+        f"utils.cancelled in on_stop: {utils.cancelled}"
+    )
+    return [
+        gr.update(visible=True),  # run_button
+        gr.update(visible=True),  # benchmark_button
+        gr.update(visible=False),  # stop_button
+    ]
+
+
 # Create the interface
 def create_interface():
+    """
+    Components declarations starts here.
+    Only components that are used in event handlers needs to be declared.
+    Other components can be created directly in the Blocks context.
+    """
 
     # Video Player
     input_video_player = None
@@ -313,7 +493,7 @@ def create_interface():
     try:
         download_file(
             "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
-            "/tmp/person-bicycle-car-detection.mp4"
+            "/tmp/person-bicycle-car-detection.mp4",
         )
         input_video_player = gr.Video(
             label="Input Video",
@@ -355,9 +535,6 @@ def create_interface():
         visible=True,  # Initially hidden
     )
 
-    # Pipeline parameters accordion
-    pipeline_parameters_accordion = gr.Accordion("Pipeline Parameters", open=True)
-
     # Inferencing channels
     inferencing_channels = gr.Slider(
         minimum=0,
@@ -378,15 +555,12 @@ def create_interface():
         interactive=True,
     )
 
-    # Benchmark parameters accordion
-    benchmark_parameters_accordion = gr.Accordion("Benchmark Parameters", open=True)
-
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
         value=30.0,  # Default value
         minimum=1.0,
-        interactive=True
+        interactive=True,
     )
 
     # AI stream rate
@@ -396,7 +570,7 @@ def create_interface():
         minimum=0,
         maximum=100,
         step=1,
-        interactive=True
+        interactive=True,
     )
 
     # Inference accordion
@@ -408,8 +582,8 @@ def create_interface():
         for device in device_discovery.list_devices()
     ]
     preferred_device = next(
-        ( "GPU" for device_name in device_choices if "GPU" in device_name),
-        ( "CPU" ),
+        ("GPU" for device_name in device_choices if "GPU" in device_name),
+        ("CPU"),
     )
 
     # Object detection model
@@ -524,16 +698,171 @@ def create_interface():
     # Run button
     run_button = gr.Button("Run")
 
-    # Add a Benchmark button
+    # Benchmark button
     benchmark_button = gr.Button("Benchmark")
 
-    # Add a Stop button
-    stop_button = gr.Button("Stop", variant="stop",visible=False)
+    # Stop button
+    stop_button = gr.Button("Stop", variant="stop", visible=False)
+
+    # Metrics plots
+    plots = [
+        gr.Plot(
+            value=create_empty_fig(chart_titles[i], y_labels[i]),
+            label=chart_titles[i],
+            min_width=500,
+            show_label=False,
+        )
+        for i in range(len(chart_titles))
+    ]
+
+    # Timer for stream data
+    timer = gr.Timer(1, active=False)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
 
-        header = gr.HTML(
+        """
+        Components events handlers and interactions are defined here.
+        """
+
+        # Handle click on the pipeline image
+        pipeline_image.select(
+            detect_click,
+            None,
+            [inference_accordion],
+        )
+
+        # Handle changes on the input video player
+        input_video_player.change(
+            lambda v: (
+                (
+                    gr.update(interactive=bool(v)),
+                    gr.update(value=None),
+                )  # Disable Run button  if input is empty, clears output
+                if v is None or v == ""
+                else (gr.update(interactive=True), gr.update(value=None))
+            ),
+            inputs=input_video_player,
+            outputs=[run_button, output_video_player],
+            queue=False,
+        )
+
+        # Handle timer ticks
+        timer.tick(
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            outputs=plots,
+        )
+
+        # Handle run button clicks
+        run_button.click(
+            lambda: [
+                gr.update(visible=False),  # run_button
+                gr.update(visible=False),  # benchmark_button
+                gr.update(visible=True),  # stop_button
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=True,
+        ).then(
+            lambda: (
+                globals().update(
+                    stream_dfs=[
+                        pd.DataFrame(columns=["x", "y"])
+                        for _ in range(len(chart_titles))
+                    ]
+                )
+                or [
+                    plots[i].value.update(data=[])  # Clear data, keep layout
+                    for i in range(len(plots))
+                ]
+                or plots  # Return updated plot objects
+            ),
+            outputs=plots,
+        ).then(
+            lambda: gr.update(active=True),  # This updates the same timer
+            inputs=None,
+            outputs=timer,
+        ).then(
+            on_run,
+            inputs=[
+                recording_channels,
+                inferencing_channels,
+                object_detection_model,
+                object_detection_device,
+                object_detection_batch_size,
+                object_detection_inference_interval,
+                object_detection_nireq,
+                object_classification_model,
+                object_classification_device,
+                object_classification_batch_size,
+                object_classification_inference_interval,
+                object_classification_nireq,
+                object_classification_reclassify_interval,
+                input_video_player,
+            ],
+            outputs=[output_video_player] + plots + [best_config_textbox],
+        ).then(
+            lambda: gr.update(active=False),  # This updates the same timer
+            inputs=None,
+            outputs=timer,
+        ).then(
+            lambda: [
+                gr.update(visible=True),  # run_button
+                gr.update(visible=True),  # benchmark_button
+                gr.update(visible=False),  # stop_button
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+        )
+
+        # Handle benchmark button clicks
+        benchmark_button.click(
+            lambda: [
+                gr.update(visible=False),  # run_button
+                gr.update(visible=False),  # benchmark_button
+                gr.update(visible=True),  # stop_button
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=False,
+        ).then(
+            on_benchmark,
+            inputs=[
+                fps_floor,
+                rate,
+                object_detection_model,
+                object_detection_device,
+                object_detection_batch_size,
+                object_detection_inference_interval,
+                object_detection_nireq,
+                object_classification_model,
+                object_classification_device,
+                object_classification_batch_size,
+                object_classification_inference_interval,
+                object_classification_nireq,
+                object_classification_reclassify_interval,
+                input_video_player,
+            ],
+            outputs=[best_config_textbox],
+        ).then(
+            lambda: [
+                gr.update(visible=True),  # run_button
+                gr.update(visible=True),  # benchmark_button
+                gr.update(visible=False),  # stop_button
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+        )
+
+        # Handle stop button clicks
+        stop_button.click(
+            on_stop,
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=False,
+        )
+
+        """
+        Components rendering starts here.
+        """
+
+        # Header
+        gr.HTML(
             "<div class='spark-header'>"
             "  <div class='spark-header-line'></div>"
             "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
@@ -541,10 +870,12 @@ def create_interface():
             "</div>"
         )
 
+        # Tab Interface
         with gr.Tabs() as tabs:
 
+            # Home Tab
             with gr.Tab("Home", id=0):
-            
+
                 gr.Markdown(
                     """
                     ## Recommended Pipelines
@@ -564,7 +895,7 @@ def create_interface():
                         with gr.Column(scale=1, min_width=100):
 
                             gr.Image(
-                                value=lambda x = pipeline: f"./pipelines/{x}/thumbnail.png",
+                                value=lambda x=pipeline: f"./pipelines/{x}/thumbnail.png",
                                 show_label=False,
                                 show_download_button=False,
                                 show_fullscreen_button=False,
@@ -576,13 +907,15 @@ def create_interface():
                                 f"### {pipeline_info['name']}\n"
                                 f"{pipeline_info['definition']}"
                             )
-                                
+
                             gr.Button(
                                 value="Configure and Run",
                                 elem_classes="configure-and-run-button",
                                 interactive=True,
                             ).click(
-                                lambda x = pipeline: globals().__setitem__('current_pipeline', PipelineLoader.load(x)[0]),
+                                lambda x=pipeline: globals().__setitem__(
+                                    "current_pipeline", PipelineLoader.load(x)[0]
+                                ),
                                 None,
                                 None,
                             ).then(
@@ -607,7 +940,9 @@ def create_interface():
                 if devices:
                     device_table_md = "| Name | Description |\n|------|-------------|\n"
                     for device in devices:
-                        device_table_md += f"| {device.device_name} | {device.full_device_name} |\n"
+                        device_table_md += (
+                            f"| {device.device_name} | {device.full_device_name} |\n"
+                        )
                 else:
                     device_table_md = "No devices found."
                 gr.Markdown(
@@ -615,293 +950,81 @@ def create_interface():
                     elem_id="device_table",
                 )
 
+            # Run Tab
             with gr.Tab("Run", id=1):
 
+                # Main content
                 with gr.Row():
+
+                    # Left column
                     with gr.Column(scale=2, min_width=300):
+
+                        # Render pipeline image
                         pipeline_image.render()
 
-                        # Click event handling
-                        pipeline_image.select(
-                            detect_click,
-                            None,
-                            [inference_accordion],
-                        )
+                        # Render the run button
                         run_button.render()
+
+                        # Render the benchmark button
                         benchmark_button.render()
-                        stop_button.render()  
+
+                        # Render the stop button
+                        stop_button.render()
+
+                        # Render the best configuration textbox
                         best_config_textbox.render()
 
                         # Metrics plots
                         with gr.Row():
-                            plots = [
-                                gr.Plot(
-                                    value=create_empty_fig(chart_titles[i], y_labels[i]), label=chart_titles[i],
-                                    min_width=500,
-                                    show_label=False,
-                                )
-                                for i in range(len(chart_titles))
-                            ]
-                            timer = gr.Timer(1, active=False)
-                            def update_all_plots():
-                                return [generate_stream_data(i) for i in range(len(chart_titles))]
 
-                            timer.tick(update_all_plots, outputs=plots)
+                            # Render plots
+                            for i in range(len(plots)):
+                                plots[i].render()
 
-                        def on_run(
-                            recording_channels,
-                            inferencing_channels,
-                            object_detection_model,
-                            object_detection_device,
-                            object_detection_batch_size,
-                            object_detection_inference_interval,
-                            object_detection_nireq,
-                            object_classification_model,
-                            object_classification_device,
-                            object_classification_batch_size,
-                            object_classification_inference_interval,
-                            object_classification_nireq,
-                            object_classification_reclassify_interval,
-                            input_video_player,
-                        ):
-                            global stream_dfs
-                            stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]  # Reset all data
-                            gr.update(active=True)
+                            # Render the timer
+                            timer.render()
 
-                            # Reset the FPS file
-                            with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
-                                f.write(f"0.0\n")
-
-                            video_output_path, constants, param_grid = prepare_video_and_constants(
-                                input_video_player=input_video_player,
-                                object_detection_model=object_detection_model,
-                                object_detection_device=object_detection_device,
-                                object_detection_batch_size=object_detection_batch_size,
-                                object_detection_inference_interval=object_detection_inference_interval,
-                                object_detection_nireq=object_detection_nireq,
-                                object_classification_model=object_classification_model,
-                                object_classification_device=object_classification_device,
-                                object_classification_batch_size=object_classification_batch_size,
-                                object_classification_inference_interval=object_classification_inference_interval,
-                                object_classification_nireq=object_classification_nireq,
-                                object_classification_reclassify_interval=object_classification_reclassify_interval,
-                            )
-
-                            # Validate channels
-                            if recording_channels + inferencing_channels == 0:
-                                raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
-
-                            optimizer = PipelineOptimizer(
-                                pipeline=current_pipeline,
-                                constants=constants,
-                                param_grid=param_grid,
-                                channels=(recording_channels, inferencing_channels),
-                                elements=gst_inspector.get_elements(),
-                            )
-                            optimizer.optimize()
-                            best_result = optimizer.evaluate()
-                            if best_result is None:
-                                best_result_message = "No valid result was returned by the optimizer."
-                            else:
-                                best_result_message = (
-                                    f"Total FPS: {best_result.total_fps:.2f}, "
-                                    f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
-                                )
-
-                            plot_updates = [generate_stream_data(i) for i in range(len(chart_titles))]
-
-                            return [video_output_path] + plot_updates + [best_result_message]
-
-                        def on_benchmark(
-                            fps_floor,
-                            rate,
-                            object_detection_model,
-                            object_detection_device,
-                            object_detection_batch_size,
-                            object_detection_inference_interval,
-                            object_detection_nireq,
-                            object_classification_model,
-                            object_classification_device,
-                            object_classification_batch_size,
-                            object_classification_inference_interval,
-                            object_classification_nireq,
-                            object_classification_reclassify_interval,
-                            input_video_player,
-                        ):
-                            
-                            _, constants, param_grid = prepare_video_and_constants(
-                                input_video_player=input_video_player,
-                                object_detection_model=object_detection_model,
-                                object_detection_device=object_detection_device,
-                                object_detection_batch_size=object_detection_batch_size,
-                                object_detection_inference_interval=object_detection_inference_interval,
-                                object_detection_nireq=object_detection_nireq,
-                                object_classification_model=object_classification_model,
-                                object_classification_device=object_classification_device,
-                                object_classification_batch_size=object_classification_batch_size,
-                                object_classification_inference_interval=object_classification_inference_interval,
-                                object_classification_nireq=object_classification_nireq,
-                                object_classification_reclassify_interval=object_classification_reclassify_interval,
-                            )
-
-                            # Initialize the benchmark class
-                            bm = Benchmark(
-                                video_path=input_video_player,
-                                pipeline_cls=current_pipeline,
-                                fps_floor=fps_floor,
-                                rate=rate,
-                                parameters=param_grid,
-                                constants=constants,
-                                elements=gst_inspector.get_elements(),
-                            )
-
-                            # Run the benchmark
-                            s, ai, non_ai, fps = bm.run()
-
-                            # Return results
-                            return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
-                            
-                        def on_stop():
-                            utils.cancelled = True
-                            logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")  # This will appear in docker logs
-                            return [
-                                gr.update(visible=True),   # run_button
-                                gr.update(visible=True),   # benchmark_button
-                                gr.update(visible=False),  # stop_button
-                            ]
-
-                        input_video_player.change(
-                            lambda v: (
-                                (
-                                    gr.update(interactive=bool(v)),
-                                    gr.update(value=None),
-                                )  # Disable Run button  if input is empty, clears output
-                                if v is None or v == ""
-                                else (gr.update(interactive=True), gr.update(value=None))
-                            ),
-                            inputs=input_video_player,
-                            outputs=[run_button, output_video_player],
-                            queue=False,
-                        )
-                        def on_run_click(*args):
-                            # Hide Run and Benchmark, show Stop
-                            return [
-                                gr.update(visible=False),  # run_button
-                                gr.update(visible=False),  # benchmark_button
-                                gr.update(visible=True)    # stop_button
-                            ]
-
-                        run_button.click(
-                            on_run_click,
-                            outputs=[run_button, benchmark_button, stop_button],
-                            queue=True,
-                        ).then(
-                            lambda: (
-                                globals().update(
-                                    stream_dfs=[pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
-                                )
-                                or [
-                                    plots[i].value.update(data=[])  # Clear data, keep layout
-                                    for i in range(len(chart_titles))
-                                ]
-                                or plots  # Return updated plot objects
-                            ),
-                            outputs=plots
-                        ).then(
-                            lambda: gr.update(active=True),  # This updates the same timer
-                            inputs=None,
-                            outputs=timer,
-                        ).then(
-                            on_run,
-                            inputs=[
-                                recording_channels,
-                                inferencing_channels,
-                                object_detection_model,
-                                object_detection_device,
-                                object_detection_batch_size,
-                                object_detection_inference_interval,
-                                object_detection_nireq,
-                                object_classification_model,
-                                object_classification_device,
-                                object_classification_batch_size,
-                                object_classification_inference_interval,
-                                object_classification_nireq,
-                                object_classification_reclassify_interval,
-                                input_video_player,
-                            ],
-                            outputs=[output_video_player] + plots + [best_config_textbox],
-                        ).then(
-                            lambda: gr.update(active=False),  # This updates the same timer
-                            inputs=None,
-                            outputs=timer,
-                        ).then(
-                            lambda: [
-                                gr.update(visible=True),   # run_button
-                                gr.update(visible=True),   # benchmark_button
-                                gr.update(visible=False),  # stop_button
-                            ],
-                            outputs=[run_button, benchmark_button, stop_button],
-                        )
-
-                        benchmark_button.click(
-                            on_run_click,
-                            outputs=[run_button, benchmark_button, stop_button],
-                            queue=False,
-                        ).then(
-                            on_benchmark,
-                            inputs=[
-                                fps_floor,
-                                rate,
-                                object_detection_model,
-                                object_detection_device,
-                                object_detection_batch_size,
-                                object_detection_inference_interval,
-                                object_detection_nireq,
-                                object_classification_model,
-                                object_classification_device,
-                                object_classification_batch_size,
-                                object_classification_inference_interval,
-                                object_classification_nireq,
-                                object_classification_reclassify_interval,
-                                input_video_player,
-                            ],
-                            outputs=[best_config_textbox],  
-                        ).then(
-                            lambda: [
-                                gr.update(visible=True),   # run_button
-                                gr.update(visible=True),   # benchmark_button
-                                gr.update(visible=False),  # stop_button
-                            ],
-                            outputs=[run_button, benchmark_button, stop_button],
-                        )
-
-                        stop_button.click(
-                            on_stop,
-                            outputs=[run_button, benchmark_button, stop_button],  # Remove gr.Info
-                            queue=False,
-                        ) 
-
+                    # Right column
                     with gr.Column(scale=1, min_width=150):
+
+                        # Video Player Accordion
                         with gr.Accordion("Video Player", open=True):
+
+                            # Input Video Player
                             input_video_player.render()
+
+                            # Output Video Player
                             output_video_player.render()
 
-                        with pipeline_parameters_accordion.render():
+                        # Pipeline Parameters Accordion
+                        with gr.Accordion("Pipeline Parameters", open=True):
+
+                            # Inference Channels
                             inferencing_channels.render()
+
+                            # Recording Channels
                             recording_channels.render()
 
-                        with benchmark_parameters_accordion.render():
+                        # Benchmark Parameters Accordion
+                        with gr.Accordion("Benchmark Parameters", open=True):
+
+                            # FPS Floor
                             fps_floor.render()
+
+                            # AI Stream Rate
                             rate.render()
-                        
+
+                        # Inference Parameters Accordion
                         with inference_accordion.render():
 
+                            # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()
                             object_detection_batch_size.render()
                             object_detection_inference_interval.render()
                             object_detection_nireq.render()
 
+                            # Object Classification Parameters
                             object_classification_model.render()
                             object_classification_device.render()
                             object_classification_batch_size.render()
@@ -909,7 +1032,8 @@ def create_interface():
                             object_classification_nireq.render()
                             object_classification_reclassify_interval.render()
 
-        footer = gr.HTML(
+        # Footer
+        gr.HTML(
             "<div class='spark-footer'>"
             "  <div class='spark-footer-info'>"
             "    ©2025 Intel Corporation  |  Terms of Use  |  Cookies  |  Privacy"
