@@ -13,6 +13,7 @@ import { VideoDbService } from './video-db.service';
 import { SearchDataPrepShimService } from 'src/search/services/search-data-prep-shim.service';
 import { DataPrepMinioDTO } from 'src/search/model/search.model';
 import { lastValueFrom } from 'rxjs';
+import { Span } from 'nestjs-otel';
 
 @Injectable()
 export class VideoService {

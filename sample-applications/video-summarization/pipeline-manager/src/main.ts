@@ -5,7 +5,7 @@ import otelSDK from './tracing';
 import { DocumentBuilder, SwaggerModule } from '@nestjs/swagger';
 
 async function bootstrap() {
-  await otelSDK.start();
+  otelSDK.start();
 
   const app = await NestFactory.create(AppModule, { cors: true });
 

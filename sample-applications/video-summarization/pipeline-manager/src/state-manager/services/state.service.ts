@@ -1,6 +1,5 @@
 import { Injectable } from '@nestjs/common';
 import {
-  FileInfo,
   ModelInfo,
   State,
   StateActionStatus,
@@ -10,10 +9,7 @@ import {
 import { v4 as uuidV4 } from 'uuid';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { SocketEvent } from 'src/events/socket.events';
-import {
-  SystemConfig,
-  VideoUploadDTO,
-} from 'src/video-upload/models/upload.model';
+import { SystemConfig } from 'src/video-upload/models/upload.model';
 import { ChunkQueue } from 'src/evam/models/message-broker.model';
 import { ConfigService } from '@nestjs/config';
 import { StateDbService } from './state-db.service';
@@ -24,6 +20,7 @@ import {
 import { Video } from 'src/video-upload/models/video.model';
 import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
 import { PipelineEvents } from 'src/events/Pipeline.events';
+import { Span, TraceService } from 'nestjs-otel';
 
 @Injectable()
 export class StateService {
@@ -33,6 +30,7 @@ export class StateService {
     private emitter: EventEmitter2,
     private $config: ConfigService,
     private $stateDb: StateDbService,
+    private $trace: TraceService,
   ) {}
 
   fetchAll(): State[] {
@@ -42,10 +40,26 @@ export class StateService {
   saveToDB(stateId: string) {
     if (this.states.has(stateId)) {
       const state = this.states.get(stateId);
+
       if (state) {
+        state.updatedAt = new Date().toISOString();
+
+        const tracer = this.$trace.getTracer();
+
+        const span = tracer.startSpan('SUMMARY_OVERVIEW', {
+          attributes: {
+            stateId,
+            videoId: state.video.videoId,
+            startTime: state.createdAt,
+            endTime: state.updatedAt,
+          },
+        });
+
         this.$stateDb.updateState(stateId, state).then((res) => {
           console.log('State saved to DB:', res);
         });
+
+        span.end();
       }
     }
   }

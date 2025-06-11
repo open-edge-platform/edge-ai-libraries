@@ -7,6 +7,7 @@ import { EvamService } from 'src/evam/services/evam.service';
 import { AudioService } from 'src/audio/services/audio.service';
 import { lastValueFrom } from 'rxjs';
 import { AudioModelRO } from 'src/audio/models/audio.model';
+import { Span } from 'nestjs-otel';
 
 @Injectable()
 export class AppConfigService {
@@ -52,7 +53,7 @@ export class AppConfigService {
       console.log('Audio Error', error);
     }
 
-    let config: SystemConfigWithMeta = {
+    const config: SystemConfigWithMeta = {
       ...systemConfig,
       meta: { evamPipelines, audioModels: [] },
     };
