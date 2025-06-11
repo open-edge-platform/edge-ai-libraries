@@ -56,7 +56,9 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer
 
     - name: Clean up
+      env:
+        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dls-dev-${{ matrix.ubuntu_version }}:${{ github.sha }} || true
+        docker rmi ${dev_debug_img} || true
