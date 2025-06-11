@@ -86,8 +86,12 @@ class ModelRegistryClient:
                 "saved_models_dir=%s, verify_cert=%s, is_ready=%s", self._url, 
                 self._request_timeout, self._saved_models_dir, self._verify_cert,
                 self.is_ready)
+
+            if not self.is_ready:
+                self._logger.error("Model Registry Client is not ready. "
+                                   "Please check the MR_URL environment variable.")
         except Exception as e:
-            self._logger.debug("Exception occurred while initializing Model "
+            self._logger.error("Exception occurred while initializing Model "
                                 "Registry Client: %s", e)
 
     @classmethod
