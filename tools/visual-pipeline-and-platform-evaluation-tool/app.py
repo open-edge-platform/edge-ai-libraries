@@ -506,7 +506,7 @@ def generate_stream_data(i, timestamp_ns=None):
     elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
         new_y = gpu_freq_0
     # Consolidated GPU 0 Engine Utilization chart
-    elif title == "Integrated GPU 0 Engine Utilization [%]":
+    elif title == "Integrated GPU Engine Utilization [%]":
         # Each line is a metric, so we store all 5 in the same DataFrame
         # We'll use a wide DataFrame for this chart
         metrics = {

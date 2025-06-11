@@ -54,9 +54,6 @@ with open(LOCK_FILE, "w") as lock_fp:
             if not devs_state:
                 continue
 
-            with open("/tmp/debug.txt", "a") as debug_f:
-                print(f"i = {i}, len(states) = {len(states)}, last_seen = {last_seen}", file=debug_f)
-
             # Use the last device state
             dev = devs_state[-1]
             dev_stats = dev.get("dev_stats", {})
