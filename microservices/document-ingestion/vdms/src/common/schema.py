@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from enum import Enum
-from typing import Annotated, Dict, List, Optional
+from typing import Annotated, List, Optional
 
 from pydantic import BaseModel, Field
 
@@ -83,3 +83,23 @@ class FileListResponse(DataPrepResponse):
 
     bucket_name: str
     files: Optional[List[str]]
+
+
+class DocumentRequest(BaseModel):
+    """Request model for document/text processing with video timestamp references"""
+
+    bucket_name: Annotated[
+        str, Field(description="The bucket name where the referenced video is stored")
+    ]
+    video_id: Annotated[
+        str, Field(description="The video ID (directory) containing the referenced video")
+    ]
+    text_summary: Annotated[
+        str, Field(description="The text summary or document content to be embedded")
+    ]
+    video_start_time: Annotated[
+        float, Field(ge=0, description="The start timestamp in seconds for the video segment related to this document")
+    ]
+    video_end_time: Annotated[
+        float, Field(description="The end timestamp in seconds for the video segment related to this document")
+    ]

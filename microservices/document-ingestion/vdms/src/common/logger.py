@@ -6,7 +6,7 @@ from typing import Any, ClassVar, Dict
 
 from pydantic import BaseModel
 
-from src.common import settings
+from .settings import settings
 
 
 class Logger(BaseModel):

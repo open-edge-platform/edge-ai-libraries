@@ -72,7 +72,7 @@ RUN mkdir -p /tmp/dataprep/videos
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ] 
-CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.app:app" ]
+CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
 
 # Linter stage to lint code in dev image
 FROM dev AS lint
@@ -107,4 +107,4 @@ RUN mkdir -p /tmp/dataprep/videos
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--access-logfile", "-"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "300", "--access-logfile", "-"]

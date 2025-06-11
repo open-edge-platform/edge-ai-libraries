@@ -2,7 +2,6 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
-import os
 import pathlib
 from http import HTTPStatus
 from typing import List, Optional, Tuple
@@ -10,8 +9,7 @@ from typing import List, Optional, Tuple
 from minio import Minio
 from minio.error import S3Error
 
-from src.common import DataPrepException, Strings
-from src.logger import logger
+from src.common import DataPrepException, Strings, logger
 
 
 class MinioClient:

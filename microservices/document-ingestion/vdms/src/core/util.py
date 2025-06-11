@@ -4,21 +4,15 @@
 import datetime
 import io
 import json
-import os
 import pathlib
-import shutil
-import tempfile
 from typing import Dict, List, Optional, Tuple
 
 import cv2
 import yaml
 from tzlocal import get_localzone
 
-from src.common import DataPrepException, Settings, Strings
+from src.common import DataPrepException, settings, Strings, logger
 from src.core.minio_client import MinioClient
-from src.logger import logger
-
-settings = Settings()
 
 
 def sanitize_input(input: str) -> str | None:
