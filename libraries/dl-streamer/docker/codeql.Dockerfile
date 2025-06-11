@@ -9,6 +9,8 @@ RUN curl -f -L -o /tmp/codeql.zip https://github.com/github/codeql-cli-binaries/
     && unzip /tmp/codeql.zip -d /usr/local/bin \
     && rm /tmp/codeql.zip
 
+RUN codeql pack install github/codeql/cpp-queries
+
 ENV PATH="/usr/local/bin/codeql:$PATH"
 WORKDIR /home/dlstreamer/dlstreamer
 CMD ["/bin/bash"]
