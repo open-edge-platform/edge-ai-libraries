@@ -1,5 +1,5 @@
 
-# Data Ingestion microservice
+# Document Ingestion microservice
 
 <!--
 **User Story US-1: Learning About the Microservice**
