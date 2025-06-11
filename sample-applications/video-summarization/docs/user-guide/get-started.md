@@ -31,8 +31,8 @@ sample-applications/video-summarization/
 ├── data                       # Data directory for video files
 ├── docker                     # Docker compose files
 │   ├── compose.base.yaml      # Base services configuration
-│   ├── compose.summary.yaml   # Video Summary services
-│   ├── compose.search.yaml    # Video search services 
+│   ├── compose.summary.yaml   # Compose override file for video summarization services
+│   ├── compose.search.yaml    # Compose override file for Video search services 
 │   ├── compose.gpu_vlm.yaml   # GPU configuration for VLM
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OVMS
 ├── docs                       # Documentation
