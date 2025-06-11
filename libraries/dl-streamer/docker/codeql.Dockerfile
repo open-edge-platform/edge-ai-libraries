@@ -10,5 +10,5 @@ RUN curl -f -L -o /tmp/codeql.zip https://github.com/github/codeql-cli-binaries/
     && rm /tmp/codeql.zip
 
 ENV PATH="/usr/local/bin/codeql:$PATH"
-WORKDIR /src
+WORKDIR /home/dlstreamer/dlstreamer
 CMD ["/bin/bash"]

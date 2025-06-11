@@ -139,8 +139,8 @@ jobs:
       - name: Run CodeQL analysis
         if: steps.build-project.outputs.build_project == 'true'
         run: |  
-          docker run --rm -v $(pwd):/src -w /src dev24-codeql bash -c "\
-            codeql database create codeql-db --language=cpp --source-root=/src --overwrite && \
+          docker run --rm dev24-codeql bash -c "\
+            codeql database create codeql-db --language=cpp --source-root=. --overwrite && \
             codeql database analyze codeql-db cpp-security-extended.qls --format=sarifv2 --output=results.sarif"
 
       - name: Initialize CodeQL
