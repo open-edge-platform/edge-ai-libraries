@@ -141,7 +141,7 @@ jobs:
         run: |
           docker run --name codeql-container dev24-codeql bash -c "
             set -eux
-            codeql database create /tmp/codeql-db --language=cpp --command='cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON .. && make -j$(nproc)' --source-root=. --overwrite
+            codeql database create /tmp/codeql-db --language=cpp --command='cmake . && make -j$(nproc)' --source-root=. --overwrite
             codeql database analyze /tmp/codeql-db codeql-repo/cpp/ql/src/ --format=sarifv2.1.0 --output=/tmp/results.sarif
           "
           docker cp codeql-container:/tmp/results.sarif results.sarif
