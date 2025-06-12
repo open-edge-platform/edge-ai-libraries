@@ -124,4 +124,4 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/time-series-analytics
-      # branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
+      branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
