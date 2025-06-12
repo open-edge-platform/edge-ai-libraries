@@ -11,8 +11,8 @@ from src.common.schema import BucketVideoListResponse, VideoInfo
 from src.core.util import get_minio_client
 from src.core.validation import validate_params
 
-router = APIRouter(tags=["Data Preparation APIs"])
 
+router = APIRouter(tags=["Video Management APIs"])
 
 @router.get(
     "/videos",

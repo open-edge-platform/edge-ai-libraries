@@ -12,7 +12,7 @@ from src.common.schema import DataPrepResponse, VideoRequest
 from .process_minio_video import process_minio_video
 from .upload_and_process_video import upload_and_process_video
 
-router = APIRouter(tags=["Data Preparation APIs"])
+router = APIRouter(tags=["Video Processing APIs"])
 
 
 @router.post(

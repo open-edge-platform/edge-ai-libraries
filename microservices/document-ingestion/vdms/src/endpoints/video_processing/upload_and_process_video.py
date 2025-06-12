@@ -15,7 +15,7 @@ from src.core.embedding import generate_video_embedding
 from src.core.util import get_minio_client, read_config
 from src.core.validation import validate_params
 
-router = APIRouter(tags=["Data Preparation APIs"])
+router = APIRouter(tags=["Video Processing APIs"])
 
 
 @router.post(

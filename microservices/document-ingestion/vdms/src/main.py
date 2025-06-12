@@ -18,7 +18,7 @@ from src.endpoints import (
     upload_and_process_video_router,
 )
 
-# Dump loaded settings
+# Dump loaded settings, if in debug mode
 logger.debug(f"Settings loaded: {settings.model_dump()}")
 
 # Initialize FastAPI app

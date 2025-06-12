@@ -13,7 +13,7 @@ from src.core.embedding import generate_text_embedding
 from src.core.util import get_minio_client
 from src.core.validation import sanitize_model
 
-router = APIRouter(tags=["Data Preparation APIs"])
+router = APIRouter(tags=["Document Processing APIs"])
 
 
 def verify_params_and_get_video_name(
@@ -74,10 +74,9 @@ async def process_video_summary(
     #### Body Params:
        - **bucket_name (str) :** The bucket name where the referenced video is stored
        - **video_id (str) :** The video ID (directory) containing the referenced video
-       - **video_summary (str) :** The text summary or document content to be embedded
-       - **video_start_time (float) :** The start timestamp in seconds for the video segment related to this document
-       - **video_end_time (float) :** The end timestamp in seconds for the video segment related to this document
-
+       - **video_summary (str) :** The text summary for the video to be embedded
+       - **video_start_time (float) :** The start timestamp in seconds for the video or video chunk
+       - **video_end_time (float) :** The end timestamp in seconds for the video or video chunk
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
     - **404 Not Found :** If the specified video cannot be found in Minio.

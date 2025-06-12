@@ -15,7 +15,7 @@ from src.core.embedding import generate_video_embedding
 from src.core.util import get_minio_client, get_video_from_minio, read_config
 from src.core.validation import sanitize_model
 
-router = APIRouter(tags=["Data Preparation APIs"])
+router = APIRouter(tags=["Video Processing APIs"])
 
 
 @router.post(
