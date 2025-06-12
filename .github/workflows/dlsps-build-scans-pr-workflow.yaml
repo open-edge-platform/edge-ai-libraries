@@ -12,7 +12,7 @@ on:
       - 'microservices/dlstreamer-pipeline-server/**'
       
   workflow_call:
-permissions: read-all
+permissions: {}
 
 jobs:
   build-dls-pipeline-server-image:
@@ -27,6 +27,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
     - name: Build dls-pipeline-server-img
       run: |
@@ -59,6 +60,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
     - name: Unit Test dls-pipeline-server
       run: |
@@ -108,6 +110,7 @@ jobs:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
+        persist-credentials: false
         path: edge-ai-libraries-repo
 
     - name: Run Bandit Scan
