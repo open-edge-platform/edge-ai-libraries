@@ -38,7 +38,7 @@ mkdir -p $HOME/models
 1. Go to the deployment files
 
     ``` bash
-    cd microservices/retriever
+    cd microservices/vector-retriever
     cd deployment/docker-compose/
     ```
 
