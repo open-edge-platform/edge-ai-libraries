@@ -146,13 +146,17 @@ jobs:
           sudo env PATH="$PWD/../../python3venv/bin:$PATH" ninja install
           cd ../../
 
-          echo "Install OpenVINO Toolkit and metapublish dependencies"
+          echo "Install OpenVINO Toolkit"
           wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
           sudo gpg --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
           echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list
           sudo apt update
           sudo apt install openvino-2025.1.0
-
+          
+          echo "Install metapublish dependencies"
+          cd edge-ai-libraries-repo/libraries/dl-streamer
+          sudo ./scripts/install_metapublish_dependencies.sh
+          
           echo "Build DLStreamer"
           mkdir -p build
           cd build
