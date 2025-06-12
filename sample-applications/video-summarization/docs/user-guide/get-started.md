@@ -128,10 +128,10 @@ The Video Summary application offers multiple stacks and deployment options:
 
 | Option | Chunk-Wise Summary | Final Summary | Environment Variables | Recommended Models |
 |--------|--------------------|---------------------|-----------------------|----------------|
-| VLM-CPU |vlm-ov-serving on CPU | vlm-ov-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
-| VLM-GPU | vlm-ov-serving |vlm-ov-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
-| VLM-OVMS-CPU | vlm-ov-serving on CPU | OVMS Microservice on CPU | `USE_OVMS=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
-| VLM-CPU-OVMS-GPU | vlm-ov-serving on CPU | OVMS Microservice on GPU | `USE_OVMS_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
+| VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
+| VLM-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `USE_OVMS=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `USE_OVMS_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
 ## ▶️ Running the Application
 
@@ -244,7 +244,7 @@ The build script provides several options:
 
 ```bash
 sudo chmod +x ./build.sh
-# Build all microservice dependencies (vlm-ov-serving, multimodal-embedding-serving, vdms-dataprep etc.)
+# Build all microservice dependencies (vlm-openvino-serving, multimodal-embedding-serving, vdms-dataprep etc.)
 ./build.sh
 
 # Build only the sample applications (pipeline-manager, search-ms and UI)
