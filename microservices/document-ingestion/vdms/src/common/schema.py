@@ -85,21 +85,28 @@ class FileListResponse(DataPrepResponse):
     files: Optional[List[str]]
 
 
-class DocumentRequest(BaseModel):
-    """Request model for document/text processing with video timestamp references"""
+class VideoSummaryRequest(BaseModel):
+    """Request model for text summary processing with video timestamp references"""
 
     bucket_name: Annotated[
-        str, Field(description="The bucket name where the referenced video is stored")
+        str, Field(description="The Minio bucket name where the referenced video is stored")
     ]
     video_id: Annotated[
-        str, Field(description="The video ID (directory) containing the referenced video")
+        str, Field(description="The video ID (directory in Minio bucket) containing the referenced video")
     ]
     text_summary: Annotated[
-        str, Field(description="The text summary or document content to be embedded")
+        str, Field(description="The text summary to be embedded")
     ]
     video_start_time: Annotated[
-        float, Field(ge=0, description="The start timestamp in seconds for the video segment related to this document")
+        float,
+        Field(
+            ge=0,
+            description="The start timestamp in seconds for the video or video chunk",
+        ),
     ]
     video_end_time: Annotated[
-        float, Field(description="The end timestamp in seconds for the video segment related to this document")
+        float,
+        Field(
+            description="The end timestamp in seconds for the video or video chunk"
+        ),
     ]

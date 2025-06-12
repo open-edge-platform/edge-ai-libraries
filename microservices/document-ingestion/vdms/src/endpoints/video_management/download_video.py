@@ -7,11 +7,12 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
-from src.common import DataPrepException, settings, Strings, logger
+from src.common import DataPrepException, Strings, logger, settings
 from src.core.util import get_video_from_minio
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Data Preparation APIs"])
+
 
 @router.get(
     "/videos/download",
@@ -69,7 +70,9 @@ async def download_video(
         data, filename = get_video_from_minio(bucket_name, video_id, video_name)
 
         # Determine content-disposition header based on download flag
-        content_disposition = f"attachment; filename={filename}" if download else f"inline; filename={filename}"
+        content_disposition = (
+            f"attachment; filename={filename}" if download else f"inline; filename={filename}"
+        )
 
         # Return the video as a streaming response
         return StreamingResponse(

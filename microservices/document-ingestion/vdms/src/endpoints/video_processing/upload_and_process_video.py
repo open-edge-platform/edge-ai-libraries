@@ -9,11 +9,11 @@ from typing import Annotated, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
-from src.common import DataPrepException, settings, Strings, logger
+from src.common import DataPrepException, Strings, logger, settings
+from src.common.schema import DataPrepResponse
 from src.core.embedding import generate_video_embedding
 from src.core.util import get_minio_client, read_config
 from src.core.validation import validate_params
-from src.common.schema import DataPrepResponse
 
 router = APIRouter(tags=["Data Preparation APIs"])
 
@@ -108,7 +108,7 @@ async def upload_and_process_video(
 
         minio_client = get_minio_client()
         minio_client.ensure_bucket_exists(bucket_name)
-        
+
         # First, save the file to Minio directly from the uploaded file
         try:
             content = await file.read()

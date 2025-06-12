@@ -5,19 +5,18 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from src.common import settings
+from src.common import logger, settings
+from src.common.schema import DataPrepResponse, StatusEnum
 from src.endpoints import (
     check_health_router,
+    delete_video_router,
+    download_video_router,
+    list_videos_router,
+    prep_video_router_legacy,
     process_document_router,
-    prep_data_router,
     process_minio_video_router,
     upload_and_process_video_router,
-    list_videos_router,
-    download_video_router,
-    delete_video_router
 )
-from src.common import logger
-from src.common.schema import DataPrepResponse, StatusEnum
 
 # Dump loaded settings
 logger.debug(f"Settings loaded: {settings.model_dump()}")
@@ -55,7 +54,7 @@ app.include_router(check_health_router)
 app.include_router(process_document_router)
 
 # Video processing endpoints
-app.include_router(prep_data_router)
+app.include_router(prep_video_router_legacy)
 app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
 

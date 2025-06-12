@@ -5,11 +5,13 @@ import datetime
 import pathlib
 from typing import List
 
-from src.common import settings, Strings, logger
+from src.common import Strings, logger, settings
 from src.core.db import VDMSClient
 from src.core.util import read_config, store_video_metadata
+
 from .embedding_model import vCLIP
 from .embedding_service import vCLIPEmbeddingServiceWrapper
+
 
 async def generate_video_embedding(
     bucket_name: str,
@@ -134,7 +136,7 @@ async def generate_text_embedding(
         "video_start_time": video_start_time,
         "video_end_time": video_end_time,
         "content_type": "text",
-        "timestamp": datetime.datetime.now().isoformat()
+        "timestamp": datetime.datetime.now().isoformat(),
     }
 
     # Initialize VDMS db client for text

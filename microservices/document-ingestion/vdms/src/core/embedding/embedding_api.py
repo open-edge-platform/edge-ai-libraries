@@ -8,12 +8,11 @@ import torchvision.transforms as T
 from decord import VideoReader, cpu
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel, model_validator
-from langchain_core.embeddings import Embeddings
-from pydantic import BaseModel
 
 from src.common import logger
 
 toPIL = T.ToPILImage()
+
 
 class vCLIPEmbeddings(BaseModel, Embeddings):
     """Embedding API to embed documents, video and query for vCLIP model."""

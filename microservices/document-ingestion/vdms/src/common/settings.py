@@ -43,4 +43,5 @@ class Settings(BaseSettings):
     MULTIMODAL_EMBEDDING_NUM_FRAMES: int = 64
     MULTIMODAL_EMBEDDING_ENDPOINT: str = ""
 
+
 settings = Settings()

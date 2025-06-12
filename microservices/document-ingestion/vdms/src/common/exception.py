@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+
 class DataPrepException(Exception):
     """Custom exception for VDMS-DataPrep application."""
 

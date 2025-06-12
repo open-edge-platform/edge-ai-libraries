@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+
 class Strings:
     server_error: str = "Some error ocurred at API server. Please try later!"
     format_error: str = "Only .mp4 file is supported."
@@ -18,4 +19,3 @@ class Strings:
     embedding_error: str = "Error occurred while trying to create embeddings."
     text_validation_error: str = "Invalid text or video timestamp parameters."
     invalid_time_range: str = "End time must be greater than start time."
-

@@ -10,6 +10,7 @@ from minio import Minio
 from minio.error import S3Error
 
 from src.common import DataPrepException, Strings, logger
+from src.core.validation import sanitize_model
 
 
 class MinioClient:

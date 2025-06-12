@@ -1,9 +1,9 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import requests
 from typing import Any, List
 
+import requests
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 

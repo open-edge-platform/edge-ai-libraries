@@ -6,10 +6,10 @@ from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, HTTPException, Query
 
-from src.common import DataPrepException, settings, logger
+from src.common import DataPrepException, logger, settings
+from src.common.schema import BucketVideoListResponse, VideoInfo
 from src.core.util import get_minio_client
 from src.core.validation import validate_params
-from src.common.schema import BucketVideoListResponse, VideoInfo
 
 router = APIRouter(tags=["Data Preparation APIs"])
 

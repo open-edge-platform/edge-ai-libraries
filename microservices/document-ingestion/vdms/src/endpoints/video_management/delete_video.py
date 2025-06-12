@@ -7,9 +7,9 @@ from typing import Annotated, Optional
 from fastapi import APIRouter, HTTPException, Path, Query
 
 from src.common import DataPrepException, Strings, logger
+from src.common.schema import DataPrepResponse
 from src.core.util import get_minio_client
 from src.core.validation import validate_params
-from src.common.schema import DataPrepResponse
 
 router = APIRouter(tags=["Data Preparation APIs"])
 
@@ -92,7 +92,9 @@ async def delete_video(
                 minio_client.delete_object(bucket_name, obj.object_name)
 
             logger.info(f"Deleted all videos in directory {video_id} from bucket {bucket_name}")
-            return DataPrepResponse(message=f"All videos in directory {video_id} deleted successfully")
+            return DataPrepResponse(
+                message=f"All videos in directory {video_id} deleted successfully"
+            )
 
     except DataPrepException as ex:
         logger.error(ex)

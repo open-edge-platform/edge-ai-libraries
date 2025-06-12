@@ -6,9 +6,4 @@ from .logger import logger
 from .settings import settings
 from .strings import Strings
 
-__all__ = [
-    "DataPrepException",
-    "logger",
-    "settings",
-    "Strings"
-]
+__all__ = ["DataPrepException", "logger", "settings", "Strings"]

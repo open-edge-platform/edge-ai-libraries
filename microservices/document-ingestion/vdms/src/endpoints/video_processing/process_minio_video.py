@@ -9,13 +9,14 @@ from typing import Annotated
 
 from fastapi import APIRouter, Body, HTTPException
 
-from src.common import DataPrepException, settings, Strings, logger
+from src.common import DataPrepException, Strings, logger, settings
+from src.common.schema import DataPrepResponse, VideoRequest
 from src.core.embedding import generate_video_embedding
 from src.core.util import get_minio_client, get_video_from_minio, read_config
 from src.core.validation import sanitize_model
-from src.common.schema import DataPrepResponse, VideoRequest
 
 router = APIRouter(tags=["Data Preparation APIs"])
+
 
 @router.post(
     "/videos/minio",

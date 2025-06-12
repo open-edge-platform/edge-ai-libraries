@@ -8,6 +8,7 @@ from fastapi import APIRouter, File, Query, UploadFile
 
 from src.common import logger
 from src.common.schema import DataPrepResponse, VideoRequest
+
 from .process_minio_video import process_minio_video
 from .upload_and_process_video import upload_and_process_video
 

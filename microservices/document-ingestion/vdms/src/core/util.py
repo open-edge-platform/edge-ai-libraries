@@ -11,7 +11,7 @@ import cv2
 import yaml
 from tzlocal import get_localzone
 
-from src.common import DataPrepException, settings, Strings, logger
+from src.common import DataPrepException, Strings, logger, settings
 from src.core.minio_client import MinioClient
 
 
