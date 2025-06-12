@@ -53,12 +53,12 @@ jobs:
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
-  build-deb-and-img:
+  build-and-test-deb-and-deb_img:
     permissions:
       contents: read
       packages: read
-    name: Build .deb pkgs and deb imgs
-    uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+    name: Build and test .deb pkgs & img
+    uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
 
   filter-docker-related-changes:
     permissions:
