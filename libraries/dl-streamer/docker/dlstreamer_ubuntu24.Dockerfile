@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-FROM ubuntu:24.04 AS base
+FROM ubuntu:24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_ARG=Release
@@ -22,7 +22,6 @@ ARG DLSTREAMER_BUILD_NUMBER
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
 ENV GSTREAMER_DIR=/opt/intel/dlstreamer/gstreamer
-ENV INTEL_OPENVINO_DIR=/opt/intel/openvino_$OPENVINO_VERSION.0
 ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_VA_ALL_DRIVERS=1
@@ -36,13 +35,16 @@ COPY scripts/DLS_install_prerequisites.sh /DLS_install_prerequisites.sh
 RUN \
     chmod +x /DLS_install_prerequisites.sh && \
     /DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
-    rm -f /DLS_install_prerequisites.sh && \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends libgirepository1.0-dev=\* libcairo2-dev=\* g++=\* \
-    python3-pip=\* python3-gi=\* python-gi-dev=\* python3-dev=\* python3-venv=\* \
-    libdrm2=\* libva2=\* libva-drm2=\* libgudev-1.0-0=\* libopus0=\* libsrtp2-1=\* \ 
-    libogg0=\* libx265-199=\* libx264-164=\* libde265-0=\* libvpx9=\* \
-    libjack0=\* libwayland-client0=\* libxv1=\*
+    apt-get install -y -q --no-install-recommends wget=\* xz-utils=\* python3-pip=\* python3-gi=\* gcc-multilib=\* libglib2.0-dev=\* \
+    flex=\* bison=\* autoconf=\* automake=\* libtool=\* libogg-dev=\* make=\* g++=\* libva-dev=\* yasm=\* libglx-dev=\* libdrm-dev=\* \
+    python-gi-dev=\* python3-dev=\* libtbb12=\* gpg=\* unzip=\* libopencv-dev=\* libgflags-dev=\* \
+    libgirepository1.0-dev=\* libx265-dev=\* libx264-dev=\* libde265-dev=\* gudev-1.0=\* libusb-1.0=\* nasm=\* python3-venv=\* \
+    libcairo2-dev=\* libxt-dev=\* libgirepository1.0-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* libcurl4-openssl-dev=\* \
+    libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
+    linux-libc-dev=\* libpmix2t64=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 RUN \
     useradd -ms /bin/bash dlstreamer && \
@@ -75,21 +77,9 @@ RUN \
     exceptiongroup==1.2.2 \
     iniconfig==2.0.0
 
-ENV PATH="/python3venv/bin:${PATH}"
-
 USER root
 
-FROM base AS builder
-
-RUN \
-    apt-get install -y -q --no-install-recommends wget=\* xz-utils=\* gcc-multilib=\* libglib2.0-dev=\* \
-    flex=\* bison=\* autoconf=\* automake=\* libtool=\* libogg-dev=\* make=\* libva-dev=\* yasm=\* libglx-dev=\* libdrm-dev=\* \
-    libtbb12=\* gpg=\* unzip=\* libgflags-dev=\* libusb-1.0=\* nasm=\* gudev-1.0=\* libde265-dev=\* libx265-dev=\* \
-    libx264-dev=\* libxt-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* libcurl4-openssl-dev=\* libssh2-1-dev=\* \
-    cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
-    linux-libc-dev=\* libpmix2t64=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+ENV PATH="/python3venv/bin:${PATH}"
 
 
 FROM builder AS ffmpeg-builder
@@ -353,6 +343,7 @@ RUN \
     find /usr/local/lib -regextype grep -regex ".*libswscale.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     cp ${GSTREAMER_DIR}/lib/libvorbis* /deb-pkg/usr/local/lib/ && \
+    find /usr/local/lib -regextype grep -regex ".*libpaho.*so\.[0-9].[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     cp /usr/local/lib/libpaho* /deb-pkg/usr/local/lib/ && \
     cp /usr/local/lib/libav* /deb-pkg/usr/local/lib/ && \
     cp ${GSTREAMER_DIR}/lib/libgst* /deb-pkg/usr/lib && \
@@ -379,17 +370,24 @@ RUN \
 RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb
 
 
-FROM base AS dlstreamer
+FROM ubuntu:24.04 AS dlstreamer
+
 
 RUN \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends gnupg=\* ca-certificates=\* wget=\* libtbb-dev=\* cmake=\* vim=\* numactl=\* && \
+    apt-get install -y -q --no-install-recommends gcc=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+COPY --from=builder /DLS_install_prerequisites.sh /DLS_install_prerequisites.sh 
+RUN chmod +x DLS_install_prerequisites.sh && \
+    ./DLS_install_prerequisites.sh --on-host-or-docker=docker_ubuntu24 && \
+    rm -f DLS_install_prerequisites.sh
+
+COPY --from=dlstreamer-dev /GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB /GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
 RUN \
     echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
-    wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
     apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
 
 RUN mkdir -p /debs
@@ -403,8 +401,14 @@ RUN \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/* && \
     rm -rf /debs && \
+    useradd -ms /bin/bash dlstreamer && \
     chown -R dlstreamer: /opt && \
     chmod -R u+rw /opt
+
+RUN \
+    mkdir /python3venv && \
+    chown -R dlstreamer: /python3venv && \
+    chmod -R u+w /python3venv
 
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
@@ -424,7 +428,12 @@ RUN \
 WORKDIR /home/dlstreamer
 USER dlstreamer
 
+RUN \
+    python3 -m venv /python3venv && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
+
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
-  CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]
+    CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]
 
 CMD ["/bin/bash"]
