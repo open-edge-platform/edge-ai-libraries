@@ -1,5 +1,5 @@
-name: "CodeQL Conditional"
-run-name: "CodeQL Conditional"
+name: "CodeQL Conditional (on host)"
+run-name: "CodeQL Conditional (on host)"
 on:
   push:
     branches: [ "nsz-codeql" ]
@@ -149,6 +149,8 @@ jobs:
           echo "Install OpenVINO Toolkit and metapublish dependencies"
           cd edge-ai-libraries-repo/libraries/dl-streamer
           sudo ./scripts/install_dependencies/install_openvino.sh
+          sudo -E /opt/intel/openvino_2025/install_dependencies/install_openvino_dependencies.sh
+          source /opt/intel/openvino_2025/setupvars.sh
           sudo ./scripts/install_metapublish_dependencies.sh
 
           echo "Build DLStreamer"

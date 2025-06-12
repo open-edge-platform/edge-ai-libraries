@@ -2,7 +2,7 @@ name: "CodeQL Conditional"
 run-name: "CodeQL Conditional"
 on:
   push:
-    branches: [ "nsz-codeql" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 permissions: {}
