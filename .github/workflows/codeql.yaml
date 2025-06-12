@@ -141,7 +141,13 @@ jobs:
         run: |  
           docker run --rm dev24-codeql bash -c "\
             codeql database create codeql-db --language=cpp --source-root=. --overwrite && \
-            codeql database analyze codeql-db github/codeql-cpp-queries --format=sarifv2 --output=results.sarif"
+            codeql database analyze codeql-db codeql-repo/cpp/ql/src/ --format=sarifv2.1.0 --output=results.sarif && \
+            docker cp dev24-codeql:results.sarif results.sarif"
+
+      - name: Upload SARIF to GitHub Security tab
+        uses: github/codeql-action/upload-sarif@v3
+        with:
+          sarif_file: results.sarif
 
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
