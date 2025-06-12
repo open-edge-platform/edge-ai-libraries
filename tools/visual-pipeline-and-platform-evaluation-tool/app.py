@@ -817,6 +817,35 @@ def create_interface():
             outputs=[run_button, benchmark_button, stop_button],
             queue=False,
         ).then(
+            # Clear output components here
+            lambda: [
+                gr.update(value=""), 
+                gr.update(value=None),
+            ],
+            None,
+            [best_config_textbox, output_video_player],
+        ).then(
+            # Reset the telemetry plots
+            lambda: (
+                globals().update(
+                    stream_dfs=[
+                        pd.DataFrame(columns=["x", "y"])
+                        for _ in range(len(chart_titles))
+                    ]
+                )
+                or [
+                    plots[i].value.update(data=[])
+                    for i in range(len(plots))
+                ]
+                or plots
+            ),
+            outputs=plots,
+        ).then(
+            # Start the telemetry timer
+            lambda: gr.update(active=True),
+            inputs=None,
+            outputs=timer,
+        ).then(
             # Execute the benchmark
             on_benchmark,
             inputs=[
@@ -836,6 +865,16 @@ def create_interface():
                 input_video_player,
             ],
             outputs=[best_config_textbox],
+        ).then(
+            # Stop the telemetry timer
+            lambda: gr.update(active=False),
+            inputs=None,
+            outputs=timer,
+        ).then(
+            # Generate the persistent telemetry data
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            inputs=None,
+            outputs=plots,
         ).then(
             # Reset the state of the buttons
             lambda: [
@@ -926,6 +965,30 @@ def create_interface():
                                 lambda: current_pipeline.diagram(),
                                 None,
                                 pipeline_image,
+                            ).then(
+                                # Clear output components here
+                                lambda: [
+                                    gr.update(value=""), 
+                                    gr.update(value=None),
+                                ],
+                                None,
+                                [best_config_textbox, output_video_player],
+                            ).then(
+                                # Reset the telemetry plots
+                                lambda: (
+                                    globals().update(
+                                        stream_dfs=[
+                                            pd.DataFrame(columns=["x", "y"])
+                                            for _ in range(len(chart_titles))
+                                        ]
+                                    )
+                                    or [
+                                        plots[i].value.update(data=[])
+                                        for i in range(len(plots))
+                                    ]
+                                    or plots
+                                ),
+                                outputs=plots,
                             ).then(
                                 lambda: gr.Tabs(selected=1),
                                 None,
