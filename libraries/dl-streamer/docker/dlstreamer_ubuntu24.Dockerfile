@@ -331,8 +331,6 @@ RUN \
     mkdir -p /deb-pkg/opt/openh264/ && \
     mkdir -p /deb-pkg/opt/rdkafka && \
     mkdir -p /deb-pkg/opt/ffmpeg && \
-    mkdir -p /deb-pkg/usr/local/lib/ && \
-    mkdir -p /deb-pkg/usr/lib/ && \
     cp -r ${DLSTREAMER_DIR} /deb-pkg/opt/intel/dlstreamer && \
     cp -rT ${GSTREAMER_DIR} /deb-pkg/opt/intel/dlstreamer/gstreamer && \
     cp /usr/local/lib/libopencv*.so.410 /deb-pkg/opt/opencv/ && \
@@ -342,11 +340,6 @@ RUN \
     find /usr/local/lib -regextype grep -regex ".*libav.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     find /usr/local/lib -regextype grep -regex ".*libswscale.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
-    cp ${GSTREAMER_DIR}/lib/libvorbis* /deb-pkg/usr/local/lib/ && \
-    find /usr/local/lib -regextype grep -regex ".*libpaho.*so\.[0-9].[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
-    cp /usr/local/lib/libav* /deb-pkg/usr/local/lib/ && \
-    cp ${GSTREAMER_DIR}/lib/libgst* /deb-pkg/usr/lib && \
-    cp -r ${GSTREAMER_DIR}/lib/gstreamer-1.0/ /deb-pkg/usr/lib/ && \
     cp -r /usr/local/include/opencv4/* /deb-pkg/opt/opencv/include && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/archived && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docker && \
@@ -371,10 +364,9 @@ RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLS
 
 FROM ubuntu:24.04 AS dlstreamer
 
-
 RUN \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends gcc=\* && \
+    apt-get install -y -q --no-install-recommends wget=\* gcc=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
