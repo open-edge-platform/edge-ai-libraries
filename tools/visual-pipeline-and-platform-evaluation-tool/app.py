@@ -359,7 +359,7 @@ def on_run(data):
     video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
 
     # Validate channels
-    if arguments['recording_channels'] + arguments['inferencing_channels'] == 0:
+    if arguments["recording_channels"] + arguments["inferencing_channels"] == 0:
         raise gr.Error(
             "Please select at least one channel for recording or inferencing.",
             duration=10,
@@ -369,7 +369,7 @@ def on_run(data):
         pipeline=current_pipeline,
         constants=constants,
         param_grid=param_grid,
-        channels=(arguments['recording_channels'], arguments['inferencing_channels']),
+        channels=(arguments["recording_channels"], arguments["inferencing_channels"]),
         elements=gst_inspector.get_elements(),
     )
     optimizer.optimize()
@@ -398,10 +398,10 @@ def on_benchmark(data):
 
     # Initialize the benchmark class
     bm = Benchmark(
-        video_path=arguments['input_video_player'],
+        video_path=arguments["input_video_player"],
         pipeline_cls=current_pipeline,
-        fps_floor=arguments['fps_floor'],
-        rate=arguments['ai_stream_rate'],
+        fps_floor=arguments["fps_floor"],
+        rate=arguments["ai_stream_rate"],
         parameters=param_grid,
         constants=constants,
         elements=gst_inspector.get_elements(),
@@ -754,6 +754,7 @@ def create_interface():
                 or [
                     plots[i].value.update(data=[])
                     for i in range(len(plots))
+                    if hasattr(plots[i], "value") and plots[i].value is not None
                 ]
                 or plots
             ),
@@ -801,7 +802,7 @@ def create_interface():
         ).then(
             # Clear output components here
             lambda: [
-                gr.update(value=""), 
+                gr.update(value=""),
                 gr.update(value=None),
             ],
             None,
@@ -818,6 +819,7 @@ def create_interface():
                 or [
                     plots[i].value.update(data=[])
                     for i in range(len(plots))
+                    if hasattr(plots[i], "value") and plots[i].value is not None
                 ]
                 or plots
             ),
@@ -935,7 +937,7 @@ def create_interface():
                             ).then(
                                 # Clear output components here
                                 lambda: [
-                                    gr.update(value=""), 
+                                    gr.update(value=""),
                                     gr.update(value=None),
                                 ],
                                 None,
@@ -952,6 +954,8 @@ def create_interface():
                                     or [
                                         plots[i].value.update(data=[])
                                         for i in range(len(plots))
+                                        if hasattr(plots[i], "value")
+                                        and plots[i].value is not None
                                     ]
                                     or plots
                                 ),
