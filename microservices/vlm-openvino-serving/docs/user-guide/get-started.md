@@ -1,6 +1,6 @@
 # Get Started
 
-The **Audio Intelligence microservice** enables developers to create speech transcription from video files. This section provides step-by-step instructions to:
+The **VLM OpenVINO serving microservice** enables support for VLM models that are not supported yet in OpenVINO model serving. This section provides step-by-step instructions to:
 
 - Set up the microservice using a pre-built Docker image for quick deployment.
 - Run predefined tasks to explore its functionality.
@@ -15,304 +15,376 @@ Before you begin, ensure the following:
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
+## Set Environment Values
+
+First, set the required VLM_MODEL_NAME environment variable:
+
+```bash
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+```
+
+> **_NOTE:_** You can change the model name, model compression format, device and the number of Uvicorn workers by editing the `setup.sh` file.
+
+
+Set the environment with default values by running the following script:
+
+```bash
+source setup.sh
+```
+
+The server takes the runtime values from .env file
+
+- `http_proxy`: Specifies the HTTP proxy server URL to be used for HTTP requests.
+- `https_proxy`: Specifies the HTTPS proxy server URL to be used for HTTPS requests.
+- `no_proxy_env`: A comma-separated list of domain names or IP addresses that should bypass the proxy.
+- `VLM_MODEL_NAME`: The name or path of the model to be used, e.g., `microsoft/Phi-3.5-vision-instruct`.
+- `VLM_COMPRESSION_WEIGHT_FORMAT`: Specifies the format for compression weights, e.g., `int4`.
+- `VLM_DEVICE`: Specifies the device to be used for computation, e.g., `CPU`.
+- `VLM_SERVICE_PORT`: The port number on which the FastAPI server will run, e.g., `9764`.
+- `TAG`[Optional]: Specifies the tag for the Docker image, e.g., `latest`.
+- `REGISTRY`[Optional]: Specifies the Docker registry URL.
+- `VLM_SEED` [Optional]: An optional environment variable used to set the seed value for deterministic behavior in the VLM inference Serving. This can be useful for debugging or reproducing results. If not provided, a random seed will be used by default.
+
 ## Quick Start with Docker
 
-This method provides the fastest way to get started with the microservice.
+The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
-1. Pull the Docker* image from Docker Hub
-    ```sh
-    docker pull intel/model-registry:1.0.3
-    ```
+_Document how to get prebuilt docker image_
 
-1. Create a `.env` file with the following environment variables:
-    ```sh
-    HOST_IP_ADDRESS=
-    MR_INSTALL_PATH=/opt/intel/mr
+## Running the Server with CPU
 
-    ENABLE_HTTPS_MODE=false
+To run the server using Docker Compose, use the following command:
 
-    # Docker security
-    MR_USER_NAME=mruser
-    MR_UID=2025
+```bash
+docker compose up -d
+```
 
-    #PostgreSQL service & client adapter
-    MR_PSQL_HOSTNAME=mr_postgres
-    MR_PSQL_PASSWORD=
-    MR_PSQL_DATABASE=model_registry_db
-    MR_PSQL_PORT=5432
+## Running the Server with GPU
 
-    # MinIO service & client
-    MR_MINIO_ACCESS_KEY=
-    MR_MINIO_SECRET_KEY=
-    MR_MINIO_BUCKET_NAME=model-registry
-    MR_MINIO_HOSTNAME=mr_minio
-    MR_MINIO_SERVER_PORT=8000
+See the `/device` `GET` endpoint to fetch the GPU device name. If multiple GPUs are available then we have to pass like `GPU.0`. If only one GPU device is present the we can pass `GPU`.
+Change the `VLM_DEVICE=GPU` in `setup.sh` script and run it again.
 
-    # Model Registry service
-    MR_VERSION=1.0.3
-    MR_MIN_LOG_LEVEL=INFO
-    MR_SERVER_PORT=8111
+To run the server using the GPU Docker Compose file, use the following command:
 
-    # MLflow
-    MR_MLFLOW_S3_ENDPOINT_URL=http://127.0.0.1:8000
-    ```
+```bash
+docker compose up -d
+```
 
-1. Enter the desired values for the REQUIRED [Environment Variables](environment-variables.md) in the `.env` file:
-    1. MR_PSQL_PASSWORD
-    2. MR_MINIO_ACCESS_KEY
-    3. MR_MINIO_SECRET_KEY
+## Sample CURL Commands
 
-1. Create directories to be used for persistent storage by the Postgres* and MinIO* Docker containers
-    ```sh
-    set -a
-    
-    source .env
-    
-    set +a
-    
-    mkdir -p $MR_INSTALL_PATH/data/mr_postgres
+### Test with Image URL
 
-    mkdir -p $MR_INSTALL_PATH/data/mr_minio
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "microsoft/Phi-3.5-vision-instruct",
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Describe the activities and events captured in the image. Provide a detailed description of what is happening. While referring to an object or person or entity, identify them as uniquely as possible such that it can be tracked in future. Keep attention to detail, but avoid speculation or unnecessary attribution of details."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "https://github.com/openvinotoolkit/openvino_notebooks/assets/29454499/d5fbbd1a-d484-415c-88cb-9986625b7b11"
+                    }
+                }
+            ]
+        }
+    ],
+    "max_completion_tokens": 500,
+    "temperature": 0.1,
+    "top_p": 0.3,
+    "frequency_penalty": 1
+}'
+```
 
-    useradd -u $MR_UID $MR_USER_NAME
+### Test with Base64 Image
 
-    chown -R $MR_USER_NAME:$MR_USER_NAME $MR_INSTALL_PATH/data/mr_postgres $MR_INSTALL_PATH/data/mr_minio
-    ```
-    * **Note**: The data in these directories will persist after the containers are removed. If you would like to subsequently start the containers with no pre-existing data, delete the contents in the directories before starting the containers.
- 
-1. Create a `docker-compose.yml` file with the following configurations:
-    ```yaml
-    services:
-      model-registry:
-        image: intel/model-registry:${MR_VERSION}
-        container_name: model-registry
-        hostname: model-registry
-        ipc: "none"
-        ports:
-        - "${HOST_IP_ADDRESS}:32002:${MR_SERVER_PORT}"
-        restart: unless-stopped
-        deploy:
-          resources:
-            limits:
-              memory: 4096mb
-              cpus: '0.30'
-              pids: 200
-            reservations:
-              memory: 2048mb
-              cpus: '0.15'
-        security_opt:
-          - no-new-privileges
-        healthcheck:
-          test: ["CMD-SHELL", "exit", "0"]
-        environment:
-          AppName: "ModelRegistry"
-          MIN_LOG_LEVEL: ${MR_MIN_LOG_LEVEL}
-          ENABLE_HTTPS_MODE: ${ENABLE_HTTPS_MODE}
-          MLFLOW_TRACKING_URI: postgresql+psycopg2://${MR_USER_NAME}:${MR_PSQL_PASSWORD}@mr_postgres:${MR_PSQL_PORT}/${MR_PSQL_DATABASE}
-          MLFLOW_S3_ENDPOINT_URL: ${MR_MLFLOW_S3_ENDPOINT_URL}
-          MINIO_HOSTNAME: ${MR_MINIO_HOSTNAME}
-          MINIO_SERVER_PORT: ${MR_MINIO_SERVER_PORT}
-          MINIO_ACCESS_KEY: ${MR_MINIO_ACCESS_KEY}
-          MINIO_SECRET_KEY: ${MR_MINIO_SECRET_KEY}
-          MINIO_BUCKET_NAME: ${MR_MINIO_BUCKET_NAME}
-          SERVER_PORT: ${MR_SERVER_PORT}
-          LSHOST: host.docker.internal
-          SERVER_CERT: /run/secrets/ModelRegistry_Server/public.crt
-          CA_CERT: /run/secrets/ModelRegistry_Server/server-ca.crt
-          SERVER_PRIVATE_KEY: /run/secrets/ModelRegistry_Server/private.key
-          no_proxy: mr_minio
-          NO_PROXY: mr_minio
-        volumes:
-          - ./Certificates/ssl/:/run/secrets/ModelRegistry_Server:ro
-        extra_hosts:
-          - "host.docker.internal:host-gateway"
-        networks:
-          - mr
-      mr_postgres:
-        image: postgres:13
-        container_name: mr_postgres
-        hostname: mr_postgres
-        restart: unless-stopped
-        security_opt:
-          - no-new-privileges
-        environment:
-          AppName: "ModelRegistry"
-          POSTGRES_USER: ${MR_USER_NAME}
-          POSTGRES_PASSWORD: ${MR_PSQL_PASSWORD}
-          POSTGRES_DB: ${MR_PSQL_DATABASE}
-        volumes:
-        - ${MR_INSTALL_PATH}/data/mr_postgres:/var/lib/postgresql/data
-        expose:
-          - ${MR_PSQL_PORT}
-        user: "${MR_UID}:${MR_UID}"
-        networks:
-          - mr
-      mr_minio:
-        image: minio/minio:RELEASE.2020-12-12T08-39-07Z
-        container_name: mr_minio
-        hostname: mr_minio
-        ipc: "none"
-        expose:
-          - ${MR_MINIO_SERVER_PORT}
-        volumes:
-          - ./Certificates/ssl/:/certs/:rw
-          - ${MR_INSTALL_PATH}/data/mr_minio:/data
-        networks:
-          - mr
-        restart: unless-stopped
-        security_opt:
-          - no-new-privileges
-        environment:
-          MR_USER_NAME: ${MR_USER_NAME}
-          MINIO_ACCESS_KEY: ${MR_MINIO_ACCESS_KEY}
-          MINIO_SECRET_KEY: ${MR_MINIO_SECRET_KEY}
-        command: server --address ":8000" --certs-dir /certs /data
-    networks:
-      mr:
-        driver: bridge
-    ```
-      
-1. Start and run the defined services in the `docker-compose.yml` file as Docker* containers
-    ```sh
-    docker compose up -d
-    ```
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "microsoft/Phi-3.5-vision-instruct",
+    "max_completion_tokens": 100,
+    "messages": [
+        {
+            "role": "user",
+            "content": [
+                {
+                    "type": "text",
+                    "text": "Describe this image."
+                },
+                {
+                    "type": "image_url",
+                    "image_url": {
+                        "url": "data:image/jpeg;base64,<base64 image value>"
+                    }
+                }
+            ]
+        }
+    ]
+}'
+```
 
-1. **Verify the Microservice**:
-    Check that the container is running:
-    ```bash
-    docker ps
-    ```
-    - **Expected output**: The container appears in the list with the status “Up.”
+### Test with Multiple Images
 
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "microsoft/Phi-3.5-vision-instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Describe these image. Generate the output in json format as {image_1:Description1, image_2:Description2}"
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "https://preschool.org/wp-content/uploads/2021/08/What-to-do-during-your-preschool-reading-time-855x570.jpg"
+            }
+          },
+          {
+            "type": "image_url",
+            "image_url": {
+              "url": "https://images.squarespace-cdn.com/content/v1/659e1d627cfb464f89ed5d6d/16cb28f5-86eb-4bdd-a240-fb3316523aee/AdobeStock_663850233.jpeg"
+            }
+          }
+        ]
+      }
+    ],
+    "max_completion_tokens": 200
+  }'
+```
 
-## Storing a Model in the Registry
-1. **Send a POST request to store a model.**
-   * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
+### Test continuous chat
+
+- Method 1 (using curl call):
 
     ```bash
-    curl -X POST 'PROTOCOL://HOSTNAME:32002/models' \
-    --header 'Content-Type: multipart/form-data' \
-    --form 'name="MODEL_NAME"' \
-    --form 'file=@MODEL_ARTIFACTS_ZIP_FILE_PATH;type=application/zip' \
-    --form 'version="MODEL_VERSION"'
+
+    curl --location 'http://localhost:9764/v1/chat/completions' \
+    --header 'Content-Type: application/json' \
+    --data '{
+        "model": "microsoft/Phi-3.5-vision-instruct",
+        "messages": [
+        {
+            "role": "user",
+            "content": "Describe this video and remember this number: 4245"
+        },
+        {
+            "role": "assistant",
+            "content": "The video appears to be taken at night, as indicated by the darkness and artificial lighting. The timestamp on the video suggests it was recorded early in the morning on August 25, 2024, in the Eastern Time Zone (ET). The camera is labeled indicates that it is a body-worn camera used by law enforcement.\n\nThe scene shows a sidewalk bordered by a metal fence on both sides. There are trees lining the sidewalk, and some people can be seen walking in the distance. In the background, there are parked cars and what appears to be a building with illuminated windows. The overall atmosphere seems calm, with no immediate signs of distress or urgency.\n\nRemember the number: 4245"
+        },
+        {
+            "role": "user",
+            "content": "What is the number ?"
+        }
+        ],
+        "max_completion_tokens": 1000
+    }'
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_NAME` with the name of the model to be stored.
-    * Replace `MODEL_ARTIFACTS_ZIP_FILE_PATH` with the file path to the zip file containing the model's artifacts.
-    * Replace `MODEL_VERSION` with the version of the model to be stored.
+- Method 2 (using openai python client):
 
-    For the complete list of supported model properties, visit `PROTOCOL://HOSTNAME:32002/docs`.
+    ```python
+    from openai import OpenAI
 
-1. **Parse the response.**
-    * The response will include the ID of the newly stored model.
+    client = OpenAI(
+        base_url = "http://localhost:9764/v1",
+        api_key="",
+    )
 
-## Fetching a List of Models in the Registry
+    # Define the conversation history
+    messages = [
+        {
+            "role": "user",
+            "content": "Describe this video and remember this number: 4245"
+        },
+        {
+            "role": "assistant",
+            "content": "The video appears to be taken at night, as indicated by the darkness and artificial lighting. The timestamp on the video suggests it was recorded early in the morning on August 25, 2024, in the Eastern Time Zone (ET). The camera is labeled indicates that it is a body-worn camera used by law enforcement.\n\nThe scene shows a sidewalk bordered by a metal fence on both sides. There are trees lining the sidewalk, and some people can be seen walking in the distance. In the background, there are parked cars and what appears to be a building with illuminated windows. The overall atmosphere seems calm, with no immediate signs of distress or urgency.\n\nRemember the number: 4245"
+        },
+        {
+            "role": "user",
+            "content": "What did I ask you to do? What is the number?"
+        }
+    ]
 
-1. **Send a GET request to retrieve a list of models.**
-    * Use the following `curl` command to send a GET request to the `/models` endpoint. 
-
-    ```bash
-    curl -X GET 'PROTOCOL://HOSTNAME:32002/models'
+    # Send the request to the model
+    response = client.chat.completions.create(
+        model="microsoft/Phi-3.5-vision-instruct",
+        messages=messages,
+        max_completion_tokens=1000,
+    )
+    # Print the model's response
+    print(response.choices[0].message.content)
     ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
+### Test **video** type input
 
-1. **Include query parameters (optional).**
-    * If you want to filter the list, you can include query parameters in the URL. 
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models. Although other models will accept input as `video` type, but internally they will process it as multi-image input only.
 
-    * For example, to filter by `project_name`:
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "microsoft/Phi-3.5-vision-instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Consider these images as frames of single video. Describe this video and sequence of events."
+          },
+          {
+            "type": "video",
+            "video": [
+                "http://localhost:8080/chunk_6_frame_3.jpeg",
+                "http://localhost:8080/chunk_6_frame_4.jpeg"
+            ]
+          }
+        ]
+      }
+    ],
+    "max_completion_tokens": 1000
+  }'
+```
 
-    ```bash
-    curl -X GET 'PROTOCOL://HOSTNAME:32002/models?project_name=PROJECT_NAME'
-    ```
+### Test **video_url** type input
 
-    * Replace `PROJECT_NAME` with the project_name associated to a model stored in the registry.
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
+> **_NOTE:_** `max_pixels` and `fps` are optional parameters.
 
-    * For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Describe this video"
+          },
+          {
+            "type": "video_url",
+            "video_url": {
+              "url": "http://localhost:8080/original-1sec.mp4"
+            },
+            "max_pixels": "360*420",
+            "fps": 1
+          }
+        ]
+      }
+    ],
+    "max_completion_tokens": 1000,
+    "stream":true
+  }'
+```
 
-1. **Parse the response.**
-    * The response will be a list containing the metadata of models stored in the registry.
+### Test **video_url** as base64 encoded video input
 
-## Getting a specific model in the Registry
+> **_NOTE:_** video_url type input is only supported with the `Qwen/Qwen2.5-VL-7B-Instruct` or `Qwen/Qwen2-VL-2B-Instruct` models.
+> **_NOTE:_** `max_pixels` and `fps` are optional parameters.
 
-1. **Send a GET request to get a model.**
-    * Use the following `curl` command to send a GET request to the `/models/MODEL_ID` endpoint.
+```bash
+curl --location 'http://localhost:9764/v1/chat/completions' \
+--header 'Content-Type: application/json' \
+--data '{
+    "model": "Qwen/Qwen2.5-VL-7B-Instruct",
+    "messages": [
+      {
+        "role": "user",
+        "content": [
+          {
+            "type": "text",
+            "text": "Describe this video"
+          },
+          {
+            "type": "video_url",
+            "video_url": {
+              "url": "data:video/mp4;base64,{video_base64}"
+            }
+          }
+        ]
+      }
+    ],
+    "max_completion_tokens": 1000,
+    "stream":true
+  }'
+```
 
-    ```bash
-    curl -L -X GET 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID'
-    ```
+### Test GET Device
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
+To get the list of available devices
 
-1. **Parse the response.**
-    * The response will have a `200 OK` status code and the metadata for a model.
+```bash
+curl --location --request GET 'http://localhost:9764/device'
+```
 
-## Updating 1 or more properties for a specific model in the Registry
+### Test POST Device details
 
-1. **Send a PUT request to update properties of a model.**
-    * Use the following `curl` command to send a PUT request to the `/models` endpoint.
+To get specific device details
 
-    ```bash
-    curl -L -X PUT 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID' \
-    --form 'score="NEW_MODEL_SCORE"' \
-    --form 'format="NEW_MODEL_FORMAT"'
-    ```
+```bash
+curl --location --request POST 'http://localhost:9764/device?device=GPU' \
+--header 'Content-Type: application/json'
+```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
-    * Replace`NEW_MODEL_SCORE`, and `NEW_MODEL_FORMAT` with the desired new values to be stored.
+## Running Tests and Generating Coverage Report
 
-    * For the complete list of supported query parameters, visit `PROTOCOL://HOSTNAME:32002/docs`.
+To ensure the functionality of the microservice and measure test coverage, follow these steps:
 
-1. **Parse the response.**
-    * The response will be a JSON object containing a status of the operation and a message.
+1. **Install Dependencies**  
+   Install the required dependencies, including development dependencies, using:
 
-## Downloading files for a specific model in the Registry
+   ```bash
+   poetry install --with test
+   ```
 
-1. **Send a GET request to download files associated with a model in the Registry.**
-    * Use the following `curl` command to send a GET request to the `/models/MODEL_ID/files` endpoint.
+2. **Run Tests with Poetry**  
+   Use the following command to run all tests:
 
-    ```bash
-    curl -X GET 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID/files'
-    ```
+   ```bash
+   poetry run pytest
+   ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
+3. **Run Tests with Coverage**  
+   To collect coverage data while running tests, use:
 
+   ```bash
+   poetry run coverage run --source=src -m pytest
+   ```
 
-1. **Parse the Response.**
-    * The response will be a Zip file.
+4. **Generate Coverage Report**  
+   After running the tests, generate a coverage report:
 
-## Deleting a Model in the Registry
+   ```bash
+   poetry run coverage report -m
+   ```
 
-1. **Send a DELETE request to delete a model.**
-    * Use the following `curl` command to send a DELETE request to the `/models/MODEL_ID` endpoint.
+5. **Generate HTML Coverage Report (Optional)**  
+   For a detailed view, generate an HTML report:
 
-    ```bash
-    curl -L -X DELETE 'PROTOCOL://HOSTNAME:32002/models/MODEL_ID'
-    ```
+   ```bash
+   poetry run coverage html
+   ```
 
-    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
-      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-    * Replace `MODEL_ID` with the `id` of the desired model.
+   Open the `htmlcov/index.html` file in your browser to view the report.
 
-1. **Parse the response.**
-    * The response will have a `200 OK` status code and an empty body.
-
-
+These steps will help you verify the functionality of the microservice and ensure adequate test coverage.
 
 ## Advanced Setup Options
 
@@ -320,10 +392,6 @@ For alternative ways to set up the microservice, see:
 
 <!-- - [How to Build from Source](./how-to-build-from-source.md) -->
 - [How to Deploy with Helm](./how-to-deploy-with-helm.md)
-
-## Next Steps
-
-- [How to interface with a remote Intel® Geti™ Software using the Model Registry microservice](./how-to-interface-with-intel-geti-platform.md)
 
 ## Troubleshooting
 
