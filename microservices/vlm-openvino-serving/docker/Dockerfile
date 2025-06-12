@@ -18,6 +18,8 @@ FROM python:3.12.10-slim
 
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
 
+RUN groupadd -g 1001 appuser && useradd -m -s /bin/bash -u 1001 -g 1001 appuser
+
 RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
     curl 
 
@@ -34,6 +36,11 @@ RUN apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/l
 WORKDIR /app
 COPY . .
 RUN chmod +x /app/scripts/compress_model.sh
+
+RUN mkdir -p /root/.cache/huggingface /app/ov-model && \
+    chown -R appuser:appuser /root/.cache/huggingface /app/ov-model
+
+USER appuser
 
 EXPOSE 8000
 
