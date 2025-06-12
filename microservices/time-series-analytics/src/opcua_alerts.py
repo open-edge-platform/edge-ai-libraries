@@ -115,4 +115,4 @@ async def receive_alert(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI server is running"}
+    return {"message": "FastAPI server is running"} 
