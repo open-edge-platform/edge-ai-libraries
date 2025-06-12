@@ -12,7 +12,7 @@
 .. toctree::
    :caption: How to
 
-   how-to-deploy-with-helm
+   how-to-build-from-source
 
 .. toctree::
    :caption: References

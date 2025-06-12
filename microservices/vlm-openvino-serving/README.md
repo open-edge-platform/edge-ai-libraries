@@ -15,7 +15,6 @@ Below, you'll find links to detailed documentation to help you get started, conf
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
-  - [How to Deploy with Helm](docs/user-guide/how-to-deploy-with-helm.md): Guide for deploying the microservice using Helm.
 
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.

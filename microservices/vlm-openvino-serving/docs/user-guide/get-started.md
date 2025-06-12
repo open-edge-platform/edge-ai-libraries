@@ -386,13 +386,6 @@ To ensure the functionality of the microservice and measure test coverage, follo
 
 These steps will help you verify the functionality of the microservice and ensure adequate test coverage.
 
-## Advanced Setup Options
-
-For alternative ways to set up the microservice, see:
-
-<!-- - [How to Build from Source](./how-to-build-from-source.md) -->
-- [How to Deploy with Helm](./how-to-deploy-with-helm.md)
-
 ## Troubleshooting
 
 1. **Docker Container Fails to Start**:

@@ -263,12 +263,6 @@ Use **MinIO** backend (default) when:
 - Building a clustered/distributed system
 - Need for better data organization and retention policies
 
-### Deploy from Helm chart
-For alternative ways to set up the microservice, see:
-
-<!-- - [How to Build from Source](./how-to-build-from-source.md) -->
-- [How to Deploy with Helm](./how-to-deploy-with-helm.md)
-
 ## Next Steps
 
 
