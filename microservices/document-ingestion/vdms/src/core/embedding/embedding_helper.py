@@ -8,8 +8,55 @@ from src.common import Strings, logger, settings
 from src.core.db import VDMSClient
 from src.core.util import read_config, store_video_metadata
 
+from .embedding_api import vCLIPEmbeddings
 from .embedding_model import vCLIP
 from .embedding_service import vCLIPEmbeddingServiceWrapper
+
+
+def _setup_vdms_client(
+    video_metadata_path: pathlib.Path | None = None, text_metadata: dict = {}
+) -> VDMSClient:
+    """
+    Setup VDMS client with the provided video metadata path and text metadata.
+
+    Args:
+        video_metadata_path: Path to the video metadata file
+        text_metadata: Metadata dictionary associated with the text
+
+    Returns:
+        An instance of VDMSClient
+    """
+    # Read configuration
+    config = read_config(settings.CONFIG_FILEPATH, type="yaml")
+    if config is None:
+        raise Exception(Strings.config_error)
+
+    vector_dimension = config["embeddings"]["vector_dimensions"]
+
+    # Setup embedding APIs
+    if settings.MULTIMODAL_EMBEDDING_ENDPOINT:
+        # Access the embedding API from an external REST microservice
+        embedding_service = vCLIPEmbeddingServiceWrapper(
+            api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
+            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
+            num_frames=settings.MULTIMODAL_EMBEDDING_NUM_FRAMES,
+        )
+    else:
+        # Access the embedding API based on vCLIP model locally
+        embedding_service = vCLIPEmbeddings(model=vCLIP(config["embeddings"]))
+
+    # Initialize VDMS db client
+    vdms = VDMSClient(
+        host=settings.VDMS_VDB_HOST,
+        port=settings.VDMS_VDB_PORT,
+        collection_name=settings.DB_COLLECTION,
+        embedder=embedding_service,
+        video_metadata_path=video_metadata_path,
+        text_metadata=text_metadata,
+        embedding_dimensions=vector_dimension,
+    )
+
+    return vdms
 
 
 async def generate_video_embedding(
@@ -39,23 +86,6 @@ async def generate_video_embedding(
     Raises:
         Exception: If there is an error in the embedding generation process
     """
-    # Read configuration
-    config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-    if config is None:
-        raise Exception(Strings.config_error)
-
-    vector_dimension = config["embeddings"]["vector_dimensions"]
-
-    # Setup embedding model
-    if settings.MULTIMODAL_EMBEDDING_ENDPOINT:
-        embedding_model = vCLIPEmbeddingServiceWrapper(
-            api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
-            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
-            num_frames=settings.MULTIMODAL_EMBEDDING_NUM_FRAMES,
-        )
-    else:
-        # Get the vclip model
-        embedding_model = vCLIP(config["embeddings"])
 
     # Generate metadata for the video
     metadata_file = store_video_metadata(
@@ -68,17 +98,12 @@ async def generate_video_embedding(
         metadata_temp_path=str(metadata_temp_path),
     )
 
-    logger.info(f"Metadata generated and saved to {metadata_file}")
+    logger.debug(f"Metadata generated and saved to {metadata_file}")
 
-    # Initialize VDMS db client for video
-    vdms = VDMSClient(
-        host=settings.VDMS_VDB_HOST,
-        port=settings.VDMS_VDB_PORT,
-        collection_name=settings.DB_COLLECTION,
-        model=embedding_model,
-        video_metadata_path=metadata_file,
-        embedding_dimensions=vector_dimension,
-    )
+    # Get vdms client
+    vdms = _setup_vdms_client(video_metadata_path=metadata_file)
+    if not vdms:
+        raise Exception(Strings.vdms_client_error)
 
     # Store the video embeddings in VDMS vector DB
     ids = vdms.store_embeddings()
@@ -101,36 +126,10 @@ async def generate_text_embedding(text: str, text_metadata: dict = {}) -> List[s
     Raises:
         Exception: If there is an error in the embedding generation process
     """
-    # Read configuration
-    config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-    if config is None:
-        raise Exception(Strings.config_error)
 
-    vector_dimension = config["embeddings"]["vector_dimensions"]
-
-    # Setup embedding model
-    if settings.MULTIMODAL_EMBEDDING_ENDPOINT:
-        embedding_model = vCLIPEmbeddingServiceWrapper(
-            api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
-            model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
-            num_frames=settings.MULTIMODAL_EMBEDDING_NUM_FRAMES,
-        )
-    else:
-        # Get the vclip model
-        embedding_model = vCLIP(config["embeddings"])
-
-
-    # Initialize VDMS db client for text
-    # Pass None as video_metadata_path since we're not using it for text
-    vdms = VDMSClient(
-        host=settings.VDMS_VDB_HOST,
-        port=settings.VDMS_VDB_PORT,
-        collection_name=settings.DB_COLLECTION,
-        model=embedding_model,
-        video_metadata_path=None,  # Not used for text embeddings
-        text_metadata=text_metadata,
-        embedding_dimensions=vector_dimension,
-    )
+    vdms = _setup_vdms_client(text_metadata=text_metadata)
+    if not vdms:
+        raise Exception(Strings.vdms_client_error)
 
     # Store the text embedding in VDMS vector DB
     ids = vdms.store_text_embedding(text)

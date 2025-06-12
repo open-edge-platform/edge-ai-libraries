@@ -19,3 +19,4 @@ class Strings:
     embedding_error: str = "Error occurred while trying to create embeddings."
     text_validation_error: str = "Invalid text or video timestamp parameters."
     invalid_time_range: str = "End time must be greater than start time."
+    vdms_client_error: str = "Error occurred while initializing VDMS client."
