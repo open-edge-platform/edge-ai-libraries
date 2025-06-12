@@ -20,6 +20,7 @@ class VDMSClient:
         collection_name: str,
         model: Any,
         video_metadata_path: pathlib.Path,
+        text_metadata: dict = {},
         embedding_dimensions: int = 512,
         video_search_type: str = "similarity",
     ):
@@ -36,6 +37,7 @@ class VDMSClient:
             self.video_embedder = vCLIPEmbeddings(model=model)
         self.embedding_dimensions = embedding_dimensions
         self.video_metadata_path = video_metadata_path
+        self.text_metadata = text_metadata
 
         # initialize_db
         self.init_db()
@@ -103,13 +105,12 @@ class VDMSClient:
             logger.error(f"Error in store_embeddings: {ex}")
             raise Exception(Strings.embedding_error)
 
-    def store_text_embedding(self, text: str, metadata: dict) -> list[str]:
+    def store_text_embedding(self, text: str) -> list[str]:
         """
         Embeds text and stores it in the VDMS Vector DB with associated metadata.
 
         Args:
             text (str): Text content to embed
-            metadata (dict): Metadata to store with the embedding, including video reference information
 
         Returns:
             ids (list): List of string IDs for documents added to vector DB
@@ -118,9 +119,9 @@ class VDMSClient:
         logger.info("Storing text embedding...")
         try:
             # Add text embedding to the vector DB
-            ids: list = self.video_db.add_texts(texts=[text], metadatas=[metadata])
+            ids: list = self.video_db.add_texts(texts=[text], metadatas=[self.text_metadata])
 
-            logger.info(f"Text embedding stored with ids: {ids}")
+            logger.debug(f"Text embedding stored with ids: {ids}")
             return ids
 
         except Exception as ex:

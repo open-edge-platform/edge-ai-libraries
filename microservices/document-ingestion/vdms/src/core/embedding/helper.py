@@ -1,7 +1,6 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import datetime
 import pathlib
 from typing import List
 
@@ -88,22 +87,13 @@ async def generate_video_embedding(
     return ids
 
 
-async def generate_text_embedding(
-    bucket_name: str,
-    video_id: str,
-    text_summary: str,
-    video_start_time: float,
-    video_end_time: float,
-) -> List[str]:
+async def generate_text_embedding(text: str, text_metadata: dict = {}) -> List[str]:
     """
     Generate embeddings for text with video reference.
 
     Args:
-        bucket_name: The bucket name where the referenced video is stored
-        video_id: The video ID (directory) containing the referenced video
-        text_summary: The text content to embed
-        video_start_time: Start timestamp in seconds of the video segment referenced by the text
-        video_end_time: End timestamp in seconds of the video segment referenced by the text
+        text: The text content to embed
+        text_metadata: Metadata associated with the text.
 
     Returns:
         List of IDs of the created embeddings
@@ -129,15 +119,6 @@ async def generate_text_embedding(
         # Get the vclip model
         embedding_model = vCLIP(config["embeddings"])
 
-    # Create metadata for text
-    text_metadata = {
-        "bucket_name": bucket_name,
-        "video_id": video_id,
-        "video_start_time": video_start_time,
-        "video_end_time": video_end_time,
-        "content_type": "text",
-        "timestamp": datetime.datetime.now().isoformat(),
-    }
 
     # Initialize VDMS db client for text
     # Pass None as video_metadata_path since we're not using it for text
@@ -147,11 +128,12 @@ async def generate_text_embedding(
         collection_name=settings.DB_COLLECTION,
         model=embedding_model,
         video_metadata_path=None,  # Not used for text embeddings
+        text_metadata=text_metadata,
         embedding_dimensions=vector_dimension,
     )
 
     # Store the text embedding in VDMS vector DB
-    ids = vdms.store_text_embedding(text_summary, text_metadata)
-    logger.info(f"Text embedding created with ids: {ids}")
+    ids = vdms.store_text_embedding(text)
+    logger.info(f"Embeddings for video summary created with ids: {ids}")
 
     return ids

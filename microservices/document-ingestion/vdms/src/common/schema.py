@@ -94,8 +94,8 @@ class VideoSummaryRequest(BaseModel):
     video_id: Annotated[
         str, Field(description="The video ID (directory in Minio bucket) containing the referenced video")
     ]
-    text_summary: Annotated[
-        str, Field(description="The text summary to be embedded")
+    video_summary: Annotated[
+        str, Field(description="The text summary for the video to be embedded")
     ]
     video_start_time: Annotated[
         float,
