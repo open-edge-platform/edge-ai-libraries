@@ -18,7 +18,7 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
-    PIPELINE: smartnvr
+    PIPELINE: transportation2
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models

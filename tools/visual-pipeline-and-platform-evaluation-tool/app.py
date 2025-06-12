@@ -477,27 +477,41 @@ def create_interface():
         visible=True,
     )
 
-    # Inferencing channels
-    inferencing_channels = gr.Slider(
-        minimum=0,
-        maximum=30,
-        value=11,
-        step=1,
-        label="Number of Recording + Inferencing channels",
-        interactive=True,
-        elem_id="inferencing_channels",
-    )
+    if type(current_pipeline).__name__ == "SmartNVRPipeline":
+        
+        # Inferencing channels
+        inferencing_channels = gr.Slider(
+            minimum=0,
+            maximum=30,
+            value=11,
+            step=1,
+            label="Number of Inferencing only channels",
+            interactive=True,
+            elem_id="inferencing_channels",
+        )
 
-    # Recording channels
-    recording_channels = gr.Slider(
-        minimum=0,
-        maximum=30,
-        value=3,
-        step=1,
-        label="Number of Recording only channels",
-        interactive=True,
-        elem_id="recording_channels",
-    )
+        # Recording channels
+        recording_channels = gr.Slider(
+            minimum=0,
+            maximum=30,
+            value=3,
+            step=1,
+            label="Number of Recording only channels",
+            interactive=True,
+            elem_id="recording_channels",
+        )
+    else:
+
+        # Channels
+        channels = gr.Slider(
+            minimum=0,
+            maximum=30,
+            value=1,
+            step=1,
+            label="Number of channels",
+            interactive=True,
+            elem_id="",
+        )
 
     # FPS floor
     fps_floor = gr.Number(
@@ -508,16 +522,20 @@ def create_interface():
         elem_id="fps_floor",
     )
 
-    # AI stream rate
-    ai_stream_rate = gr.Slider(
-        label="AI Stream Rate (%)",
-        value=20,  # Default value
-        minimum=0,
-        maximum=100,
-        step=1,
-        interactive=True,
-        elem_id="ai_stream_rate",
-    )
+
+    if type(current_pipeline).__name__ == "SmartNVRPipeline":
+    
+        # AI stream rate
+        ai_stream_rate = gr.Slider(
+            label="AI Stream Rate (%)",
+            value=20,  # Default value
+            minimum=0,
+            maximum=100,
+            step=1,
+            interactive=True,
+            elem_id="ai_stream_rate",
+        )
+
 
     # Inference accordion
     inference_accordion = gr.Accordion("Inference Parameters", open=True)
@@ -681,10 +699,13 @@ def create_interface():
     components.add(output_video_player)
     components.add(pipeline_image)
     components.add(best_config_textbox)
-    components.add(inferencing_channels)
-    components.add(recording_channels)
+    if type(current_pipeline).__name__ == "SmartNVRPipeline":
+        components.add(inferencing_channels)
+        components.add(recording_channels)
+        components.add(ai_stream_rate)
+    else:
+        components.add(channels)
     components.add(fps_floor)
-    components.add(ai_stream_rate)
     components.add(object_detection_model)
     components.add(object_detection_device)
     components.add(object_detection_batch_size)
@@ -1037,11 +1058,17 @@ def create_interface():
                         # Pipeline Parameters Accordion
                         with gr.Accordion("Pipeline Parameters", open=True):
 
-                            # Inference Channels
-                            inferencing_channels.render()
+                            if type(current_pipeline).__name__ == "SmartNVRPipeline":
 
-                            # Recording Channels
-                            recording_channels.render()
+                                # Inferencing Channels
+                                inferencing_channels.render()
+
+                                # Recording Channels
+                                recording_channels.render()
+
+                            else:
+                                # Channels
+                                channels.render()
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Benchmark Parameters", open=True):
@@ -1049,8 +1076,10 @@ def create_interface():
                             # FPS Floor
                             fps_floor.render()
 
-                            # AI Stream Rate
-                            ai_stream_rate.render()
+                            if type(current_pipeline).__name__ == "SmartNVRPipeline":
+
+                                # AI Stream Rate
+                                ai_stream_rate.render()
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
