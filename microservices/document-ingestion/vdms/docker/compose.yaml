@@ -6,25 +6,24 @@ services:
       - MINIO_ROOT_USER=${MINIO_ROOT_USER}
       - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
     ports:
-      - "${MINIO_API_HOST_PORT:-6010}:${MINIO_API_PORT:-9000}"
-      - "${MINIO_CONSOLE_HOST_PORT:-6011}:${MINIO_CONSOLE_PORT:-9001}"
+      - "${MINIO_API_HOST_PORT:-6010}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-6011}:9001"
     volumes:
       - "${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data"
     command: |
             server /data 
-            --address ":${MINIO_API_PORT:-9000}" 
-            --console-address ":${MINIO_CONSOLE_PORT:-9001}"
+            --address ":9000" 
+            --console-address ":9001"
 
   vdms-vector-db:
     image: intellabs/vdms:v2.10.0
     environment:
-      - OVERRIDE_port=${VDMS_VDB_PORT:-55555}
       - OVERRIDE_images_path=db/images
       - OVERRIDE_descriptors_path=db/descriptors
       - OVERRIDE_blobs_path=db/blobs
       - OVERRIDE_pmgd_path=db/graph
     ports:
-      - "${VDMS_VDB_HOST_PORT:-6020}:${VDMS_VDB_PORT:-55555}"
+      - "${VDMS_VDB_HOST_PORT:-6020}:55555"
     depends_on:
       - minio-server
 
@@ -44,7 +43,7 @@ services:
       - MULTIMODAL_EMBEDDING_ENDPOINT
       - APP_HOST=vdms-dataprep # Same as service name. Helps store a URL for video download in metadata.
       - DB_COLLECTION=${INDEX_NAME}
-      - MINIO_ENDPOINT=${MINIO_HOST:-minio-server}:${MINIO_API_PORT:-9000}
+      - MINIO_ENDPOINT=minio-server:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_SECURE=false

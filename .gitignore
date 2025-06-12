@@ -13,7 +13,6 @@ ov_models
 .venv
 .coverage-report/
 **/models
-*data*/
 **/ovms_config
 **/ov_models
 *.lock

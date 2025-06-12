@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     APP_PORT: int = 8000
     APP_HOST: str = ""
 
-    FASTAPI_ENV: str = ...
+    FASTAPI_ENV: str = "development"  # Environment for FastAPI (development or production)
     LOG_LEVEL: str | None = None  # Optional log level override
 
     ALLOW_ORIGINS: str = "*"  # Comma separated values for allowed origins
@@ -28,7 +28,7 @@ class Settings(BaseSettings):
     DB_COLLECTION: str = "video-rag-test"
 
     METADATA_FILENAME: str = "metadata.json"
-    CONFIG_FILEPATH: Path = Path(__file__).resolve().parent / "config.yaml"
+    CONFIG_FILEPATH: Path = Path(__file__).resolve().parent.parent / "config.yaml"
 
     # Minio connection settings
     MINIO_ENDPOINT: str = ""  # Format: "host:port"
