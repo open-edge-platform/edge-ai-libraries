@@ -54,7 +54,7 @@ with open(LOCK_FILE, "w") as lock_fp:
             if not devs_state:
                 continue
  
-            # --- Repeat for devs_state[-2] if it exists ---
+            # --- For devs_state[-2] if it exists ---
             if len(devs_state) >= 2:
                  # Use the last device state
                 dev = devs_state[-1]
