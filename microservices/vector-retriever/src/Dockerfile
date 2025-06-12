@@ -25,11 +25,8 @@ RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \
 chown -R user /home/user/
 
-COPY retriever /home/user/retriever
-COPY dependency /home/user/dependency
-
-RUN chown -R user /home/user/retriever && \
-    chown -R user /home/user/dependency
+COPY vector-retriever /home/user/retriever
+RUN chown -R user /home/user/retriever
 
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu && \

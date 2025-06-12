@@ -21,7 +21,7 @@ cd edge-ai-libraries/microservices
 Run the command to build image:
 
 ```bash
-docker build -t retriever-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f retriever/src/Dockerfile .
+docker build -t retriever-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f vector-retriever/src/Dockerfile .
 ```
 
 ### Step 2: Prepare host directories for models

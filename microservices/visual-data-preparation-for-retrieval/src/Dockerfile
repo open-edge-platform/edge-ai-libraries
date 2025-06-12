@@ -26,9 +26,8 @@ mkdir -p /home/user && \
 chown -R user /home/user/
 
 COPY visual-data-preparation-for-retrieval /home/user/dataprep
-COPY dependency /home/user/dependency
-RUN chown -R user /home/user/dataprep && \
-    chown -R user /home/user/dependency
+COPY vector-retriever/src/dependency /home/user/dataprep/src/dependency
+RUN chown -R user /home/user/dataprep
 
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu && \
