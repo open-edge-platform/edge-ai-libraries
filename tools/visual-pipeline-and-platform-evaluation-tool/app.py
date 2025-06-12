@@ -347,40 +347,19 @@ def generate_stream_data(i, timestamp_ns=None):
     return fig
 
 
-def on_run(
-    recording_channels,
-    inferencing_channels,
-    object_detection_model,
-    object_detection_device,
-    object_detection_batch_size,
-    object_detection_inference_interval,
-    object_detection_nireq,
-    object_classification_model,
-    object_classification_device,
-    object_classification_batch_size,
-    object_classification_inference_interval,
-    object_classification_nireq,
-    object_classification_reclassify_interval,
-    input_video_player,
-):
+def on_run(data):
 
-    video_output_path, constants, param_grid = prepare_video_and_constants(
-        input_video_player=input_video_player,
-        object_detection_model=object_detection_model,
-        object_detection_device=object_detection_device,
-        object_detection_batch_size=object_detection_batch_size,
-        object_detection_inference_interval=object_detection_inference_interval,
-        object_detection_nireq=object_detection_nireq,
-        object_classification_model=object_classification_model,
-        object_classification_device=object_classification_device,
-        object_classification_batch_size=object_classification_batch_size,
-        object_classification_inference_interval=object_classification_inference_interval,
-        object_classification_nireq=object_classification_nireq,
-        object_classification_reclassify_interval=object_classification_reclassify_interval,
-    )
+    arguments = {}
+
+    for component in data:
+        component_id = component.elem_id
+        if component_id:
+            arguments[component_id] = data[component]
+
+    video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
 
     # Validate channels
-    if recording_channels + inferencing_channels == 0:
+    if arguments['recording_channels'] + arguments['inferencing_channels'] == 0:
         raise gr.Error(
             "Please select at least one channel for recording or inferencing.",
             duration=10,
@@ -390,7 +369,7 @@ def on_run(
         pipeline=current_pipeline,
         constants=constants,
         param_grid=param_grid,
-        channels=(recording_channels, inferencing_channels),
+        channels=(arguments['recording_channels'], arguments['inferencing_channels']),
         elements=gst_inspector.get_elements(),
     )
     optimizer.optimize()
@@ -406,44 +385,23 @@ def on_run(
     return [video_output_path, best_result_message]
 
 
-def on_benchmark(
-    fps_floor,
-    rate,
-    object_detection_model,
-    object_detection_device,
-    object_detection_batch_size,
-    object_detection_inference_interval,
-    object_detection_nireq,
-    object_classification_model,
-    object_classification_device,
-    object_classification_batch_size,
-    object_classification_inference_interval,
-    object_classification_nireq,
-    object_classification_reclassify_interval,
-    input_video_player,
-):
+def on_benchmark(data):
 
-    _, constants, param_grid = prepare_video_and_constants(
-        input_video_player=input_video_player,
-        object_detection_model=object_detection_model,
-        object_detection_device=object_detection_device,
-        object_detection_batch_size=object_detection_batch_size,
-        object_detection_inference_interval=object_detection_inference_interval,
-        object_detection_nireq=object_detection_nireq,
-        object_classification_model=object_classification_model,
-        object_classification_device=object_classification_device,
-        object_classification_batch_size=object_classification_batch_size,
-        object_classification_inference_interval=object_classification_inference_interval,
-        object_classification_nireq=object_classification_nireq,
-        object_classification_reclassify_interval=object_classification_reclassify_interval,
-    )
+    arguments = {}
+
+    for component in data:
+        component_id = component.elem_id
+        if component_id:
+            arguments[component_id] = data[component]
+
+    _, constants, param_grid = prepare_video_and_constants(**arguments)
 
     # Initialize the benchmark class
     bm = Benchmark(
-        video_path=input_video_player,
+        video_path=arguments['input_video_player'],
         pipeline_cls=current_pipeline,
-        fps_floor=fps_floor,
-        rate=rate,
+        fps_floor=arguments['fps_floor'],
+        rate=arguments['ai_stream_rate'],
         parameters=param_grid,
         constants=constants,
         elements=gst_inspector.get_elements(),
@@ -482,6 +440,7 @@ def create_interface():
             interactive=True,
             value="/tmp/person-bicycle-car-detection.mp4",
             sources="upload",
+            elem_id="input_video_player",
         )
     except Exception as e:
         print(f"Error loading video player: {e}")
@@ -492,13 +451,14 @@ def create_interface():
             interactive=True,
             value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.12/tests/files/mse.mp4",
             sources="upload",
+            elem_id="input_video_player",
         )
 
     output_video_player = gr.Video(
         label="Output Video", interactive=False, show_download_button=True
     )
 
-    # Input components
+    # Pipeline diagram image
     pipeline_image = gr.Image(
         value=current_pipeline.diagram(),
         label="Pipeline Diagram",
@@ -508,13 +468,13 @@ def create_interface():
         show_fullscreen_button=False,
     )
 
-    # Textbox to display the best configuration (initially hidden)
+    # Best configuration textbox
     best_config_textbox = gr.Textbox(
         label="Best Configuration",
         interactive=False,
         lines=2,
         placeholder="The best configuration will appear here after benchmarking.",
-        visible=True,  # Initially hidden
+        visible=True,
     )
 
     # Inferencing channels
@@ -525,6 +485,7 @@ def create_interface():
         step=1,
         label="Number of Recording + Inferencing channels",
         interactive=True,
+        elem_id="inferencing_channels",
     )
 
     # Recording channels
@@ -535,6 +496,7 @@ def create_interface():
         step=1,
         label="Number of Recording only channels",
         interactive=True,
+        elem_id="recording_channels",
     )
 
     # FPS floor
@@ -543,6 +505,7 @@ def create_interface():
         value=30.0,  # Default value
         minimum=1.0,
         interactive=True,
+        elem_id="fps_floor",
     )
 
     # AI stream rate
@@ -553,6 +516,7 @@ def create_interface():
         maximum=100,
         step=1,
         interactive=True,
+        elem_id="ai_stream_rate",
     )
 
     # Inference accordion
@@ -580,6 +544,7 @@ def create_interface():
             "YOLO v10m 640x640",
         ],
         value="YOLO v5s 416x416",
+        elem_id="object_detection_model",
     )
 
     # Object detection device
@@ -587,6 +552,7 @@ def create_interface():
         label="Object Detection Device",
         choices=device_choices,
         value=preferred_device,
+        elem_id="object_detection_device",
     )
 
     # Object detection batch size
@@ -597,6 +563,7 @@ def create_interface():
         step=1,
         label="Object Detection Batch Size",
         interactive=True,
+        elem_id="object_detection_batch_size",
     )
 
     # Object detection inference interval
@@ -607,6 +574,7 @@ def create_interface():
         step=1,
         label="Object Detection Inference Interval",
         interactive=True,
+        elem_id="object_detection_inference_interval",
     )
 
     # Object Detection number of inference requests (nireq)
@@ -617,6 +585,7 @@ def create_interface():
         step=1,
         label="Object Detection Number of Inference Requests (nireq)",
         interactive=True,
+        elem_id="object_detection_nireq",
     )
 
     # Object classification model
@@ -628,6 +597,7 @@ def create_interface():
             "ResNet-50 TF",
         ],
         value="ResNet-50 TF",
+        elem_id="object_classification_model",
     )
 
     # Object classification device
@@ -635,6 +605,7 @@ def create_interface():
         label="Object Classification Device",
         choices=device_choices,
         value=preferred_device,
+        elem_id="object_classification_device",
     )
 
     # Object classification batch size
@@ -645,6 +616,7 @@ def create_interface():
         step=1,
         label="Object Classification Batch Size",
         interactive=True,
+        elem_id="object_classification_batch_size",
     )
 
     # Object classification inference interval
@@ -655,6 +627,7 @@ def create_interface():
         step=1,
         label="Object Classification Inference Interval",
         interactive=True,
+        elem_id="object_classification_inference_interval",
     )
 
     # Object classification number of inference requests (nireq)
@@ -665,6 +638,7 @@ def create_interface():
         step=1,
         label="Object Classification Number of Inference Requests (nireq)",
         interactive=True,
+        elem_id="object_classification_nireq",
     )
 
     # Object classification reclassify interval
@@ -675,6 +649,7 @@ def create_interface():
         step=1,
         label="Object Classification Reclassification Interval",
         interactive=True,
+        elem_id="object_classification_reclassify_interval",
     )
 
     # Run button
@@ -699,6 +674,28 @@ def create_interface():
 
     # Timer for stream data
     timer = gr.Timer(1, active=False)
+
+    # Components Set
+    components = set()
+    components.add(input_video_player)
+    components.add(output_video_player)
+    components.add(pipeline_image)
+    components.add(best_config_textbox)
+    components.add(inferencing_channels)
+    components.add(recording_channels)
+    components.add(fps_floor)
+    components.add(rate)
+    components.add(object_detection_model)
+    components.add(object_detection_device)
+    components.add(object_detection_batch_size)
+    components.add(object_detection_inference_interval)
+    components.add(object_detection_nireq)
+    components.add(object_classification_model)
+    components.add(object_classification_device)
+    components.add(object_classification_batch_size)
+    components.add(object_classification_inference_interval)
+    components.add(object_classification_nireq)
+    components.add(object_classification_reclassify_interval)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
@@ -769,22 +766,7 @@ def create_interface():
         ).then(
             # Execute the pipeline
             on_run,
-            inputs=[
-                recording_channels,
-                inferencing_channels,
-                object_detection_model,
-                object_detection_device,
-                object_detection_batch_size,
-                object_detection_inference_interval,
-                object_detection_nireq,
-                object_classification_model,
-                object_classification_device,
-                object_classification_batch_size,
-                object_classification_inference_interval,
-                object_classification_nireq,
-                object_classification_reclassify_interval,
-                input_video_player,
-            ],
+            inputs=components,
             outputs=[output_video_player, best_config_textbox],
         ).then(
             # Stop the telemetry timer
@@ -848,22 +830,7 @@ def create_interface():
         ).then(
             # Execute the benchmark
             on_benchmark,
-            inputs=[
-                fps_floor,
-                rate,
-                object_detection_model,
-                object_detection_device,
-                object_detection_batch_size,
-                object_detection_inference_interval,
-                object_detection_nireq,
-                object_classification_model,
-                object_classification_device,
-                object_classification_batch_size,
-                object_classification_inference_interval,
-                object_classification_nireq,
-                object_classification_reclassify_interval,
-                input_video_player,
-            ],
+            inputs=components,
             outputs=[best_config_textbox],
         ).then(
             # Stop the telemetry timer
