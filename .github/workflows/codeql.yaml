@@ -2,7 +2,7 @@ name: "CodeQL Conditional"
 run-name: "CodeQL Conditional"
 on:
   push:
-    branches: [ "main" ]
+    branches: [ "nsz-codeql" ]
   pull_request:
     branches: [ "main" ]
 permissions: {}
@@ -136,13 +136,17 @@ jobs:
             -t dev24-codeql \
             ./edge-ai-libraries-repo/libraries/dl-streamer
 
-      - name: Run CodeQL analysis
+      - name: Run CodeQL in Docker
         if: steps.build-project.outputs.build_project == 'true'
-        run: |  
-          docker run --rm dev24-codeql bash -c "\
-            codeql database create codeql-db --language=cpp --source-root=. --overwrite && \
-            codeql database analyze codeql-db codeql-repo/cpp/ql/src/ --format=sarifv2.1.0 --output=results.sarif && \
-            docker cp dev24-codeql:results.sarif results.sarif"
+        run: |
+          docker run --name codeql-container dev24-codeql bash -c "
+            set -eux
+            codeql database create /tmp/codeql-db --language=cpp --command='cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON .. && make -j$(nproc)' --source-root=. --overwrite
+            codeql database analyze /tmp/codeql-db codeql-repo/cpp/ql/src/ --format=sarifv2.1.0 --output=/tmp/results.sarif
+          "
+          docker cp codeql-container:/tmp/results.sarif results.sarif
+          docker rm codeql-container
+
 
       - name: Upload SARIF to GitHub Security tab
         uses: github/codeql-action/upload-sarif@v3
