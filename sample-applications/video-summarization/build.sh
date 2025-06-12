@@ -72,11 +72,11 @@ if [ -d "${uservices_dir}/multimodal-embedding-serving" ]; then
   fi
 fi
   
-  # Build vlm-ov-serving
-  cd "${uservices_dir}/vlm-ov-serving" || return 0
+  # Build vlm-openvino-serving
+  cd "${uservices_dir}/vlm-openvino-serving" || return 0
   if [ -f "compose.yaml" ]; then
     source setup.sh && docker compose build || { 
-      log_info "${RED}Failed to build vlm-ov-serving${NC}"; 
+      log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
       build_success=false; 
     }
   fi
@@ -92,15 +92,6 @@ fi
     }
   fi
 
-
-  # Build VLM GPU ov serving
-  cd "${uservices_dir}/vlm-ov-serving" || return 0
-  if [ -f "compose.gpu.yaml" ]; then
-    source setup.sh && docker compose -f compose.gpu.yaml build || { 
-      log_info "${RED}Failed to build GPU vlm-ov-serving${NC}"; 
-      build_success=false; 
-    }
-  fi
 
   # Build video ingestion microservice
   cd "${uservices_dir}/video-ingestion/docker" || return 0

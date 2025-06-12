@@ -1,16 +1,16 @@
-# How to deploy with Helm
+# How to deploy with Helm\* Chart
 
-This guide provides step-by-step instructions for deploying the Video summarization Sample Application using Helm.
+This section shows how to deploy the Video Search and Summary Sample Application using Helm chart.
 
 ## Prerequisites
-Before you begin, ensure that you have the following prerequisites:
-- Kubernetes cluster set up and running.
+Before you begin, ensure that you have the following:
+- Kubernetes\* cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
-- Install `kubectl` on your system. Refer to [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
-- Helm installed on your system: [Installation Guide](https://helm.sh/docs/intro/install/).
+- Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
+- Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
 
 ## Steps to deploy with Helm
-Following steps should be followed to deploy Video summarization using Helm. You can install from source code or pull the chart from Docker hub.
+Do the following to deploy VSS using Helm chart. 
 
 **_Steps 1 to 3 varies depending on if the user prefers to build or pull the Helm details._**
 
@@ -100,7 +100,7 @@ Deploy the Helm chart using the following command:
 ```bash
 helm install video-summary . -n <your-namespace>
 ```
-If the users want to use OVMS for LLM summarization they can, Deploy the OVMS override values:
+If the users want to use OVMS for LLM Summarization they can, Deploy the OVMS override values:
 
 ```bash
 helm install video-summary . --values values.yaml --values ovms_override.yaml -n <your-namespace>
@@ -132,7 +132,7 @@ Run the following command to get the service URL:
 echo "http://$(kubectl get pods -l app=video-summary-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
 ```
 
-Simply copy and paste the output into your browser to access the Video Summarization application UI.
+Simply copy and paste the output into your browser to access the Video Summary application UI.
 
 ### Step 7: Update Helm Dependencies
 
@@ -144,7 +144,7 @@ helm dependency update
 
 ### Step 8: Uninstall Helm chart
 
-To uninstall the Video Summarization Helm chart, use the following command:
+To uninstall the Video Summary Helm chart, use the following command:
 
 ```bash
 helm uninstall video-summary -n <your-namespace>
@@ -153,8 +153,8 @@ helm uninstall video-summary -n <your-namespace>
 ## Verification
 
 - Ensure that all pods are running and the services are accessible.
-- Access the Video Summarization application dashboard and verify that it is functioning as expected.
-- Upload a test video to verify that the ingestion, processing, and summarization pipeline works correctly.
+- Access the Video Summary application dashboard and verify that it is functioning as expected.
+- Upload a test video to verify that the ingestion, processing, and summary pipeline works correctly.
 - Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio intelligence) are functioning properly.
 
 ## Troubleshooting

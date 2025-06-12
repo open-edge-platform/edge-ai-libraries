@@ -86,13 +86,13 @@ export TAG=${TAG:-latest}
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
-# env for vlm-ov-serving
+# env for vlm-openvino-serving
 export VLM_HOST_PORT=9766
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
-export VLM_HOST=vlm-ov-serving
+export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 
 # env for ovms-service
@@ -472,7 +472,6 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
             echo -e  "Using VLM for summarization on GPU"
-            APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_vlm.yaml"
         else
             export VLM_DEVICE=CPU
             export VLM_CONCURRENT=4

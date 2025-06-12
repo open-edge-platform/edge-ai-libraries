@@ -38,4 +38,7 @@ export VLM_SEED=42
 if [ -z "$VLM_MODEL_NAME" ]; then
     echo -e "ERROR: VLM_MODEL_NAME is not set in your shell environment."
     return
+else
+    export VLM_MODEL_NAME=$VLM_MODEL_NAME
+    echo -n VLM_MODEL_NAME: ${VLM_MODEL_NAME}
 fi

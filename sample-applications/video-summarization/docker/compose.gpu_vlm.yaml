@@ -1,6 +1,0 @@
-services:
-  vlm-ov-serving:
-    image: ${REGISTRY:-}vlm-ov-serving-gpu:${TAG:-latest}
-    devices:
-      - /dev/dri:/dev/dri
-

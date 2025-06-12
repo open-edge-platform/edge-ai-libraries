@@ -3,11 +3,6 @@
 
 FROM python:3.12.10-slim AS build
 
-ARG ARCH="gpu"
-
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    curl
-
 RUN pip install --upgrade --no-cache pip setuptools && \
     pip install --no-cache torch~=2.7.0 torchvision~=0.22.0 --index-url https://download.pytorch.org/whl/cpu;
 
@@ -24,7 +19,6 @@ FROM python:3.12.10-slim
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    libgl1-mesa-glx \
     curl 
 
 COPY --from=build /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
