@@ -33,8 +33,6 @@ COPY app ./app
 RUN poetry install --only main && \
     rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
-RUN python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng
-
 USER intelgai
 
 EXPOSE 8080
