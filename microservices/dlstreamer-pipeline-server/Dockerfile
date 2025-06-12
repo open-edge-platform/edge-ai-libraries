@@ -122,6 +122,7 @@ RUN export no_proxy= && \
     zip \
     unzip \
     libopencv-core4.5d \
+    libopencv-imgcodecs4.5d \
     libcjson1 && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
@@ -275,8 +276,8 @@ USER ${USER}
 # Disable OpenVINO Telemetry
 RUN opt_in_out --opt_out
 
-# # Create Models directory
-# RUN mkdir -p /home/pipeline-server/models
+# Create Models directory
+RUN mkdir -p /home/pipeline-server/models
 
 # Copy python UDFs for user_defined_pipelines/udfloader_sample pipeline
 COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy.py
