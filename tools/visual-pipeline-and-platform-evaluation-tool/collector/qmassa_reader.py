@@ -53,34 +53,34 @@ with open(LOCK_FILE, "w") as lock_fp:
             devs_state = state.get("devs_state", [])
             if not devs_state:
                 continue
-
-            # Use the last device state
-            dev = devs_state[-1]
-            dev_stats = dev.get("dev_stats", {})
-            eng_usage = dev_stats.get("eng_usage", {})
-            freqs = dev_stats.get("freqs", [])
-            power = dev_stats.get("power", [])
-
-            ts = current_ts_ns  # Same timestamp for simplicity
-
-            # === Emit engine usage
-            for eng, vals in eng_usage.items():
-                if vals:
-                    print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=1 usage={vals[-1]} {ts}")
-
-            # === Emit frequency
-            if freqs and isinstance(freqs[-1], list):
-                freq_entry = freqs[-1][0]
-                if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
-                    print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=1 value={freq_entry['cur_freq']} {ts}")
-
-            # === Emit power values
-            if power:
-                for key, val in power[-1].items():
-                    print(f"power,type={key},host={HOSTNAME},gpu_id=1 value={val} {ts}")
-
+ 
             # --- Repeat for devs_state[-2] if it exists ---
             if len(devs_state) >= 2:
+                 # Use the last device state
+                dev = devs_state[-1]
+                dev_stats = dev.get("dev_stats", {})
+                eng_usage = dev_stats.get("eng_usage", {})
+                freqs = dev_stats.get("freqs", [])
+                power = dev_stats.get("power", [])
+
+                ts = current_ts_ns  # Same timestamp for simplicity
+
+                # === Emit engine usage
+                for eng, vals in eng_usage.items():
+                    if vals:
+                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=1 usage={vals[-1]} {ts}")
+
+                # === Emit frequency
+                if freqs and isinstance(freqs[-1], list):
+                    freq_entry = freqs[-1][0]
+                    if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
+                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=1 value={freq_entry['cur_freq']} {ts}")
+
+                # === Emit power values
+                if power:
+                    for key, val in power[-1].items():
+                        print(f"power,type={key},host={HOSTNAME},gpu_id=1 value={val} {ts}")
+
                 dev2 = devs_state[-2]
                 dev_stats2 = dev2.get("dev_stats", {})
                 eng_usage2 = dev_stats2.get("eng_usage", {})
@@ -102,7 +102,31 @@ with open(LOCK_FILE, "w") as lock_fp:
                 if power2:
                     for key, val in power2[-1].items():
                         print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
+            else:
+                 # Use the last device state
+                dev = devs_state[-1]
+                dev_stats = dev.get("dev_stats", {})
+                eng_usage = dev_stats.get("eng_usage", {})
+                freqs = dev_stats.get("freqs", [])
+                power = dev_stats.get("power", [])
 
+                ts = current_ts_ns  # Same timestamp for simplicity
+
+                # === Emit engine usage
+                for eng, vals in eng_usage.items():
+                    if vals:
+                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=0 usage={vals[-1]} {ts}")
+
+                # === Emit frequency
+                if freqs and isinstance(freqs[-1], list):
+                    freq_entry = freqs[-1][0]
+                    if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
+                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=0 value={freq_entry['cur_freq']} {ts}")
+
+                # === Emit power values
+                if power:
+                    for key, val in power[-1].items():
+                        print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
             # Update last seen
             save_last_state(i, current_ts_ns)
 
