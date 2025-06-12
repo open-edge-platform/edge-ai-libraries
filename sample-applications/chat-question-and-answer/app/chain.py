@@ -14,7 +14,7 @@ from langchain_core.runnables import (
     RunnableLambda,
 )
 from langchain_core.vectorstores import VectorStoreRetriever as EGAIVectorStoreRetriever
-from langchain_community.llms import VLLMOpenAI as EGAIModelServing
+from langchain_openai import ChatOpenAI as EGAIModelServing
 from langchain_openai import OpenAIEmbeddings as EGAIEmbeddings
 from .custom_reranker import CustomReranker
 import logging
