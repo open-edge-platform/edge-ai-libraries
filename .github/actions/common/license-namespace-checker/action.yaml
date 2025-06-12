@@ -37,7 +37,7 @@ runs:
       env:
         CHANGED_FILES: ${{ steps.discover-changes.outputs.changed_files }}
       run: |
-        if [ -z "${CHANGED_FILES}" ]; then
+        if [ -z "${{ env.CHANGED_FILES }}" ]; then
           echo "No new files to scan."
         else
           ./.github/actions/common/license-namespace-checker/run.sh . $CHANGED_FILES
