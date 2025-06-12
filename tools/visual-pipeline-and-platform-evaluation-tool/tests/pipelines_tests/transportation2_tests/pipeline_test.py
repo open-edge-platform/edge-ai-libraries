@@ -2,6 +2,7 @@ import unittest
 
 from pipelines.transportation2.pipeline import Transportation2Pipeline
 
+
 class TestTransportation2Pipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = Transportation2Pipeline()
@@ -100,13 +101,8 @@ class TestTransportation2Pipeline(unittest.TestCase):
         self.assertIn("model-proc=detection_model_proc.json", result)
         self.assertIn("model-proc=classification_model_proc.json", result)
 
-        # TODO: Implement GPU Support in the pipeline
-        # # Check that va-surface-sharing is used for pre-processing
-        # self.assertIn("pre-process-backend=va-surface-sharing", result)
-
-        # TODO: Implement GPU Support in the pipeline
-        # # Check that the right vaapi elements are used
-        # self.assertIn("varenderD129compositor", result)
+        # Check that va-surface-sharing is used for pre-processing
+        self.assertIn("pre-process-backend=va-surface-sharing", result)
 
     def test_evaluate_no_model_proc(self):
         result = self.pipeline.evaluate(

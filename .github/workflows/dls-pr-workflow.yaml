@@ -32,6 +32,20 @@ on:
 permissions: {}
 
 jobs:
+  check-license-headers:
+    permissions:
+      contents: read
+    name: Check license headers
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+    
+    - name: Check license headers
+      uses: ./.github/actions/common/license-namespace-checker
+
   build-dev-images:
     permissions:
       contents: read
@@ -39,12 +53,12 @@ jobs:
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
-  build-deb-and-img:
+  build-and-test-deb-and-deb_img:
     permissions:
       contents: read
       packages: read
-    name: Build .deb pkgs and deb imgs
-    uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+    name: Build and test .deb pkgs & img
+    uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
 
   filter-docker-related-changes:
     permissions:

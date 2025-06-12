@@ -50,6 +50,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
           path: timeseries
+          persist-credentials: false
     - name: Build
       run: |
         cd ./microservices/time-series-analytics/docker
@@ -78,6 +79,7 @@ jobs:
     - uses: actions/checkout@v1
       with:
           path: timeseries
+          persist-credentials: false
     - name: Run unit tests
       run: |
         cd "${{ github.workspace }}"
@@ -122,6 +124,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         path: edge-ai-libraries-repo
+        persist-credentials: false
 
     - name: Run Bandit Scan
       run: |
@@ -156,6 +159,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         path: edge-ai-libraries-repo
+        persist-credentials: false
     - name: Run Virus Scan
       run: |
         mkdir -p reports

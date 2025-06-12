@@ -1,0 +1,44 @@
+name: 'License and Namespace Checker'
+description: 'Checks license headers and namespace usage in headers'
+runs:
+  using: 'composite'
+  steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+        persist-credentials: false
+        fetch-depth: 0
+
+    - name: Get list of changed files
+      shell: bash
+      id: discover-changes
+      run: |
+        cd edge-ai-libraries-repo
+        if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
+          git fetch origin main:main
+          echo "Fetched main branch"
+        fi
+        changed_files=$(git diff --name-only main...$GITHUB_SHA -- '*.h' '*.hpp' '*.c' '*.cpp' '*.sh' '*.py' '*.txt' | grep -E '.*\.(h|hpp|c|cpp|sh|py|txt)$' || true)
+        echo "Performed git diff"
+        if [ -n "$changed_files" ]; then
+          # Add changed files list to the GITHUB_OUTPUT separated by spaces
+          echo "changed_files=$(echo $changed_files)" >> $GITHUB_OUTPUT
+          echo "Changed files:"
+          echo "$changed_files"
+        else
+          # No changed files, explicitly set the exit code to 0
+          echo "No changed files detected."
+          exit 0
+        fi
+
+    - name: Check License header and namespace usage in headers
+      shell: bash
+      env:
+        CHANGED_FILES: ${{ steps.discover-changes.outputs.changed_files }}
+      run: |
+        if [ -z "${{ env.CHANGED_FILES }}" ]; then
+          echo "No new files to scan."
+        else
+          ./.github/actions/common/license-namespace-checker/run.sh . $CHANGED_FILES
+        fi
