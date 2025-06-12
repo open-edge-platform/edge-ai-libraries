@@ -11,8 +11,8 @@ from src.common.schema import DataPrepResponse
 from src.core.util import get_minio_client
 from src.core.validation import validate_params
 
-
 router = APIRouter(tags=["Video Management APIs"])
+
 
 @router.delete(
     "/videos/{bucket_name}/{video_id}",

@@ -17,7 +17,11 @@ router = APIRouter(tags=["Document Processing APIs"])
 
 
 def verify_params_and_get_video_name(
-    bucket_name: str, video_id: str, video_start_time: float, video_end_time: float, video_summary: str
+    bucket_name: str,
+    video_id: str,
+    video_start_time: float,
+    video_end_time: float,
+    video_summary: str,
 ) -> str:
     """
     Verify the parameters and get the video name from the specified bucket and video ID.
@@ -46,13 +50,15 @@ def verify_params_and_get_video_name(
     # Get the Minio client and ensure the bucket and video_id exists and is valid
     minio_client = get_minio_client()
     minio_client.ensure_bucket_exists(bucket_name)
-    video_name = minio_client.get_video_in_directory(bucket_name, video_id)
+    video_name = minio_client.get_video_in_directory(bucket_name, video_id, return_prefix=False)
     if not video_name:
         raise DataPrepException(
             status_code=HTTPStatus.BAD_REQUEST,
             msg=f"Either video_id '{video_id}' is invalid or no video found in directory '{video_id}' in bucket '{bucket_name}'",
         )
     
+    logger.debug(f"Video '{video_name}' found in bucket '{bucket_name}' in '{video_id}' directory")
+
     return video_name
 
 
@@ -63,7 +69,9 @@ def verify_params_and_get_video_name(
     response_model_exclude_none=True,
 )
 async def process_video_summary(
-    summary_request: Annotated[VideoSummaryRequest, Body(description="Document processing parameters")]
+    summary_request: Annotated[
+        VideoSummaryRequest, Body(description="Document processing parameters")
+    ]
 ) -> DataPrepResponse:
     """
     ### Process summary text for a video with video timestamp references for embedding generation.
@@ -113,10 +121,7 @@ async def process_video_summary(
         }
 
         # Process video_summary and generate text embeddings
-        ids = await generate_text_embedding(
-            text=video_summary,
-            metadata=text_metadata
-        )
+        ids = await generate_text_embedding(text=video_summary, text_metadata=text_metadata)
 
         logger.info(f"Text embedding created with ids: {ids}")
         return DataPrepResponse(message="Video summary embedding created successfully")
