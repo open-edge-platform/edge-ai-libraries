@@ -17,6 +17,9 @@ ARG FFMPEG_VERSION=6.1.1
 
 ARG OPENVINO_VERSION=2025.1.0
 
+ARG DLSTREAMER_VERSION=2025.0.1.3
+ARG DLSTREAMER_BUILD_NUMBER
+
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
 ENV GSTREAMER_DIR=/opt/intel/dlstreamer/gstreamer
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino_$OPENVINO_VERSION.0
@@ -319,6 +322,107 @@ RUN \
     make -j "$(nproc)" && \
     usermod -a -G video dlstreamer && \
     chown -R dlstreamer:dlstreamer /home/dlstreamer
+
+FROM dlstreamer-dev AS deb-builder
+#Building deb package for DL Streamer
+
+# hadolint ignore=DL3002
+USER root
+ENV USER=dlstreamer
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends devscripts=\* dh-make=\* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN \
+    mkdir -p /deb-pkg/opt/intel/ && \
+    mkdir -p /deb-pkg/opt/opencv/include && \
+    mkdir -p /deb-pkg/opt/openh264/ && \
+    mkdir -p /deb-pkg/opt/rdkafka && \
+    mkdir -p /deb-pkg/opt/ffmpeg && \
+    mkdir -p /deb-pkg/usr/local/lib/ && \
+    mkdir -p /deb-pkg/usr/lib/ && \
+    cp -r ${DLSTREAMER_DIR} /deb-pkg/opt/intel/dlstreamer && \
+    cp -rT ${GSTREAMER_DIR} /deb-pkg/opt/intel/dlstreamer/gstreamer && \
+    cp /usr/local/lib/libopencv*.so.410 /deb-pkg/opt/opencv/ && \
+    cp ${GSTREAMER_DIR}/lib/libopenh264.so /deb-pkg/opt/openh264/libopenh264.so.7 && \
+    cp /usr/local/lib/librdkafka++.so /deb-pkg/opt/rdkafka/librdkafka++.so.1 && \
+    cp /usr/local/lib/librdkafka.so /deb-pkg/opt/rdkafka/librdkafka.so.1 && \
+    find /usr/local/lib -regextype grep -regex ".*libav.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
+    find /usr/local/lib -regextype grep -regex ".*libswscale.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
+    find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
+    cp ${GSTREAMER_DIR}/lib/libvorbis* /deb-pkg/usr/local/lib/ && \
+    cp /usr/local/lib/libpaho* /deb-pkg/usr/local/lib/ && \
+    cp /usr/local/lib/libav* /deb-pkg/usr/local/lib/ && \
+    cp ${GSTREAMER_DIR}/lib/libgst* /deb-pkg/usr/lib && \
+    cp -r ${GSTREAMER_DIR}/lib/gstreamer-1.0/ /deb-pkg/usr/lib/ && \
+    cp -r /usr/local/include/opencv4/* /deb-pkg/opt/opencv/include && \
+    rm -rf /deb-pkg/opt/intel/dlstreamer/archived && \
+    rm -rf /deb-pkg/opt/intel/dlstreamer/docker && \
+    rm -rf /deb-pkg/opt/intel/dlstreamer/docs && \
+    rm -rf /deb-pkg/opt/intel/dlstreamer/infrastructure && \
+    rm -rf /deb-pkg/opt/intel/dlstreamer/tests
+
+COPY docker/onebinary/debian /deb-pkg/debian
+
+RUN \
+    sed -i -e "s/DLSTREAMER_VERSION/${DLSTREAMER_VERSION}/g" /deb-pkg/debian/changelog && \
+    sed -i -e "s/CURRENT_DATE_TIME/$(date -R)/g" /deb-pkg/debian/changelog && \
+    sed -i -e "s/DLSTREAMER_VERSION/${DLSTREAMER_VERSION}/g" /deb-pkg/debian/control
+
+WORKDIR /deb-pkg
+
+RUN \
+    debuild -z1 -us -uc
+
+RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb
+
+
+FROM base AS dlstreamer
+
+RUN \
+    apt-get update && \
+    apt-get install -y -q --no-install-recommends gnupg=\* ca-certificates=\* wget=\* libtbb-dev=\* cmake=\* vim=\* numactl=\* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN \
+    echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list && \
+    wget -q https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+
+RUN mkdir -p /debs
+COPY --from=deb-builder /*.deb /debs/
+
+ARG DEBIAN_FRONTEND=noninteractive
+
+RUN \
+    apt-get update -y && \
+    apt-get install -y -q --no-install-recommends /debs/*.deb && \
+    apt-get clean -y && \
+    rm -rf /var/lib/apt/lists/* && \
+    rm -rf /debs && \
+    chown -R dlstreamer: /opt && \
+    chmod -R u+rw /opt
+
+ENV LIBVA_DRIVER_NAME=iHD
+ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
+ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+ENV GST_VA_ALL_DRIVERS=1
+ENV MODEL_PROC_PATH=/opt/intel/dlstreamer/samples/gstreamer/model_proc
+ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:$PATH
+ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/home/dlstreamer/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:
+ENV TERM=xterm
+ENV GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
+
+RUN \
+    usermod -a -G video dlstreamer && \
+    ln -s /opt/intel/dlstreamer /home/dlstreamer/dlstreamer
+
+WORKDIR /home/dlstreamer
+USER dlstreamer
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
   CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]
