@@ -46,66 +46,67 @@
 ## How it works
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
-By default, we have a simple UDF python script at `<path-to-edge-ai-libraries-repo>/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for
+By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for
 inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25. 
-The corresponding tick script is available at `<path-to-edge-ai-libraries-repo>/microservices/time-series-analtyics/temperature_classifier.tick`. 
+The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analtyics/temperature_classifier.tick`. 
 
 Directory details is as below:
   
-  1. **`config.json`**:
-    The `task` section defines the settings for the Kapacitor task and User-Defined Functions (UDFs).
+### **`config.json`**:
 
-    | Key                     | Description                                                                                     | Example Value                          |
-    |-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-    | `fetch_from_model_registry` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
-    | `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
-    | `tick_script`           | The name of the TICK script file used for data processing and analytics.                        | `"temperature_classifier.tick"`  |
-    | `task_name`             | The name of the Kapacitor task.                                                                | `"temperature_classifier"`       |
-    | `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                           | See below for details.                 |
+The `task` section defines the settings for the Kapacitor task and User-Defined Functions (UDFs).
 
-    **UDFs Configuration**:
+| Key                     | Description                                                                                     | Example Value                          |
+|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
+| `fetch_from_model_registry` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
+| `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
+| `tick_script`           | The name of the TICK script file used for data processing and analytics.                        | `"temperature_classifier.tick"`  |
+| `task_name`             | The name of the Kapacitor task.                                                                | `"temperature_classifier"`       |
+| `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                           | See below for details.                 |
 
-    The `udfs` section specifies the details of the UDFs used in the task.
+**UDFs Configuration**:
 
-    | Key     | Description                                                                 | Example Value                          |
-    |---------|-----------------------------------------------------------------------------|----------------------------------------|
-    | `type`  | The type of UDF. Currently, only `python` is supported.                     | `"python"`                             |
-    | `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
-  
+The `udfs` section specifies the details of the UDFs used in the task.
 
-    ---
-
-    **Alerts Configuration**: <Optional>
-
-    The `alerts` section defines the settings for alerting mechanisms, such as MQTT protocol.
-    Please note the MQTT broker needs to be available.
-
-    **MQTT Configuration**:
-
-    The `mqtt` section specifies the MQTT broker details for sending alerts.
-
-    | Key                 | Description                                                                 | Example Value          |
-    |---------------------|-----------------------------------------------------------------------------|------------------------|
-    | `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
-    | `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                |
-    | `name`              | The name of the MQTT broker configuration.                                 | `"my_mqtt_broker"`     |
+| Key     | Description                                                                 | Example Value                          |
+|---------|-----------------------------------------------------------------------------|----------------------------------------|
+| `type`  | The type of UDF. Currently, only `python` is supported.                     | `"python"`                             |
+| `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
 
 
-  2. **`config/`**:
-    - `kapacitor_devmode.conf` would be updated as per the above `config.json` at runtime for usage.
+---
 
-  3. **`udfs/`**:
-    - Contains the python script to process the incoming data.
+**Alerts Configuration**: <Optional>
 
-  4. **`tick_scripts/`**:
-    - The TICKScript `temperature_classifier.tick` determines processing of the input data coming in.
-      Mainly, has the details on execution of the UDF file and publishing of alerts. 
+The `alerts` section defines the settings for alerting mechanisms, such as MQTT protocol.
+Please note the MQTT broker needs to be available.
+
+**MQTT Configuration**:
+
+The `mqtt` section specifies the MQTT broker details for sending alerts.
+
+| Key                 | Description                                                                 | Example Value          |
+|---------------------|-----------------------------------------------------------------------------|------------------------|
+| `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
+| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                |
+| `name`              | The name of the MQTT broker configuration.                                 | `"my_mqtt_broker"`     |
+
+
+### **`config/`**:
+  - `kapacitor_devmode.conf` would be updated as per the above `config.json` at runtime for usage.
+
+### **`udfs/`**:
+  - Contains the python script to process the incoming data.
+
+### **`tick_scripts/`**:
+  - The TICKScript `temperature_classifier.tick` determines processing of the input data coming in.
+    Mainly, has the details on execution of the UDF file and publishing of alerts. 
 
 ## Clone source code
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>
-git clone https://github.com/open-edge-platform/edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/time-series-analytics/docker
 ```
 
 ## Build Docker Image
@@ -113,17 +114,14 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries
 Navigate to the application directory and build the Docker image:
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker
 docker compose build
 ```
 
-## Deploy with Docker Compose (Single Node)
-
-### Push Docker Images (Optional)
+## Push Docker Images (Optional)
 
 To push images to a Docker registry:
 
-1. Update the following fields in <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker/.env`:
+1. Update the following fields in `edge-ai-libraries/microservices/time-series-analytics/docker/.env`:
    - `DOCKER_REGISTRY`
    - `DOCKER_USERNAME`
    - `DOCKER_PASSWORD`
@@ -138,12 +136,11 @@ To push images to a Docker registry:
 
 ## Deployment Options
 
-### Deploy with Docker Compose (Single Node)
+### Deploy with Docker Compose
 
 Navigate to the application directory and run the Docker container:
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics/docker
 docker compose up -d
 ```
 
@@ -152,7 +149,6 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
 python3 src/temperature_input.py --mode docker
 ```
 
