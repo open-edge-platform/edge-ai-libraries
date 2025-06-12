@@ -1,30 +1,25 @@
 # System Requirements
-This page provides detailed hardware, software, and platform requirements to help you set up and run the application efficiently.
+This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
 
 ## Supported Platforms
+This microservice currently supports CPU based runs only. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the documentation in the sample application. The documentation here, hence, does not provide separate requirements.
 
 **Operating Systems**
-- Ubuntu 24.04 LTS
+- As per sample application documentation.
 
 **Hardware Platforms**
-- Intel® Core™ processors (i5 or higher)
-- Intel® Xeon® processors (recommended for large deployments)
-
+- As per sample application documentation.
 
 ## Minimum Requirements
-| **Component**      | **Minimum Requirement**   | **Recommended**         |
-|---------------------|---------------------------|--------------------------|
-| **Processor**       | Intel® Celeron® 7305E    | Intel® Core™ Ultra 7    |
-| **Memory**          | 8 GB                     | 16 GB                   |
-| **Disk Space**      | 128 GB SSD               | 256 GB SSD              |
-
+- As per sample application documentation.
 
 ## Software Requirements
 
 **Required Software**:
-- Docker 24.0 or higher
-- Python 3.9+
-
+- Docker 24.0
+- Python 3.10
+- Poetry 1.8.3 for dependency management
+- MinIO server (optional, for object storage)
 
 ## Validation
 - Ensure all required software are installed and configured before proceeding to [Get Started](./get-started.md).

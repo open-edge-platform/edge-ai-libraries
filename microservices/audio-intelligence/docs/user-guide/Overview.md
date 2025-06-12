@@ -36,35 +36,7 @@ Audio Intelligence microservice can be applied to various real-world use cases a
 
 # How It Works
 
-The Model Registry microservice works by serving as a centralized repository for models where, their versions, and metadata are stored. The software behind the microservice is designed to handle the storage, versioning, and metadata management of each model. It also provides functionalities for storing, searching and retrieving model artifacts via a RESTful API.
-
-The software fulfills the promise described in the Overview via its various components.
-
-## High-Level System View Diagram
-![Architecture Diagram](images/Model_Registry_HLA.png)  
-*Figure 1: High-level system view demonstrating the microservice.*
-
-**Model Registry**
-
-The Model Registry provides REST API endpoints as the primary interface for interacting with the microservice. These endpoints allow users to perform various operations such as registering new models, updating, retrieving and deleting existing models.
-
-**Relational Database**
-
-The Relational Database is responsible for storing structured data related to the models.
-
-**Object Storage**
-
-The Object Storage solution is used to store unstructured data, such as model binaries and other files.
-
-**Intel® Geti™ Software**
-
-The Intel® Geti™ software is accessible via optional configurations within the model registry. Once configured, the model registry is able to access the projects and models hosted within a remote Geti platform. 
-
-## Key Features
-* **Feature 1**: Provides a comprehensive set of REST API endpoints for operations such as registering, updating, retrieving, and deleting models.
-* **Feature 2**: Utilizes a relational database to store structured data related to models, ensuring data integrity.
-* **Feature 3**: Leverages an object storage solution for scalable storage and retrieval of unstructured data, including model binaries and artifacts.
-* **Feature 4**: Offers optional configurations to integrate with the Intel® Geti™ software, enabling access to projects and models hosted on a remote Geti platform.
+The Audio Intelligence microservice accepts a video file for transcription from either file system or minIO storage. Using the configured Whisper model, the transcription is created. The output transcription along with the configured metadata is then stored in configured destination location. It provides a RESTful API to configure and utilize the capabilities.
 
 ## Supporting Resources
 
