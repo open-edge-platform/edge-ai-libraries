@@ -6,7 +6,6 @@
 name: "[Model Registry] PR workflow"
 run-name: "[Model Registry] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  workflow_dispatch:
   push:
     branches:
       - main
@@ -15,8 +14,11 @@ on:
   pull_request:
     paths:
       - 'microservices/model-registry/**'
+  workflow_call:
+  workflow_dispatch:
 
 jobs:
+
   modelregistry-unit-tests:
     runs-on: ubuntu-22.04
     steps:
@@ -45,8 +47,6 @@ jobs:
           echo "run_pytest_raw_output<<EOF" >> $GITHUB_OUTPUT
           echo "$PYTEST_OUTPUT" >> $GITHUB_OUTPUT
           echo "EOF" >> $GITHUB_OUTPUT; fi
-          pwd
-          ls
         env:
           PYTHONPATH: "${{ github.workspace }}/microservices/model-registry/src"
       - name: Parse Pytest Results
@@ -77,8 +77,6 @@ jobs:
           echo "Coverage: $COVERAGE" > pytest_summary.txt
           echo "Passed: $PASSED" >> pytest_summary.txt
           echo "Failed: $FAILED" >> pytest_summary.txt
-          pwd
-          ls -laR ${{ github.workspace }}
         env:
           run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
       - name: Upload Pytest Results Files
