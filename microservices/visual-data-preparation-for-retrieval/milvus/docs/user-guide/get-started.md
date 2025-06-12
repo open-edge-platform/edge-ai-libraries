@@ -21,15 +21,20 @@ cd edge-ai-libraries/microservices
 Run the command to build image:
 
 ```bash
-docker build -t retriever-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f vector-retriever/src/Dockerfile .
+docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
 ```
 
-### Step 2: Prepare host directories for models
+### Step 2: Prepare host directories for models and data
 
 ```
 mkdir -p $HOME/.cache/huggingface
 mkdir -p $HOME/models
+mkdir -p $HOME/data
 ```
+
+Make sure to put all your data (images and video) in the created data directory (`$HOME/data` in the example commands) BEFORE deploying the service.
+
+Note: supported media types: jpg, png, mp4
 
 ### Step 3: Deploy
 
@@ -38,7 +43,6 @@ mkdir -p $HOME/models
 1. Go to the deployment files
 
     ``` bash
-    cd microservices/vector-retriever
     cd deployment/docker-compose/
     ```
 
@@ -74,14 +78,14 @@ Check if all microservices are up and runnning
 Output 
 ```
 NAME                         COMMAND                  SERVICE                                 STATUS              PORTS
+dataprep-visualdata-milvus   "uvicorn dataprep_vi…"   dataprep-visualdata-milvus              running (healthy)   0.0.0.0:9990->9990/tcp, :::9990->9990/tcp
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
 milvus-minio                 "/usr/bin/docker-ent…"   milvus-minio                            running (healthy)   0.0.0.0:9000-9001->9000-9001/tcp, :::9000-9001->9000-9001/tcp
 milvus-standalone            "/tini -- milvus run…"   milvus-standalone                       running (healthy)   0.0.0.0:9091->9091/tcp, 0.0.0.0:19530->19530/tcp, :::9091->9091/tcp, :::19530->19530/tcp
-retriever-milvus             "uvicorn retriever_s…"   retriever-milvus                        running (healthy)   0.0.0.0:7770->7770/tcp, :::7770->7770/tcp
 ```
 
 #### Option2: Deploy the application with the Milvus Server deployed separately
-If you have customized requirements for the Milvus Server, you may start the Milvus Server separately and run the commands for retriever service only
+If you have customized requirements for the Milvus Server, you may start the Milvus Server separately and run the commands for dateprep service only
 
 ``` bash
 cd deployment/docker-compose/
@@ -93,33 +97,60 @@ docker compose -f compose.yaml up -d
 
 ## Sample curl commands
 
-### Basic Query
+### Info
 
 ```curl
-curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
--H "Content-Type: application/json" \
--d '{
-    "query": "example query",
-    "max_num_results": 5
-}'
+curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ```
 
-### Query with Filter
+### Ingest Files
+
+-    For Directory:
+        ```curl
+        curl -X POST http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+        -H "Content-Type: application/json" \
+        -d '{
+            "file_dir": "/path/to/directory",
+            "frame_extract_interval": 15,
+            "do_detect_and_crop": true
+        }'
+        ```
+
+-    For Single File:
+        ```curl
+        curl -X POST http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+        -H "Content-Type: application/json" \
+        -d '{
+            "file_path": "/path/to/file.mp4",
+            "meta": {
+                "key": "value"
+            },
+            "frame_extract_interval": 15,
+            "do_detect_and_crop": true
+        }'
+        ```
+
+### Get File Info
 
 ```curl
-curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
--H "Content-Type: application/json" \
--d '{
-    "query": "example query",
-    "filter": {
-        "type": "example"
-    },
-    "max_num_results": 10
-}'
+curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file.mp4
+```
+
+### Delete File in Database
+
+```curl
+curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file.mp4
+```
+
+### Clear Database
+
+```curl
+curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ```
 
 ## Learn More
 
 -    Check the [API reference](./api-reference.md)
+-    The visual data preparation microservice usually pairs with a retriever microservice, check the retriever's [get-started-guide](../../../retriever/docs/user-guide/get-started.md)
 
 

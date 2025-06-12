@@ -25,7 +25,7 @@ RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \
 chown -R user /home/user/
 
-COPY vector-retriever /home/user/retriever
+COPY vector-retriever/milvus /home/user/retriever
 RUN chown -R user /home/user/retriever
 
 RUN pip install --no-cache-dir --upgrade pip setuptools && \

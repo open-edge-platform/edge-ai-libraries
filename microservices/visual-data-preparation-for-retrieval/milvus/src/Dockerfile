@@ -25,8 +25,8 @@ RUN useradd -m -s /bin/bash user && \
 mkdir -p /home/user && \
 chown -R user /home/user/
 
-COPY visual-data-preparation-for-retrieval /home/user/dataprep
-COPY vector-retriever/src/dependency /home/user/dataprep/src/dependency
+COPY visual-data-preparation-for-retrieval/milvus /home/user/dataprep
+COPY vector-retriever/milvus/src/dependency /home/user/dataprep/src/dependency
 RUN chown -R user /home/user/dataprep
 
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
