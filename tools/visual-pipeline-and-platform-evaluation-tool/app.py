@@ -509,7 +509,7 @@ def create_interface():
     )
 
     # AI stream rate
-    rate = gr.Slider(
+    ai_stream_rate = gr.Slider(
         label="AI Stream Rate (%)",
         value=20,  # Default value
         minimum=0,
@@ -684,7 +684,7 @@ def create_interface():
     components.add(inferencing_channels)
     components.add(recording_channels)
     components.add(fps_floor)
-    components.add(rate)
+    components.add(ai_stream_rate)
     components.add(object_detection_model)
     components.add(object_detection_device)
     components.add(object_detection_batch_size)
@@ -1050,7 +1050,7 @@ def create_interface():
                             fps_floor.render()
 
                             # AI Stream Rate
-                            rate.render()
+                            ai_stream_rate.render()
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
