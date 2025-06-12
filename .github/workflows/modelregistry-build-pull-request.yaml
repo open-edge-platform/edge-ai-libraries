@@ -16,8 +16,38 @@ on:
       - 'microservices/model-registry/**'
   workflow_call:
   workflow_dispatch:
+permissions: {}
 
 jobs:
+  modelregistry-docker-build:
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Stop all running Docker containers
+        run: |
+          docker ps -q | xargs -r docker stop
+
+      - name: Remove all Docker containers
+        run: |
+          docker ps -aq | xargs -r docker rm
+
+      - name: Remove all Docker images
+        run: |
+          docker images -q | xargs -r docker rmi -f
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Build Docker images with Compose
+        working-directory: microservices/model-registry/docker
+        run: docker compose build
+
+      - name: Start containers with Compose
+        working-directory: microservices/model-registry/docker
+        run: docker compose up -d
+
+      - name: Stop and remove containers and volumes
+        working-directory: microservices/model-registry/docker
+        run: docker compose down -v
 
   modelregistry-unit-tests:
     runs-on: ubuntu-22.04
