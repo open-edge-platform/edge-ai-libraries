@@ -24,7 +24,7 @@ def verify_params_and_get_video_name(
     Raises DataPrepException if the video does not exist or parameter verification fails.
     """
 
-    # Validate time ranges and whether text summary is empty
+    # Validate video time ranges and whether summary text is empty
     if video_start_time < 0:
         raise DataPrepException(
             status_code=HTTPStatus.BAD_REQUEST,
@@ -43,14 +43,14 @@ def verify_params_and_get_video_name(
             msg="video_summary cannot be empty",
         )
 
-    # Get the Minio client and ensure the bucket, video_id exists and is valid
+    # Get the Minio client and ensure the bucket and video_id exists and is valid
     minio_client = get_minio_client()
     minio_client.ensure_bucket_exists(bucket_name)
     video_name = minio_client.get_video_in_directory(bucket_name, video_id)
     if not video_name:
         raise DataPrepException(
-            status_code=HTTPStatus.NOT_FOUND,
-            msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg=f"Either video_id '{video_id}' is invalid or no video found in directory '{video_id}' in bucket '{bucket_name}'",
         )
     
     return video_name

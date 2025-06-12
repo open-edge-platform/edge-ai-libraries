@@ -28,7 +28,8 @@ def sanitize_string(value: Optional[str]) -> Optional[str]:
         return None
 
     sanitized = value.strip()
-    return sanitized if sanitized else None
+    logger.debug(f"Sanitizing string: '{value}' -> '{sanitized}'")
+    return sanitized
 
 
 def sanitize_bucket_name(bucket_name: Optional[str]) -> str:
@@ -46,8 +47,16 @@ def sanitize_bucket_name(bucket_name: Optional[str]) -> str:
     """
     from src.common import settings
 
+    min_length: str = 3
+
     # Sanitize the bucket name
     bucket_name = sanitize_string(bucket_name or settings.DEFAULT_BUCKET_NAME)
+
+    if len(bucket_name) < min_length:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg=f"Bucket name must be at least {min_length} characters long.",
+        )
 
     return bucket_name
 
@@ -82,7 +91,7 @@ def sanitize_video_id(video_id: Optional[str], min_length: int = 3) -> str:
     if not re.match(r"^[a-zA-Z0-9.\-_/]+$", video_id):
         raise DataPrepException(
             status_code=HTTPStatus.BAD_REQUEST,
-            msg="Video ID contains invalid characters. Use only alphanumeric characters, dots, hyphens, underscores, and forward slashes.",
+            msg="Video ID contains invalid characters. Use only alphanumeric characters, periods, hyphens, underscores, and forward slashes.",
         )
 
     return video_id
@@ -281,8 +290,7 @@ def sanitize_model(model: Any) -> Any:
             else:
                 # Apply basic string sanitization to other string fields
                 sanitized = sanitize_string(value)
-                if sanitized:
-                    model_dict[field_name] = sanitized
+                model_dict[field_name] = sanitized
 
     # Update the model with sanitized values
     for field_name, value in model_dict.items():
