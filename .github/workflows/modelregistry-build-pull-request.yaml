@@ -117,3 +117,42 @@ jobs:
             ${{ github.workspace }}/microservices/model-registry/pytest_results.txt
             ${{ github.workspace }}/pytest_summary.txt
             ${{ github.workspace }}/microservices/model-registry/coverage.xml
+  
+  bandit-scans:
+    name: Run Bandit Scan
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Run Bandit Scan
+      run: |
+        mkdir -p reports
+        docker pull ghcr.io/pycqa/bandit/bandit
+        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit \
+          /src/edge-ai-libraries-repo/microservices/model-registry \
+          -r -x /src/edge-ai-libraries-repo/microservices/model-registry/tests -f txt \
+          > /src/reports/bandit-report.txt || true
+        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
+        cat reports/bandit-report.txt >> $GITHUB_STEP_SUMMARY
+        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: reports/bandit-report.txt
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+              docker rmi -f $(docker images -aq) || true
+        fi
