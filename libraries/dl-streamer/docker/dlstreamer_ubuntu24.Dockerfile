@@ -344,7 +344,6 @@ RUN \
     find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
     cp ${GSTREAMER_DIR}/lib/libvorbis* /deb-pkg/usr/local/lib/ && \
     find /usr/local/lib -regextype grep -regex ".*libpaho.*so\.[0-9].[0-9]*$" -exec cp {} /deb-pkg/opt/ffmpeg \; && \
-    cp /usr/local/lib/libpaho* /deb-pkg/usr/local/lib/ && \
     cp /usr/local/lib/libav* /deb-pkg/usr/local/lib/ && \
     cp ${GSTREAMER_DIR}/lib/libgst* /deb-pkg/usr/lib && \
     cp -r ${GSTREAMER_DIR}/lib/gstreamer-1.0/ /deb-pkg/usr/lib/ && \
