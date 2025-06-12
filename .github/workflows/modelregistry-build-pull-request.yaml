@@ -6,6 +6,7 @@
 name: "[Model Registry] PR workflow"
 run-name: "[Model Registry] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
+  workflow_dispatch:
   push:
     branches:
       - main
@@ -77,10 +78,10 @@ jobs:
           echo "Passed: $PASSED" >> pytest_summary.txt
           echo "Failed: $FAILED" >> pytest_summary.txt
           pwd
-          ls
+          ls -laR ${{ github.workspace }}
         env:
           run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
-      - name: Upload Pytest Results File
+      - name: Upload Pytest Results Files
         uses: actions/upload-artifact@v4
         with:
           name: pytest-results
