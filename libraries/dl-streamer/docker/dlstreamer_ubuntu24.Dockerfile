@@ -10,18 +10,18 @@
 #                     |
 #                     |
 #                     V
-#                  builder -----------------------------
-#                 /       \                            |
-#                /         \                           |
-#               V           V                          |
-#      ffmpeg-builder   opencv-builder                 |
-#               |              |                       |
-#               V              |                       |
-#       gstreamer-builder      | (copy libs)           |
-#                \            /                        |
-#      (copy libs)\          /                         |
-#                  V        V                          |
-#                dlstreamer-dev <----------------------|
+#                  builder --------------------------
+#                 /       \                         |
+#                /         \                        |
+#               V           V                       |
+#      ffmpeg-builder   opencv-builder              |
+#               |              |                mqqt-builder
+#               V              |                    |
+#       gstreamer-builder      | (copy libs)        |
+#                \            /                     |
+#      (copy libs)\          /                      |
+#                  V        V        (copy libs)    |
+#                dlstreamer-dev <-------------------|
 #                      |
 #                      |
 #                      V
@@ -281,6 +281,26 @@ RUN \
 WORKDIR /copy_libs
 RUN cp -a /usr/local/lib/libopencv* ./
 
+
+# ==============================================================================
+FROM builder AS mqqt-builder
+# Build rdkafka and Paho MQTT C client library
+
+RUN curl -sSL https://github.com/edenhill/librdkafka/archive/v1.5.0.tar.gz | tar -xz
+
+WORKDIR /librdkafka-1.5.0
+RUN ./configure &&\
+    make && make install
+
+WORKDIR /
+RUN curl -sSL https://github.com/eclipse/paho.mqtt.c/archive/v1.3.4.tar.gz | tar -xz
+WORKDIR /paho.mqtt.c-1.3.4
+RUN make && make install
+
+WORKDIR /copy_libs
+RUN cp -a /usr/local/lib/librdkafka* ./
+RUN cp -a /usr/local/lib/libpaho-mqtt* ./
+
 # ==============================================================================
 FROM builder AS dlstreamer-dev
 
@@ -295,6 +315,9 @@ COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
 COPY --from=opencv-builder /usr/local/include/opencv4 /usr/local/include/opencv4
 COPY --from=opencv-builder /copy_libs/ /usr/local/lib/
 COPY --from=opencv-builder /usr/local/lib/cmake/opencv4 /usr/local/lib/cmake/opencv4
+COPY --from=mqqt-builder /copy_libs/ /usr/local/lib/
+COPY --from=mqqt-builder /usr/local/include/librdkafka /usr/local/include/librdkafka
+COPY --from=mqqt-builder /usr/local/include/MQTT* /usr/local/include/
 
 
 RUN apt-get update && apt-get install -y gnupg
@@ -310,9 +333,7 @@ WORKDIR "$DLSTREAMER_DIR"
 
 COPY . "${DLSTREAMER_DIR}"
 
-RUN \
-    mkdir build && \
-    ${DLSTREAMER_DIR}/scripts/install_metapublish_dependencies.sh
+RUN mkdir build
 
 WORKDIR $DLSTREAMER_DIR/build
 
