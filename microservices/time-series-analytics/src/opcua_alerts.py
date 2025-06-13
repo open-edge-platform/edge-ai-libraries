@@ -95,7 +95,7 @@ async def send_alert_to_opcua_async(alert_message):
     try:
         alert_node = client.get_node(f"ns={namespace};i={node_id}")
         alert_node.write_value(alert_message)
-        logger.debug("Alert sent to OPC UA server: {}".format(alert_message))
+        logger.info("ALERT sent to OPC UA server: {}".format(alert_message))
     except Exception as e:
         logger.exception(e)
 
@@ -120,3 +120,4 @@ async def send_alert_to_opcua_async(alert_message):
 #         uvicorn.run(app, host="0.0.0.0", port=5000, log_level=log_level.lower(), access_log=False)
 # #server_thread = threading.Thread(target=run_server)
 #     #server_thread.start()
+
