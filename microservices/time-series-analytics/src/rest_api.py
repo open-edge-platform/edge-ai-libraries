@@ -11,13 +11,15 @@ import sys
 import json
 import requests
 from fastapi import FastAPI, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Extra
 from typing import Optional
 import uvicorn
 import subprocess
 import threading
 import classifier_startup
 from fastapi import BackgroundTasks
+import opcua_alerts
+import socket
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -36,15 +38,19 @@ CONFIG_FILE = "/app/config.json"
 global CONFIG
 
 class DataPoint(BaseModel):
-    measurement: str
+    topic: str
     tags: Optional[dict] = None
     fields: dict
     timestamp: Optional[int] = None
 
 class Config(BaseModel):
-    model_registry : dict
-    udfs: dict
+    model_registry : dict = {"enable": False, "version": "1.0"}
+    udfs: dict = {"name": "udf_name"}
     alerts: Optional[dict] = {}
+
+class OpcuaAlerts(BaseModel):
+   class Config:
+       extra = Extra.allow
 
 def json_to_line_protocol(data_point: DataPoint):
 
@@ -59,18 +65,28 @@ def json_to_line_protocol(data_point: DataPoint):
     ts = data_point.timestamp or int(time.time() * 1e9)
 
     if tags_part:
-        line_protocol = f"{data_point.measurement},{tags_part} {fields_part} {ts}"
+        line_protocol = f"{data_point.topic},{tags_part} {fields_part} {ts}"
     else:
-        line_protocol = f"{data_point.measurement} {fields_part} {ts}"
+        line_protocol = f"{data_point.topic} {fields_part} {ts}"
     logger.debug(f"Converted line protocol: {line_protocol}")
     return line_protocol
 
+# def start_opcua_alerts(CONFIG):
+#     try:
+#         with socket.create_connection(("localhost", 5000), timeout=5):
+#                 return
+#     except (socket.timeout, socket.error) as e: 
+#         opcua_thread = threading.Thread(target=opcua_alerts.main, args=(CONFIG,), daemon=True)
+#         opcua_thread.start()
+
 def start_kapacitor_service(CONFIG):
-    try:
-        classifier_startup.main(CONFIG)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to start Kapacitor service: {e}")
-        raise HTTPException(status_code=500, detail="Failed to start Kapacitor service")
+    # try:
+    #     if "alerts" in CONFIG.keys() and "opcua" in CONFIG["alerts"].keys():
+    #         start_opcua_alerts(CONFIG)
+    classifier_startup.classifier_startup(CONFIG)
+    # except subprocess.CalledProcessError as e:
+    #     logger.error(f"Failed to start Kapacitor service: {e}")
+    #     raise HTTPException(status_code=500, detail="Failed to start Kapacitor service")
 
 def stop_kapacitor_service():
 
@@ -91,20 +107,38 @@ def stop_kapacitor_service():
 def read_root():
     return {"message": "FastAPI Input server is running"}
 
+@app.post("/opcua_alerts")
+async def receive_alert(alert: OpcuaAlerts):
+    try:
+        if "alerts" in CONFIG.keys() and "opcua" in CONFIG["alerts"].keys():
+            if not hasattr(opcua_alerts, "initialized") or not opcua_alerts.initialized:
+                opcua_alerts.initialize_opcua(CONFIG)
+                opcua_alerts.initialized = True
+            alert_message = json.dumps(alert.model_dump())
+            try:
+                await opcua_alerts.send_alert_to_opcua_async(alert_message)
+            except Exception as e:
+                logger.exception(e)
+            return {"status_code": 200, "status": "success", "message": "Alert received"}
+        else:
+            raise HTTPException(status_code=404, detail="OPC UA alerts are not configured in the service")
+    except Exception as e:
+        raise HTTPException(status_code=404, detail=str(e))
+
 @app.post("/input")
 async def receive_data(data_point: DataPoint):
     """
     Receives a data point in JSON format, converts it to InfluxDB line protocol, and sends it to the Kapacitor service.
 
     The input JSON must include:
-        - measurement (str): The measurement name.
+        - topic (str): The topic name.
         - tags (dict): Key-value pairs for tags (e.g., {"location": "factory1"}).
         - fields (dict): Key-value pairs for fields (e.g., {"temperature": 23.5}).
         - timestamp (int, optional): Epoch time in nanoseconds. If omitted, current time is used.
 
     Example request body:
     {
-        "measurement": "sensor_data",
+        "topic": "sensor_data",
         "tags": {"location": "factory1", "device": "sensorA"},
         "fields": {"temperature": 23.5, "humidity": 60},
         "timestamp": 1718000000000000000
@@ -268,9 +302,12 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         if config_data.alerts:
             CONFIG["alerts"] = config_data.alerts
         logger.debug(f"Received configuration data: {CONFIG}")
-    except Exception as e:
-        logger.error(f"Error processing configuration data: {e}")
-        raise HTTPException(status_code=400, detail=str(e))
+    except json.JSONDecodeError as e:
+        logger.error(f"Invalid JSON format in configuration data: {e}")
+        raise HTTPException(status_code=422, detail="Invalid JSON format in configuration data")
+    except KeyError as e:
+        logger.error(f"Missing required key in configuration data: {e}")
+        raise HTTPException(status_code=422, detail=f"Missing required key: {e}")
 
     def restart_kapacitor():
         stop_kapacitor_service()
@@ -283,7 +320,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
 if __name__ == "__main__":
     # Start the FastAPI server
     def run_server():
-        uvicorn.run(app, host="0.0.0.0", port=8000)
+        uvicorn.run(app, host="0.0.0.0", port=5000)
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
@@ -293,8 +330,10 @@ if __name__ == "__main__":
             CONFIG = json.load(file)
         logger.info("App configuration loaded successfully from config.json file")
         start_kapacitor_service(CONFIG)
+    except FileNotFoundError:
+        logger.info("config.json file not found, waiting for the configuration")
     except Exception as e:
-        logger.info("Fetching app configuration failed from config.json file, waiting for the configuration")
+        logger.info(f"Time Series Microservice failure - {e}")
 
 
     

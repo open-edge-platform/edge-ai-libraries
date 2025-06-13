@@ -8,13 +8,15 @@ import os
 import logging
 import time
 import sys
-import json
-from fastapi import FastAPI, HTTPException, Request
+# import json
+# from fastapi import FastAPI, HTTPException, Request
+# import uvicorn
+# import threading
 
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
-
+CONFIG = {}
 # Configure logging
 logging.basicConfig(
     level=logging_level,
@@ -22,20 +24,17 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger()
-app = FastAPI()
+#app = FastAPI()
 client = None
 node_id = None
 namespace = None
 opcua_server = None
 
-def load_opcua_config(CONFIG_FILE):
+def load_opcua_config(CONFIG):
     try:
-        with open(CONFIG_FILE, 'r') as file:
-            app_cfg = json.load(file)
-        alerts = app_cfg["config"]["alerts"]
-        node_id = alerts["opcua"]["node_id"]
-        namespace = alerts["opcua"]["namespace"]
-        opcua_server = alerts["opcua"]["opcua_server"]
+        node_id = CONFIG["alerts"]["opcua"]["node_id"]
+        namespace = CONFIG["alerts"]["opcua"]["namespace"]
+        opcua_server = CONFIG["alerts"]["opcua"]["opcua_server"]
         return node_id, namespace, opcua_server
     except Exception as e:
         logger.exception("Fetching app configuration failed, Error: {}".format(e))
@@ -78,16 +77,16 @@ def connect_opcua_client(client, secure_mode, opcua_server, max_retries=10):
                     sys.exit(1)
     return False
 
-@app.on_event("startup")
-def startup_event():
-    global node_id, namespace, opcua_server, client, secure_mode
-    CONFIG_FILE = "/app/config.json"
-    node_id, namespace, opcua_server = load_opcua_config(CONFIG_FILE)
+
+def initialize_opcua(CONFIG):
+    global node_id, namespace, opcua_server, client
+    node_id, namespace, opcua_server = load_opcua_config(CONFIG)
     client = create_opcua_client(opcua_server)
     secure_mode = os.getenv("SECURE_MODE", "false")
     connected = connect_opcua_client(client, secure_mode, opcua_server)
     if not connected:
         logger.error("Failed to connect to OPC UA server.")
+
 
 async def send_alert_to_opcua_async(alert_message):
     if client is None:
@@ -100,19 +99,24 @@ async def send_alert_to_opcua_async(alert_message):
     except Exception as e:
         logger.exception(e)
 
-@app.post("/opcua_alerts")
-async def receive_alert(request: Request):
-    try:
-        alert_data = await request.json()
-        alert_message = alert_data.get('message', '')
-        try:
-            await send_alert_to_opcua_async(alert_message)
-        except Exception as e:
-            logger.exception(e)
-        return {"status_code": 200, "status": "success", "message": "Alert received"}
-    except Exception as e:
-        raise HTTPException(status_code=400, detail=str(e))
 
-@app.get("/")
-def read_root():
-    return {"message": "FastAPI server is running"}
+
+# @app.get("/")
+# def read_root():
+#     return {"message": "FastAPI server is running"}
+
+# def main(config):
+#     # Start the FastAPI server
+#     secure_mode = os.getenv("SECURE_MODE", "false")
+#     global CONFIG
+#     CONFIG = config
+#     initialize_opcua()
+#     #def run_server():
+#     if secure_mode.lower() == "true":
+#         uvicorn.run(app, host="0.0.0.0", port=5000, log_level=log_level.lower(), access_log=False, 
+#                     ssl_certfile="/run/secrets/time_series_analytics_microservice_Server_server_certificate.pem", 
+#                     ssl_keyfile="/run/secrets/time_series_analytics_microservice_Server_server_key.pem")
+#     else:
+#         uvicorn.run(app, host="0.0.0.0", port=5000, log_level=log_level.lower(), access_log=False)
+# #server_thread = threading.Thread(target=run_server)
+#     #server_thread.start()
