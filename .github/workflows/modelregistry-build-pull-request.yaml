@@ -45,7 +45,7 @@ jobs:
           sed -i "s/MR_MINIO_SECRET_KEY=.*/MR_MINIO_SECRET_KEY=test123/g" .env
           sed -i "s/MR_PSQL_PASSWORD=.*/MR_PSQL_PASSWORD=test123/g" .env
           cd ../scripts
-          ./init_mr_data_dirs.sh
+          sudo ./init_mr_data_dirs.sh
 
       - name: Build Docker images with Compose
         working-directory: microservices/model-registry/docker
