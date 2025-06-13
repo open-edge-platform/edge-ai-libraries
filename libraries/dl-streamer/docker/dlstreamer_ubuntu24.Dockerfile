@@ -4,6 +4,33 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
+# ==============================================================================
+# Build flow:
+#                ubuntu:24.04
+#                     |
+#                     |
+#                     V
+#                  builder -----------------------------
+#                 /       \                            |
+#                /         \                           |
+#               V           V                          |
+#      ffmpeg-builder   opencv-builder                 |
+#               |              |                       |
+#               V              |                       |
+#       gstreamer-builder      | (copy libs)           |
+#                \            /                        |
+#      (copy libs)\          /                         |
+#                  V        V                          |
+#                dlstreamer-dev <----------------------|
+#                      |
+#                      |
+#                      V
+#                  deb-builder
+#                      |
+#                      | (copy debs)
+#                      V
+#                  dlstreamer
+# ==============================================================================
 FROM ubuntu:24.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
@@ -81,7 +108,7 @@ USER root
 
 ENV PATH="/python3venv/bin:${PATH}"
 
-
+# ==============================================================================
 FROM builder AS ffmpeg-builder
 #Build ffmpeg
 RUN \
@@ -112,6 +139,7 @@ RUN cp -a /usr/local/lib/libav* ./
 RUN cp -a /usr/local/lib/libswscale* ./
 RUN cp -a /usr/local/lib/libswresample* ./
 
+# ==============================================================================
 FROM ffmpeg-builder AS gstreamer-builder
 
 #Build GStreamer
@@ -224,6 +252,7 @@ RUN \
     rm -rf ./* && \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
 
+# ==============================================================================
 FROM builder AS opencv-builder
 # OpenCV
 WORKDIR /
@@ -250,6 +279,7 @@ RUN \
 WORKDIR /copy_libs
 RUN cp -a /usr/local/lib/libopencv* ./
 
+# ==============================================================================
 FROM builder AS dlstreamer-dev
 # Intel® DL Streamer development image
 
