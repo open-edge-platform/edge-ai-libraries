@@ -149,7 +149,7 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-python3 src/temperature_input.py --mode docker
+python3 simulator/temperature_input.py --port 9092
 ```
 
 ### Verify the Temperature Classifier Results

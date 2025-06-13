@@ -12,10 +12,9 @@ import argparse
 
 parser = argparse.ArgumentParser(description="Send temperature data to Time Series Analytics Microservice.")
 parser.add_argument(
-    "--mode",
-    choices=["helm", "docker"],
+    "--port",
     required=True,
-    help="Deployment mode: 'helm' or 'docker'"
+    help="Port number to connect to the Time Series Analytics Microservice.",
 )
 args = parser.parse_args()
 
@@ -37,10 +36,10 @@ def is_port_open(host, port, timeout=3):
     
 host = "localhost"
 
-if args.mode == "helm":
-    port = 30009
-else:
-    port = 9092
+port = int(args.port)
+if not port.isdigit():
+    print(f"Invalid port number: {port}. Please provide a valid port number.")
+    exit(1)
 
 if not is_port_open(host, port):
     print(f"Port {port} on {host} is not accessible.")

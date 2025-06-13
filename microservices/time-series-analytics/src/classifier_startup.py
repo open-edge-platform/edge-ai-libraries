@@ -13,14 +13,10 @@ import os.path
 import time
 import tempfile
 import sys
-import json
 import socket
-import shlex
 import logging
 import shutil
 from threading import Thread
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 import tomlkit
 import select
 import threading
@@ -29,6 +25,7 @@ import threading
 from influxdb import InfluxDBClient
 from mr_interface import MRHandler
 
+
 TEMP_KAPACITOR_DIR = tempfile.gettempdir()
 KAPACITOR_DEV = "kapacitor_devmode.conf"
 KAPACITOR_PROD = "kapacitor.conf"
@@ -36,16 +33,9 @@ SUCCESS = 0
 FAILURE = -1
 KAPACITOR_PORT = 9092
 KAPACITOR_NAME = 'kapacitord'
-CONFIG_KEY_PATH = 'config'
-CONFIG_FILE = "/app/config.json"
+CONFIG = {}
 
-logging.getLogger("watchdog.observers.inotify_buffer").setLevel(logging.WARNING)
 mrHandlerObj = None
-class ConfigFileEventHandler(FileSystemEventHandler):
-    def on_modified(self, event):
-        if event.src_path.endswith("config.json"):
-            logger.info(f"{event.src_path} file has been modified. Exiting to restart container...")
-            os._exit(1)
 
 def KapacitorDaemonLogs(logger):
     kapacitor_log_file = "/tmp/log/kapacitor/kapacitor.log"
@@ -54,8 +44,8 @@ def KapacitorDaemonLogs(logger):
             break
         else:
             time.sleep(1)
-    f = subprocess.Popen(['tail','-F',kapacitor_log_file],\
-                                stdout=subprocess.PIPE,stderr=subprocess.PIPE)
+    f = subprocess.Popen(['tail','-F',kapacitor_log_file],
+                        stdout=subprocess.PIPE, stderr=subprocess.PIPE)
     p = select.poll()
     p.register(f.stdout)
     while True:
@@ -69,6 +59,8 @@ class KapacitorClassifier():
     """
     def __init__(self, logger):
         self.logger = logger
+        self.kapacitor_proc = None
+        self.stop_check_udf = False
 
     def write_cert(self, file_name, cert):
         """Write certificate to given file path
@@ -80,63 +72,70 @@ class KapacitorClassifier():
             self.logger.debug("Failed creating file: {}, Error: {} ".format(
                 file_name, err))
     
-    def check_udf_package(self, config):
+    def check_udf_package(self):
         """ Check if udf package is present in the container
         """
         logger.info("Checking if UDF package is present in the container...")
-        path = "/tmp/" + config['task']["task_name"] +"/"
-        udf_dir = os.path.join(path, "udfs") 
-        model_dir = os.path.join(path, "models") 
-        tick_scripts_dir = os.path.join(path, "tick_scripts") 
+        path = "/tmp/" + dir_name + "/"
+        udf_dir = os.path.join(path, "udfs")
+        model_dir = os.path.join(path, "models")
+        tick_scripts_dir = os.path.join(path, "tick_scripts")
         found_udf = False
         found_tick_scripts = False
         found_model = False
-        while True:
-            if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir, config['task']["task_name"] + ".py")):
-                found_udf = True
-        
-            if os.path.isdir(tick_scripts_dir) and os.path.isfile(os.path.join(tick_scripts_dir, config['task']["task_name"] + ".tick")):
-                found_tick_scripts = True
+        udf_name = CONFIG["udfs"]["name"]
 
-            # Check for any file with the task_name in the models directory, regardless of extension
-            if "models" in config["task"]["udfs"].keys():
-                if os.path.isdir(model_dir):
-                    for fname in os.listdir(model_dir):
-                        if fname.startswith(config['task']["task_name"]):
-                            found_model = True
-                            break
-            else:
-                found_model = True
-            if not(found_model and found_udf and found_tick_scripts):
-                missing_items = []
-                if not found_model:
-                    missing_items.append(f"model file for task {mrHandlerObj.tasks['task_name']}")
-                if not found_udf:
-                    missing_items.append(f"udf file for task {mrHandlerObj.tasks['task_name']}")
-                if not found_tick_scripts:
-                    missing_items.append(f"tick script for task {mrHandlerObj.tasks['task_name']}")
-                self.logger.error(
-                    "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the udf package."
-                )
-            else:
-                return
-            time.sleep(5)
 
-    def install_udf_package(self,config):
+        if not os.path.isdir(path):
+            self.logger.error(f"UDF package directory {udf_name} does not exist. Please check and upload/copy the udf package.")
+            return False
+        if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir, CONFIG['udfs']["name"] + ".py")):
+            found_udf = True
+
+        if os.path.isdir(tick_scripts_dir) and os.path.isfile(os.path.join(tick_scripts_dir, CONFIG['udfs']["name"] + ".tick")):
+            found_tick_scripts = True
+
+        # Check for any file with the task_name in the models directory, regardless of extension
+        if "models" in CONFIG["udfs"].keys():
+            if os.path.isdir(model_dir):
+                for fname in os.listdir(model_dir):
+                    if fname.startswith(CONFIG['udfs']["name"]):
+                        found_model = True
+                        break
+        else:
+            found_model = True
+        if not (found_model and found_udf and found_tick_scripts):
+            missing_items = []
+            if not found_model:
+                missing_items.append(f"model file for task {mrHandlerObj.config['udfs']['name']}")
+                self.logger.info("Missing model")
+            if not found_udf:
+                missing_items.append(f"udf file for task {mrHandlerObj.config['udfs']['name']}")
+                self.logger.info("Missing udf")
+            if not found_tick_scripts:
+                missing_items.append(f"tick script for task {mrHandlerObj.config['udfs']['name']}")
+                self.logger.info("Missing tick script")
+            self.logger.error(
+                "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the udf package."
+            )
+            return False
+        else:
+            self.logger.info("UDF package is present in the container.")
+            return True
+
+    def install_udf_package(self, dir_name):
         """ Install python package from udf/requirements.txt if exists
         """
 
-        python_package_requirement_file = "/tmp/" + config['task']["task_name"] + "/udfs/requirements.txt"
+        python_package_requirement_file = "/tmp/" + dir_name + "/udfs/requirements.txt"
         python_package_installation_path = "/tmp/py_package"
         os.system(f"mkdir -p {python_package_installation_path}")
         if os.path.isfile(python_package_requirement_file):
             os.system(f"pip3 install -r {python_package_requirement_file} --target {python_package_installation_path}")
 
     def start_kapacitor(self,
-                        config,
                         kapacitor_url_hostname,
-                        secure_mode,
-                        app_name):
+                        secure_mode):
         """Starts the kapacitor Daemon in the background
         """
         http_scheme = "http://"
@@ -166,8 +165,19 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
 
-            subprocess.Popen(["kapacitord", "-hostname", kapacitor_url_hostname,
-                              "-config", kapacitor_conf, "&"])
+            self.kapacitor_proc = subprocess.Popen(
+                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
+            )
+
+            # Start a thread to reap the kapacitor process when it exits
+            def reap_kapacitor_proc(proc, logger):
+                try:
+                    proc.wait()
+                    logger.info("Kapacitor daemon process has exited and was reaped.")
+                except Exception as e:
+                    logger.error(f"Error while reaping kapacitor process: {e}")
+
+            threading.Thread(target=reap_kapacitor_proc, args=(self.kapacitor_proc, self.logger), daemon=True).start()
             self.logger.info("Started kapacitor Successfully...")
             return True
         except subprocess.CalledProcessError as err:
@@ -244,7 +254,7 @@ class KapacitorClassifier():
 
         self.logger.info("Kapacitor Port is Open for Communication....")
  
-        path = "/tmp/" + task_name + "/tick_scripts/"
+        path = "/tmp/" + dir_name + "/tick_scripts/"
         while retry < retry_count:
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
                                   task_name, "-tick",
@@ -266,37 +276,30 @@ class KapacitorClassifier():
             time.sleep(0.0001)
             retry = retry + 1
 
-    def check_config(self, config):
+    def check_config(self, CONFIG):
         """Starting the udf based on the config
            read from the etcd
         """
         # Checking if udf present in task and
         # run it based on etcd config
-        if 'task' not in config.keys():
+        if 'udfs' not in CONFIG.keys():
             error_msg = "task key is missing in config, EXITING!!!"
             return error_msg, FAILURE
         return None, SUCCESS
 
-    def enable_tasks(self, config, kapacitor_started, kapacitor_url_hostname, secure_mode):
+    def enable_tasks(self, CONFIG, kapacitor_started, kapacitor_url_hostname):
         """Starting the task based on the config
            read from the etcd
         """
-        task = config['task']
-        if 'tick_script' in task:
-            tick_script = task['tick_script']
+        if 'name' in CONFIG['udfs']:
+            tick_script = CONFIG['udfs']['name'] + ".tick"
         else:
-            error_msg = ("tick_script key is missing in config "
-                            "Please provide the tick script to run "
+            error_msg = ("UDF name key is missing in config "
+                            "Please provide the UDF name to run "
                             "EXITING!!!!")
             return error_msg, FAILURE
 
-        if 'task_name' in task:
-            task_name = task['task_name']
-        else:
-            error_msg = ("task_name key is missing in config "
-                            "Please provide the task name "
-                            "EXITING!!!")
-            return error_msg, FAILURE
+        task_name = CONFIG['udfs']['name']
 
         if kapacitor_started:
             self.logger.info("Enabling {0}".format(tick_script))
@@ -307,15 +310,6 @@ class KapacitorClassifier():
         while True:
             time.sleep(1)
 
-
-def config_file_watch(observer, CONFIG_FILE):
-    logger.info(f"Monitoring {CONFIG_FILE} for config changes...")
-    try:
-        while True:
-            time.sleep(1)
-    except KeyboardInterrupt:
-        observer.stop()
-    observer.join()
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -363,28 +357,19 @@ def delete_old_subscription(secure_mode):
     except Exception as e:
         logger.exception("Deleting old subscription failed, Error: {}".format(e))
 
-def main():
+def classifier_startup(config):
     """Main to start kapacitor service
     """
-    try:
-        with open (CONFIG_FILE, 'r') as file:
-            app_cfg = json.load(file)
-        mode = os.getenv("SECURE_MODE", "false")
-        secure_mode = mode.lower() == "true"
+    global CONFIG
+    CONFIG = config
+    kapacitor_classifier.stop_check_udf = True
+    mode = os.getenv("SECURE_MODE", "false")
+    secure_mode = mode.lower() == "true"
 
-        config = app_cfg["config"]
-        app_name = os.getenv("Appname", "Kapacitor")
-    except Exception as e:
-        logger.exception("Fetching app configuration failed, Error: {}".format(e))
-        os._exit(1)
     global mrHandlerObj
-    mrHandlerObj = MRHandler(config, logger)
-    event_handler = ConfigFileEventHandler()
-    observer = Observer()
-    observer.schedule(event_handler, path=CONFIG_FILE, recursive=False)
-    observer.start()
-    watch_config_change = Thread(target=config_file_watch, args=(observer,CONFIG_FILE,))
-    watch_config_change.start()
+    mrHandlerObj = MRHandler(CONFIG, logger)
+
+    global dir_name
 
     # Delete old subscription
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
@@ -395,10 +380,13 @@ def main():
     # Read the existing configuration
     with open("/tmp/" + conf_file, 'r') as file:
         config_data = tomlkit.parse(file.read())
-    udf_name = config['task']['udfs']['name']
+    udf_name = CONFIG['udfs']['name']
     dir_name = udf_name
     if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
         dir_name = mrHandlerObj.unique_id
+        if dir_name is None or dir_name == "":
+            logger.error(f"Please check the UDF name:{mrHandlerObj.config['udfs']['name']} and version: {mrHandlerObj.config['model_registry']['version']} in the config.")
+            return
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
 
@@ -410,11 +398,11 @@ def main():
     udf_section[udf_name]['env'] = {
         'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:"
     }
-    if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
-        config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
+    if "alerts" in CONFIG.keys() and "mqtt" in CONFIG["alerts"].keys():
+        config_data["mqtt"][0]["name"] = CONFIG["alerts"]["mqtt"]["name"]
         mqtt_url = config_data["mqtt"][0]["url"]
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST", config["alerts"]["mqtt"]["mqtt_broker_host"])
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT", str(config["alerts"]["mqtt"]["mqtt_broker_port"]))
+        mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST", CONFIG["alerts"]["mqtt"]["mqtt_broker_host"])
+        mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT", str(CONFIG["alerts"]["mqtt"]["mqtt_broker_port"]))
         config_data["mqtt"][0]["url"] = mqtt_url
     else:
         config_data["mqtt"][0]["enabled"] = False
@@ -432,8 +420,6 @@ def main():
         shutil.rmtree(dst_dir)
     shutil.copytree(src_dir, dst_dir)
 
-    kapacitor_classifier = KapacitorClassifier(logger)
-
     logger.info("=============== STARTING kapacitor ==============")
     host_name = "localhost"
     if not host_name:
@@ -441,59 +427,38 @@ def main():
                      'So exiting...')
         kapacitor_classifier.exit_with_failure_message(error_log)
 
-    msg, status = kapacitor_classifier.check_config(config)
+    msg, status = kapacitor_classifier.check_config(CONFIG)
     if status is FAILURE:
         kapacitor_classifier.exit_with_failure_message(msg)
 
-    kapacitor_classifier.check_udf_package(config)
-    kapacitor_classifier.install_udf_package(config)
+    kapacitor_classifier.stop_check_udf = False
+
+    status = kapacitor_classifier.check_udf_package()
+    if status is False:
+        error_log = ("UDF package is not present in the container. "
+                    "Please check the udf package and try again. ")
+        logger.error(error_log)
+        return FAILURE
+    kapacitor_classifier.install_udf_package(dir_name)
     kapacitor_started = False
 
-    if "alerts" in config.keys() and "opcua" in config["alerts"].keys():
-        command = [
-                    "uvicorn",
-                    "opcua_alerts:app",
-                    "--host", "0.0.0.0",
-                    "--port", "5000",
-                    "--workers", "5",
-                    "--no-access-log"
-                ]
-        def start_fastapi_with_workers():
-            # Use subprocess to start Uvicorn with multiple workers
-            if secure_mode:
-                command.extend([
-                    "--ssl-keyfile=/run/secrets/time_series_analytics_microservice_Server_server_key.pem",
-                    "--ssl-certfile=/run/secrets/time_series_analytics_microservice_Server_server_certificate.pem"
-                ])
-            subprocess.run(command)
 
-        try:
-            # Start the FastAPI server with workers in a separate thread
-            fastapi_thread = threading.Thread(target=start_fastapi_with_workers)
-            fastapi_thread.start()
-        except Exception as e:
-            logger.error(f"Failed to start command '{command}': {e}")
-
-
-    t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
-    t1.start()
     kapacitor_url_hostname = (os.environ["KAPACITOR_URL"].split("://")[1]).split(":")[0]
-    if(kapacitor_classifier.start_kapacitor(config,
-                                            kapacitor_url_hostname,
-                                            secure_mode,
-                                            app_name) is True):
+    if(kapacitor_classifier.start_kapacitor(kapacitor_url_hostname,
+                                            secure_mode) is True):
         kapacitor_started = True
     else:
         error_log = "Kapacitor is not starting. So Exiting..."
         kapacitor_classifier.exit_with_failure_message(error_log)
 
-    msg, status = kapacitor_classifier.enable_tasks(config,
+
+    msg, status = kapacitor_classifier.enable_tasks(CONFIG,
                                                     kapacitor_started,
-                                                    kapacitor_url_hostname,
-                                                    secure_mode)
+                                                    kapacitor_url_hostname)
     if status is FAILURE:
         kapacitor_classifier.exit_with_failure_message(msg)
 
+kapacitor_classifier = KapacitorClassifier(logger)
+t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
+t1.start()
 
-if __name__ == '__main__':
-    main()

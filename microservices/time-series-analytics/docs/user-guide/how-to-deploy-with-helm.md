@@ -57,7 +57,7 @@ Run the following script to ingest temperature data into the Time Series Analyti
 
 ```sh
 cd edge-ai-libraries/microservices/time-series-analytics # path relative to git clone folder
-python3 src/temperature_input.py --mode helm
+python3 simulator/temperature_input.py --port 30009
 ```
 
 ## Verify the Temperature Classifier Results
