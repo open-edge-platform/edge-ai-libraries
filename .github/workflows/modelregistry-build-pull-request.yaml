@@ -37,6 +37,16 @@ jobs:
       - name: Checkout source code
         uses: actions/checkout@v4
 
+      - name: Set up prerequisites for Docker image build
+        working-directory: microservices/model-registry/docker
+        run: |
+          mv .env.template .env
+          sed -i "s/MR_MINIO_ACCESS_KEY=.*/MR_MINIO_ACCESS_KEY=test/g" .env
+          sed -i "s/MR_MINIO_SECRET_KEY=.*/MR_MINIO_SECRET_KEY=test123/g" .env
+          sed -i "s/MR_PSQL_PASSWORD=.*/MR_PSQL_PASSWORD=test123/g" .env
+          cd ../scripts
+          ./init_mr_data_dirs.sh
+
       - name: Build Docker images with Compose
         working-directory: microservices/model-registry/docker
         run: docker compose build
