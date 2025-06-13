@@ -110,6 +110,7 @@ ENV PATH="/python3venv/bin:${PATH}"
 
 # ==============================================================================
 FROM builder AS ffmpeg-builder
+
 #Build ffmpeg
 RUN \
     mkdir -p /src/ffmpeg && \
@@ -254,6 +255,7 @@ RUN \
 
 # ==============================================================================
 FROM builder AS opencv-builder
+
 # OpenCV
 WORKDIR /
 
@@ -281,6 +283,7 @@ RUN cp -a /usr/local/lib/libopencv* ./
 
 # ==============================================================================
 FROM builder AS dlstreamer-dev
+
 # Intel® DL Streamer development image
 
 COPY --from=ffmpeg-builder /copy_libs/ /usr/local/lib/
@@ -343,7 +346,9 @@ RUN \
     usermod -a -G video dlstreamer && \
     chown -R dlstreamer:dlstreamer /home/dlstreamer
 
+# ==============================================================================
 FROM dlstreamer-dev AS deb-builder
+
 #Building deb package for DL Streamer
 
 # hadolint ignore=DL3002
@@ -391,9 +396,10 @@ RUN \
 
 RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb
 
-
+# ==============================================================================
 FROM ubuntu:24.04 AS dlstreamer
 
+# Build final image for dlstreamer
 RUN \
     apt-get update && \
     apt-get install -y -q --no-install-recommends wget=\* gcc=\* && \
