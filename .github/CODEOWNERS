@@ -16,8 +16,8 @@ README.md           @xwu2intel
 /microservices/model-registry/                         @rrajore @elroyashjr
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel
-/microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/visual-data-preparation-for-retrieval/  @bhardwaj-nakul @krish918 @llin60 @xwu2intel
+/microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
+/microservices/visual-data-preparation-for-retrieval/  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 # this folder does not exist
 /microservices/object-store/                           @bharagha @madhuri-rai07 @yogeshmpandey
@@ -42,10 +42,10 @@ README.md           @xwu2intel
 /microservices/multimodal-embedding-serving/README.md           @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha    @open-edge-platform/open-edge-platform-docs-write
 /microservices/time-series-analytics/docs/                      @vkb1 @sathyendranv @pooja-intel                    @open-edge-platform/open-edge-platform-docs-write
 /microservices/time-series-analytics/README.md                  @vkb1 @sathyendranv @pooja-intel                    @open-edge-platform/open-edge-platform-docs-write
-/microservices/vector-retriever/docs/                           @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
-/microservices/vector-retriever/README.md                       @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
-/microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
-/microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/docs/                           @bhardwaj-nakul @krish918 @llin60 @zhangcong2019    @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/README.md                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019    @open-edge-platform/open-edge-platform-docs-write
+/microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @zhangcong2019    @open-edge-platform/open-edge-platform-docs-write
+/microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019    @open-edge-platform/open-edge-platform-docs-write
 /microservices/vlm-openvino-serving/docs/                       @bharagha @bhardwaj-nakul @yogeshmpandey @llin60    @open-edge-platform/open-edge-platform-docs-write
 /microservices/vlm-openvino-serving/README.md                   @bharagha @bhardwaj-nakul @yogeshmpandey @llin60    @open-edge-platform/open-edge-platform-docs-write
 
