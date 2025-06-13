@@ -26,6 +26,9 @@ Requires: libXext-devel
 Requires: mesa-libGL
 Requires: mesa-libGLU
 Requires: libgudev1-devel
+Requires: wget
+Requires: bzip2
+Requires: ffmpeg
 Requires: paho-c-devel
 Requires: python3
 Requires: python3-devel
@@ -33,6 +36,7 @@ Requires: python3-pip
 Requires: python3-gobject
 Requires: python3-gobject-devel
 Requires: cairo-devel
+Requires: gcc
 Requires: gobject-introspection-devel
 Requires: libvpx-devel
 Requires: opus-devel
