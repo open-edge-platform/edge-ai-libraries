@@ -14,3 +14,5 @@ SECURITY.md @xwu2intel
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
 /microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel
 /microservices/vlm-openvino-serving/ @bharagha @bhardwaj-nakul @yogeshmpandey
+/microservices/vector-retriever/ @llin60 @guangli-zhang
+/microservices/visual-data-preparation-for-retrieval/ @llin60 @guangli-zhang
