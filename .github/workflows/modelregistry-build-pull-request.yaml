@@ -20,6 +20,7 @@ permissions: {}
 
 jobs:
   modelregistry-docker-build:
+    name: Build and Test Docker Image
     runs-on: ubuntu-22.04
     steps:
       - name: Stop all running Docker containers
@@ -54,6 +55,7 @@ jobs:
         working-directory: microservices/model-registry/docker
         run: |
           docker compose up -d
+          sleep 30  # Wait for services to start
           docker compose logs model-registry
 
       - name: Stop and remove containers and volumes
@@ -61,6 +63,7 @@ jobs:
         run: docker compose down -v
 
   modelregistry-unit-tests:
+    name: Run Unit Tests
     runs-on: ubuntu-22.04
     steps:
       - name: Checkout code
