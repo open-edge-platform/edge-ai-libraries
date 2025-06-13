@@ -121,6 +121,12 @@ jobs:
           echo "Coverage: $COVERAGE" > pytest_summary.txt
           echo "Passed: $PASSED" >> pytest_summary.txt
           echo "Failed: $FAILED" >> pytest_summary.txt
+
+          # Fail the job if there are failed tests
+          if [ "$FAILED" -ne 0 ]; then
+            echo "❌ There are $FAILED failed tests."
+            exit 1
+          fi
         env:
           run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
       - name: Upload Pytest Results Files
