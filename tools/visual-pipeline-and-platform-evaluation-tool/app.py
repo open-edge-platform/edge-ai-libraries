@@ -1139,10 +1139,12 @@ def create_interface():
                                 f"{pipeline_info['definition']}"
                             )
 
+                            is_enabled = pipeline_info.get("metadata", {}).get("enabled", False)
+
                             gr.Button(
-                                value="Configure and Run",
+                                value="Configure and Run" if is_enabled else "Coming Soon",
                                 elem_classes="configure-and-run-button",
-                                interactive=True,
+                                interactive=is_enabled,
                             ).click(
                                 lambda x=pipeline: globals().__setitem__(
                                     "current_pipeline", PipelineLoader.load(x)[0]
