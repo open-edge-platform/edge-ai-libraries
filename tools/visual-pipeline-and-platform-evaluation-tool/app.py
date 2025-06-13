@@ -38,7 +38,10 @@ device_choices = [
 
 # Device detection and chart title logic (move here, fix indentation)
 has_igpu = any("iGPU" in name or "igpu" in name for name, _ in device_choices)
-has_dgpu = any("dGPU" in name or "dgpu" in name or "Discrete" in name or "discrete" in name for name, _ in device_choices)
+has_dgpu = any(
+    "dGPU" in name or "dgpu" in name or "Discrete" in name or "discrete" in name
+    for name, _ in device_choices
+)
 
 all_chart_titles = [
     "Pipeline Throughput [FPS]",
@@ -54,7 +57,7 @@ all_chart_titles = [
     "Discrete GPU Engine Utilization [%]",
 ]
 all_y_labels = [
-    "Throughput", 
+    "Throughput",
     "Frequency",
     "Utilization",
     "Temperature",
@@ -82,9 +85,12 @@ y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
 # Create a dataframe for each chart
 stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
 figs = [
-    go.Figure().update_layout(title=chart_titles[i], xaxis_title="Time", yaxis_title=y_labels[i])
+    go.Figure().update_layout(
+        title=chart_titles[i], xaxis_title="Time", yaxis_title=y_labels[i]
+    )
     for i in range(len(chart_titles))
 ]
+
 
 # Download File
 def download_file(url, local_filename):
@@ -118,6 +124,7 @@ def detect_click(evt: gr.SelectData):
 
     return gr.update(open=False)
 
+
 def read_latest_metrics(target_ns: int = None):
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
@@ -138,10 +145,14 @@ def read_latest_metrics(target_ns: int = None):
         lines = surrounding_lines if surrounding_lines else []
 
     cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
-    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = None
+    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = (
+        None
+    )
 
     # GPU 0 variables (do not change existing ones for gpu_1)
-    gpu_package_power_0 = gpu_power_0 = gpu_freq_0 = gpu_render_0 = gpu_ve_0 = gpu_video_0 = gpu_copy_0 = gpu_compute_0 = None
+    gpu_package_power_0 = gpu_power_0 = gpu_freq_0 = gpu_render_0 = gpu_ve_0 = (
+        gpu_video_0
+    ) = gpu_copy_0 = gpu_compute_0 = None
 
     for line in reversed(lines):
         if cpu_user is None and "cpu" in line:
@@ -204,7 +215,7 @@ def read_latest_metrics(target_ns: int = None):
                     cpu_freq = float(parts[0].split("=")[1])
             except:
                 pass
-        
+
         if gpu_render is None and "engine=render" in line and "gpu_id=1" in line:
             for part in line.split():
                 if part.startswith("usage="):
@@ -229,7 +240,12 @@ def read_latest_metrics(target_ns: int = None):
                     except:
                         pass
 
-        if gpu_video is None and "engine=video" in line and "engine=video-enhance" not in line and "gpu_id=1" in line:
+        if (
+            gpu_video is None
+            and "engine=video" in line
+            and "engine=video-enhance" not in line
+            and "gpu_id=1" in line
+        ):
             for part in line.split():
                 if part.startswith("usage="):
                     try:
@@ -246,7 +262,11 @@ def read_latest_metrics(target_ns: int = None):
                         pass
 
         # GPU 0 metrics (new variables)
-        if gpu_package_power_0 is None and "pkg_cur_power" in line and "gpu_id=0" in line:
+        if (
+            gpu_package_power_0 is None
+            and "pkg_cur_power" in line
+            and "gpu_id=0" in line
+        ):
             parts = line.split()
             try:
                 gpu_package_power_0 = float(parts[1].split("=")[1])
@@ -292,7 +312,12 @@ def read_latest_metrics(target_ns: int = None):
                     except:
                         pass
 
-        if gpu_video_0 is None and "engine=video" in line and "engine=video-enhance" not in line and "gpu_id=0" in line:
+        if (
+            gpu_video_0 is None
+            and "engine=video" in line
+            and "engine=video-enhance" not in line
+            and "gpu_id=0" in line
+        ):
             for part in line.split():
                 if part.startswith("usage="):
                     try:
@@ -308,17 +333,54 @@ def read_latest_metrics(target_ns: int = None):
                     except:
                         pass
 
-        if all(v is not None for v in [
-            cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
-            gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute,
-            gpu_package_power_0, gpu_power_0, gpu_freq_0, gpu_render_0, gpu_ve_0, gpu_video_0, gpu_copy_0, gpu_compute_0
-        ]):
+        if all(
+            v is not None
+            for v in [
+                cpu_user,
+                mem_used_percent,
+                gpu_package_power,
+                core_temp,
+                gpu_power,
+                gpu_freq,
+                gpu_render,
+                gpu_ve,
+                gpu_video,
+                gpu_copy,
+                cpu_freq,
+                gpu_compute,
+                gpu_package_power_0,
+                gpu_power_0,
+                gpu_freq_0,
+                gpu_render_0,
+                gpu_ve_0,
+                gpu_video_0,
+                gpu_copy_0,
+                gpu_compute_0,
+            ]
+        ):
             break
 
     return [
-        cpu_user, mem_used_percent, gpu_package_power, core_temp, gpu_power,
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute,
-        gpu_package_power_0, gpu_power_0, gpu_freq_0, gpu_render_0, gpu_ve_0, gpu_video_0, gpu_copy_0, gpu_compute_0
+        cpu_user,
+        mem_used_percent,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
+        gpu_package_power_0,
+        gpu_power_0,
+        gpu_freq_0,
+        gpu_render_0,
+        gpu_ve_0,
+        gpu_video_0,
+        gpu_copy_0,
+        gpu_compute_0,
     ]
 
 
@@ -344,9 +406,26 @@ def generate_stream_data(i, timestamp_ns=None):
     new_y = 0
     # Unpack all returned values, but only use the first 13 for current charts
     (
-        cpu_val, mem_val, gpu_package_power, core_temp, gpu_power, 
-        gpu_freq, gpu_render, gpu_ve, gpu_video, gpu_copy, cpu_freq, gpu_compute,
-        gpu_package_power_0, gpu_power_0, gpu_freq_0, gpu_render_0, gpu_ve_0, gpu_video_0, gpu_copy_0, gpu_compute_0
+        cpu_val,
+        mem_val,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
+        gpu_package_power_0,
+        gpu_power_0,
+        gpu_freq_0,
+        gpu_render_0,
+        gpu_ve_0,
+        gpu_video_0,
+        gpu_copy_0,
+        gpu_compute_0,
     ) = read_latest_metrics(timestamp_ns)
 
     try:
@@ -382,13 +461,16 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])],
-            ignore_index=True
+            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
         ).tail(50)
         fig = figs[i]
         fig.data = []
         for key in metrics.keys():
-            fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
         return fig
     elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
         new_y = gpu_freq
@@ -406,13 +488,16 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])],
-            ignore_index=True
+            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
         ).tail(50)
         fig = figs[i]
         fig.data = []
         for key in metrics.keys():
-            fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
         return fig
     elif title == "Integrated GPU Power Usage [W] (Package & Total)":
         metrics = {
@@ -424,14 +509,17 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])],
-            ignore_index=True
+            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
         ).tail(50)
         fig = figs[i]
         fig.data = []
         for key in metrics.keys():
-            fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
-        return fig    
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
+        return fig
     elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
         new_y = gpu_freq_0
     # Consolidated GPU 0 Engine Utilization chart
@@ -451,13 +539,16 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])],
-            ignore_index=True
+            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
         ).tail(50)
         fig = figs[i]
         fig.data = []
         for key in metrics.keys():
-            fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key))
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
         return fig
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
@@ -603,7 +694,7 @@ def create_interface():
     )
 
     if type(current_pipeline).__name__ == "SmartNVRPipeline":
-        
+
         # Inferencing channels
         inferencing_channels = gr.Slider(
             minimum=0,
@@ -647,9 +738,8 @@ def create_interface():
         elem_id="fps_floor",
     )
 
-
     if type(current_pipeline).__name__ == "SmartNVRPipeline":
-    
+
         # AI stream rate
         ai_stream_rate = gr.Slider(
             label="AI Stream Rate (%)",
@@ -660,7 +750,6 @@ def create_interface():
             interactive=True,
             elem_id="ai_stream_rate",
         )
-
 
     # Inference accordion
     inference_accordion = gr.Accordion("Inference Parameters", open=True)
