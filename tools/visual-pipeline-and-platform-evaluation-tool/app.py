@@ -12,8 +12,9 @@ from benchmark import Benchmark
 from device import DeviceDiscovery
 from explore import GstInspector
 from optimize import OptimizationResult, PipelineOptimizer
-from pipeline import PipelineLoader
+from pipeline import PipelineLoader, GstPipeline
 from utils import prepare_video_and_constants
+from typing import Tuple, Dict
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -26,7 +27,7 @@ theme = gr.themes.Default(
 )
 
 # Initialize the pipeline based on the PIPELINE environment variable
-current_pipeline = PipelineLoader.load(os.environ.get("PIPELINE", "").lower())[0]
+current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(os.environ.get("PIPELINE", "").lower())
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
@@ -115,7 +116,7 @@ def detect_click(evt: gr.SelectData):
         y_max,
         label,
         description,
-    ) in current_pipeline.bounding_boxes():
+    ) in current_pipeline[0].bounding_boxes():
         if x_min <= x <= x_max and y_min <= y <= y_max:
 
             match label:
@@ -582,7 +583,7 @@ def on_run(data):
         )
 
     optimizer = PipelineOptimizer(
-        pipeline=current_pipeline,
+        pipeline=current_pipeline[0],
         constants=constants,
         param_grid=param_grid,
         channels=(arguments["recording_channels"], arguments["inferencing_channels"]),
@@ -615,7 +616,7 @@ def on_benchmark(data):
     # Initialize the benchmark class
     bm = Benchmark(
         video_path=arguments["input_video_player"],
-        pipeline_cls=current_pipeline,
+        pipeline_cls=current_pipeline[0],
         fps_floor=arguments["fps_floor"],
         rate=arguments["ai_stream_rate"],
         parameters=param_grid,
@@ -676,7 +677,7 @@ def create_interface():
 
     # Pipeline diagram image
     pipeline_image = gr.Image(
-        value=current_pipeline.diagram(),
+        value=current_pipeline[0].diagram(),
         label="Pipeline Diagram",
         elem_id="pipeline_image",
         interactive=False,
@@ -724,18 +725,16 @@ def create_interface():
         elem_id="fps_floor",
     )
 
-    if type(current_pipeline).__name__ == "SmartNVRPipeline":
-
-        # AI stream rate
-        ai_stream_rate = gr.Slider(
-            label="AI Stream Rate (%)",
-            value=20,  # Default value
-            minimum=0,
-            maximum=100,
-            step=1,
-            interactive=True,
-            elem_id="ai_stream_rate",
-        )
+    # AI stream rate
+    ai_stream_rate = gr.Slider(
+        label="AI Stream Rate (%)",
+        value=20,  # Default value
+        minimum=0,
+        maximum=100,
+        step=1,
+        interactive=True,
+        elem_id="ai_stream_rate",
+    )
 
     # Inference accordion
     inference_accordion = gr.Accordion("Inference Parameters", open=True)
@@ -1147,12 +1146,12 @@ def create_interface():
                                 interactive=is_enabled,
                             ).click(
                                 lambda x=pipeline: globals().__setitem__(
-                                    "current_pipeline", PipelineLoader.load(x)[0]
+                                    "current_pipeline", PipelineLoader.load(x)
                                 ),
                                 None,
                                 None,
                             ).then(
-                                lambda: current_pipeline.diagram(),
+                                lambda: current_pipeline[0].diagram(),
                                 None,
                                 pipeline_image,
                             ).then(
@@ -1217,6 +1216,12 @@ def create_interface():
 
                     # Left column
                     with gr.Column(scale=2, min_width=300):
+
+                        # Render the pipeline information
+                        gr.Markdown(
+                            f"### {current_pipeline[1]['name']}\n"
+                            f"{current_pipeline[1]['definition']}"
+                        )
 
                         # Render pipeline image
                         pipeline_image.render()
