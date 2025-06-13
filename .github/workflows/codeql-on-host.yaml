@@ -63,7 +63,7 @@ jobs:
 
   analyze:
     needs: detect-languages
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04-16core-64GB
     strategy:
       matrix:
         language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
