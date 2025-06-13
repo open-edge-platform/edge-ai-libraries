@@ -27,7 +27,9 @@ theme = gr.themes.Default(
 )
 
 # Initialize the pipeline based on the PIPELINE environment variable
-current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(os.environ.get("PIPELINE", "").lower())
+current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
+    os.environ.get("PIPELINE", "").lower()
+)
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
@@ -462,7 +464,11 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
         ).tail(50)
         fig = figs[i]
         fig.data = []
@@ -489,7 +495,11 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
         ).tail(50)
         fig = figs[i]
         fig.data = []
@@ -510,7 +520,11 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
         ).tail(50)
         fig = figs[i]
         fig.data = []
@@ -540,7 +554,11 @@ def generate_stream_data(i, timestamp_ns=None):
         new_row = {"x": new_x}
         new_row.update(metrics)
         stream_dfs[i] = pd.concat(
-            [stream_dfs[i], pd.DataFrame([new_row])], ignore_index=True
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
         ).tail(50)
         fig = figs[i]
         fig.data = []
@@ -1138,10 +1156,14 @@ def create_interface():
                                 f"{pipeline_info['definition']}"
                             )
 
-                            is_enabled = pipeline_info.get("metadata", {}).get("enabled", False)
+                            is_enabled = pipeline_info.get("metadata", {}).get(
+                                "enabled", False
+                            )
 
                             gr.Button(
-                                value="Configure and Run" if is_enabled else "Coming Soon",
+                                value=(
+                                    "Configure and Run" if is_enabled else "Coming Soon"
+                                ),
                                 elem_classes="configure-and-run-button",
                                 interactive=is_enabled,
                             ).click(
