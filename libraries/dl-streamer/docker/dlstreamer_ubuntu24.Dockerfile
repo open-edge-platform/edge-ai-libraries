@@ -111,7 +111,7 @@ ENV PATH="/python3venv/bin:${PATH}"
 # ==============================================================================
 FROM builder AS ffmpeg-builder
 
-#Build ffmpeg
+# Build ffmpeg
 RUN \
     mkdir -p /src/ffmpeg && \
     wget -q --no-check-certificate https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz -O /src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz && \
@@ -143,7 +143,7 @@ RUN cp -a /usr/local/lib/libswresample* ./
 # ==============================================================================
 FROM ffmpeg-builder AS gstreamer-builder
 
-#Build GStreamer
+# Build GStreamer
 WORKDIR /home/dlstreamer
 
 RUN \
@@ -256,7 +256,7 @@ RUN \
 # ==============================================================================
 FROM builder AS opencv-builder
 
-# OpenCV
+# Build OpenCV
 WORKDIR /
 
 RUN \
@@ -284,7 +284,7 @@ RUN cp -a /usr/local/lib/libopencv* ./
 # ==============================================================================
 FROM builder AS dlstreamer-dev
 
-# Intel® DL Streamer development image
+# DL Streamer development image and build proccess
 
 COPY --from=ffmpeg-builder /copy_libs/ /usr/local/lib/
 COPY --from=ffmpeg-builder /usr/local/lib/pkgconfig/libswresample* /usr/local/lib/pkgconfig/
@@ -317,7 +317,7 @@ RUN \
 WORKDIR $DLSTREAMER_DIR/build
 
 
-# DLStreamer environment variables
+# DL Streamer environment variables
 ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
 ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/bin
 ENV PATH=${GSTREAMER_DIR}/bin:${BINDIR}:${PATH}
@@ -349,7 +349,7 @@ RUN \
 # ==============================================================================
 FROM dlstreamer-dev AS deb-builder
 
-#Building deb package for DL Streamer
+# Building deb package for DL Streamer
 
 # hadolint ignore=DL3002
 USER root
@@ -399,7 +399,7 @@ RUN mv /intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb /intel-dlstreamer_${DLS
 # ==============================================================================
 FROM ubuntu:24.04 AS dlstreamer
 
-# Build final image for dlstreamer
+# Build final image for dlstreamer - using .deb packages for installation
 RUN \
     apt-get update && \
     apt-get install -y -q --no-install-recommends wget=\* gcc=\* && \
@@ -437,6 +437,7 @@ RUN \
     chown -R dlstreamer: /python3venv && \
     chmod -R u+w /python3venv
 
+# DL Streamer environment variables
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
 ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
