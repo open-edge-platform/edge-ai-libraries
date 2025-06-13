@@ -8,10 +8,6 @@ import os
 import logging
 import time
 import sys
-# import json
-# from fastapi import FastAPI, HTTPException, Request
-# import uvicorn
-# import threading
 
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
@@ -49,7 +45,7 @@ def create_opcua_client(opcua_server):
         logger.error("OPC UA server URL is not provided in the configuration file.")
         return None
 
-def connect_opcua_client(client, secure_mode, opcua_server, max_retries=10):
+def connect_opcua_client(client, secure_mode, opcua_server, max_retries=5):
     if client is None:
         logger.error("OPC UA client is not initialized.")
         return False
@@ -86,6 +82,7 @@ def initialize_opcua(CONFIG):
     connected = connect_opcua_client(client, secure_mode, opcua_server)
     if not connected:
         logger.error("Failed to connect to OPC UA server.")
+        raise RuntimeError("Failed to connect to OPC UA server.")
 
 
 async def send_alert_to_opcua_async(alert_message):
@@ -99,25 +96,4 @@ async def send_alert_to_opcua_async(alert_message):
     except Exception as e:
         logger.exception(e)
 
-
-
-# @app.get("/")
-# def read_root():
-#     return {"message": "FastAPI server is running"}
-
-# def main(config):
-#     # Start the FastAPI server
-#     secure_mode = os.getenv("SECURE_MODE", "false")
-#     global CONFIG
-#     CONFIG = config
-#     initialize_opcua()
-#     #def run_server():
-#     if secure_mode.lower() == "true":
-#         uvicorn.run(app, host="0.0.0.0", port=5000, log_level=log_level.lower(), access_log=False, 
-#                     ssl_certfile="/run/secrets/time_series_analytics_microservice_Server_server_certificate.pem", 
-#                     ssl_keyfile="/run/secrets/time_series_analytics_microservice_Server_server_key.pem")
-#     else:
-#         uvicorn.run(app, host="0.0.0.0", port=5000, log_level=log_level.lower(), access_log=False)
-# #server_thread = threading.Thread(target=run_server)
-#     #server_thread.start()
 

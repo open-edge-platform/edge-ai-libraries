@@ -13,14 +13,10 @@ import os.path
 import time
 import tempfile
 import sys
-import json
 import socket
-import shlex
 import logging
 import shutil
 from threading import Thread
-from watchdog.observers import Observer
-from watchdog.events import FileSystemEventHandler
 import tomlkit
 import select
 import threading
@@ -28,7 +24,6 @@ import os.path
 import threading
 from influxdb import InfluxDBClient
 from mr_interface import MRHandler
-import opcua_alerts
 
 
 TEMP_KAPACITOR_DIR = tempfile.gettempdir()
@@ -80,15 +75,6 @@ class KapacitorClassifier():
     def check_udf_package(self):
         """ Check if udf package is present in the container
         """
-        # logger.info("Checking if UDF package is present in the container...")
-        # path = "/tmp/" + dir_name + "/"
-        # udf_dir = os.path.join(path, "udfs")
-        # model_dir = os.path.join(path, "models")
-        # tick_scripts_dir = os.path.join(path, "tick_scripts")
-        # found_udf = False
-        # found_tick_scripts = False
-        # found_model = False
-        #while True:
         logger.info("Checking if UDF package is present in the container...")
         path = "/tmp/" + dir_name + "/"
         udf_dir = os.path.join(path, "udfs")
@@ -100,7 +86,6 @@ class KapacitorClassifier():
         udf_name = CONFIG["udfs"]["name"]
 
 
-        self.logger.info(f"Checking for udf package in the container...{path}")
         if not os.path.isdir(path):
             self.logger.error(f"UDF package directory {udf_name} does not exist. Please check and upload/copy the udf package.")
             return False
@@ -397,11 +382,10 @@ def classifier_startup(config):
         config_data = tomlkit.parse(file.read())
     udf_name = CONFIG['udfs']['name']
     dir_name = udf_name
-    logger.info(f"Mr object: {mrHandlerObj}")
     if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
         dir_name = mrHandlerObj.unique_id
         if dir_name is None or dir_name == "":
-            logger.error(f"Please check the UDF name {mrHandlerObj.config['udfs']['name']} and version {mrHandlerObj.config['model_registry']['version']} in the config.")
+            logger.error(f"Please check the UDF name:{mrHandlerObj.config['udfs']['name']} and version: {mrHandlerObj.config['model_registry']['version']} in the config.")
             return
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
@@ -453,38 +437,10 @@ def classifier_startup(config):
     if status is False:
         error_log = ("UDF package is not present in the container. "
                     "Please check the udf package and try again. ")
-        #kapacitor_classifier.exit_with_failure_message(error_log)
         logger.error(error_log)
-        logger.error("Exiting due to missing UDF package.")
         return FAILURE
     kapacitor_classifier.install_udf_package(dir_name)
     kapacitor_started = False
-
-        
-        #opcua_alerts.main(CONFIG)
-        # command = [
-        #             "uvicorn",
-        #             "opcua_alerts:app",
-        #             "--host", "0.0.0.0",
-        #             "--port", "5000",
-        #             "--workers", "5",
-        #             "--no-access-log"
-        #         ]
-        # def start_fastapi_with_workers():
-        #     # Use subprocess to start Uvicorn with multiple workers
-        #     if secure_mode:
-        #         command.extend([
-        #             "--ssl-keyfile=/run/secrets/time_series_analytics_microservice_Server_server_key.pem",
-        #             "--ssl-certfile=/run/secrets/time_series_analytics_microservice_Server_server_certificate.pem"
-        #         ])
-        #     subprocess.run(command)
-
-        # try:
-        #     # Start the FastAPI server with workers in a separate thread
-        #     fastapi_thread = threading.Thread(target=start_fastapi_with_workers)
-        #     fastapi_thread.start()
-        # except Exception as e:
-        #     logger.error(f"Failed to start command '{command}': {e}")
 
 
     kapacitor_url_hostname = (os.environ["KAPACITOR_URL"].split("://")[1]).split(":")[0]
@@ -495,10 +451,6 @@ def classifier_startup(config):
         error_log = "Kapacitor is not starting. So Exiting..."
         kapacitor_classifier.exit_with_failure_message(error_log)
 
-    # Start OPC UA alerts thread before enabling tasks (so it is not blocked by infinite loop)
-    # if "alerts" in CONFIG.keys() and "opcua" in CONFIG["alerts"].keys():
-    #     opcua_thread = threading.Thread(target=opcua_alerts.main, args=(CONFIG,), daemon=True)
-    #     opcua_thread.start()
 
     msg, status = kapacitor_classifier.enable_tasks(CONFIG,
                                                     kapacitor_started,
@@ -510,5 +462,3 @@ kapacitor_classifier = KapacitorClassifier(logger)
 t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
 t1.start()
 
-# if __name__ == '__main__':
-#     main(CONFIG)

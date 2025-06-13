@@ -49,13 +49,10 @@ services:
     - timeseries_network
     ports:
     - 9092:9092
-    - 8000:8000
+    - 5000:5000
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
     - ../config.json:/app/config.json
-    - ../src/classifier_startup.py:/app/classifier_startup.py
-    - ../src/rest_api.py:/app/rest_api.py
-    - ../src/opcua_alerts.py:/app/opcua_alerts.py
 
 networks:
   timeseries_network:

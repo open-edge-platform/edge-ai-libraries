@@ -9,7 +9,6 @@ from pathlib import Path
 from zipfile import ZipFile
 import requests
 import uuid
-import sys
 
 
 UDF_API_ENDPOINT = "/models"
