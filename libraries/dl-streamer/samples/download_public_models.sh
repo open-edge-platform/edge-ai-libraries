@@ -334,6 +334,7 @@ q_stats, total_images, total_objects = validate(quantized_model, data_loader, va
 print("Quantized model validation results:")
 print_statistics(q_stats, total_images, total_objects)
 
+quantized_model.set_rt_info(ov.get_version(), "Runtime_version")
 ov.save_model(quantized_model, "./public/" + model_name + "/INT8/" + model_name + ".xml", compress_to_fp16=False)
 EOF
 
