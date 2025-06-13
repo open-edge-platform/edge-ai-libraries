@@ -52,7 +52,9 @@ jobs:
 
       - name: Start containers with Compose
         working-directory: microservices/model-registry/docker
-        run: docker compose up -d
+        run: |
+          docker compose up -d
+          docker compose logs
 
       - name: Stop and remove containers and volumes
         working-directory: microservices/model-registry/docker
@@ -146,12 +148,9 @@ jobs:
         mkdir -p reports
         docker pull ghcr.io/pycqa/bandit/bandit
         echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit \
-          /src/edge-ai-libraries-repo/microservices/model-registry \
-          -r -x /src/edge-ai-libraries-repo/microservices/model-registry/tests -f txt \
-          > /src/reports/bandit-report.txt || true
-        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
-        cat reports/bandit-report.txt >> $GITHUB_STEP_SUMMARY
+        docker images
+        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/model-registry -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
+        cat reports/bandit-report.txt
         echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
     - name: Upload Scan Reports
       uses: actions/upload-artifact@v4
