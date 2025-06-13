@@ -96,7 +96,7 @@ async def send_alert_to_opcua_async(alert_message):
     try:
         alert_node = client.get_node(f"ns={namespace};i={node_id}")
         alert_node.write_value(alert_message)
-        logger.debug("Alert sent to OPC UA server: {}".format(alert_message))
+        logger.info("ALERT sent to OPC UA server: {}".format(alert_message))
     except Exception as e:
         logger.exception(e)
 
@@ -115,4 +115,4 @@ async def receive_alert(request: Request):
 
 @app.get("/")
 def read_root():
-    return {"message": "FastAPI server is running"}
+    return {"message": "FastAPI server is running"} 

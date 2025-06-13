@@ -1,0 +1,208 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+name: "[Model Registry] PR workflow"
+run-name: "[Model Registry] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - 'microservices/model-registry/**'
+  pull_request:
+    paths:
+      - 'microservices/model-registry/**'
+  workflow_call:
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  modelregistry-docker-build:
+    name: Build and Test Docker Image
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Stop all running Docker containers
+        run: |
+          docker ps -q | xargs -r docker stop
+
+      - name: Remove all Docker containers
+        run: |
+          docker ps -aq | xargs -r docker rm
+
+      - name: Remove all Docker images
+        run: |
+          docker images -q | xargs -r docker rmi -f
+
+      - name: Checkout source code
+        uses: actions/checkout@v4
+
+      - name: Set up prerequisites for Docker image build
+        working-directory: microservices/model-registry/docker
+        run: |
+          mv .env.template .env
+          sed -i "s/MR_MINIO_ACCESS_KEY=.*/MR_MINIO_ACCESS_KEY=test/g" .env
+          sed -i "s/MR_MINIO_SECRET_KEY=.*/MR_MINIO_SECRET_KEY=test1234/g" .env
+          sed -i "s/MR_PSQL_PASSWORD=.*/MR_PSQL_PASSWORD=test1234/g" .env
+          sudo bash ${{ github.workspace }}/microservices/model-registry/scripts/init_mr_data_dirs.sh
+
+      - name: Build Docker images with Compose
+        working-directory: microservices/model-registry/docker
+        run: docker compose build
+
+      - name: Start containers with Compose
+        working-directory: microservices/model-registry/docker
+        run: |
+          docker compose up -d
+          sleep 30  # Wait for services to start
+          docker compose logs model-registry
+
+      - name: Stop and remove containers and volumes
+        working-directory: microservices/model-registry/docker
+        run: docker compose down -v
+
+  modelregistry-unit-tests:
+    name: Run Unit Tests
+    runs-on: ubuntu-22.04
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'
+
+      - name: Install dependencies
+        run: |
+          cd microservices/model-registry
+          if [ -f requirements.txt ]; then pip install -r requirements.txt; fi
+          if [ -f tests/requirements-tests.txt ]; then pip install -r tests/requirements-tests.txt; fi
+
+      - name: Run tests
+        id: run_tests
+        run: |
+          echo "Running unit tests"
+          cd microservices/model-registry
+          if [ -d tests ]; then PYTEST_OUTPUT=$(pytest -vv --cov=src --cov-report=term-missing --cov-report=xml:coverage.xml tests/unit_tests/ 2>&1 || true)
+          # echo "$PYTEST_OUTPUT"
+          echo "$PYTEST_OUTPUT" > pytest_results.txt
+          echo "run_pytest_raw_output<<EOF" >> $GITHUB_OUTPUT
+          echo "$PYTEST_OUTPUT" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT; fi
+        env:
+          PYTHONPATH: "${{ github.workspace }}/microservices/model-registry/src"
+      - name: Parse Pytest Results
+        id: extract_summary
+        run: |
+          echo "${{ steps.run_tests.outputs.run_pytest_raw_output }}" > pytest_output.txt
+
+          # Extract coverage percentage (e.g., 95%)
+          COVERAGE=$(awk '/^TOTAL/{print $4; exit}' pytest_output.txt)
+
+          # Extract passed and failed test counts
+          PASSED=$(grep -oP '\d+(?= passed)' pytest_output.txt | head -n1)
+          if [ -z "$PASSED" ]; then
+            PASSED="0"
+          fi
+          
+          FAILED=$(grep -oP '\d+(?= failed)' pytest_output.txt | head -n1)
+          if [ -z "$FAILED" ]; then
+            FAILED="0"
+          fi
+
+          # Output to screen
+          echo "Coverage: $COVERAGE"
+          echo "Passed: $PASSED"
+          echo "Failed: $FAILED"
+
+          # Output to file
+          echo "Coverage: $COVERAGE" > pytest_summary.txt
+          echo "Passed: $PASSED" >> pytest_summary.txt
+          echo "Failed: $FAILED" >> pytest_summary.txt
+
+          # Fail the job if there are failed tests
+          if [ "$FAILED" -ne 0 ]; then
+            echo "❌ There are $FAILED failed tests."
+            exit 1
+          fi
+        env:
+          run_pytest_raw_output: ${{ steps.run_tests.outputs.run_pytest_raw_output }}
+      - name: Upload Pytest Results Files
+        uses: actions/upload-artifact@v4
+        with:
+          name: pytest-results
+          path: |
+            ${{ github.workspace }}/microservices/model-registry/pytest_results.txt
+            ${{ github.workspace }}/pytest_summary.txt
+            ${{ github.workspace }}/microservices/model-registry/coverage.xml
+  
+  bandit-scans:
+    name: Run Bandit Scan
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+
+    - name: Run Bandit Scan
+      run: |
+        mkdir -p reports
+        docker pull ghcr.io/pycqa/bandit/bandit
+        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker images
+        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/model-registry -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
+        cat reports/bandit-report.txt
+        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: reports/bandit-report.txt
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+              docker rmi -f $(docker images -aq) || true
+        fi
+
+  virus-scans:
+    name: Run Virus Scan
+    runs-on: ubuntu-22.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+    - name: Run Virus Scan
+      run: |
+        mkdir -p reports
+        docker pull clamav/clamav
+        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/model-registry/ > ./reports/clamav-report.txt || true
+        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: virus-reports
+        path: reports/clamav-report.txt
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+              docker rmi -f $(docker images -aq) || true
+        fi
