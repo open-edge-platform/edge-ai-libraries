@@ -1,0 +1,6 @@
+name: Transportation Proxy Pipeline 2 (D-C)
+definition: >
+  The Transportation Proxy Pipeline 2 (D-C) collects road data to understand road usage,
+  and collects additional data for tracking vehicles.
+metadata:
+  classname: Transportation2Pipeline

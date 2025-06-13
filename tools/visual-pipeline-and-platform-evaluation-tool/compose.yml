@@ -15,23 +15,10 @@ x-vippet: &vippet
     models:
       condition: service_healthy
   restart: on-failure:5
-  # # The following config applies to WSL2:
-  # environment:
-  #   DISPLAY: ":0"
-  #   WAYLAND_DISPLAY: "wayland-0"
-  #   XDG_RUNTIME_DIR: "/mnt/wslg/runtime-dir"
-  #   PULSE_SERVER: "/mnt/wslg/PulseServer"
-  #   GST_DEBUG: "1"
-  # devices:
-  #   - "/dev/dri:/dev/dri"
-  # volumes:
-  #   - "/run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix"
-  #   - "/run/desktop/mnt/host/wslg:/mnt/wslg"
-  #   - "/usr/lib/wsl:/usr/lib/wsl"
-  # The following config applies to Linux:
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
+    PIPELINE: smartnvr
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
