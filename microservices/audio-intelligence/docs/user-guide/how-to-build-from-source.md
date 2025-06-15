@@ -102,7 +102,7 @@ The production environment uses:
 
 Host setup by default uses local filesystem storage backend. 
 
-> _**NOTE :**_ To use Minio storage on host, you need to manually spin a Minio container [(see Running a Local Minio Server)](#running-a-local-minio-server) and update the STORAGE BACKEND which is explained in step 2. 
+> _**NOTE :**_ To use Minio storage on host, you need to manually spin a Minio container [(see Running a Local Minio Server)](./get-started.md#running-a-local-minio-server) and update the STORAGE BACKEND which is explained in step 2. 
 
 
 1. Clone the repository:
@@ -122,7 +122,7 @@ To run with Minio storage backend, run this:
 STORAGE_BACKEND=minio ./setup_host.sh
 ```
 
-Minio server container must be running on `localhost:9000` for this to work. Please see [Running a Local Minio Server](#running-a-local-minio-server).
+Minio server container must be running on `localhost:9000` for this to work. Please see [Running a Local Minio Server](./get-started.md#running-a-local-minio-server).
 
 Available options:
 - `--debug`, `-d`: Enable debug mode

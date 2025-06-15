@@ -27,6 +27,5 @@ This microservice currently supports CPU based runs only. This microservice is i
 ## Supporting Resources
 
 * [Overview](Overview.md)
-* [Get Started Guide](get-started.md)
 * [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+

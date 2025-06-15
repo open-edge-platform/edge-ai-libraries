@@ -5,22 +5,19 @@
 
 .. toctree::
    
-   overview-architecture
    system-requirements
    get-started
 
 .. toctree::
    :caption: How to
 
-   how-to-deploy-with-helm
-   how-to-interface-with-intel-geti-platform
-
+   how-to-build-from-source
+   
 .. toctree::
    :caption: References
    
    api-reference
-   environment-variables
-
+   
 .. toctree::
    
    release-notes

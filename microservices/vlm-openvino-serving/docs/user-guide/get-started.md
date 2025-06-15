@@ -23,6 +23,8 @@ First, set the required VLM_MODEL_NAME environment variable:
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
 ```
 
+Refer to [model list](./Overview.md#models-supported) for the supported models that can be used.
+
 > **_NOTE:_** You can change the model name, model compression format, device and the number of Uvicorn workers by editing the `setup.sh` file.
 
 
