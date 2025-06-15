@@ -160,6 +160,14 @@ Run the following commands:
 ### Run default sample
 Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
+---
+## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
+
+  ```sh
+    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
+  ```
+---
+
 ## Learn More
 
 -   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
