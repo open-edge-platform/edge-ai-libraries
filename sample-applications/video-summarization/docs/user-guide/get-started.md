@@ -88,7 +88,7 @@ Before running the application, you need to set several environment variables:
     export VLM_MODEL_NAME="microsoft/Phi-3.5-vision-instruct"  # or any other supported VLM model on GPU
 
 
-    # (Optional) For OVMS-based video summary (when using with USE_OVMS=true or USE_OVMS_GPU=true)
+    # (Optional) For OVMS-based video summary (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
     export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
     # Model used by Audio Intelligence service. Only Whisper models variants are supported.
@@ -130,8 +130,8 @@ The Video Summary application offers multiple stacks and deployment options:
 |--------|--------------------|---------------------|-----------------------|----------------|
 | VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
 | VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
-| VLM-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `USE_OVMS=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
-| VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `USE_OVMS_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
+| VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
 ## ▶️ Running the Application
 
@@ -159,7 +159,7 @@ Follow these steps to run the application:
     source setup.sh --all
 
     # To run final video Summary on OVMS Microservice
-    USE_OVMS=true source setup.sh --summary
+    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
     ```
 
 5. Stop the application by bringing down all the containers:
@@ -184,7 +184,7 @@ Follow these steps to run the application:
     source setup.sh --all config
 
     # To see resolved configurations for summary services with OVMS setup on CPU without starting containers
-    USE_OVMS=true source setup.sh --summary config
+    ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
     ```
 
 ### ⚡ Using GPU Acceleration
@@ -198,7 +198,7 @@ USE_VLM_GPU=true source setup.sh --summary
 To use GPU acceleration for OVMS-based summary:
 
 ```bash
-USE_OVMS_GPU=true source setup.sh --summary
+ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary
 ```
 
 To verify configuration and resolved environment variables without running the application:
@@ -210,10 +210,10 @@ USE_VLM_GPU=true source setup.sh --summary config
 
 ```bash
 # For OVMS inference on GPU
-USE_OVMS_GPU=true source setup.sh --summary config
+ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ```
 
-> **_NOTE:_** Please avoid setting `USE_VLM_GPU` or `USE_OVMS_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
+> **_NOTE:_** Please avoid setting `USE_VLM_GPU` or `ENABLE_OVMS_LLM_SUMMARY_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
 
 ## 🌐 Accessing the Application
 
