@@ -45,6 +45,7 @@ sample-applications/video-summarization/
 ```
 
 ## ⚙️ Setting Required Environment Variables
+<a name="required-env"></a>
 
 Before running the application, you need to set several environment variables:
 
@@ -105,14 +106,16 @@ Before running the application, you need to set several environment variables:
 
 **🔐 Working with Gated Models**
 
-Some models on HuggingFace require authentication. To use these models, set these environment variable:
+   To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
+
+    _Go to https://huggingface.co/settings/tokens to get your token._
 
    ```bash
    export GATED_MODEL=true
    export HUGGINGFACE_TOKEN=<your_huggingface_token>
    ```
 
-Once exported, run the setup script as mentioned [here](#running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
+Once exported, run the setup script as mentioned [here](#running-app). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ## 📊 Application Stacks Overview
 
@@ -134,6 +137,7 @@ The Video Summary application offers multiple stacks and deployment options:
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
 ## ▶️ Running the Application
+<a name="running-app"></a>
 
 Follow these steps to run the application:
 
@@ -144,31 +148,33 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-summarization
     ```
 
-2. Set the required environment variables as [described above](#setting-required-environment-variables).
+2. Set the required environment variables as [described above](#️required-env).
 
-3. Run the setup script with the appropriate flag:
+3. Run the setup script with the appropriate flag, depending on your use case. 
 
+   > NOTE: Before switching to a different mode always stop the current application stack by running:
+
+   ```bash
+   source setup.sh --down
+   ```
+
+- **To run Video Summary only:**
     ```bash
-    # To run Video Summary
     source setup.sh --summary
+    ```
 
-    # To run Video Search
+- **To run Video Search only:**
+    ```bash
     source setup.sh --search
+    ```
 
-    # To run both Video Summary and Video Search
-    source setup.sh --all
-
-    # To run final video Summary on OVMS Microservice
+- **To run Video Summary with OVMS Microservice for final summary :**
+    ```bash
     ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary
     ```
 
-5. Stop the application by bringing down all the containers:
 
-    ```bash
-    source setup.sh --down
-    ```
-
-6. (Optional) Verify the resolved environment variables and setup configurations.
+4. (Optional) Verify the resolved environment variables and setup configurations.
 
     ```bash
     # To just set environment variables without starting containers
@@ -190,6 +196,12 @@ Follow these steps to run the application:
 ### ⚡ Using GPU Acceleration
 
 To use GPU acceleration for VLM inference:
+
+   > NOTE: Before switching to a different mode always stop the current application stack by running:
+
+   ```bash
+   source setup.sh --down
+   ```
 
 ```bash
 USE_VLM_GPU=true source setup.sh --summary
@@ -247,7 +259,7 @@ sudo chmod +x ./build.sh
 # Build all microservice dependencies (vlm-openvino-serving, multimodal-embedding-serving, vdms-dataprep etc.)
 ./build.sh
 
-# Build only the sample applications (pipeline-manager, search-ms and UI)
+# Build only the sample applications (pipeline-manager, video-search and UI)
 ./build.sh --sample-app
 
 # Push all built images to the configured registry
@@ -270,7 +282,7 @@ export PROJECT_NAME=<your-project-name>
 export TAG=<your-version-tag>
 ```
 
-Once images are built and pushed, follow the instructions to [run the application](#running-the-application) afterwards.
+Once images are built and pushed, follow the instructions to [run the application](#running-app) afterwards.
 
 ## ☸️ Running in Kubernetes
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
