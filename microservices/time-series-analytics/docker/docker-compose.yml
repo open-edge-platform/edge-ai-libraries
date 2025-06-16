@@ -18,7 +18,7 @@ services:
         INSTALL_SOURCES: "no"
     container_name: ia-time-series-analytics-microservice
     hostname: ia-time-series-analytics-microservice
-    image: ${DOCKER_REGISTRY}intel/ia-time-series-analytics-microservice:1.0.0
+    image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE_NAME}:${TIME_SERIES_ANALYTICS_IMAGE_VERSION}${IMAGE_RC_VERSION}
     restart: unless-stopped
     security_opt:
     - no-new-privileges
