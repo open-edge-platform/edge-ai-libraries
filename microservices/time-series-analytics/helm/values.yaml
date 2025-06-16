@@ -35,6 +35,6 @@ config:
       port: "30009"
 
 images:
-  # Please provide the version of the image you want to use (i.e RC1, RC2, etc.)
-  rc_version: ""
+  # Please provide the suffix for the image version you want to use like rc1, rc2, git hash id etc.
+  image_suffix: ""
   time_series_analytics_image: intel/ia-time-series-analytics-microservice:1.0.0
