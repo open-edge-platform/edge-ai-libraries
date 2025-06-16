@@ -102,10 +102,10 @@ jobs:
           PROJECT="${{ matrix.project }}"
           if [[ "$PROJECT" == "dl-streamer" ]]; then
             echo "project-name=dl-streamer" >> $GITHUB_OUTPUT
-            echo "paths-to-scan=libraries/dl-streamer" >> $GITHUB_OUTPUT
+            echo "path-to-config=libraries/dl-streamer/codeql-config.yml" >> $GITHUB_OUTPUT
           else
             echo "project-name=none" >> $GITHUB_OUTPUT
-            echo "paths-to-scan=." >> $GITHUB_OUTPUT
+            echo "path-to-config=" >> $GITHUB_OUTPUT
           fi
 
       - name: Initialize CodeQL build mode
@@ -113,7 +113,8 @@ jobs:
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ steps.set-build-mode.outputs.build-mode }}
-          paths: ${{ steps.set-project-name.outputs.paths-to-scan }}
+          # source-root: ${{ steps.set-project-name.outputs.paths-to-scan }}
+          config-file: ${{ steps.set-project-name.outputs.path-to-config }}
 
       - name: Build code manually for dl-streamer
         if: steps.set-build-mode.outputs.build-mode == 'manual' && steps.set-project-name.outputs.project-name == 'dl-streamer'

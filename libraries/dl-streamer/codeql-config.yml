@@ -1,0 +1,7 @@
+paths:
+  - libraries/dl-streamer
+paths-ignore:
+  - libraries/dl-streamer/gstreamer
+  - gstreamer
+  - opencv
+  - ffmpeg
