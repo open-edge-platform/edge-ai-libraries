@@ -14,6 +14,7 @@ import { TemplateService } from 'src/language-model/services/template.service';
 import { ConfigService } from '@nestjs/config';
 
 import * as srtParserLib from 'srt-parser-2';
+import { Span, TraceService } from 'nestjs-otel';
 
 @Injectable()
 export class ChunkingService {
@@ -36,13 +37,30 @@ export class ChunkingService {
     private $emitter: EventEmitter2,
     private $dataStore: DatastoreService,
     private $template: TemplateService,
+    private $trace: TraceService,
   ) {}
 
   @OnEvent(PipelineEvents.CHUNKING_COMPLETE)
   prepareFrames(stateIds: string[]) {
     console.log(stateIds);
+    const currentSpan = this.$trace.getSpan();
+    const tracer = this.$trace.getTracer();
+
+    let spanContext: { context: any } | null = null;
+    if (currentSpan) {
+      spanContext = { context: currentSpan.spanContext() };
+    }
 
     for (const stateId of stateIds) {
+      const subSpan = tracer.startSpan(
+        `ChunkingService.prepareFrames.workload.${stateId}`,
+        {
+          links: currentSpan && spanContext ? [spanContext] : [],
+        },
+      );
+
+      subSpan.setAttribute('stateId', stateId);
+
       const state = this.$state.fetch(stateId);
 
       if (state) {
@@ -61,6 +79,12 @@ export class ChunkingService {
         console.log('OVERLAP', state.systemConfig.frameOverlap);
         console.log('samplingFrame', state.userInputs.samplingFrame);
 
+        subSpan.addEvent('Creating chunking workload', {
+          multiFrame: state.systemConfig.multiFrame,
+          overlap: state.systemConfig.frameOverlap,
+          samplingFrame: state.userInputs.samplingFrame,
+        });
+
         const { multiFrame, frameOverlap } = state.systemConfig;
         const samplingFrame = state.userInputs.samplingFrame;
 
@@ -78,6 +102,13 @@ export class ChunkingService {
             windowRight,
             relevantFrames.map((el) => el.frameId),
           );
+
+          subSpan.addEvent('Adding chunk to queue', {
+            left: actualLeft,
+            right: windowRight,
+            frames: relevantFrames.map((el) => el.frameId),
+          });
+
           this.addChunk(
             stateId,
             relevantFrames.map((el) => el.frameId),
@@ -97,6 +128,7 @@ export class ChunkingService {
           }
         }
       }
+      subSpan.end();
     }
   }
 
@@ -118,11 +150,17 @@ export class ChunkingService {
       if (nextFrame) {
         this.processing.push(nextFrame);
 
+        const tracer = this.$trace.getTracer();
+
         const { stateId, frames } = nextFrame;
 
         const state = this.$state.fetch(stateId);
 
         if (state) {
+          const chunkSpan = tracer.startSpan('CHUNK_OVERVIEW', {
+            attributes: { stateId, videoId: state.video.videoId },
+          });
+
           this.$emitter.emit(PipelineEvents.FRAME_CAPTION_PROCESSING, {
             stateId,
             frameIds: frames,
@@ -150,14 +188,22 @@ export class ChunkingService {
                 caption: '',
               });
 
+              chunkSpan.addEvent('Preparing VLM inference', {
+                stateId,
+                frameCount: queryData.length,
+              });
+
               const vlmInference = this.$vlm.getInferenceConfig();
               this.$state.addImageInferenceConfig(stateId, vlmInference);
+
+              chunkSpan.setAttribute(
+                'vlm.inferenceConfig',
+                JSON.stringify(vlmInference),
+              );
 
               console.log('STATE AUDIO', state.audio);
 
               if (state.audio && state.audio.transcript.length > 0) {
-                const srtParser = new srtParserLib.default();
-
                 const chunkDuration = state.userInputs.chunkDuration;
                 const sampleFrames = +state.userInputs.samplingFrame;
 
@@ -192,6 +238,10 @@ export class ChunkingService {
                     ),
                   )
                   .join('\n\n');
+                chunkSpan.addEvent('Transcripts prepared', {
+                  transcriptsCount: state.audio.transcript.length,
+                  transcripts: transcripts.length,
+                });
               }
 
               let prompt = state.systemConfig.framePrompt;
@@ -201,6 +251,12 @@ export class ChunkingService {
               }
 
               console.log('Prompting for:', nextFrame.queueKey, prompt);
+
+              chunkSpan.addEvent('Prompting for VLM inference', {
+                stateId,
+                queueKey: nextFrame.queueKey,
+                prompt,
+              });
 
               this.subs.add(
                 from(
@@ -212,6 +268,14 @@ export class ChunkingService {
                   next: (res: string | null) => {
                     if (res) {
                       console.log('Response from VLM: ', res);
+
+                      chunkSpan.addEvent('VLM inference complete', {
+                        stateId,
+                        queueKey: nextFrame.queueKey,
+                        responseLength: res.length,
+                      });
+
+                      chunkSpan.end();
 
                       this.$emitter.emit(
                         PipelineEvents.FRAME_CAPTION_COMPLETE,

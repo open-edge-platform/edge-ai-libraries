@@ -1,12 +1,11 @@
 import { Injectable } from '@nestjs/common';
-import { Subscription } from 'rxjs';
 import { AudioService } from 'src/audio/services/audio.service';
 import { StateService } from '../services/state.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PipelineEvents } from 'src/events/Pipeline.events';
-import { AudioTranscriptDTO } from 'src/audio/models/audio.model';
+import { AudioDevice, AudioTranscriptDTO } from 'src/audio/models/audio.model';
 import { ConfigService } from '@nestjs/config';
-import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { Span } from 'nestjs-otel';
 
 export interface AudioQueueItem {
   stateId: string;
@@ -52,8 +51,12 @@ export class AudioQueueService {
     const state = this.$state.fetch(stateId);
 
     if (state && state.systemConfig.audioModel && state.video.dataStore) {
-      const device = this.$config.get('audio.device')!;
-      const minio_bucket = this.$config.get('datastore.bucketName')!;
+      const device: AudioDevice = this.$config.get<string>(
+        'audio.device',
+      )! as AudioDevice;
+      const minio_bucket: string = this.$config.get<string>(
+        'datastore.bucketName',
+      )!;
 
       const model_name = state.systemConfig.audioModel;
 
@@ -69,7 +72,7 @@ export class AudioQueueService {
       console.log('AUDIO CALL', transcriptDTO);
 
       this.$state.audioTrigger(stateId, transcriptDTO);
-      const audioSub = this.$audio.generateTranscript(transcriptDTO).subscribe({
+      this.$audio.generateTranscript(transcriptDTO).subscribe({
         next: (res) => {
           if (res) {
             console.log('AUDIO RESPONSE', res.status, res.data);
