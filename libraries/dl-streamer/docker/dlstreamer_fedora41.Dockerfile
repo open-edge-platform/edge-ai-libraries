@@ -4,6 +4,33 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
+# ==============================================================================
+# Build flow:
+#                ubuntu:24.04
+#                     |
+#                     |
+#                     V
+#                  builder --------------------------
+#                 /       \                         |
+#                /         \                        |
+#               V           V                       |
+#      ffmpeg-builder   opencv-builder              |
+#               |              |                mqqt-builder
+#               V              |                    |
+#       gstreamer-builder      | (copy libs)        |
+#                \            /                     |
+#      (copy libs)\          /                      |
+#                  V        V        (copy libs)    |
+#                dlstreamer-dev <-------------------|
+#                      |
+#                      |
+#                      V
+#                  deb-builder
+#                      |
+#                      | (copy debs)
+#                      V
+#                  dlstreamer
+# ==============================================================================
 FROM fedora:41 AS builder
 
 ARG BUILD_ARG=Release
@@ -77,6 +104,7 @@ USER root
 
 ENV PATH="/python3venv/bin:${PATH}"
 
+# ==============================================================================
 FROM builder AS ffmpeg-builder
 #Build ffmpeg
 RUN \
@@ -109,6 +137,7 @@ RUN cp -a /usr/local/lib/libav* ./
 RUN cp -a /usr/local/lib/libswscale* ./
 RUN cp -a /usr/local/lib/libswresample* ./
 
+# ==============================================================================
 FROM ffmpeg-builder AS gstreamer-builder
 # hadolint
 #Build GStreamer
@@ -221,6 +250,7 @@ RUN \
     rm -rf ./* && \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
 
+# ==============================================================================
 FROM builder AS opencv-builder
 # OpenCV
 WORKDIR /
@@ -247,6 +277,26 @@ RUN \
 WORKDIR /copy_libs
 RUN cp -a /usr/local/lib64/libopencv* ./
 
+# ==============================================================================
+FROM builder AS mqqt-builder
+# Build rdkafka and Paho MQTT C client library
+
+RUN curl -sSL https://github.com/edenhill/librdkafka/archive/v1.5.0.tar.gz | tar -xz
+
+WORKDIR /librdkafka-1.5.0
+RUN ./configure &&\
+    make && make install
+
+WORKDIR /
+RUN curl -sSL https://github.com/eclipse/paho.mqtt.c/archive/v1.3.4.tar.gz | tar -xz
+WORKDIR /paho.mqtt.c-1.3.4
+RUN make && make install
+
+WORKDIR /copy_libs
+RUN cp -a /usr/local/lib/librdkafka* ./
+RUN cp -a /usr/local/lib/libpaho-mqtt* ./
+
+# ==============================================================================
 
 FROM builder AS dlstreamer-dev
 
@@ -259,6 +309,9 @@ COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
 COPY --from=opencv-builder /usr/local/include/opencv4 /usr/local/include/opencv4
 COPY --from=opencv-builder /copy_libs/ /usr/local/lib64/
 COPY --from=opencv-builder /usr/local/lib64/cmake/opencv4 /usr/local/lib64/cmake/opencv4
+COPY --from=mqqt-builder /copy_libs/ /usr/local/lib/
+COPY --from=mqqt-builder /usr/local/include/librdkafka /usr/local/include/librdkafka
+COPY --from=mqqt-builder /usr/local/include/MQTT* /usr/local/include/
 
 ENV PKG_CONFIG_PATH="${GSTREAMER_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig"
 # Intel® Distribution of OpenVINO™ Toolkit
