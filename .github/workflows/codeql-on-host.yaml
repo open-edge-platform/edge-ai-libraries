@@ -68,6 +68,7 @@ jobs:
       fail-fast: false
       matrix:
         language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
+        project: ${{ fromJson(needs.detect-languages.outputs.projects) }}
     permissions:
       security-events: write
       actions: read
@@ -95,7 +96,7 @@ jobs:
       - name: Set project name
         id: set-project-name
         run: |
-          PROJECT="${{ fromJson(needs.detect-languages.outputs.projects) }}"
+          PROJECT="${{ matrix.project }}"
           if [[ "$PROJECT" == "dl-streamer" ]]; then
             echo "project-name=dl-streamer" >> $GITHUB_OUTPUT
           else
