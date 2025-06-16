@@ -20,7 +20,7 @@ This section shows how to build the Video Search and Summary sample application 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd edge-ai-libraries/sample-applications/video-summarization
+      cd edge-ai-libraries/sample-applications/video-search-and-summarization
       ```
 
 3. **Generate env file and create Docker\* volume to store the vision-language model**:

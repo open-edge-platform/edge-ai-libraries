@@ -24,7 +24,7 @@ This guide shows how to:
 The repository is organized as follows:
 
 ```plaintext
-sample-applications/video-summarization/
+sample-applications/video-search-and-summarization/
 ├── config                     # Configuration files
 │   ├── nginx.conf             # Nginx configuration
 │   └── rmq.conf               # RabbitMQ configuration
@@ -132,7 +132,7 @@ The Video Summary application offers multiple stacks and deployment options:
 | Option | Chunk-Wise Summary | Final Summary | Environment Variables | Recommended Models |
 |--------|--------------------|---------------------|-----------------------|----------------|
 | VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-7B-Instruct` |
-| VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `USE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
+| VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` |
 | VLM-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
@@ -145,7 +145,7 @@ Follow these steps to run the application:
 
     ```bash
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-    cd edge-ai-libraries/sample-applications/video-summarization
+    cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
 2. Set the required environment variables as [described above](#️required-env).
@@ -204,7 +204,7 @@ To use GPU acceleration for VLM inference:
    ```
 
 ```bash
-USE_VLM_GPU=true source setup.sh --summary
+ENABLE_VLM_GPU=true source setup.sh --summary
 ```
 
 To use GPU acceleration for OVMS-based summary:
@@ -217,7 +217,7 @@ To verify configuration and resolved environment variables without running the a
 
 ```bash
 # For VLM inference on GPU
-USE_VLM_GPU=true source setup.sh --summary config
+ENABLE_VLM_GPU=true source setup.sh --summary config
 ```
 
 ```bash
@@ -225,7 +225,7 @@ USE_VLM_GPU=true source setup.sh --summary config
 ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ```
 
-> **_NOTE:_** Please avoid setting `USE_VLM_GPU` or `ENABLE_OVMS_LLM_SUMMARY_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
+> **_NOTE:_** Please avoid setting `ENABLE_VLM_GPU` or `ENABLE_OVMS_LLM_SUMMARY_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
 
 ## 🌐 Accessing the Application
 

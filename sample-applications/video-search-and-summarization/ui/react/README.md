@@ -2,7 +2,7 @@
 
 Welcome to the Video Summary UI project! This guide will help you set up and run the Video Summary UI application using `Docker` or `npm`. Follow the steps below to ensure a smooth deployment process.
 
-**Note:** This **README** is helpful if you only want to run the UI services and you already have the **Backend and Data prep service endpoint**. If you want to run all the services then you should read this [**README**](/sample-applications/video-summarization/README.md).
+**Note:** This **README** is helpful if you only want to run the UI services and you already have the **Backend and Data prep service endpoint**. If you want to run all the services then you should read this [**README**](/sample-applications/video-search-and-summarization/README.md).
 
 ## Prerequisites
 

@@ -22,13 +22,13 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 1. Clone the repository:
    ```sh
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-   cd edge-ai-libraries/sample-applications/video-summarization/pipeline-manager
+   cd edge-ai-libraries/sample-applications/video-search-and-summarization/pipeline-manager
    ```
 2. Build the Docker image:
    ```sh
    docker build -f 'Dockerfile' -t 'pipeline-manager' .
    ```
-3. To use the service refer to the docker compose (file)(/sample-applications/video-summarization/compose.yaml) and [README](/sample-applications/video-summarization/README.md)
+3. To use the service refer to the docker compose (file)(/sample-applications/video-search-and-summarization/compose.yaml) and [README](/sample-applications/video-search-and-summarization/README.md)
 
 ## Environment Variables
 - `no_proxy`: No proxy settings

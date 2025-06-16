@@ -28,7 +28,7 @@ To deploy the **Video Search and Summary** Application with the Edge Orchestrato
 
     ```bash
     git clone <repository-url>
-    cd <repository-url>/sample-applications/video-summarization
+    cd <repository-url>/sample-applications/video-search-and-summarization
     ```
 
     The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries.git`. In case of forked repos, please ensure the right url is used when cloning the repo.

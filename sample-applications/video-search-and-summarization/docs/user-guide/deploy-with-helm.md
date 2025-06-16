@@ -20,7 +20,7 @@ Do the following to deploy VSS using Helm chart.
 
 Use the following command to pull the Helm chart from Docker Hub:
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
 ```
 
 Refer to the release notes for details on the latest version number to use for the sample application.
@@ -29,12 +29,12 @@ Refer to the release notes for details on the latest version number to use for t
 
 After pulling the chart, extract the `.tgz` file:
 ```bash
-tar -xvf video-summarization-<version-no>.tgz
+tar -xvf video-search-and-summarization-<version-no>.tgz
 ```
 
-This will create a directory named `video-summarization` containing the chart files. Navigate to the extracted directory. 
+This will create a directory named `video-search-and-summarization` containing the chart files. Navigate to the extracted directory. 
 ```bash
-cd video-summarization
+cd video-search-and-summarization
 ```
 
 #### Step 3: Configure the `values.yaml` File
@@ -75,7 +75,7 @@ git clone <repo>
 
 Navigate to the chart directory:
 ```bash
-cd <repo>/sample-applications/video-summarization/chart
+cd <repo>/sample-applications/video-search-and-summarization/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File

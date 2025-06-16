@@ -465,7 +465,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
 
-        if [ "$USE_VLM_GPU" = true ]; then
+        if [ "$ENABLE_VLM_GPU" = true ]; then
             export VLM_DEVICE=GPU
             export VLM_CONCURRENT=1
             export LLM_CONCURRENT=1
