@@ -67,7 +67,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }}
+        language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
     permissions:
       security-events: write
       actions: read
