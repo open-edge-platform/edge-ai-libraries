@@ -245,7 +245,7 @@ if [ "$1" != "--down" ]; then
         echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
         return
     fi
-    if [ "$USE_OVMS" = true ] || [ "$USE_OVMS_GPU" = true ]; then
+    if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
             echo -e "${RED}ERROR: OVMS_LLM_MODEL_NAME is not set in your shell environment.${NC}"
             return
@@ -397,14 +397,14 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     fi
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
-    if [ "$USE_OVMS" = true ] || [ "$USE_OVMS_GPU" = true ]; then
+    if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         echo -e "${BLUE}Using OVMS for LLM summarization${NC}"
         export USE_OVMS_CONFIG=CONFIG_ON
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
         export LLM_MODEL_API="v1/config"
 
         # Set relevant variables, compose files and profiles based on whether GPU is used or not
-        if [ "$USE_OVMS_GPU" = true ]; then
+        if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
             echo -e "${BLUE}Using GPU acceleration for OVMS${NC}"
             export OVMS_CACHE_SIZE=2
             export LLM_COMPRESSION_WEIGHT_FORMAT=int4
@@ -465,7 +465,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
 
-        if [ "$USE_VLM_GPU" = true ]; then
+        if [ "$ENABLE_VLM_GPU" = true ]; then
             export VLM_DEVICE=GPU
             export VLM_CONCURRENT=1
             export LLM_CONCURRENT=1
