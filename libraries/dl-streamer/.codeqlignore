@@ -2,3 +2,6 @@ build/
 thirdparty/
 tests/
 docs/
+gstreamer/
+ffmpeg/
+opencv/
