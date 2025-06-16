@@ -42,7 +42,7 @@ spec:
       {{- end }}
       containers:
       - name: ia-time-series-analytics-microservice
-        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image_name }}{{ if .Values.images.rc_version }}-{{ .Values.images.rc_version }}{{ end }}
+        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image }}{{ if .Values.images.rc_version }}-{{ .Values.images.rc_version }}{{ end }}
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         securityContext:
           readOnlyRootFilesystem: true

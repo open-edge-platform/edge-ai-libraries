@@ -37,5 +37,4 @@ config:
 images:
   # Please provide the version of the image you want to use (i.e RC1, RC2, etc.)
   rc_version: ""
-  time_series_analytics_image: ia-time-series-analytics-microservice
-  time_series_analytics_image_version: 1.0.0
+  time_series_analytics_image: intel/ia-time-series-analytics-microservice:1.0.0
