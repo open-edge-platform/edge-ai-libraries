@@ -59,7 +59,6 @@ class KapacitorClassifier():
     def __init__(self, logger):
         self.logger = logger
         self.kapacitor_proc = None
-        self.stop_check_udf = False
 
     def write_cert(self, file_name, cert):
         """Write certificate to given file path
@@ -361,7 +360,6 @@ def delete_old_subscription(secure_mode):
 def classifier_startup(config):
     """Main to start kapacitor service
     """
-    kapacitor_classifier.stop_check_udf = True
     mode = os.getenv("SECURE_MODE", "false")
     secure_mode = mode.lower() == "true"
 
@@ -429,7 +427,6 @@ def classifier_startup(config):
     if status is FAILURE:
         kapacitor_classifier.exit_with_failure_message(msg)
 
-    kapacitor_classifier.stop_check_udf = False
 
     status = kapacitor_classifier.check_udf_package(config, dir_name)
     if status is False:

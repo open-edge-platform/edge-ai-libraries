@@ -18,7 +18,6 @@ parser.add_argument(
 )
 args = parser.parse_args()
 
-print(f"Running in {args.mode} mode.")
 
 def is_port_open(host, port, timeout=3):
     retries = 0
@@ -36,11 +35,11 @@ def is_port_open(host, port, timeout=3):
     
 host = "localhost"
 
-port = int(args.port)
+port = args.port
 if not port.isdigit():
     print(f"Invalid port number: {port}. Please provide a valid port number.")
     exit(1)
-
+port = int(port)
 if not is_port_open(host, port):
     print(f"Port {port} on {host} is not accessible.")
     exit(1)

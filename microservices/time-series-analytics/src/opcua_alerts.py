@@ -20,7 +20,7 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger()
-#app = FastAPI()
+
 client = None
 node_id = None
 namespace = None

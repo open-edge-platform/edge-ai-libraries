@@ -32,8 +32,8 @@ app = FastAPI()
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
-global CONFIG
-CONFIG = {}
+global config
+config = {}
 
 class DataPoint(BaseModel):
     topic: str
@@ -69,8 +69,8 @@ def json_to_line_protocol(data_point: DataPoint):
     logger.debug(f"Converted line protocol: {line_protocol}")
     return line_protocol
 
-def start_kapacitor_service(CONFIG):
-    classifier_startup.classifier_startup(CONFIG)
+def start_kapacitor_service(config):
+    classifier_startup.classifier_startup(config)
 
 def stop_kapacitor_service():
     response = Response()
@@ -150,10 +150,10 @@ async def receive_alert(alert: OpcuaAlerts):
         HTTPException: If OPC UA alerts are not configured or if there is an error during processing.
     """
     try:
-        if "alerts" in CONFIG.keys() and "opcua" in CONFIG["alerts"].keys():
+        if "alerts" in config.keys() and "opcua" in config["alerts"].keys():
             if not hasattr(opcua_alerts, "initialized") or not opcua_alerts.initialized:
                 try:
-                    opcua_alerts.initialize_opcua(CONFIG)
+                    opcua_alerts.initialize_opcua(config)
                 except RuntimeError as e:
                     logger.exception("Failed to initialize OPC UA client")  # This logs the full traceback
                     raise HTTPException(status_code=500, detail=f"Failed to initialize OPC UA client: {e}")
@@ -281,8 +281,7 @@ async def get_config():
                                 example: "Failed to retrieve configuration"
     """
     try:
-        logger.info(f"Retrieving configuration from file: {CONFIG}")
-        return CONFIG
+        return config
     except Exception as e:
         logger.error(f"Error retrieving configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -348,14 +347,14 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                                 example: "Failed to write configuration to file"
     """
     try:
-        CONFIG["model_registry"] = {}
-        CONFIG["udfs"] = {}
-        CONFIG["alerts"] = {}
-        CONFIG["model_registry"] = config_data.model_registry
-        CONFIG["udfs"] = config_data.udfs
+        config["model_registry"] = {}
+        config["udfs"] = {}
+        config["alerts"] = {}
+        config["model_registry"] = config_data.model_registry
+        config["udfs"] = config_data.udfs
         if config_data.alerts:
-            CONFIG["alerts"] = config_data.alerts
-        logger.debug(f"Received configuration data: {CONFIG}")
+            config["alerts"] = config_data.alerts
+        logger.debug(f"Received configuration data: {config}")
     except json.JSONDecodeError as e:
         logger.error(f"Invalid JSON format in configuration data: {e}")
         raise HTTPException(status_code=422, detail="Invalid JSON format in configuration data")
@@ -365,7 +364,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
 
     def restart_kapacitor():
         stop_kapacitor_service()
-        start_kapacitor_service(CONFIG)
+        start_kapacitor_service(config)
 
     background_tasks.add_task(restart_kapacitor)
     return {"status": "success", "message": "Configuration updated successfully"}
@@ -378,12 +377,12 @@ if __name__ == "__main__":
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
-    CONFIG = {}
+    config = {}
     try:
         with open (CONFIG_FILE, 'r') as file:
-            CONFIG = json.load(file)
+            config = json.load(file)
         logger.info("App configuration loaded successfully from config.json file")
-        start_kapacitor_service(CONFIG)
+        start_kapacitor_service(config)
     except FileNotFoundError:
         logger.info("config.json file not found, waiting for the configuration")
     except Exception as e:

@@ -54,7 +54,7 @@ class MRHandler:
             data = self.get_model_info(self.config["udfs"]["name"], self.config["model_registry"]["version"])
             if data is not None and (len(data))>0:
                 mr_id = data[0]["id"]
-                self.logger.info(f"Model id: {mr_id}")
+                self.logger.debug(f"Model id: {mr_id}")
                 self.unique_id = str(uuid.uuid4())
                 self.download_udf_model_by_id(self.config["udfs"]["name"], mr_id)
                 self.fetch_from_model_registry = True
