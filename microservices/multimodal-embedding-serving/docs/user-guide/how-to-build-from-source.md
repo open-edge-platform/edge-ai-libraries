@@ -50,7 +50,7 @@ To build the Docker image, run the following command:
 # Build for CPU
 docker compose -f compose.yaml build
 # Build for GPU
-docker compose -f compose.arc-gpy.yaml build
+docker compose -f compose.arc-gpu.yaml build
 ```
 
 4. **Run the service**:
