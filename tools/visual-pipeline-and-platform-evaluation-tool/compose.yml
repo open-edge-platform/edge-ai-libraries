@@ -33,10 +33,10 @@ services:
     environment:
       - MODELS_PATH=/output/
     user: root
-    command: bash -xc '
+    command: bash -c '
         cp /tmp/models.sh . &&
         chmod +x models.sh &&
-        bash -cx ./models.sh &&
+        bash -c ./models.sh &&
         tail -f /dev/null
       '
     restart: on-failure:5

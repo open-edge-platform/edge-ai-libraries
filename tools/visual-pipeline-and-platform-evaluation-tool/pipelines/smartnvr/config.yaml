@@ -4,3 +4,4 @@ definition: >
   Simple NVR Proxy Pipeline to add support for video analytics on a subset of input channels.
 metadata:
   classname: SmartNVRPipeline
+  enabled: true
