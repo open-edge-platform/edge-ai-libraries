@@ -20,6 +20,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
           path: edge-ai-libraries-repo
+          persist-credentials: false
           fetch-depth: 0
 
       - name: Detect changed languages
@@ -78,7 +79,9 @@ jobs:
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-  
+        with:
+          persist-credentials: false
+
       - name: Init submodules
         run: |
           git submodule update --init libraries/dl-streamer/thirdparty/spdlog
@@ -99,15 +102,18 @@ jobs:
           PROJECT="${{ matrix.project }}"
           if [[ "$PROJECT" == "dl-streamer" ]]; then
             echo "project-name=dl-streamer" >> $GITHUB_OUTPUT
+            echo "paths-to-scan=libraries/dl-streamer" >> $GITHUB_OUTPUT
           else
             echo "project-name=none" >> $GITHUB_OUTPUT
+            echo "paths-to-scan=." >> $GITHUB_OUTPUT
           fi
 
       - name: Initialize CodeQL build mode
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
         with:
           languages: ${{ matrix.language }}
           build-mode: ${{ steps.set-build-mode.outputs.build-mode }}
+          paths: ${{ steps.set-project-name.outputs.paths-to-scan }}
 
       - name: Build code manually for dl-streamer
         if: steps.set-build-mode.outputs.build-mode == 'manual' && steps.set-project-name.outputs.project-name == 'dl-streamer'
@@ -116,6 +122,6 @@ jobs:
           ./libraries/dl-streamer/scripts/build_dlstreamer.sh
 
       - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
         with:
           category: "/language:${{matrix.language}}"
