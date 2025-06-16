@@ -107,8 +107,8 @@ Before running the application, you need to set several environment variables:
 **🔐 Working with Gated Models**
 
    To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
-
-    _Go to https://huggingface.co/settings/tokens to get your token._
+   
+   Go to https://huggingface.co/settings/tokens to get your token.
 
    ```bash
    export GATED_MODEL=true
@@ -148,7 +148,7 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
-2. Set the required environment variables as [described above](#️required-env).
+2. Set the required environment variables as described  [above](#required-env).
 
 3. Run the setup script with the appropriate flag, depending on your use case. 
 
