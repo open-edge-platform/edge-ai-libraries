@@ -235,55 +235,6 @@ After successfully starting the application, you can access the UI at URL provid
 echo "http://${HOST_IP}:${APP_HOST_PORT}"
 ```
 
-## 🏗️ Building Images
-
-If you need to customize the application or build your own images, you can use the `build.sh` script included in the repository.
-
-### ⚙️ Customizing Build Configuration
-
-Before running the build script, you can modify these variables in the script to control where images are pushed:
-
-```bash
-# Open build.sh and update these values
-export REGISTRY_URL=<your-container-registry>  # e.g. "docker.io/username/"
-export PROJECT_NAME=<your-project-name>        # e.g. "video-summary"
-export TAG=<your-version-tag>                  # e.g. "latest" or "rc4"
-```
-
-### 🔨 Building Images
-
-The build script provides several options:
-
-```bash
-sudo chmod +x ./build.sh
-# Build all microservice dependencies (vlm-openvino-serving, multimodal-embedding-serving, vdms-dataprep etc.)
-./build.sh
-
-# Build only the sample applications (pipeline-manager, video-search and UI)
-./build.sh --sample-app
-
-# Push all built images to the configured registry
-./build.sh --push
-```
-
-After building, you can verify the created images with:
-
-```bash
-docker images | grep <your-project-name>
-```
-
-### 🖼️ Using Custom Images
-
-Once you've built and pushed custom images, update your environment variables to use them:
-
-```bash
-export REGISTRY_URL=<your-container-registry>
-export PROJECT_NAME=<your-project-name>
-export TAG=<your-version-tag>
-```
-
-Once images are built and pushed, follow the instructions to [run the application](#running-app) afterwards.
-
 ## ☸️ Running in Kubernetes
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 

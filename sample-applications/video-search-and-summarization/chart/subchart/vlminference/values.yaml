@@ -1,0 +1,29 @@
+global:
+  proxy:
+    no_proxy: 
+    http_proxy:
+    https_proxy: 
+
+vlminference:
+  name: vlm-inference-microservice
+  image:
+    repository: "intel/vlm-openvino-serving"
+    tag: "1.2.0"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+  env:
+    VLM_MODEL_NAME: "Qwen/Qwen2.5-VL-7B-Instruct"
+    VLM_COMPRESSION_WEIGHT_FORMAT: "int8"
+    VLM_DEVICE: "cpu"
+    VLM_SEED: "42"
+    MULTI_FRAME_COUNT: 12
+    VLM_CONCURRENT: 4
+    VLM_HOST_PORT: 8000
+  volumeMounts:
+    pvcName: vlm-pvc
+    egai_vlm_pvc:
+      size: 40Gi
+      accessMode: ReadWriteOnce

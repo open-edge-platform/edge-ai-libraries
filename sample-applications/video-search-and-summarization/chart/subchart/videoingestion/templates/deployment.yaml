@@ -1,0 +1,137 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "videoingestion.fullname" . }}
+  labels:
+    app: {{ include "videoingestion.name" . }}
+spec:
+  replicas: {{ .Values.videoingestion.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ include "videoingestion.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "videoingestion.name" . }}
+    spec:
+      securityContext:
+        runAsUser: 1999
+        runAsGroup: 1999
+        fsGroup: 1999
+        supplementalGroups: [109,110]
+      initContainers:
+        - name: model-converter
+          image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
+          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          command: ["/bin/bash", "-c"]
+          args:
+            - |
+              # Check if model directory exists but is incomplete
+              if [ -d "${OD_MODEL_OUTPUT_DIR}" ] && ( [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP32" ] || [ ! -d "${OD_MODEL_OUTPUT_DIR}/FP16" ] ); then
+                echo "Model directory exists but appears incomplete. Removing it to trigger fresh conversion."
+                rm -rf "${OD_MODEL_OUTPUT_DIR}"
+              fi
+              # Run the original conversion script
+              /scripts/model-converter.sh
+          env:
+            - name: OD_MODEL_OUTPUT_DIR
+              value: "/models/yoloworld"
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+          volumeMounts:
+            - name: model-converter-scripts
+              mountPath: /scripts
+            - name: models-volume
+              mountPath: /models
+          securityContext:
+            privileged: true
+      containers:
+        - name: videoingestion
+          image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
+          imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.videoingestion.service.port }}
+          env:
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.rabbitmq.name }}"
+            - name: RABBITMQ_PORT
+              value: "{{ .Values.rabbitmq.service.mqttPort }}"
+            - name: MINIO_SERVER
+              value: "{{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}"
+            - name: RABBITMQ_DEFAULT_USER
+              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_USER }}"
+            - name: RABBITMQ_DEFAULT_PASS
+              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_PASS }}"
+            - name: MINIO_ROOT_USER
+              value: "{{ .Values.global.env.MINIO_ROOT_USER }}"
+            - name: MINIO_ROOT_PASSWORD
+              value: "{{ .Values.global.env.MINIO_ROOT_PASSWORD }}"
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: RUN_MODE
+              value: "{{ .Values.videoingestion.env.RUN_MODE }}"
+            - name: DETECTION_DEVICE
+              value: "{{ .Values.videoingestion.env.DETECTION_DEVICE }}"
+            - name: ADD_UTCTIME_TO_METADATA
+              value: "{{ .Values.videoingestion.env.ADD_UTCTIME_TO_METADATA }}"
+            - name: LSFEATURE_NAME
+              value: "{{ .Values.videoingestion.env.LSFEATURE_NAME }}"
+            # - name: GST_DEBUG
+            #   value: "5"
+            - name: HTTPS
+              value: "{{ .Values.videoingestion.env.HTTPS }}"
+            - name: MTLS_VERIFICATION
+              value: "{{ .Values.videoingestion.env.MTLS_VERIFICATION }}"
+            - name: APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC
+              value: "{{ .Values.videoingestion.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
+            - name: REST_SERVER_PORT
+              value: "{{ .Values.videoingestion.env.REST_SERVER_PORT }}"
+          volumeMounts:
+          - mountPath: /var/cache/pipeline_root
+            name: vol-pipeline-root-tmpfs0
+          - name: dev-shm
+            mountPath: /dev/shm
+          - name: tmp
+            mountPath: /tmp
+          - name: var-tmp
+            mountPath: /var/tmp
+          - name: run-udev
+            mountPath: /run/udev
+          - name: models-volume
+            mountPath: /home/pipeline-server/models
+          securityContext:
+            readOnlyRootFilesystem: false
+            privileged: true
+          tty: true
+          command: ["./run.sh"]
+      volumes:
+      - name: vol-pipeline-root-tmpfs0
+        emptyDir: {}
+      - name: dev-shm
+        hostPath:
+          path: /dev/shm
+      - name: tmp
+        hostPath:
+          path: /tmp
+      - name: var-tmp
+        hostPath:
+          path: /var/tmp
+      - name: run-udev
+        hostPath:
+          path: /run/udev
+      - name: model-converter-scripts
+        configMap:
+          name: {{ include "videoingestion.fullname" . }}-model-converter
+          defaultMode: 0755
+      - name: models-volume
+        persistentVolumeClaim:
+          claimName: video-summary-ingestion-models-pvc
+      restartPolicy: Always

@@ -13,7 +13,7 @@ ov_models
 .venv
 .coverage-report/
 **/models
-*data*/
+*data/
 **/ovms_config
 **/ov_models
 *.lock
@@ -22,4 +22,3 @@ ov_models
 .coverage
 ov_model_venv
 ovms_config
-!sample-applications/video-search-and-summarization/ui/react/.env

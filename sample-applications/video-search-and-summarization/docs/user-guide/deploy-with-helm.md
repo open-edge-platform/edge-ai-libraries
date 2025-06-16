@@ -39,14 +39,13 @@ cd video-search-and-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the `huggingface.apiToken`, services credentials and proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the services credentials and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
-| `global.proxy.no_proxy` | No proxy list | `localhost,127.0.0.1,...` |
 | `global.env.UI_NODEPORT` | UI service NodePort | `31998` |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
@@ -54,7 +53,7 @@ Edit the `values.yaml` file to set the necessary environment variables. At minim
 | `global.env.MINIO_ROOT_USER` | MinIO server user name | `<your-minio-user>` (at least 3 characters) |
 | `global.env.MINIO_ROOT_PASSWORD` | MinIO server password | `<your-minio-password>` (at least 8 characters) |
 | `global.env.MINIO_PROTOCOL` | MinIO protocol | `http:` |
-| `global.env.MINIO_BUCKET` | MinIO bucket name | `video-summary` |
+| `global.env.MINIO_BUCKET` | MinIO bucket name | `video-search-summary` |
 | `global.env.RABBITMQ_DEFAULT_USER` | RabbitMQ username | `<your-rabbitmq-username>` |
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
 | `global.env.VLM_MODEL_NAME` | VLM model to use | `Qwen/Qwen2.5-VL-7B-Instruct` |
@@ -95,21 +94,46 @@ helm dependency build
 
 ### Step 5: Deploy the Helm Chart
 
-Deploy the Helm chart using the following command:
+Depending on your use case, deploy the Helm chart using the appropriate command.
+
+> NOTE: Before switching to a different mode always stop the current application stack by running:
 
 ```bash
-helm install video-summary . -n <your-namespace>
+helm uninstall vss -n <your-namespace>
 ```
-If the users want to use OVMS for LLM Summarization they can, Deploy the OVMS override values:
+
+#### **Use Case 1: Video Summary Only**
+
+Deploy the Video Summary application:
 
 ```bash
-helm install video-summary . --values values.yaml --values ovms_override.yaml -n <your-namespace>
+helm install vss . --values values.yaml --values summary_override.yaml -n <your-namespace>
 ```
-**Note:** When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
+
+> Note delete the chart for installing the chart in other modes `helm uninstall vss -n <namespace>`
+
+Replace `<your-namespace>` with your desired Kubernetes namespace.
 
 > Note: If your namespace doesn't exist yet, create it with `kubectl create namespace <your-namespace>` before running the helm install command.
 
-### Step 5: Verify the Deployment
+##### **Sub Use Case 1: Video Summary with OVMS**
+
+If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
+
+```bash
+helm install vss . --values values.yaml --values summary_override.yaml --values ovms_override.yaml -n <your-namespace>
+```
+**Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
+
+#### **Use Case 2: Video Search Only**
+
+To deploy only the Video Search functionality, use the search override values:
+
+```bash
+helm install vss . --values values.yaml --values search_override.yaml -n <your-namespace>
+```
+
+### Step 6: Verify the Deployment
 
 Check the status of the deployed resources to ensure everything is running correctly:
 
@@ -120,21 +144,21 @@ kubectl get services -n <your-namespace>
 
 Ensure all pods are in the "Running" state before proceeding.
 
-### Step 6: Retrieving the Service Endpoint (NodePort and NodeIP)
+### Step 7: Retrieving the Service Endpoint (NodePort and NodeIP)
 
-To access the video-summary-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
+To access the vss-nginx service running in your Kubernetes cluster using NodePort, you need to retrieve:
 
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service (default is 31998 as specified in values.yaml).
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=video-summary-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
 ```
 
 Simply copy and paste the output into your browser to access the Video Summary application UI.
 
-### Step 7: Update Helm Dependencies
+### Step 8: Update Helm Dependencies
 
 If any changes are made to the subcharts, update the Helm dependencies using the following command:
 
@@ -142,12 +166,12 @@ If any changes are made to the subcharts, update the Helm dependencies using the
 helm dependency update
 ```
 
-### Step 8: Uninstall Helm chart
+### Step 9: Uninstall Helm chart
 
 To uninstall the Video Summary Helm chart, use the following command:
 
 ```bash
-helm uninstall video-summary -n <your-namespace>
+helm uninstall vss -n <your-namespace>
 ```
 
 ## Verification
