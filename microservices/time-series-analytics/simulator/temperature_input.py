@@ -47,10 +47,11 @@ if not is_port_open(host, port):
 else:
     print(f"Port {port} on {host} is accessible.") 
 
-url = f"http://localhost:{port}/kapacitor/v1/write"
-params = {
-    "db": "datain",
-    "rp": "autogen"
+url = f"http://localhost:{port}/input"
+
+headers = {
+        "Content-Type": "application/json",
+        "Accept": "application/json",
 }
 # Generate random values: some <20, some >25, all between 10 and 50
 for i in range(1, 500):
@@ -60,12 +61,15 @@ for i in range(1, 500):
     else:
         value = random.randint(10, 50)
  
-    payload = f"point_data temperature={value}"
-    headers = {
-        "Content-Type": "text/plain"
+    payload = {
+        "topic": "point_data",
+        "fields": {
+            "temperature": value
+        }
     }
- 
-    response = requests.post(url, params=params, data=payload, headers=headers)
+    
+
+    response = requests.post(url, json=payload, headers=headers)
   
     print(f"Sent value: {value}")
     print(f"Status Code: {response.status_code}")

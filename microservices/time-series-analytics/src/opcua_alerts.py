@@ -12,7 +12,7 @@ import sys
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
-CONFIG = {}
+
 # Configure logging
 logging.basicConfig(
     level=logging_level,
@@ -26,11 +26,11 @@ node_id = None
 namespace = None
 opcua_server = None
 
-def load_opcua_config(CONFIG):
+def load_opcua_config(config):
     try:
-        node_id = CONFIG["alerts"]["opcua"]["node_id"]
-        namespace = CONFIG["alerts"]["opcua"]["namespace"]
-        opcua_server = CONFIG["alerts"]["opcua"]["opcua_server"]
+        node_id = config["alerts"]["opcua"]["node_id"]
+        namespace = config["alerts"]["opcua"]["namespace"]
+        opcua_server = config["alerts"]["opcua"]["opcua_server"]
         return node_id, namespace, opcua_server
     except Exception as e:
         logger.exception("Fetching app configuration failed, Error: {}".format(e))
@@ -74,9 +74,9 @@ def connect_opcua_client(client, secure_mode, opcua_server, max_retries=5):
     return False
 
 
-def initialize_opcua(CONFIG):
+def initialize_opcua(config):
     global node_id, namespace, opcua_server, client
-    node_id, namespace, opcua_server = load_opcua_config(CONFIG)
+    node_id, namespace, opcua_server = load_opcua_config(config)
     client = create_opcua_client(opcua_server)
     secure_mode = os.getenv("SECURE_MODE", "false")
     connected = connect_opcua_client(client, secure_mode, opcua_server)

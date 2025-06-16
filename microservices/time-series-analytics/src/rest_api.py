@@ -33,6 +33,7 @@ app = FastAPI()
 KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 global CONFIG
+CONFIG = {}
 
 class DataPoint(BaseModel):
     topic: str
@@ -347,7 +348,6 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                                 example: "Failed to write configuration to file"
     """
     try:
-        #CONFIG = {}
         CONFIG["model_registry"] = {}
         CONFIG["udfs"] = {}
         CONFIG["alerts"] = {}
