@@ -35,7 +35,6 @@ config:
       port: "30009"
 
 images:
-  # Please provide the version of the image you want to use
-  # i.e for RC1 use as "-RC1"
+  # Please provide the version of the image you want to use (i.e RC1, RC2, etc.)
   rc_version: ""
   time_series_analytics_image_name: ia-time-series-analytics-microservice:1.0.0
