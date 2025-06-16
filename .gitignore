@@ -23,3 +23,5 @@ ov_models
 ov_model_venv
 ovms_config
 !sample-applications/video-search-and-summarization/ui/react/.env
+!sample-applications/video-search-and-summarization/chart/subchart/**/*
+!sample-applications/video-search-and-summarization/pipeline-manager/**/*
