@@ -1,8 +1,8 @@
-name: "CodeQL Conditional (on host)"
-run-name: "CodeQL Conditional (on host)"
+name: "[DLS] CodeQL (on host)"
+run-name: "[DLS] CodeQL (on host)"
 on:
   push:
-    branches: [ "nsz-codeql" ]
+    branches: [ "main" ]
   pull_request:
     branches: [ "main" ]
 permissions: {}
