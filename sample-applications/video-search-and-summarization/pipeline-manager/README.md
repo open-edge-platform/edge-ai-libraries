@@ -5,13 +5,13 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 
 ## Features
 - Manages video processing pipeline
-- Coordinates with other services like EVAM, OVMS, VLM, RabbitMQ, and Minio
-    - Call minio service to save the Videos.
-    - Call EVAM service to Ingest Videos
-    - Read the status from the RabbitMQ Queue
-    - Sends frames to VLM Service for Frame Captioning
-    - Send Chunks to LLM Service for Chunk Captioning
-    - Send Chunk Captions to LLM Service for Video Summarization.
+- Coordinates with other services like Deep Learning Streamer Pipeline Server, OVMS, VLM, RabbitMQ, and Minio
+- Call minio service to save the Videos.
+- Call Deep Learning Streamer Pipeline Server service to Ingest Videos
+- Read the status from the RabbitMQ Queue
+- Sends frames to VLM Service for Frame Captioning
+- Send Chunks to LLM Service for Chunk Captioning
+- Send Chunk Captions to LLM Service for Video Summarization.
 - Handles video uploads and state management
 
 ## Prerequisites
@@ -36,10 +36,10 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 - `https_proxy`: HTTPS proxy settings
 - `MINIO_ROOT_USER`: Minio root user
 - `MINIO_ROOT_PASSWORD`: Minio root password
-- `EVAM_HOST`: EVAM service host
-- `EVAM_PIPELINE_PORT`: EVAM pipeline port
-- `EVAM_PUBLISH_PORT`: EVAM publish port
-- `EVAM_DEVICE`: EVAM device
+- `EVAM_HOST`: Deep Learning Streamer Pipeline Server  host
+- `EVAM_PIPELINE_PORT`: Deep Learning Streamer Pipeline Server  port
+- `EVAM_PUBLISH_PORT`: Deep Learning Streamer Pipeline Server publish port
+- `EVAM_DEVICE`: Deep Learning Streamer Pipeline Server device
 - `RABBITMQ_HOST`: RabbitMQ host
 - `RABBITMQ_AMQP_PORT`: RabbitMQ AMQP port
 - `VLM_CAPTIONING_DEVICE`: VLM captioning device

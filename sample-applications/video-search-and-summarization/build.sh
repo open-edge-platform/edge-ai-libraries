@@ -49,7 +49,7 @@ build_dependencies() {
   local build_success=true
 
   # Build DATAPREP
-  cd "${uservices_dir}/document-ingestion/vdms/docker" || return 0
+  cd "${uservices_dir}/visual-data-preparation-for-retrieval/vdms/docker" || return 0
   if [ -f "compose.yaml" ]; then
    cd .. && source setup.sh --build || { 
       log_info "${RED}Failed to build DATAPREP${NC}"; 

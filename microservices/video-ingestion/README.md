@@ -1,6 +1,6 @@
 # Video Ingestion based on EVAM
 
-This project demonstrates video ingestion and processing using Edge Video Analytics Microservice (EVAM) with RabbitMQ (MQTT protocol) for message brokering and minio for object storage.
+This project demonstrates video ingestion and processing using Deep Learning Streamer Pipeline Server with RabbitMQ (MQTT protocol) for message brokering and minio for object storage.
 
 ## Table of Contents
 1. [Prerequisites](#prerequisites)

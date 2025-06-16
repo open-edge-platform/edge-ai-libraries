@@ -1,4 +1,4 @@
-# How to Build from Source [Document yet to be updated]
+# How to Build from Source
 
 This section shows how to build the Video Search and Summary sample application from source.
 
