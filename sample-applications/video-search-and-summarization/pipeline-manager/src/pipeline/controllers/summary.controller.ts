@@ -17,7 +17,6 @@ import { VideoService } from 'src/video-upload/services/video.service';
 import { Video } from 'src/video-upload/models/video.model';
 import { AppConfigService } from 'src/video-upload/services/app-config.service';
 import { StateService } from 'src/state-manager/services/state.service';
-import { State } from 'src/state-manager/models/state.model';
 import { ApiBody, ApiOkResponse, ApiParam } from '@nestjs/swagger';
 import { UiService } from 'src/state-manager/services/ui.service';
 
@@ -32,7 +31,7 @@ export class SummaryController {
 
   @Get('')
   @ApiOkResponse({ description: 'Get all summary states raw' })
-  async getSummary(): Promise<State[]> {
+  getSummary() {
     return this.$state.fetchAll();
   }
 
@@ -43,7 +42,7 @@ export class SummaryController {
     description: 'ID of the summary state',
   })
   @ApiOkResponse({ description: 'Get UI Friendly summary state by ID' })
-  async getSummaryById(@Param() params: { stateId: string }) {
+  getSummaryById(@Param() params: { stateId: string }) {
     return this.$ui.getUiState(params.stateId);
   }
 
@@ -54,8 +53,8 @@ export class SummaryController {
     description: 'ID of the summary state to fetch raw data',
   })
   @ApiOkResponse({ description: 'Get raw summary state data by ID' })
-  async getSummaryRawById(@Param() params: { stateId: string }) {
-    return await this.$state.fetch(params.stateId);
+  getSummaryRawById(@Param() params: { stateId: string }) {
+    return this.$state.fetch(params.stateId);
   }
 
   @Post('')
@@ -79,7 +78,7 @@ export class SummaryController {
       }
     }
 
-    let systemConfig = this.$appConfig.systemConfig();
+    const systemConfig = this.$appConfig.systemConfig();
 
     if (reqBody.sampling.frameOverlap) {
       systemConfig.frameOverlap = reqBody.sampling.frameOverlap;

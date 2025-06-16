@@ -4,7 +4,7 @@ import { NodeSDK } from '@opentelemetry/sdk-node';
 import { ConsoleSpanExporter } from '@opentelemetry/sdk-trace-base';
 
 const otelSDK = new NodeSDK({
-  serviceName: 'videoSummary',
+  serviceName: process.env.OTEL_SERVICE_NAME ?? 'videoSummary',
   traceExporter: process.env.OTLP_TRACE_URL
     ? new OTLPTraceExporter({ url: process.env.OTLP_TRACE_URL })
     : new ConsoleSpanExporter(),

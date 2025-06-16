@@ -10,6 +10,7 @@ import { ConfigService } from '@nestjs/config';
 import { readFileSync, unlinkSync } from 'fs';
 import * as srtParserLib from 'srt-parser-2';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
+import { Span } from 'nestjs-otel';
 
 @Injectable()
 export class AudioService {
