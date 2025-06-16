@@ -66,8 +66,15 @@ jobs:
     runs-on: ubuntu-24.04-16core-64GB
     strategy:
       matrix:
-        language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
-        project: ${{ fromJson(needs.detect-languages.outputs.projects) }}
+        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == actions
+          build-mode: none
+        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == c-cpp
+          build-mode: manual
+          project: ${{ fromJson(needs.detect-languages.outputs.projects) }}
+        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == javascript-typescript
+          build-mode: none
+        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == python
+          build-mode: none
     permissions:
       security-events: write
       actions: read
@@ -88,10 +95,11 @@ jobs:
       - name: Initialize CodeQL
         uses: github/codeql-action/init@v3
         with:
-          languages: cpp
-          build-mode: manual
+          languages: ${{ matrix.language }}
+          build-mode: ${{ matrix.build-mode }}
 
       - name: Build code manually
+        if: matrix.build-mode == 'manual'
         run: |
           set -euxo pipefail
 
@@ -166,3 +174,5 @@ jobs:
 
       - name: Perform CodeQL analysis
         uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:${{matrix.language}}"
