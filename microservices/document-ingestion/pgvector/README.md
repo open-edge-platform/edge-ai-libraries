@@ -1,5 +1,5 @@
 
-# Document Ingestion microservice
+# Data Ingestion microservice
 
 <!--
 **User Story US-1: Learning About the Microservice**
@@ -10,7 +10,7 @@
 2. A summary of its technical value and benefits.
 -->
 ## Overview
-Document ingestion service loads, parses, and creates embeddings for popular document types like pdf, docx, and txt files. The document ingestion is implemented as a microservice which in trun interacts with other microservices, namely vectorDB, document store, and embedding to achieve the functionality. The ingested documentes are converted to embeddings, embeddings stored in the vectorDB, and source documents stored in the data store. PGVector is used as the vectorDB and minIO is used as the data store.
+Data ingestion service loads, parses, and creates embeddings for popular document types like pdf, docx, and txt files. The data ingestion is implemented as a microservice which in trun interacts with other microservices, namely vectorDB, data store, and embedding to achieve the functionality. The ingested documentes are converted to embeddings, embeddings stored in the vectorDB, and source documents stored in the data store. PGVector is used as the vectorDB and minIO is used as the data store.
 
 **Key Benefits**:
 <!--
