@@ -1,5 +1,5 @@
-name: "[DLS] CodeQL (on host)"
-run-name: "[DLS] CodeQL (on host)"
+name: "[SCANS] CodeQL (on host)"
+run-name: "[SCANS] CodeQL (on host)"
 on:
   push:
     branches: [ "main" ]
@@ -109,7 +109,7 @@ jobs:
           languages: ${{ matrix.language }}
           build-mode: ${{ steps.set-build-mode.outputs.build-mode }}
 
-      - name: Build code manually
+      - name: Build code manually for dl-streamer
         if: steps.set-build-mode.outputs.build-mode == 'manual' && steps.set-project-name.outputs.project-name == 'dl-streamer'
         run: |
           chmod +x libraries/dl-streamer/scripts/build_dlstreamer.sh
