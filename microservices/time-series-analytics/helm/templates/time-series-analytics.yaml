@@ -16,6 +16,10 @@ spec:
     port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
     targetPort: {{ $.Values.config.time_series_analytics_microservice.int.port }}
     nodePort: {{ $.Values.config.time_series_analytics_microservice.ext.port }}
+  - name: rest-api-port
+    port: {{ .Values.config.time_series_analytics_microservice_rest_api.rest_api_port }}
+    targetPort: {{ .Values.config.time_series_analytics_microservice_rest_api.int.port }}
+    nodePort: {{ .Values.config.time_series_analytics_microservice_rest_api.ext.port }}
   selector:
     app: time-series-analytics-microservice
 ---
@@ -55,9 +59,6 @@ spec:
         volumeMounts:
         - name: vol-temp-time-series-analytics-microservice
           mountPath: /tmp
-        - name: time-series-analytics-microservice-config
-          mountPath: /app/config.json
-          subPath: config.json
         {{ if eq .Values.env.SECURE_MODE true}}
         - name: certs
           mountPath: /run/secrets/ca_certificate.pem
@@ -114,9 +115,6 @@ spec:
       volumes:
       - name: vol-temp-time-series-analytics-microservice
         emptyDir: {}
-      - name: time-series-analytics-microservice-config
-        configMap:
-          name: time-series-analytics-microservice-config
       {{ if eq .Values.env.SECURE_MODE true}}
       - name: certs
         secret:
