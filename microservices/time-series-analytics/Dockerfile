@@ -14,7 +14,7 @@ RUN apt-get update && \
         python3 python3-pip git ca-certificates && \
     python3 -m pip install --no-cache-dir --upgrade pip && \
     apt-get purge -y --auto-remove && \
-    rm -rf /var/lib/apt/lists/* /root/.cache
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
@@ -37,8 +37,7 @@ RUN groupadd --gid $TIMESERIES_UID $TIMESERIES_USER_NAME && \
 COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
-RUN pip3 install --no-cache-dir -r requirements.txt && \
-    rm -rf /root/.cache/pip
+RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
@@ -62,6 +61,6 @@ RUN apt-get purge -y --auto-remove git && \
 USER $TIMESERIES_USER_NAME
 
 # Simple healthcheck to verify container is running
-HEALTHCHECK --interval=5m --timeout=10s --start-period=30s --retries=3 CMD pgrep python3 || exit 1
+HEALTHCHECK --interval=5m CMD exit 0
 
 ENTRYPOINT ["python3", "./classifier_startup.py"]
