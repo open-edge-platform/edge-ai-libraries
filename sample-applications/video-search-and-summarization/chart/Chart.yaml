@@ -1,5 +1,5 @@
 apiVersion: v2
-name: video-summarization
+name: video-search-and-summarization
 description: A helm chart for deploying Intel Video Search and Summarization sample application
 version: 1.1.2
 dependencies:
