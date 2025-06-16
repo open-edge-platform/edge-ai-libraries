@@ -1,11 +1,12 @@
 # How to Build from Source
 
-Build the **Multimodal Embedding Serving microservice** from source to customize, debug, or extend its functionality. In this guide, you will:
+Build the **VLM OpenVINO serving microservice** from source to customize, debug, or extend its functionality. In this guide, you will:
 - Set up your development environment.
 - Compile the source code and resolve dependencies.
 - Generate a runnable build for local testing or deployment.
 
 This guide is ideal for developers who want to work directly with the source code.
+
 
 ## Prerequisites
 
@@ -17,26 +18,26 @@ Before you begin, ensure the following:
 
 
 ## Steps to Build
-This section provides a detailed note on how to build the Multimodal Embedding Serving microservice.
+This section provides a detailed note on how to build the VLM OpenVINO Serving microservice.
 
-**_(Optional)_** Docker Compose builds the _Multimodal Embedding Serving_ with a default image and tag name. If you want to use a different image and tag, export these variables:
+**_(Optional)_** Docker Compose builds the _VLM Inference Serving_ with a default image and tag name. If you want to use a different image and tag, export these variables:
 
 ```bash
-export REGISTRY_URL="your-container-registry-url"
+export REGISTRY_URL="your-container-registry_url"
 export PROJECT_NAME="your-project-name"
-export TAG="your-tag"
+export TAG="your_tag"
 ```
 
 > **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url. 
 
-> **_EXAMPLE:_** If variables are set using above command, the final image names for _Multimodal Embedding Serving_ would be `<your-container-registry-url>/<your-project-name>/multimodal-embedding-serving:<your-tag>`. 
+> **_EXAMPLE:_** If variables are set using above command, the final image names for _VLM OpenVINO Serving_ would be `<your-container-registry-url>/<your-project-name>/vlm-openvino-serving:<your-tag>`. 
 
-If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be `multimodal-embedding-serving:latest`.
+If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be `vlm-openvino-serving:latest`.
 
 1. **Clone the Repository**:
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-cd edge-ai-libraries/microservices/multimodal-embedding-service
+cd edge-ai-libraries/microservices/vlm-openvino-serving
 ```
 
 2. **Set up environment values**:
@@ -47,20 +48,8 @@ Follow all the instructions provided in the [get started](./get-started.md#set-e
 
 To build the Docker image, run the following command:
 ```bash
-# Build for CPU
-docker compose -f compose.yaml build
-# Build for GPU
-docker compose -f compose.arc-gpu.yaml build
+docker compose build
 ```
-
-4. **Run the service**:
-
- ```bash
- # Run on CPU
- docker compose -f compose.yaml up
- # Run on GPU
- docker compose -f compose.arc-gpu.yaml up
- ```
 
 ## Validation
 

@@ -34,37 +34,39 @@ Audio Intelligence microservice can be applied to various real-world use cases a
 * **Use case 4**: Video podcasts or interview recordings where the value is in the conversation, discussions, or interviews, and visuals are secondary.
 * **Use case 5**: Events, like Panel Discussions and Debates, where multiple speakers discuss or debate topics, the audio contains the key arguments and insights.
 
-# How It Works
+## How It Works
 
-The Model Registry microservice works by serving as a centralized repository for models where, their versions, and metadata are stored. The software behind the microservice is designed to handle the storage, versioning, and metadata management of each model. It also provides functionalities for storing, searching and retrieving model artifacts via a RESTful API.
+The Audio Intelligence microservice accepts a video file for transcription from either file system or minIO storage. Using the configured Whisper model, the transcription is created. The output transcription along with the configured metadata is then stored in configured destination location. It provides a RESTful API to configure and utilize the capabilities.
 
-The software fulfills the promise described in the Overview via its various components.
+## Models supported
 
-## High-Level System View Diagram
-![Architecture Diagram](images/Model_Registry_HLA.png)  
-*Figure 1: High-level system view demonstrating the microservice.*
+The service automatically downloads and manages the required models based on configuration. Two types of models are supported:
 
-**Model Registry**
+1. **GGML Models** Primarily used for inference on CPU using whispercpp backend.
+2. **OpenVINO Models** Optimized for GPU inference on Intel GPUs.
 
-The Model Registry provides REST API endpoints as the primary interface for interacting with the microservice. These endpoints allow users to perform various operations such as registering new models, updating, retrieving and deleting existing models.
+Models are downloaded on application startup, converted to OpenVINO format if needed, and stored in persistent volumes for reuse. The conversion process includes:
+- Downloading the original Hugging Face Whisper model
+- Converting the PyTorch model to OpenVINO format.
+- Storing the encoder and decoder components separately for efficient inference
 
-**Relational Database**
+### Available Whisper Models
 
-The Relational Database is responsible for storing structured data related to the models.
+The following Whisper model variants are supported by the service (for both GGML and OpenVINO formats):
 
-**Object Storage**
-
-The Object Storage solution is used to store unstructured data, such as model binaries and other files.
-
-**Intel® Geti™ Software**
-
-The Intel® Geti™ software is accessible via optional configurations within the model registry. Once configured, the model registry is able to access the projects and models hosted within a remote Geti platform. 
-
-## Key Features
-* **Feature 1**: Provides a comprehensive set of REST API endpoints for operations such as registering, updating, retrieving, and deleting models.
-* **Feature 2**: Utilizes a relational database to store structured data related to models, ensuring data integrity.
-* **Feature 3**: Leverages an object storage solution for scalable storage and retrieval of unstructured data, including model binaries and artifacts.
-* **Feature 4**: Offers optional configurations to integrate with the Intel® Geti™ software, enabling access to projects and models hosted on a remote Geti platform.
+| Model ID | Description | Size | Languages |
+|----------|-------------|------|-----------|
+| tiny     | Tiny model  | ~75M | Multilingual |
+| tiny.en  | Tiny model  | ~75M | English-only |
+| base     | Base model  | ~150M | Multilingual |
+| base.en  | Base model  | ~150M | English-only |
+| small    | Small model | ~450M | Multilingual | 
+| small.en | Small model | ~450M | English-only |
+| medium   | Medium model | ~1.5GB | Multilingual |
+| medium.en | Medium model | ~1.5GB | English-only |
+| large-v1 | Large model (v1) | ~2.9GB | Multilingual |
+| large-v2 | Large model (v2) | ~2.9GB | Multilingual |
+| large-v3 | Large model (v3) | ~2.9GB | Multilingual |
 
 ## Supporting Resources
 

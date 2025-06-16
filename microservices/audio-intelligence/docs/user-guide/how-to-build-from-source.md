@@ -1,6 +1,6 @@
 # How to Build from Source
 
-Build the Model Registry from source to customize, debug, or extend its functionality. In this guide, you will:
+Build the Audio Intelligence microservice from source to customize, debug, or extend its functionality. In this guide, you will:
 - Set up your development environment.
 - Compile the source code and resolve dependencies.
 - Generate a runnable build for local testing or deployment.
@@ -12,107 +12,137 @@ This guide is ideal for developers who want to work directly with the source cod
 
 Before you begin, ensure the following:
 - **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
-- **Dependencies Installed**:
-    - **Git**: [Install Git](https://git-scm.com/book/en/v2/Getting-Started-Installing-Git)
-    - **Python 3.8 or higher**: [Python Installation Guide](https://www.python.org/downloads/)
-- **Permissions**: Confirm you have permissions to install software and modify environment configurations.
-
-This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
-- [Git Documentation](https://git-scm.com/doc)
-- [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
-
+- This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
+  - [Git Documentation](https://git-scm.com/doc)
+  - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
+- Follow all the steps provided in [get started](./get-started.md) documentation with respect to [environment variables](./get-started.md#environment-variables) configuration, setting up of [storage backends](./get-started.md#setup-the-storage-backends) and [model selection](./get-started.md#models-selection).
 
 ## Steps to Build
+Following options are provided to build the microservice.
 
-1. **Clone the Repository**:
-    ```bash
-    git clone https://github.com/{{repo-path}}.git
-    
-    cd {{repo-name}}
-    ```
+### Setup in a container using Docker Script
 
-2. **Install Python 3.10**
-    ```bash
-    sudo apt-get install python3.10
-    ```
-1. **Rename the `.env.template` file to `.env`**
-    ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/docker
+1. Clone the repository:
+```bash
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+```
 
-    mv .env.template .env
-    ```
-1. **Create the directories to be used as persistent storage for the `PostgreSQL` and `MinIO` containers**
-    ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/scripts
+2. Set the required environment variables:
 
-    sudo ./init_mr_data_dirs.sh
-    ```
+```bash
+# MinIO credentials (required)
+export MINIO_ACCESS_KEY=<your-minio-username>
+export MINIO_SECRET_KEY=<your-minio-password>
 
-1. **Define the desired values for the REQUIRED environment variables in the `.env` file in the `docker` directory:**
-    1. `MR_MINIO_ACCESS_KEY`
-    2. `MR_MINIO_SECRET_KEY`
-    3. `MR_PSQL_PASSWORD`
+# Optional: Set registry URL and project name for docker image naming
+export REGISTRY_URL=<your-registry-url>
+export PROJECT_NAME=<your-project-name> 
+export TAG=<your-yag> # Default: latest
+```
 
-    ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/docker
+If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-intelligence:${TAG}`  
+If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-intelligence:${TAG}`
 
-    vi .env
-    ```
+3. Run the setup script to bring up production version of application _(Brings up Minio server as well along with Audio-Intelligence service)_:
 
-    * For more information about the supported the environment variables, refer to the [Environment Variables](./environment-variables.md) documentation.
+```bash
+cd edge-ai-libraries/microservices/audio-intelligence
+chmod +x ./setup_docker.sh
+./setup_docker.sh
+```
 
-1. Optional: Enter values for the `http_proxy` and `https_proxy` variables in the `.env` file if you are behind a proxy.
-    ```
-    http_proxy= # example: http_proxy=http://proxy.example.com:891
-    https_proxy= # example: https_proxy=http://proxy.example.com:891
-    ```
+#### Docker Setup Options
 
-1. **Load the environment variables defined in the `.env` file into the current Terminal session**
-    ```bash
-    source .env
-    ```
-    
-1. **Build the model registry and start the containers**
-    ```bash
-    docker compose build
+The `setup_docker.sh` script supports the following options:
 
-    docker compose up -d
-    ```
+```
+Options:
+  --dev                 Build and run development environment
+  --build-only          Only build Docker images (don't run containers)
+  --build-dev           Only build development Docker image
+  --build-prod          Only build production Docker image
+  -h, --help            Show this help message
+```
+
+Examples:
+- Production setup: `./setup_docker.sh`
+- Development setup: `./setup_docker.sh --dev`
+- Build production image only: `./setup_docker.sh --build-prod`
+- Build development image only: `./setup_docker.sh --build-dev`
+
+#### Additional Configuration
+
+You can customize the setup with these environment variables:
+
+```bash
+# Model configuration
+export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  # Comma-separated list of models to download
+export DEFAULT_WHISPER_MODEL=tiny.en  # Default model for transcription. Shoule be one of the ENABLED_WHISPER_MODELS.
+
+# Performance configuration
+export DEFAULT_DEVICE=auto  # Device to use: cpu, gpu, or auto
+export USE_FP16=true  # Use half-precision for better performance on GPUs
+
+# Storage configuration
+export STORAGE_BACKEND=minio  # Storage backend: minio or local
+export MAX_FILE_SIZE=314572800  # Maximum file size in bytes (300MB)
+```
+
+The development environment provides:
+- Hot-reloading of code changes
+- Mounting of local code directory into container
+- Debug logging enabled
+
+The production environment uses:
+- Gunicorn with multiple worker processes
+- Optimized container without development dependencies
+- No source code mounting (code is copied at build time)
+
+### Setup and run on host
+
+Host setup by default uses local filesystem storage backend. 
+
+> _**NOTE :**_ To use Minio storage on host, you need to manually spin a Minio container [(see Running a Local Minio Server)](./get-started.md#running-a-local-minio-server) and update the STORAGE BACKEND which is explained in step 2. 
+
+
+1. Clone the repository:
+```bash
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+```
+
+2. Run the setup script with desired options:
+```bash
+cd edge-ai-libraries/microservices/audio-intelligence
+chmod +x ./setup_host.sh
+./setup_host.sh
+```
+
+To run with Minio storage backend, run this: 
+```bash
+STORAGE_BACKEND=minio ./setup_host.sh
+```
+
+Minio server container must be running on `localhost:9000` for this to work. Please see [Running a Local Minio Server](./get-started.md#running-a-local-minio-server).
+
+Available options:
+- `--debug`, `-d`: Enable debug mode
+- `--reload`, `-r`: Enable auto-reload on code changes
+
+The setup script will:
+- Install all required system dependencies
+- Create directories for model storage. For host setup, only storage backend available is local filesystem.
+- Install Poetry and project dependencies
+- Start the Audio Intelligence service
 
 ## Validation
 
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
-2. **Access the Microservice**:
-   - Open a browser and go to:
-     ```
-     http://localhost:{{port}}/docs
-     ```
-   - Expected result: The microservice’s API documentation page loads successfully.
-   
-   For more example requests and their responses, refer to the [Get Started Guide](./get-started.md#storing-a-model-in-the-registry).
-
 ## Troubleshooting
-
-1. **Dependency Installation Errors**:
-   - Reinstall dependencies:
-     ```bash
-     pip install -r requirements.txt
-     ```
-
-2. **Environment Configuration Issues**:
-   - Verify environment variables:
-     ```bash
-     echo $VARIABLE_NAME
-     ```
 
 
 ## Supporting Resources
 * [Overview](Overview.md)
 * [System Requirements](system-requirements.md)
 * [API Reference](api-reference.md)
-* 

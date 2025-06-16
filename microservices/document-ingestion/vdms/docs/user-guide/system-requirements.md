@@ -20,6 +20,7 @@ This microservice currently supports CPU based runs only. This microservice is i
 - Python 3.10
 - Poetry 1.8.3 for dependency management
 - MinIO server (optional, for object storage)
+- If you are behind a proxy, please make sure `http_proxy`, `https_proxy`, `no_proxy` are properly set on the shell you use.
 
 ## Validation
 - Ensure all required software are installed and configured before proceeding to [Get Started](./get-started.md).
