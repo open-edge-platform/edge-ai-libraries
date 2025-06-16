@@ -65,16 +65,9 @@ jobs:
     needs: detect-languages
     runs-on: ubuntu-24.04-16core-64GB
     strategy:
+      fail-fast: false
       matrix:
-        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == actions
-          build-mode: none
-        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == c-cpp
-          build-mode: manual
-          project: ${{ fromJson(needs.detect-languages.outputs.projects) }}
-        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == javascript-typescript
-          build-mode: none
-        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }} == python
-          build-mode: none
+        - language: ${{ fromJson(needs.detect-languages.outputs.projects) }}
     permissions:
       security-events: write
       actions: read
@@ -92,14 +85,24 @@ jobs:
           cd edge-ai-libraries-repo
           git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
-      - name: Initialize CodeQL
+      - name: Set build-mode
+        id: set-build-mode
+        run: |
+          LANGUAGE="${{ matrix.language }}"
+          if [[ "$LANGUAGE" == "c-cpp" ]]; then
+            echo "build-mode=manual" >> $GITHUB_OUTPUT
+          else
+            echo "build-mode=none" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Initialize CodeQL build mode
         uses: github/codeql-action/init@v3
         with:
           languages: ${{ matrix.language }}
-          build-mode: ${{ matrix.build-mode }}
+          build-mode: ${{ steps.set-build-mode.outputs.build-mode }}
 
       - name: Build code manually
-        if: matrix.build-mode == 'manual'
+        if: steps.set-build-mode.outputs.build-mode == 'manual'
         run: |
           set -euxo pipefail
 
