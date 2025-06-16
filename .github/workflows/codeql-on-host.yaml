@@ -77,12 +77,9 @@ jobs:
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-        with:
-          path: edge-ai-libraries-repo
-
+  
       - name: Init submodules
         run: |
-          cd edge-ai-libraries-repo
           git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
       - name: Set build-mode
@@ -165,7 +162,7 @@ jobs:
           sudo apt install openvino-2025.1.0
           
           echo "Install metapublish dependencies"
-          cd edge-ai-libraries-repo/libraries/dl-streamer
+          cd libraries/dl-streamer
           sudo ./scripts/install_metapublish_dependencies.sh
           
           echo "Build DLStreamer"
