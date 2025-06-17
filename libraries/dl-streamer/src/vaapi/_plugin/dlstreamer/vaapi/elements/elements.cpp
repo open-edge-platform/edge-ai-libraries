@@ -9,11 +9,7 @@
 
 extern "C" {
 
-#if !(_MSC_VER)
 DLS_EXPORT const dlstreamer::ElementDesc *dlstreamer_elements[] = { //
-#else
-const dlstreamer::ElementDesc *dlstreamer_elements[] = { //
-#endif
     &vaapi_sync, &vaapi_batch_proc,
     //
     nullptr};
