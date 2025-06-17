@@ -24,6 +24,7 @@
     "@carbon/react": "^1.67.1",
     "@microsoft/fetch-event-source": "^2.0.1",
     "@reduxjs/toolkit": "^2.2.7",
+    "@babel/runtime": "^7.26.10",
     "axios": "^1.8.2",
     "date-fns": "^4.1.0",
     "i18next": "^24.0.2",
