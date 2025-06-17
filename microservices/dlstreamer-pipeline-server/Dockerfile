@@ -137,8 +137,7 @@ COPY packages/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb ${WORKDIR}
 # Installation of utils, eiimessagebus and debian packages. Needed for UDFLoader build
 RUN dpkg -i /home/pipeline-server/eii-utils-${UTILS_LIB_VERSION}-Linux.deb && \
     dpkg -i /home/pipeline-server/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb && \
-    rm -rf /home/pipeline-server/eii-*.deb && \
-    rm -rf /home/pipeline-server/packages
+    rm -rf /home/pipeline-server/eii-*.deb
 
 ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
     LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \

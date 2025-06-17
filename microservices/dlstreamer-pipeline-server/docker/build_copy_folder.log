@@ -1,0 +1,1205 @@
+#0 building with "default" instance using docker driver
+
+#1 [dlstreamer-pipeline-server internal] load build definition from Dockerfile
+#1 transferring dockerfile: 15.26kB done
+#1 WARN: InvalidDefaultArgInFrom: Default value for ARG ${BASE_IMAGE} results in empty or invalid base image name (line 2)
+#1 WARN: InvalidDefaultArgInFrom: Default value for ARG ${BASE_IMAGE} results in empty or invalid base image name (line 103)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 37)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 38)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 40)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 41)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 42)
+#1 WARN: UndefinedVar: Usage of undefined variable '$LIBRARY_PATH' (line 78)
+#1 WARN: UndefinedVar: Usage of undefined variable '$CPLUS_INCLUDE_PATH' (line 78)
+#1 WARN: UndefinedVar: Usage of undefined variable '$C_INCLUDE_PATH' (line 78)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 134)
+#1 WARN: UndefinedVar: Usage of undefined variable '$WORKDIR' (line 135)
+#1 WARN: UndefinedVar: Usage of undefined variable '$LIBRARY_PATH' (line 146)
+#1 WARN: UndefinedVar: Usage of undefined variable '$CPLUS_INCLUDE_PATH' (line 146)
+#1 WARN: UndefinedVar: Usage of undefined variable '$C_INCLUDE_PATH' (line 146)
+#1 WARN: LegacyKeyValueFormat: "ENV key=value" should be used instead of legacy "ENV key value" format (line 204)
+#1 DONE 0.0s
+
+#2 [dlstreamer-pipeline-server internal] load metadata for docker.io/intel/dlstreamer:2025.0.1.3-ubuntu22
+#2 DONE 0.0s
+
+#3 [dlstreamer-pipeline-server internal] load .dockerignore
+#3 transferring context: 215B done
+#3 DONE 0.0s
+
+#4 [dlstreamer-pipeline-server gstudfloader-builder  1/16] FROM docker.io/intel/dlstreamer:2025.0.1.3-ubuntu22
+#4 DONE 0.0s
+
+#5 [dlstreamer-pipeline-server internal] load build context
+#5 transferring context: 40.60MB 0.1s done
+#5 DONE 0.1s
+
+#6 [dlstreamer-pipeline-server gstudfloader-builder 14/16] RUN /bin/bash -c "echo /python3venv/bin:/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin &&                   pip3 install --no-cache-dir numpy==1.26.4 &&                   pip3 install --no-cache-dir Cython==0.29.34 &&                   cd /home/pipeline-server/UDFLoader &&                   rm -rf build &&                   mkdir build &&                   cd build &&                   cmake -DCMAKE_INSTALL_INCLUDEDIR=/opt/intel/eii/include -DCMAKE_INSTALL_PREFIX=/opt/intel/eii -DWITH_TESTS=${RUN_TESTS} -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE}                   .. &&                   make &&                   if [ "${RUN_TESTS}" = "ON" ] ; then                      cd ./tests &&                      source ./source.sh &&                      ./frame-tests &&                      ./udfloader-tests &&                      cd .. ;                   fi &&                   make install"
+#6 CACHED
+
+#7 [dlstreamer-pipeline-server gstudfloader-builder 15/16] RUN export no_proxy= &&     apt-get update &&     apt-get install -y -q --no-install-recommends libdrm-dev=* &&     apt-get clean &&     rm -rf /var/lib/apt/lists/*
+#7 CACHED
+
+#8 [dlstreamer-pipeline-server gstudfloader-builder 11/16] RUN unzip UDFLoader.zip -d /home/pipeline-server &&     unzip udfs.zip -d /home/pipeline-server &&     unzip util-4.0.0.zip -d /home/pipeline-server &&     rm -rf udfs.zip UDFLoader.zip util-*.zip
+#8 CACHED
+
+#9 [dlstreamer-pipeline-server gstudfloader-builder  9/16] COPY packages/udfs.zip 
+#9 CACHED
+
+#10 [dlstreamer-pipeline-server dlstreamer-pipeline-server  6/48] RUN dpkg -i /home/pipeline-server/eii-utils-4.0.0-Linux.deb &&     dpkg -i /home/pipeline-server/eii-messagebus-4.0.0-Linux.deb &&     rm -rf eii-*.deb
+#10 CACHED
+
+#11 [dlstreamer-pipeline-server dlstreamer-pipeline-server  7/48] WORKDIR /home/pipeline-server
+#11 CACHED
+
+#12 [dlstreamer-pipeline-server gstudfloader-builder 12/16] COPY ./plugins/gst-udf-loader/ /home/pipeline-server/gst-udf-loader
+#12 CACHED
+
+#13 [dlstreamer-pipeline-server dlstreamer-pipeline-server  5/48] COPY packages/eii-messagebus-4.0.0-Linux.deb 
+#13 CACHED
+
+#14 [dlstreamer-pipeline-server gstudfloader-builder  3/16] RUN export no_proxy= &&     apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git autoconf      automake     libglib2.0-dev     libusb-1.0-0-dev     libtool     zlib1g-dev     make     zip     unzip     libopencv-dev     libcjson-dev &&     rm -rf /var/lib/apt/lists/*
+#14 CACHED
+
+#15 [dlstreamer-pipeline-server gstudfloader-builder  8/16] COPY packages/UDFLoader.zip 
+#15 CACHED
+
+#16 [dlstreamer-pipeline-server dlstreamer-pipeline-server  4/48] COPY packages/eii-utils-4.0.0-Linux.deb 
+#16 CACHED
+
+#17 [dlstreamer-pipeline-server gstudfloader-builder 13/16] RUN apt-get install -y --no-install-recommends python3-dev
+#17 CACHED
+
+#18 [dlstreamer-pipeline-server gstudfloader-builder  4/16] RUN apt-get update && apt-get install -y --no-install-recommends wget &&     wget -qO- https://cmake.org/files/v3.15/cmake-3.15.0-Linux-x86_64.tar.gz |     tar --strip-components=1 -xz -C /usr/local
+#18 CACHED
+
+#19 [dlstreamer-pipeline-server gstudfloader-builder  2/16] WORKDIR /home/pipeline-server
+#19 CACHED
+
+#20 [dlstreamer-pipeline-server dlstreamer-pipeline-server  3/48] RUN export no_proxy= &&     apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git     libglib2.0-0     libusb-1.0-0     libtool     zlib1g     zip     unzip     libopencv-core4.5d     libopencv-imgcodecs4.5d     libcjson1 &&     apt clean &&     rm -rf /var/lib/apt/lists/*
+#20 CACHED
+
+#21 [dlstreamer-pipeline-server gstudfloader-builder  5/16] COPY packages/eii-utils-4.0.0-Linux.deb 
+#21 CACHED
+
+#22 [dlstreamer-pipeline-server dlstreamer-pipeline-server  8/48] COPY --from=gstudfloader-builder /opt/intel/eii/lib/* /opt/intel/eii/lib
+#22 CACHED
+
+#23 [dlstreamer-pipeline-server gstudfloader-builder 10/16] RUN dpkg -i /home/pipeline-server/eii-utils-4.0.0-Linux.deb &&     dpkg -i /home/pipeline-server/eii-messagebus-4.0.0-Linux.deb &&     rm -rf eii-*.deb
+#23 CACHED
+
+#24 [dlstreamer-pipeline-server gstudfloader-builder  6/16] COPY packages/util-4.0.0.zip 
+#24 CACHED
+
+#25 [dlstreamer-pipeline-server gstudfloader-builder 16/16] RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/     && if [ -d "build" ] ; then rm -rf build ; fi     && mkdir build     && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\t/opt/intel/dlstreamer/build/intel64/Release/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd ..     && cd build     && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=/opt/intel/eii/include -DCMAKE_INSTALL_PREFIX=/opt/intel/eii ..     && make"
+#25 CACHED
+
+#26 [dlstreamer-pipeline-server gstudfloader-builder  7/16] COPY packages/eii-messagebus-4.0.0-Linux.deb 
+#26 CACHED
+
+#27 [dlstreamer-pipeline-server dlstreamer-pipeline-server  9/48] COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader /home/pipeline-server/gst-udf-loader
+#27 CACHED
+
+#28 [dlstreamer-pipeline-server dlstreamer-pipeline-server 10/48] RUN cp /opt/intel/eii/lib/libeiiudfloader.so /opt/intel/dlstreamer/gstreamer/lib
+#28 0.167 + cp /opt/intel/eii/lib/libeiiudfloader.so /opt/intel/dlstreamer/gstreamer/lib
+#28 DONE 0.2s
+
+#29 [dlstreamer-pipeline-server dlstreamer-pipeline-server 11/48] RUN cp /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so /opt/intel/dlstreamer/gstreamer/lib
+#29 0.207 + cp /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so /opt/intel/dlstreamer/gstreamer/lib
+#29 DONE 0.2s
+
+#30 [dlstreamer-pipeline-server dlstreamer-pipeline-server 12/48] RUN useradd -ms /bin/bash -G video,audio,users,plugdev intelmicroserviceuser -o -u 1999 &&     chown intelmicroserviceuser:intelmicroserviceuser -R /home/pipeline-server /root
+#30 0.189 + useradd -ms /bin/bash -G video,audio,users,plugdev intelmicroserviceuser -o -u 1999
+#30 0.263 + chown intelmicroserviceuser:intelmicroserviceuser -R /home/pipeline-server /root
+#30 DONE 0.4s
+
+#31 [dlstreamer-pipeline-server dlstreamer-pipeline-server 13/48] RUN mkdir -p /home/intelmicroserviceuser/ && chown -R intelmicroserviceuser:intelmicroserviceuser /home/intelmicroserviceuser
+#31 0.227 + mkdir -p /home/intelmicroserviceuser/
+#31 0.228 + chown -R intelmicroserviceuser:intelmicroserviceuser /home/intelmicroserviceuser
+#31 DONE 0.3s
+
+#32 [dlstreamer-pipeline-server dlstreamer-pipeline-server 14/48] RUN mkdir -p /home/.cl_cache && chmod -R g+s /home/.cl_cache && chown intelmicroserviceuser:users /home/.cl_cache
+#32 0.214 + mkdir -p /home/.cl_cache
+#32 0.216 + chmod -R g+s /home/.cl_cache
+#32 0.217 + chown intelmicroserviceuser:users /home/.cl_cache
+#32 DONE 0.2s
+
+#33 [dlstreamer-pipeline-server dlstreamer-pipeline-server 15/48] RUN mkdir -p /home/.xdg_runtime_dir && chmod -R g+s /home/.xdg_runtime_dir && chown intelmicroserviceuser:users /home/.xdg_runtime_dir
+#33 0.212 + mkdir -p /home/.xdg_runtime_dir
+#33 0.213 + chmod -R g+s /home/.xdg_runtime_dir
+#33 0.214 + chown intelmicroserviceuser:users /home/.xdg_runtime_dir
+#33 DONE 0.2s
+
+#34 [dlstreamer-pipeline-server dlstreamer-pipeline-server 16/48] RUN pip3 install --no-cache-dir ntplib==0.4.0
+#34 0.194 + pip3 install --no-cache-dir ntplib==0.4.0
+#34 0.764 Collecting ntplib==0.4.0
+#34 0.881   Downloading ntplib-0.4.0-py2.py3-none-any.whl.metadata (1.6 kB)
+#34 0.896 Downloading ntplib-0.4.0-py2.py3-none-any.whl (6.8 kB)
+#34 0.910 Installing collected packages: ntplib
+#34 0.920 Successfully installed ntplib-0.4.0
+#34 1.057 
+#34 1.057 [notice] A new release of pip is available: 25.0.1 -> 25.1.1
+#34 1.057 [notice] To update, run: pip install --upgrade pip
+#34 DONE 1.1s
+
+#35 [dlstreamer-pipeline-server dlstreamer-pipeline-server 17/48] COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
+#35 DONE 0.1s
+
+#36 [dlstreamer-pipeline-server dlstreamer-pipeline-server 18/48] RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+#36 0.187 + pip3 install --no-cache-dir openvino-model-api==0.2.5
+#36 0.743 Collecting openvino-model-api==0.2.5
+#36 0.851   Downloading openvino_model_api-0.2.5-py3-none-any.whl.metadata (8.6 kB)
+#36 0.976 Collecting numpy>=1.16.6 (from openvino-model-api==0.2.5)
+#36 0.985   Downloading numpy-2.2.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (62 kB)
+#36 1.045 Collecting opencv-python (from openvino-model-api==0.2.5)
+#36 1.056   Downloading opencv_python-4.11.0.86-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (20 kB)
+#36 1.124 Collecting scipy>=1.5.4 (from openvino-model-api==0.2.5)
+#36 1.135   Downloading scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+#36 1.174 Collecting openvino>=2024.0 (from openvino-model-api==0.2.5)
+#36 1.184   Downloading openvino-2025.1.0-18503-cp310-cp310-manylinux2014_x86_64.whl.metadata (8.5 kB)
+#36 1.197 Collecting openvino-dev>=2024.0 (from openvino-model-api==0.2.5)
+#36 1.207   Downloading openvino_dev-2024.6.0-17404-py3-none-any.whl.metadata (15 kB)
+#36 1.233 Collecting openvino-telemetry>=2023.2.1 (from openvino>=2024.0->openvino-model-api==0.2.5)
+#36 1.242   Downloading openvino_telemetry-2025.1.0-py3-none-any.whl.metadata (2.3 kB)
+#36 1.257 Collecting packaging (from openvino>=2024.0->openvino-model-api==0.2.5)
+#36 1.266   Downloading packaging-25.0-py3-none-any.whl.metadata (3.3 kB)
+#36 1.279 Collecting defusedxml>=0.7.1 (from openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.288   Downloading defusedxml-0.7.1-py2.py3-none-any.whl.metadata (32 kB)
+#36 1.314 Collecting networkx<=3.1.0 (from openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.323   Downloading networkx-3.1-py3-none-any.whl.metadata (5.3 kB)
+#36 1.331 Collecting numpy>=1.16.6 (from openvino-model-api==0.2.5)
+#36 1.340   Downloading numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (61 kB)
+#36 1.371 Collecting pyyaml>=5.4.1 (from openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.380   Downloading PyYAML-6.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+#36 1.401 Collecting requests>=2.25.1 (from openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.410   Downloading requests-2.32.4-py3-none-any.whl.metadata (4.9 kB)
+#36 1.412 Collecting openvino>=2024.0 (from openvino-model-api==0.2.5)
+#36 1.422   Downloading openvino-2024.6.0-17404-cp310-cp310-manylinux2014_x86_64.whl.metadata (8.3 kB)
+#36 1.508 Collecting charset_normalizer<4,>=2 (from requests>=2.25.1->openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.517   Downloading charset_normalizer-3.4.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (35 kB)
+#36 1.533 Collecting idna<4,>=2.5 (from requests>=2.25.1->openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.542   Downloading idna-3.10-py3-none-any.whl.metadata (10 kB)
+#36 1.571 Collecting urllib3<3,>=1.21.1 (from requests>=2.25.1->openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.581   Downloading urllib3-2.4.0-py3-none-any.whl.metadata (6.5 kB)
+#36 1.599 Collecting certifi>=2017.4.17 (from requests>=2.25.1->openvino-dev>=2024.0->openvino-model-api==0.2.5)
+#36 1.608   Downloading certifi-2025.4.26-py3-none-any.whl.metadata (2.5 kB)
+#36 1.620 Downloading openvino_model_api-0.2.5-py3-none-any.whl (132 kB)
+#36 1.644 Downloading openvino_dev-2024.6.0-17404-py3-none-any.whl (4.6 MB)
+#36 2.039    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 11.8 MB/s eta 0:00:00
+#36 2.052 Downloading openvino-2024.6.0-17404-cp310-cp310-manylinux2014_x86_64.whl (44.7 MB)
+#36 5.863    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 44.7/44.7 MB 11.8 MB/s eta 0:00:00
+#36 5.877 Downloading numpy-1.26.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (18.2 MB)
+#36 7.431    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 18.2/18.2 MB 11.8 MB/s eta 0:00:00
+#36 7.443 Downloading scipy-1.15.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (37.7 MB)
+#36 11.98    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 37.7/37.7 MB 8.3 MB/s eta 0:00:00
+#36 11.99 Downloading opencv_python-4.11.0.86-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (63.0 MB)
+#36 17.41    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 63.0/63.0 MB 11.6 MB/s eta 0:00:00
+#36 17.44 Downloading defusedxml-0.7.1-py2.py3-none-any.whl (25 kB)
+#36 17.45 Downloading networkx-3.1-py3-none-any.whl (2.1 MB)
+#36 17.63    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 11.7 MB/s eta 0:00:00
+#36 17.65 Downloading openvino_telemetry-2025.1.0-py3-none-any.whl (25 kB)
+#36 17.66 Downloading PyYAML-6.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (751 kB)
+#36 17.73    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 751.2/751.2 kB 12.1 MB/s eta 0:00:00
+#36 17.74 Downloading requests-2.32.4-py3-none-any.whl (64 kB)
+#36 17.76 Downloading packaging-25.0-py3-none-any.whl (66 kB)
+#36 17.77 Downloading certifi-2025.4.26-py3-none-any.whl (159 kB)
+#36 17.80 Downloading charset_normalizer-3.4.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (149 kB)
+#36 17.82 Downloading idna-3.10-py3-none-any.whl (70 kB)
+#36 17.84 Downloading urllib3-2.4.0-py3-none-any.whl (128 kB)
+#36 18.02 Installing collected packages: openvino-telemetry, urllib3, pyyaml, packaging, numpy, networkx, idna, defusedxml, charset_normalizer, certifi, scipy, requests, openvino, opencv-python, openvino-dev, openvino-model-api
+#36 23.44 Successfully installed certifi-2025.4.26 charset_normalizer-3.4.2 defusedxml-0.7.1 idna-3.10 networkx-3.1 numpy-1.26.4 opencv-python-4.11.0.86 openvino-2024.6.0 openvino-dev-2024.6.0 openvino-model-api-0.2.5 openvino-telemetry-2025.1.0 packaging-25.0 pyyaml-6.0.2 requests-2.32.4 scipy-1.15.3 urllib3-2.4.0
+#36 23.58 
+#36 23.58 [notice] A new release of pip is available: 25.0.1 -> 25.1.1
+#36 23.58 [notice] To update, run: pip install --upgrade pip
+#36 DONE 24.0s
+
+#37 [dlstreamer-pipeline-server dlstreamer-pipeline-server 19/48] RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api &&     cd $MODEL_API_PATH &&     git apply /home/pipeline-server/model_api.patch
+#37 0.214 ++ python3 -c 'import site; print(site.getsitepackages()[0])'
+#37 0.227 + MODEL_API_PATH=/python3venv/lib/python3.10/site-packages/model_api
+#37 0.227 + cd /python3venv/lib/python3.10/site-packages/model_api
+#37 0.227 + git apply /home/pipeline-server/model_api.patch
+#37 DONE 0.3s
+
+#38 [dlstreamer-pipeline-server dlstreamer-pipeline-server 20/48] RUN . /etc/os-release &&     if [ "$VERSION_ID" = "24.04" ]; then         apt-get update &&         apt-get install -y --no-install-recommends curl build-essential &&         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 &&         echo 'source $HOME/.cargo/env' >> ~/.bashrc &&         export PATH="/root/.cargo/bin:/python3venv/bin:/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/home/pipeline-server/.local/bin" &&         pip install --no-cache-dir --upgrade pip &&         pip install --no-cache-dir geti-sdk==2.7.1 &&         rm -rf /root/.cargo /root/.rustup;     else         pip install --no-cache-dir --upgrade pip &&         pip install --no-cache-dir geti-sdk==2.7.1;     fi &&     apt-get clean &&     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+#38 0.204 + . /etc/os-release
+#38 0.204 ++ PRETTY_NAME='Ubuntu 22.04.5 LTS'
+#38 0.204 ++ NAME=Ubuntu
+#38 0.204 ++ VERSION_ID=22.04
+#38 0.204 ++ VERSION='22.04.5 LTS (Jammy Jellyfish)'
+#38 0.204 ++ VERSION_CODENAME=jammy
+#38 0.204 ++ ID=ubuntu
+#38 0.204 ++ ID_LIKE=debian
+#38 0.204 ++ HOME_URL=https://www.ubuntu.com/
+#38 0.204 ++ SUPPORT_URL=https://help.ubuntu.com/
+#38 0.204 ++ BUG_REPORT_URL=https://bugs.launchpad.net/ubuntu/
+#38 0.204 ++ PRIVACY_POLICY_URL=https://www.ubuntu.com/legal/terms-and-policies/privacy-policy
+#38 0.204 ++ UBUNTU_CODENAME=jammy
+#38 0.204 + '[' 22.04 = 24.04 ']'
+#38 0.204 + pip install --no-cache-dir --upgrade pip
+#38 0.430 Requirement already satisfied: pip in /python3venv/lib/python3.10/site-packages (25.0.1)
+#38 0.534 Collecting pip
+#38 0.611   Downloading pip-25.1.1-py3-none-any.whl.metadata (3.6 kB)
+#38 0.625 Downloading pip-25.1.1-py3-none-any.whl (1.8 MB)
+#38 0.787    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.8/1.8 MB 11.8 MB/s eta 0:00:00
+#38 0.833 Installing collected packages: pip
+#38 0.833   Attempting uninstall: pip
+#38 0.833     Found existing installation: pip 25.0.1
+#38 0.854     Uninstalling pip-25.0.1:
+#38 0.990       Successfully uninstalled pip-25.0.1
+#38 1.406 Successfully installed pip-25.1.1
+#38 1.574 + pip install --no-cache-dir geti-sdk==2.7.1
+#38 2.116 Collecting geti-sdk==2.7.1
+#38 2.202   Downloading geti_sdk-2.7.1-py3-none-any.whl.metadata (22 kB)
+#38 2.480 Collecting datumaro==1.9.* (from geti-sdk==2.7.1)
+#38 2.491   Downloading datumaro-1.9.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.8 kB)
+#38 2.494 Requirement already satisfied: requests==2.32.* in /python3venv/lib/python3.10/site-packages (from geti-sdk==2.7.1) (2.32.4)
+#38 2.495 Requirement already satisfied: numpy>=1.26.4 in /python3venv/lib/python3.10/site-packages (from geti-sdk==2.7.1) (1.26.4)
+#38 2.518 Collecting omegaconf==2.3.* (from geti-sdk==2.7.1)
+#38 2.528   Downloading omegaconf-2.3.0-py3-none-any.whl.metadata (3.9 kB)
+#38 2.580 Collecting opencv-python==4.10.* (from geti-sdk==2.7.1)
+#38 2.590   Downloading opencv_python-4.10.0.84-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (20 kB)
+#38 2.613 Collecting python-dotenv==1.0.* (from geti-sdk==2.7.1)
+#38 2.623   Downloading python_dotenv-1.0.1-py3-none-any.whl.metadata (23 kB)
+#38 2.651 Collecting tqdm>=4.66.3 (from geti-sdk==2.7.1)
+#38 2.660   Downloading tqdm-4.67.1-py3-none-any.whl.metadata (57 kB)
+#38 2.787 Collecting Pillow==11.1.* (from geti-sdk==2.7.1)
+#38 2.797   Downloading pillow-11.1.0-cp310-cp310-manylinux_2_28_x86_64.whl.metadata (9.1 kB)
+#38 2.819 Collecting pathvalidate>=2.5.0 (from geti-sdk==2.7.1)
+#38 2.827   Downloading pathvalidate-3.2.3-py3-none-any.whl.metadata (12 kB)
+#38 2.885 Collecting simplejson==3.19.* (from geti-sdk==2.7.1)
+#38 2.895   Downloading simplejson-3.19.3-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.2 kB)
+#38 2.927 Collecting ipython==8.18.* (from geti-sdk==2.7.1)
+#38 2.938   Downloading ipython-8.18.1-py3-none-any.whl.metadata (6.0 kB)
+#38 2.959 Requirement already satisfied: openvino>=2023.2.0 in /python3venv/lib/python3.10/site-packages (from geti-sdk==2.7.1) (2024.6.0)
+#38 2.959 Requirement already satisfied: openvino-model-api==0.2.* in /python3venv/lib/python3.10/site-packages (from geti-sdk==2.7.1) (0.2.5)
+#38 2.960 Requirement already satisfied: certifi>=2024.2.2 in /python3venv/lib/python3.10/site-packages (from geti-sdk==2.7.1) (2025.4.26)
+#38 2.977 Collecting joblib>=1.2.0 (from geti-sdk==2.7.1)
+#38 2.986   Downloading joblib-1.5.1-py3-none-any.whl.metadata (5.6 kB)
+#38 3.099 Collecting protobuf>=3.20.2 (from geti-sdk==2.7.1)
+#38 3.108   Downloading protobuf-6.31.1-cp39-abi3-manylinux2014_x86_64.whl.metadata (593 bytes)
+#38 3.368 Collecting ovmsclient>=2022.3 (from geti-sdk==2.7.1)
+#38 3.382   Downloading ovmsclient-2023.1-py3-none-any.whl.metadata (2.0 kB)
+#38 3.578 Collecting orjson>=3.10.0 (from geti-sdk==2.7.1)
+#38 3.588   Downloading orjson-3.10.18-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (41 kB)
+#38 3.612 Collecting imageio-ffmpeg==0.6.0 (from geti-sdk==2.7.1)
+#38 3.624   Downloading imageio_ffmpeg-0.6.0-py3-none-manylinux2014_x86_64.whl.metadata (1.5 kB)
+#38 3.741 Collecting cryptography>=42.0.7 (from geti-sdk==2.7.1)
+#38 3.751   Downloading cryptography-45.0.4-cp37-abi3-manylinux_2_34_x86_64.whl.metadata (5.7 kB)
+#38 3.768 Collecting semver>=3.0.2 (from geti-sdk==2.7.1)
+#38 3.780   Downloading semver-3.0.4-py3-none-any.whl.metadata (6.8 kB)
+#38 3.802 Collecting urllib3==1.26.* (from geti-sdk==2.7.1)
+#38 3.811   Downloading urllib3-1.26.20-py2.py3-none-any.whl.metadata (50 kB)
+#38 3.832 Collecting attrs>=21.3.0 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 3.841   Downloading attrs-25.3.0-py3-none-any.whl.metadata (10 kB)
+#38 3.854 Requirement already satisfied: defusedxml>=0.7.0 in /python3venv/lib/python3.10/site-packages (from datumaro==1.9.*->geti-sdk==2.7.1) (0.7.1)
+#38 3.887 Collecting h5py>=2.10.0 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 3.896   Downloading h5py-3.14.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.7 kB)
+#38 3.910 Collecting imagesize>=1.4.1 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 3.921   Downloading imagesize-1.4.1-py2.py3-none-any.whl.metadata (1.5 kB)
+#38 4.080 Collecting lxml<6,>=5.2.0 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.090   Downloading lxml-5.4.0-cp310-cp310-manylinux_2_28_x86_64.whl.metadata (3.5 kB)
+#38 4.179 Collecting matplotlib>=3.3.1 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.189   Downloading matplotlib-3.10.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (11 kB)
+#38 4.191 Requirement already satisfied: networkx>=2.6 in /python3venv/lib/python3.10/site-packages (from datumaro==1.9.*->geti-sdk==2.7.1) (3.1)
+#38 4.207 Collecting nibabel>=3.2.1 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.217   Downloading nibabel-5.3.2-py3-none-any.whl.metadata (9.1 kB)
+#38 4.226 Collecting orjson>=3.10.0 (from geti-sdk==2.7.1)
+#38 4.236   Downloading orjson-3.10.7-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (50 kB)
+#38 4.360 Collecting ruamel.yaml>=0.17.0 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.369   Downloading ruamel.yaml-0.18.14-py3-none-any.whl.metadata (24 kB)
+#38 4.433 Collecting shapely>=1.7 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.443   Downloading shapely-2.1.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.7 kB)
+#38 4.461 Collecting typing-extensions>=3.7.4.3 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.471   Downloading typing_extensions-4.14.0-py3-none-any.whl.metadata (3.0 kB)
+#38 4.498 Collecting PyYAML==6.0.1 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.508   Downloading PyYAML-6.0.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+#38 4.522 Collecting tensorboardX!=2.3,>=1.8 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.536   Downloading tensorboardx-2.6.4-py3-none-any.whl.metadata (6.2 kB)
+#38 4.537 Requirement already satisfied: scipy in /python3venv/lib/python3.10/site-packages (from datumaro==1.9.*->geti-sdk==2.7.1) (1.15.3)
+#38 4.652 Collecting pandas>=1.4.0 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.662   Downloading pandas-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (91 kB)
+#38 4.796 Collecting tokenizers (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.806   Downloading tokenizers-0.21.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.8 kB)
+#38 4.830 Collecting pyemd (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.841   Downloading pyemd-1.0.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (9.6 kB)
+#38 4.903 Collecting pyarrow (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.913   Downloading pyarrow-20.0.0-cp310-cp310-manylinux_2_28_x86_64.whl.metadata (3.3 kB)
+#38 4.925 Collecting tabulate (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 4.934   Downloading tabulate-0.9.0-py3-none-any.whl.metadata (34 kB)
+#38 5.202 Collecting tritonclient[all] (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.213   Downloading tritonclient-2.58.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 5.277 Collecting scikit-learn (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.287   Downloading scikit_learn-1.7.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (17 kB)
+#38 5.539 Collecting json-stream (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.550   Downloading json_stream-2.3.3-py3-none-any.whl.metadata (24 kB)
+#38 5.578 Collecting nltk (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.587   Downloading nltk-3.9.1-py3-none-any.whl.metadata (2.9 kB)
+#38 5.604 Collecting portalocker (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.613   Downloading portalocker-3.1.1-py3-none-any.whl.metadata (8.6 kB)
+#38 5.630 Collecting pycocotools>=2.0.4 (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 5.639   Downloading pycocotools-2.0.10-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.3 kB)
+#38 5.661 Collecting decorator (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.670   Downloading decorator-5.2.1-py3-none-any.whl.metadata (3.9 kB)
+#38 5.688 Collecting jedi>=0.16 (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.698   Downloading jedi-0.19.2-py2.py3-none-any.whl.metadata (22 kB)
+#38 5.754 Collecting matplotlib-inline (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.763   Downloading matplotlib_inline-0.1.7-py3-none-any.whl.metadata (3.9 kB)
+#38 5.790 Collecting prompt-toolkit<3.1.0,>=3.0.41 (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.799   Downloading prompt_toolkit-3.0.51-py3-none-any.whl.metadata (6.4 kB)
+#38 5.818 Collecting pygments>=2.4.0 (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.827   Downloading pygments-2.19.1-py3-none-any.whl.metadata (2.5 kB)
+#38 5.839 Collecting stack-data (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.848   Downloading stack_data-0.6.3-py3-none-any.whl.metadata (18 kB)
+#38 5.869 Collecting traitlets>=5 (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.878   Downloading traitlets-5.14.3-py3-none-any.whl.metadata (10 kB)
+#38 5.892 Collecting exceptiongroup (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.901   Downloading exceptiongroup-1.3.0-py3-none-any.whl.metadata (6.7 kB)
+#38 5.917 Collecting pexpect>4.3 (from ipython==8.18.*->geti-sdk==2.7.1)
+#38 5.928   Downloading pexpect-4.9.0-py2.py3-none-any.whl.metadata (2.5 kB)
+#38 5.948 Collecting antlr4-python3-runtime==4.9.* (from omegaconf==2.3.*->geti-sdk==2.7.1)
+#38 5.959   Downloading antlr4-python3-runtime-4.9.3.tar.gz (117 kB)
+#38 5.985   Installing build dependencies: started
+#38 6.718   Installing build dependencies: finished with status 'done'
+#38 6.719   Getting requirements to build wheel: started
+#38 6.898   Getting requirements to build wheel: finished with status 'done'
+#38 6.898   Preparing metadata (pyproject.toml): started
+#38 7.001   Preparing metadata (pyproject.toml): finished with status 'done'
+#38 7.007 Requirement already satisfied: openvino-dev>=2024.0 in /python3venv/lib/python3.10/site-packages (from openvino-model-api==0.2.*->geti-sdk==2.7.1) (2024.6.0)
+#38 7.020 Collecting wcwidth (from prompt-toolkit<3.1.0,>=3.0.41->ipython==8.18.*->geti-sdk==2.7.1)
+#38 7.029   Downloading wcwidth-0.2.13-py2.py3-none-any.whl.metadata (14 kB)
+#38 7.037 Requirement already satisfied: charset_normalizer<4,>=2 in /python3venv/lib/python3.10/site-packages (from requests==2.32.*->geti-sdk==2.7.1) (3.4.2)
+#38 7.037 Requirement already satisfied: idna<4,>=2.5 in /python3venv/lib/python3.10/site-packages (from requests==2.32.*->geti-sdk==2.7.1) (3.10)
+#38 7.131 Collecting cffi>=1.14 (from cryptography>=42.0.7->geti-sdk==2.7.1)
+#38 7.140   Downloading cffi-1.17.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.5 kB)
+#38 7.152 Collecting pycparser (from cffi>=1.14->cryptography>=42.0.7->geti-sdk==2.7.1)
+#38 7.161   Downloading pycparser-2.22-py3-none-any.whl.metadata (943 bytes)
+#38 7.178 Collecting parso<0.9.0,>=0.8.4 (from jedi>=0.16->ipython==8.18.*->geti-sdk==2.7.1)
+#38 7.187   Downloading parso-0.8.4-py2.py3-none-any.whl.metadata (7.7 kB)
+#38 7.251 Collecting contourpy>=1.0.1 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.261   Downloading contourpy-1.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (5.5 kB)
+#38 7.273 Collecting cycler>=0.10 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.282   Downloading cycler-0.12.1-py3-none-any.whl.metadata (3.8 kB)
+#38 7.376 Collecting fonttools>=4.22.0 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.386   Downloading fonttools-4.58.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (106 kB)
+#38 7.452 Collecting kiwisolver>=1.3.1 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.463   Downloading kiwisolver-1.4.8-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl.metadata (6.2 kB)
+#38 7.464 Requirement already satisfied: packaging>=20.0 in /python3venv/lib/python3.10/site-packages (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1) (25.0)
+#38 7.487 Collecting pyparsing>=2.3.1 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.497   Downloading pyparsing-3.2.3-py3-none-any.whl.metadata (5.0 kB)
+#38 7.510 Collecting python-dateutil>=2.7 (from matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.519   Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl.metadata (8.4 kB)
+#38 7.549 Collecting importlib-resources>=5.12 (from nibabel>=3.2.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 7.559   Downloading importlib_resources-6.5.2-py3-none-any.whl.metadata (3.9 kB)
+#38 7.565 Requirement already satisfied: openvino-telemetry>=2023.2.1 in /python3venv/lib/python3.10/site-packages (from openvino>=2023.2.0->geti-sdk==2.7.1) (2025.1.0)
+#38 7.952 Collecting grpcio>=1.47.0 (from ovmsclient>=2022.3->geti-sdk==2.7.1)
+#38 7.961   Downloading grpcio-1.73.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (3.8 kB)
+#38 8.007 Collecting pytz>=2020.1 (from pandas>=1.4.0->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.016   Downloading pytz-2025.2-py2.py3-none-any.whl.metadata (22 kB)
+#38 8.033 Collecting tzdata>=2022.7 (from pandas>=1.4.0->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.044   Downloading tzdata-2025.2-py2.py3-none-any.whl.metadata (1.4 kB)
+#38 8.063 Collecting ptyprocess>=0.5 (from pexpect>4.3->ipython==8.18.*->geti-sdk==2.7.1)
+#38 8.074   Downloading ptyprocess-0.7.0-py2.py3-none-any.whl.metadata (1.3 kB)
+#38 8.099 Collecting six>=1.5 (from python-dateutil>=2.7->matplotlib>=3.3.1->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.109   Downloading six-1.17.0-py2.py3-none-any.whl.metadata (1.7 kB)
+#38 8.135 Collecting ruamel.yaml.clib>=0.2.7 (from ruamel.yaml>=0.17.0->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.144   Downloading ruamel.yaml.clib-0.2.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.7 kB)
+#38 8.494 Collecting json-stream-rs-tokenizer>=0.4.17 (from json-stream->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.505   Downloading json_stream_rs_tokenizer-0.4.29-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.0 kB)
+#38 8.526 Collecting click (from nltk->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.536   Downloading click-8.2.1-py3-none-any.whl.metadata (2.5 kB)
+#38 8.806 Collecting regex>=2021.8.3 (from nltk->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.816   Downloading regex-2024.11.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (40 kB)
+#38 8.841 Collecting threadpoolctl>=3.1.0 (from scikit-learn->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.850   Downloading threadpoolctl-3.6.0-py3-none-any.whl.metadata (13 kB)
+#38 8.866 Collecting executing>=1.2.0 (from stack-data->ipython==8.18.*->geti-sdk==2.7.1)
+#38 8.875   Downloading executing-2.2.0-py2.py3-none-any.whl.metadata (8.9 kB)
+#38 8.891 Collecting asttokens>=2.1.0 (from stack-data->ipython==8.18.*->geti-sdk==2.7.1)
+#38 8.900   Downloading asttokens-3.0.0-py3-none-any.whl.metadata (4.7 kB)
+#38 8.913 Collecting pure-eval (from stack-data->ipython==8.18.*->geti-sdk==2.7.1)
+#38 8.923   Downloading pure_eval-0.2.3-py3-none-any.whl.metadata (6.3 kB)
+#38 8.963 Collecting huggingface-hub<1.0,>=0.16.4 (from tokenizers->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 8.972   Downloading huggingface_hub-0.33.0-py3-none-any.whl.metadata (14 kB)
+#38 9.014 Collecting filelock (from huggingface-hub<1.0,>=0.16.4->tokenizers->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 9.024   Downloading filelock-3.18.0-py3-none-any.whl.metadata (2.9 kB)
+#38 9.043 Collecting fsspec>=2023.5.0 (from huggingface-hub<1.0,>=0.16.4->tokenizers->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 9.052   Downloading fsspec-2025.5.1-py3-none-any.whl.metadata (11 kB)
+#38 9.098 Collecting hf-xet<2.0.0,>=1.1.2 (from huggingface-hub<1.0,>=0.16.4->tokenizers->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 9.107   Downloading hf_xet-1.1.3-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (879 bytes)
+#38 9.401 Collecting python-rapidjson>=0.9.1 (from tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 9.410   Downloading python_rapidjson-1.20-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (22 kB)
+#38 9.419 INFO: pip is looking at multiple versions of tritonclient[all] to determine which version is compatible with other requirements. This could take a while.
+#38 9.419 Collecting tritonclient[all] (from datumaro==1.9.*->geti-sdk==2.7.1)
+#38 9.430   Downloading tritonclient-2.57.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.521   Downloading tritonclient-2.56.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.537   Downloading tritonclient-2.55.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.553   Downloading tritonclient-2.54.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.568   Downloading tritonclient-2.53.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.581   Downloading tritonclient-2.52.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.594   Downloading tritonclient-2.51.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.598 INFO: pip is still looking at multiple versions of tritonclient[all] to determine which version is compatible with other requirements. This could take a while.
+#38 9.608   Downloading tritonclient-2.50.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.622   Downloading tritonclient-2.49.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.635   Downloading tritonclient-2.48.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.649   Downloading tritonclient-2.47.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.662   Downloading tritonclient-2.46.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.665 INFO: This is taking longer than usual. You might need to provide the dependency resolver with stricter constraints to reduce runtime. See https://pip.pypa.io/warnings/backtracking for guidance. If you want to abort this run, press Ctrl + C.
+#38 9.675   Downloading tritonclient-2.45.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.689   Downloading tritonclient-2.44.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.703   Downloading tritonclient-2.43.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.716   Downloading tritonclient-2.42.0-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.731   Downloading tritonclient-2.41.1-py3-none-manylinux1_x86_64.whl.metadata (2.8 kB)
+#38 9.757 Collecting protobuf>=3.20.2 (from geti-sdk==2.7.1)
+#38 9.769   Downloading protobuf-4.25.8-cp37-abi3-manylinux2014_x86_64.whl.metadata (541 bytes)
+#38 10.17 Collecting aiohttp<4.0.0,>=3.8.1 (from tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.18   Downloading aiohttp-3.12.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (7.6 kB)
+#38 10.26 Collecting geventhttpclient<=2.0.2,>=1.4.4 (from tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.27   Downloading geventhttpclient-2.0.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (1.3 kB)
+#38 10.54 Collecting cuda-python (from tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.55   Downloading cuda_python-12.9.0-py3-none-any.whl.metadata (4.6 kB)
+#38 10.57 Collecting aiohappyeyeballs>=2.5.0 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.58   Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl.metadata (5.9 kB)
+#38 10.59 Collecting aiosignal>=1.1.2 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.60   Downloading aiosignal-1.3.2-py2.py3-none-any.whl.metadata (3.8 kB)
+#38 10.62 Collecting async-timeout<6.0,>=4.0 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.63   Downloading async_timeout-5.0.1-py3-none-any.whl.metadata (5.1 kB)
+#38 10.68 Collecting frozenlist>=1.1.1 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.69   Downloading frozenlist-1.7.0-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (18 kB)
+#38 10.83 Collecting multidict<7.0,>=4.5 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.84   Downloading multidict-6.4.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (5.3 kB)
+#38 10.88 Collecting propcache>=0.2.0 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 10.89   Downloading propcache-0.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (12 kB)
+#38 11.07 Collecting yarl<2.0,>=1.17.0 (from aiohttp<4.0.0,>=3.8.1->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.08   Downloading yarl-1.20.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (73 kB)
+#38 11.17 Collecting gevent>=0.13 (from geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.18   Downloading gevent-25.5.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (13 kB)
+#38 11.22 Collecting brotli (from geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.23   Downloading Brotli-1.1.0-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl.metadata (5.5 kB)
+#38 11.33 Collecting greenlet>=3.2.2 (from gevent>=0.13->geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.34   Downloading greenlet-3.2.3-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl.metadata (4.1 kB)
+#38 11.36 Collecting zope.event (from gevent>=0.13->geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.37   Downloading zope.event-5.0-py3-none-any.whl.metadata (4.4 kB)
+#38 11.44 Collecting zope.interface (from gevent>=0.13->geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.45   Downloading zope.interface-7.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (44 kB)
+#38 11.73 Collecting cuda-bindings~=12.9.0 (from cuda-python->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1)
+#38 11.77   Downloading cuda_bindings-12.9.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.1 kB)
+#38 11.79 Requirement already satisfied: setuptools in /python3venv/lib/python3.10/site-packages (from zope.event->gevent>=0.13->geventhttpclient<=2.0.2,>=1.4.4->tritonclient[all]->datumaro==1.9.*->geti-sdk==2.7.1) (75.8.0)
+#38 11.82 Downloading geti_sdk-2.7.1-py3-none-any.whl (1.1 MB)
+#38 11.92    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.1/1.1 MB 12.1 MB/s eta 0:00:00
+#38 11.93 Downloading imageio_ffmpeg-0.6.0-py3-none-manylinux2014_x86_64.whl (29.5 MB)
+#38 14.45    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 29.5/29.5 MB 11.7 MB/s eta 0:00:00
+#38 14.46 Downloading datumaro-1.9.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.1 MB)
+#38 14.56    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.1/1.1 MB 11.8 MB/s eta 0:00:00
+#38 14.58 Downloading orjson-3.10.7-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (141 kB)
+#38 14.60 Downloading PyYAML-6.0.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (705 kB)
+#38 14.67    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 705.5/705.5 kB 11.8 MB/s eta 0:00:00
+#38 14.68 Downloading ipython-8.18.1-py3-none-any.whl (808 kB)
+#38 14.75    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 808.2/808.2 kB 11.9 MB/s eta 0:00:00
+#38 14.77 Downloading lxml-5.4.0-cp310-cp310-manylinux_2_28_x86_64.whl (5.1 MB)
+#38 15.21    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 5.1/5.1 MB 11.8 MB/s eta 0:00:00
+#38 15.22 Downloading omegaconf-2.3.0-py3-none-any.whl (79 kB)
+#38 15.24 Downloading opencv_python-4.10.0.84-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (62.5 MB)
+#38 20.67    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 62.5/62.5 MB 11.5 MB/s eta 0:00:00
+#38 20.69 Downloading pillow-11.1.0-cp310-cp310-manylinux_2_28_x86_64.whl (4.5 MB)
+#38 21.07    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 11.8 MB/s eta 0:00:00
+#38 21.08 Downloading prompt_toolkit-3.0.51-py3-none-any.whl (387 kB)
+#38 21.13 Downloading python_dotenv-1.0.1-py3-none-any.whl (19 kB)
+#38 21.14 Downloading simplejson-3.19.3-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (137 kB)
+#38 21.16 Downloading urllib3-1.26.20-py2.py3-none-any.whl (144 kB)
+#38 21.18 Downloading attrs-25.3.0-py3-none-any.whl (63 kB)
+#38 21.20 Downloading cryptography-45.0.4-cp37-abi3-manylinux_2_34_x86_64.whl (4.5 MB)
+#38 21.58    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.5/4.5 MB 11.8 MB/s eta 0:00:00
+#38 21.59 Downloading cffi-1.17.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (446 kB)
+#38 21.65 Downloading h5py-3.14.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.6 MB)
+#38 22.04    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.6/4.6 MB 11.8 MB/s eta 0:00:00
+#38 22.05 Downloading imagesize-1.4.1-py2.py3-none-any.whl (8.8 kB)
+#38 22.06 Downloading jedi-0.19.2-py2.py3-none-any.whl (1.6 MB)
+#38 22.19    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 11.9 MB/s eta 0:00:00
+#38 22.21 Downloading parso-0.8.4-py2.py3-none-any.whl (103 kB)
+#38 22.23 Downloading joblib-1.5.1-py3-none-any.whl (307 kB)
+#38 22.26 Downloading matplotlib-3.10.3-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (8.6 MB)
+#38 23.01    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.6/8.6 MB 11.6 MB/s eta 0:00:00
+#38 23.02 Downloading contourpy-1.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (325 kB)
+#38 23.06 Downloading cycler-0.12.1-py3-none-any.whl (8.3 kB)
+#38 23.08 Downloading fonttools-4.58.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.8 MB)
+#38 23.48    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 11.8 MB/s eta 0:00:00
+#38 23.50 Downloading kiwisolver-1.4.8-cp310-cp310-manylinux_2_12_x86_64.manylinux2010_x86_64.whl (1.6 MB)
+#38 23.64    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 11.9 MB/s eta 0:00:00
+#38 23.65 Downloading nibabel-5.3.2-py3-none-any.whl (3.3 MB)
+#38 23.93    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.3/3.3 MB 11.8 MB/s eta 0:00:00
+#38 23.95 Downloading importlib_resources-6.5.2-py3-none-any.whl (37 kB)
+#38 23.96 Downloading ovmsclient-2023.1-py3-none-any.whl (146 kB)
+#38 23.99 Downloading grpcio-1.73.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (6.0 MB)
+#38 24.51    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 6.0/6.0 MB 11.7 MB/s eta 0:00:00
+#38 24.52 Downloading pandas-2.3.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.3 MB)
+#38 25.62    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.3/12.3 MB 11.2 MB/s eta 0:00:00
+#38 25.63 Downloading pathvalidate-3.2.3-py3-none-any.whl (24 kB)
+#38 25.65 Downloading pexpect-4.9.0-py2.py3-none-any.whl (63 kB)
+#38 25.66 Downloading ptyprocess-0.7.0-py2.py3-none-any.whl (13 kB)
+#38 25.67 Downloading pycocotools-2.0.10-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (455 kB)
+#38 25.73 Downloading pygments-2.19.1-py3-none-any.whl (1.2 MB)
+#38 25.93    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.2/1.2 MB 12.0 MB/s eta 0:00:00
+#38 25.94 Downloading pyparsing-3.2.3-py3-none-any.whl (111 kB)
+#38 25.95 Downloading python_dateutil-2.9.0.post0-py2.py3-none-any.whl (229 kB)
+#38 25.99 Downloading pytz-2025.2-py2.py3-none-any.whl (509 kB)
+#38 26.05 Downloading ruamel.yaml-0.18.14-py3-none-any.whl (118 kB)
+#38 26.07 Downloading ruamel.yaml.clib-0.2.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (722 kB)
+#38 26.13    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 722.2/722.2 kB 11.8 MB/s eta 0:00:00
+#38 26.14 Downloading semver-3.0.4-py3-none-any.whl (17 kB)
+#38 26.15 Downloading shapely-2.1.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.1 MB)
+#38 26.42    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.1/3.1 MB 11.8 MB/s eta 0:00:00
+#38 26.43 Downloading six-1.17.0-py2.py3-none-any.whl (11 kB)
+#38 26.44 Downloading tensorboardx-2.6.4-py3-none-any.whl (87 kB)
+#38 26.47 Downloading tqdm-4.67.1-py3-none-any.whl (78 kB)
+#38 26.48 Downloading traitlets-5.14.3-py3-none-any.whl (85 kB)
+#38 26.50 Downloading typing_extensions-4.14.0-py3-none-any.whl (43 kB)
+#38 26.51 Downloading tzdata-2025.2-py2.py3-none-any.whl (347 kB)
+#38 26.55 Downloading decorator-5.2.1-py3-none-any.whl (9.2 kB)
+#38 26.57 Downloading exceptiongroup-1.3.0-py3-none-any.whl (16 kB)
+#38 26.58 Downloading json_stream-2.3.3-py3-none-any.whl (31 kB)
+#38 26.61 Downloading json_stream_rs_tokenizer-0.4.29-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (330 kB)
+#38 26.65 Downloading matplotlib_inline-0.1.7-py3-none-any.whl (9.9 kB)
+#38 26.66 Downloading nltk-3.9.1-py3-none-any.whl (1.5 MB)
+#38 26.79    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.5/1.5 MB 11.8 MB/s eta 0:00:00
+#38 26.83 Downloading regex-2024.11.6-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (781 kB)
+#38 26.89    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 781.7/781.7 kB 12.1 MB/s eta 0:00:00
+#38 26.91 Downloading click-8.2.1-py3-none-any.whl (102 kB)
+#38 26.93 Downloading portalocker-3.1.1-py3-none-any.whl (19 kB)
+#38 26.95 Downloading pyarrow-20.0.0-cp310-cp310-manylinux_2_28_x86_64.whl (42.3 MB)
+#38 30.67    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 42.3/42.3 MB 11.4 MB/s eta 0:00:00
+#38 30.68 Downloading pycparser-2.22-py3-none-any.whl (117 kB)
+#38 30.70 Downloading pyemd-1.0.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (662 kB)
+#38 30.79    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 662.6/662.6 kB 9.8 MB/s eta 0:00:00
+#38 30.81 Downloading scikit_learn-1.7.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.9 MB)
+#38 31.90    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.9/12.9 MB 11.8 MB/s eta 0:00:00
+#38 31.91 Downloading threadpoolctl-3.6.0-py3-none-any.whl (18 kB)
+#38 31.92 Downloading stack_data-0.6.3-py3-none-any.whl (24 kB)
+#38 31.94 Downloading asttokens-3.0.0-py3-none-any.whl (26 kB)
+#38 31.95 Downloading executing-2.2.0-py2.py3-none-any.whl (26 kB)
+#38 31.96 Downloading pure_eval-0.2.3-py3-none-any.whl (11 kB)
+#38 31.97 Downloading tabulate-0.9.0-py3-none-any.whl (35 kB)
+#38 31.99 Downloading tokenizers-0.21.1-cp39-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (3.0 MB)
+#38 32.25    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.0/3.0 MB 11.8 MB/s eta 0:00:00
+#38 32.26 Downloading huggingface_hub-0.33.0-py3-none-any.whl (514 kB)
+#38 32.32 Downloading hf_xet-1.1.3-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (4.8 MB)
+#38 32.73    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 4.8/4.8 MB 11.7 MB/s eta 0:00:00
+#38 32.75 Downloading fsspec-2025.5.1-py3-none-any.whl (199 kB)
+#38 32.77 Downloading filelock-3.18.0-py3-none-any.whl (16 kB)
+#38 32.78 Downloading tritonclient-2.41.1-py3-none-manylinux1_x86_64.whl (12.4 MB)
+#38 33.85    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.4/12.4 MB 11.8 MB/s eta 0:00:00
+#38 33.86 Downloading aiohttp-3.12.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.6 MB)
+#38 34.00    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.6/1.6 MB 11.9 MB/s eta 0:00:00
+#38 34.02 Downloading async_timeout-5.0.1-py3-none-any.whl (6.2 kB)
+#38 34.03 Downloading geventhttpclient-2.0.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (100 kB)
+#38 34.05 Downloading multidict-6.4.4-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (219 kB)
+#38 34.08 Downloading protobuf-4.25.8-cp37-abi3-manylinux2014_x86_64.whl (294 kB)
+#38 34.12 Downloading yarl-1.20.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (326 kB)
+#38 34.15 Downloading aiohappyeyeballs-2.6.1-py3-none-any.whl (15 kB)
+#38 34.17 Downloading aiosignal-1.3.2-py2.py3-none-any.whl (7.6 kB)
+#38 34.18 Downloading frozenlist-1.7.0-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (222 kB)
+#38 34.21 Downloading gevent-25.5.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+#38 34.40    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 11.8 MB/s eta 0:00:00
+#38 34.41 Downloading greenlet-3.2.3-cp310-cp310-manylinux_2_24_x86_64.manylinux_2_28_x86_64.whl (582 kB)
+#38 34.46    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 582.2/582.2 kB 12.4 MB/s eta 0:00:00
+#38 34.47 Downloading propcache-0.3.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (198 kB)
+#38 34.50 Downloading python_rapidjson-1.20-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (1.7 MB)
+#38 34.64    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 1.7/1.7 MB 11.8 MB/s eta 0:00:00
+#38 34.66 Downloading Brotli-1.1.0-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl (3.0 MB)
+#38 34.92    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.0/3.0 MB 11.7 MB/s eta 0:00:00
+#38 34.93 Downloading cuda_python-12.9.0-py3-none-any.whl (7.5 kB)
+#38 34.94 Downloading cuda_bindings-12.9.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (12.6 MB)
+#38 36.02    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 12.6/12.6 MB 11.7 MB/s eta 0:00:00
+#38 36.03 Downloading wcwidth-0.2.13-py2.py3-none-any.whl (34 kB)
+#38 36.05 Downloading zope.event-5.0-py3-none-any.whl (6.8 kB)
+#38 36.06 Downloading zope.interface-7.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (254 kB)
+#38 36.31 Building wheels for collected packages: antlr4-python3-runtime
+#38 36.31   Building wheel for antlr4-python3-runtime (pyproject.toml): started
+#38 36.46   Building wheel for antlr4-python3-runtime (pyproject.toml): finished with status 'done'
+#38 36.46   Created wheel for antlr4-python3-runtime: filename=antlr4_python3_runtime-4.9.3-py3-none-any.whl size=144591 sha256=097b2075fdb2c8878efcf41ddbaea8a54db3acc824ed7e88c3e87beb85441432
+#38 36.46   Stored in directory: /tmp/pip-ephem-wheel-cache-vj18rzvi/wheels/12/93/dd/1f6a127edc45659556564c5730f6d4e300888f4bca2d4c5a88
+#38 36.46 Successfully built antlr4-python3-runtime
+#38 36.66 Installing collected packages: wcwidth, pytz, pure-eval, ptyprocess, cuda-bindings, brotli, antlr4-python3-runtime, zope.interface, zope.event, urllib3, tzdata, typing-extensions, traitlets, tqdm, threadpoolctl, tabulate, six, simplejson, shapely, semver, ruamel.yaml.clib, regex, PyYAML, python-rapidjson, python-dotenv, pyparsing, pygments, pyemd, pycparser, pycocotools, pyarrow, protobuf, propcache, prompt-toolkit, portalocker, Pillow, pexpect, pathvalidate, parso, orjson, opencv-python, lxml, kiwisolver, json-stream-rs-tokenizer, joblib, importlib-resources, imagesize, imageio-ffmpeg, hf-xet, h5py, grpcio, greenlet, fsspec, frozenlist, fonttools, filelock, executing, decorator, cycler, cuda-python, contourpy, click, attrs, async-timeout, asttokens, aiohappyeyeballs, tritonclient, tensorboardX, stack-data, scikit-learn, ruamel.yaml, python-dateutil, omegaconf, nltk, nibabel, multidict, matplotlib-inline, json-stream, jedi, gevent, exceptiongroup, cffi, aiosignal, yarl, pandas, ovmsclient, matplotlib, ipython, huggingface-hub, geventhttpclient, cryptography, tokenizers, aiohttp, datumaro, geti-sdk
+#38 37.16   Attempting uninstall: urllib3
+#38 37.16     Found existing installation: urllib3 2.4.0
+#38 37.17     Uninstalling urllib3-2.4.0:
+#38 37.18       Successfully uninstalled urllib3-2.4.0
+#38 37.62   Attempting uninstall: PyYAML
+#38 37.62     Found existing installation: PyYAML 6.0.2
+#38 37.62     Uninstalling PyYAML-6.0.2:
+#38 37.63       Successfully uninstalled PyYAML-6.0.2
+#38 39.34   Attempting uninstall: opencv-python
+#38 39.34     Found existing installation: opencv-python 4.11.0.86
+#38 39.34     Uninstalling opencv-python-4.11.0.86:
+#38 39.54       Successfully uninstalled opencv-python-4.11.0.86
+#38 47.92 
+#38 47.92 Successfully installed Pillow-11.1.0 PyYAML-6.0.1 aiohappyeyeballs-2.6.1 aiohttp-3.12.12 aiosignal-1.3.2 antlr4-python3-runtime-4.9.3 asttokens-3.0.0 async-timeout-5.0.1 attrs-25.3.0 brotli-1.1.0 cffi-1.17.1 click-8.2.1 contourpy-1.3.2 cryptography-45.0.4 cuda-bindings-12.9.0 cuda-python-12.9.0 cycler-0.12.1 datumaro-1.9.1 decorator-5.2.1 exceptiongroup-1.3.0 executing-2.2.0 filelock-3.18.0 fonttools-4.58.2 frozenlist-1.7.0 fsspec-2025.5.1 geti-sdk-2.7.1 gevent-25.5.1 geventhttpclient-2.0.2 greenlet-3.2.3 grpcio-1.73.0 h5py-3.14.0 hf-xet-1.1.3 huggingface-hub-0.33.0 imageio-ffmpeg-0.6.0 imagesize-1.4.1 importlib-resources-6.5.2 ipython-8.18.1 jedi-0.19.2 joblib-1.5.1 json-stream-2.3.3 json-stream-rs-tokenizer-0.4.29 kiwisolver-1.4.8 lxml-5.4.0 matplotlib-3.10.3 matplotlib-inline-0.1.7 multidict-6.4.4 nibabel-5.3.2 nltk-3.9.1 omegaconf-2.3.0 opencv-python-4.10.0.84 orjson-3.10.7 ovmsclient-2023.1 pandas-2.3.0 parso-0.8.4 pathvalidate-3.2.3 pexpect-4.9.0 portalocker-3.1.1 prompt-toolkit-3.0.51 propcache-0.3.2 protobuf-4.25.8 ptyprocess-0.7.0 pure-eval-0.2.3 pyarrow-20.0.0 pycocotools-2.0.10 pycparser-2.22 pyemd-1.0.0 pygments-2.19.1 pyparsing-3.2.3 python-dateutil-2.9.0.post0 python-dotenv-1.0.1 python-rapidjson-1.20 pytz-2025.2 regex-2024.11.6 ruamel.yaml-0.18.14 ruamel.yaml.clib-0.2.12 scikit-learn-1.7.0 semver-3.0.4 shapely-2.1.1 simplejson-3.19.3 six-1.17.0 stack-data-0.6.3 tabulate-0.9.0 tensorboardX-2.6.4 threadpoolctl-3.6.0 tokenizers-0.21.1 tqdm-4.67.1 traitlets-5.14.3 tritonclient-2.41.1 typing-extensions-4.14.0 tzdata-2025.2 urllib3-1.26.20 wcwidth-0.2.13 yarl-1.20.1 zope.event-5.0 zope.interface-7.2
+#38 49.22 + apt-get clean
+#38 49.23 + rm -rf /var/lib/apt/lists/auxfiles /var/lib/apt/lists/lock /var/lib/apt/lists/partial '/tmp/*' /root/.cache
+#38 DONE 49.8s
+
+#39 [dlstreamer-pipeline-server dlstreamer-pipeline-server 21/48] RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
+#39 0.191 + pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
+#39 0.411 Found existing installation: cuda-python 12.9.0
+#39 0.412 Uninstalling cuda-python-12.9.0:
+#39 0.413   Successfully uninstalled cuda-python-12.9.0
+#39 0.414 Found existing installation: aiohappyeyeballs 2.6.1
+#39 0.415 Uninstalling aiohappyeyeballs-2.6.1:
+#39 0.416   Successfully uninstalled aiohappyeyeballs-2.6.1
+#39 DONE 0.5s
+
+#40 [dlstreamer-pipeline-server dlstreamer-pipeline-server 22/48] RUN pip3 install --no-cache-dir schedule==1.2.1
+#40 0.201 + pip3 install --no-cache-dir schedule==1.2.1
+#40 0.543 Collecting schedule==1.2.1
+#40 0.749   Downloading schedule-1.2.1-py2.py3-none-any.whl.metadata (3.3 kB)
+#40 0.763 Downloading schedule-1.2.1-py2.py3-none-any.whl (11 kB)
+#40 0.931 Installing collected packages: schedule
+#40 0.948 Successfully installed schedule-1.2.1
+#40 DONE 1.1s
+
+#41 [dlstreamer-pipeline-server dlstreamer-pipeline-server 23/48] RUN pip3 install --no-cache-dir asyncua==1.1.5
+#41 0.216 + pip3 install --no-cache-dir asyncua==1.1.5
+#41 0.787 Collecting asyncua==1.1.5
+#41 0.876   Downloading asyncua-1.1.5-py3-none-any.whl.metadata (9.5 kB)
+#41 0.896 Collecting aiofiles (from asyncua==1.1.5)
+#41 0.906   Downloading aiofiles-24.1.0-py3-none-any.whl.metadata (10 kB)
+#41 0.923 Collecting aiosqlite (from asyncua==1.1.5)
+#41 0.932   Downloading aiosqlite-0.21.0-py3-none-any.whl.metadata (4.3 kB)
+#41 0.936 Requirement already satisfied: python-dateutil in /python3venv/lib/python3.10/site-packages (from asyncua==1.1.5) (2.9.0.post0)
+#41 0.936 Requirement already satisfied: pytz in /python3venv/lib/python3.10/site-packages (from asyncua==1.1.5) (2025.2)
+#41 0.937 Requirement already satisfied: cryptography>42.0.0 in /python3venv/lib/python3.10/site-packages (from asyncua==1.1.5) (45.0.4)
+#41 0.953 Collecting sortedcontainers (from asyncua==1.1.5)
+#41 0.981   Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl.metadata (10 kB)
+#41 0.996 Collecting pyOpenSSL>23.2.0 (from asyncua==1.1.5)
+#41 1.005   Downloading pyopenssl-25.1.0-py3-none-any.whl.metadata (17 kB)
+#41 1.008 Requirement already satisfied: typing-extensions in /python3venv/lib/python3.10/site-packages (from asyncua==1.1.5) (4.14.0)
+#41 1.012 Requirement already satisfied: cffi>=1.14 in /python3venv/lib/python3.10/site-packages (from cryptography>42.0.0->asyncua==1.1.5) (1.17.1)
+#41 1.013 Requirement already satisfied: pycparser in /python3venv/lib/python3.10/site-packages (from cffi>=1.14->cryptography>42.0.0->asyncua==1.1.5) (2.22)
+#41 1.015 Requirement already satisfied: six>=1.5 in /python3venv/lib/python3.10/site-packages (from python-dateutil->asyncua==1.1.5) (1.17.0)
+#41 1.026 Downloading asyncua-1.1.5-py3-none-any.whl (774 kB)
+#41 1.100    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 774.7/774.7 kB 11.7 MB/s eta 0:00:00
+#41 1.111 Downloading pyopenssl-25.1.0-py3-none-any.whl (56 kB)
+#41 1.125 Downloading aiofiles-24.1.0-py3-none-any.whl (15 kB)
+#41 1.137 Downloading aiosqlite-0.21.0-py3-none-any.whl (15 kB)
+#41 1.148 Downloading sortedcontainers-2.4.0-py2.py3-none-any.whl (29 kB)
+#41 1.313 Installing collected packages: sortedcontainers, aiosqlite, aiofiles, pyOpenSSL, asyncua
+#41 2.137 
+#41 2.144 Successfully installed aiofiles-24.1.0 aiosqlite-0.21.0 asyncua-1.1.5 pyOpenSSL-25.1.0 sortedcontainers-2.4.0
+#41 DONE 2.3s
+
+#42 [dlstreamer-pipeline-server dlstreamer-pipeline-server 24/48] RUN pip3 uninstall --no-cache-dir -y Flask &&     pip3 install --no-cache-dir Flask==2.2.5
+#42 0.198 + pip3 uninstall --no-cache-dir -y Flask
+#42 0.423 WARNING: Skipping Flask as it is not installed.
+#42 0.446 + pip3 install --no-cache-dir Flask==2.2.5
+#42 0.779 Collecting Flask==2.2.5
+#42 0.873   Downloading Flask-2.2.5-py3-none-any.whl.metadata (3.9 kB)
+#42 0.906 Collecting Werkzeug>=2.2.2 (from Flask==2.2.5)
+#42 0.915   Downloading werkzeug-3.1.3-py3-none-any.whl.metadata (3.7 kB)
+#42 0.929 Collecting Jinja2>=3.0 (from Flask==2.2.5)
+#42 0.938   Downloading jinja2-3.1.6-py3-none-any.whl.metadata (2.9 kB)
+#42 0.952 Collecting itsdangerous>=2.0 (from Flask==2.2.5)
+#42 0.961   Downloading itsdangerous-2.2.0-py3-none-any.whl.metadata (1.9 kB)
+#42 0.962 Requirement already satisfied: click>=8.0 in /python3venv/lib/python3.10/site-packages (from Flask==2.2.5) (8.2.1)
+#42 1.004 Collecting MarkupSafe>=2.0 (from Jinja2>=3.0->Flask==2.2.5)
+#42 1.013   Downloading MarkupSafe-3.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (4.0 kB)
+#42 1.025 Downloading Flask-2.2.5-py3-none-any.whl (101 kB)
+#42 1.050 Downloading itsdangerous-2.2.0-py3-none-any.whl (16 kB)
+#42 1.063 Downloading jinja2-3.1.6-py3-none-any.whl (134 kB)
+#42 1.083 Downloading MarkupSafe-3.0.2-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (20 kB)
+#42 1.095 Downloading werkzeug-3.1.3-py3-none-any.whl (224 kB)
+#42 1.280 Installing collected packages: MarkupSafe, itsdangerous, Werkzeug, Jinja2, Flask
+#42 1.439 
+#42 1.446 Successfully installed Flask-2.2.5 Jinja2-3.1.6 MarkupSafe-3.0.2 Werkzeug-3.1.3 itsdangerous-2.2.0
+#42 DONE 1.7s
+
+#43 [dlstreamer-pipeline-server dlstreamer-pipeline-server 25/48] RUN pip3 install --no-cache-dir pydantic==2.8.2
+#43 0.194 + pip3 install --no-cache-dir pydantic==2.8.2
+#43 0.583 Collecting pydantic==2.8.2
+#43 0.674   Downloading pydantic-2.8.2-py3-none-any.whl.metadata (125 kB)
+#43 0.710 Collecting annotated-types>=0.4.0 (from pydantic==2.8.2)
+#43 0.720   Downloading annotated_types-0.7.0-py3-none-any.whl.metadata (15 kB)
+#43 1.134 Collecting pydantic-core==2.20.1 (from pydantic==2.8.2)
+#43 1.146   Downloading pydantic_core-2.20.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.6 kB)
+#43 1.147 Requirement already satisfied: typing-extensions>=4.6.1 in /python3venv/lib/python3.10/site-packages (from pydantic==2.8.2) (4.14.0)
+#43 1.159 Downloading pydantic-2.8.2-py3-none-any.whl (423 kB)
+#43 1.205 Downloading pydantic_core-2.20.1-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (2.1 MB)
+#43 1.381    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 2.1/2.1 MB 11.8 MB/s eta 0:00:00
+#43 1.391 Downloading annotated_types-0.7.0-py3-none-any.whl (13 kB)
+#43 1.582 Installing collected packages: pydantic-core, annotated-types, pydantic
+#43 1.752 
+#43 1.759 Successfully installed annotated-types-0.7.0 pydantic-2.8.2 pydantic-core-2.20.1
+#43 DONE 2.2s
+
+#44 [dlstreamer-pipeline-server dlstreamer-pipeline-server 26/48] RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends &&     apt clean &&     rm -rf /var/lib/apt/lists/*
+#44 0.194 + apt-get update
+#44 0.382 Get:1 https://eci.intel.com/sed-repos/jammy sed InRelease [3139 B]
+#44 0.425 Get:2 https://apt.repos.intel.com/openvino/2025 ubuntu22 InRelease [7776 B]
+#44 0.471 Get:3 https://eci.intel.com/sed-repos/jammy sed/main Sources [2932 B]
+#44 0.488 Get:4 https://eci.intel.com/sed-repos/jammy sed/main amd64 Packages [2528 B]
+#44 0.644 Get:5 https://apt.repos.intel.com/openvino/2025 ubuntu22/main all Packages [3852 B]
+#44 0.648 Get:6 https://apt.repos.intel.com/openvino/2025 ubuntu22/main amd64 Packages [7010 B]
+#44 0.673 Get:7 http://security.ubuntu.com/ubuntu jammy-security InRelease [129 kB]
+#44 0.690 Get:8 http://archive.ubuntu.com/ubuntu jammy InRelease [270 kB]
+#44 1.222 Get:9 https://repositories.intel.com/gpu/ubuntu jammy InRelease [15.4 kB]
+#44 1.231 Get:10 http://security.ubuntu.com/ubuntu jammy-security/main amd64 Packages [2984 kB]
+#44 1.342 Get:11 http://archive.ubuntu.com/ubuntu jammy-updates InRelease [128 kB]
+#44 1.533 Get:12 http://archive.ubuntu.com/ubuntu jammy-backports InRelease [127 kB]
+#44 1.725 Get:13 http://archive.ubuntu.com/ubuntu jammy/multiverse amd64 Packages [266 kB]
+#44 1.961 Get:14 https://repositories.intel.com/gpu/ubuntu jammy/client amd64 Packages [163 kB]
+#44 2.020 Get:15 http://security.ubuntu.com/ubuntu jammy-security/multiverse amd64 Packages [47.7 kB]
+#44 2.052 Get:16 http://archive.ubuntu.com/ubuntu jammy/universe amd64 Packages [17.5 MB]
+#44 2.157 Get:17 http://security.ubuntu.com/ubuntu jammy-security/universe amd64 Packages [1246 kB]
+#44 2.570 Get:18 http://security.ubuntu.com/ubuntu jammy-security/restricted amd64 Packages [4476 kB]
+#44 4.372 Get:19 http://archive.ubuntu.com/ubuntu jammy/restricted amd64 Packages [164 kB]
+#44 4.520 Get:20 http://archive.ubuntu.com/ubuntu jammy/main amd64 Packages [1792 kB]
+#44 4.944 Get:21 http://archive.ubuntu.com/ubuntu jammy-updates/main amd64 Packages [3295 kB]
+#44 5.431 Get:22 http://archive.ubuntu.com/ubuntu jammy-updates/restricted amd64 Packages [4630 kB]
+#44 6.053 Get:23 http://archive.ubuntu.com/ubuntu jammy-updates/multiverse amd64 Packages [55.7 kB]
+#44 6.196 Get:24 http://archive.ubuntu.com/ubuntu jammy-updates/universe amd64 Packages [1553 kB]
+#44 6.911 Get:25 http://archive.ubuntu.com/ubuntu jammy-backports/main amd64 Packages [83.2 kB]
+#44 7.292 Get:26 http://archive.ubuntu.com/ubuntu jammy-backports/universe amd64 Packages [35.2 kB]
+#44 7.326 Fetched 39.0 MB in 7s (5487 kB/s)
+#44 7.326 Reading package lists...
+#44 7.875 W: https://apt.repos.intel.com/openvino/2025/dists/ubuntu22/InRelease: Key is stored in legacy trusted.gpg keyring (/etc/apt/trusted.gpg), see the DEPRECATION section in apt-key(8) for details.
+#44 7.875 + apt-get install libxtst6 -y --no-install-recommends
+#44 7.899 Reading package lists...
+#44 8.450 Building dependency tree...
+#44 8.557 Reading state information...
+#44 8.676 The following NEW packages will be installed:
+#44 8.676   libxtst6
+#44 8.844 0 upgraded, 1 newly installed, 0 to remove and 26 not upgraded.
+#44 8.844 Need to get 13.4 kB of archives.
+#44 8.844 After this operation, 49.2 kB of additional disk space will be used.
+#44 8.844 Get:1 http://archive.ubuntu.com/ubuntu jammy/main amd64 libxtst6 amd64 2:1.2.3-1build4 [13.4 kB]
+#44 8.940 debconf: delaying package configuration, since apt-utils is not installed
+#44 8.964 Fetched 13.4 kB in 0s (81.5 kB/s)
+#44 8.995 Selecting previously unselected package libxtst6:amd64.
+#44 8.995 (Reading database ... (Reading database ... 5%(Reading database ... 10%(Reading database ... 15%(Reading database ... 20%(Reading database ... 25%(Reading database ... 30%(Reading database ... 35%(Reading database ... 40%(Reading database ... 45%(Reading database ... 50%(Reading database ... 55%(Reading database ... 60%(Reading database ... 65%(Reading database ... 70%(Reading database ... 75%(Reading database ... 80%(Reading database ... 85%(Reading database ... 90%(Reading database ... 95%(Reading database ... 100%(Reading database ... 54905 files and directories currently installed.)
+#44 9.014 Preparing to unpack .../libxtst6_2%3a1.2.3-1build4_amd64.deb ...
+#44 9.024 Unpacking libxtst6:amd64 (2:1.2.3-1build4) ...
+#44 9.083 Setting up libxtst6:amd64 (2:1.2.3-1build4) ...
+#44 9.099 Processing triggers for libc-bin (2.35-0ubuntu3.9) ...
+#44 9.173 + apt clean
+#44 9.180 
+#44 9.180 WARNING: apt does not have a stable CLI interface. Use with caution in scripts.
+#44 9.180 
+#44 9.181 + rm -rf /var/lib/apt/lists/apt.repos.intel.com_openvino_2025_dists_ubuntu22_InRelease /var/lib/apt/lists/apt.repos.intel.com_openvino_2025_dists_ubuntu22_main_binary-all_Packages.lz4 /var/lib/apt/lists/apt.repos.intel.com_openvino_2025_dists_ubuntu22_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-backports_InRelease /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-backports_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-backports_universe_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-updates_InRelease /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-updates_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-updates_multiverse_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-updates_restricted_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy-updates_universe_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy_InRelease /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy_multiverse_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy_restricted_binary-amd64_Packages.lz4 /var/lib/apt/lists/archive.ubuntu.com_ubuntu_dists_jammy_universe_binary-amd64_Packages.lz4 /var/lib/apt/lists/auxfiles /var/lib/apt/lists/eci.intel.com_sed-repos_jammy_dists_sed_InRelease /var/lib/apt/lists/eci.intel.com_sed-repos_jammy_dists_sed_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/eci.intel.com_sed-repos_jammy_dists_sed_main_source_Sources.lz4 /var/lib/apt/lists/lock /var/lib/apt/lists/partial /var/lib/apt/lists/repositories.intel.com_gpu_ubuntu_dists_jammy_InRelease /var/lib/apt/lists/repositories.intel.com_gpu_ubuntu_dists_jammy_client_binary-amd64_Packages.lz4 /var/lib/apt/lists/security.ubuntu.com_ubuntu_dists_jammy-security_InRelease /var/lib/apt/lists/security.ubuntu.com_ubuntu_dists_jammy-security_main_binary-amd64_Packages.lz4 /var/lib/apt/lists/security.ubuntu.com_ubuntu_dists_jammy-security_multiverse_binary-amd64_Packages.lz4 /var/lib/apt/lists/security.ubuntu.com_ubuntu_dists_jammy-security_restricted_binary-amd64_Packages.lz4 /var/lib/apt/lists/security.ubuntu.com_ubuntu_dists_jammy-security_universe_binary-amd64_Packages.lz4
+#44 DONE 9.2s
+
+#45 [dlstreamer-pipeline-server dlstreamer-pipeline-server 27/48] RUN pip3 install --no-cache-dir deep_sort_realtime
+#45 0.215 + pip3 install --no-cache-dir deep_sort_realtime
+#45 0.548 Collecting deep_sort_realtime
+#45 0.652   Downloading deep_sort_realtime-1.3.2-py3-none-any.whl.metadata (12 kB)
+#45 0.655 Requirement already satisfied: numpy in /python3venv/lib/python3.10/site-packages (from deep_sort_realtime) (1.26.4)
+#45 0.655 Requirement already satisfied: scipy in /python3venv/lib/python3.10/site-packages (from deep_sort_realtime) (1.15.3)
+#45 0.656 Requirement already satisfied: opencv-python in /python3venv/lib/python3.10/site-packages (from deep_sort_realtime) (4.10.0.84)
+#45 0.672 Downloading deep_sort_realtime-1.3.2-py3-none-any.whl (8.4 MB)
+#45 1.398    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 8.4/8.4 MB 11.8 MB/s eta 0:00:00
+#45 1.573 Installing collected packages: deep_sort_realtime
+#45 1.647 Successfully installed deep_sort_realtime-1.3.2
+#45 DONE 1.8s
+
+#46 [dlstreamer-pipeline-server dlstreamer-pipeline-server 28/48] COPY ./docker/run.sh .
+#46 DONE 0.1s
+
+#47 [dlstreamer-pipeline-server dlstreamer-pipeline-server 29/48] COPY ./utils/*.py ./utils/
+#47 DONE 0.1s
+
+#48 [dlstreamer-pipeline-server dlstreamer-pipeline-server 30/48] COPY ./src/ ./src
+#48 DONE 0.1s
+
+#49 [dlstreamer-pipeline-server dlstreamer-pipeline-server 31/48] RUN pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation &&     pip3 install --no-cache-dir                  -r  /home/pipeline-server/src/server/requirements.service.txt                  -r /home/pipeline-server/src/server/requirements.webrtc.txt                  -r /home/pipeline-server/src/server/requirements.txt &&     python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
+#49 0.193 + pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation
+#49 0.556 Collecting PyYAML==5.4.1
+#49 0.639   Downloading PyYAML-5.4.1.tar.gz (175 kB)
+#49 0.741   Preparing metadata (pyproject.toml): started
+#49 0.881   Preparing metadata (pyproject.toml): finished with status 'done'
+#49 0.883 Building wheels for collected packages: PyYAML
+#49 0.883   Building wheel for PyYAML (pyproject.toml): started
+#49 1.071   Building wheel for PyYAML (pyproject.toml): finished with status 'done'
+#49 1.072   Created wheel for PyYAML: filename=PyYAML-5.4.1-cp310-cp310-linux_x86_64.whl size=45720 sha256=1fc7bfbfbd1a3714f89b3b4da084b15e1f085c6bccef3038a39d47f583c7a900
+#49 1.072   Stored in directory: /tmp/pip-ephem-wheel-cache-oxkncyxk/wheels/c7/0d/22/696ee92245ad710f506eee79bb05c740d8abccd3ecdb778683
+#49 1.074 Successfully built PyYAML
+#49 1.243 Installing collected packages: PyYAML
+#49 1.243   Attempting uninstall: PyYAML
+#49 1.243     Found existing installation: PyYAML 6.0.1
+#49 1.245     Uninstalling PyYAML-6.0.1:
+#49 1.249       Successfully uninstalled PyYAML-6.0.1
+#49 1.284 Successfully installed PyYAML-5.4.1
+#49 1.284 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#49 1.284 datumaro 1.9.1 requires PyYAML==6.0.1, but you have pyyaml 5.4.1 which is incompatible.
+#49 1.452 + pip3 install --no-cache-dir -r /home/pipeline-server/src/server/requirements.service.txt -r /home/pipeline-server/src/server/requirements.webrtc.txt -r /home/pipeline-server/src/server/requirements.txt
+#49 1.801 Collecting connexion==2.11.1 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 1.914   Downloading connexion-2.11.1-py2.py3-none-any.whl.metadata (27 kB)
+#49 1.941 Collecting Flask-Cors==5.0.0 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 2))
+#49 1.952   Downloading Flask_Cors-5.0.0-py2.py3-none-any.whl.metadata (5.5 kB)
+#49 2.185 Collecting swagger-ui-bundle==0.0.5 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 3))
+#49 2.197   Downloading swagger_ui_bundle-0.0.5-py3-none-any.whl.metadata (2.8 kB)
+#49 2.221 Collecting python_dateutil==2.8.0 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 4))
+#49 2.234   Downloading python_dateutil-2.8.0-py2.py3-none-any.whl.metadata (7.6 kB)
+#49 2.237 Requirement already satisfied: setuptools>=75.8.0 in /python3venv/lib/python3.10/site-packages (from -r /home/pipeline-server/src/server/requirements.service.txt (line 5)) (75.8.0)
+#49 2.252 Collecting rfc3986-validator==0.1.1 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 6))
+#49 2.263   Downloading rfc3986_validator-0.1.1-py2.py3-none-any.whl.metadata (1.7 kB)
+#49 2.278 Collecting rfc3339-validator==0.1.2 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 7))
+#49 2.298   Downloading rfc3339_validator-0.1.2-py2.py3-none-any.whl.metadata (1.5 kB)
+#49 2.335 Collecting tornado==6.4.2 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 8))
+#49 2.344   Downloading tornado-6.4.2-cp38-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (2.5 kB)
+#49 2.356 Collecting paho-mqtt==1.5.1 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 9))
+#49 2.368   Downloading paho-mqtt-1.5.1.tar.gz (101 kB)
+#49 2.392   Installing build dependencies: started
+#49 3.298   Installing build dependencies: finished with status 'done'
+#49 3.298   Getting requirements to build wheel: started
+#49 3.473   Getting requirements to build wheel: finished with status 'done'
+#49 3.474   Preparing metadata (pyproject.toml): started
+#49 3.573   Preparing metadata (pyproject.toml): finished with status 'done'
+#49 3.592 Collecting kafka-python==2.0.2 (from -r /home/pipeline-server/src/server/requirements.service.txt (line 10))
+#49 3.602   Downloading kafka_python-2.0.2-py2.py3-none-any.whl.metadata (7.8 kB)
+#49 3.668 Collecting websockets==10.1 (from -r /home/pipeline-server/src/server/requirements.webrtc.txt (line 1))
+#49 3.679   Downloading websockets-10.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl.metadata (6.3 kB)
+#49 3.698 Collecting nest_asyncio==1.5.4 (from -r /home/pipeline-server/src/server/requirements.webrtc.txt (line 2))
+#49 3.708   Downloading nest_asyncio-1.5.4-py3-none-any.whl.metadata (2.7 kB)
+#49 3.729 Collecting jsonschema==3.2.0 (from jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1))
+#49 3.739   Downloading jsonschema-3.2.0-py2.py3-none-any.whl.metadata (7.8 kB)
+#49 4.009 Collecting clickclick<21,>=1.2 (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 4.020   Downloading clickclick-20.10.2-py2.py3-none-any.whl.metadata (7.6 kB)
+#49 4.030 Requirement already satisfied: PyYAML<6,>=5.1 in /python3venv/lib/python3.10/site-packages (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (5.4.1)
+#49 4.031 Requirement already satisfied: requests<3,>=2.9.1 in /python3venv/lib/python3.10/site-packages (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (2.32.4)
+#49 4.043 Collecting inflection<0.6,>=0.3.1 (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 4.053   Downloading inflection-0.5.1-py2.py3-none-any.whl.metadata (1.7 kB)
+#49 4.071 Collecting openapi-spec-validator<0.4,>=0.2.4 (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 4.081   Downloading openapi_spec_validator-0.3.3-py2.py3-none-any.whl.metadata (5.5 kB)
+#49 4.104 Collecting werkzeug<3,>=1.0 (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 4.115   Downloading werkzeug-2.3.8-py3-none-any.whl.metadata (4.1 kB)
+#49 4.116 Requirement already satisfied: flask<3,>=1.0.4 in /python3venv/lib/python3.10/site-packages (from connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (2.2.5)
+#49 4.116 Requirement already satisfied: attrs>=17.4.0 in /python3venv/lib/python3.10/site-packages (from jsonschema==3.2.0->jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1)) (25.3.0)
+#49 4.137 Collecting pyrsistent>=0.14.0 (from jsonschema==3.2.0->jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1))
+#49 4.148   Downloading pyrsistent-0.20.0-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (27 kB)
+#49 4.153 Requirement already satisfied: six>=1.11.0 in /python3venv/lib/python3.10/site-packages (from jsonschema==3.2.0->jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1)) (1.17.0)
+#49 4.154 Requirement already satisfied: Jinja2>=2.0 in /python3venv/lib/python3.10/site-packages (from swagger-ui-bundle==0.0.5->-r /home/pipeline-server/src/server/requirements.service.txt (line 3)) (3.1.6)
+#49 4.159 Requirement already satisfied: idna in /python3venv/lib/python3.10/site-packages (from jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1)) (3.10)
+#49 4.173 Collecting jsonpointer>1.13 (from jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1))
+#49 4.183   Downloading jsonpointer-3.0.0-py2.py3-none-any.whl.metadata (2.3 kB)
+#49 4.197 Collecting webcolors (from jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1))
+#49 4.206   Downloading webcolors-24.11.1-py3-none-any.whl.metadata (2.2 kB)
+#49 4.209 Requirement already satisfied: click>=4.0 in /python3venv/lib/python3.10/site-packages (from clickclick<21,>=1.2->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (8.2.1)
+#49 4.214 Requirement already satisfied: itsdangerous>=2.0 in /python3venv/lib/python3.10/site-packages (from flask<3,>=1.0.4->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (2.2.0)
+#49 4.234 Collecting openapi-schema-validator<0.2.0 (from openapi-spec-validator<0.4,>=0.2.4->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 4.245   Downloading openapi_schema_validator-0.1.6-py3-none-any.whl.metadata (4.4 kB)
+#49 4.248 Collecting pyrsistent>=0.14.0 (from jsonschema==3.2.0->jsonschema[format_nongpl]==3.2.0->-r /home/pipeline-server/src/server/requirements.txt (line 1))
+#49 4.258   Downloading pyrsistent-0.16.1.tar.gz (108 kB)
+#49 4.279   Installing build dependencies: started
+#49 5.189   Installing build dependencies: finished with status 'done'
+#49 5.189   Getting requirements to build wheel: started
+#49 5.365   Getting requirements to build wheel: finished with status 'done'
+#49 5.366   Preparing metadata (pyproject.toml): started
+#49 5.466   Preparing metadata (pyproject.toml): finished with status 'done'
+#49 5.479 Collecting isodate (from openapi-schema-validator<0.2.0->openapi-spec-validator<0.4,>=0.2.4->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1))
+#49 5.488   Downloading isodate-0.7.2-py3-none-any.whl.metadata (11 kB)
+#49 5.495 Requirement already satisfied: charset_normalizer<4,>=2 in /python3venv/lib/python3.10/site-packages (from requests<3,>=2.9.1->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (3.4.2)
+#49 5.495 Requirement already satisfied: urllib3<3,>=1.21.1 in /python3venv/lib/python3.10/site-packages (from requests<3,>=2.9.1->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (1.26.20)
+#49 5.496 Requirement already satisfied: certifi>=2017.4.17 in /python3venv/lib/python3.10/site-packages (from requests<3,>=2.9.1->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (2025.4.26)
+#49 5.501 Requirement already satisfied: MarkupSafe>=2.1.1 in /python3venv/lib/python3.10/site-packages (from werkzeug<3,>=1.0->connexion==2.11.1->-r /home/pipeline-server/src/server/requirements.service.txt (line 1)) (3.0.2)
+#49 5.529 Downloading connexion-2.11.1-py2.py3-none-any.whl (92 kB)
+#49 5.576 Downloading jsonschema-3.2.0-py2.py3-none-any.whl (56 kB)
+#49 5.592 Downloading Flask_Cors-5.0.0-py2.py3-none-any.whl (14 kB)
+#49 5.604 Downloading swagger_ui_bundle-0.0.5-py3-none-any.whl (3.4 MB)
+#49 5.897    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 3.4/3.4 MB 11.8 MB/s eta 0:00:00
+#49 5.910 Downloading python_dateutil-2.8.0-py2.py3-none-any.whl (226 kB)
+#49 5.943 Downloading rfc3986_validator-0.1.1-py2.py3-none-any.whl (4.2 kB)
+#49 5.958 Downloading rfc3339_validator-0.1.2-py2.py3-none-any.whl (3.5 kB)
+#49 5.972 Downloading tornado-6.4.2-cp38-abi3-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (437 kB)
+#49 6.020 Downloading kafka_python-2.0.2-py2.py3-none-any.whl (246 kB)
+#49 6.052 Downloading websockets-10.1-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_12_x86_64.manylinux2010_x86_64.whl (110 kB)
+#49 6.074 Downloading nest_asyncio-1.5.4-py3-none-any.whl (5.1 kB)
+#49 6.086 Downloading clickclick-20.10.2-py2.py3-none-any.whl (7.4 kB)
+#49 6.099 Downloading inflection-0.5.1-py2.py3-none-any.whl (9.5 kB)
+#49 6.112 Downloading openapi_spec_validator-0.3.3-py2.py3-none-any.whl (31 kB)
+#49 6.127 Downloading openapi_schema_validator-0.1.6-py3-none-any.whl (7.9 kB)
+#49 6.140 Downloading werkzeug-2.3.8-py3-none-any.whl (242 kB)
+#49 6.173 Downloading jsonpointer-3.0.0-py2.py3-none-any.whl (7.6 kB)
+#49 6.186 Downloading isodate-0.7.2-py3-none-any.whl (22 kB)
+#49 6.199 Downloading webcolors-24.11.1-py3-none-any.whl (14 kB)
+#49 6.218 Building wheels for collected packages: paho-mqtt, pyrsistent
+#49 6.219   Building wheel for paho-mqtt (pyproject.toml): started
+#49 6.338   Building wheel for paho-mqtt (pyproject.toml): finished with status 'done'
+#49 6.338   Created wheel for paho-mqtt: filename=paho_mqtt-1.5.1-py3-none-any.whl size=61631 sha256=b09ae9ac67b43e9e5558cd72a6c7cb8ecf2ffbe52d37977441992199cef62f2d
+#49 6.338   Stored in directory: /tmp/pip-ephem-wheel-cache-ml7ft1us/wheels/b6/72/f9/44ca415a44f9cc7468fe4c59e6282938e504fadec09641fa63
+#49 6.340   Building wheel for pyrsistent (pyproject.toml): started
+#49 6.750   Building wheel for pyrsistent (pyproject.toml): finished with status 'done'
+#49 6.750   Created wheel for pyrsistent: filename=pyrsistent-0.16.1-cp310-cp310-linux_x86_64.whl size=105803 sha256=944b7dd7640a07eedb81cf869f4d81b9d2658c5edf4fc7ac8d4ce1fc766de46d
+#49 6.751   Stored in directory: /tmp/pip-ephem-wheel-cache-ml7ft1us/wheels/1f/39/9d/10b46cd603f1e7a70b60ed0352fe4133b0f38a3b3399ca09af
+#49 6.752 Successfully built paho-mqtt pyrsistent
+#49 6.919 Installing collected packages: paho-mqtt, kafka-python, werkzeug, websockets, webcolors, tornado, rfc3986-validator, rfc3339-validator, python_dateutil, pyrsistent, nest_asyncio, jsonpointer, isodate, inflection, clickclick, swagger-ui-bundle, jsonschema, openapi-schema-validator, Flask-Cors, openapi-spec-validator, connexion
+#49 7.020   Attempting uninstall: werkzeug
+#49 7.021     Found existing installation: Werkzeug 3.1.3
+#49 7.024     Uninstalling Werkzeug-3.1.3:
+#49 7.031       Successfully uninstalled Werkzeug-3.1.3
+#49 7.273   Attempting uninstall: python_dateutil
+#49 7.274     Found existing installation: python-dateutil 2.9.0.post0
+#49 7.276     Uninstalling python-dateutil-2.9.0.post0:
+#49 7.279       Successfully uninstalled python-dateutil-2.9.0.post0
+#49 7.523 
+#49 7.532 Successfully installed Flask-Cors-5.0.0 clickclick-20.10.2 connexion-2.11.1 inflection-0.5.1 isodate-0.7.2 jsonpointer-3.0.0 jsonschema-3.2.0 kafka-python-2.0.2 nest_asyncio-1.5.4 openapi-schema-validator-0.1.6 openapi-spec-validator-0.3.3 paho-mqtt-1.5.1 pyrsistent-0.16.1 python_dateutil-2.8.0 rfc3339-validator-0.1.2 rfc3986-validator-0.1.1 swagger-ui-bundle-0.0.5 tornado-6.4.2 webcolors-24.11.1 websockets-10.1 werkzeug-2.3.8
+#49 7.532 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#49 7.532 pandas 2.3.0 requires python-dateutil>=2.8.2, but you have python-dateutil 2.8.0 which is incompatible.
+#49 7.716 + python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
+#49 8.065 Collecting Werkzeug==3.1.3
+#49 8.155   Downloading werkzeug-3.1.3-py3-none-any.whl.metadata (3.7 kB)
+#49 8.328 Collecting orjson==3.10.12
+#49 8.337   Downloading orjson-3.10.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (41 kB)
+#49 8.359 Collecting packaging==24.2
+#49 8.368   Downloading packaging-24.2-py3-none-any.whl.metadata (3.2 kB)
+#49 8.553 Collecting boto3==1.36.17
+#49 8.563   Downloading boto3-1.36.17-py3-none-any.whl.metadata (6.7 kB)
+#49 8.564 Requirement already satisfied: MarkupSafe>=2.1.1 in /python3venv/lib/python3.10/site-packages (from Werkzeug==3.1.3) (3.0.2)
+#49 8.828 Collecting botocore<1.37.0,>=1.36.17 (from boto3==1.36.17)
+#49 8.838   Downloading botocore-1.36.26-py3-none-any.whl.metadata (5.7 kB)
+#49 8.852 Collecting jmespath<2.0.0,>=0.7.1 (from boto3==1.36.17)
+#49 8.861   Downloading jmespath-1.0.1-py3-none-any.whl.metadata (7.6 kB)
+#49 8.879 Collecting s3transfer<0.12.0,>=0.11.0 (from boto3==1.36.17)
+#49 8.889   Downloading s3transfer-0.11.5-py3-none-any.whl.metadata (1.7 kB)
+#49 8.890 Requirement already satisfied: python-dateutil<3.0.0,>=2.1 in /python3venv/lib/python3.10/site-packages (from botocore<1.37.0,>=1.36.17->boto3==1.36.17) (2.8.0)
+#49 8.890 Requirement already satisfied: urllib3!=2.2.0,<3,>=1.25.4 in /python3venv/lib/python3.10/site-packages (from botocore<1.37.0,>=1.36.17->boto3==1.36.17) (1.26.20)
+#49 8.892 Requirement already satisfied: six>=1.5 in /python3venv/lib/python3.10/site-packages (from python-dateutil<3.0.0,>=2.1->botocore<1.37.0,>=1.36.17->boto3==1.36.17) (1.17.0)
+#49 8.972 INFO: pip is looking at multiple versions of s3transfer to determine which version is compatible with other requirements. This could take a while.
+#49 8.981   Downloading s3transfer-0.11.4-py3-none-any.whl.metadata (1.7 kB)
+#49 8.991   Downloading s3transfer-0.11.3-py3-none-any.whl.metadata (1.7 kB)
+#49 9.090 Downloading werkzeug-3.1.3-py3-none-any.whl (224 kB)
+#49 9.124 Downloading orjson-3.10.12-cp310-cp310-manylinux_2_17_x86_64.manylinux2014_x86_64.whl (131 kB)
+#49 9.146 Downloading packaging-24.2-py3-none-any.whl (65 kB)
+#49 9.165 Downloading boto3-1.36.17-py3-none-any.whl (139 kB)
+#49 9.190 Downloading botocore-1.36.26-py3-none-any.whl (13.4 MB)
+#49 10.33    ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━ 13.4/13.4 MB 11.8 MB/s eta 0:00:00
+#49 10.34 Downloading jmespath-1.0.1-py3-none-any.whl (20 kB)
+#49 10.35 Downloading s3transfer-0.11.3-py3-none-any.whl (84 kB)
+#49 10.57 Installing collected packages: Werkzeug, packaging, orjson, jmespath, botocore, s3transfer, boto3
+#49 10.57   Attempting uninstall: Werkzeug
+#49 10.57     Found existing installation: Werkzeug 2.3.8
+#49 10.57     Uninstalling Werkzeug-2.3.8:
+#49 10.58       Successfully uninstalled Werkzeug-2.3.8
+#49 10.64   Attempting uninstall: packaging
+#49 10.64     Found existing installation: packaging 25.0
+#49 10.65     Uninstalling packaging-25.0:
+#49 10.65       Successfully uninstalled packaging-25.0
+#49 10.68   Attempting uninstall: orjson
+#49 10.68     Found existing installation: orjson 3.10.7
+#49 10.68     Uninstalling orjson-3.10.7:
+#49 10.68       Successfully uninstalled orjson-3.10.7
+#49 11.02 
+#49 11.03 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#49 11.03 connexion 2.11.1 requires werkzeug<3,>=1.0, but you have werkzeug 3.1.3 which is incompatible.
+#49 11.03 datumaro 1.9.1 requires orjson==3.10.7, but you have orjson 3.10.12 which is incompatible.
+#49 11.03 datumaro 1.9.1 requires PyYAML==6.0.1, but you have pyyaml 5.4.1 which is incompatible.
+#49 11.03 Successfully installed Werkzeug-3.1.3 boto3-1.36.17 botocore-1.36.26 jmespath-1.0.1 orjson-3.10.12 packaging-24.2 s3transfer-0.11.3
+#49 DONE 11.3s
+
+#50 [dlstreamer-pipeline-server dlstreamer-pipeline-server 32/48] RUN pip3 install --no-cache-dir -r  /home/pipeline-server/src/opentelemetry/requirements.txt
+#50 0.199 + pip3 install --no-cache-dir -r /home/pipeline-server/src/opentelemetry/requirements.txt
+#50 0.550 Collecting docker==7.1.0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1))
+#50 0.637   Downloading docker-7.1.0-py3-none-any.whl.metadata (3.8 kB)
+#50 0.666 Collecting opentelemetry-api==1.30.0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 2))
+#50 0.675   Downloading opentelemetry_api-1.30.0-py3-none-any.whl.metadata (1.6 kB)
+#50 0.692 Collecting opentelemetry-sdk==1.30.0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 3))
+#50 0.702   Downloading opentelemetry_sdk-1.30.0-py3-none-any.whl.metadata (1.6 kB)
+#50 0.956 Collecting opentelemetry-exporter-prometheus==0.51b0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 4))
+#50 0.966   Downloading opentelemetry_exporter_prometheus-0.51b0-py3-none-any.whl.metadata (1.9 kB)
+#50 0.986 Collecting opentelemetry-exporter-otlp==1.30.0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 5))
+#50 0.995   Downloading opentelemetry_exporter_otlp-1.30.0-py3-none-any.whl.metadata (2.5 kB)
+#50 1.013 Collecting opentelemetry-exporter-otlp-proto-grpc==1.30.0 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6))
+#50 1.023   Downloading opentelemetry_exporter_otlp_proto_grpc-1.30.0-py3-none-any.whl.metadata (2.4 kB)
+#50 1.049 Collecting prometheus_client==0.21.1 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 7))
+#50 1.059   Downloading prometheus_client-0.21.1-py3-none-any.whl.metadata (1.8 kB)
+#50 1.121 Collecting psutil==6.1.1 (from -r /home/pipeline-server/src/opentelemetry/requirements.txt (line 8))
+#50 1.131   Downloading psutil-6.1.1-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (22 kB)
+#50 1.139 Requirement already satisfied: requests>=2.26.0 in /python3venv/lib/python3.10/site-packages (from docker==7.1.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1)) (2.32.4)
+#50 1.140 Requirement already satisfied: urllib3>=1.26.0 in /python3venv/lib/python3.10/site-packages (from docker==7.1.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1)) (1.26.20)
+#50 1.156 Collecting deprecated>=1.2.6 (from opentelemetry-api==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 2))
+#50 1.166   Downloading Deprecated-1.2.18-py2.py3-none-any.whl.metadata (5.7 kB)
+#50 1.197 Collecting importlib-metadata<=8.5.0,>=6.0 (from opentelemetry-api==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 2))
+#50 1.206   Downloading importlib_metadata-8.5.0-py3-none-any.whl.metadata (4.8 kB)
+#50 1.225 Collecting opentelemetry-semantic-conventions==0.51b0 (from opentelemetry-sdk==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 3))
+#50 1.236   Downloading opentelemetry_semantic_conventions-0.51b0-py3-none-any.whl.metadata (2.5 kB)
+#50 1.237 Requirement already satisfied: typing-extensions>=3.7.4 in /python3venv/lib/python3.10/site-packages (from opentelemetry-sdk==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 3)) (4.14.0)
+#50 1.258 Collecting opentelemetry-exporter-otlp-proto-http==1.30.0 (from opentelemetry-exporter-otlp==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 5))
+#50 1.267   Downloading opentelemetry_exporter_otlp_proto_http-1.30.0-py3-none-any.whl.metadata (2.4 kB)
+#50 1.288 Collecting googleapis-common-protos~=1.52 (from opentelemetry-exporter-otlp-proto-grpc==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6))
+#50 1.297   Downloading googleapis_common_protos-1.70.0-py3-none-any.whl.metadata (9.3 kB)
+#50 1.298 Requirement already satisfied: grpcio<2.0.0,>=1.63.2 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6)) (1.73.0)
+#50 1.313 Collecting opentelemetry-exporter-otlp-proto-common==1.30.0 (from opentelemetry-exporter-otlp-proto-grpc==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6))
+#50 1.323   Downloading opentelemetry_exporter_otlp_proto_common-1.30.0-py3-none-any.whl.metadata (1.9 kB)
+#50 1.341 Collecting opentelemetry-proto==1.30.0 (from opentelemetry-exporter-otlp-proto-grpc==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6))
+#50 1.351   Downloading opentelemetry_proto-1.30.0-py3-none-any.whl.metadata (2.4 kB)
+#50 1.468 Collecting protobuf<6.0,>=5.0 (from opentelemetry-proto==1.30.0->opentelemetry-exporter-otlp-proto-grpc==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 6))
+#50 1.477   Downloading protobuf-5.29.5-cp38-abi3-manylinux2014_x86_64.whl.metadata (592 bytes)
+#50 1.507 Collecting zipp>=3.20 (from importlib-metadata<=8.5.0,>=6.0->opentelemetry-api==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 2))
+#50 1.516   Downloading zipp-3.23.0-py3-none-any.whl.metadata (3.6 kB)
+#50 1.520 Requirement already satisfied: charset_normalizer<4,>=2 in /python3venv/lib/python3.10/site-packages (from requests>=2.26.0->docker==7.1.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1)) (3.4.2)
+#50 1.520 Requirement already satisfied: idna<4,>=2.5 in /python3venv/lib/python3.10/site-packages (from requests>=2.26.0->docker==7.1.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1)) (3.10)
+#50 1.521 Requirement already satisfied: certifi>=2017.4.17 in /python3venv/lib/python3.10/site-packages (from requests>=2.26.0->docker==7.1.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 1)) (2025.4.26)
+#50 1.600 Collecting wrapt<2,>=1.10 (from deprecated>=1.2.6->opentelemetry-api==1.30.0->-r /home/pipeline-server/src/opentelemetry/requirements.txt (line 2))
+#50 1.610   Downloading wrapt-1.17.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl.metadata (6.4 kB)
+#50 1.622 Downloading docker-7.1.0-py3-none-any.whl (147 kB)
+#50 1.651 Downloading opentelemetry_api-1.30.0-py3-none-any.whl (64 kB)
+#50 1.666 Downloading opentelemetry_sdk-1.30.0-py3-none-any.whl (118 kB)
+#50 1.686 Downloading opentelemetry_exporter_prometheus-0.51b0-py3-none-any.whl (12 kB)
+#50 1.698 Downloading prometheus_client-0.21.1-py3-none-any.whl (54 kB)
+#50 1.713 Downloading opentelemetry_exporter_otlp-1.30.0-py3-none-any.whl (7.0 kB)
+#50 1.726 Downloading opentelemetry_exporter_otlp_proto_grpc-1.30.0-py3-none-any.whl (18 kB)
+#50 1.738 Downloading psutil-6.1.1-cp36-abi3-manylinux_2_12_x86_64.manylinux2010_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (287 kB)
+#50 1.782 Downloading opentelemetry_exporter_otlp_proto_common-1.30.0-py3-none-any.whl (18 kB)
+#50 1.795 Downloading opentelemetry_exporter_otlp_proto_http-1.30.0-py3-none-any.whl (17 kB)
+#50 1.808 Downloading opentelemetry_proto-1.30.0-py3-none-any.whl (55 kB)
+#50 1.825 Downloading opentelemetry_semantic_conventions-0.51b0-py3-none-any.whl (177 kB)
+#50 1.850 Downloading googleapis_common_protos-1.70.0-py3-none-any.whl (294 kB)
+#50 1.888 Downloading importlib_metadata-8.5.0-py3-none-any.whl (26 kB)
+#50 1.900 Downloading protobuf-5.29.5-cp38-abi3-manylinux2014_x86_64.whl (319 kB)
+#50 1.937 Downloading Deprecated-1.2.18-py2.py3-none-any.whl (10.0 kB)
+#50 1.949 Downloading wrapt-1.17.2-cp310-cp310-manylinux_2_5_x86_64.manylinux1_x86_64.manylinux_2_17_x86_64.manylinux2014_x86_64.whl (82 kB)
+#50 1.966 Downloading zipp-3.23.0-py3-none-any.whl (10 kB)
+#50 2.164 Installing collected packages: zipp, wrapt, psutil, protobuf, prometheus_client, opentelemetry-proto, importlib-metadata, googleapis-common-protos, docker, deprecated, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-exporter-prometheus, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, opentelemetry-exporter-otlp
+#50 2.265   Attempting uninstall: protobuf
+#50 2.265     Found existing installation: protobuf 4.25.8
+#50 2.269     Uninstalling protobuf-4.25.8:
+#50 2.276       Successfully uninstalled protobuf-4.25.8
+#50 2.629 
+#50 2.640 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#50 2.640 datumaro 1.9.1 requires orjson==3.10.7, but you have orjson 3.10.12 which is incompatible.
+#50 2.640 datumaro 1.9.1 requires PyYAML==6.0.1, but you have pyyaml 5.4.1 which is incompatible.
+#50 2.640 Successfully installed deprecated-1.2.18 docker-7.1.0 googleapis-common-protos-1.70.0 importlib-metadata-8.5.0 opentelemetry-api-1.30.0 opentelemetry-exporter-otlp-1.30.0 opentelemetry-exporter-otlp-proto-common-1.30.0 opentelemetry-exporter-otlp-proto-grpc-1.30.0 opentelemetry-exporter-otlp-proto-http-1.30.0 opentelemetry-exporter-prometheus-0.51b0 opentelemetry-proto-1.30.0 opentelemetry-sdk-1.30.0 opentelemetry-semantic-conventions-0.51b0 prometheus_client-0.21.1 protobuf-5.29.5 psutil-6.1.1 wrapt-1.17.2 zipp-3.23.0
+#50 DONE 2.9s
+
+#51 [dlstreamer-pipeline-server dlstreamer-pipeline-server 33/48] RUN pip3 install --no-cache-dir --upgrade opentelemetry-exporter-otlp
+#51 0.199 + pip3 install --no-cache-dir --upgrade opentelemetry-exporter-otlp
+#51 0.438 Requirement already satisfied: opentelemetry-exporter-otlp in /python3venv/lib/python3.10/site-packages (1.30.0)
+#51 0.537 Collecting opentelemetry-exporter-otlp
+#51 0.653   Downloading opentelemetry_exporter_otlp-1.34.1-py3-none-any.whl.metadata (2.4 kB)
+#51 0.684 Collecting opentelemetry-exporter-otlp-proto-grpc==1.34.1 (from opentelemetry-exporter-otlp)
+#51 0.694   Downloading opentelemetry_exporter_otlp_proto_grpc-1.34.1-py3-none-any.whl.metadata (2.4 kB)
+#51 0.709 Collecting opentelemetry-exporter-otlp-proto-http==1.34.1 (from opentelemetry-exporter-otlp)
+#51 0.718   Downloading opentelemetry_exporter_otlp_proto_http-1.34.1-py3-none-any.whl.metadata (2.3 kB)
+#51 0.720 Requirement already satisfied: googleapis-common-protos~=1.52 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (1.70.0)
+#51 0.720 Requirement already satisfied: grpcio<2.0.0,>=1.63.2 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (1.73.0)
+#51 0.720 Requirement already satisfied: opentelemetry-api~=1.15 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (1.30.0)
+#51 0.734 Collecting opentelemetry-exporter-otlp-proto-common==1.34.1 (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp)
+#51 0.744   Downloading opentelemetry_exporter_otlp_proto_common-1.34.1-py3-none-any.whl.metadata (1.9 kB)
+#51 0.761 Collecting opentelemetry-proto==1.34.1 (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp)
+#51 0.771   Downloading opentelemetry_proto-1.34.1-py3-none-any.whl.metadata (2.4 kB)
+#51 0.790 Collecting opentelemetry-sdk~=1.34.1 (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp)
+#51 0.799   Downloading opentelemetry_sdk-1.34.1-py3-none-any.whl.metadata (1.6 kB)
+#51 0.800 Requirement already satisfied: typing-extensions>=4.5.0 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (4.14.0)
+#51 0.802 Requirement already satisfied: requests~=2.7 in /python3venv/lib/python3.10/site-packages (from opentelemetry-exporter-otlp-proto-http==1.34.1->opentelemetry-exporter-otlp) (2.32.4)
+#51 0.802 Requirement already satisfied: protobuf<6.0,>=5.0 in /python3venv/lib/python3.10/site-packages (from opentelemetry-proto==1.34.1->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (5.29.5)
+#51 0.805 Requirement already satisfied: deprecated>=1.2.6 in /python3venv/lib/python3.10/site-packages (from opentelemetry-api~=1.15->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (1.2.18)
+#51 0.805 Requirement already satisfied: importlib-metadata<=8.5.0,>=6.0 in /python3venv/lib/python3.10/site-packages (from opentelemetry-api~=1.15->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (8.5.0)
+#51 0.808 Requirement already satisfied: zipp>=3.20 in /python3venv/lib/python3.10/site-packages (from importlib-metadata<=8.5.0,>=6.0->opentelemetry-api~=1.15->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (3.23.0)
+#51 0.827 Collecting opentelemetry-api~=1.15 (from opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp)
+#51 0.836   Downloading opentelemetry_api-1.34.1-py3-none-any.whl.metadata (1.5 kB)
+#51 0.851 Collecting opentelemetry-semantic-conventions==0.55b1 (from opentelemetry-sdk~=1.34.1->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp)
+#51 0.861   Downloading opentelemetry_semantic_conventions-0.55b1-py3-none-any.whl.metadata (2.5 kB)
+#51 0.864 Requirement already satisfied: charset_normalizer<4,>=2 in /python3venv/lib/python3.10/site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http==1.34.1->opentelemetry-exporter-otlp) (3.4.2)
+#51 0.864 Requirement already satisfied: idna<4,>=2.5 in /python3venv/lib/python3.10/site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http==1.34.1->opentelemetry-exporter-otlp) (3.10)
+#51 0.865 Requirement already satisfied: urllib3<3,>=1.21.1 in /python3venv/lib/python3.10/site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http==1.34.1->opentelemetry-exporter-otlp) (1.26.20)
+#51 0.865 Requirement already satisfied: certifi>=2017.4.17 in /python3venv/lib/python3.10/site-packages (from requests~=2.7->opentelemetry-exporter-otlp-proto-http==1.34.1->opentelemetry-exporter-otlp) (2025.4.26)
+#51 0.872 Requirement already satisfied: wrapt<2,>=1.10 in /python3venv/lib/python3.10/site-packages (from deprecated>=1.2.6->opentelemetry-api~=1.15->opentelemetry-exporter-otlp-proto-grpc==1.34.1->opentelemetry-exporter-otlp) (1.17.2)
+#51 0.883 Downloading opentelemetry_exporter_otlp-1.34.1-py3-none-any.whl (7.0 kB)
+#51 0.892 Downloading opentelemetry_exporter_otlp_proto_grpc-1.34.1-py3-none-any.whl (18 kB)
+#51 0.904 Downloading opentelemetry_exporter_otlp_proto_common-1.34.1-py3-none-any.whl (18 kB)
+#51 0.916 Downloading opentelemetry_exporter_otlp_proto_http-1.34.1-py3-none-any.whl (17 kB)
+#51 0.927 Downloading opentelemetry_proto-1.34.1-py3-none-any.whl (55 kB)
+#51 0.946 Downloading opentelemetry_sdk-1.34.1-py3-none-any.whl (118 kB)
+#51 0.967 Downloading opentelemetry_api-1.34.1-py3-none-any.whl (65 kB)
+#51 0.982 Downloading opentelemetry_semantic_conventions-0.55b1-py3-none-any.whl (196 kB)
+#51 1.184 Installing collected packages: opentelemetry-proto, opentelemetry-exporter-otlp-proto-common, opentelemetry-api, opentelemetry-semantic-conventions, opentelemetry-sdk, opentelemetry-exporter-otlp-proto-http, opentelemetry-exporter-otlp-proto-grpc, opentelemetry-exporter-otlp
+#51 1.184   Attempting uninstall: opentelemetry-proto
+#51 1.184     Found existing installation: opentelemetry-proto 1.30.0
+#51 1.187     Uninstalling opentelemetry-proto-1.30.0:
+#51 1.194       Successfully uninstalled opentelemetry-proto-1.30.0
+#51 1.212   Attempting uninstall: opentelemetry-exporter-otlp-proto-common
+#51 1.212     Found existing installation: opentelemetry-exporter-otlp-proto-common 1.30.0
+#51 1.214     Uninstalling opentelemetry-exporter-otlp-proto-common-1.30.0:
+#51 1.218       Successfully uninstalled opentelemetry-exporter-otlp-proto-common-1.30.0
+#51 1.229   Attempting uninstall: opentelemetry-api
+#51 1.230     Found existing installation: opentelemetry-api 1.30.0
+#51 1.233     Uninstalling opentelemetry-api-1.30.0:
+#51 1.244       Successfully uninstalled opentelemetry-api-1.30.0
+#51 1.270   Attempting uninstall: opentelemetry-semantic-conventions
+#51 1.270     Found existing installation: opentelemetry-semantic-conventions 0.51b0
+#51 1.275     Uninstalling opentelemetry-semantic-conventions-0.51b0:
+#51 1.288       Successfully uninstalled opentelemetry-semantic-conventions-0.51b0
+#51 1.338   Attempting uninstall: opentelemetry-sdk
+#51 1.338     Found existing installation: opentelemetry-sdk 1.30.0
+#51 1.342     Uninstalling opentelemetry-sdk-1.30.0:
+#51 1.351       Successfully uninstalled opentelemetry-sdk-1.30.0
+#51 1.393   Attempting uninstall: opentelemetry-exporter-otlp-proto-http
+#51 1.393     Found existing installation: opentelemetry-exporter-otlp-proto-http 1.30.0
+#51 1.395     Uninstalling opentelemetry-exporter-otlp-proto-http-1.30.0:
+#51 1.397       Successfully uninstalled opentelemetry-exporter-otlp-proto-http-1.30.0
+#51 1.408   Attempting uninstall: opentelemetry-exporter-otlp-proto-grpc
+#51 1.408     Found existing installation: opentelemetry-exporter-otlp-proto-grpc 1.30.0
+#51 1.410     Uninstalling opentelemetry-exporter-otlp-proto-grpc-1.30.0:
+#51 1.412       Successfully uninstalled opentelemetry-exporter-otlp-proto-grpc-1.30.0
+#51 1.423   Attempting uninstall: opentelemetry-exporter-otlp
+#51 1.423     Found existing installation: opentelemetry-exporter-otlp 1.30.0
+#51 1.424     Uninstalling opentelemetry-exporter-otlp-1.30.0:
+#51 1.426       Successfully uninstalled opentelemetry-exporter-otlp-1.30.0
+#51 1.434 
+#51 1.444 ERROR: pip's dependency resolver does not currently take into account all the packages that are installed. This behaviour is the source of the following dependency conflicts.
+#51 1.444 opentelemetry-exporter-prometheus 0.51b0 requires opentelemetry-sdk~=1.30.0, but you have opentelemetry-sdk 1.34.1 which is incompatible.
+#51 1.444 Successfully installed opentelemetry-api-1.34.1 opentelemetry-exporter-otlp-1.34.1 opentelemetry-exporter-otlp-proto-common-1.34.1 opentelemetry-exporter-otlp-proto-grpc-1.34.1 opentelemetry-exporter-otlp-proto-http-1.34.1 opentelemetry-proto-1.34.1 opentelemetry-sdk-1.34.1 opentelemetry-semantic-conventions-0.55b1
+#51 DONE 1.6s
+
+#52 [dlstreamer-pipeline-server dlstreamer-pipeline-server 34/48] RUN opt_in_out --opt_out
+#52 0.224 + opt_in_out --opt_out
+#52 0.269 You have successfully opted out to send the telemetry data.
+#52 DONE 0.4s
+
+#53 [dlstreamer-pipeline-server dlstreamer-pipeline-server 35/48] RUN mkdir -p /home/pipeline-server/models
+#53 0.187 + mkdir -p /home/pipeline-server/models
+#53 DONE 0.2s
+
+#54 [dlstreamer-pipeline-server dlstreamer-pipeline-server 36/48] COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy.py
+#54 DONE 0.1s
+
+#55 [dlstreamer-pipeline-server dlstreamer-pipeline-server 37/48] COPY ./user_scripts/udfs/python/add_label.py /home/pipeline-server/udfs/python/add_label.py
+#55 DONE 0.1s
+
+#56 [dlstreamer-pipeline-server dlstreamer-pipeline-server 38/48] COPY ./user_scripts/udfs/python/dummy_publisher.py /home/pipeline-server/udfs/python/dummy_publisher.py
+#56 DONE 0.1s
+
+#57 [dlstreamer-pipeline-server dlstreamer-pipeline-server 39/48] COPY ./user_scripts/udfs/python/geti_udf/ /home/pipeline-server/udfs/python/geti_udf/
+#57 DONE 0.1s
+
+#58 [dlstreamer-pipeline-server dlstreamer-pipeline-server 40/48] COPY ./resources/models/geti /home/pipeline-server/resources/models/geti
+#58 DONE 0.1s
+
+#59 [dlstreamer-pipeline-server dlstreamer-pipeline-server 41/48] COPY ./resources/videos/classroom.avi /home/pipeline-server/resources/videos/classroom.avi
+#59 DONE 0.1s
+
+#60 [dlstreamer-pipeline-server dlstreamer-pipeline-server 42/48] COPY ./resources/videos/warehouse.avi /home/pipeline-server/resources/videos/warehouse.avi
+#60 DONE 0.1s
+
+#61 [dlstreamer-pipeline-server dlstreamer-pipeline-server 43/48] COPY ./resources/videos/person-bicycle-car-detection.mp4 /home/pipeline-server/resources/videos/person-bicycle-car-detection.mp4
+#61 DONE 0.1s
+
+#62 [dlstreamer-pipeline-server dlstreamer-pipeline-server 44/48] COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
+#62 DONE 0.1s
+
+#63 [dlstreamer-pipeline-server dlstreamer-pipeline-server 45/48] COPY ./user_scripts/gvapython/mqtt_publisher/ /home/pipeline-server/gvapython/mqtt_publisher
+#63 DONE 0.1s
+
+#64 [dlstreamer-pipeline-server dlstreamer-pipeline-server 46/48] COPY ./user_scripts/gvapython/timestamp/ /home/pipeline-server/gvapython/timestamp
+#64 DONE 0.1s
+
+#65 [dlstreamer-pipeline-server dlstreamer-pipeline-server 47/48] COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva_event_meta
+#65 DONE 0.1s
+
+#66 [dlstreamer-pipeline-server dlstreamer-pipeline-server 48/48] COPY ./configs/default/config.json /home/pipeline-server/config.json
+#66 DONE 0.1s
+
+#67 [dlstreamer-pipeline-server] exporting to image
+#67 exporting layers
+#67 exporting layers 3.6s done
+#67 writing image sha256:181584c41988dbf6c34b7f7bd258473b33c93fdd11d5112cc8d65945b1a96a79 done
+#67 naming to docker.io/intel/dlstreamer-pipeline-server:3.1.0-ubuntu22 done
+#67 DONE 3.6s
+
+#68 [dlstreamer-pipeline-server] resolving provenance for metadata file
+#68 DONE 0.0s

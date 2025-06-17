@@ -40,6 +40,8 @@ services:
     privileged: false
     tty: true
     entrypoint: ["./run.sh"]
+    # entrypoint: sleep infinity
+    # user: "0"
     ports:
       - '8080:8080'
       - '8554:8554'
@@ -61,7 +63,7 @@ services:
       - https_proxy=$https_proxy
       - RUN_MODE=EVA
       - GENICAM=Balluff
-      - GST_DEBUG=1,gencamsrc:2
+      - GST_DEBUG=1,udfloader:6,python:6
       - LOG_LEVEL=${LOG_LEVEL}
       # Default Detection and Classification Device
       - DETECTION_DEVICE=CPU
@@ -87,7 +89,7 @@ services:
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
     volumes:
       # - "../resources:/home/pipeline-server/resources/"
-      # - "../configs/default/config.json:/home/pipeline-server/config.json"
+      - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"
       - "../Certificates/ssl_server/:/run/secrets/DLStreamerPipelineServer_Server:ro"
