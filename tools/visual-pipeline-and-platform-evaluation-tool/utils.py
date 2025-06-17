@@ -18,18 +18,7 @@ cancelled = False
 
 
 def prepare_video_and_constants(
-    input_video_player,
-    object_detection_model,
-    object_detection_device,
-    object_detection_batch_size,
-    object_detection_nireq,
-    object_detection_inference_interval,
-    object_classification_model,
-    object_classification_device,
-    object_classification_batch_size,
-    object_classification_nireq,
-    object_classification_inference_interval,
-    object_classification_reclassify_interval,
+    **kwargs: dict[str, any],
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -42,6 +31,27 @@ def prepare_video_and_constants(
     Returns:
         tuple: A tuple containing video_output_path, constants, and param_grid.
     """
+
+    # Collect parameters from kwargs
+    input_video_player = kwargs.get("input_video_player", "")
+    object_detection_model = kwargs.get("object_detection_model", "")
+    object_detection_device = kwargs.get("object_detection_device", "")
+    object_detection_batch_size = kwargs.get("object_detection_batch_size", 1)
+    object_detection_inference_interval = kwargs.get(
+        "object_detection_inference_interval", 0.0
+    )
+    object_detection_nireq = kwargs.get("object_detection_nireq", 1)
+    object_classification_model = kwargs.get("object_classification_model", "")
+    object_classification_device = kwargs.get("object_classification_device", "")
+    object_classification_batch_size = kwargs.get("object_classification_batch_size", 1)
+    object_classification_inference_interval = kwargs.get(
+        "object_classification_inference_interval", 0.0
+    )
+    object_classification_reclassify_interval = kwargs.get(
+        "object_classification_reclassify_interval", 0.0
+    )
+    object_classification_nireq = kwargs.get("object_classification_nireq", 1)
+
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
         ".mp4", f"-output-{random_string}.mp4"
@@ -51,6 +61,10 @@ def prepare_video_and_constants(
     # and stop.
     if os.path.exists(video_output_path):
         os.remove(video_output_path)
+
+    # Reset the FPS file
+    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+        f.write(f"0.0\n")
 
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
@@ -202,7 +216,7 @@ def run_pipeline_and_extract_metrics(
         )
 
         # Log the command
-        logger.info(f"Pipeline Command: {_pipeline}")
+        logger.debug(f"Pipeline Command: {_pipeline}")
 
         try:
             # Set the environment variable to enable all drivers

@@ -4,3 +4,4 @@ definition: >
   and collects additional data for tracking vehicles.
 metadata:
   classname: Transportation2Pipeline
+  enabled: false
