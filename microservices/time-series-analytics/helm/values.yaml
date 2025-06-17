@@ -5,6 +5,9 @@
 #
 
 namespace: apps
+# Please provide docker registry details below for docker-compose pull
+# Please provide full registry url with port trail by /
+# e.q. localhost:5000/
 DOCKER_REGISTRY: ''
 DOCKER_USERNAME: ''
 DOCKER_PASSWORD: ''
@@ -33,3 +36,8 @@ config:
       port: "5000"
     ext:
       port: "30002"
+
+images:
+  # Please provide the suffix for the image version you want to use like rc1, rc2, git hash id etc.
+  image_suffix: ""
+  time_series_analytics_image: intel/ia-time-series-analytics-microservice:1.0.0
