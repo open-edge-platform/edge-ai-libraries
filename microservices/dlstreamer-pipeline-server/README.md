@@ -156,6 +156,18 @@ Run the following commands:
    ```sh
      docker compose up
    ```
+
+---
+## Build from source with additional dependencies
+
+  ```sh
+    # Ubuntu22
+    docker build -f ext.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-ext-ubuntu22 --build-arg BASE_IMAGE="intel/dlstreamer-pipeline-server:3.1.0-ubuntu22" --build-arg USER="intelmicroserviceuser" .
+
+    # Ubuntu24
+    docker build -f ext.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-ext-ubuntu24 --build-arg BASE_IMAGE="intel/dlstreamer-pipeline-server:3.1.0-ubuntu24" --build-arg USER="intelmicroserviceuser" .
+  ```
+
 ---
 ### Run default sample
 Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
