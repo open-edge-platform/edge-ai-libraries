@@ -15,6 +15,8 @@ export TAG=${TAG:-latest}
 [[ -n "$PROJECT_NAME" ]] && PROJECT_NAME="${PROJECT_NAME%/}/"
 REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 
+export REGISTRY="${REGISTRY:-}"
+
 # Display info about the registry being used
 if [ -z "$REGISTRY" ]; then
   echo -e "${YELLOW}Warning: No registry prefix set. Images will be tagged without a registry prefix.${NC}"
@@ -92,16 +94,6 @@ fi
     }
   fi
 
-
-  # Build video ingestion microservice
-  cd "${uservices_dir}/video-ingestion/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-    docker compose build || { 
-      log_info "${RED}Failed to build video-ingestion microservice${NC}"; 
-      build_success=false; 
-    }
-  fi
-
   # Return to original directory
   cd "$current_dir"
   
@@ -111,7 +103,7 @@ fi
     # Print built images
     log_info "${GREEN}Built images:${NC}"
     echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio|video).*${TAG}"
+    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}"
     
     return 0
   else
@@ -129,6 +121,16 @@ build_sample_app() {
   # Save current directory
   local current_dir=$(pwd)
   local build_success=true
+
+
+  # Build video ingestion microservice
+  cd "${current_dir}/video-ingestion/docker" || return 0
+  if [ -f "compose.yaml" ]; then
+    docker compose build || { 
+      log_info "${RED}Failed to build video-ingestion microservice${NC}"; 
+      build_success=false; 
+    }
+  fi
 
   # Build pipeline-manager backend service
   cd "${current_dir}/pipeline-manager" || return 0
@@ -175,7 +177,7 @@ build_sample_app() {
     # Print built images
     log_info "${GREEN}Built sample application images:${NC}"
     echo "Retrieving Docker images related to sample applications..."
-    docker images | grep -E "${REGISTRY}.*(vss-ui|video-search|pipeline-manager).*$TAG"
+    docker images | grep -E "${REGISTRY}.*(vss-ui|video-search|pipeline-manager|video-ingestion).*$TAG"
     
     return 0
   else
@@ -209,7 +211,7 @@ push_images() {
 
   # Push sample application images
   log_info "Pushing sample application images..."
-  app_images=$(docker images | grep -E "${REGISTRY}.*(pipeline-manager|video-search|vss-ui).*${TAG}" | awk '{print $1":"$2}')
+  app_images=$(docker images | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}" | awk '{print $1":"$2}')
   
   for image in $app_images; do
     log_info "Pushing $image..."

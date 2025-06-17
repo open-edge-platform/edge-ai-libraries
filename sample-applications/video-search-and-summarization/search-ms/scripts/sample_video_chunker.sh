@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 chunk_duration=10
 input_video="<input_video_path>.mp4"
 output_dir="<output dir path>"

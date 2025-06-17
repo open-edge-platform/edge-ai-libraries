@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { SystemConfig } from 'src/video-upload/models/upload.model';
 import {
   Entity,

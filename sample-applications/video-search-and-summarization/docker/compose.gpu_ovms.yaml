@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 services:
   ovms-service:
     image: openvino/model_server:2025.1-gpu

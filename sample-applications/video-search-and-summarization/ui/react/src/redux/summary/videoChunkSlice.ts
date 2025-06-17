@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { UIChunkForState, VideoChunkState } from './summary';
 import { RootState } from '../store';

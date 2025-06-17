@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { SearchEntity } from 'src/search/model/search.entity';
 import { StateEntity } from 'src/state-manager/models/state.entity';
 import { VideoEntity } from 'src/video-upload/models/video.entity';

@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from pathlib import Path
 from typing import List, Optional, Any, Type, Literal
 from enum import Enum

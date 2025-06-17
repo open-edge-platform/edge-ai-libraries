@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { StateManagerModule } from 'src/state-manager/state-manager.module';

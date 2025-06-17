@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Sets required environment variable to run the VDMS-DataPrep microservice along with all dependencies.
 # Change these values as required.
 

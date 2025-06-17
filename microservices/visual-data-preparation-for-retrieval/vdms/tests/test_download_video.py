@@ -1,4 +1,6 @@
-# filepath: /home/intel/krishna/intel.gaiex/microservices/document-ingestion/vdms/tests/test_download_video.py.new
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 import io
 from http import HTTPStatus
 from unittest.mock import MagicMock

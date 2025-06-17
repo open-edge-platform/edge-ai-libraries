@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { ApiProperty, ApiResponse, ApiResponseProperty } from '@nestjs/swagger';
 
 export interface Features {

@@ -1,4 +1,7 @@
-﻿from ultralytics import YOLO
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+from ultralytics import YOLO
 import openvino, sys, shutil, os
 import argparse
 

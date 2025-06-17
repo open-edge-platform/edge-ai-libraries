@@ -1,4 +1,7 @@
-﻿import json
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+import json
 import logging
 import os
 from io import BytesIO

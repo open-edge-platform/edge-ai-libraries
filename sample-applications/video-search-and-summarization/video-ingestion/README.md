@@ -22,7 +22,7 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 
     ```bash
     git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    cd edge-ai-libraries/microservices/video-ingestion
+    cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
 2. Download and Convert Models to OpenVINO IR format
 

@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Runs tests and generates coverage report
 set -e
 

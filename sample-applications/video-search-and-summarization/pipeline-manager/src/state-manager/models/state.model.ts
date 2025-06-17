@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { AudioDevice, srtText } from 'src/audio/models/audio.model';
 import { FrameMetadata } from 'src/evam/models/message-broker.model';
 import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';

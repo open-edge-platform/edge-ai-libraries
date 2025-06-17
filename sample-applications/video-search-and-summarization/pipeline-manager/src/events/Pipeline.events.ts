@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 export enum PipelineEvents {
   UPLOAD_TO_DATASTORE = 'pipeline.upload',
   UPLOAD_TO_DATASTORE_COMPLETE = 'pipeline.upload.complete',

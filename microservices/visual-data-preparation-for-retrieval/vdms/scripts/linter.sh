@@ -1,4 +1,7 @@
 #!/bin/bash
+
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
 # Lints source code 
 
 if [ "$1" = "--apply" ] || [ "$1" = "-a" ]; then

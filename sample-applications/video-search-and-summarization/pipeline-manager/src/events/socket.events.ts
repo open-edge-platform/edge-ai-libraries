@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 export enum SocketEvent {
   STATE_SYNC = 'socket.stateSync',
   STATE_SYNC_PARTIAL = 'socket.stateSyncPartial',

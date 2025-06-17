@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 import { Injectable } from '@nestjs/common';
 import { AudioService } from 'src/audio/services/audio.service';
 import { StateService } from '../services/state.service';
