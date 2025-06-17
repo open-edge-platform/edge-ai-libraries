@@ -41,9 +41,15 @@ RUN chmod +x /tmp/install_gpu_drivers.sh
 RUN /tmp/install_gpu_drivers.sh
 RUN apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
-RUN mkdir -p /app/ov-models
+RUN groupadd -g 1001 appuser && useradd -m -s /bin/bash -u 1001 -g 1001 appuser
+
 COPY . .
 RUN mkdir -p /tmp/dataprep/videos
+RUN mkdir -p /root/.cache/huggingface /app/ov-models && \
+    chown -R appuser:appuser /root/.cache/huggingface /app/ov-models
+
+USER appuser
+
 EXPOSE 8000
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "debug"]

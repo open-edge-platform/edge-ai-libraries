@@ -94,6 +94,9 @@ export VLM_DEVICE=CPU
 export VLM_SEED=42
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
+export USER_GROUP_ID=$(id -g)
+export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
+export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
 # env for ovms-service
 export LLM_DEVICE=CPU

@@ -22,6 +22,7 @@ services:
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
     group_add:
+      - ${USER_GROUP_ID-1000}
       - ${VIDEO_GROUP_ID}
       - ${RENDER_GROUP_ID}
     restart: unless-stopped

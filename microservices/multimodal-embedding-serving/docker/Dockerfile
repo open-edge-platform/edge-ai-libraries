@@ -15,6 +15,8 @@ RUN pip install poetry
 
 RUN poetry config virtualenvs.create false
 
+RUN groupadd -g 1001 appuser && useradd -m -s /bin/bash -u 1001 -g 1001 appuser
+
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
@@ -22,7 +24,11 @@ RUN poetry install --no-root
 
 COPY . .
 RUN mkdir -p /tmp/dataprep/videos
-RUN mkdir -p /app/ov-models
+RUN mkdir -p /root/.cache/huggingface /app/ov-models && \
+    chown -R appuser:appuser /root/.cache/huggingface /app/ov-models
+
+USER appuser
+
 EXPOSE 8000
 
 CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "debug"]
