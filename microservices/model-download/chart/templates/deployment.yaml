@@ -23,6 +23,8 @@ spec:
           env:
             - name: HUGGINGFACE_HUB_CACHE
               value: "/root/.cache/huggingface"
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "1"
           volumeMounts:
             - name: huggingface-cache
               mountPath: /root/.cache/huggingface
