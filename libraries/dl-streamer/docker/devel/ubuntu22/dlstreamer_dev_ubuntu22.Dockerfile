@@ -18,7 +18,7 @@ ARG FFMPEG_VERSION=6.1.1
 ARG OPENVINO_VERSION=2025.1
 ARG OPENVINO_FILENAME=openvino_toolkit_ubuntu22_2025.1.0.18503.6fec06580ab_x86_64
 
-ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=/opt/intel/dlstreamer/gstreamer
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino_$OPENVINO_VERSION.0
 ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
@@ -305,6 +305,7 @@ RUN \
     .. && \
     make -j "$(nproc)" && \
     usermod -a -G video dlstreamer && \
+    ln -s /usr/local/lib/gstreamer-1.0 ${DLSTREAMER_DIR}/lib && \
     chown -R dlstreamer:dlstreamer /home/dlstreamer
 
 WORKDIR /home/dlstreamer
