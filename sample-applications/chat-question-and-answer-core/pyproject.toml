@@ -7,19 +7,18 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10"
+docx2txt = "^0.9"
+faiss-cpu = "1.9.0.post1"
 fastapi = "0.115.4"
+h11 = "0.16.0"
 huggingface_hub = "0.27.1"
-langchain = "^0.3.9"
+langchain-core = "^0.3.60"
 langchain-community = "^0.3.9"
 langchain-huggingface = "^0.1.2"
-faiss-cpu = "1.9.0.post1"
-python-multipart = ">=0.0.18"
-unstructured = {extras = ["pdf", "docx"], version = ">=0.14.3"}
 optimum = {extras = ["openvino", "nncf"], version = "1.24.0"}
+python-multipart = ">=0.0.18"
 transformers = ">=4.48.0"
-structlog = "25.1.0"
 uvicorn = ">=0.21.0,<0.23.0"
-h11 = "0.16.0"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^8.3.3"
