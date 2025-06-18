@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: multimodal-embedding-ms
+  labels:
+    {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
+spec:
+  type: {{ .Values.service.type }}
+  ports:
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.service.targetPort }} # Updated to shortened name
+      protocol: TCP
+      name: {{ .Values.service.name }} # Updated to shortened name
+  selector:
+    {{ include "multimodal-embedding-ms.selectorLabels" . | nindent 4 }}

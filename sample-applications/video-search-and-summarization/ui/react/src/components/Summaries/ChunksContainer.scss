@@ -1,0 +1,135 @@
+.chunks-wrapper {
+  margin-top: 2rem;
+  width: 100%;
+  border: 1px solid var(--color-gray-4);
+  padding: 1rem 1rem;
+  .chunks-container {
+    display: flex;
+    flex-flow: row nowrap;
+    padding: 2rem 1rem;
+    width: 100%;
+    // overflow: hidden;
+    overflow-x: auto;
+    overflow-y: hidden;
+    z-index: 2;
+
+    @keyframes fadeInOut {
+      0% {
+        opacity: 0.2;
+      }
+      50% {
+        opacity: 1;
+      }
+      100% {
+        opacity: 0.2;
+      }
+    }
+
+    @mixin statusColors {
+      &.gray {
+        background-color: var(--color-default);
+      }
+      &.purple {
+        background-color: var(--color-warning);
+      }
+
+      &.blue {
+        background-color: var(--color-info);
+        animation: fadeInOut 2s;
+        animation-iteration-count: infinite;
+      }
+      &.green {
+        background-color: var(--color-success);
+      }
+    }
+
+    .circle-status-indicator {
+      width: 1rem;
+      height: 1rem;
+      border-radius: 1rem;
+      margin-left: 0.5rem;
+      @include statusColors;
+    }
+
+    .chunk {
+      display: flex;
+      flex-flow: column nowrap;
+      align-items: flex-start;
+      justify-content: flex-start;
+      &:not(:last-child) {
+        margin-right: 1rem;
+      }
+      .chunk-header {
+        display: flex;
+        flex-flow: column nowrap;
+        width: 100%;
+        min-width: max-content;
+        border-bottom: 2px solid var(--color-info);
+        margin-bottom: 1rem;
+        .chunk-name {
+          display: flex;
+          flex-flow: row nowrap;
+          align-items: center;
+          width: 100%;
+          justify-content: flex-start;
+        }
+        .chunk-duration {
+          display: flex;
+          flex-flow: row nowrap;
+          align-items: center;
+          justify-content: flex-start;
+          width: 100%;
+        }
+      }
+      .frames {
+        display: flex;
+        flex-flow: row nowrap;
+        .frame {
+          width: 4rem;
+          background-color: #fff;
+          overflow: hidden;
+          transition: all 0.5s;
+
+          .frame-title {
+            display: flex;
+            flex-flow: row nowrap;
+            align-items: center;
+            justify-content: flex-start;
+          }
+
+          .status {
+            height: 0.5rem;
+            width: 100%;
+            @include statusColors;
+          }
+          &:hover {
+            width: 24rem;
+            &:not(:first-child) {
+              margin-left: 1rem;
+            }
+
+            &:not(:last-child) {
+              margin-right: 1rem;
+            }
+            .frame-content {
+              .captions {
+                width: 100%;
+              }
+            }
+          }
+          .frame-content {
+            min-width: 24rem;
+            height: 20rem;
+            .captions {
+              overflow: hidden;
+              width: 0;
+            }
+            .frame-image {
+              width: 100%;
+            }
+          }
+        }
+      }
+    }
+  }
+}

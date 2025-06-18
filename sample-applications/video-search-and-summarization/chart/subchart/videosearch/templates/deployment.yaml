@@ -1,0 +1,77 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "videosearch.fullname" . }}
+  labels:
+    app: {{ include "videosearch.name" . }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ include "videosearch.name" . }}
+  template:
+    metadata:
+      labels:
+        app: {{ include "videosearch.name" . }}
+    spec:
+      containers:
+        - name: videosearch
+          image: "{{ .Values.videosearch.image.repository }}:{{ .Values.videosearch.image.tag }}"
+          imagePullPolicy: "{{ .Values.videosearch.image.pullPolicy }}"
+          ports:
+            - containerPort: {{ .Values.videosearch.service.targetPort }}
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+            - name: no_proxy_env
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: VDMS_VDB_HOST
+              value: "{{ .Values.videosearch.env.VDMS_VDB_HOST }}"
+            - name: VDMS_VDB_PORT
+              value: "{{ .Values.videosearch.env.VDMS_VDB_PORT }}"
+            - name: VCLIP_HOST_PORT
+              value: "{{ .Values.mmEmbeddingingMs.service.port }}"
+            - name: VCLIP_START_OFFSET_SEC
+              value: "{{ .Values.videosearch.env.VCLIP_START_OFFSET_SEC }}"
+            - name: VCLIP_CLIP_DURATION
+              value: "{{ .Values.videosearch.env.VCLIP_CLIP_DURATION }}"
+            - name: VCLIP_EMBEDDINGS_NUM_FRAMES
+              value: "{{ .Values.global.env.VCLIP_NUM_FRAMES }}"
+            - name: VCLIP_USE_OV
+              value: "{{ .Values.videosearch.env.VCLIP_USE_OV }}"
+            - name: VCLIP_DEVICE
+              value: "{{ .Values.videosearch.env.VCLIP_DEVICE }}"
+            - name: VCLIP_HOST
+              value: "{{ .Values.mmEmbeddingingMs.name }}"
+            - name: WATCH_DIRECTORY
+              value: "{{ .Values.videosearch.env.VS_WATCHER_DIR }}"
+            - name: DEBOUNCE_TIME
+              value: "{{ .Values.videosearch.env.VS_DEBOUNCE_TIME }}"
+            - name: DELETE_PROCESSED_FILES
+              value: "{{ .Values.videosearch.env.VS_DELETE_PROCESSED_FILES }}"
+            - name: VS_INITIAL_DUMP
+              value: "{{ .Values.videosearch.env.VS_INITIAL_DUMP }}"
+            - name: MINIO_API_PORT
+              value: "{{ .Values.minioServer.service.port }}"
+            - name: MINIO_HOST
+              value: "{{ .Values.minioServer.name }}"
+            - name: MINIO_ROOT_USER
+              value: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
+            - name: MINIO_ROOT_PASSWORD
+              value: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
+            - name: VCLIP_EMBEDDINGS_MODEL_NAME
+              value: {{ .Values.global.env.VCLIP_MODEL | quote }}
+            - name: VCLIP_EMBEDDINGS_ENDPOINT
+              value: {{ .Values.global.env.VCLIP_ENDPOINT | quote }}
+            - name: INDEX_NAME
+              value: {{ .Values.global.env.VS_INDEX_NAME | quote }}
+            - name: DATAPREP_UPLOAD_URL
+              value: {{ .Values.videosearch.env.VDMS_DATAPREP_UPLOAD }}
+            - name: VDMS_BUCKET
+              value: "{{ .Values.videosearch.env.VDMS_BUCKET }}"
+            - name: CHUNK_DURATION
+              value: "{{ .Values.videosearch.env.VS_DEFAULT_CLIP_DURATION }}"
