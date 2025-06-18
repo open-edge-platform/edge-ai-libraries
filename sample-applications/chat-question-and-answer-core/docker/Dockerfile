@@ -27,14 +27,13 @@ RUN if [ "$USE_GPU" = "true" ]; then \
     echo "Installing dGPU drivers version $INSTALL_DRIVER_VERSION"; \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates libxml2; \
     /tmp/drivers/install_dgpu_drivers.sh; \
-    fi && \
-    apt-get clean && \
-    rm -rf /tmp/drivers && \
-    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
+    fi; \
     else \
     if [ "$GPU_TYPE" != "none" ]; then \
     echo "USE_GPU is set to false. No GPU drivers will be installed. Only CPU is supported."; \
     fi; \
+    apt-get clean && \
+    rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*; \
     fi
 
 # Setting env vars for python, pip and poetry
@@ -59,7 +58,7 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip setuptools
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
@@ -74,7 +73,7 @@ RUN apt-get update && apt-get install --no-install-recommends -y curl build-esse
 RUN curl -sSL https://install.python-poetry.org | python -
 
 WORKDIR $SETUP_PATH
-COPY poetry.lock pyproject.toml ./
+COPY pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 RUN poetry install --only main
 
@@ -86,7 +85,9 @@ ENV FASTAPI_ENV=development
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR $SETUP_PATH
 
@@ -112,8 +113,11 @@ ENV FASTAPI_ENV=production
 
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    libmagic-dev \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
