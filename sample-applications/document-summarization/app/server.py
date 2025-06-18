@@ -13,7 +13,7 @@ from llama_index.core import SimpleDirectoryReader
 from llama_index.llms.openai_like import OpenAILike
 from llama_index.core.base.llms.types import CompletionResponse, CompletionResponseGen
 from llama_index.core.llms.callbacks import llm_completion_callback
-from config import Settings
+from app.config import Settings
 
 config = Settings()
 from opentelemetry import trace
