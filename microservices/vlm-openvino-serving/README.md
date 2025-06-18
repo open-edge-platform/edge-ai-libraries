@@ -24,8 +24,7 @@ vlm-openvino-serving/
 ├── logging.comf
 ├── poetry.lock
 ├── pyproject.toml 
-├── compose.yaml 
-├── compose.gpuyaml 
+├── compose.yaml
 ├── app.py 
 ├── utils/ 
 │   ├── init.py 
@@ -33,7 +32,6 @@ vlm-openvino-serving/
 │   ├── utils.py
 ├── docker/
 │   ├── Dockerfile 
-│   ├── Dockerfile.gpu
 ├── scripts/
 │   ├── install_ubuntu_gpu_drivers.sh 
 │   ├── compress_model.sh
@@ -46,11 +44,11 @@ vlm-openvino-serving/
 
 **_(Optional)_** Docker Compose builds the _VLM Inference Serving_ with a default image and tag name. If you want to use a different image and tag, export these variables:
 
-  ```bash
-    export REGISTRY_URL="your_container_registry_url"
-    export PROJECT_NAME="your_project_name"
-    export TAG="your_tag"
-    ```
+```bash
+  export REGISTRY_URL="your_container_registry_url"
+  export PROJECT_NAME="your_project_name"
+  export TAG="your_tag"
+  ```
 > **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url. 
 
 > **_EXAMPLE:_** If variables are set using above command, the final image names for _Video Summary Reference Application_ would be `<your-container-registry-url>/<your-project-name>/vlm-openvino-serving:<your-tag>`. If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be : `vlm-openvino-serving:latest`.
