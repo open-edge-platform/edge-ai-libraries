@@ -1,0 +1,27 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "vdms-dataprep.fullname" . }}-config
+  labels:
+    {{- include "vdms-dataprep.labels" . | nindent 4 }}
+data:
+  {{- if .Values.vdmsVectorDbHost }}
+  VDMS_VDB_HOST: {{ .Values.vdmsVectorDbHost | quote }}
+  {{- else }}
+  VDMS_VDB_HOST: "vdms-vectordb"
+  {{- end }}
+  VDMS_VDB_PORT: {{ .Values.vdmsVectorDbPort | quote }}
+  DB_COLLECTION: {{ .Values.indexName | quote }}
+  APP_HOST: "vdms-dataprep"
+  DATASTORE_BUCKET: {{ .Values.bucketName | quote }}
+  http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
+  https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
+  MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
+  MULTIMODAL_EMBEDDING_MODEL_NAME: {{ .Values.multimodalEmbeddingModelName | quote }}
+  MULTIMODAL_EMBEDDING_NUM_FRAMES: {{ .Values.multimodalEmbeddingNumFrames | quote }}
+  no_proxy: "localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+  MINIO_ACCESS_KEY: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
+  MINIO_SECRET_KEY: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
+  MINIO_ENDPOINT: {{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}
+  MINIO_SECURE: "false"
+  FASTAPI_ENV: development

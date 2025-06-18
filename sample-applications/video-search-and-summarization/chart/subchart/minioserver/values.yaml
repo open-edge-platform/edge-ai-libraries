@@ -1,0 +1,28 @@
+global:
+  proxy:
+    no_proxy:
+    http_proxy:
+    https_proxy:
+  env:
+    MINIO_ROOT_USER:
+    MINIO_ROOT_PASSWORD:
+
+minioServer:
+  name: minio-server
+  image:
+    repository: minio/minio
+    tag: RELEASE.2025-02-07T23-21-09Z-cpuv1
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    # API port configuration
+    port: 9000
+    targetPort: 9000
+    # Console port configuration
+    consolePort: 9001
+    consoleTargetPort: 9001
+  volumeMounts:
+    pvcName: minio-pvc
+    egai_minio_pvc:
+      size: 20Gi
+      accessMode: ReadWriteOnce

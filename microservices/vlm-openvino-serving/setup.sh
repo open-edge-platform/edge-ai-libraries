@@ -31,6 +31,10 @@ if [[ "$VLM_DEVICE" == "GPU" ]]; then
     export WORKERS=1
 fi
 
+export USER_GROUP_ID=$(id -g)
+export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
+export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
 export VLM_SERVICE_PORT=9764
 export VLM_SEED=42
 
