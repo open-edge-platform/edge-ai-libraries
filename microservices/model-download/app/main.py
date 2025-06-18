@@ -8,7 +8,7 @@ from fastapi import FastAPI, Header, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel, Field, ValidationError
 from huggingface_hub import snapshot_download
-from logger import logger
+from .logger import logger
 
 app = FastAPI(root_path="/api/v1",title="Model Download Service", version="1.0.0")
 
