@@ -3,7 +3,11 @@
 
 FROM node:20-slim AS vite-app
 
-RUN useradd -m user
+# Create a non-root user
+RUN groupadd -g 1001 user && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 user && \
+    chown -R user:user $HOME 
+
 USER user
 
 WORKDIR /user/app

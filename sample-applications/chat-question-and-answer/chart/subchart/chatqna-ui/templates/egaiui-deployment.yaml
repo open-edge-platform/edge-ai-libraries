@@ -33,5 +33,3 @@ spec:
               value: {{ .Values.global.proxy.https_proxy }}
             - name: NO_PROXY
               value: {{ .Values.global.proxy.no_proxy }}
-          securityContext:
-            allowPrivilegeEscalation: false    
