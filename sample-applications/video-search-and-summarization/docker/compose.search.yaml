@@ -138,7 +138,7 @@ services:
     networks:
       - vs_network
     volumes:
-      - /home/$USER/.cache/huggingface/hub:/root/.cache/huggingface/hub
+      - /home/$USER/.cache/huggingface/hub:/appuser/.cache/huggingface/hub
       - data-prep:/tmp/dataprep
       - ov-models:/app/ov-models
 

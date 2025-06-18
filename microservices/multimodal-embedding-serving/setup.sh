@@ -44,6 +44,8 @@ fi
 # Fetch group IDs
 VIDEO_GROUP_ID=$(getent group video | awk -F: '{print $3}')
 RENDER_GROUP_ID=$(getent group render | awk -F: '{print $3}')
+export USER_ID=$(id -u)
+export USER_GROUP_ID=$(id -g)
 
 docker volume create data-prep
 docker volume create ov-models
