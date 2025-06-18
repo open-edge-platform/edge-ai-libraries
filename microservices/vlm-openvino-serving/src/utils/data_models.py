@@ -68,7 +68,7 @@ class Message(BaseModel):
 
     Attributes:
         role (str): The role of the message sender (e.g., "user").
-        content (Union[str, List[Union[MessageContentText, MessageContentImageUrl, MessageContentVideo, MessageContentVideoUrl]]]):
+        content (Union[str, List[Union[str, MessageContentText, MessageContentImageUrl, MessageContentVideo, MessageContentVideoUrl]]]):
             The content of the message.
     """
 
@@ -77,6 +77,7 @@ class Message(BaseModel):
         str,
         List[
             Union[
+                str,
                 MessageContentText,
                 MessageContentImageUrl,
                 MessageContentVideo,
