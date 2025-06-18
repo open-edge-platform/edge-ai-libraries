@@ -17,6 +17,7 @@ import threading
 import classifier_startup
 from fastapi import BackgroundTasks
 import opcua_alerts
+from opcua_alerts import OpcuaAlerts
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -34,6 +35,7 @@ KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 global config
 config = {}
+opcua_send_alert = None
 
 class DataPoint(BaseModel):
     topic: str
@@ -46,7 +48,7 @@ class Config(BaseModel):
     udfs: dict = {"name": "udf_name"}
     alerts: Optional[dict] = {}
 
-class OpcuaAlerts(BaseModel):
+class Opcua_Alerts_Message(BaseModel):
    class Config:
        extra = 'allow'
 
@@ -114,7 +116,7 @@ def health_check(response: Response):
         return {"status": "An error occurred while checking the service"}
 
 @app.post("/opcua_alerts")
-async def receive_alert(alert: OpcuaAlerts):
+async def receive_alert(alert: Opcua_Alerts_Message):
     """
     Receive and process OPC UA alerts.
 
@@ -149,28 +151,36 @@ async def receive_alert(alert: OpcuaAlerts):
     Raises:
         HTTPException: If OPC UA alerts are not configured or if there is an error during processing.
     """
+    global opcua_send_alert
     try:
         if "alerts" in config.keys() and "opcua" in config["alerts"].keys():
-            if not hasattr(opcua_alerts, "initialized") or not opcua_alerts.initialized:
-                try:
-                    opcua_alerts.initialize_opcua(config)
-                except RuntimeError as e:
-                    logger.exception("Failed to initialize OPC UA client")  # This logs the full traceback
-                    raise HTTPException(status_code=500, detail=f"Failed to initialize OPC UA client: {e}")
-                except Exception as e:
-                    logger.exception("Failed to initialize OPC UA client")  # This logs the full traceback
-                    raise HTTPException(status_code=500, detail=f"Failed to initialize OPC UA client: {e}")
-                opcua_alerts.initialized = True
+            try:
+                if opcua_send_alert is None or \
+                    opcua_send_alert.opcua_server != config["alerts"]["opcua"]["opcua_server"] or \
+                    not(await opcua_send_alert.is_connected()):
+                    logger.info("Initializing OPC UA client for sending alerts")
+                    opcua_send_alert = OpcuaAlerts(config)
+                    await opcua_send_alert.initialize_opcua()
+            except Exception as e:
+                logger.exception("Failed to initialize OPC UA client")  # This logs the full traceback
+                raise HTTPException(status_code=500, detail=f"Failed to initialize OPC UA client: {e}")
+
+            if opcua_send_alert.node_id != config["alerts"]["opcua"]["node_id"] or \
+                opcua_send_alert.namespace != config["alerts"]["opcua"]["namespace"]:
+                opcua_send_alert.node_id = config["alerts"]["opcua"]["node_id"]
+                opcua_send_alert.namespace = config["alerts"]["opcua"]["namespace"]
+            
             alert_message = json.dumps(alert.model_dump())
             try:
-                await opcua_alerts.send_alert_to_opcua_async(alert_message)
+                await opcua_send_alert.send_alert_to_opcua(alert_message)
             except Exception as e:
-                logger.exception(e)
-            return {"status_code": 200, "status": "success", "message": "Alert received"}
+                logger.exception(f"Failed to send alert to OPC UA node:{e}")
+                raise HTTPException(status_code=500, detail=f"Failed to send alert: {e}")
         else:
             raise HTTPException(status_code=500, detail="OPC UA alerts are not configured in the service")
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+    return {"status_code": 200, "status": "success", "message": "Alert received"}
 
 @app.post("/input")
 async def receive_data(data_point: DataPoint):
