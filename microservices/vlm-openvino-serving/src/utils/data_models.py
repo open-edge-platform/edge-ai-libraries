@@ -116,7 +116,7 @@ class ChatRequest(BaseModel):
         None, json_schema_extra={"example": 1.15}
     )
     max_completion_tokens: Optional[int] = Field(
-        None, json_schema_extra={"example": 1000}
+        500, json_schema_extra={"example": 1000}
     )
     temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.3})
     top_p: Optional[float] = Field(None, json_schema_extra={"example": 0.5})
