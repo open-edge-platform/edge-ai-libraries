@@ -31,7 +31,7 @@ TensorsTable DetectionAnomalyConverter::convert(const OutputBlobs &output_blobs)
         tensors_table.resize(batch_size);
 
         double pred_score = 0.0;
-        double image_threshold_norm = normalize(image_threshold, 0.0f);
+        double image_threshold_norm = image_threshold / normalization_scale;
         cv::Mat anomaly_map;
         cv::Mat pred_mask;
         std::string pred_label = "";
@@ -85,6 +85,12 @@ TensorsTable DetectionAnomalyConverter::convert(const OutputBlobs &output_blobs)
                 throw std::runtime_error("Anomaly-detection converter: Not supported Label."
                                          "Expected 'Normal' or 'Anomaly', got: " +
                                          pred_label);
+            }
+
+            pred_score = (pred_score - image_threshold_norm) + 0.5f;
+            pred_score = std::min(std::max(pred_score, 0.), 1.);
+            if (pred_label == labels[0]) {    // normal label
+                pred_score = 1 - pred_score;  // Score of normal is 1 - score of anomaly
             }
 
             GVA_INFO("pred_label: %s, pred_score: %f, image_threshold: %f, "

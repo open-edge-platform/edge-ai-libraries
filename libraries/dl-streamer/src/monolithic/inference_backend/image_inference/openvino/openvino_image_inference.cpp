@@ -1129,6 +1129,17 @@ class OpenVinoNewApiImpl {
             input.tensor().set_layout("NCHW");
         }
 
+        // IE color conversion on OPENCV flow
+        if (pp_type == ImagePreprocessorType::OPENCV) {
+            // OpenCV reads image in to BGR format
+            const auto color_format_pair = get_ov_color_format("BGR");
+            input.tensor().set_color_format(color_format_pair.first, color_format_pair.second);
+            // Convert input tensor color space into model color space if necessary
+            const auto model_format_pair = get_ov_color_format(config.model_format());
+            if (color_format_pair.first != model_format_pair.first)
+                input.preprocess().convert_color(model_format_pair.first);
+        }
+
         // OV preprocessing is configured only for IE or VAAPI_SURFACE_SHARING
         if (pp_type == ImagePreprocessorType::VAAPI_SURFACE_SHARING || pp_type == ImagePreprocessorType::IE) {
 
