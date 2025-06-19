@@ -11,7 +11,6 @@ import gi
 gi.require_version('Gst', '1.0')
 # pylint: disable=wrong-import-position
 import os
-import json
 import queue
 import string
 import random
@@ -25,9 +24,8 @@ from time import time_ns
 from gi.repository import Gst
 from distutils.util import strtobool
 from gstgva.util import gst_buffer_data
-from typing import Dict, List
+from typing import Dict
 
-from src.server.gstreamer_app_source import GvaFrameData
 from src.common.log import get_logger
 
 from utils import publisher_utils as utils
