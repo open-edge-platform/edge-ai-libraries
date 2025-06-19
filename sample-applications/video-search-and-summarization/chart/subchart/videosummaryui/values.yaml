@@ -1,0 +1,23 @@
+global:
+  proxy:
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
+  env:
+    APP_ENDPOINT_URL: "/manager"
+    APP_ASSETS_URL: "/minio"
+
+videosummaryui: 
+  name: videosummaryui
+image:
+  repository: intel/vss-ui
+  tag: "1.2.0"
+  pullPolicy: IfNotPresent
+service:
+  type: ClusterIP
+  port: 8100
+  targetPort: 80
+feature:
+  summary: "FEATURE_OFF"
+  search: "FEATURE_ON"
+  mux: "ATOMIC"

@@ -24,6 +24,10 @@ services:
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID-1000} 
+      - ${VIDEO_GROUP_ID}    
+      - ${RENDER_GROUP_ID} 
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -33,7 +37,7 @@ services:
     networks:
       - my_network
     volumes:
-      - "/home/$USER/.cache/huggingface:/root/.cache/huggingface"
+      - "/home/$USER/.cache/huggingface:/home/appuser/.cache/huggingface"
       - ov-models:/app/ov-model
 volumes:
   ov-models:
