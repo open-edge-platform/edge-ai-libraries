@@ -1,0 +1,30 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ovms.script.name }}
+  labels:
+    app: {{ .Values.ovms.script.name }}
+
+data:
+  init-script.sh: |-
+    #!/bin/bash
+    model=$0
+    weight_format=$1
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
+    
+    # Log in to Hugging Face using the provided token
+    huggingface-cli login --token $2
+
+    # Check if the login was successful
+    if [ $? -eq 0 ]; then
+        echo "Successfully logged in to Hugging Face!"
+    else
+        echo "Failed to log in to Hugging Face. Please check your token and try again."
+    fi
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
+    mkdir models
+    python export_model.py text_generation --source_model "${model}" --weight-format int4 --config_file_path models/config.json --model_repository_path models --target_device CPU
+    
+    cp -r models /opt/data
+
+    echo "All the steps are completed successfully"

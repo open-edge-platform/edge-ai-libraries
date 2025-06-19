@@ -1,0 +1,60 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "vlminference.fullname" . }}
+  labels:
+    app: {{ include "vlminference.name" . }}
+spec:
+  replicas: {{ .Values.vlminference.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.vlminference.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.vlminference.name }}
+    spec:
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
+      containers:
+        - name: {{ .Values.vlminference.name }}
+          image: "{{ .Values.vlminference.image.repository }}:{{ .Values.vlminference.image.tag }}"
+          imagePullPolicy: {{ .Values.vlminference.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.vlminference.service.targetPort }}
+          env:
+            - name: VLM_MODEL_NAME
+              value: {{ .Values.vlminference.env.VLM_MODEL_NAME | quote }}
+            - name: VLM_COMPRESSION_WEIGHT_FORMAT
+              value: {{ .Values.vlminference.env.VLM_COMPRESSION_WEIGHT_FORMAT | quote }}
+            - name: VLM_DEVICE
+              value: {{ .Values.vlminference.env.VLM_DEVICE | quote }}
+            - name: VLM_SEED
+              value: {{ .Values.vlminference.env.VLM_SEED | quote }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy | quote }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy | quote }}
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: NO_PROXY
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: no_proxy_env
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: MULTI_FRAME_COUNT
+              value: {{ .Values.vlminference.env.MULTI_FRAME_COUNT | quote }}
+            - name: VLM_CONCURRENT
+              value: {{ .Values.vlminference.env.VLM_CONCURRENT | quote }}
+            - name: VLM_HOST_PORT
+              value: {{ .Values.vlminference.env.VLM_HOST_PORT | quote }}
+          volumeMounts:
+          - name: workspace
+            mountPath: /app/ov-model
+          securityContext:
+            readOnlyRootFilesystem: false
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ .Values.vlminference.volumeMounts.pvcName }}

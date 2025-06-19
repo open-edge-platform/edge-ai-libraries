@@ -1,0 +1,2 @@
+https://github.*
+https://adamtheautomator.com/installing-kubernetes-on-ubuntu/#Installing_Kubernetes_on_the_Master_and_Worker_Nodes

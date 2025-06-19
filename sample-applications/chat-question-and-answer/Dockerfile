@@ -4,34 +4,34 @@
 FROM python:3.11-slim
 
 ENV HOME="/home/intelgai"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
 # Create a non-root user
 RUN groupadd -g 1001 intelgai && \
     useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
-    chown -R intelgai:intelgai $HOME 
-
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
+    chown -R intelgai:intelgai $HOME && \
+    apt-get update -y && \
+    apt-get install -y --no-install-recommends --fix-missing \
     libgl1-mesa-glx \
-    libjemalloc-dev
+    libjemalloc-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir poetry nltk && \
+    poetry config virtualenvs.create false && \
+    mkdir -p /home/intelgai/.cache/huggingface && \
+    chown intelgai:intelgai /home/intelgai/.cache/huggingface
 
-RUN pip install --no-cache-dir --upgrade pip setuptools && \
-    pip install poetry vllm nltk
-
-RUN poetry config virtualenvs.create false
-
-COPY . my-app
-
-RUN rm -rf /my-app/deploy
-
+#COPY . my-app
+#COPY pyproject.toml poetry.lock README.md app/ my-app/
 WORKDIR /my-app
+COPY pyproject.toml poetry.lock README.md ./
+COPY app ./app
 
-RUN poetry install --only main
-
-RUN python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng
-
-RUN mkdir /home/intelgai/.cache/huggingface
-
-RUN chown intelgai:intelgai /home/intelgai/.cache/huggingface
+# Install dependencies and NLTK data as non-root user
+RUN poetry install --only main && \
+    rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
 USER intelgai
 

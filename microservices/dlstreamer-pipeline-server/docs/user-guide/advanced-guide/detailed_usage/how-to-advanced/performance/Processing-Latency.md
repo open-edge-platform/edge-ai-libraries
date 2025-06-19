@@ -99,7 +99,6 @@ By analyzing the **time** and **ts** values, you can determine the latency intro
 
 For example, the first line in Example 2 shows that the `detection` element experienced a latency of 367077652 nanoseconds between the source element and itself.
 
-
 ## Learn More
 
 For more information on the Gstreamer tracing and debug log levels, refer to the following links:
