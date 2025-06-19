@@ -52,7 +52,15 @@ class OpcuaAlerts:
             return None
 
     async def connect_opcua_client(self, secure_mode, max_retries=10):
-        logger.info(f"client - {self.client}")
+
+        if self.opcua_server:
+            logger.info(f"Creating OPC UA client for server: {self.opcua_server}")
+            self.client = Client(self.opcua_server)
+            self.client.application_uri = "urn:opcua:python:server"
+        else:
+            logger.error("OPC UA server URL is not provided in the configuration file.")
+            return None
+
         if self.client is None:
             logger.error("OPC UA client is not initialized.")
             return False
@@ -82,7 +90,6 @@ class OpcuaAlerts:
 
     async def initialize_opcua(self):
         self.node_id, self.namespace, self.opcua_server = self.load_opcua_config()
-        self.client = await self.create_opcua_client()
         secure_mode = os.getenv("SECURE_MODE", "false")
         connected = await self.connect_opcua_client(secure_mode)
         if not connected:

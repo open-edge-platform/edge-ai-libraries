@@ -16,7 +16,6 @@ import subprocess
 import threading
 import classifier_startup
 from fastapi import BackgroundTasks
-import opcua_alerts
 from opcua_alerts import OpcuaAlerts
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
