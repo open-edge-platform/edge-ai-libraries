@@ -171,6 +171,8 @@ class Publisher:
             self.opcua_config = self.app_cfg.get("opcua_publisher")
         if not self.s3_config and self.app_cfg.get("S3_write"):
             self.s3_config = self.app_cfg["S3_write"]
+        if not self.influx_config and self.app_cfg.get("influx_write"):
+            self.influx_config = self.app_cfg["influx_write"]
 
     def _get_publishers(self):
         """Get publishers based on config.
