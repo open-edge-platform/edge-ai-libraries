@@ -5,15 +5,15 @@
                 "name": "pallet_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
                 "parameters": {
                     "type": "object",
                     "properties": {
                         "detection-properties": {
-                             "element": {
+                            "element": {
                                 "name": "detection",
                                 "format": "element-properties"
-                              }
+                            }
                         }
                     }
                 },
