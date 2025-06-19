@@ -19,13 +19,13 @@ services:
   dlstreamer-pipeline-server:
     image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
     hostname: dlstreamer-pipeline-server
-    container_name: dlstreamer-pipeline-server
+    container_name: ${DLSTREAMER_PIPELINE_SERVER_CONTAINER_NAME}
     read_only: true
     security_opt:
       - no-new-privileges
     build:
       context: ..
-      target: dlstreamer-pipeline-server
+      # target: dlstreamer-pipeline-server
       dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
@@ -63,7 +63,7 @@ services:
       - https_proxy=$https_proxy
       - RUN_MODE=EVA
       - GENICAM=Balluff
-      - GST_DEBUG=1,udfloader:6,python:6
+      - GST_DEBUG=1
       - LOG_LEVEL=${LOG_LEVEL}
       # Default Detection and Classification Device
       - DETECTION_DEVICE=CPU

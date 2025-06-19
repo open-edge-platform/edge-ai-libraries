@@ -65,7 +65,8 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
         },
         "frame": {
             "type": "rtsp",
-            "path": "pallet_defect_detection"
+            "path": "pallet_defect_detection",
+            "overlay": false
         }
     },
     "parameters": {

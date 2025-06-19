@@ -133,11 +133,20 @@ ARG MSGBUS_LIB_VERSION
 
 COPY packages/eii-utils-${UTILS_LIB_VERSION}-Linux.deb ${WORKDIR}
 COPY packages/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb ${WORKDIR}
+COPY packages/util-${UTILS_LIB_VERSION}.zip ${WORKDIR}
 
 # Installation of utils, eiimessagebus and debian packages. Needed for UDFLoader build
 RUN dpkg -i /home/pipeline-server/eii-utils-${UTILS_LIB_VERSION}-Linux.deb && \
     dpkg -i /home/pipeline-server/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb && \
-    rm -rf /home/pipeline-server/eii-*.deb
+    rm -rf eii-*.deb
+
+COPY packages/UDFLoader.zip ${WORKDIR}
+COPY packages/udfs.zip ${WORKDIR}
+
+RUN unzip UDFLoader.zip -d /home/pipeline-server && \
+    unzip udfs.zip -d /home/pipeline-server && \
+    unzip util-${UTILS_LIB_VERSION}.zip -d /home/pipeline-server && \
+    rm -rf udfs.zip UDFLoader.zip util-*.zip
 
 ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
     LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \
@@ -165,6 +174,7 @@ ARG CMAKE_INSTALL_PREFIX
 COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/udf.so ${DLSTREAMER_DIR}/gstreamer/lib
 COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
 COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}
 
 ARG USER
 ARG UID
@@ -202,6 +212,31 @@ RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
 RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
     cd $MODEL_API_PATH && \
     git apply /home/pipeline-server/model_api.patch
+
+# # Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
+# # Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
+# # Detect Ubuntu version and install Rust only on Ubuntu 24
+# RUN . /etc/os-release && \
+#     if [ "$VERSION_ID" = "24.04" ]; then \
+#         apt-get update && \
+#         apt-get install -y --no-install-recommends curl build-essential && \
+#         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
+#         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+#         export PATH="/root/.cargo/bin:$PATH" && \
+#         pip install --no-cache-dir --upgrade pip && \
+#         pip install --no-cache-dir geti-sdk==2.7.1 && \
+#         # clean up Rust installation files
+#         rm -rf /root/.cargo /root/.rustup; \
+#     else \
+#         pip install --no-cache-dir --upgrade pip && \
+#         pip install --no-cache-dir geti-sdk==2.7.1; \
+#     fi && \
+#     apt-get clean && \
+#     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
+
+# # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
+# RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
 
 # Install schedule for python job scheduling
 RUN pip3 install --no-cache-dir schedule==1.2.1
