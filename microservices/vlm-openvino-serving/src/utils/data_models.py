@@ -5,6 +5,8 @@ from typing import Dict, List, Optional, Union
 
 from pydantic import BaseModel, Field
 
+from .common import settings
+
 
 class MessageContentText(BaseModel):
     """
@@ -116,7 +118,7 @@ class ChatRequest(BaseModel):
         None, json_schema_extra={"example": 1.15}
     )
     max_completion_tokens: Optional[int] = Field(
-        500, json_schema_extra={"example": 1000}
+        settings.VLM_MAX_COMPLETION_TOKENS, json_schema_extra={"example": 1000}
     )
     temperature: Optional[float] = Field(None, json_schema_extra={"example": 0.3})
     top_p: Optional[float] = Field(None, json_schema_extra={"example": 0.5})
