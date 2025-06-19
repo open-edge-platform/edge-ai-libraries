@@ -5,17 +5,6 @@
 #
 
 services:
-  influxdb:
-    image: influxdb:latest
-    container_name: influxdb
-    hostname: influxdb
-    ports:
-      - "8086:8086"
-    volumes:
-      - influxdb:/var/lib/influxdb
-    restart: unless-stopped
-    networks:
-      - app_network
   broker:
     image: eclipse-mosquitto
     hostname: mqtt
@@ -69,7 +58,7 @@ services:
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
       - WEBRTC_SIGNALING_SERVER=http://${WHIP_SERVER_IP}:${WHIP_SERVER_PORT}
-      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST}, ${INFLUXDB_HOST}
+      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST}
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
       - RUN_MODE=EVA
@@ -107,7 +96,7 @@ services:
       - INFLUXDB_PASS=${INFLUXDB_PASS}
     volumes:
       # - "../resources:/home/pipeline-server/resources/"
-      - "../configs/sample_influx/config.json:/home/pipeline-server/config.json"
+      - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"
       - "../Certificates/ssl_server/:/run/secrets/DLStreamerPipelineServer_Server:ro"
@@ -147,4 +136,3 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-  influxdb:
