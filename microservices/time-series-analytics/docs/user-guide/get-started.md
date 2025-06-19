@@ -167,7 +167,7 @@ docker logs -f ia-time-series-analytics-microservice
 
 ### Accessing the Swagger UI
 
-The Time Series Analytics Microservice provides an interactive Swagger UI at `http://localhost:5000/docs`.
+The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
 
 - To view the current configuration:
 
