@@ -22,7 +22,7 @@
                     "bucket": "dlstreamer-pipeline-results",
                     "org": "my-org",
                     "measurement": "dlsps"
-            }
+                }
             }
         ]
     }

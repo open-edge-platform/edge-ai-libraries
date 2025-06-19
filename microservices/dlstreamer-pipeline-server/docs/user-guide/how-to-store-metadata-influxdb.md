@@ -64,50 +64,20 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
         
         > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `influxdb` service section at docker compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In our example, its `influxdb`.
 
-3. Update the default `config.json`.
-    - A sample config has been provided for this demonstration below. Replace the contents in default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` with the contents of the sample config given below.
-        ```json
-        {
-            "config": {
-                "pipelines": [
-                    {
-                        "name": "pallet_defect_detection",
-                        "source": "gstreamer",
-                        "queue_maxsize": 50,
-                        "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
-                        "parameters": {
-                            "type": "object",
-                            "properties": {
-                                "detection-properties": {
-                                    "element": {
-                                        "name": "detection",
-                                        "format": "element-properties"
-                                    }
-                                }
-                            }
-                        },
-                        "auto_start": false
-                    }
-                ]
-            }
-        }
-        ```
+ 3. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_influx/config.json`. We need to volume mount the sample config file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippet:
 
-4. Allow DL Streamer Pipeline Server to read the above modified configuration. 
-    - We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](how-to-change-dlstreamer-pipeline.md).
+    ```sh
+        volumes:
+        # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_influx/config.json to config file that DL Streamer Pipeline Server container loads.
+        - "../configs/sample_influx/config.json:/home/pipeline-server/config.json"
+    ```
 
-        ```yaml
-        services:
-          dlstreamer-pipeline-server:
-            volumes:
-              - "../configs/default/config.json:/home/pipeline-server/config.json"
-        ```
-5. Start DL Streamer Pipeline Server and InfluxDB.
+4. Start DL Streamer Pipeline Server and InfluxDB.
     ```sh
     cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
     docker compose up -d
     ```
-6. Setup InfluxDB and create bucket.
+5. Setup InfluxDB and create bucket.
     - DL Streamer Pipeline Server expects that the setup should be done for InfluxDB and also a bucket should also be created before launching the pipeline. 
     Here's is a sample python script (requires `request` python package). This script initializes an InfluxDB 2.x server by creating the first admin user, org, and bucket. It calls the `/api/v2/setup` endpoint with the required parameters. Adjust the credentials and names as needed before running.
         ```python
@@ -130,7 +100,7 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
         ```sh
         python3 influx_setup.py
         ```
-7. Launch pipeline by sending the following curl request.
+6. Launch pipeline by sending the following curl request.
     ``` sh
         curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
             "source": {
@@ -157,7 +127,8 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
     The frame destination sub-config for `influx_write` specifies that the frame metadata will be written to an InfluxDB instance under the organization `my-org` and bucket `dlstreamer-pipeline-results`. All frame's metadata will be recorded under the same measurement, which defaults to `dlsps` if the `measurement` field is not explicitly provided. For example, frame metadata will be written to the measurement `dlsps` in the bucket `dlstreamer-pipeline-results` within the organization `my-org`.
     
     **Note**: DL Streamer Pipeline Server supports only writing of metadata to InfluxDB. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of metadata from InfluxDB. Also, as mentioned before DL Streamer Pipeline Server assumes that the user already has a InfluxDB with buckets configured.
-8. Once you start DL Streamer Pipeline Server with above changes, you should be able to see metadata written to InfluxDB. Since we are using InfluxDB 2.x for our demonstration, you can see the frames being written to InfluxDB by logging into InfluxDB console. You can access the console in your browser - `http://<INFLUXDB_HOST>:8086`. Use the credentials specified above in the `[WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the metadata stored.
+
+7. Once you start DL Streamer Pipeline Server with above changes, you should be able to see metadata written to InfluxDB. Since we are using InfluxDB 2.x for our demonstration, you can see the frames being written to InfluxDB by logging into InfluxDB console. You can access the console in your browser - `http://<INFLUXDB_HOST>:8086`. Use the credentials specified above in the `[WORKDIR]/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the metadata stored.
     You can also use the Query Builder in the InfluxDB UI to write and run the following query to view all data written to InfluxDB:
     ```sh
     from(bucket: "dlstreamer-pipeline-results")
@@ -170,7 +141,7 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
     Example of metadata stored in InfluxDB:
     ![Metadata stored in InfluxDB](./images/influx_metadata.png)
     
-9. To stop DL Streamer Pipeline Server and other services, run the following. Since the data is stored inside the InfluxDB container for this demonstration, the metadata will not persists after the containers are brought down.
+8. To stop DL Streamer Pipeline Server and other services, run the following. Since the data is stored inside the InfluxDB container for this demonstration, the metadata will not persists after the containers are brought down.
     ```sh
     docker compose down -v
     ```
