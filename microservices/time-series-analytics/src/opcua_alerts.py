@@ -41,15 +41,6 @@ class OpcuaAlerts:
             logger.exception("Fetching app configuration failed, Error: {}".format(e))
             return None, None, None
     
-    async def create_opcua_client(self):
-        if self.opcua_server:
-            logger.info(f"Creating OPC UA client for server: {self.opcua_server}")
-            self.client = Client(self.opcua_server)
-            self.client.application_uri = "urn:opcua:python:server"
-            return self.client
-        else:
-            logger.error("OPC UA server URL is not provided in the configuration file.")
-            return None
 
     async def connect_opcua_client(self, secure_mode, max_retries=10):
 
