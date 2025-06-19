@@ -49,8 +49,7 @@ RUN apt-get update -y && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /my-app
-COPY pyproject.toml poetry.lock README.md ./
-COPY app ./app
+
 # Copy installed packages from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
