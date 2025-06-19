@@ -1,0 +1,41 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "videosummaryui.fullname" . }}
+  labels:
+    app: {{ .Values.name }}
+spec:
+  replicas: {{ .Values.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.name }}
+    spec:
+      containers:
+        - name: {{ .Values.name }}
+          image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.service.targetPort }}
+          env:
+            - name: APP_ENDPOINT_URL
+              value: "{{ .Values.global.env.APP_ENDPOINT_URL }}"
+            - name: APP_ASSETS_URL
+              value: "{{ .Values.global.env.APP_ASSETS_URL }}"
+            - name: HTTP_PROXY
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: HTTPS_PROXY
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: NO_PROXY
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+            - name: APP_SOCKET_APPEND
+              value: "CONFIG_OFF"
+            - name: APP_SUMMARY_FEATURE
+              value: "{{ .Values.feature.summary }}"
+            - name: APP_SEARCH_FEATURE
+              value: "{{ .Values.feature.search }}"
+            - name: APP_FEATURE_MUX
+              value: "{{ .Values.feature.mux }}"

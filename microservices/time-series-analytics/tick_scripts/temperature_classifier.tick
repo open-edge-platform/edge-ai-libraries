@@ -1,0 +1,12 @@
+//
+// Apache v2 license
+// Copyright (C) 2025 Intel Corporation
+//SPDX-License-Identifier: Apache-2.0
+
+dbrp "datain"."autogen"
+var data0 = stream
+        |from()
+                .measurement('point_data')
+// Process data using a UDF or other processing logic
+data0
+    @temperature_classifier()

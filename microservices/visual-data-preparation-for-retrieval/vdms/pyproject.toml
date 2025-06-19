@@ -1,0 +1,94 @@
+[tool.poetry]
+name = "vdms-dataprep"
+version = "0.1.0"
+description = "A microservice based on VDMS VectorDB for data preparation for text, video and images sources"
+authors = []
+readme = "README.md"
+
+[tool.poetry.dependencies]
+python = "^3.10"
+fastapi = "^0.115.5"
+uvicorn = "^0.32.1"
+gunicorn = "^23.0.0"
+pydantic = "^2.11.5"
+pydantic-settings = "^2.9.1"
+python-multipart = "^0.0.18"
+setuptools = "^80.9.0"
+transformers = "^4.52.4"
+huggingface-hub = "^0.32.3"
+langchain = "^0.3.25"
+langchain-core = "^0.3.63"
+langchain-community = "^0.3.24"
+numpy = "^2.1.0"
+opencv-python-headless = "^4.11.0.86"
+vdms = "^0.0.21"
+pillow = "^11.0.0"
+tzlocal = "^5.2"
+decord = "^0.6.0"
+einops = "^0.8.0"
+minio = "^7.1.15"
+requests = "^2.31.0"
+httpcore = "^1.0.9"
+
+[tool.poetry.group.dev]
+optional = true
+
+[tool.poetry.group.cpu]
+optional = true
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^8.3.3"
+pytest-mock = "^3.14.0"
+coverage = "^7.6.4"
+pytest-asyncio = "^0.24.0"
+black = "^24.10.0"
+isort = "^5.13.2"
+
+[tool.poetry.group.cpu.dependencies]
+torch = { version = "^2.7.0", source = "pytorch-cpu" }
+torchvision = { version = "^0.22.0", source = "pytorch-cpu" }
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
+[tool.pytest.ini_options]
+asyncio_default_fixture_loop_scope = "module"
+
+[tool.black]
+line-length = 100
+exclude = "(/(.git | .venv | venv | .pytest_cache)/)"
+
+[tool.isort]
+py_version = 310
+profile = "black"
+line_length = 100
+indent = "    "
+multi_line_output = 3
+include_trailing_comma = true
+src_paths = ["src", "tests"]
+
+[tool.coverage]
+[tool.coverage.run]
+branch = false
+source = ["src", "tests"]
+
+[tool.coverage.report]
+ignore_errors = true
+show_missing = true
+exclude_lines = [
+    "# noqa",
+    "# notest",
+    "#notest",
+    "# testfree",
+    "#testfree",
+    "raise NotImplementedError",
+]
+
+[tool.coverage.html]
+directory = ".coverage-report"
+
+[build-system]
+requires = ["poetry-core"]
+build-backend = "poetry.core.masonry.api"

@@ -14,7 +14,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM docker.io/intel/dlstreamer:2025.0.1.2-ubuntu24
+FROM docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
 
 USER root
 
@@ -30,8 +30,16 @@ ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
 
 RUN pip install -r requirements.txt
 
-ADD diagrams/ /home/dlstreamer/vippet/diagrams
+ADD app.py \
+    app.css \
+    optimize.py \
+    pipeline.py \
+    device.py \
+    explore.py \
+    benchmark.py \
+    utils.py \
+    /home/dlstreamer/vippet/
 
-ADD app.py optimize.py pipeline.py device.py explore.py benchmark.py utils.py /home/dlstreamer/vippet/
+ADD pipelines/ /home/dlstreamer/vippet/pipelines
 
 CMD ["python", "app.py"]

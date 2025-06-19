@@ -58,8 +58,7 @@ TensorsTable PaddleOCRConverter::convert(const OutputBlobs &output_blobs) {
                 const auto item = get_data_by_batch_index(data, data_size, batch_size, batch_elem_index);
                 const float *item_data = item.first;
 
-                std::string decoded_text =
-                    decodeOutputTensor(item_data);
+                std::string decoded_text = decodeOutputTensor(item_data);
 
                 if (decoded_text.size() > SEQ_MINLEN)
                     classification_result.set_string("label", decoded_text);
@@ -117,8 +116,9 @@ std::string PaddleOCRConverter::decode(const std::vector<int> &text_index) {
             continue;
         }
 
-        // Append the corresponding character from charset
-        char_list += CHARACTER_SET[current_index];
+        if (current_index >= 0 && current_index < (int)CHARACTER_SET.size()) {
+            char_list.append(CHARACTER_SET[current_index]);
+        }
     }
 
     return char_list; // Return the decoded text
