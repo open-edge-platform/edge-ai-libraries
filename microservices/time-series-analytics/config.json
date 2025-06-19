@@ -4,6 +4,6 @@
         "version": "1.0"
     },
     "udfs": {
-                "name": "temperature_classifier"
-            }
+        "name": "temperature_classifier"
+    }
 }

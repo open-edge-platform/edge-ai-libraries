@@ -393,9 +393,6 @@ if __name__ == "__main__":
         logger.info("App configuration loaded successfully from config.json file")
         start_kapacitor_service(config)
     except FileNotFoundError:
-        logger.info("config.json file not found, waiting for the configuration")
+        logger.warning("config.json file not found, waiting for the configuration")
     except Exception as e:
-        logger.info(f"Time Series Analytics Microservice failure - {e}")
-
-
-    
+        logger.error(f"Time Series Analytics Microservice failure - {e}")
