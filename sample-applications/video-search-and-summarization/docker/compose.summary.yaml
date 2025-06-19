@@ -75,7 +75,7 @@ services:
       retries: 40
       start_period: 10s
     volumes:
-      - "/home/$USER/.cache/huggingface:/root/.cache/huggingface"
+      - "/home/$USER/.cache/huggingface:/home/appuser/.cache/huggingface"
       - ov-models:/app/ov-model
     networks:
       - vs_network

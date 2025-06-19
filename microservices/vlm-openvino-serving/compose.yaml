@@ -37,7 +37,7 @@ services:
     networks:
       - my_network
     volumes:
-      - "/home/$USER/.cache/huggingface:/root/.cache/huggingface"
+      - "/home/$USER/.cache/huggingface:/home/appuser/.cache/huggingface"
       - ov-models:/app/ov-model
 volumes:
   ov-models:
