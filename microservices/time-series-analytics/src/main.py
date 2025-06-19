@@ -32,7 +32,6 @@ app = FastAPI()
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
-global config
 config = {}
 opcua_send_alert = None
 
@@ -386,7 +385,6 @@ if __name__ == "__main__":
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
-    config = {}
     try:
         with open (CONFIG_FILE, 'r') as file:
             config = json.load(file)

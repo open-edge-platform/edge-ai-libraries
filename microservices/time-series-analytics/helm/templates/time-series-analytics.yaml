@@ -57,6 +57,9 @@ spec:
         volumeMounts:
         - name: vol-temp-time-series-analytics-microservice
           mountPath: /tmp
+        - name: time-series-analytics-microservice-config
+          mountPath: /app/config.json
+          subPath: config.json
         {{ if eq .Values.env.SECURE_MODE true}}
         - name: certs
           mountPath: /run/secrets/ca_certificate.pem
@@ -113,6 +116,9 @@ spec:
       volumes:
       - name: vol-temp-time-series-analytics-microservice
         emptyDir: {}
+      - name: time-series-analytics-microservice-config
+        configMap:
+          name: time-series-analytics-microservice-config
       {{ if eq .Values.env.SECURE_MODE true}}
       - name: certs
         secret:

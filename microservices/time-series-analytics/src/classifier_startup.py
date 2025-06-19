@@ -71,9 +71,9 @@ class KapacitorClassifier():
                 file_name, err))
     
     def check_udf_package(self, config, dir_name):
-        """ Check if udf package is present in the container
+        """ Check if UDF deployment package is present in the container
         """
-        logger.info("Checking if UDF package is present in the container...")
+        logger.info("Checking if UDF deployment package is present in the container...")
         path = "/tmp/" + dir_name + "/"
         udf_dir = os.path.join(path, "udfs")
         model_dir = os.path.join(path, "models")
@@ -85,7 +85,7 @@ class KapacitorClassifier():
 
 
         if not os.path.isdir(path):
-            self.logger.error(f"UDF package directory {udf_name} does not exist. Please check and upload/copy the udf package.")
+            self.logger.error(f"UDF deployment package directory {udf_name} does not exist. Please check and upload/copy the UDF deployment package.")
             return False
         if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir, config['udfs']["name"] + ".py")):
             found_udf = True
@@ -93,7 +93,7 @@ class KapacitorClassifier():
         if os.path.isdir(tick_scripts_dir) and os.path.isfile(os.path.join(tick_scripts_dir, config['udfs']["name"] + ".tick")):
             found_tick_scripts = True
 
-        # Check for any file with the task_name in the models directory, regardless of extension
+        # model file is optional
         if "models" in config["udfs"].keys():
             if os.path.isdir(model_dir):
                 for fname in os.listdir(model_dir):
@@ -105,20 +105,20 @@ class KapacitorClassifier():
         if not (found_model and found_udf and found_tick_scripts):
             missing_items = []
             if not found_model:
-                missing_items.append(f"model file for task {mrHandlerObj.config['udfs']['name']}")
-                self.logger.info("Missing model")
+                missing_items.append(f"model file for task {config['udfs']['name']}")
+                self.logger.warning("Missing model")
             if not found_udf:
-                missing_items.append(f"udf file for task {mrHandlerObj.config['udfs']['name']}")
-                self.logger.info("Missing udf")
+                missing_items.append(f"udf file for task {config['udfs']['name']}")
+                self.logger.warning("Missing udf")
             if not found_tick_scripts:
-                missing_items.append(f"tick script for task {mrHandlerObj.config['udfs']['name']}")
-                self.logger.info("Missing tick script")
+                missing_items.append(f"tick script for task {config['udfs']['name']}")
+                self.logger.warning("Missing tick script")
             self.logger.error(
-                "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the udf package."
+                "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the UDF deployment package."
             )
             return False
         else:
-            self.logger.info("UDF package is present in the container.")
+            self.logger.info(f"UDF deployment package {path} exists.")
             return True
 
     def install_udf_package(self, dir_name):
@@ -316,8 +316,8 @@ logging_level = getattr(logging, log_level, logging.INFO)
 
 # Configure logging
 logging.basicConfig(
-    level=logging_level,  # Set the log level to DEBUG
-    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',  # Log format
+    level=logging_level,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s',
 )
 
 logger = logging.getLogger(__name__)
@@ -430,8 +430,8 @@ def classifier_startup(config):
 
     status = kapacitor_classifier.check_udf_package(config, dir_name)
     if status is False:
-        error_log = ("UDF package is not present in the container. "
-                    "Please check the udf package and try again. ")
+        error_log = ("UDF deployment package is not present in the container. "
+                    "Please check the UDF deployment package and try again. ")
         logger.error(error_log)
         return FAILURE
     kapacitor_classifier.install_udf_package(dir_name)
