@@ -165,6 +165,7 @@ class Publisher:
     def _get_publisher_config_from_config_file(self):
         """Get publisher config from config file
         """
+        # Get the config only if it is not already set in the REST request
         if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
             self.mqtt_config = self.app_cfg.get("mqtt_publisher")
         if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
