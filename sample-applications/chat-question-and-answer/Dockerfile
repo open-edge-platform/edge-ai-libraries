@@ -1,41 +1,68 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# --- Stage 1: Build dependencies ---
+FROM python:3.11-slim as python-base
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install system build dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx \
+    libjemalloc-dev \
+    curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir poetry
+
+# Copy only dependency files
+WORKDIR /app
+COPY pyproject.toml poetry.lock README.md ./
+
+# Install dependencies in a temporary location
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-root && \
+    rm -rf ~/.cache
+
+# --- Stage 2: Final slim image ---
 FROM python:3.11-slim
 
 ENV HOME="/home/intelgai"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Create a non-root user
+# Add non-root user
 RUN groupadd -g 1001 intelgai && \
     useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
-    chown -R intelgai:intelgai $HOME && \
-    apt-get update -y && \
-    apt-get install -y --no-install-recommends --fix-missing \
-    libgl1-mesa-glx \
-    libjemalloc-dev && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir --upgrade pip setuptools && \
-    pip install --no-cache-dir poetry nltk && \
-    poetry config virtualenvs.create false && \
-    mkdir -p /home/intelgai/.cache/huggingface && \
-    chown intelgai:intelgai /home/intelgai/.cache/huggingface
+    mkdir -p $HOME/.cache/huggingface && \
+    chown -R intelgai:intelgai $HOME
 
-#COPY . my-app
-#COPY pyproject.toml poetry.lock README.md app/ my-app/
+# Install only runtime dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx \
+    libjemalloc2 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 WORKDIR /my-app
 COPY pyproject.toml poetry.lock README.md ./
 COPY app ./app
+# Copy installed packages from python-base
+COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=python-base /usr/local/bin /usr/local/bin
 
-# Install dependencies and NLTK data as non-root user
-RUN poetry install --only main && \
-    rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
+# Copy application code
+COPY app ./app
+
+# Set permissions
+RUN chown -R intelgai:intelgai /my-app
 
 USER intelgai
 
 EXPOSE 8080
-
 
 CMD uvicorn app.server:app --host 0.0.0.0 --port 8080
