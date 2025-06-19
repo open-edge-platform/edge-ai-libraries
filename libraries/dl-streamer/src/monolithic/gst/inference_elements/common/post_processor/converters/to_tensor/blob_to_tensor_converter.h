@@ -18,6 +18,8 @@
 
 namespace post_processing {
 
+const std::string DEFAULT_ANOMALY_DETECTION_TASK = "classification";
+
 class BlobToTensorConverter : public BlobToMetaConverter {
   protected:
     std::unique_ptr<FeatureToggling::Runtime::RuntimeFeatureToggler> raw_tensor_copying;
@@ -32,6 +34,9 @@ class BlobToTensorConverter : public BlobToMetaConverter {
     BlobToTensorConverter(BlobToMetaConverter::Initializer initializer);
 
     virtual TensorsTable convert(const OutputBlobs &output_blobs) = 0;
+
+    static BlobToMetaConverter::Ptr create(BlobToMetaConverter::Initializer initializer,
+                                           const std::string &converter_name);
 };
 
 } // namespace post_processing

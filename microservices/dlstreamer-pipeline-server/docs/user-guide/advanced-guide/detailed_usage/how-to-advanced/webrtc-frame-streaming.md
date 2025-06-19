@@ -1,8 +1,8 @@
 # WebRTC frame streaming
 
 DL Streamer Pipeline Server supports streaming the frames on WebRTC protocol using mediamtx media server.
-There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/docker/docker-compose-mediamtx.yml`
-Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/docker/.env` (They will be consumed appropriately in `[WORKDIR]/docker/docker-compose-mediamtx.yml`):
+There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
+Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
 ```sh
 WHIP_SERVER_IP=<HOST_IP> # It should be the IP address of the machine on which open mediamtx container is running.
 WHIP_SERVER_PORT=8889 # It is the port which is configured for mediamtx server. Default port is 8889.
@@ -50,4 +50,4 @@ After setting all the above information, we can start the WebRTC streaming:
                 }
     ```
 
-`Note`: Mediamtx may fail to stream if the pipeline initialization takes longer than 10 seconds. To resolve this, you can increase the WHIP_SERVER_TIMEOUT value in the .env file located in the [WORKDIR]/docker/ directory.
+`Note`: Mediamtx may fail to stream if the pipeline initialization takes longer than 10 seconds. To resolve this, you can increase the WHIP_SERVER_TIMEOUT value in the .env file located in the [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/ directory.

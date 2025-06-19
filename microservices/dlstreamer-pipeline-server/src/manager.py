@@ -502,7 +502,7 @@ class PipelineServerManager:
             # initialize pipeline
             pipeline = Pipeline(self.pipeline_root, self.pipeline_name, pipeline_cfg, pub_cfg, sub_cfg, sub_topic, publish_frame)
             self._PIPELINES[pipeline_version] = pipeline
-            self.log.info("Initialized pipleine: {} with publishers: {}".format(pipeline_version, pub_cfg))
+            self.log.info("Initialized pipeline: {} with publishers: {}".format(pipeline_version, pub_cfg))
 
     def start(self)->None:
         """Start Pipeline Server and autostart enabled pipelines """
