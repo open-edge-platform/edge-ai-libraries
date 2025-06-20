@@ -80,8 +80,7 @@ Open another terminal and send the following curl request
         },
         "frame": {
             "type": "rtsp",
-            "path": "pallet-defect-detection",
-            "overlay": false
+            "path": "pallet-defect-detection"
         }
     },
     "parameters": {
