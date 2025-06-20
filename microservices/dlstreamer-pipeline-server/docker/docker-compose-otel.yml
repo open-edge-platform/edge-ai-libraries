@@ -91,7 +91,7 @@ services:
     depends_on:
       - otel-collector
     volumes:
-      # - "../resources:/home/pipeline-server/resources/"
+      - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"

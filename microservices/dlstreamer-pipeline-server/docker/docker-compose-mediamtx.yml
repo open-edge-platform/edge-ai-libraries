@@ -78,7 +78,7 @@ services:
       - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT}
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
     volumes:
-      # - "../resources:/home/pipeline-server/resources/"
+      - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"

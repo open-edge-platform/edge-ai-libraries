@@ -5,31 +5,17 @@
                 "name": "pallet_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! appsink name=destination",
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
                 "parameters": {
                     "type": "object",
                     "properties": {
-                        "udfloader": {
-                            "element": {
-                                "name": "udfloader",
-                                "property": "config",
-                                "format": "json"
-                            },
-                            "type": "object"
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
                         }
                     }
-                },
-                "udfs": {
-                    "udfloader": [
-                        {
-                            "name": "python.geti_udf.geti_udf",
-                            "type": "python",
-                            "device": "CPU",
-                            "visualize": "true",
-                            "deployment": "./resources/models/geti/pallet_defect_detection/deployment",
-                            "metadata_converter": "null"
-                        }
-                    ]
                 },
                 "auto_start": false
             }

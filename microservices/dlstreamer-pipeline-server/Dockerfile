@@ -191,65 +191,11 @@ ENV XDG_RUNTIME_DIR=/home/.xdg_runtime_dir
 RUN mkdir -p $XDG_RUNTIME_DIR && chmod -R g+s $XDG_RUNTIME_DIR && chown ${USER}:users $XDG_RUNTIME_DIR
 
 ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
-
-### To install other/newer Genicam camera SDKs add the installation steps here
-
 ENV PATH=$PATH:/home/pipeline-server/.local/bin
-
-# Install for ntp timestamping: scenescape gvapython requirement
-RUN pip3 install --no-cache-dir ntplib==0.4.0
-
-# #Patch and install OpenVINO model api
-# COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-# RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
-
-# # site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
-# RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
-#     cd $MODEL_API_PATH && \
-#     git apply /home/pipeline-server/model_api.patch
-
-# # Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
-# # Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
-# # Detect Ubuntu version and install Rust only on Ubuntu 24
-# RUN . /etc/os-release && \
-#     if [ "$VERSION_ID" = "24.04" ]; then \
-#         apt-get update && \
-#         apt-get install -y --no-install-recommends curl build-essential && \
-#         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
-#         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
-#         export PATH="/root/.cargo/bin:$PATH" && \
-#         pip install --no-cache-dir --upgrade pip && \
-#         pip install --no-cache-dir geti-sdk==2.7.1 && \
-#         # clean up Rust installation files
-#         rm -rf /root/.cargo /root/.rustup; \
-#     else \
-#         pip install --no-cache-dir --upgrade pip && \
-#         pip install --no-cache-dir geti-sdk==2.7.1; \
-#     fi && \
-#     apt-get clean && \
-#     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
-
-
-# # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
-# RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
-
-# # Install schedule for python job scheduling
-# RUN pip3 install --no-cache-dir schedule==1.2.1
-
-# Install opcua
-RUN pip3 install --no-cache-dir asyncua==1.1.5
-
-# # Downgrading Flask due to an atttribute error(JSONEncoder)
-# RUN pip3 uninstall --no-cache-dir -y Flask && \
-#     pip3 install --no-cache-dir Flask==2.2.5
-
-# For model registry client 
-RUN pip3 install --no-cache-dir pydantic==2.8.2
 
 RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-RUN pip3 install --no-cache-dir deep_sort_realtime
 
 USER $USER
 
@@ -258,18 +204,21 @@ COPY ./docker/run.sh .
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
-# Install server requirements
 USER root
-RUN pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
-    pip3 install --no-cache-dir \
-                 -r  /home/pipeline-server/src/server/requirements.service.txt \
-                 -r /home/pipeline-server/src/server/requirements.webrtc.txt \
-                 -r /home/pipeline-server/src/server/requirements.txt && \
-    python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17 influxdb-client==1.48.0 marshmallow==4.0.0
 
-# OpenTelemetry
-RUN pip3 install --no-cache-dir -r  /home/pipeline-server/src/opentelemetry/requirements.txt
-RUN pip3 install --no-cache-dir --upgrade opentelemetry-exporter-otlp
+# Cleanup
+RUN apt-get remove -y zip unzip git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN pip3 install --no-cache-dir --upgrade pip && \
+    pip3 uninstall --no-cache-dir -y Flask && \
+    # Downgrading Flask due to an atttribute error(JSONEncoder)
+    pip3 install --no-cache-dir Flask==2.2.5 && \
+    pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
+    pip3 install --no-cache-dir -r /home/pipeline-server/src/requirements.txt && \
+    pip3 install --no-cache-dir --upgrade Werkzeug==3.1.3 && \
+    pip3 install --upgrade opentelemetry-exporter-otlp
 
 USER ${USER}
 
@@ -297,3 +246,51 @@ COPY ./configs/default/config.json /home/pipeline-server/config.json
 ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
 
 ENTRYPOINT ["./run.sh"]
+
+
+############################# DL Streamer Pipeline Server extended runtime ################################
+
+FROM dlstreamer-pipeline-server AS dlstreamer-pipeline-server-extended
+
+USER root
+
+# Patch and install OpenVINO model api
+COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
+RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+
+# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    cd $MODEL_API_PATH && \
+    git apply /home/pipeline-server/model_api.patch && \
+    apt-get remove -y git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
+# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
+# Detect Ubuntu version and install Rust only on Ubuntu 24
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends curl build-essential && \
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
+        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+        export PATH="/root/.cargo/bin:$PATH" && \
+        pip3 install --no-cache-dir --upgrade pip && \
+        pip3 install --no-cache-dir geti-sdk==2.7.1 && \
+        # clean up Rust installation files
+        rm -rf /root/.cargo /root/.rustup; \
+    else \
+        pip3 install --no-cache-dir --upgrade pip && \
+        pip3 install --no-cache-dir geti-sdk==2.7.1; \
+    fi && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
+
+# Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
+RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
+
+USER ${USER}
