@@ -45,7 +45,7 @@ ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
-COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/mr_interface.py /app/
+COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/mr_interface.py ./src/main.py /app/
 
 # Copy configuration files and directories efficiently
 COPY ./config.json /app/
@@ -63,4 +63,4 @@ USER $TIMESERIES_USER_NAME
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "./classifier_startup.py"]
+ENTRYPOINT ["python3", "./main.py"]

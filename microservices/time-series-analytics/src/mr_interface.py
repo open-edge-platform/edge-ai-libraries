@@ -43,23 +43,25 @@ class MRHandler:
                 Exception: If the model files cannot be retrieved or downloaded.
     """
     def __init__(self, config, logger) -> None:
-        self.tasks = config["task"]
+        self.config = config
         self.base_url = os.getenv("MODEL_REGISTRY_URL")
         self.logger = logger
         self.fetch_from_model_registry = False
-        self.unique_id = str(uuid.uuid4())
+        self.unique_id = None
         os.environ["REQUESTS_CA_BUNDLE"] = "/run/secrets/server-ca.crt"
-        if "fetch_from_model_registry" in self.tasks and self.tasks["fetch_from_model_registry"] is True:
-            data = self.get_model_info(self.tasks["task_name"], self.tasks["version"])
+        if "model_registry" in self.config and self.config["model_registry"]["enable"] is True:
+            logger.info(f"Fetching model from Model Registry: {self.config['udfs']['name']} version: {self.config['model_registry']['version']}")
+            data = self.get_model_info(self.config["udfs"]["name"], self.config["model_registry"]["version"])
             if data is not None and (len(data))>0:
                 mr_id = data[0]["id"]
-                print(f"Model id: {mr_id}")
-                self.download_udf_model_by_id(self.tasks["task_name"], mr_id)
+                self.logger.debug(f"Model id: {mr_id}")
+                self.unique_id = str(uuid.uuid4())
+                self.download_udf_model_by_id(self.config["udfs"]["name"], mr_id)
                 self.fetch_from_model_registry = True
             else:
                 self.logger.error("Error: Invalid Model name/version or Model Registy service is not reachable")
-                os.environ["REQUESTS_CA_BUNDLE"] = ""
-                os._exit(1)
+                self.fetch_from_model_registry = True
+                return
         os.environ["REQUESTS_CA_BUNDLE"] = ""
 
     def get_model_info(self, model_name, model_version):
