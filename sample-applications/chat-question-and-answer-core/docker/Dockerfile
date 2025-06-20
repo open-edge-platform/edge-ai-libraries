@@ -63,9 +63,9 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
 
 # Create a non-root user
-RUN groupadd -g ${GID} intelgai && \
-    useradd -m -s /bin/bash -u ${UID} -g ${GID} intelgai && \
-    chown -R intelgai:intelgai $HOME
+RUN groupadd -g ${GID} appuser && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser && \
+    chown -R appuser:appuser $HOME
 
 
 FROM python-base AS builder-base
@@ -103,7 +103,7 @@ RUN poetry install --with dev
 # Source code will be mounted here
 WORKDIR /app
 
-USER intelgai
+USER appuser
 
 EXPOSE 8888
 
@@ -131,9 +131,9 @@ COPY . /app/
 WORKDIR /app
 
 RUN mkdir -p /tmp/model_cache && \
-    chown -R intelgai:intelgai /tmp/model_cache
+    chown -R appuser:appuser /tmp/model_cache
 
-USER intelgai
+USER appuser
 
 EXPOSE 8888
 
