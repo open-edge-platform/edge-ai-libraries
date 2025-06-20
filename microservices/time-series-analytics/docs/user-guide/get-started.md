@@ -54,7 +54,6 @@ Directory details is as below:
   
 ### **`config.json`**:
 
-The `udfs` section defines the settings for the Kapacitor task and User-Defined Functions (UDFs).
 
 | Key                     | Description                                                                                     | Example Value                          |
 |-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
@@ -168,20 +167,7 @@ docker logs -f ia-time-series-analytics-microservice
 ### Accessing the Swagger UI
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
-
-- To view the current configuration:
-
-1. Open the Swagger UI in your browser.
-2. Locate the `GET /config` endpoint.
-3. Expand the endpoint and click **Execute**.
-4. The response will display the current configuration of the Time Series Analytics Microservice.
-
-- To update the current configuration:
-
-1. Open the Swagger UI in your browser.
-2. Find the `POST /config` endpoint.
-3. Expand the endpoint, enter the new configuration in the request body, and click **Execute**.
-4. The service will apply the updated configuration and start with the new configuration.
+Please refer [API documentation](./how-to-access-api.md).
 
 ## Troubleshooting
 

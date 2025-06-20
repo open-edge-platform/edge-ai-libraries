@@ -16,7 +16,9 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 1. Open the Swagger UI in your browser.
 2. Find the `POST /config` endpoint.
 3. Expand the endpoint, enter the new configuration in the request body, and click **Execute**.
-4. The service will apply the updated configuration and start with the new settings.
+4. This enables dynamic configuration at runtime. The service will apply the updated configuration and start with the new configuration.
+
+> **Note:** If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
 ### To send input data to the Time Series Analytics Microservice
 
@@ -56,7 +58,7 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 
 > **Note:** Before using the OP CUA alerts API, ensure you have run `make up_opcua_ingestion` and added `opcua` to the `alerts` section in your configuration.
 
-### Check the status of Kapacitor daemon
+### Check the status of the Time Series Analytics Microservice
 
 1. Open the Swagger UI in your browser.
 2. Locate the `GET /health` endpoint.

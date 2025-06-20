@@ -8,7 +8,7 @@ import logging
 import time
 import json
 import requests
-from fastapi import FastAPI, HTTPException, Response, status
+from fastapi import FastAPI, HTTPException, Response, status, Request, Query
 from pydantic import BaseModel
 from typing import Optional
 import uvicorn
@@ -17,6 +17,8 @@ import threading
 import classifier_startup
 from fastapi import BackgroundTasks
 from opcua_alerts import OpcuaAlerts
+
+
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -34,7 +36,7 @@ KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 config = {}
 opcua_send_alert = None
-
+config_updated_event = threading.Event()
 class DataPoint(BaseModel):
     topic: str
     tags: Optional[dict] = None
@@ -70,6 +72,7 @@ def json_to_line_protocol(data_point: DataPoint):
     return line_protocol
 
 def start_kapacitor_service(config):
+  
     classifier_startup.classifier_startup(config)
 
 def stop_kapacitor_service():
@@ -88,11 +91,9 @@ def stop_kapacitor_service():
     except subprocess.CalledProcessError as e:
         logger.error(f"Error stopping Kapacitor service: {e}")
 
-
-@app.get("/")
-def read_root():
-    """Get health status of the Input server."""
-    return {"message": "FastAPI Input server is running"}
+def restart_kapacitor():
+    stop_kapacitor_service()
+    start_kapacitor_service(config)
 
 @app.get("/health")
 def health_check(response: Response):
@@ -257,12 +258,23 @@ async def receive_data(data_point: DataPoint):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/config")
-async def get_config():
+async def get_config(
+    request: Request,
+    restart: Optional[bool] = Query(False, description="Restart the Time Series Analytics Microservice UDF deployment if true"),
+    background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.
-    Returns the current configuration in JSON format.
+    Accepts an optional 'restart' query parameter and returns the current configuration in JSON format.
+    If 'restart=true' is provided, the Time Series Analytics Microservice UDF deployment service will be restarted before returning the configuration.
 
     ---
+    parameters:
+        - in: query
+          name: restart
+          schema:
+            type: boolean
+            default: false
+          description: Restart the Time Series Analytics Microservice UDF deployment if true
     responses:
         200:
             description: Current configuration retrieved successfully
@@ -289,7 +301,17 @@ async def get_config():
                                 example: "Failed to retrieve configuration"
     """
     try:
-        return config
+        if restart:
+            
+            if background_tasks is not None:
+                background_tasks.add_task(restart_kapacitor)
+        params = dict(request.query_params)
+        # Remove 'restart' from params to avoid filtering config by it
+        params.pop('restart', None)
+        if not params:
+            return config
+        filtered_config = {k: config.get(k) for k in params if k in config}
+        return filtered_config
     except Exception as e:
         logger.error(f"Error retrieving configuration: {e}")
         raise HTTPException(status_code=500, detail=str(e))
@@ -369,10 +391,6 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
     except KeyError as e:
         logger.error(f"Missing required key in configuration data: {e}")
         raise HTTPException(status_code=422, detail=f"Missing required key: {e}")
-
-    def restart_kapacitor():
-        stop_kapacitor_service()
-        start_kapacitor_service(config)
 
     background_tasks.add_task(restart_kapacitor)
     return {"status": "success", "message": "Configuration updated successfully"}
