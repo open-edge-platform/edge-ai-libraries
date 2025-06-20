@@ -106,5 +106,5 @@ jobs:
         with:
           name: Trivy image scan report-core
           path: |
-                microservices/time-series-analytics/trivy_image_scan.html
-                microservices/time-series-analytics/trivy_image_scan.spdx.json
+                microservices/time-series-analytics/docker/trivy_image_scan.html
+                microservices/time-series-analytics/docker/trivy_image_scan.spdx.json
