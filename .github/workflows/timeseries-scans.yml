@@ -1,0 +1,101 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[Time Series Analytics] PR Scans"
+run-name: "[Time Series Analytics] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'microservices/time-series-analytics/**'
+
+jobs:
+  zizmor-workflow-scan:
+    runs-on: ubuntu-22.04-32core-128GB  
+    permissions:
+      contents: read
+    env:
+      ZIZMOR_VERSION: 1.5.2
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+          
+      - name: Install uv
+        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb
+        
+      - name: Run Zizmor Workflow Security Scan
+        continue-on-error: true
+        run: uvx zizmor=="$ZIZMOR_VERSION" "$GITHUB_WORKSPACE" --no-exit-codes > zizmor_workflow_scan_report.txt
+          
+      - name: Upload Zizmor Scan Report
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: zizmor-workflow-security-report
+          path: zizmor_workflow_scan_report.txt
+    
+  trivy-scan-job:
+    permissions:
+      contents: read
+    runs-on: ubuntu-22.04-32core-128GB
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  
+      - name: trivy repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd microservices/time-series-analytics/
+          trivy --version
+          which trivy
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_fs_code_scan.html"   
+      
+      - name: Upload trivy reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results-core
+          path: |
+              microservices/time-series-analytics/trivy_fs_code_scan.html
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Building Time Series Analytics scanning"
+              cd microservices/time-series-analytics/docker
+              sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
+              docker compose build
+              trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
+              trivy image --quiet --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
+              echo "completed Time Series Analytics scanning"
+            
+      - name: Upload Trivy Image Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report-core
+          path: |
+                microservices/time-series-analytics/trivy_image_scan.html
+                microservices/time-series-analytics/trivy_image_scan.spdx.json
