@@ -265,7 +265,7 @@ RUN pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
                  -r  /home/pipeline-server/src/server/requirements.service.txt \
                  -r /home/pipeline-server/src/server/requirements.webrtc.txt \
                  -r /home/pipeline-server/src/server/requirements.txt && \
-    python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
+    python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17 influxdb-client==1.48.0 marshmallow==4.0.0
 
 # OpenTelemetry
 RUN pip3 install --no-cache-dir -r  /home/pipeline-server/src/opentelemetry/requirements.txt
