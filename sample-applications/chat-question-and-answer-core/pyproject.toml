@@ -29,6 +29,14 @@ coverage = "^7.6.4"
 pytest-asyncio = "^0.24.0"
 httpx = "^0.27.2"
 
+[tool.poetry.group.cpu.dependencies]
+torch = { version = "^2.7.1", source = "pytorch-cpu" }
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
+
 [tool.pytest.ini_options]
 asyncio_default_fixture_loop_scope = "module"
 
