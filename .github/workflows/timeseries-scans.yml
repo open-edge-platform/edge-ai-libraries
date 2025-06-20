@@ -90,11 +90,11 @@ jobs:
         shell: bash
         run: |
               pwd
-              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               echo "Building Time Series Analytics scanning"
               cd microservices/time-series-analytics/docker
               sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
               docker compose build
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
               trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
               trivy image --quiet --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
               echo "completed Time Series Analytics scanning"
