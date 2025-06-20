@@ -41,10 +41,6 @@ cd document-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Choose the appropriate `values*.yaml` file based on the model server you want to use:
-
-- **For OVMS**: Use `values_ovms.yaml`..
-
 Edit the selected `values*.yaml` file to set the necessary environment variables. Ensure you set the proxy settings as required.
 
 | Key | Description | Example Value |
@@ -55,7 +51,6 @@ Edit the selected `values*.yaml` file to set the necessary environment variables
 | `global.huggingface.token` | Your Hugging Face API token | `<your-huggingface-token` |
 | `global.ui.nodePort` | Sets the static port (in the 30000–32767 range) | |
 | `global.otlp` | OTLP Endpoint | `<your-otlp-endpoint>` |
-| `global.hostIp` | Host IP Address | `<your-host-ip>` |
 | `global.llm.llmModelId` | Model to be used with ovms | Intel/neural-chat-7b-v3-3 or microsoft/Phi-3.5-mini-instruct |
 
 
