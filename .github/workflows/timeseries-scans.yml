@@ -63,7 +63,7 @@ jobs:
           sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
           sudo apt-get update
           sudo apt-get install -y trivy
-      - name: trivy repo scan
+      - name: Trivy filesystem/repo scan
         continue-on-error: true
         shell: bash
         run: |
@@ -76,12 +76,12 @@ jobs:
           # Use the downloaded template
           trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_fs_code_scan.html"   
       
-      - name: Upload trivy reports
+      - name: Upload trivy filesystem/repo scan reports
         continue-on-error: true
         uses: actions/upload-artifact@v4
         if: always()
         with:
-          name: trivy-code-scan-results-core
+          name: Trivy FileSystem scan report
           path: |
               microservices/time-series-analytics/trivy_fs_code_scan.html
       
@@ -99,12 +99,12 @@ jobs:
               trivy image --quiet --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
               echo "completed Time Series Analytics scanning"
             
-      - name: Upload Trivy Image Report
+      - name: Upload Trivy Image Scan Report
         continue-on-error: true
         if: always()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
         with:
-          name: Trivy image scan report-core
+          name: Trivy image scan report
           path: |
                 microservices/time-series-analytics/docker/trivy_image_scan.html
                 microservices/time-series-analytics/docker/trivy_image_scan.spdx.json
