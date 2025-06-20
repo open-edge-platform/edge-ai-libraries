@@ -102,16 +102,16 @@ jobs:
           name: Trivy-csv
           path: /tmp/trivy-*
       
-    trivy-config-scan:
-      permissions:
-        contents: read
-      name: Scan Dockerfile
-      strategy:
-        fail-fast: false
-      uses: ./.github/workflows/trivy-config-mode.yaml
-      with:
-        dockerfile-path: microservices/time-series-analytics/Dockerfile
-        trivy-report-format: 'json'
-        severity-levels: 'HIGH,CRITICAL'
-        output-report-path: trivy-dockerfile.json
-        name: Time Series Dockerfile
+  trivy-config-scan:
+    permissions:
+      contents: read
+    name: Scan Dockerfile
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: microservices/time-series-analytics/Dockerfile
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: trivy-dockerfile.json
+      name: Time Series Dockerfile
