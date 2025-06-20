@@ -141,7 +141,7 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
 3. Access the application:
 
-   - Open your web browser and navigate to `http://<host-ip>:5173` to view the application dashboard.
+   - Open your web browser and navigate to `http://<host-ip>:8102` to view the application dashboard.
 
 ## Verification
 

@@ -33,7 +33,7 @@ global:
   reranker_pvc:
     size: 20Gi
   ovms_pvc:
-    size: 20Gi
+    size: 40Gi # 20Gi does not work
   ovms_embed_pvc:
     size: 20Gi
   keeppvc: false # true  to persist models across multiple deployments
