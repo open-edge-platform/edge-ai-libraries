@@ -6,6 +6,8 @@ FROM python:3.11-slim AS python-base
 ARG USE_GPU=false
 ARG GPU_TYPE="none"  # Options: none, igpu, dgpu
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG UID=1000
+ARG GID=1000
 
 RUN echo "USE_GPU is set to $USE_GPU"; \
     echo "GPU_TYPE is set to $GPU_TYPE"
@@ -61,8 +63,8 @@ ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
 
 # Create a non-root user
-RUN groupadd -g 1001 intelgai && \
-    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
+RUN groupadd -g ${GID} intelgai && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} intelgai && \
     chown -R intelgai:intelgai $HOME
 
 
@@ -101,7 +103,7 @@ RUN poetry install --with dev
 # Source code will be mounted here
 WORKDIR /app
 
-USER appuser
+USER intelgai
 
 EXPOSE 8888
 
@@ -128,8 +130,8 @@ COPY . /app/
 
 WORKDIR /app
 
-RUN mkdir /tmp/model_cache && \
-    chown intelgai:intelgai /tmp/model_cache
+RUN mkdir -p /tmp/model_cache && \
+    chown -R intelgai:intelgai /tmp/model_cache
 
 USER intelgai
 
