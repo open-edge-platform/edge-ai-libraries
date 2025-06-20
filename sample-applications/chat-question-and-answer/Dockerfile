@@ -30,15 +30,15 @@ RUN poetry config virtualenvs.create false && \
 # --- Stage 2: Final slim image ---
 FROM python:3.11-slim
 
-ENV HOME="/home/intelgai"
+ENV HOME="/home/appuser"
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
 # Add non-root user
-RUN groupadd -g 1001 intelgai && \
-    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
+RUN groupadd -g 1001 appuser && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 appuser && \
     mkdir -p $HOME/.cache/huggingface && \
-    chown -R intelgai:intelgai $HOME
+    chown -R appuser:appuser $HOME
 
 # Install only runtime dependencies
 RUN apt-get update -y && \
@@ -58,9 +58,9 @@ COPY --from=python-base /usr/local/bin /usr/local/bin
 COPY app ./app
 
 # Set permissions
-RUN chown -R intelgai:intelgai /my-app
+RUN chown -R appuser:appuser /my-app
 
-USER intelgai
+USER appuser
 
 EXPOSE 8080
 
