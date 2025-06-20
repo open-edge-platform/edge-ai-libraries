@@ -10,6 +10,7 @@ class Settings(BaseSettings):
         APP_DISPLAY_NAME (str): The display name of the application.
         BASE_DIR (str): The base directory of the application.
         SUPPORTED_FORMATS (set): A set of supported file formats.
+        DEBUG (bool): Flag to enable or disable debug mode.
         TMP_FILE_PATH (str): The temporary file path for documents.
         HF_ACCESS_TOKEN (str): The Hugging Face access token.
         EMBEDDING_MODEL_ID (str): The ID of the embedding model.
@@ -30,6 +31,7 @@ class Settings(BaseSettings):
     APP_DISPLAY_NAME: str = "Chatqna-Core"
     BASE_DIR: str = dirname(dirname(abspath(__file__)))
     SUPPORTED_FORMATS: set = {".pdf", ".txt", ".docx"}
+    DEBUG: bool = False
 
     HF_ACCESS_TOKEN: str = ...
     EMBEDDING_MODEL_ID: str = ...
