@@ -93,11 +93,25 @@ jobs:
           
       - name: Trivy config scan for Dockerfiles and helm charts 
         run: |
-          cd "${{ github.workspace }}"
-          trivy config . >> /tmp/trivy-Dockerfile_helm.txt
+          cd microservices/time-series-analytics/helm
+          trivy config . >> trivy-Dockerfile_helm.txt
           
       - name: Upload Scan artifact to Github
         uses: actions/upload-artifact@v4
         with:
           name: Trivy-csv
           path: /tmp/trivy-*
+      
+    trivy-config-scan:
+      permissions:
+        contents: read
+      name: Scan Dockerfile
+      strategy:
+        fail-fast: false
+      uses: ./.github/workflows/trivy-config-mode.yaml
+      with:
+        dockerfile-path: microservices/time-series-analytics/Dockerfile
+        trivy-report-format: 'json'
+        severity-levels: 'HIGH,CRITICAL'
+        output-report-path: trivy-dockerfile.json
+        name: Time Series Dockerfile
