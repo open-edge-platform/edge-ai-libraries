@@ -14,3 +14,8 @@ SECURITY.md @xwu2intel
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
 /microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel
 /microservices/vlm-openvino-serving/ @bharagha @bhardwaj-nakul @yogeshmpandey
+/microservices/multimodal-embedding-serving/ @bharagha @bhardwaj-nakul @yogeshmpandey
+/microservices/visual-data-preparation-for-retrieval/ @bhardwaj-nakul @@krish918 @llin60 @xwu2intel
+/microservices/vector-retriever/ @bhardwaj-nakul @@krish918 @llin60 @xwu2intel
+/microservices/audio-intelligence/ @bhardwaj-nakul @@krish918 @bharagha @yogeshmpandey
+/sample-applications/video-search-and-summarization/ @bhardwaj-nakul @@krish918 @bharagha @yogeshmpandey
