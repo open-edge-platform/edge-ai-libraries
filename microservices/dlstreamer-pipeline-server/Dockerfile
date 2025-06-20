@@ -113,17 +113,32 @@ ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/in
 
 WORKDIR /home/pipeline-server
 
-RUN export no_proxy= && \
-    apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
-    libglib2.0-0 \
-    libusb-1.0-0 \
-    libtool \
-    zlib1g \
-    zip \
-    unzip \
-    libopencv-core4.5d \
-    libopencv-imgcodecs4.5d \
-    libcjson1 && \
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
+        libglib2.0-0 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        zip \
+        unzip \
+        libopencv-core406 \
+        libopencv-imgcodecs406 \
+        libcjson1; \
+    else \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
+        libglib2.0-0 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        zip \
+        unzip \
+        libopencv-core4.5d \
+        libopencv-imgcodecs4.5d \
+        libcjson1; \
+    fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
