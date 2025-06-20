@@ -156,9 +156,6 @@ ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
     PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
     PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
 
-
-USER root
-
 WORKDIR /home/pipeline-server
 
 ENV DEBIAN_FRONTEND=noninteractive
@@ -197,21 +194,19 @@ ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:${CM
 
 ### To install other/newer Genicam camera SDKs add the installation steps here
 
-# RUN apt-get update && apt-get install -y --no-install-recommends git
-
 ENV PATH=$PATH:/home/pipeline-server/.local/bin
 
-# Install for ntp timestamping
+# Install for ntp timestamping: scenescape gvapython requirement
 RUN pip3 install --no-cache-dir ntplib==0.4.0
 
-#Patch and install OpenVINO model api
-COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+# #Patch and install OpenVINO model api
+# COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
+# RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
 
-# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
-RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
-    cd $MODEL_API_PATH && \
-    git apply /home/pipeline-server/model_api.patch
+# # site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+# RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+#     cd $MODEL_API_PATH && \
+#     git apply /home/pipeline-server/model_api.patch
 
 # # Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
 # # Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
@@ -238,20 +233,17 @@ RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")
 # # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 # RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
 
-# Install schedule for python job scheduling
-RUN pip3 install --no-cache-dir schedule==1.2.1
+# # Install schedule for python job scheduling
+# RUN pip3 install --no-cache-dir schedule==1.2.1
 
 # Install opcua
 RUN pip3 install --no-cache-dir asyncua==1.1.5
 
-# Downgrading Flask due to an atttribute error(JSONEncoder)
-RUN pip3 uninstall --no-cache-dir -y Flask && \
-    pip3 install --no-cache-dir Flask==2.2.5
+# # Downgrading Flask due to an atttribute error(JSONEncoder)
+# RUN pip3 uninstall --no-cache-dir -y Flask && \
+#     pip3 install --no-cache-dir Flask==2.2.5
 
-# # Visualizer webtrc requirements
-# RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends
-
-USER root
+# For model registry client 
 RUN pip3 install --no-cache-dir pydantic==2.8.2
 
 RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends && \
@@ -274,12 +266,11 @@ RUN pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
                  -r /home/pipeline-server/src/server/requirements.webrtc.txt \
                  -r /home/pipeline-server/src/server/requirements.txt && \
     python3 -m pip install --no-cache-dir --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
-USER ${USER}
 
 # OpenTelemetry
-USER root
 RUN pip3 install --no-cache-dir -r  /home/pipeline-server/src/opentelemetry/requirements.txt
 RUN pip3 install --no-cache-dir --upgrade opentelemetry-exporter-otlp
+
 USER ${USER}
 
 # Disable OpenVINO Telemetry
@@ -293,13 +284,6 @@ COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy
 COPY ./user_scripts/udfs/python/add_label.py /home/pipeline-server/udfs/python/add_label.py
 COPY ./user_scripts/udfs/python/dummy_publisher.py /home/pipeline-server/udfs/python/dummy_publisher.py
 COPY ./user_scripts/udfs/python/geti_udf/ /home/pipeline-server/udfs/python/geti_udf/
-
-# Copy geti pallet defect detection sample
-COPY ./resources/models/geti /home/pipeline-server/resources/models/geti
-COPY ./resources/videos/classroom.avi /home/pipeline-server/resources/videos/classroom.avi
-COPY ./resources/videos/warehouse.avi /home/pipeline-server/resources/videos/warehouse.avi
-COPY ./resources/videos/person-bicycle-car-detection.mp4 /home/pipeline-server/resources/videos/person-bicycle-car-detection.mp4
-#COPY ./pipelines/user_defined_pipelines/person_detection /home/pipeline-server/pipelines/user_defined_pipelines/person_detection
 
 # Copy GVAPYTHON samples
 COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
