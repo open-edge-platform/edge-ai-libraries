@@ -21,6 +21,7 @@ services:
       VLM_DEVICE: ${VLM_DEVICE}
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
+      VLM_MAX_COMPLETION_TOKENS: ${VLM_MAX_COMPLETION_TOKENS}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri

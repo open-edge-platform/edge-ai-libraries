@@ -5,8 +5,9 @@ import logging
 import os
 
 from dotenv import load_dotenv
-from pydantic import Field
+from pydantic import Field, field_validator
 from pydantic_settings import BaseSettings
+from typing import Optional, Any
 
 # Configure logger
 logging.basicConfig(
@@ -48,6 +49,20 @@ class Settings(BaseSettings):
     )
     VLM_DEVICE: str = Field(default="CPU", json_schema_extra={"env": "VLM_DEVICE"})
     SEED: int = Field(default=42, json_schema_extra={"env": "SEED"})
+    VLM_MAX_COMPLETION_TOKENS: Optional[int] = Field(
+        default=None,
+        json_schema_extra={"env": "VLM_MAX_COMPLETION_TOKENS"},
+    )
+
+    @field_validator("VLM_MAX_COMPLETION_TOKENS", mode="before")
+    @classmethod
+    def validate_max_completion_tokens(cls, v: Any) -> Optional[int]:
+        if v is None or v == "":
+            return None
+        try:
+            return int(v)
+        except (ValueError, TypeError):
+            return None
 
 
 class ErrorMessages:

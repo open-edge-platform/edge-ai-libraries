@@ -40,6 +40,11 @@ export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 export VLM_SERVICE_PORT=9764
 export VLM_SEED=42
 
+# By default, VLM_MAX_COMPLETION_TOKENS is unset (which results in None in Python)
+# To set a specific value, uncomment and modify the following line:
+# export VLM_MAX_COMPLETION_TOKENS=1000
+unset VLM_MAX_COMPLETION_TOKENS
+
 # Check if VLM_MODEL_NAME is not defined or empty
 if [ -z "$VLM_MODEL_NAME" ]; then
     echo -e "ERROR: VLM_MODEL_NAME is not set in your shell environment."
