@@ -53,13 +53,15 @@ Chatqna:
     INDEX_NAME: intel-rag
     FETCH_K: 10
     PORT_DB: 5432/langchain
-    SERVICE_NAME: chatqna
-    SERVICE_ENV: chatqna
     OTEL_METRICS_EXPORTER: otlp
     OTEL_TRACES_EXPORTER: otlp
     OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
+    OTEL_SERVICE_NAME: chatqna
+    OTEL_SERVICE_ENV: chatqna
+    OTEL_SERVICE_VERSION: "1.0.0"
     REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     PG_CONNECTION_STRING: postgresql+psycopg://
+    SEED: 40
 
 dataprepPgvector:
   name: document-ingestion
