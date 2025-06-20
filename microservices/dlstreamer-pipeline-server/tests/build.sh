@@ -10,4 +10,4 @@ set -x
 export DIR=$(cd $(dirname $0) && pwd)
 
 # Build image for running unit tests
-docker build -f ${DIR}/../unittests.Dockerfile ${DIR}/../ -t intel/dlstreamer-pipeline-server-test:3.1.0
+docker build -f ${DIR}/../unittests.Dockerfile ${DIR}/../ --build-arg USER="intelmicroserviceuser" -t intel/dlstreamer-pipeline-server-test:3.1.0
