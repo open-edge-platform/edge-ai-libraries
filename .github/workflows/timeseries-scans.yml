@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-name: "[Time Series Analytics] Trivy filesystem and image scans"
-run-name: "[Time Series Analytics] Trivy filesystem and image scans workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[Time Series Analytics] Trivy filesystem, image and config scans"
+run-name: "[Time Series Analytics] Trivy filesystem, image and config scans workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
 
 # Only run at most 1 workflow concurrently per PR, unlimited for branches
