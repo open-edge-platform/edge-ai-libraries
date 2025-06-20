@@ -251,7 +251,7 @@ services:
 
   ovms-service-gpu:
     image: openvino/model_server:2025.0-gpu
-    container_name: ovms-service
+    container_name: ovms-service-gpu
     profiles:
       - GPU-OVMS
     environment:
