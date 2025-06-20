@@ -2,8 +2,8 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-name: "[Time Series Analytics] PR Scans"
-run-name: "[Time Series Analytics] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[Time Series Analytics] Trivy filesystem and image scans"
+run-name: "[Time Series Analytics] Trivy filesystem and image scans workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
 
 # Only run at most 1 workflow concurrently per PR, unlimited for branches
@@ -18,33 +18,7 @@ on:
     paths:
       - 'microservices/time-series-analytics/**'
 
-jobs:
-  zizmor-workflow-scan:
-    runs-on: ubuntu-22.04-32core-128GB  
-    permissions:
-      contents: read
-    env:
-      ZIZMOR_VERSION: 1.5.2
-    steps:
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false
-          
-      - name: Install uv
-        uses: astral-sh/setup-uv@f0ec1fc3b38f5e7cd731bb6ce540c5af426746bb
-        
-      - name: Run Zizmor Workflow Security Scan
-        continue-on-error: true
-        run: uvx zizmor=="$ZIZMOR_VERSION" "$GITHUB_WORKSPACE" --no-exit-codes > zizmor_workflow_scan_report.txt
-          
-      - name: Upload Zizmor Scan Report
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: zizmor-workflow-security-report
-          path: zizmor_workflow_scan_report.txt
-    
+jobs:   
   trivy-scan-job:
     permissions:
       contents: read
@@ -74,7 +48,9 @@ jobs:
           trivy image --download-db-only
           curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
           # Use the downloaded template
-          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_fs_code_scan.html"   
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_fs_code_scan.html" 
+          trivy fs --list-all-pkgs --format template --template "@trivy-html.tpl" --output trivy-fs-full-report.csv .
+          trivy fs --ignore-unfixed . | tee trivy-fs-full-report.txt  
       
       - name: Upload trivy filesystem/repo scan reports
         continue-on-error: true
@@ -84,6 +60,8 @@ jobs:
           name: Trivy FileSystem scan report
           path: |
               microservices/time-series-analytics/trivy_fs_code_scan.html
+              microservices/time-series-analytics/trivy-fs-full-report.csv
+              microservices/time-series-analytics/trivy-fs-full-report.txt
       
       - name: Trivy Image Scan
         continue-on-error: true
@@ -108,3 +86,18 @@ jobs:
           path: |
                 microservices/time-series-analytics/docker/trivy_image_scan.html
                 microservices/time-series-analytics/docker/trivy_image_scan.spdx.json
+
+      - name: Trivy file scan 
+        run: |
+          
+          
+      - name: Trivy config scan for Dockerfiles and helm charts 
+        run: |
+          cd "${{ github.workspace }}"
+          trivy config . >> /tmp/trivy-Dockerfile_helm.txt
+          
+      - name: Upload Scan artifact to Github
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trivy-csv
+          path: /tmp/trivy-*
