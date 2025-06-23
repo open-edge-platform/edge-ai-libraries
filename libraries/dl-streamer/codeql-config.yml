@@ -1,7 +1,6 @@
 paths:
   - libraries/dl-streamer
 paths-ignore:
-  - libraries/dl-streamer/gstreamer
   - libraries/dl-streamer/docs
   - libraries/dl-streamer/thirdparty
   - gstreamer
