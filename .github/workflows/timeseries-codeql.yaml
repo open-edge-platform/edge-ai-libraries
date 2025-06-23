@@ -1,0 +1,46 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+name: "CodeQL Advanced"
+on:
+  workflow_dispatch:
+
+
+jobs:
+  codeql-job:
+    name: Analyze Python
+    # Consider using larger runners or machines with greater resources for possible analysis time improvements.
+    runs-on: ubuntu-22.04
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false 
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@v3
+        with:
+          languages: 'python'
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v3
+        with:
+          category: "/language:python"
+
+      - name: Generate Security Report
+        uses: rsdmike/github-security-report-action@v3.0.4
+        with:
+          template: report
+          token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: GitHub Upload Release Artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: python-report
+          path: ./report.pdf
