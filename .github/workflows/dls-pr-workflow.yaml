@@ -46,6 +46,18 @@ jobs:
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
+  static-code-analysis:
+    permissions:
+      contents: read
+    name: Static Code Analysis
+    uses: ./.github/worfklows/codeql.yaml
+
+  static-code-analysis-for-c-cpp:
+    permissions:
+      contents: read
+    name: DLS Static Code Analysis for C/C++
+    uses: ./.github/worfklows/dls-codeql.yaml
+
   build-dev-images:
     permissions:
       contents: read

@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024 Intel Corporationn
 # SPDX-License-Identifier: Apache-2.0
 #
 

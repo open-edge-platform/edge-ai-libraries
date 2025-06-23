@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright (C) 2022 Intel Corporation
+# Copyright (C) 2022 Intel Corporationn
 # SPDX-License-Identifier: MIT
 
 # Permission is hereby granted, free of charge, to any person obtaining a copy
