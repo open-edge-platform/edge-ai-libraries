@@ -1,5 +1,5 @@
 #!/bin/bash
-# Build script for microservice dependencies and sample application backend/UI
+# Build script for sample application backend/UI
 
 # Colors for output
 GREEN='\033[0;32m'
@@ -28,9 +28,8 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --sample-app\t Build sample application services (pipeline-manager, search-ms, and UI)"
   echo -e "  --push\t Push all built Docker images to the registry"
-  echo -e "  <no option>\t Build all microservice dependencies"
+  echo -e "  <no option>\t Build all sample application services"
 }
 
 # Logging functions
@@ -60,78 +59,6 @@ docker_build() {
   docker build $build_args "$@"
 }
 
-# ================================================================================
-# Build microservice dependencies
-# ================================================================================
-build_dependencies() {
-  log_info "Building microservice dependencies..."
-  
-  # Save current directory
-  local current_dir=$(pwd)
-  local uservices_dir="${current_dir}/../../microservices"
-  local build_success=true
-
-  # Build DATAPREP
-  cd "${uservices_dir}/visual-data-preparation-for-retrieval/vdms/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-   cd .. && docker_build -t ${REGISTRY}vdms-dataprep:${TAG} -f docker/Dockerfile . || { 
-      log_info "${RED}Failed to build DATAPREP${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yaml not found for dataprep service${NC}";
-  fi
-
-# Check if the directory exists first
-  cd "${uservices_dir}/multimodal-embedding-serving/docker" || return
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}multimodal-embedding:${TAG} -f docker/Dockerfile . || { 
-      log_info "${RED}Failed to build multimodal embedding${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yml not found for multimodal embedding${NC}";
-  fi
-
-  
-  # Build vlm-openvino-serving
-  cd "${uservices_dir}/vlm-openvino-serving/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}vlm-openvino-serving:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
-      build_success=false; 
-    }
-  else
-    log_info "${YELLOW}compose.yaml not found for vlm-openvino-serving ${NC}";
-  fi
-
-
-  # Build audio intelligence microservice
-  cd "${uservices_dir}/audio-intelligence/docker" || return 1
-  if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}audio-intelligence:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build audio-intelligence microservice${NC}"; 
-      build_success=false; 
-    }
-  fi
-
-  # Return to original directory
-  cd "$current_dir"
-  
-  if [ "$build_success" = true ]; then
-    log_info "${GREEN}All dependencies built successfully${NC}"
-    
-    # Print built images
-    log_info "${GREEN}Built images:${NC}"
-    echo "Retrieving Docker images related to microservice dependencies..."
-    docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}"
-    
-    return 0
-  else
-    log_info "${YELLOW}Some dependencies failed to build. Check logs for details.${NC}"
-    return 1
-  fi
-}
 
 # ================================================================================
 # Build sample application Backend and UI
@@ -217,19 +144,6 @@ push_images() {
   local current_dir=$(pwd)
   local push_success=true
 
-  # Get list of dependency images to push
-  log_info "Pushing dependency images..."
-  dependency_images=$(docker images | grep -E "${REGISTRY}.*(vdms|multimodal|vlm|audio).*${TAG}" | awk '{print $1":"$2}')
-  
-  # Push dependency images
-  for image in $dependency_images; do
-    log_info "Pushing $image..."
-    docker push $image || {
-      log_info "${RED}Failed to push $image${NC}";
-      push_success=false;
-    }
-  done
-
   # Push sample application images
   log_info "Pushing sample application images..."
   app_images=$(docker images | grep -E "${REGISTRY}.*(pipeline-manager|video-search|video-ingestion|vss-ui).*${TAG}" | awk '{print $1":"$2}')
@@ -251,15 +165,12 @@ push_images() {
   fi
 }
 
-# ================================================================================
 
 # Parse command line arguments
 if [ "$1" == "--help" ] || [ "$1" == "-h" ]; then
   show_usage
-elif [ "$1" == "--sample-app" ]; then
-  build_sample_app
 elif [ "$1" == "--push" ]; then
   push_images
 else
-  build_dependencies
+  build_sample_app
 fi

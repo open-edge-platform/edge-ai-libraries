@@ -2,6 +2,8 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
+> **Note:** The dependent microservices must be built separately from their respective microservice folders.
+
 ## Prerequisites
 1. Follow the instructions given in the [Get Started](./get-started.md) section.
 
@@ -42,15 +44,12 @@ This section shows how to build the Video Search and Summary sample application 
 
     ### 🔨 Building Images
 
-    The build script provides several options:
+    The build script provides options to build and push the images:
 
     ```bash
-    sudo chmod +x ./build.sh
-    # Build all microservice dependencies (vlm-openvino-serving, multimodal-embedding-serving, vdms-dataprep etc.)
-    ./build.sh
 
-    # Build only the sample applications (pipeline-manager, video-search and UI)
-    ./build.sh --sample-app
+    # Build the sample applications services
+    ./build.sh 
 
     # Push all built images to the configured registry
     ./build.sh --push
@@ -64,7 +63,6 @@ This section shows how to build the Video Search and Summary sample application 
 
 
 4. **Run the Docker Container**:
-
 
     The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the below command to run the application:
 
