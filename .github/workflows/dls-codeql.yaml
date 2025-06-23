@@ -10,8 +10,7 @@ jobs:
     permissions:
       contents: read
     outputs:
-      langs: ${{ steps.detect-langs.outputs.langs }}
-      projects: ${{ steps.detect-langs.outputs.projects }}
+      run-analysis: ${{ steps.detect-langs.outputs.run-analysis }}
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
