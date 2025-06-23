@@ -17,9 +17,11 @@ This page provides detailed hardware, software, and platform requirements to hel
 - If GPU is available, refer to the official [documentation](https://dgpu-docs.intel.com/devices/hardware-table.html) for details on required kernel version. For the listed hardware platforms, the kernel requirement translates to Ubuntu 24.04 or Ubuntu 24.10 depending on the GPU used.
 
 ## Minimum Configuration
-The recommended minimum configuration for memory is 64GB and storage is 128 GB. Further requirements is dependent on the specific configuration of the application like KV cache, context size etc. Any changes to the default parameters of the sample application should be assessed for memory and storage implications.
+The recommended minimum configuration depends on the model serving used.
+- For OVMS based deployment, recommendation for memory is 64GB and storage is 128 GB. 
+- For vLLM based deployment, recommendation for memory is 128GB. Minimum storage is 128GB, but check based on the model configuration. Memory configuration can be reduced by changing the default KV_CACHE_SPACE to a lower value. Lower KV_CACHE has impact on the performance and accuracy of the pipeline.
 
-It i s possible to reduce the memory to 32GB provided the model configuration is also reduced. Raise a git issue in case of any required support for smaller configurations.
+Further requirements is dependent on the specific configuration of the application like KV cache, context size etc. Any changes to the default parameters of the sample application should be assessed for memory and storage implications. Raise a git issue in case of any required support for smaller configurations.
 
 ## Software Requirements
 
