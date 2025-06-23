@@ -51,6 +51,9 @@ This section shows how to build the Video Search and Summary sample application 
     # Build the sample applications services
     ./build.sh 
 
+    # Build the sample applications dependencies
+    ./build.sh --dependencies
+
     # Push all built images to the configured registry
     ./build.sh --push
     ```
