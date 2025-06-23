@@ -16,9 +16,13 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
 # Additional imports for log exporting
-from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler
-from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
-from opentelemetry.exporter.otlp.proto.http.logs_exporter import OTLPLogExporter
+# from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler, set_logger_provider
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry import _logs
+# from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+# from opentelemetry.exporter.otlp.proto.http.logs_exporter import OTLPLogExporter
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 from src.common.log import get_logger
 
@@ -50,7 +54,7 @@ class OpenTelemetryExporter:
         # Create the OTLP Metric Exporter
         self.otlp_metrics_exporter = OTLPMetricExporter(endpoint=self.metrics_collector_url)
         # Create the OTLP Log Exporter
-        self.otlp_metrics_exporter = OTLPLogExporter(endpoint=self.logs_collector_url)
+        self.otlp_logs_exporter = OTLPLogExporter(endpoint=self.logs_collector_url)
 
         # Set up the PeriodicExportingMetricReader, which sends metrics to the OTLP exporter
         metric_reader = PeriodicExportingMetricReader(
@@ -69,8 +73,24 @@ class OpenTelemetryExporter:
         
         # Create a Meter object to capture metrics
         self.meter = meter_provider.get_meter("container-metrics")
-        # self.meter = metrics.get_meter_provider().get_meter("container-metrics")
         
+        # Set up LoggerProvider with resource info
+        logger_provider = LoggerProvider(resource=resource)
+        # set_logger_provider(logger_provider)
+        # Set it as the global logger provider
+        _logs.set_logger_provider(logger_provider)
+
+        # Add OTLP log exporter processor
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(self.otlp_logs_exporter)
+        )
+
+        # Attach OpenTelemetry logging handler to root logger
+        import logging
+        otel_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        otel_logging_handler = LoggingHandler(level=getattr(logging, otel_log_level, logging.DEBUG))
+        logging.getLogger().addHandler(otel_logging_handler)
+
         # Create gauges to track CPU and memory usage
         self.cpu_usage = self.meter.create_gauge(
             "cpu_usage_percentage",
