@@ -2,6 +2,8 @@
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://localhost:5000/docs`.
 
+**Note:** Use the link `http://localhost:5000/docs` to access the Swagger UI if doing a Helm-based deployment on a Kubernetes cluster.
+
 ## Accessing the Swagger UI
 
 ### To view the current configuration:
@@ -56,7 +58,7 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 4. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
 5. The service will send alert to OP CUA server as configured in the config.
 
-> **Note:** Before using the OP CUA alerts API, ensure you have run `make up_opcua_ingestion` and added `opcua` to the `alerts` section in your configuration.
+> **Note:** Before using the OPC UA alerts API, ensure that you have the OPC-UA server running and have added `opcua` to the `alerts` section in `config.json` file
 
 ### Check the status of the Time Series Analytics Microservice
 

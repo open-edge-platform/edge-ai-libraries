@@ -408,6 +408,8 @@ if __name__ == "__main__":
             config = json.load(file)
         logger.info("App configuration loaded successfully from config.json file")
         start_kapacitor_service(config)
+        while True:
+            time.sleep(1)
     except FileNotFoundError:
         logger.warning("config.json file not found, waiting for the configuration")
     except Exception as e:
