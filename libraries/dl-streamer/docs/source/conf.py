@@ -70,7 +70,7 @@ html_static_path = ['_static']
 # Dictionary selected
 spelling_lang='en_US'
 
-# Path of file containing a list of words known to be spelled correctly but that 
+# Path of file containing a list of words known to be spelled correctly but that
 # do not appear in the language dictionary selected
 spelling_word_list_filename='spelling_wordlist.txt'
 
@@ -79,5 +79,10 @@ spelling_show_suggestions=True
 
 # -- Options for LINK check ---------------------------------------------------
 
-# Enable anchors check 
+# Enable anchors check
 linkcheck_anchors=False
+
+# Mimic the real browser
+linkcheck_request_headers = {
+    "User-Agent": "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/115.0.0.0 Safari/537.36"
+}
