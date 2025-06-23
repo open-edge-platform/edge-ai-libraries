@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   build-docs:
     name: Build DL Streamer documentation
-    runs-on: ubuntu-latest # Change to self-hosted when ready to unblock linkcheck: [self-hosted, linux]
+    runs-on: [self-hosted, dlstreamer, linux, DLS-TGL-01]
     permissions:
       contents: read
     steps:
