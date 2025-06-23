@@ -14,7 +14,7 @@ services:
       - no-new-privileges
     build:
       context: ..
-      target: dlstreamer-pipeline-server
+      target: ${BUILD_TARGET}
       dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
@@ -23,8 +23,6 @@ services:
         USER: ${PIPELINE_SERVER_USER}
         BASE_IMAGE: ${BASE_IMAGE}
         CMAKE_INSTALL_PREFIX: "/opt/intel/eii"
-        # Download sources for GPL/LGPL/AGPL binary distributed components (yes/no)
-        DOWNLOAD_GPL_SOURCES: "no"
         no_proxy: ${no_proxy}
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
@@ -63,6 +61,9 @@ services:
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
+      - MR_URL=${MR_URL}
+      - MR_SAVED_MODELS_DIR=${MR_SAVED_MODELS_DIR}
+      - MR_REQUEST_TIMEOUT=${MR_REQUEST_TIMEOUT}
       - MR_VERIFY_CERT=${MR_VERIFY_CERT}
       # Append pipeline name to a publisher topic
       - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
@@ -77,7 +78,7 @@ services:
       - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT}
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
     volumes:
-      # - "../resources:/home/pipeline-server/resources/"
+      - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"

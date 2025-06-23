@@ -1,0 +1,90 @@
+replicaCount: 1
+
+image:
+    cpu:
+        repository: intel/multimodal-embedding-serving
+    gpu:
+        repository: intel/multimodal-embedding-serving-arc-gpu
+    pullPolicy: IfNotPresent
+    # Overrides the image tag whose default is the chart appVersion.
+    tag: "1.2.0"
+
+imagePullSecrets: []
+nameOverride: ''
+fullnameOverride: ''
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext:
+    capabilities:
+        drop:
+            - ALL
+    readOnlyRootFilesystem: true
+    allowPrivilegeEscalation: false
+    runAsNonRoot: false
+    runAsUser: 0
+    seccompProfile:
+        type: RuntimeDefault
+
+service:
+    type: ClusterIP
+    name: mm-embed-port
+    port: 8000
+    targetPort: 8000
+
+resources: {}
+
+livenessProbe:
+    httpGet:
+        path: /health
+        port: 8000
+    periodSeconds: 20
+    failureThreshold: 15
+readinessProbe:
+    httpGet:
+        path: /health
+        port: 8000
+    periodSeconds: 10
+    failureThreshold: 6
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Environment variables
+modelName: 'openai/clip-vit-base-patch32'
+defaultStartOffsetSec: 0
+defaultClipDuration: 10
+defaultNumFrames: 64
+embeddingUseOV: false
+embeddingDevice: 'CPU'
+
+# GPU-specific configurations
+gpu:
+    enabled: false  # Set to true for GPU deployment
+    key: "dgpu"
+    value: "arc770"
+    videoGroupID: 44  # Replace with actual group ID
+    renderGroupID: 109  # Replace with actual group ID
+    group_add: []  # Add additional groups if required
+
+global:
+    # Set this value to hostPath where we want to mount a volume (Used in single node cluster).
+    volumeHostPath: ''
+
+    # Set the PVC name here if storage sub-chart is enabled (Used in single/multi node cluster).
+    pvcName: "vss-shared-pvc"
+    # Nodes on which pods using the PV will be scheduled
+    storageNodeAffinity: []
+
+    # Common release tags to be used for several dependencies
+    commonTag: ''
+    proxy:
+    # setup proxy settings
+        no_proxy: "localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+        http_proxy: ''
+        https_proxy: ''

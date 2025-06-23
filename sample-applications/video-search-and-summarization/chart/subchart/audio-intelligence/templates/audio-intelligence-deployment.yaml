@@ -1,0 +1,63 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "audiointelligence.fullname" . }}
+  labels:
+    app: {{ include "audiointelligence.name" . }}
+spec:
+  replicas: {{ .Values.audiointelligence.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.audiointelligence.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.audiointelligence.name }}
+    spec:
+      containers:
+        - name: {{ .Values.audiointelligence.name }}
+          image: "{{ .Values.audiointelligence.image.repository }}:{{ .Values.audiointelligence.image.tag }}"
+          imagePullPolicy: {{ .Values.audiointelligence.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.audiointelligence.service.targetPort }}
+          env:
+            - name: DEBUG
+              value: {{ .Values.audiointelligence.env.DEBUG | quote }}
+            - name: DEFAULT_DEVICE
+              value: {{ .Values.audiointelligence.env.DEFAULT_DEVICE | quote }}
+            - name: DEFAULT_WHISPER_MODEL
+              value: {{ .Values.audiointelligence.env.DEFAULT_WHISPER_MODEL | quote }}
+            - name: ENABLED_WHISPER_MODELS
+              value: {{ .Values.audiointelligence.env.ENABLED_WHISPER_MODELS | quote }}
+            - name: MAX_FILE_SIZE
+              value: {{ .Values.audiointelligence.env.MAX_FILE_SIZE | quote }}
+            - name: MINIO_ENDPOINT
+              value: "{{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}"
+            - name: MINIO_HOST
+              value: "{{ .Values.minioServer.name }}"
+            - name: MINIO_ACCESS_KEY
+              value: {{ .Values.global.env.MINIO_ROOT_USER | quote }}
+            - name: MINIO_SECRET_KEY
+              value: {{ .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
+            - name: STORAGE_BACKEND
+              value: {{ .Values.audiointelligence.env.STORAGE_BACKEND | quote }}
+            - name: USE_FP16
+              value: {{ .Values.audiointelligence.env.USE_FP16 | quote }}
+            - name: http_proxy
+              value: {{ .Values.global.proxy.http_proxy | quote }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.https_proxy | quote }}
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+          volumeMounts:
+            - name: data-volume
+              mountPath: /data
+            - name: models-volume
+              mountPath: /models
+      volumes:
+        - name: data-volume
+          persistentVolumeClaim:
+            claimName: {{ .Values.audiointelligence.volumeMounts.pvcName }}
+        - name: models-volume
+          persistentVolumeClaim:
+            claimName: {{ .Values.audiointelligence.volumeMounts.modelsPvcName }}

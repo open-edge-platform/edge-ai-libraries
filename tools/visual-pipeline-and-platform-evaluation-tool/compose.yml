@@ -5,27 +5,20 @@ x-vippet: &vippet
     dockerfile: Dockerfile.vippet
   ports:
     - "7860:7860"
-  command: gradio app.py
+  command: python app.py
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:7860/"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
   depends_on:
-    - models
+    models:
+      condition: service_healthy
   restart: on-failure:5
-  # # The following config applies to WSL2:
-  # environment:
-  #   DISPLAY: ":0"
-  #   WAYLAND_DISPLAY: "wayland-0"
-  #   XDG_RUNTIME_DIR: "/mnt/wslg/runtime-dir"
-  #   PULSE_SERVER: "/mnt/wslg/PulseServer"
-  #   GST_DEBUG: "1"
-  # devices:
-  #   - "/dev/dri:/dev/dri"
-  # volumes:
-  #   - "/run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix"
-  #   - "/run/desktop/mnt/host/wslg:/mnt/wslg"
-  #   - "/usr/lib/wsl:/usr/lib/wsl"
-  # The following config applies to Linux:
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
+    PIPELINE: smartnvr
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
@@ -40,13 +33,18 @@ services:
     environment:
       - MODELS_PATH=/output/
     user: root
-    command: bash -xc '
+    command: bash -c '
         cp /tmp/models.sh . &&
         chmod +x models.sh &&
-        bash -cx ./models.sh &&
+        bash -c ./models.sh &&
         tail -f /dev/null
       '
     restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "test", "-f", "healthcheck.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu

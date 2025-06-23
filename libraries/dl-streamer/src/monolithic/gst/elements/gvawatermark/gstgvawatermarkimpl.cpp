@@ -461,7 +461,9 @@ bool Impl::render(GstBuffer *buffer) {
         preparePrimsForTensor(tensor, ff_rect, prims);
         if (tensor.label().size() > 1) {
             appendStr(ff_text, tensor.label());
-            ff_text << int(tensor.confidence() * 100) << "%";
+            if (tensor.confidence() > 0.0) {
+                ff_text << int(tensor.confidence() * 100) << "%";
+            }
         }
     }
 
@@ -614,7 +616,7 @@ void Impl::preparePrimsForKeypoints(const GVA::Tensor &tensor, GVA::Rect<double>
         return;
 
     const auto keypoints_data = tensor.data<float>();
-    const auto confidence = tensor.get_float_vector("confidence");
+    const auto confidence = tensor.get_vector<float>("confidence");
 
     if (keypoints_data.empty())
         throw std::runtime_error("Keypoints array is empty.");

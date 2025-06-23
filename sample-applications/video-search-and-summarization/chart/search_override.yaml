@@ -1,0 +1,20 @@
+multimodalembeddingms:
+  enabled: true
+vdmsdataprep:
+  enabled: true
+vdmsvectordb:
+  enabled: true
+videosearch:
+  enabled: true
+
+videoSummaryManager:
+  env:
+    SUMMARY_FEATURE: "FEATURE_OFF"
+    SEARCH_FEATURE: "FEATURE_ON"
+
+videosummaryui:
+  name: videosummaryui
+  feature:
+    summary: "FEATURE_OFF"
+    search: "FEATURE_ON"
+    mux: "ATOMIC"

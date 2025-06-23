@@ -1,12 +1,12 @@
 global:
   huggingface:
     # Set this during installation
-    apiToken:  
+    apiToken:
   proxy:
     no_proxy:
     http_proxy:
     https_proxy:
-  UI_NODEPORT: 
+  UI_NODEPORT:
   POSTGRES_USER:
   POSTGRES_PASSWORD:
   MINIO_ROOT_USER:
@@ -24,8 +24,8 @@ global:
   #Enable the below service if OVMS embedding needs to be deployed in gpu
   ovmsEmbeddinggpuService:
     enabled: false
-  gpu: 
-    enabled: false 
+  gpu:
+    enabled: false
     key:  #update as per the cluster node label key for GPU assigned by the device plugin
     device: "GPU" #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
   minio_pvc:
@@ -53,13 +53,15 @@ Chatqna:
     INDEX_NAME: intel-rag
     FETCH_K: 10
     PORT_DB: 5432/langchain
-    SERVICE_NAME: chatqna
-    SERVICE_ENV: chatqna
     OTEL_METRICS_EXPORTER: otlp
     OTEL_TRACES_EXPORTER: otlp
     OTEL_EXPORTER_OTLP_TRACES_PROTOCOL: http/protobuf
+    OTEL_SERVICE_NAME: chatqna
+    OTEL_SERVICE_ENV: chatqna
+    OTEL_SERVICE_VERSION: "1.0.0"
     REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
     PG_CONNECTION_STRING: postgresql+psycopg://
+    SEED: 40
 
 dataprepPgvector:
   name: document-ingestion
