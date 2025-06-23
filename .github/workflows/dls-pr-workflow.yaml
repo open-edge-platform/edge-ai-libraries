@@ -48,13 +48,19 @@ jobs:
 
   static-code-analysis:
     permissions:
+      security-events: write
+      actions: read
       contents: read
+      packages: read
     name: Static Code Analysis
     uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
     permissions:
+      security-events: write
+      actions: read
       contents: read
+      packages: read
     name: DLS Static Code Analysis for C/C++
     uses: ./.github/workflows/dls-codeql.yaml
 
