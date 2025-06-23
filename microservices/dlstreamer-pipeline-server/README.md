@@ -120,6 +120,8 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 ---
 ## Build from source 
 
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK and the OpenVINO Model API on top of the optimised image.
+
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
 
@@ -136,9 +138,15 @@ Update the following lines for choosing the right base image and also for naming
   # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
   BASE_IMAGE=
 
-  # For Ubuntu 22.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
-  # For Ubuntu 24.04: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
+  # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+  # For Ubuntu 24.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
+  # For Ubuntu 22.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22
+  # For Ubuntu 24.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24
   DLSTREAMER_PIPELINE_SERVER_IMAGE=
+
+  # For optimized image: dlstreamer-pipeline-server
+  # For extended image: dlstreamer-pipeline-server-extended
+  BUILD_TARGET=
   ```
 
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
@@ -151,14 +159,23 @@ Run the following commands:
      docker compose build
    ```
    
-   The docker image `intel/dlstreamer-pipeline-server:3.1.0-ubuntu22` or `intel/dlstreamer-pipeline-server:3.1.0-ubuntu24` is now built (based on the .env changes done above) and available for you to run.
+   The docker image `intel/dlstreamer-pipeline-server:3.1.0-ubuntu22`, `intel/dlstreamer-pipeline-server:3.1.0-ubuntu24`, `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22` or `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24` is now built (based on the .env changes done above) and available for you to run.
    
    ```sh
      docker compose up
    ```
+
 ---
 ### Run default sample
 Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+
+---
+## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
+
+  ```sh
+    docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
+  ```
+---
 
 ## Learn More
 
