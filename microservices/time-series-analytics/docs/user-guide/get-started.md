@@ -72,7 +72,7 @@ Directory details is as below:
 The `udfs` section specifies the details of the UDFs used in the task.
 
 | Key     | Description                                                                 | Example Value                          |
-|---------|-----------------------------------------------------------------------------|----------------------------------------|                             |
+|---------|-----------------------------------------------------------------------------|----------------------------------------|
 | `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
 
 
