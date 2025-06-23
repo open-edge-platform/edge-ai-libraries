@@ -53,42 +53,45 @@ The corresponding tick script is available at `edge-ai-libraries/microservices/t
 Directory details is as below:
   
 ### **`config.json`**:
-  The `task` section defines the settings for the Kapacitor task and User-Defined Functions (UDFs).
 
-  | Key                     | Description                                                                                     | Example Value                          |
-  |-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-  | `fetch_from_model_registry` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
-  | `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
-  | `tick_script`           | The name of the TICK script file used for data processing and analytics.                        | `"temperature_classifier.tick"`  |
-  | `task_name`             | The name of the Kapacitor task.                                                                | `"temperature_classifier"`       |
-  | `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                           | See below for details.                 |
+
+| Key                     | Description                                                                                     | Example Value                          |
+|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
+| `model_registry` | Configuration for the Model Registry microservice.       | See below for details.                      |
+| `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                           | See below for details.                 |
+
+**Model Registry Configuration**:
+
+| Key                     | Description                                                                                     | Example Value                          |
+|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
+| `enable` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
+| `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
 
 **UDFs Configuration**:
 
-  The `udfs` section specifies the details of the UDFs used in the task.
+The `udfs` section specifies the details of the UDFs used in the task.
 
-  | Key     | Description                                                                 | Example Value                          |
-  |---------|-----------------------------------------------------------------------------|----------------------------------------|
-  | `type`  | The type of UDF. Currently, only `python` is supported.                     | `"python"`                             |
-  | `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
+| Key     | Description                                                                 | Example Value                          |
+|---------|-----------------------------------------------------------------------------|----------------------------------------|
+| `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
 
 
-  ---
+---
 
 **Alerts Configuration**: <Optional>
 
-  The `alerts` section defines the settings for alerting mechanisms, such as MQTT protocol.
-  Please note the MQTT broker needs to be available.
+The `alerts` section defines the settings for alerting mechanisms, such as MQTT protocol.
+Please note the MQTT broker needs to be available.
 
 **MQTT Configuration**:
 
 The `mqtt` section specifies the MQTT broker details for sending alerts.
 
-  | Key                 | Description                                                                 | Example Value          |
-  |---------------------|-----------------------------------------------------------------------------|------------------------|
-  | `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
-  | `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                |
-  | `name`              | The name of the MQTT broker configuration.                                 | `"my_mqtt_broker"`     |
+| Key                 | Description                                                                 | Example Value          |
+|---------------------|-----------------------------------------------------------------------------|------------------------|
+| `mqtt_broker_host`  | The hostname or IP address of the MQTT broker.                              | `"ia-mqtt-broker"`     |
+| `mqtt_broker_port`  | The port number of the MQTT broker.                                         | `1883`                |
+| `name`              | The name of the MQTT broker configuration.                                 | `"my_mqtt_broker"`     |
 
 
 ### **`config/`**:
@@ -116,9 +119,7 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
-## Deploy with Docker Compose (Single Node)
-
-### Push Docker Images (Optional)
+## Push Docker Images (Optional)
 
 To push images to a Docker registry:
 
@@ -137,7 +138,7 @@ To push images to a Docker registry:
 
 ## Deployment Options
 
-### Deploy with Docker Compose (Single Node)
+### Deploy with Docker Compose
 
 Navigate to the application directory and run the Docker container:
 
@@ -150,7 +151,8 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-python3 src/temperature_input.py --mode docker
+pip3 install -r simulator/requirements.txt
+python3 simulator/temperature_input.py --port 5000
 ```
 
 ### Verify the Temperature Classifier Results
@@ -162,6 +164,10 @@ Run below commands to see the filtered temperature results:
 docker logs -f ia-time-series-analytics-microservice
 ```
 
+### Accessing the Swagger UI
+
+The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
+Please refer [API documentation](./how-to-access-api.md).
 
 ## Troubleshooting
 

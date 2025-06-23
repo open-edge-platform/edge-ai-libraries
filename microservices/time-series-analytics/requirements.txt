@@ -1,7 +1,6 @@
 scikit-learn-intelex==2025.2.0
 scikit-learn==1.6.1
-protobuf==4.24.4
-watchdog==6.0.0
+protobuf==4.25.8
 modin==0.32.0
 tomlkit==0.13.2
 asyncua==1.1.5
