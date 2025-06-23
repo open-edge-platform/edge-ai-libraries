@@ -88,7 +88,7 @@ This section shows you how to:
 
 ## Running in Kubernetes Environment
 
-Refer to [Deploy with Helm Chart](./deploy-with-helm-chart.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm chart.
+Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm chart.
 
 ## Running Tests
 
