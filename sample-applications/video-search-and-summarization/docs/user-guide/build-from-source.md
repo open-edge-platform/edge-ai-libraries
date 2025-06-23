@@ -9,6 +9,8 @@ This section shows how to build the Video Search and Summary sample application 
 
 3. Configure the required [environment variables](./get-started.md#️-setting-required-environment-variables). 
 
+4. If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
+
 ## Steps to Build from Source
 
 1. **Clone the Repository**:
