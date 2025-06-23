@@ -14,8 +14,10 @@ spec:
   ports:
   - name: kapacitor-port
     port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
-    targetPort: {{ $.Values.config.time_series_analytics_microservice.int.port }}
-    nodePort: {{ $.Values.config.time_series_analytics_microservice.ext.port }}
+  - name: rest-api-port
+    port: {{ .Values.config.time_series_analytics_microservice_rest_api.rest_api_port }}
+    targetPort: {{ .Values.config.time_series_analytics_microservice_rest_api.int.port }}
+    nodePort: {{ .Values.config.time_series_analytics_microservice_rest_api.ext.port }}
   selector:
     app: time-series-analytics-microservice
 ---
