@@ -3,11 +3,11 @@
 
 services:
   multimodal-embedding-serving:
-    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
+    image: ${REGISTRY:-}multimodal-embedding-serving-arc-gpu:${TAG:-latest}
     container_name: vclip-embedding
     build:
-      context: .
-      dockerfile: docker/Dockerfile
+      context: ..
+      dockerfile: docker/Dockerfile.arc-gpu
     ports:
       - "${EMBEDDING_SERVER_PORT}:8000"
     ipc: host
@@ -19,8 +19,12 @@ services:
       DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION}
       DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
-      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
+      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+    group_add:
+      - ${USER_GROUP_ID-1000}
+      - ${VIDEO_GROUP_ID}
+      - ${RENDER_GROUP_ID}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -28,6 +32,8 @@ services:
       timeout: 10s
       retries: 40
       start_period: 5s
+    devices:
+      - /dev/dri:/dev/dri
     networks:
       - my_network
     volumes:

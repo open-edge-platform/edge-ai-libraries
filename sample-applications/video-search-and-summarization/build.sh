@@ -39,6 +39,27 @@ log_info() {
   echo -e "$(date '+%Y-%m-%d %H:%M:%S') - $message" | tee -a "${LOG_FILE:-/dev/null}"
 }
 
+# Function to build docker image with proxy support
+docker_build() {
+  local build_args=""
+  
+  # Add proxy settings if they exist in the environment
+  if [ -n "$http_proxy" ]; then
+    build_args="$build_args --build-arg http_proxy=$http_proxy"
+  fi
+  
+  if [ -n "$https_proxy" ]; then
+    build_args="$build_args --build-arg https_proxy=$https_proxy"
+  fi
+  
+  if [ -n "$no_proxy" ]; then
+    build_args="$build_args --build-arg no_proxy=$no_proxy"
+  fi
+  
+  # Execute docker build with all arguments
+  docker build $build_args "$@"
+}
+
 # ================================================================================
 # Build microservice dependencies
 # ================================================================================
@@ -53,42 +74,42 @@ build_dependencies() {
   # Build DATAPREP
   cd "${uservices_dir}/visual-data-preparation-for-retrieval/vdms/docker" || return 0
   if [ -f "compose.yaml" ]; then
-   cd .. && source setup.sh --build || { 
+   cd .. && docker_build -t ${REGISTRY}vdms-dataprep:${TAG} -f docker/Dockerfile . || { 
       log_info "${RED}Failed to build DATAPREP${NC}"; 
       build_success=false; 
     }
+  else
+    log_info "${YELLOW}compose.yaml not found for dataprep service${NC}";
   fi
+
 # Check if the directory exists first
-if [ -d "${uservices_dir}/multimodal-embedding-serving" ]; then
-  cd "${uservices_dir}/multimodal-embedding-serving" || {
-    log_info "${RED}Multimodal embedding directory not found${NC}";
-    build_success=false;
-  }
+  cd "${uservices_dir}/multimodal-embedding-serving/docker" || return
   if [ -f "compose.yaml" ]; then
-    source setup.sh && docker compose build || { 
+    cd .. && docker_build -t ${REGISTRY}multimodal-embedding:${TAG} -f docker/Dockerfile . || { 
       log_info "${RED}Failed to build multimodal embedding${NC}"; 
       build_success=false; 
     }
   else
     log_info "${YELLOW}compose.yml not found for multimodal embedding${NC}";
   fi
-fi
+
   
   # Build vlm-openvino-serving
-  cd "${uservices_dir}/vlm-openvino-serving" || return 0
+  cd "${uservices_dir}/vlm-openvino-serving/docker" || return 0
   if [ -f "compose.yaml" ]; then
-    source setup.sh && docker compose build || { 
+    cd .. && docker_build -t ${REGISTRY}vlm-openvino-serving:${TAG} -f docker/Dockerfile . || {
       log_info "${RED}Failed to build vlm-openvino-serving${NC}"; 
       build_success=false; 
     }
+  else
+    log_info "${YELLOW}compose.yaml not found for vlm-openvino-serving ${NC}";
   fi
 
 
   # Build audio intelligence microservice
   cd "${uservices_dir}/audio-intelligence/docker" || return 1
-  if [ -f "docker-compose.yaml" ]; then
-    cd ../
-    ./setup_docker.sh --build || { 
+  if [ -f "compose.yaml" ]; then
+    cd .. && docker_build -t ${REGISTRY}audio-intelligence:${TAG} -f docker/Dockerfile . || {
       log_info "${RED}Failed to build audio-intelligence microservice${NC}"; 
       build_success=false; 
     }
@@ -126,7 +147,7 @@ build_sample_app() {
   # Build video ingestion microservice
   cd "${current_dir}/video-ingestion/docker" || return 0
   if [ -f "compose.yaml" ]; then
-    docker compose build || { 
+    cd .. && docker_build -t ${REGISTRY}video-ingestion:${TAG} -f docker/Dockerfile . || {
       log_info "${RED}Failed to build video-ingestion microservice${NC}"; 
       build_success=false; 
     }
@@ -136,7 +157,7 @@ build_sample_app() {
   cd "${current_dir}/pipeline-manager" || return 0
   if [ -f "Dockerfile" ]; then
     log_info "Building pipeline-manager service..."
-    docker build -t "${REGISTRY}pipeline-manager:${TAG}" . || { 
+    docker_build -t "${REGISTRY}pipeline-manager:${TAG}" . || { 
       log_info "${RED}Failed to build pipeline-manager service${NC}"; 
       build_success=false; 
     }
@@ -148,7 +169,7 @@ build_sample_app() {
   cd "${current_dir}/search-ms" || return 0
   if [ -f "docker/Dockerfile" ]; then
     log_info "Building search-ms service..."
-    docker build -t "${REGISTRY}video-search:${TAG}" -f docker/Dockerfile . || { 
+    docker_build -t "${REGISTRY}video-search:${TAG}" -f docker/Dockerfile . || { 
       log_info "${RED}Failed to build search-ms service${NC}"; 
       build_success=false; 
     }
@@ -160,7 +181,7 @@ build_sample_app() {
   cd "${current_dir}/ui/react" || return 0
   if [ -f "Dockerfile" ]; then
     log_info "Building UI service..."
-    docker build -t "${REGISTRY}vss-ui:${TAG}" . || { 
+    docker_build -t "${REGISTRY}vss-ui:${TAG}" . || { 
       log_info "${RED}Failed to build UI service${NC}"; 
       build_success=false; 
     }

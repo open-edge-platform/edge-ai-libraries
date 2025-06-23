@@ -72,11 +72,7 @@ This section shows how to build the Video Search and Summary sample application 
 
 5. 🌐 Accessing the Application
 
-    After successfully starting the application, you can access the UI at URL provided by following command:
-
-    ```bash
-    echo "http://${HOST_IP}:${APP_HOST_PORT}"
-    ```
+    After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
 
 ## Verification
 

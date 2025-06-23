@@ -59,9 +59,9 @@ To run the server using Docker Compose, use the following command:
 
  ```bash
  # Run on CPU
- docker compose -f compose.yaml up
+ docker compose -f docker/compose.yaml up
  # Run on GPU
- docker compose -f compose.arc-gpu.yaml up
+ docker compose -f docker/compose.arc-gpu.yaml up
  ```
 
 ## Sample CURL Commands
