@@ -11,7 +11,7 @@
 - **Document Summary Unit Test Cases:** Unit tests for have been added along with readme containing steps to run these tests.
 - **Helm:**  Helm chart integration is done to simplify the deployment and management of applications on Kubernetes clusters
 - **Telemetry with Helm:** Along with docker now integrated with Helm too
-- **Streamlined Build, Deployment and Documentation:** Added setup script to simplify service build and deployment processes and several other [user guide](docs/user-guide)  documents have been added
+- **Streamlined Build, Deployment and Documentation:** Added setup script to simplify service build and deployment processes and several other [user guide](../user-guide)  documents have been added
  
 **Development Testing:**
 
