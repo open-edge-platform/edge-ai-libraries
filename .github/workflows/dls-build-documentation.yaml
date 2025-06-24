@@ -65,7 +65,7 @@ jobs:
       - name: Check links
         run: |
           cd ./libraries/dl-streamer/docs
-          python3 links_checker.py 2>&1 | tee links_checker_report.txt
+          python3 ./scripts/links_checker.py 2>&1 | tee links_checker_report.txt
 
       - name: Upload linkcheck report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
