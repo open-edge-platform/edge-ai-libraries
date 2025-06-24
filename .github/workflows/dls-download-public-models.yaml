@@ -45,7 +45,6 @@ jobs:
     - name: Download public models
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
         ./edge-ai-libraries/libraries/dl-streamer/samples/download_public_models.sh
 
     - name: Verify downloading
