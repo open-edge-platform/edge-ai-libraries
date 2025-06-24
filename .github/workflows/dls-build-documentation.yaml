@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   build-docs:
     name: Build DL Streamer documentation
-    runs-on: [self-hosted, dlstreamer, linux, ARL]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -44,16 +44,16 @@ jobs:
           echo "$result"
           summary_content+="$result\n"
 
-          # Check broken links in linkcheck
-          # linkcheck_file_path='./libraries/dl-streamer/docs/build-linkcheck/output.txt'
-          # broken_count=$(grep -o '\[broken\]' "$linkcheck_file_path" | wc -l)
-          # if [ "$broken_count" -eq 0 ]; then
-          #   result="Broken links: $broken_count :white_check_mark:"
-          # else
-          #   result="Broken links: $broken_count :x:"
-          # fi
-          # echo "$result"
-          # summary_content+="$result\n"
+          Check broken links in linkcheck
+          linkcheck_file_path='./libraries/dl-streamer/docs/build-linkcheck/output.txt'
+          broken_count=$(grep -o '\[broken\]' "$linkcheck_file_path" | wc -l)
+          if [ "$broken_count" -eq 0 ]; then
+            result="Broken links: $broken_count :white_check_mark:"
+          else
+            result="Broken links: $broken_count :x:"
+          fi
+          echo "$result"
+          summary_content+="$result\n"
 
           # Spelling
           result="Spelling: check report from artifacts"
@@ -62,17 +62,26 @@ jobs:
 
           echo -e "$summary_content" >> $GITHUB_STEP_SUMMARY
 
-      - name: Check links
+      - name: Check specific links
         run: |
           cd ./libraries/dl-streamer/docs
-          python3 ./scripts/links_checker.py 2>&1 | tee links_checker_report.txt
+          python3 ./scripts/specific_links_checker.py 2>&1 | tee specific_links_checker_report.txt
+          summary=$(grep -E '✅ All links are working\.|❌ [0-9]+ broken link\(s\)' specific_links_checker_report.txt | tail -n 1)
+          echo "$summary" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload linkcheck report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         if: always()
         with:
          name: docs_linkcheck_report
-         path: ./libraries/dl-streamer/docs/links_checker_report.txt
+         path: ./libraries/dl-streamer/docs/build-linkcheck/
+
+      - name: Upload specific links checker report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        if: always()
+        with:
+         name: docs_linkcheck_report
+         path: ./libraries/dl-streamer/docs/specific_links_checker_report.txt
 
       - name: Upload spelling report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2

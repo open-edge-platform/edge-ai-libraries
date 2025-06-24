@@ -81,3 +81,7 @@ spelling_show_suggestions=True
 
 # Enable anchors check
 linkcheck_anchors=False
+linkcheck_ignore = [
+    r'https://www.intel.com/.*',
+    r'https://*.intel.com/.*'
+]
