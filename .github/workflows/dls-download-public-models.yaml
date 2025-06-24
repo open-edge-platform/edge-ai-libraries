@@ -31,6 +31,7 @@ jobs:
         path: script
         sparse-checkout: |
             download_public_models.sh
+        sparse-checkout-cone-mode: false
 
     - name: Prepare directory
       run: |
@@ -39,10 +40,12 @@ jobs:
           rm -rf "${{ env.MODELS_PATH }}"
         fi
         mkdir -p ${{ env.MODELS_PATH }}
+        echo "Directory created: ${{ env.MODELS_PATH }}"
 
     - name: Download public models
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
+        find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
         ./script/download_public_models.sh
 
     - name: Verify downloading
