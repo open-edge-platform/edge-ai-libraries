@@ -109,7 +109,7 @@ jobs:
 
     # ======================================================== SCANNING PART ========================================================
     - name: Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@02da05ed6bd22b229f9899f050eb8b4b8a955c8f
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@af27737b367259186beaa0680d3cba0845f69a17
       with:
         scan_target: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "CRITICAL"
