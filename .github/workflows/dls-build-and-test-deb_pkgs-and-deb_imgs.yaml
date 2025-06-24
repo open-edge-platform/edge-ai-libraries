@@ -115,6 +115,7 @@ jobs:
         severity: "CRITICAL"
         scan_type: image
         format: json
+        scan-scope: all
         timeout: 20m
 
     # ======================================================== OH HOST TESTING PART ========================================================
