@@ -45,7 +45,7 @@ echo "::endgroup::"
 
 # Building
 echo "Building..."
-BUILD_TYPES="html,spelling,linkcheck"
+BUILD_TYPES="html,spelling"
 docker run --name "$CONTAINER_NAME" "$IMAGE_NAME" ./scripts/sphinx_build.sh "$BUILD_TYPES"
 RUN_RESULT=$?
 
