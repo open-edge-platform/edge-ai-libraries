@@ -1,41 +1,63 @@
-name: "[DLS] Download public models"
-run-name: "[DLS] Download public models (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[DLS] Update models on self-hosted runners"
+run-name: "[DLS] Update models on self-hosted runners (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
+  push:
+    branches:
+      - dls_dmichalo_ModelsDownloadWorkflow
+  schedule:
+    - cron: '0 6 * * MON' # 6:00 UTC each Monday
   workflow_dispatch:
 permissions: {}
+env:
+  MODELS_PATH: "$HOME/models"
 
 jobs:
-  download-models:
-    name: Download models
-    runs-on: ubuntu-latest
+  update_linux_hosts:
+    name: Update on Linux runners
+    runs-on: ${{ matrix.host_labels }}
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host_labels: [self-hosted, DLS-ARL-01]
+          - host_labels: [self-hosted, DLS-ARL-02]
     steps:
-    - name: Check out edge-ai-libraries repository
+    - name: Get script
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries-repo
+        path: edge-ai-libraries
+        sparse-checkout: |
+          libraries/dl-streamer/samples/download_public_models.sh
+        sparse-checkout-cone-mode: false
 
-    - name: Download omz models
-      env:
-        MODELS_PATH: /home/runner/dls-models
+    - name: Prepare directory
       run: |
-        mkdir -p edge-ai-libraries-repo/.virtualenvs/dlstreamer
-        python3 -m venv edge-ai-libraries-repo/.virtualenvs/dlstreamer
-        edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip tensorflow openvino-dev[onnx]
-        source edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/activate
-        export MODELS_PATH=${MODELS_PATH}
-        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
+        if [ -d "${{ env.MODELS_PATH }}" ]; then
+          echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
+          rm -rf "${{ env.MODELS_PATH }}"
+        fi
+        mkdir -p ${{ env.MODELS_PATH }}
+        echo "Directory created: ${{ env.MODELS_PATH }}"
 
     - name: Download public models
-      env:
-        MODELS_PATH: /home/runner/dls-models
       run: |
-        export MODELS_PATH=${MODELS_PATH}
-        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        ./edge-ai-libraries/libraries/dl-streamer/samples/download_public_models.sh
+
+    - name: Verify downloading
+      run: |
+        if [ -z "$( ls -A '${{ env.MODELS_PATH }}' )" ]; then
+          echo "Models not downloaded correctly ❌"
+          echo "Exiting..."
+          exit 1
+        else
+          echo "Models downloaded ✅"
+        fi
 
     - name: Clean up
       if: always()
       run: |
-        sudo rm -rf edge-ai-libraries-repo /home/runner/dls-models
+        rm -rf edge-ai-libraries
