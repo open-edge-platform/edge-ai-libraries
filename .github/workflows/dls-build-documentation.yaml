@@ -60,6 +60,7 @@ jobs:
           echo "$result"
           summary_content+="$result\n"
 
+          echo "### Building with Sphinx results" >> $GITHUB_STEP_SUMMARY
           echo -e "$summary_content" >> $GITHUB_STEP_SUMMARY
 
       - name: Check specific links
@@ -68,6 +69,7 @@ jobs:
           cd ./libraries/dl-streamer/docs
           python3 ./scripts/specific_links_checker.py 2>&1 | tee specific_links_checker_report.txt
           summary=$(grep -E '✅ All links are working\.|❌ [0-9]+ broken link\(s\)' specific_links_checker_report.txt | tail -n 1)
+          echo "### Extra links checker" >> $GITHUB_STEP_SUMMARY
           echo "$summary" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload linkcheck report

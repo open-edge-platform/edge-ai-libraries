@@ -10,11 +10,13 @@ from urllib.parse import urlparse
 import sys
 from collections import defaultdict
 
-# Regex to extract URLs
+# Config URLs to find
 URL_REGEXES = [
-    re.compile(r'https?://(?:www\.)?intel\.com[^\s\)\]\}\"\'>]*'),
+    re.compile(r'https?://(?:[a-zA-Z0-9-]+\.)*intel\.com[^\s\)\]\}\"\'>]*'),
     # add more regexes as needed
 ]
+URL_EXCLUDED_KEYWORDS = ['apt', 'repos', 'repositories']
+
 
 # Set timeout for HTTP requests
 TIMEOUT = 10
@@ -27,8 +29,12 @@ def extract_links_from_file(filepath):
     for regex in URL_REGEXES:
         raw_links = set(regex.findall(content))
         cleaned_links = {
-        link.rstrip('.,);:]\'"') for link in raw_links
-            if '$(' not in link and '${' not in link
+            link.rstrip('.,);:]\'"') for link in raw_links
+                if '$(' not in link and '${' not in link
+            }
+        cleaned_links = {
+            link for link in cleaned_links
+            if not any(word in link for word in URL_EXCLUDED_KEYWORDS)
         }
         all_links.update(cleaned_links)
 
