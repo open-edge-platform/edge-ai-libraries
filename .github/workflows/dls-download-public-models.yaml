@@ -22,7 +22,7 @@ jobs:
       matrix:
         include:
           - host_labels: [self-hosted, DLS-ARL-01]
-          # - host_labels: [self-hosted, DLS-ARL-02]
+          - host_labels: [self-hosted, DLS-ARL-02]
     steps:
     - name: Get script
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -60,4 +60,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries-repo edge-ai-libraries
+        rm -rf edge-ai-libraries
