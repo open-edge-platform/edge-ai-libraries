@@ -83,7 +83,7 @@ jobs:
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         if: always()
         with:
-         name: docs_linkcheck_report
+         name: docs_specific_links_checker_report
          path: ./libraries/dl-streamer/docs/specific_links_checker_report.txt
 
       - name: Upload spelling report
