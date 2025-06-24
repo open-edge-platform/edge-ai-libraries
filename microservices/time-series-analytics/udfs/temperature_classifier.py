@@ -56,12 +56,15 @@ class MirrorHandler(Handler):
             if kv.key == "temperature":
                 temp = kv.value
                 break
-        logger.debug(f"Received temperature point data {temp}")
-        if temp < 20 or temp > 25:
-            response = udf_pb2.Response()
-            response.point.CopyFrom(point)
-            logger.info(f"Temperature {temp} is outside the range 20-25.")
-            self._agent.write_response(response, True)
+        if temp is None or isinstance(temp, (int, float)) is False:
+            logger.error(f"Invalid temperature data received - {temp}")
+        else:
+            logger.debug(f"Received temperature point data {temp}")
+            if temp < 20 or temp > 25:
+                response = udf_pb2.Response()
+                response.point.CopyFrom(point)
+                logger.info(f"Temperature {temp} is outside the range 20-25.")
+                self._agent.write_response(response, True)
 
     def end_batch(self, end_req):
         raise Exception("not supported")
