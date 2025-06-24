@@ -117,11 +117,11 @@ cd "$DOCKER_DIR" || { echo -e "${RED}Error: Could not navigate to docker directo
 
 # Set up Docker command based on mode
 if [ "$DEV_MODE" = true ]; then
-  DOCKER_CMD="docker compose -f docker-compose.yaml -f docker-compose.dev.yaml"
+  DOCKER_CMD="docker compose -f compose.yaml -f compose.dev.yaml"
   ENVIRONMENT="development"
   echo "Using $ENVIRONMENT environment configuration..."
 else
-  DOCKER_CMD="docker compose -f docker-compose.yaml"
+  DOCKER_CMD="docker compose -f compose.yaml"
   ENVIRONMENT="production"
   echo "Using $ENVIRONMENT environment configuration..."
 fi

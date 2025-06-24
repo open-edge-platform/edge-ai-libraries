@@ -37,7 +37,7 @@ If variables are not set, in that case, the `TAG` will have default value as _la
 1. **Clone the Repository**:
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-cd edge-ai-libraries/microservices/vlm-openvino-serving
+cd edge-ai-libraries/microservices/vlm-openvino-serving/docker
 ```
 
 2. **Set up environment values**:
