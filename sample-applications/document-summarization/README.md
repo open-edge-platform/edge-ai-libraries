@@ -16,7 +16,7 @@ The following are links to detailed documentation to help you get started, confi
 
 - **Deployment**
   - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building from source code.
-  - [How to Deploy with Helm Chart](): Guide for deploying using Helm chart.
+  - [How to Deploy with Helm Chart](docs/user-guide/deploy-with-helm.md): Guide for deploying using Helm chart.
   - [FAQ](docs/user-guide/faq.md): Answers for common questions.
 
 - **API Reference**
