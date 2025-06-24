@@ -151,4 +151,4 @@ The following example shows how to use the gvametaaggregate element to aggregate
 6. The Intel® DL Streamer Pipeline Framework performance benchmark results
 --------------------------------------------------------------------------
 
-The Intel® DL Streamer Pipeline Framework example performance benchmark results can be found as a part of the `Smart Cities Accelerated by Intel® Graphics Solutions paper <https://www.intel.com/content/abc/www/us/en/secure/content-details/826398/smart-cities-accelerated-by-intel-gpus-arc-gpu-addendum.html?wapkw=smart%20cities&DocID=826398>`__.
+The Intel® DL Streamer Pipeline Framework example performance benchmark results can be found as a part of the `Smart Cities Accelerated by Intel® Graphics Solutions paper <https://www.intel.com/content/www/us/en/secure/content-details/826398/smart-cities-accelerated-by-intel-gpus-arc-gpu-addendum.html?wapkw=smart%20cities&DocID=826398>`__.

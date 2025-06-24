@@ -44,7 +44,7 @@ jobs:
           echo "$result"
           summary_content+="$result\n"
 
-          Check broken links in linkcheck
+          # Check broken links in linkcheck
           linkcheck_file_path='./libraries/dl-streamer/docs/build-linkcheck/output.txt'
           broken_count=$(grep -o '\[broken\]' "$linkcheck_file_path" | wc -l)
           if [ "$broken_count" -eq 0 ]; then
