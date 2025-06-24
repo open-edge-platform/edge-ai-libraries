@@ -9,7 +9,7 @@ MODEL=${1:-"all"} # Supported values listed in SUPPORTED_MODELS below.
 QUANTIZE=${2:-""} # Supported values listed in SUPPORTED_MODELS below.
 
 # Changing the config dir for the duration of the script to prevent potential conflics with
-# previous installations of ultralytics' tools. Quantization datasets could install 
+# previous installations of ultralytics' tools. Quantization datasets could install
 # incorrectly without this.
 DOWNLOAD_CONFIG_DIR=$(mktemp -d /tmp/tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXX)
 QUANTIZE_CONFIG_DIR=$(mktemp -d /tmp/tmp.XXXXXXXXXXXXXXXXXXXXXXXXXXX)
@@ -180,7 +180,7 @@ source "$VENV_DIR_QUANT/bin/activate"
 pip install --upgrade pip
 
 # Install OpenVINO module
-pip install openvino==2025.1.0 || handle_error $LINENO
+pip install openvino==2025.2.0 || handle_error $LINENO
 
 pip install onnx || handle_error $LINENO
 pip install seaborn || handle_error $LINENO
@@ -568,7 +568,7 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
 
-  
+
   if [[ $QUANTIZE != "" ]]; then
     quantize_yolo_model "$MODEL_NAME"
   fi
@@ -696,8 +696,8 @@ if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]];
     cd "$MODEL_DIR"
 
     wget --no-check-certificate 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw' -O ${MODEL_NAME}.pt
-    
-    python3 - <<EOF "$MODEL_NAME" 
+
+    python3 - <<EOF "$MODEL_NAME"
 from ultralytics import YOLO
 import openvino, sys, shutil, os
 
@@ -718,7 +718,7 @@ openvino.save_model(ov_model, './FP16/' + model_name + '.xml', compress_to_fp16=
 shutil.rmtree(converted_path)
 os.remove(f"{model_name}.pt")
 EOF
-    
+
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
