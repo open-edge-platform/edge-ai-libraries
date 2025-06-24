@@ -51,8 +51,11 @@ class MirrorHandler(Handler):
         raise Exception("not supported")
 
     def point(self, point):
-        point_dict = point.fieldsDouble
-        temp = point_dict['temperature']
+        temp = None
+        for kv in point.fieldsDouble:
+            if kv.key == "temperature":
+                temp = kv.value
+                break
         logger.debug(f"Received temperature point data {temp}")
         if temp < 20 or temp > 25:
             response = udf_pb2.Response()
