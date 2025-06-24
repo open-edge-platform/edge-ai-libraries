@@ -106,9 +106,6 @@ For alternative ways to set up the sample application, see:
 
 - [How to Build from Source](./build-from-source.md)
 
-## Related Links
-
-- [How to Test Performance](./how-to-performance.md)
 
 ## Supporting Resources
 
