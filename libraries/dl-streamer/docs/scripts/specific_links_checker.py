@@ -83,7 +83,7 @@ def main():
             broken_links.append((link, sources))
 
     if broken_links:
-        print(f"\n❌ {len(broken_links)} broken link(s):")
+        print(f"\n❌ {len(broken_links)} broken link(s)")
         for link, sources in broken_links:
             print(f"  - {link}  ← from: {sources}")
         sys.exit(1 if len(broken_links) > 1 else 0)
