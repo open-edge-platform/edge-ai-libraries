@@ -1,0 +1,56 @@
+name: "[DLS] Update public models on self-hosted runners"
+run-name: "[DLS] Update public models on self-hosted runners (by ${{ github.actor }})"
+on:
+  push:
+    branches:
+      - dls_dmichalo_ModelsDownloadWorkflow
+  schedule:
+    - cron: '0 6 * * MON' # 6:00 UTC each Monday
+  workflow_dispatch:
+permissions: {}
+env:
+  MODELS_PATH: "$HOME/models"
+
+jobs:
+  update_linux_hosts:
+    name: Update models on Linux runners
+    runs-on: ${{ matrix.host_labels }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host_labels: [self-hosted, DLS-ARL-01]
+          # - host_labels: [self-hosted, DLS-ARL-02]
+    steps:
+    - name: Get script
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: script
+        sparse-checkout: |
+            download_public_models.sh
+
+    - name: Prepare directory
+      run: |
+        if [ -d "${{ env.MODELS_PATH }}" ]; then
+          echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
+          rm -rf "${{ env.MODELS_PATH }}"
+        fi
+        mkdir -p ${{ env.MODELS_PATH }}
+
+    - name: Download public models
+      run: |
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        ./script/download_public_models.sh
+
+    - name: Verify downloading
+      run: |
+        if [ -z "$( ls -A '${{ env.MODELS_PATH }}' )" ]; then
+          echo "Models not downloaded correctly ❌"
+          echo "Exiting..."
+          exit 1
+        else
+          echo "Models downloaded ✅"
+        fi
