@@ -1,4 +1,4 @@
-from .config import Settings
+from .config import config
 from .utils import login_to_huggingface, download_huggingface_model, convert_model
 from .document import load_file_document
 from .logger import logger
@@ -14,8 +14,9 @@ from langchain_core.prompts import ChatPromptTemplate
 import os
 import pandas as pd
 
-config = Settings()
 vectorstore = None
+
+logger.info(f"Chatqna-Core application started with config: {config}")
 
 # The RUN_TEST flag is used to bypass the model download and conversion steps during pytest unit testing.
 # By default, the flag is set to 'false', enabling the model download and conversion process in a normal run.
@@ -38,21 +39,22 @@ if not RUN_TEST:
     convert_model(config.LLM_MODEL_ID, config.CACHE_DIR, "llm")
 
     # Define RAG prompt
-    template = """
-    Use the following pieces of context from retrieved
-    dataset to answer the question. Do not make up an answer if there is no
-    context provided to help answer it.
+    # template = """
+    # Use the following pieces of context from retrieved
+    # dataset to answer the question. Do not make up an answer if there is no
+    # context provided to help answer it.
 
-    Context:
-    ---------
-    {context}
+    # Context:
+    # ---------
+    # {context}
 
-    ---------
-    Question: {question}
-    ---------
+    # ---------
+    # Question: {question}
+    # ---------
 
-    Answer:
-    """
+    # Answer:
+    # """
+    template = config.PROMPT_TEMPLATE
 
     prompt = ChatPromptTemplate.from_template(template)
 

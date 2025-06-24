@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from http import HTTPStatus
 from pydantic import BaseModel
 from typing import Annotated
-from .config import Settings
+from .config import config
 from .logger import logger
 from .chain import (
     create_faiss_vectordb,
@@ -22,8 +22,6 @@ from .document import validate_document, save_document
 from .utils import get_available_devices, get_device_property
 
 app = FastAPI(root_path="/v1/chatqna")
-
-config = Settings()
 
 app.add_middleware(
     CORSMiddleware,

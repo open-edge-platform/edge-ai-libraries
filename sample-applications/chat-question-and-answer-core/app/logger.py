@@ -1,9 +1,8 @@
-from .config import Settings
+from .config import config
 from typing import Optional
 import logging
 import sys
 
-config = Settings()
 
 def initialize_logger(name: Optional[str] = None) -> logging.Logger:
     """
@@ -39,5 +38,4 @@ def initialize_logger(name: Optional[str] = None) -> logging.Logger:
     return logger
 
 
-# Optional: create a default logger instance for convenience
 logger = initialize_logger(config.APP_DISPLAY_NAME)

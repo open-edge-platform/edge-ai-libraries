@@ -130,8 +130,8 @@ COPY . /app/
 
 WORKDIR /app
 
-RUN mkdir -p /tmp/model_cache && \
-    chown -R appuser:appuser /tmp/model_cache
+RUN mkdir -p /tmp/model_cache /tmp/model_config && \
+    chown -R appuser:appuser /tmp/model_cache /tmp/model_config
 
 USER appuser
 

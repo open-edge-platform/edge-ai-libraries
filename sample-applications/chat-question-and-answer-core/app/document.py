@@ -1,5 +1,5 @@
 import os
-from .config import Settings
+from .config import config
 from .logger import logger
 from pathlib import Path
 from fastapi import UploadFile
@@ -8,8 +8,6 @@ from langchain_community.document_loaders import (
     Docx2txtLoader,
     TextLoader
 )
-
-config = Settings()
 
 
 def validate_document(file_object: UploadFile):
