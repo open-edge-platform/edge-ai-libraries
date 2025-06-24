@@ -28,7 +28,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: script
+        path: edge-ai-libraries-repo
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
         sparse-checkout-cone-mode: false
@@ -46,7 +46,7 @@ jobs:
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         find . | sed -e "s/[^-][^\/]*\// |/g" -e "s/|\([^ ]\)/|-\1/"
-        ./script/download_public_models.sh
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
 
     - name: Verify downloading
       run: |
@@ -57,3 +57,8 @@ jobs:
         else
           echo "Models downloaded ✅"
         fi
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
