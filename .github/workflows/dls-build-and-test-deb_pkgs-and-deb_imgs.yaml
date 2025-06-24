@@ -24,17 +24,17 @@ jobs:
           - path_deb: $DLS_REL_PATH/docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile
             path_dev: $DLS_REL_PATH/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-            runner_labels: [ubuntu-latest] # Build and run tests on Tiger Lake system with Ubuntu 22
+            runner_labels: [ubuntu-24.04-16core-64GB] # Build and run tests on Tiger Lake system with Ubuntu 22
             runner_print_label: TGL
           - path_deb: $DLS_REL_PATH/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
             path_dev: $DLS_REL_PATH/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-            runner_labels: [ubuntu-latest] # Build and run tests on Tiger Lake system with Ubuntu 24
+            runner_labels: [ubuntu-24.04-16core-64GB] # Build and run tests on Tiger Lake system with Ubuntu 24
             runner_print_label: TGL
           - path_deb: $DLS_REL_PATH/docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile
             path_dev: $DLS_REL_PATH/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
-            runner_labels: [ubuntu-latest] # Build and run tests on Arrow Lake system with Ubuntu 24
+            runner_labels: [ubuntu-24.04-16core-64GB] # Build and run tests on Arrow Lake system with Ubuntu 24
             runner_print_label: ARL
     steps:
     - name: Check out edge-ai-libraries repository
@@ -114,20 +114,14 @@ jobs:
       run: docker rmi ${dev_release_img} ${deb_pkg_img} || true
 
     # ======================================================== SCANNING PART ========================================================
-    # - name: Scan Docker image with Trivy
-    #   uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
-    #   with:
-    #     image: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
-    #     severity: "CRITICAL"
-    #     # output-format: "json"
-    #     output-file: "dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
-
-    # - name: Upload Trivy report as artifact
-    #   if: always()
-    #   uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
-    #   with:
-    #     name: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report
-    #     path: dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
+    - name: Scan Docker image with Trivy
+      uses: ./orch-ci/.github/actions/security/trivy@d17d9cf56c1f84b5919acc159ea82e001ac0c887
+      with:
+        scan_target: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+        severity: "CRITICAL"
+        scan_type: image
+        format: json
+        timeout: 20m
 
     # ======================================================== OH HOST TESTING PART ========================================================
     # - name: Check models
