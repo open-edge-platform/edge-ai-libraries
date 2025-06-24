@@ -12,7 +12,7 @@ from collections import defaultdict
 
 # Config URLs to find
 URL_REGEXES = [
-    re.compile(r'https?://(?:[a-zA-Z0-9-]+\.)*intel\.com[^\s\)\]\}\"\'>]*'),
+    re.compile(r'https?://(?:[a-zA-Z0-9.-]+\.)?intel\.com(?:/[^\s<>"\'\)\]]*)?'),
     # add more regexes as needed
 ]
 URL_EXCLUDED_KEYWORDS = ['apt', 'repos', 'repositories']
@@ -29,8 +29,7 @@ def extract_links_from_file(filepath):
     for regex in URL_REGEXES:
         raw_links = set(regex.findall(content))
         cleaned_links = {
-            link.rstrip('.,);:]\'"') for link in raw_links
-                if '$(' not in link and '${' not in link
+            link.rstrip('.,);:]>\'"') for link in raw_links
             }
         cleaned_links = {
             link for link in cleaned_links
