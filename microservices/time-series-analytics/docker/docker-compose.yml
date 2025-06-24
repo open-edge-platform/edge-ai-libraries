@@ -1,0 +1,65 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+version: '3.6'
+services:
+  ia-time-series-analytics-microservice:
+    build:
+      context: $PWD/../
+      dockerfile: $PWD/../Dockerfile
+      args:
+        KAPACITOR_VERSION: 1.7.7
+        TIMESERIES_UID: ${TIMESERIES_UID}
+        TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
+        PYTHON_VERSION: "3.10"
+        no_proxy: ${timeseries_no_proxy}
+        INSTALL_SOURCES: "no"
+    container_name: ia-time-series-analytics-microservice
+    hostname: ia-time-series-analytics-microservice
+    image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}${IMAGE_SUFFIX:+-${IMAGE_SUFFIX}}
+    restart: unless-stopped
+    security_opt:
+    - no-new-privileges
+    read_only: true
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:9092/kapacitor/v1/ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 20
+    environment:
+      no_proxy: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost,model-registry"
+      NO_PROXY: "ia-time-series-analytics-microservice,ia-influxdb,ia-mqtt-broker,ia-opcua-server,localhost,model-registry"
+      KAPACITOR_PORT: ${KAPACITOR_PORT}
+      INFLUX_SERVER: ""
+      KAPACITOR_INFLUXDB_0_USERNAME: ""
+      KAPACITOR_INFLUXDB_0_PASSWORD: ""
+      PROFILING_MODE: "false"
+      KAPACITOR_URL: http://ia-time-series-analytics-microservice:$KAPACITOR_PORT/
+      KAPACITOR_UNSAFE_SSL: "true"
+      KAPACITOR_INFLUXDB_0_URLS_0: ""
+      INFLUXDB_PORT: 
+      KAPACITOR_LOGGING_LEVEL: ${LOG_LEVEL}
+      INFLUXDB_DBNAME: datain
+      PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION: python
+      SSL_CERT_FILE: /run/secrets/ca_certificate.pem
+      MODEL_REGISTRY_URL: http://model-registry:8111
+    networks:
+    - timeseries_network
+    ports:
+    - 5000:5000
+    volumes:
+    - "vol_temp_time_series_analytics_microservice:/tmp/"
+    - ../config.json:/app/config.json
+
+networks:
+  timeseries_network:
+    driver: bridge
+
+volumes:
+  vol_temp_time_series_analytics_microservice:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs

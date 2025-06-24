@@ -1,5 +1,5 @@
-import pprint
-import re
+import os
+import sys
 import xml.etree.ElementTree as ET
 
 
@@ -53,7 +53,18 @@ def extract_rectangles_with_labels(svg_file):
     return rectangles
 
 
-# Example Usage
-bounding_boxes = extract_rectangles_with_labels("diagrams/smartnvr.svg")
-print("Extracted Bounding Boxes:")
-pprint.pprint(bounding_boxes)
+if __name__ == "__main__":
+    if len(sys.argv) < 2:
+        print("Usage: python bounding_box.py <svg_file>")
+        sys.exit(1)
+    svg_file = sys.argv[1]
+
+    # Create a global path from a relative path
+    BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+
+    # Get rectangles
+    rectangles = extract_rectangles_with_labels(os.path.join(BASE_DIR, svg_file))
+
+    # Print the extracted rectangles with labels
+    for rect in rectangles:
+        print(f"Rectangle: {rect[:4]}, Label: {rect[4]}")

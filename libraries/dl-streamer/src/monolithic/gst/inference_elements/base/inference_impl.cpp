@@ -11,6 +11,7 @@
 #include "common/pre_processor_info_parser.hpp"
 #include "common/pre_processors.h"
 #include "config.h"
+#include "gmutex_lock_guard.h"
 #include "gst_allocator_wrapper.h"
 #include "gva_base_inference_priv.hpp"
 #include "gva_caps.h"
@@ -854,6 +855,7 @@ void InferenceImpl::PushOutput() {
         for (const std::shared_ptr<InferenceFrame> &inference_roi : (*frame).inference_rois) {
             gint meta_id = 0;
             if (NEW_METADATA && inference_roi->roi.id >= 0) {
+                GMutexLockGuard guard(&inference_roi->gva_base_inference->meta_mutex);
                 GstAnalyticsRelationMeta *relation_meta = gst_buffer_get_analytics_relation_meta(inference_roi->buffer);
                 if (!relation_meta) {
                     throw std::runtime_error("Failed to find relation meta");
@@ -1042,6 +1044,7 @@ GstFlowReturn InferenceImpl::TransformFrameIp(GvaBaseInference *gva_base_inferen
             /* iterates through buffer's meta and pushes it in vector if inference needed. */
             gpointer state = NULL;
             if (NEW_METADATA) {
+                GMutexLockGuard guard(&gva_base_inference->meta_mutex);
                 GstAnalyticsRelationMeta *relation_meta = gst_buffer_get_analytics_relation_meta(buffer);
                 if (relation_meta) {
                     GstAnalyticsODMtd od_meta;
@@ -1131,6 +1134,29 @@ GstFlowReturn InferenceImpl::TransformFrameIp(GvaBaseInference *gva_base_inferen
             std::this_thread::sleep_for(std::chrono::milliseconds(10));
             lock.lock();
             output_lock.lock();
+        }
+
+        // schedule frames according to their presentation time
+        if (!strcmp(gva_base_inference->scheduling_policy, "latency")) {
+            // find latest presentation timestamp in buffered frames
+            GstClockTime latest_pts = 0;
+            for (const auto &output_frame : output_frames)
+                if ((output_frame.buffer->pts != GST_CLOCK_TIME_NONE) && (output_frame.buffer->pts > latest_pts))
+                    latest_pts = output_frame.buffer->pts;
+
+            // pause if total number of buffered frames exceeds max number of frames in flight,
+            // and frame presentation time is later than ones already queued
+            while ((buffer->pts > latest_pts) &&
+                   (output_frames.size() > model.inference->GetNireq() * model.inference->GetBatchSize())) {
+                output_lock.unlock();
+                lock.unlock();
+                std::this_thread::sleep_for(std::chrono::milliseconds(10));
+                lock.lock();
+                output_lock.lock();
+                for (const auto &output_frame : output_frames)
+                    if ((output_frame.buffer->pts != GST_CLOCK_TIME_NONE) && (output_frame.buffer->pts > latest_pts))
+                        latest_pts = output_frame.buffer->pts;
+            }
         }
 
         if (!inference_count && output_frames.empty()) {

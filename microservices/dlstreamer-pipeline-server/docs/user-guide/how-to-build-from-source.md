@@ -1,8 +1,18 @@
 # How to build from source
 
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK and the OpenVINO Model API on top of the optimized image.
+
 ## Steps
 
 ### Prerequisites
+
+Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
+
+  ```sh
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+  cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
+  ```
+
 Add the following lines in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` if you are behind a proxy.
 
   ``` sh
@@ -11,17 +21,27 @@ Add the following lines in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
+Update the following lines for choosing the right base image and also for naming the image that gets built.
+
+  ``` sh
+  # For Ubuntu 22.04: intel/dlstreamer:2025.0.1.3-ubuntu22
+  # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
+  BASE_IMAGE=
+
+  # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+  # For Ubuntu 24.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
+  # For Ubuntu 22.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22
+  # For Ubuntu 24.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24
+  DLSTREAMER_PIPELINE_SERVER_IMAGE=
+
+  # For optimized image: dlstreamer-pipeline-server
+  # For extended image: dlstreamer-pipeline-server-extended
+  BUILD_TARGET=
+  ```
+
 ### Build DL Streamer Pipeline Server image and start container
 
-1.  Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
-
-```sh
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
-cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
-```
----
-
-2. Run the following commands in the project directory
+1. Run the following commands in the project directory
 
 ```sh
 cd docker
@@ -30,15 +50,19 @@ docker compose build
 ```
 ---
 
-3. Once the build is complete, list the docker images
+2. Once the build is complete, list the docker images
 ```sh
 docker image ls
 ```
-Verify that following image `intel/dlstreamer-pipeline-server:<latest-version-number>` is present in the system after the build is successful
+Based on the `.env` file changes done above, verify that the appropriate image from the following is present in the system after the build is successful
+- `intel/dlstreamer-pipeline-server:<latest-version-number>-ubuntu22`
+- `intel/dlstreamer-pipeline-server:<latest-version-number>-ubuntu24`
+- `intel/dlstreamer-pipeline-server:<latest-version-number>-extended-ubuntu22`
+- `intel/dlstreamer-pipeline-server:<latest-version-number>-extended-ubuntu24`
 
 ---
 
-4. Run the below command to start the container 
+3. Run the below command to start the container 
 ```sh
 docker compose up
 ```

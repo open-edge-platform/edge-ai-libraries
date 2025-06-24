@@ -32,6 +32,38 @@ on:
 permissions: {}
 
 jobs:
+  check-license-headers:
+    permissions:
+      contents: read
+    name: Check license headers
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+    
+    - name: Check license headers
+      uses: ./.github/actions/common/license-namespace-checker
+
+  static-code-analysis:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+    name: Static Code Analysis
+    uses: ./.github/workflows/codeql.yaml
+
+  static-code-analysis-for-c-cpp:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+    name: DLS Static Code Analysis for C/C++
+    uses: ./.github/workflows/dls-codeql.yaml
+
   build-dev-images:
     permissions:
       contents: read
@@ -39,12 +71,12 @@ jobs:
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
-  build-deb-and-img:
+  build-and-test-deb-and-deb_img:
     permissions:
       contents: read
       packages: read
-    name: Build .deb pkgs and deb imgs
-    uses: ./.github/workflows/dls-build-deb-packages-and-images.yaml
+    name: Build and test .deb pkgs & img
+    uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
 
   filter-docker-related-changes:
     permissions:
@@ -100,9 +132,12 @@ jobs:
           - name: dlstreamer_dev_ubuntu24
             path: libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
             output: reports/dlstreamer_dev_ubuntu24.json
-          - name: fedora41
+          - name: dlstreamer_fedora41
+            path: libraries/dl-streamer/docker/onebinary/fedora41/dlstreamer_fedora41.Dockerfile
+            output: reports/dlstreamer_fedora41.json
+          - name: dlstreamer_dev_fedora41
             path: libraries/dl-streamer/docker/devel/fedora41/dlstreamer_dev_fedora41.Dockerfile
-            output: reports/fedora41.json
+            output: reports/dlstreamer_dev_fedora41.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
@@ -110,3 +145,45 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
       name: ${{ matrix.name }}
+
+  clamav:
+    permissions:
+      contents: read
+    name: ClamAV antivirus scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - uses: open-edge-platform/orch-ci/.github/actions/clamav@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+      with:
+        project-folder: edge-ai-libraries-repo/libraries/dl-streamer
+        report-path: clamav_scan_report-dlstreamer.txt
+
+    - name: Upload ClamAV Scan Report
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
+      with:
+        name: ${{ env.CLAMAV_ARTIFACT_NAME }}
+        path: ${{ env.SANITIZED_CLAMAV_REPORT_PATH }}
+
+  bandit:
+    permissions:
+      contents: read
+    name: Bandit scan
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+
+    - name: Run Bandit scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
+      with:
+        scan-scope: "changed"
+        severity-level: "HIGH"
+        confidence-level: "HIGH"
+        output-format: "txt"

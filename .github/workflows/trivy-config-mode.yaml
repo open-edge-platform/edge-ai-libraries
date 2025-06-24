@@ -72,29 +72,38 @@ jobs:
           curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
           echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | \
           sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
-          sudo apt-get update 
+          sudo apt-get update
           sudo apt-get install -y trivy
 
       - name: Create report directory if needed
+        env:
+          output_report_path: ${{ inputs.output-report-path }}
         run: |
-          mkdir -p "$(dirname "${{ inputs.output-report-path }}")"
+          mkdir -p "$(dirname "${output_report_path}")"
 
       - name: Run Trivy config scan and save output
+        env:
+          dockerfile_path: ${{ inputs.dockerfile-path }}
+          output_report_path: ${{ inputs.output-report-path }}
+          severity_levels: ${{ inputs.severity-levels }}
+          trivy_report_format: ${{ inputs.trivy-report-format }}
         run: |
-          echo "🔍 Scanning: ${{ inputs.dockerfile-path }}"
-          echo "📁 Saving report to: ${{ inputs.output-report-path }}"
+          echo "🔍 Scanning: ${dockerfile_path}"
+          echo "📁 Saving report to: ${output_report_path}"
           trivy config \
-            --severity "${{ inputs.severity-levels }}" \
-            --format "${{ inputs.trivy-report-format }}" \
-            --output "${{ inputs.output-report-path }}" \
-            "${{ inputs.dockerfile-path }}"
+            --severity "${severity_levels}" \
+            --format "${trivy_report_format}" \
+            --output "${output_report_path}" \
+            "${dockerfile_path}"
 
           echo "📄 Report preview:"
-          head -n 100 "${{ inputs.output-report-path }}"
+          head -n 100 "${output_report_path}"
 
       - name: Check Trivy scan failures
+        env:
+          output_report_path: ${{ inputs.output-report-path }}
         run: |
-          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${{ inputs.output-report-path }}")
+          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${output_report_path}")
           echo "Failures found: $FAILURE_COUNT"
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
@@ -111,4 +120,6 @@ jobs:
           path: ${{ inputs.output-report-path }}
 
       - name: Clean up
-        run: rm -rf ${{ inputs.output-report-path }}
+        env:
+          output_report_path: ${{ inputs.output-report-path }}
+        run: rm -rf "${output_report_path}"

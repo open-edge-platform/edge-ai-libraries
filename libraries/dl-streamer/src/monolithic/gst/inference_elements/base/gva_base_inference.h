@@ -46,6 +46,7 @@ typedef struct _GvaBaseInference {
     gboolean no_block;
     guint nireq;
     gchar *model_instance_id;
+    gchar *scheduling_policy;
     guint cpu_streams;
     guint gpu_streams;
     gchar *ie_config;
@@ -77,6 +78,8 @@ typedef struct _GvaBaseInference {
     gboolean initialized;
     guint64 num_skipped_frames;
     guint64 frame_num;
+
+    GMutex meta_mutex;
 } GvaBaseInference;
 
 typedef struct _GvaBaseInferenceClass {

@@ -25,7 +25,7 @@ test:
 	@# Help: Runs test stage
 	@echo "---MAKEFILE TEST---"
 
-	docker run --entrypoint /home/pipeline-server/tests/run_tests.sh -v /tmp:/tmp:rw intel/dlstreamer-pipeline-server-test:3.0.0
+	docker run --entrypoint /home/pipeline-server/tests/run_tests.sh -v /tmp:/tmp:rw intel/dlstreamer-pipeline-server-test:3.1.0
 	@echo "---END MAKEFILE TEST---"
 
 coverage:
