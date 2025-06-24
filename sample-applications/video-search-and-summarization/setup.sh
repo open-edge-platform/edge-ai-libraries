@@ -86,6 +86,48 @@ export TAG=${TAG:-latest}
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
+# --- Ensure .cache and .cache/huggingface directories exist and have correct permissions ---
+CACHE_DIR="/home/$USER/.cache"
+HF_CACHE_DIR="$CACHE_DIR/huggingface"
+
+if [ ! -d "$CACHE_DIR" ]; then
+    mkdir -p "$CACHE_DIR"
+    echo -e "${YELLOW}Created cache directory: $CACHE_DIR${NC}"
+fi
+
+if [ ! -d "$HF_CACHE_DIR" ]; then
+    mkdir -p "$HF_CACHE_DIR"
+    echo -e "${YELLOW}Created huggingface cache directory: $HF_CACHE_DIR${NC}"
+fi
+
+# Check permissions of .cache directory first
+if [ ! -w "$CACHE_DIR" ] || [ "$(stat -c '%U:%G' "$CACHE_DIR")" != "$USER:$(id -gn)" ]; then
+    echo -e "${YELLOW}Warning: $CACHE_DIR is not owned by $USER:$(id -gn)${NC}"
+    echo -e "${BLUE}Attempting to fix permissions for cache directory (may require sudo)...${NC}"
+    sudo chown $USER:$(id -gn) "$CACHE_DIR"
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to update permissions for $CACHE_DIR${NC}"
+    else
+        echo -e "${GREEN}Successfully updated ownership of $CACHE_DIR${NC}"
+    fi
+fi
+
+# Check ownership of huggingface directory and files within
+if find "$HF_CACHE_DIR" -not -user $USER -o -not -group $(id -gn) | grep -q .; then
+    echo -e "${YELLOW}Warning: Some files in $HF_CACHE_DIR are not owned by $USER:$(id -gn)${NC}"
+    echo -e "${BLUE}Attempting to fix permissions recursively (may require sudo)...${NC}"
+    sudo chown -R $USER:$(id -gn) "$HF_CACHE_DIR"
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}Successfully updated permissions for all files in $HF_CACHE_DIR${NC}"
+    else
+        echo -e "${RED}ERROR: Failed to update permissions. Container may fail to write to cache.${NC}"
+        echo -e "${YELLOW}Please run: sudo chown -R $USER:$(id -gn) $HF_CACHE_DIR${NC}"
+    fi
+else
+    echo -e "${GREEN}HuggingFace cache directory permissions are correct.${NC}"
+fi
+
+
 # env for vlm-openvino-serving
 export VLM_HOST_PORT=9766
 export VLM_MODEL_NAME=${VLM_MODEL_NAME}
