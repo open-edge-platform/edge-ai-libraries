@@ -26,7 +26,7 @@
    how-to-use-image-file-as-source-over-request-payload
    how-to-download-and-run-yolo-models
    how-to-build-from-source
-   how-to-add-timestamps-to-metadata
+   how-to-add-system-timestamps-to-metadata
    
 .. toctree::
    :caption: References
