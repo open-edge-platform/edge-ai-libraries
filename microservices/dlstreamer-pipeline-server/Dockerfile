@@ -1,4 +1,4 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=intel/dlstreamer:2025.0.1.3-ubuntu22
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
