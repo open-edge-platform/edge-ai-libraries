@@ -8,7 +8,7 @@
 
 ## Overview
 
-The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. This project also includes sample applications to showcase the generic AI use cases.
+The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. This project also includes sample applications to showcase generic AI use cases.
 
 Key components of the **Edge AI Libraries**:
 
@@ -40,11 +40,11 @@ Key components of the **Edge AI Libraries**:
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
-Please visit each library/microservice/tool/sample sub-directory for respective **Getting Started**, **Build** instructions and **Development** guides.
+Visit each library/microservice/tool/sample sub-directory for the respective **Getting Started**, **Build** instructions, and **Development** guides.
 
 ## More Sample Applications
 
-Please visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
+Visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
 
 ## Contribute
 
@@ -52,7 +52,7 @@ To learn how to contribute to the project, see [CONTRIBUTING.md](CONTRIBUTING.md
 
 ## Community and Support
 
-For support, please submit your bug report and feature request to [Github Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues).
+For support, submit your bug report and feature request to [Github Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues).
 
 ## License
 
