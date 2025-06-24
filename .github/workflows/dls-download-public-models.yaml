@@ -30,7 +30,7 @@ jobs:
         persist-credentials: false
         path: script
         sparse-checkout: |
-            download_public_models.sh
+          libraries/dl-streamer/samples/download_public_models.sh
         sparse-checkout-cone-mode: false
 
     - name: Prepare directory
