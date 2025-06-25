@@ -28,7 +28,6 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
         sparse-checkout-cone-mode: false
@@ -45,19 +44,43 @@ jobs:
     - name: Download public models
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./edge-ai-libraries/libraries/dl-streamer/samples/download_public_models.sh
+        ./libraries/dl-streamer/samples/download_public_models.sh
 
-    - name: Verify downloading
+    - name: Verify public models downloading
       run: |
-        if [ -z "$( ls -A '${{ env.MODELS_PATH }}' )" ]; then
+        if [ -z "$( ls -A '${{ env.MODELS_PATH }}/public' )" ]; then
           echo "Models not downloaded correctly ❌"
+          echo "Public models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
           echo "Exiting..."
           exit 1
         else
           echo "Models downloaded ✅"
+          echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Download OMZ models
+      run: |
+        mkdir -p .virtualenvs/dlstreamer
+        python3 -m venv .virtualenvs/dlstreamer
+        source .virtualenvs/dlstreamer/bin/activate
+        pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
+        export MODELS_PATH=${MODELS_PATH}
+        ./libraries/dl-streamer/samples/download_omz_models.sh
+        deactivate
+
+    - name: Verify OMZ models downloading
+      run: |
+        if [ -z "$( ls -A '${{ env.MODELS_PATH }}/intel' )" ]; then
+          echo "Models not downloaded correctly ❌"
+          echo "Open Model Zoo models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
+          echo "Exiting..."
+          exit 1
+        else
+          echo "Models downloaded ✅"
+          echo "Open Model Zoo models downloaded ✅" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries
+        rm -rf .virtualenvs/dlstreamer
