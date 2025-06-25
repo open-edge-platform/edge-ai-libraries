@@ -18,6 +18,59 @@ from src.core.validation import sanitize_model
 router = APIRouter(tags=["Video Processing APIs"])
 
 
+def _validate_and_get_video_name(
+    bucket_name: str,
+    video_id: str,
+    video_name: str = None,
+) -> str:
+    """
+    Validate the parameters and get the video name from the specified bucket and video ID.
+    If video_name is provided, it checks if the video exists in the specified bucket and directory.
+    If video_name is not provided, it attempts to find the first MP4 video in the specified directory.
+
+    Raises DataPrepException if the video does not exist or parameter verification fails.
+    """
+
+    # Validate required parameters
+    if not bucket_name or not video_id:
+        raise DataPrepException(
+            status_code=HTTPStatus.BAD_REQUEST,
+            msg="Both bucket_name and video_id must be provided.",
+        )
+
+    # Get the Minio client and ensure the bucket exists
+    minio_client = get_minio_client()
+    minio_client.ensure_bucket_exists(bucket_name)
+
+    # If video_name is not provided, try to get it from the directory
+    if not video_name:
+        logger.info(f"Video name not provided, attempting to find video in directory {video_id}")
+        object_name = minio_client.get_video_in_directory(bucket_name, video_id)
+        if not object_name:
+            raise DataPrepException(
+                status_code=HTTPStatus.NOT_FOUND,
+                msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
+            )
+        # Extract just the filename part
+        video_name = pathlib.Path(object_name).name
+        logger.debug(f"Found video: {video_name} in directory {video_id}")
+
+    else:
+        if not minio_client.object_exists(bucket_name, video_id, video_name):
+            raise DataPrepException(
+                status_code=HTTPStatus.NOT_FOUND,
+                msg=f"Video '{video_id}/{video_name}' not found in bucket '{bucket_name}'",
+            )
+
+        if not minio_client.validate_object_name(video_id, video_name):
+            raise DataPrepException(
+                status_code=HTTPStatus.BAD_REQUEST,
+                msg=f"Invalid video name '{video_name}' in directory '{video_id}'",
+            )
+
+    return video_name
+
+
 @router.post(
     "/videos/minio",
     summary="Process video from Minio storage for embedding generation.",
@@ -80,16 +133,12 @@ async def process_minio_video(
         chunk_duration = video_request.chunk_duration or config.get("chunk_duration", 30)
         clip_duration = video_request.clip_duration or config.get("clip_duration", 10)
 
-        # Validate required parameters
-        if not bucket_name or not video_id:
-            raise DataPrepException(
-                status_code=HTTPStatus.BAD_REQUEST,
-                msg="Both bucket_name and video_id must be provided.",
-            )
-
-        # Get the Minio client and ensure the bucket exists
-        minio_client = get_minio_client()
-        minio_client.ensure_bucket_exists(bucket_name)
+        # Validate the provided minio parameters and get the video name, if not provided
+        video_name = _validate_and_get_video_name(
+            bucket_name=bucket_name,
+            video_id=video_id,
+            video_name=video_name,
+        )
 
         # Create a unique subdirectory for this request using video_id to avoid conflicts
         request_timestamp = int(datetime.datetime.now().timestamp())
@@ -100,34 +149,6 @@ async def process_minio_video(
         # create the temp directories
         videos_temp_dir.mkdir(parents=True, exist_ok=True)
         metadata_temp_dir.mkdir(parents=True, exist_ok=True)
-
-        # If video_name is not provided, try to get it from the directory
-        if not video_name:
-            logger.info(
-                f"Video name not provided, attempting to find video in directory {video_id}"
-            )
-            object_name = minio_client.get_video_in_directory(bucket_name, video_id)
-            if not object_name:
-                raise DataPrepException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    msg=f"No video found in directory '{video_id}' in bucket '{bucket_name}'",
-                )
-            # Extract just the filename part
-            video_name = pathlib.Path(object_name).name
-            logger.debug(f"Found video: {video_name} in directory {video_id}")
-
-        else:
-            if not minio_client.object_exists(bucket_name, video_id, video_name):
-                raise DataPrepException(
-                    status_code=HTTPStatus.NOT_FOUND,
-                    msg=f"Video '{video_id}/{video_name}' not found in bucket '{bucket_name}'",
-                )
-
-            if not minio_client.validate_object_name(video_id, video_name):
-                raise DataPrepException(
-                    status_code=HTTPStatus.BAD_REQUEST,
-                    msg=f"Invalid video name '{video_name}' in directory '{video_id}'",
-                )
 
         try:
             # Download video from Minio to process it

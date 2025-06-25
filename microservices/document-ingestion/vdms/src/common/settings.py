@@ -42,6 +42,7 @@ class Settings(BaseSettings):
     MULTIMODAL_EMBEDDING_MODEL_NAME: str = "openai/clip-vit-base-patch32"
     MULTIMODAL_EMBEDDING_NUM_FRAMES: int = 64
     MULTIMODAL_EMBEDDING_ENDPOINT: str = ""
+    EMBEDDING_LENGTH: int = 0
 
 
 settings = Settings()

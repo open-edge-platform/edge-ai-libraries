@@ -56,7 +56,7 @@ def verify_params_and_get_video_name(
             status_code=HTTPStatus.BAD_REQUEST,
             msg=f"Either video_id '{video_id}' is invalid or no video found in directory '{video_id}' in bucket '{bucket_name}'",
         )
-    
+
     logger.debug(f"Video '{video_name}' found in bucket '{bucket_name}' in '{video_id}' directory")
 
     return video_name
@@ -120,6 +120,7 @@ async def process_video_summary(
             "timestamp": datetime.datetime.now().isoformat(),
         }
 
+        logger.debug(f"Text metadata for summary: {text_metadata}")
         # Process video_summary and generate text embeddings
         ids = await generate_text_embedding(text=video_summary, text_metadata=text_metadata)
 

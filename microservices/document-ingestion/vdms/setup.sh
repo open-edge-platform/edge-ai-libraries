@@ -19,6 +19,7 @@ export VDMS_DATAPREP_HOST_PORT=6007
 
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
+export MINIO_PORT=9000
 # Port on which we want to access API service outside container i.e. on host.
 export MINIO_API_HOST_PORT=6010
 # Port on which we want to access Minio Console outside container i.e. on host.
@@ -26,9 +27,11 @@ export MINIO_CONSOLE_HOST_PORT=6011
 # Mount point for Minio objects storage. This helps persist objects stored on minio server.
 export MINIO_MOUNT_PATH="/mnt/miniodata"
 
+# export MINIO_HOST=10.223.24.164
+# export MULTIMODAL_EMBEDDING_ENDPOINT=http://10.223.24.51:9777/embeddings
+
 # Env vars for vdms-vector-db ---------------------------------------
 export VDMS_STORAGE=aws
-export VDMS_USE_MINIO=true
 export VDMS_VDB_HOST="vdms-vector-db"
 export VDMS_VDB_HOST_PORT=6020
 

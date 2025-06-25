@@ -7,7 +7,7 @@ import requests
 from langchain_core.embeddings import Embeddings
 from pydantic import BaseModel
 
-from src.common import Strings, logger
+from src.common import Strings, logger, settings
 
 
 class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
@@ -31,7 +31,6 @@ class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
             logger.debug(f"Response status code: {response.status_code}")
             response.raise_for_status()
             embeddings = response.json()["embedding"]
-            # logger.debug(f"Received embeddings: {embeddings}")
             return embeddings
         except requests.RequestException as ex:
             logger.error(f"Error in embed_documents: {ex}")
@@ -51,7 +50,6 @@ class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
             logger.debug(f"Response status code: {response.status_code}")
             response.raise_for_status()
             embedding = response.json()["embedding"]
-            # logger.debug(f"Received embedding: {embedding}")
             return embedding
         except requests.RequestException as ex:
             logger.error(f"Error in embed_query: {ex}")
@@ -89,3 +87,26 @@ class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
         except requests.RequestException as ex:
             logger.error(f"Error in embed_video: {ex}")
             raise Exception(Strings.embedding_error) from ex
+
+    def get_embedding_length(self) -> int:
+        try:
+            if settings.EMBEDDING_LENGTH == 0:
+                logger.debug("Getting embedding length by making a sample request")
+                response = requests.post(
+                    f"{self.api_url}",
+                    json={
+                        "model": self.model_name,
+                        "input": {"type": "text", "text": ["sample_text"]},
+                        "encoding_format": "float",
+                    },
+                )
+                logger.debug(f"Response status code: {response.status_code}")
+                response.raise_for_status()
+                embedding = response.json()["embedding"]
+                settings.EMBEDDING_LENGTH = len(embedding[0])
+
+            logger.debug(f"Embedding dimension: {settings.EMBEDDING_LENGTH}")
+            return settings.EMBEDDING_LENGTH
+        except requests.RequestException as ex:
+            logger.error(f"Error in get_embedding_length: {ex}")
+            raise Exception("Error getting embedding length") from ex
