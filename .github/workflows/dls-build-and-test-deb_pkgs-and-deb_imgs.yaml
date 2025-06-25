@@ -114,7 +114,7 @@ jobs:
         scan_target: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "CRITICAL"
         scan_type: image
-        format: json
+        format: sarif
         report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
         scan-scope: all
         timeout: 20m
