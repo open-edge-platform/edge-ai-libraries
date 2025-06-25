@@ -66,13 +66,13 @@ jobs:
         python3 -m venv .virtualenvs/dlstreamer
         source .virtualenvs/dlstreamer/bin/activate
         pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
-        export MODELS_PATH=${MODELS_PATH}
+        export MODELS_PATH=${{ env.MODELS_PATH }}
         ./libraries/dl-streamer/samples/download_omz_models.sh
         deactivate
 
     - name: Verify OMZ models downloading
       run: |
-        if [ -z "$( ls -A '${{ env.MODELS_PATH }}/intel' )" ]; then
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel )" ]; then
           echo "Models not downloaded correctly ❌"
           echo "Open Model Zoo models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
           echo "Exiting..."
