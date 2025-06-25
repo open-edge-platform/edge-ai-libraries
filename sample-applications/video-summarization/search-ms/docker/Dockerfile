@@ -3,14 +3,14 @@
 
 FROM python:3.12.10-slim AS build
 
-RUN pip install poetry
+RUN pip install poetry==1.8.5
 
 RUN poetry config virtualenvs.create false
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN poetry install --no-root
+RUN poetry lock --no-update && poetry install --no-root
 
 COPY . .
 RUN mkdir -p /tmp/watcher-dir

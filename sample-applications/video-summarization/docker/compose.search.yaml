@@ -22,9 +22,9 @@ services:
       SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
 
   video-search:
-    image: ${REGISTRY:-}video-search:${TAG:-latest}
+    image: egaidev/video-search:latest-dev
     build:
-      context: search-ms
+      context: ../search-ms
       dockerfile: docker/Dockerfile
     depends_on:
       vdms-vector-db:
@@ -69,17 +69,18 @@ services:
     image: intellabs/vdms:v2.10.0
     ipc: host
     environment:
-      - OVERRIDE_images_path=db/images
-      - OVERRIDE_descriptors_path=db/descriptors
-      - OVERRIDE_blobs_path=db/blobs
-      - OVERRIDE_pmgd_path=db/graph
+      - OVERRIDE_db_root_path=/db
+      - OVERRIDE_images_path=/db/images
+      - OVERRIDE_descriptors_path=/db/descriptors
+      - OVERRIDE_blobs_path=/db/blobs
+      - OVERRIDE_pmgd_path=/db/graph
     ports:
       - "${VDMS_VDB_HOST_PORT}:55555"
     networks:
       - vs_network
 
   vdms-dataprep:
-    image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
+    image: egaidev/vdms-dataprep:latest-dev
     hostname: vdms-dataprep
     environment:
       no_proxy: ${no_proxy},${VDMS_VDB_HOST},${VCLIP_HOST},${MINIO_HOST}
@@ -111,7 +112,7 @@ services:
       - vs_network
 
   vclip-embedding-ms:
-    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
+    image: egaidev/multimodal-embedding-serving:latest-dev
     ports:
       - "${VCLIP_HOST_PORT}:8000"
     ipc: host
@@ -119,12 +120,14 @@ services:
       no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      MODEL_NAME: ${VCLIP_MODEL}
+      TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}
+      IMAGE_EMBEDDING_MODEL_NAME: ${VCLIP_MODEL}
       DEFAULT_START_OFFSET_SEC: ${VCLIP_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${VCLIP_CLIP_DURATION}
       DEFAULT_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
+      USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS} 
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]

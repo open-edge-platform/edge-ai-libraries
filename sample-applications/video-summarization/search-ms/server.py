@@ -63,8 +63,8 @@ async def query_endpoint(request: list[QueryRequest]):
     try:
 
         async def process_query(query_request):
-            docs_with_score = get_vectordb().similarity_search_with_score(
-                query_request.query, k=20, normalize_distance=True
+            docs_with_score = get_vectordb().similarity_search_with_relevance_scores(
+                query_request.query, k=20
             )
             query_results = []
             for res, score in docs_with_score:
