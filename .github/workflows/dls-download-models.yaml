@@ -30,6 +30,7 @@ jobs:
         persist-credentials: false
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
+          libraries/dl-streamer/samples/download_omz_models.sh
         sparse-checkout-cone-mode: false
 
     # - name: Prepare directory
@@ -83,4 +84,4 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -rf .virtualenvs/dlstreamer
+        rm -rf libraries .virtualenvs
