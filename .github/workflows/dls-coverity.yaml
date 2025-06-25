@@ -84,6 +84,7 @@ jobs:
 
       - name: Download Coverity Scan Tool
         run: |
+          cd libraries/dl-streamer
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.DLS_COVERITY_TOKEN }}&project=${{ secrets.DLS_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
