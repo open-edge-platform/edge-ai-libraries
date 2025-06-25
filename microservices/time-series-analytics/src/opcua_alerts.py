@@ -8,6 +8,7 @@ import os
 import logging
 import time
 import sys
+import json
 
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
@@ -94,7 +95,9 @@ class OpcuaAlerts:
         try:
             alert_node = self.client.get_node(f"ns={self.namespace};i={self.node_id}")
             await alert_node.write_value(alert_message)
-            logger.info("ALERT sent to OPC UA server: {}".format(alert_message))
+            alert_dict = json.loads(alert_message)
+            alert_message = alert_dict.get("message", "")
+            logger.info(f"ALERT sent to OPC UA server: {alert_message}")
         except Exception as e:
             logger.error(e)
             raise Exception(f"Failed to send alert to OPC UA server node {self.node_id}: {e}")
