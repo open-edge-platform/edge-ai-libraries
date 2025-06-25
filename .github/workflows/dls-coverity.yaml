@@ -101,10 +101,12 @@ jobs:
 
       - name: Create tarball for upload
         run: |
+          cd libraries/dl-streamer
           tar czf coverity-output.tgz -C build cov-int
 
       - name: Upload to Coverity Scan
         run: |
+          cd libraries/dl-streamer
           curl --form token=${{ secrets.DLS_COVERITY_TOKEN }} \
                --form email=${{ secrets.DLS_COVERITY_EMAIL }} \
                --form file=@coverity-output.tgz \
