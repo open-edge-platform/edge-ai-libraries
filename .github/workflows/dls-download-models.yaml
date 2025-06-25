@@ -31,6 +31,7 @@ jobs:
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
           libraries/dl-streamer/samples/download_omz_models.sh
+          libraries/dl-streamer/samples/models_omz_samples.lst
         sparse-checkout-cone-mode: false
 
     # - name: Prepare directory
