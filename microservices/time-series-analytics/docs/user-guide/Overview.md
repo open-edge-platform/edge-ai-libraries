@@ -1,4 +1,8 @@
-# Overview
+# Time Series Analytics
+
+The Time Series Analytics microservice provides the analytics capabilities for a time series use case.
+
+## Overview
 
 The **Time Series Analytics Microservice** is a powerful, flexible solution for real-time analysis of time series data. Built on top of **Kapacitor**, it enables both streaming and batch processing, seamlessly integrating with **InfluxDB** for efficient data storage and retrieval.
 
@@ -16,7 +20,7 @@ For more information on creating custom UDFs, see the [Kapacitor Anomaly Detecti
 
 ## How it works
 
-## High-Level Architecture
+### High-Level Architecture
 
 ![Time Series Analytics Microservice High Level Architecture](_images/Time-Series-Analytics-Microservice-Architecture.png)
 
