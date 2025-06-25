@@ -60,7 +60,7 @@ jobs:
         scan_target: "ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}"
         severity: "CRITICAL"
         scan_type: image
-        format: sarif
+        format: json
         report_suffix: ${{ matrix.ubuntu_version }}-dev-img
         scan-scope: all
         timeout: 20m
