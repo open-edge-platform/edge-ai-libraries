@@ -240,5 +240,4 @@ jobs:
           echo "Directory $HOME/.virtualenvs exists - removing it"
           rm -rf $HOME/.virtualenvs
         fi
-        rm -rf edge-ai-libraries-repo dls-deb-${{ matrix.ubuntu_version }}-trivy-image-report.txt
         docker rmi ${deb_img} || true
