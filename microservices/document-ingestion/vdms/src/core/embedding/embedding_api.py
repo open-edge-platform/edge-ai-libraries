@@ -14,8 +14,8 @@ from src.common import logger
 toPIL = T.ToPILImage()
 
 
-class vCLIPEmbeddings(BaseModel, Embeddings):
-    """Embedding API to embed documents, video and query for vCLIP model."""
+class QwenEmbeddings(BaseModel, Embeddings):
+    """Embedding API to embed documents and query for Qwen model."""
 
     model: Any
 
@@ -33,7 +33,38 @@ class vCLIPEmbeddings(BaseModel, Embeddings):
         return values
 
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        model_device = next(self.model.clip.parameters()).device
+        text_features = self.model.get_text_embeddings(texts)
+        return text_features.detach().numpy()
+
+    def embed_query(self, text: str) -> List[float]:
+        logger.debug(f"Embedding query: {text}")
+        task = "Given a search query, retrieve relevant passages from video summary that answers the query"
+        instruct_query = self.model.get_detailed_instruct(task, text)
+        result: List[List[float]] = self.embed_documents([instruct_query])
+
+        return result
+
+
+class vCLIPEmbeddings(BaseModel, Embeddings):
+    """Embedding API to embed documents, video and query for vCLIP model."""
+
+    model: Any
+
+    @model_validator(mode="before")
+    @classmethod
+    def validate_environment(cls, values: Dict) -> Dict:
+        """Validate that open_clip and torch libraries are installed."""
+        try:
+            # Use the provided model if present
+            if "model" not in values:
+                raise ValueError("Model must be provided during initialization.")
+
+        except ImportError:
+            raise ImportError("Please ensure Qwen model is loaded")
+        return values
+
+    def embed_documents(self, texts: List[str]) -> List[List[float]]:
+        # model_device = next(self.model.clip.parameters()).device
         text_features = self.model.get_text_embeddings(texts)
 
         return text_features.detach().numpy()

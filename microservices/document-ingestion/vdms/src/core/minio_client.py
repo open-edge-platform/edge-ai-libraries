@@ -65,7 +65,7 @@ class MinioClient:
             # If bucket name is invalid throw an error which goes as API error response
             if ex.code == "InvalidBucketName":
                 raise ValueError(f"Invalid bucket name '{bucket_name}'")
-            
+
             logger.error(f"Error checking if bucket exists: {ex}")
             raise Exception(f"Error while checking whether bucket {bucket_name} exists.")
 
@@ -145,7 +145,9 @@ class MinioClient:
             logger.error(f"Error listing directories in bucket {bucket_name}: {ex}")
             raise Exception(f"Error listing video directories in bucket {bucket_name}: {ex}")
 
-    def get_video_in_directory(self, bucket_name: str, video_id: str, return_prefix : bool = True) -> Optional[str]:
+    def get_video_in_directory(
+        self, bucket_name: str, video_id: str, return_prefix: bool = True
+    ) -> Optional[str]:
         """Get the first video file found in the specified directory.
 
         Args:
@@ -172,7 +174,9 @@ class MinioClient:
 
                     if not return_prefix:
                         # return the object name without the prefix
-                        obj_name = obj_name[len(prefix):] if obj_name.startswith(prefix) else obj_name
+                        obj_name = (
+                            obj_name[len(prefix) :] if obj_name.startswith(prefix) else obj_name
+                        )
 
                     return obj_name
 
