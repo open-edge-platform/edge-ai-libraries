@@ -19,48 +19,6 @@ export TAG=${TAG:-latest}
 
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 
-# Ensure both .cache and .cache/huggingface directories exist and have correct permissions
-CACHE_DIR="/home/$USER/.cache"
-HF_CACHE_DIR="$CACHE_DIR/huggingface"
-
-# Create directories if they don't exist
-if [ ! -d "$CACHE_DIR" ]; then
-    mkdir -p "$CACHE_DIR"
-    echo "Created cache directory: $CACHE_DIR"
-fi
-
-if [ ! -d "$HF_CACHE_DIR" ]; then
-    mkdir -p "$HF_CACHE_DIR"
-    echo "Created huggingface cache directory: $HF_CACHE_DIR"
-fi
-
-# Check permissions of .cache directory first
-if [ ! -w "$CACHE_DIR" ] || [ "$(stat -c '%U:%G' "$CACHE_DIR")" != "$USER:$(id -gn)" ]; then
-    echo "Warning: $CACHE_DIR is not owned by $USER:$(id -gn)"
-    echo "Attempting to fix permissions for cache directory (may require sudo)..."
-    sudo chown $USER:$(id -gn) "$CACHE_DIR"
-    if [ $? -ne 0 ]; then
-        echo "ERROR: Failed to update permissions for $CACHE_DIR"
-    else
-        echo "Successfully updated ownership of $CACHE_DIR"
-    fi
-fi
-
-# Check ownership of huggingface directory and files within
-if find "$HF_CACHE_DIR" -not -user $USER -o -not -group $(id -gn) | grep -q .; then
-    echo "Warning: Some files in $HF_CACHE_DIR are not owned by $USER:$(id -gn)"
-    echo "Attempting to fix permissions recursively (may require sudo)..."
-    sudo chown -R $USER:$(id -gn) "$HF_CACHE_DIR"
-    if [ $? -eq 0 ]; then
-        echo "Successfully updated permissions for all files in $HF_CACHE_DIR"
-    else
-        echo "ERROR: Failed to update permissions. Container may fail to write to cache."
-        echo "Please run: sudo chown -R $USER:$(id -gn) $HF_CACHE_DIR"
-    fi
-else
-    echo "HuggingFace cache directory permissions are correct."
-fi
-
 docker volume create ov-models
 echo "Created docker volume for the models."
 
