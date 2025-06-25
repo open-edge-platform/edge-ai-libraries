@@ -32,23 +32,23 @@ jobs:
           libraries/dl-streamer/samples/download_public_models.sh
         sparse-checkout-cone-mode: false
 
-    - name: Prepare directory
-      run: |
-        if [ -d "${{ env.MODELS_PATH }}" ]; then
-          echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
-          rm -rf "${{ env.MODELS_PATH }}"
-        fi
-        mkdir -p ${{ env.MODELS_PATH }}
-        echo "Directory created: ${{ env.MODELS_PATH }}"
+    # - name: Prepare directory
+    #   run: |
+    #     if [ -d "${{ env.MODELS_PATH }}" ]; then
+    #       echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
+    #       rm -rf "${{ env.MODELS_PATH }}"
+    #     fi
+    #     mkdir -p ${{ env.MODELS_PATH }}
+    #     echo "Directory created: ${{ env.MODELS_PATH }}"
 
-    - name: Download public models
-      run: |
-        export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_public_models.sh
+    # - name: Download public models
+    #   run: |
+    #     export MODELS_PATH=${{ env.MODELS_PATH }}
+    #     ./libraries/dl-streamer/samples/download_public_models.sh
 
     - name: Verify public models downloading
       run: |
-        if [ -z "$( ls -A '${{ env.MODELS_PATH }}/public' )" ]; then
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public )" ]; then
           echo "Models not downloaded correctly ❌"
           echo "Public models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
           echo "Exiting..."
