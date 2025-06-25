@@ -31,13 +31,20 @@ export EMBEDDING_USE_OV=false
 export EMBEDDING_DEVICE=CPU
 
 export EMBEDDING_SERVER_PORT=9777
+export USE_ONLY_TEXT_EMBEDDINGS=True  # Setup multimodal embedding models, not just text models.
 
+# TODO check if USE_ONLY_TEXT_EMBEDDINGS is set to True, then check for QWEN MODEL, otherwise VCLIP MODEL
 # Check if VCLIP_MODEL is not defined or empty
 if [ -z "$VCLIP_MODEL" ]; then
     echo -e "ERROR: VCLIP_MODEL is not set in your shell environment."
     return
 elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
     echo -e "ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'."
+    return
+fi
+
+if [ -z "$QWEN_MODEL" ] || [ "$QWEN_MODEL" != "Qwen/Qwen3-Embedding-0.6B" ]; then
+    echo -e "ERROR: QWEN_MODEL is either not set or set to invalid value in your shell environment."
     return
 fi
 
@@ -58,4 +65,6 @@ export RENDER_GROUP_ID=$RENDER_GROUP_ID
 echo "Environment variables set successfully."
 echo "REGISTRY set to: ${REGISTRY}"
 echo "VCLIP_MODEL set to: ${VCLIP_MODEL}"
+echo "QWEN_MODEL set to: ${QWEN_MODEL}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
+echo "Using only text embedding model: ${USE_ONLY_TEXT_EMBEDDINGS}"

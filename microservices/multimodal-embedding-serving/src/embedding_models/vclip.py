@@ -71,7 +71,7 @@ class VClipModel:
         Args:
             cfg (dict): Configuration dictionary containing model name.
         """
-        self.model_name = cfg["model_name"]
+        self.model_name = cfg["vclip_model_name"]
         self.clip = CLIPModel.from_pretrained(self.model_name)
         self.processor = AutoProcessor.from_pretrained(self.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
