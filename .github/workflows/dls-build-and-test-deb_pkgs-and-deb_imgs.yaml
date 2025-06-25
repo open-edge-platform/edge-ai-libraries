@@ -115,7 +115,7 @@ jobs:
         severity: "CRITICAL"
         scan_type: image
         format: json
-        report_suffix: ${{ matrix.ubuntu_version }}-deb-img
+        report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
         scan-scope: all
         timeout: 20m
 
