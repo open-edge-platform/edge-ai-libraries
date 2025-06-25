@@ -46,6 +46,7 @@ jobs:
         dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
+          --load \
           --tag "${dev_debug_img}" \
           --cache-from="${dev_debug_img_cached}" \
           --build-arg BUILD_ARG=Debug \
