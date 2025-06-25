@@ -92,6 +92,7 @@ jobs:
 
       - name: Build with Coverity Analysis
         run: |
+          cd libraries/dl-streamer
           mkdir build && cd build
           export PKG_CONFIG_PATH="/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:${PKG_CONFIG_PATH}"
           ../cov-analysis/bin/cov-build --dir cov-int cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON ..
