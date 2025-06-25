@@ -8,7 +8,7 @@ permissions: {}
 jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-22.04-16core-64GB
     permissions:
       contents: read
       packages: read
