@@ -158,8 +158,13 @@ export VCLIP_MODEL=${VCLIP_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
+export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
-export VCLIP_DEVICE=CPU
+# Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
+if [ "$VCLIP_DEVICE" = "GPU" ]; then
+    export VCLIP_USE_OV=true
+    echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
+fi
 export VCLIP_HOST=vclip-embedding-ms
 export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
