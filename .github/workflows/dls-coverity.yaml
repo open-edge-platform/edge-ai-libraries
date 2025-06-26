@@ -1,5 +1,5 @@
-name: "[DLS] CodeQL (C/C++)"
-run-name: "[DLS] CodeQL (C/C++)"
+name: "[DLS] Coverity (C/C++)"
+run-name: "[DLS] Coverity (C/C++)"
 on:
   workflow_call: 
 permissions: {}
@@ -34,18 +34,10 @@ jobs:
             echo "No relevant changed files detected."
             echo "run-analysis=false" >> $GITHUB_OUTPUT
             exit 0
+          else 
+            run_analysis=true
           fi
 
-          run_analysis=false
-          for file in $changed_files; do
-            ext="${file##*.}"
-            if [[ "$ext" == "c" || "$ext" == "cpp" ]]; then
-              if [[ "$file" == *"libraries/dl-streamer/"* ]]; then
-                run_analysis=true
-                break
-              fi
-            fi
-          done
 
           echo "Changed files:"
           echo "$changed_files"
@@ -53,16 +45,12 @@ jobs:
           echo "$run_analysis"
           echo "run-analysis=$run_analysis" >> $GITHUB_OUTPUT
 
-  analyze:
+  coverity-scan:
     needs: detect-languages
-    runs-on: ubuntu-24.04-16core-64GB
-    if: needs.detect-languages.outputs.run-analysis == 'true'
+    runs-on: ubuntu-latest
     permissions:
-      security-events: write
-      actions: read
       contents: read
-      packages: read
-
+    if: needs.detect-languages.outputs.run-analysis == 'true'
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -72,13 +60,6 @@ jobs:
       - name: Init submodules
         run: |
           git submodule update --init libraries/dl-streamer/thirdparty/spdlog
-
-      - name: Initialize CodeQL build mode
-        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
-        with:
-          languages: c-cpp
-          build-mode: manual
-          config-file: libraries/dl-streamer/codeql-config.yml
 
       - name: Build code manually for dl-streamer
         run: |
@@ -144,14 +125,34 @@ jobs:
           cd libraries/dl-streamer
           sudo ./scripts/install_metapublish_dependencies.sh
 
-          echo "Build DLStreamer"
-          mkdir -p build
-          cd build
-          export PKG_CONFIG_PATH="/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:${PKG_CONFIG_PATH}"
-          cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON ..
-          make -j "$(nproc)"
+      - name: Download Coverity Scan Tool
+        run: |
+          cd libraries/dl-streamer
+          wget --quiet https://scan.coverity.com/download/linux64 \
+            --post-data "token=${{ secrets.DLS_COVERITY_TOKEN }}&project=${{ secrets.DLS_COVERITY_PROJECT }}" \
+            -O coverity_tool.tgz
+          mkdir cov-analysis
+          tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
 
-      - name: Perform CodeQL analysis
-        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
-        with:
-          category: "/language:${{matrix.language}}"
+      - name: Build with Coverity Analysis
+        run: |
+          cd libraries/dl-streamer
+          mkdir build && cd build
+          export PKG_CONFIG_PATH="/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:${PKG_CONFIG_PATH}"
+          ../cov-analysis/bin/cov-build --dir cov-int cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON ..
+          ../cov-analysis/bin/cov-build --dir cov-int make -j$(nproc)
+
+      - name: Create tarball for upload
+        run: |
+          cd libraries/dl-streamer
+          tar czf coverity-output.tgz -C build cov-int
+
+      - name: Upload to Coverity Scan
+        run: |
+          cd libraries/dl-streamer
+          curl --form token=${{ secrets.DLS_COVERITY_TOKEN }} \
+               --form email=${{ secrets.DLS_COVERITY_EMAIL }} \
+               --form file=@coverity-output.tgz \
+               --form version="`date +%Y%m%d%H%M%S`" \
+               --form description="GitHub Action upload" \
+               https://scan.coverity.com/builds?project=${{ secrets.DLS_COVERITY_PROJECT }}

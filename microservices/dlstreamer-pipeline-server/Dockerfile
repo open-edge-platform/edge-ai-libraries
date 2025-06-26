@@ -1,15 +1,15 @@
-ARG BASE_IMAGE
+ARG BASE_IMAGE=intel/dlstreamer:2025.0.1.3-ubuntu22
 FROM ${BASE_IMAGE} AS gstudfloader-builder
-ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
-ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
 
 USER root
 
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
-WORKDIR /home/pipeline-server
+ARG WORKDIR=/home/pipeline-server
+WORKDIR ${WORKDIR}
 
 RUN export no_proxy= && \
     apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git autoconf  \
@@ -76,12 +76,12 @@ RUN /bin/bash -c "echo $PATH && \
                   make install"
 
 ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
-    LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \
-    CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
-    C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    LIBRARY_PATH=${DLSTREAMER_DIR}/gstreamer/lib/ \
+    CPLUS_INCLUDE_PATH=${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    C_INCLUDE_PATH=${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
     PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
-    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
+    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:${DLSTREAMER_DIR}/gstreamer/lib/pkgconfig:${DLSTREAMER_DIR}/build/intel64/Release/lib/pkgconfig:
 
 RUN export no_proxy= && \
     apt-get update && \
@@ -102,30 +102,28 @@ RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
 
 FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
 
-ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
-ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
-
 USER root
 
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
 ENV VIRTUAL_ENV=/python3venv
 ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
-WORKDIR /home/pipeline-server
+ARG WORKDIR=/home/pipeline-server
+WORKDIR ${WORKDIR}
 
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "24.04" ]; then \
         export no_proxy= && \
-        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
         libglib2.0-0 \
         libusb-1.0-0 \
         libtool \
         zlib1g \
-        zip \
-        unzip \
         libopencv-core406 \
         libopencv-imgcodecs406 \
-        libcjson1; \
+        libcjson1 \
+        libxtst6; \
     else \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
@@ -133,45 +131,27 @@ RUN . /etc/os-release && \
         libusb-1.0-0 \
         libtool \
         zlib1g \
-        zip \
-        unzip \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
-        libcjson1; \
+        libcjson1 \
+        libxtst6; \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
 ARG CMAKE_INSTALL_PREFIX
-ARG UTILS_LIB_VERSION
-ARG MSGBUS_LIB_VERSION
 
-COPY packages/eii-utils-${UTILS_LIB_VERSION}-Linux.deb ${WORKDIR}
-COPY packages/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb ${WORKDIR}
-COPY packages/util-${UTILS_LIB_VERSION}.zip ${WORKDIR}
-
-# Installation of utils, eiimessagebus and debian packages. Needed for UDFLoader build
-RUN dpkg -i /home/pipeline-server/eii-utils-${UTILS_LIB_VERSION}-Linux.deb && \
-    dpkg -i /home/pipeline-server/eii-messagebus-${MSGBUS_LIB_VERSION}-Linux.deb && \
-    rm -rf eii-*.deb
-
-COPY packages/UDFLoader.zip ${WORKDIR}
-COPY packages/udfs.zip ${WORKDIR}
-
-RUN unzip UDFLoader.zip -d /home/pipeline-server && \
-    unzip udfs.zip -d /home/pipeline-server && \
-    unzip util-${UTILS_LIB_VERSION}.zip -d /home/pipeline-server && \
-    rm -rf udfs.zip UDFLoader.zip util-*.zip
+# Needed for UDFLoader runtime
+COPY --from=gstudfloader-builder /usr/lib/libeii*.so /usr/lib/libsafestring.so /usr/lib/
+COPY --from=gstudfloader-builder /home/pipeline-server/util/*.py /home/pipeline-server/util/
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/udf.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}
 
 ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
-    LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \
-    CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
-    C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
-    PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
-    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
-    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
-
-WORKDIR /home/pipeline-server
+    PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin:/opt/intel/eii/lib:/home/pipeline-server/:/home/pipeline-server/udfs \
+    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/home/pipeline-server/.local/bin
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LD_RUN_PATH="/usr/lib"
@@ -180,13 +160,6 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIBVA_DRIVERS_PATH:"usr/local/lib"
 ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
 ENV TERM="xterm"
 ENV GST_DEBUG="1"
-
-ARG CMAKE_INSTALL_PREFIX
-
-COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/udf.so ${DLSTREAMER_DIR}/gstreamer/lib
-COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
-COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
-COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}
 
 ARG USER
 ARG UID
@@ -198,19 +171,10 @@ RUN mkdir -p /home/${USER}/ && chown -R ${USER}:${USER} /home/${USER}
 
 ENV cl_cache_dir=/home/.cl_cache \
     XDG_RUNTIME_DIR=/home/.xdg_runtime_dir \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:/usr/local/lib/udfs \
-    PYTHONPATH=$PYTHONPATH:/opt/intel/eii/lib:/home/pipeline-server/:/home/pipeline-server/udfs:/home/pipeline-server/server:/usr/local/lib/
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:/usr/local/lib/udfs
 
 RUN mkdir -p $cl_cache_dir && chmod -R g+s $cl_cache_dir && chown ${USER}:users $cl_cache_dir
-ENV XDG_RUNTIME_DIR=/home/.xdg_runtime_dir
 RUN mkdir -p $XDG_RUNTIME_DIR && chmod -R g+s $XDG_RUNTIME_DIR && chown ${USER}:users $XDG_RUNTIME_DIR
-
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
-ENV PATH=$PATH:/home/pipeline-server/.local/bin
-
-RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/*
 
 USER $USER
 
@@ -221,11 +185,6 @@ COPY ./src/ ./src
 
 USER root
 
-# Cleanup
-RUN apt-get remove -y zip unzip git && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
@@ -233,7 +192,7 @@ RUN pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
     pip3 install --no-cache-dir -r /home/pipeline-server/src/requirements.txt && \
     pip3 install --no-cache-dir --upgrade Werkzeug==3.1.3 && \
-    pip3 install --upgrade opentelemetry-exporter-otlp
+    pip3 install --upgrade --no-cache-dir opentelemetry-exporter-otlp
 
 USER ${USER}
 
@@ -244,21 +203,14 @@ RUN opt_in_out --opt_out
 RUN mkdir -p /home/pipeline-server/models
 
 # Copy python UDFs for user_defined_pipelines/udfloader_sample pipeline
-COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy.py
-COPY ./user_scripts/udfs/python/add_label.py /home/pipeline-server/udfs/python/add_label.py
-COPY ./user_scripts/udfs/python/dummy_publisher.py /home/pipeline-server/udfs/python/dummy_publisher.py
-COPY ./user_scripts/udfs/python/geti_udf/ /home/pipeline-server/udfs/python/geti_udf/
+COPY ./user_scripts/udfs/python/ /home/pipeline-server/udfs/python/
+ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
 
 # Copy GVAPYTHON samples
-COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
-COPY ./user_scripts/gvapython/mqtt_publisher/ /home/pipeline-server/gvapython/mqtt_publisher
-COPY ./user_scripts/gvapython/timestamp/ /home/pipeline-server/gvapython/timestamp
-COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva_event_meta
+COPY ./user_scripts/gvapython/ /home/pipeline-server/gvapython/
 
 # Copy default config
 COPY ./configs/default/config.json /home/pipeline-server/config.json
-
-ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
 
 ENTRYPOINT ["./run.sh"]
 
@@ -293,12 +245,10 @@ RUN . /etc/os-release && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir --upgrade pip && \
         pip3 install --no-cache-dir geti-sdk==2.7.1 && \
         # clean up Rust installation files
         rm -rf /root/.cargo /root/.rustup; \
     else \
-        pip3 install --no-cache-dir --upgrade pip && \
         pip3 install --no-cache-dir geti-sdk==2.7.1; \
     fi && \
     apt-get clean && \
