@@ -202,6 +202,11 @@ RUN opt_in_out --opt_out
 # Create Models directory
 RUN mkdir -p /home/pipeline-server/models
 
+# Create resources directories for k8s runtime uploads
+RUN mkdir -p /home/pipeline-server/resources/videos
+RUN mkdir -p /home/pipeline-server/resources/models
+RUN mkdir -p /home/pipeline-server/resources/images
+
 # Copy python UDFs for user_defined_pipelines/udfloader_sample pipeline
 COPY ./user_scripts/udfs/python/ /home/pipeline-server/udfs/python/
 ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
