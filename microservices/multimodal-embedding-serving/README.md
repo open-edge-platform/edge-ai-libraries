@@ -55,13 +55,20 @@ multimodal-embedding-serving/
 
 ## Environment Variables
 
-First, set the required VCLIP_MODEL environment variable:
+1. The service supports multimodal embedding models, but if you want to work only with text embeddings, set the following environment variable:
+
+```bash
+export USE_ONLY_TEXT_EMBEDDINGS=True
+```
+
+2. Set the required `VCLIP_MODEL` and `QWEN_MODEL` environment variable:
 
 ```bash
 export VCLIP_MODEL="openai/clip-vit-base-patch32"
+export QWEN_MODEL="Qwen/Qwen3-Embedding-0.6B"
 ```
 
-Set the environment with default values by running the following script:
+3. Set the other required environment with default values by running the following script:
 
 ```bash
 source setup.sh
@@ -72,7 +79,9 @@ source setup.sh
 - `APP_NAME`: Name of the application.
 - `APP_DISPLAY_NAME`: Display name of the application.
 - `APP_DESC`: Description of the application.
-- `VCLIP_MODEL`: Name of the pre-trained multimodal embedding model.
+- `TEXT_EMBEDDING_MODEL_NAME`: Name of the pre-trained text embedding model.
+- `IMAGE_EMBEDDING_MODEL_NAME`: Name of the pre-trained multimodal embedding model.
+- `USE_ONLY_TEXT_EMBEDDINGS`: Set this to true to enable text embeddings only, instead of multimodal embeddings
 - `http_proxy`: HTTP proxy value.
 - `https_proxy`: HTTPS proxy value.
 - `no_proxy_env`: No proxy value(comma separated list).

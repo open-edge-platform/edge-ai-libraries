@@ -43,7 +43,7 @@ services:
       - VDMS_VDB_PORT=55555
       - APP_HOST=vdms-dataprep # Same as service name. Helps store a URL for video download in metadata.
       - DB_COLLECTION=${INDEX_NAME}
-      - MINIO_ENDPOINT=${MINIO_HOST}:${MINIO_PORT}
+      - MINIO_ENDPOINT=${MINIO_HOST}:9000
       - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - MINIO_SECURE=false
