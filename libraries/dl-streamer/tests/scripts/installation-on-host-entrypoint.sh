@@ -45,7 +45,7 @@ echo_color "Stopping all running Docker containers" "blue"
 docker ps -q | xargs -r docker stop || true
 echo_color "Removing all stopped Docker containers" "blue"
 docker ps -a -q | xargs -r docker rm || true
-sudo docker system prune -a -f
+docker system prune -a -f
 
 # List remaining Docker containers
 echo_color "Listing all remaining Docker containers" "blue"
@@ -54,7 +54,7 @@ docker ps -a
 #Remove gstreamer .cache
 echo_color "Checking $HOME/.cache/gstreamer-1.0/..." "blue"
 if [ -f $HOME/.cache/gstreamer-1.0/ ]; then
-    sudo rm -rf $HOME/.cache/gstreamer-1.0/
+    rm -rf $HOME/.cache/gstreamer-1.0/
     echo_color "Removed $HOME/.cache/gstreamer-1.0/" "blue"
 fi
 
