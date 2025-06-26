@@ -161,7 +161,8 @@ export VCLIP_NUM_FRAMES=64
 export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
 # Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
-if [ "$VCLIP_DEVICE" = "GPU" ]; then
+if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
+    export VCLIP_DEVICE=GPU
     export VCLIP_USE_OV=true
     echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
 fi
