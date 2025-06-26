@@ -8,6 +8,9 @@
 ARG KAPACITOR_VERSION
 FROM kapacitor:$KAPACITOR_VERSION
 
+# Build argument to control downloading copyleft sources
+ARG COPYLEFT_SRC=false
+
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -38,6 +41,33 @@ COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip3 install --no-cache-dir -r requirements.txt
+
+# Optionally download copyleft sources if requested
+RUN if [ "$COPYLEFT_SRC" = "true" ]; then \
+        apt-get update && \
+        \
+        # Get list of installed deb packages with copyleft licenses \
+        for pkg in $(apt-mark showmanual | xargs -n1 apt-cache show | \
+            awk '/^Package: /{pkg=$2} /^License: /{if($2 ~ /(MPL|GPL|EPL|CDDL|LGPL)/) print pkg}' | sort -u); do \
+            echo "Downloading source for $pkg"; \
+            apt-get source "$pkg"; \
+        done; \
+        \
+        # Get source code for installed Python packages with copyleft licenses \
+        python3 -m pip install --no-cache-dir --upgrade pip-licenses && \
+        pip-licenses --format=csv --with-license-file --with-authors --with-urls > /tmp/pip_licenses.csv && \
+        awk -F, 'tolower($3) ~ /(mpl|gpl|epl|cddl|lgpl)/ {print $1}' /tmp/pip_licenses.csv | \
+        while read pkg; do \
+            echo "Downloading source for Python package $pkg"; \
+            mkdir -p /python_sources && \
+            python3 -m pip download --no-binary :all: $pkg -d /python_sources || true; \
+            # python3 -m pip download --no-binary=:all: --no-deps "$pkg" -d /tmp/python_sources || true; \
+        done; \
+        rm -f /tmp/pip_licenses.csv; \
+        python3 -m pip uninstall -y pip-licenses; \
+        apt-get purge -y --auto-remove && \
+        rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
+    fi
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
