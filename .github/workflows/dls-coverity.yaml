@@ -46,6 +46,7 @@ jobs:
           echo "run-analysis=$run_analysis" >> $GITHUB_OUTPUT
 
   coverity-scan:
+    needs: detect-languages
     runs-on: ubuntu-latest
     permissions:
       contents: read
