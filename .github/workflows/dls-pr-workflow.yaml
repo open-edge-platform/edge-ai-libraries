@@ -62,7 +62,7 @@ jobs:
       contents: read
       packages: read
     name: DLS Static Code Analysis for C/C++
-    uses: ./.github/workflows/dls-codeql.yaml
+    uses: ./.github/workflows/dls-coverity.yaml
 
   build-dev-images:
     permissions:

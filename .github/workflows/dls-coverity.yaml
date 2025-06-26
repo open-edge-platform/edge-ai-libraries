@@ -1,13 +1,63 @@
 name: "[DLS] Coverity (C/C++)"
 run-name: "[DLS] Coverity (C/C++)"
 on:
-  push:
-    branches:
-      - 'nsz-coverity'
+  workflow_call: 
+permissions: {}
 
 jobs:
+  detect-languages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      run-analysis: ${{ steps.detect-langs.outputs.run-analysis }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed languages and projects
+        id: detect-langs
+        run: |
+          cd edge-ai-libraries-repo
+          if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
+            git fetch origin main:main
+            echo "Fetched main branch"
+          fi
+          changed_files=$(git diff --name-only main...$GITHUB_SHA -- '*.h' '*.hpp' '*.c' '*.cpp' || true)
+          echo "Performed git diff"
+
+          if [ -z "$changed_files" ]; then
+            echo "No relevant changed files detected."
+            echo "run-analysis=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          run_analysis=false
+          for file in $changed_files; do
+            ext="${file##*.}"
+            if [[ "$ext" == "c" || "$ext" == "cpp" ]]; then
+              if [[ "$file" == *"libraries/dl-streamer/"* ]]; then
+                run_analysis=true
+                break
+              fi
+            fi
+          done
+
+          echo "Changed files:"
+          echo "$changed_files"
+          echo "Run analysis:"
+          echo "$run_analysis"
+          echo "run-analysis=$run_analysis" >> $GITHUB_OUTPUT
+
   coverity-scan:
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    if: needs.detect-languages.outputs.run-analysis == 'true'
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
