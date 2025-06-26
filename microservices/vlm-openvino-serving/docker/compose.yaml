@@ -6,7 +6,7 @@ services:
     image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
     container_name: vlm-openvino-serving
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile
     ports:
       - "${VLM_SERVICE_PORT}:8000"
@@ -38,7 +38,7 @@ services:
     networks:
       - my_network
     volumes:
-      - "/home/$USER/.cache/huggingface:/home/appuser/.cache/huggingface"
+      - ov-models:/home/appuser/.cache/huggingface
       - ov-models:/app/ov-model
 volumes:
   ov-models:
