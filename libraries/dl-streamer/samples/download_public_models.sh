@@ -180,7 +180,7 @@ source "$VENV_DIR_QUANT/bin/activate"
 pip install --upgrade pip
 
 # Install OpenVINO module
-pip install openvino==2025.2.0 || handle_error $LINENO
+pip install openvino==2025.1.0 || handle_error $LINENO
 
 pip install onnx || handle_error $LINENO
 pip install seaborn || handle_error $LINENO
