@@ -475,7 +475,7 @@ done
 REPO_DIR="$MODELS_PATH/yolov5_repo"
 if [ "$MODEL_IN_LISTv5" = true ] && [ ! -d "$REPO_DIR" ]; then
   git clone https://github.com/ultralytics/yolov5 "$REPO_DIR"
-  pip3 install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
+  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
   pip install -r "$REPO_DIR"/requirements.txt
 fi
 
@@ -507,6 +507,7 @@ EOF
       mv "${MODEL_NAME}_openvino_model/${MODEL_NAME}.xml" "$MODEL_DIR/FP32/${MODEL_NAME}.xml"
       mv "${MODEL_NAME}_openvino_model/${MODEL_NAME}.bin" "$MODEL_DIR/FP32/${MODEL_NAME}.bin"
 
+# # Quantization to INT8 temporarily disabled - causes error which breaks execution
 #       mkdir -p "$MODEL_DIR/INT8"
 #       python3 export.py --weights "${MODEL_NAME}.pt" --include openvino --img-size 640 --dynamic --int8
 #       python3 - <<EOF "${MODEL_NAME}"
