@@ -16,7 +16,7 @@ services:
         condition: service_started
       rabbitmq-service:
         condition: service_started
-      audio-intelligence:
+      audio-analyzer:
         condition: service_started
     environment:
       EVAM_HOST: ${EVAM_HOST}
@@ -160,9 +160,9 @@ services:
     networks:
       - vs_network
 
-  audio-intelligence:
-    image: ${REGISTRY:-}audio-intelligence:${TAG:-latest}
-    hostname: audio-intelligence
+  audio-analyzer:
+    image: ${REGISTRY:-}audio-analyzer:${TAG:-latest}
+    hostname: audio-analyzer
     ports:
       - "${AUDIO_HOST_PORT}:8000"
     volumes:

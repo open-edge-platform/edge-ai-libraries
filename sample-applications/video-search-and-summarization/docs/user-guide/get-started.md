@@ -54,7 +54,7 @@ Before running the application, you need to set several environment variables:
 
     ```bash
     export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
-    export PROJECT_NAME=<your-project-name>              # e.g. "egai" or "video-summary"
+    export PROJECT_NAME=<your-project-name>              # e.g. "video-search-and-summary""
     export TAG=<your-tag>                                # e.g. "rc4" or "latest"
     ```
 
@@ -92,7 +92,7 @@ Before running the application, you need to set several environment variables:
     # (Optional) For OVMS-based video summary (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
     export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
-    # Model used by Audio Intelligence service. Only Whisper models variants are supported.
+    # Model used by Audio Analyzer service. Only Whisper models variants are supported.
     # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
     # You can provide just one or comma-separated list of models.
     export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
