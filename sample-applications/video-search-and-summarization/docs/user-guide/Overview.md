@@ -2,13 +2,14 @@
 
 VSS foundational application provides three distinct modes in which its capabilities can be utilized. The overview documentation is accordingly structured to provide insights into each mode. Refer to respective overview documentation for each of the modes.
 
-1. [Video Summary](Overview-summary.md)
-2. [Video Search](Overview-search.md)
-3. [Video Search and Summary]()
+-  [Video Summary](Overview-summary.md)
+-  [Video Search](Overview-search.md)
+-  [Video Search and Summary]()
 
-## Other references
-Details on the system architecture and customizable options are available [here](./overview-architecture.md).
+## References
 
-Detailed hardware and software requirements are available [here](./system-requirements.md).
+For information on the system architecture and customizable options, see [Architecture](./overview-architecture.md).
 
-To get started with the application, please refer to the [Get Started](./get-started.md) page.
+For detailed hardware and software requirements, see [System Requirement](./system-requirements.md).
+
+To get started with the application, see [Get Started](./get-started.md) page.
