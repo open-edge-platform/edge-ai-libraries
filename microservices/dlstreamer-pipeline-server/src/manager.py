@@ -15,7 +15,7 @@ import re
 from collections import defaultdict
 from distutils.util import strtobool
 from typing import Dict, Any, Tuple, List, Union, Optional
-# from src.server.gstreamer_app_source import GvaFrameData
+from src.server.gstreamer_app_source import GvaFrameData    # required to load AppDestination and AppSource subclasses
 from src.server.pipeline_server import PipelineServer
 from src.server.pipeline import Pipeline as PipelineServer_Pipeline # avoid shadowing
 

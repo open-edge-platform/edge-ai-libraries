@@ -52,6 +52,7 @@ jobs:
 
   analyze:
     needs: detect-languages
+    if: needs.detect-languages.outputs.langs != '[]'
     runs-on: ubuntu-24.04-16core-64GB
     strategy:
       fail-fast: false
