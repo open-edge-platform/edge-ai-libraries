@@ -63,6 +63,7 @@ jobs:
       packages: read
     name: DLS Static Code Analysis for C/C++
     uses: ./.github/workflows/dls-coverity.yaml
+    secrets: inherit
 
   build-dev-images:
     permissions:
