@@ -177,19 +177,19 @@ echo "Activating virtual environment in $VENV_DIR_QUANT..."
 source "$VENV_DIR_QUANT/bin/activate"
 
 # Upgrade pip in the virtual environment
-pip install --upgrade pip
+pip install --no-cache-dir --upgrade pip
 
 # Install OpenVINO module
-pip install openvino==2025.1.0 || handle_error $LINENO
+pip install --no-cache-dir openvino==2025.1.0 || handle_error $LINENO
 
-pip install onnx || handle_error $LINENO
-pip install seaborn || handle_error $LINENO
+pip install --no-cache-dir onnx || handle_error $LINENO
+pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
-pip install nncf --upgrade || handle_error $LINENO
+pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
-  pip install ultralytics --upgrade --extra-index-url https://download.pytorch.org/whl/cpu || handle_error $LINENO
+  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics || handle_error $LINENO
 fi
 
 # Set the name of the virtual environment directory
@@ -206,27 +206,27 @@ echo "Activating virtual environment in $VENV_DIR..."
 source "$VENV_DIR/bin/activate"
 
 # Upgrade pip in the virtual environment
-pip install --upgrade pip
+pip install --no-cache-dir --upgrade pip
 
 # Install OpenVINO module
-pip install openvino==2024.6.0 || handle_error $LINENO
-pip install openvino-dev==2024.6.0 || handle_error $LINENO
+pip install --no-cache-dir openvino==2024.6.0 || handle_error $LINENO
+pip install --no-cache-dir openvino-dev==2024.6.0 || handle_error $LINENO
 
-pip install onnx || handle_error $LINENO
-pip install seaborn || handle_error $LINENO
+pip install --no-cache-dir onnx || handle_error $LINENO
+pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
-pip install nncf --upgrade || handle_error $LINENO
+pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
-  pip install ultralytics --upgrade --extra-index-url https://download.pytorch.org/whl/cpu || handle_error $LINENO
+  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics || handle_error $LINENO
 fi
 
 # Install dependencies for CLIP models
 if [[ "${MODEL:-}" =~ clip.* || "${MODEL:-}" == "all" ]]; then
-  pip install torch torchaudio torchvision --upgrade || handle_error $LINENO
-  pip install transformers || handle_error $LINENO
-  pip install pillow || handle_error $LINENO
+  pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
+  pip install --no-cache-dir transformers || handle_error $LINENO
+  pip install --no-cache-dir pillow || handle_error $LINENO
 fi
 
 echo Downloading models to folder "$MODELS_PATH".
@@ -475,8 +475,8 @@ done
 REPO_DIR="$MODELS_PATH/yolov5_repo"
 if [ "$MODEL_IN_LISTv5" = true ] && [ ! -d "$REPO_DIR" ]; then
   git clone https://github.com/ultralytics/yolov5 "$REPO_DIR"
-  pip install torch torchvision torchaudio --index-url https://download.pytorch.org/whl/cpu
-  pip install -r "$REPO_DIR"/requirements.txt
+  pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
+  pip install --no-cache-dir -r "$REPO_DIR"/requirements.txt
 fi
 
 for MODEL_NAME in "${YOLOv5_MODELS[@]}"; do
@@ -548,8 +548,8 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
   DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
 
   if [[ ! -f "$DST_FILE1" || ! -f "$DST_FILE2" ]]; then
-    pip install onnx
-    pip install torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1 --index-url https://download.pytorch.org/whl/cpu || handle_error $LINENO
+    pip install --no-cache-dir onnx
+    pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.5.1 torchvision==0.20.1 torchaudio==2.5.1  || handle_error $LINENO
     mkdir -p "$MODEL_DIR"
     mkdir -p "$MODEL_DIR/FP16"
     mkdir -p "$MODEL_DIR/FP32"
@@ -566,7 +566,7 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
     mv yolov7.bin "$MODEL_DIR/FP32"
     cd ..
     rm -rf yolov7
-    pip install torch torchaudio torchvision --upgrade || handle_error $LINENO
+    pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
@@ -861,7 +861,7 @@ if [[ "$MODEL" == "deeplabv3" ]] || [[ "$MODEL" == "all" ]]; then
   DST_FILE1="$MODEL_DIR/FP32/$MODEL_NAME.xml"
   DST_FILE2="$MODEL_DIR/FP16/$MODEL_NAME.xml"
 
-  pip install tensorflow || handle_error $LINENO
+  pip install --no-cache-dir tensorflow || handle_error $LINENO
 
   if [[ ! -f "$DST_FILE1" || ! -f "$DST_FILE2" ]]; then
     cd "$MODELS_PATH"
