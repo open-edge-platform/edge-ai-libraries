@@ -213,6 +213,12 @@ To use GPU acceleration for OVMS-based summary:
 ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary
 ```
 
+To use GPU acceleration for vclip-embedding-ms for search usecase:
+
+```bash
+VCLIP_DEVICE=GPU source setup.sh --search
+```
+
 To verify configuration and resolved environment variables without running the application:
 
 ```bash
@@ -225,7 +231,12 @@ ENABLE_VLM_GPU=true source setup.sh --summary config
 ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ```
 
-> **_NOTE:_** Please avoid setting `ENABLE_VLM_GPU` or `ENABLE_OVMS_LLM_SUMMARY_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
+```bash
+# For vclip-embedding-ms on GPU
+VCLIP_DEVICE=GPU source setup.sh --search config
+```
+
+> **_NOTE:_** Please avoid setting `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `VCLIP_DEVICE` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
 
 ## 🌐 Accessing the Application
 
