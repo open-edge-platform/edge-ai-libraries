@@ -145,12 +145,12 @@ jobs:
       - name: Analyze Coverity results (excluding thirdparty)
         run: |
           cd libraries/dl-streamer/build
-          ../cov-analysis/bin/cov-analyze --dir cov-int --file-filter ../coverity-filter.txt
+          ../../../cov-analysis/bin/cov-analyze --dir cov-int --file-filter ../coverity-filter.txt
 
       - name: Generate Coverity HTML report
         run: |
           cd libraries/dl-streamer/build
-          ../cov-analysis/bin/cov-format-errors --dir cov-int --html-output coverity-report --file-filter ../coverity-filter.txt
+          ../../../cov-analysis/bin/cov-format-errors --dir cov-int --html-output coverity-report --file-filter ../coverity-filter.txt
       
       - name: Convert HTML report to PDF
         run: |
