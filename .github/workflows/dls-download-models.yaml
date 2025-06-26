@@ -1,9 +1,6 @@
 name: "[DLS] Models update on self-hosted runners"
 run-name: "[DLS] Models update on self-hosted runners (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  push:
-    branches:
-      - dls_dmichalo_ModelsDownloadWorkflow
   schedule:
     - cron: '0 6 * * MON' # 6:00 UTC each Monday
   workflow_dispatch:
