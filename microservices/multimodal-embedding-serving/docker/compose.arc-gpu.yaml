@@ -6,7 +6,7 @@ services:
     image: ${REGISTRY:-}multimodal-embedding-serving-arc-gpu:${TAG:-latest}
     container_name: vclip-embedding
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile.arc-gpu
     ports:
       - "${EMBEDDING_SERVER_PORT}:8000"
@@ -37,7 +37,7 @@ services:
     networks:
       - my_network
     volumes:
-      - /home/$USER/.cache/huggingface/hub:/root/.cache/huggingface/hub
+      - ov-models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
       - ov-models:/app/ov-models
 volumes:

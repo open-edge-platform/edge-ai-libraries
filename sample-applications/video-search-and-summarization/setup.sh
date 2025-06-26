@@ -94,6 +94,7 @@ export VLM_DEVICE=CPU
 export VLM_SEED=42
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
+export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
@@ -470,14 +471,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
         if [ "$ENABLE_VLM_GPU" = true ]; then
             export VLM_DEVICE=GPU
-            export VLM_CONCURRENT=1
-            export LLM_CONCURRENT=1
+            export PM_VLM_CONCURRENT=1
+            export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
             echo -e  "Using VLM for summarization on GPU"
         else
             export VLM_DEVICE=CPU
-            export VLM_CONCURRENT=4
             echo -e  "Using VLM for summarization"
         fi
 

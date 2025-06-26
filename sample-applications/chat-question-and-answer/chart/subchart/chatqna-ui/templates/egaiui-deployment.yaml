@@ -11,6 +11,11 @@ spec:
       labels:
         app: {{ .Values.chatqnaui.name }}
     spec:
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+        runAsGroup: 1001
+        allowPrivilegeEscalation: false
       containers:
         - name: {{ .Values.chatqnaui.name }}
           image: {{ .Values.chatqnaui.image.repository }}:{{ .Values.chatqnaui.image.tag }}
@@ -28,3 +33,5 @@ spec:
               value: {{ .Values.global.proxy.https_proxy }}
             - name: NO_PROXY
               value: {{ .Values.global.proxy.no_proxy }}
+            - name: APP_MAX_TOKENS
+              value: "{{ .Values.chatqnaui.env.APP_MAX_TOKENS }}"

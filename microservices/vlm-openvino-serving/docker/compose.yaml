@@ -6,7 +6,7 @@ services:
     image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
     container_name: vlm-openvino-serving
     build:
-      context: .
+      context: ..
       dockerfile: docker/Dockerfile
     ports:
       - "${VLM_SERVICE_PORT}:8000"
@@ -21,6 +21,7 @@ services:
       VLM_DEVICE: ${VLM_DEVICE}
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
+      VLM_MAX_COMPLETION_TOKENS: ${VLM_MAX_COMPLETION_TOKENS}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
@@ -37,7 +38,7 @@ services:
     networks:
       - my_network
     volumes:
-      - "/home/$USER/.cache/huggingface:/root/.cache/huggingface"
+      - ov-models:/home/appuser/.cache/huggingface
       - ov-models:/app/ov-model
 volumes:
   ov-models:
