@@ -166,8 +166,8 @@ services:
     ports:
       - "${AUDIO_HOST_PORT}:8000"
     volumes:
-      - audio_intelligence_data:/models
-      - audio_intelligence_data:/data
+      - audio_analyzer_data:/models
+      - audio_analyzer_data:/data
       - /dev/dri:/dev/dri
     environment:
       - http_proxy
@@ -215,7 +215,7 @@ services:
       - vs_network
 
 volumes:
-  audio_intelligence_data:
+  audio_analyzer_data:
     driver: local
   ov-models:
     external: true

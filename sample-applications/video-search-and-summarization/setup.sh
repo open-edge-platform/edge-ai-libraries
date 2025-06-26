@@ -373,7 +373,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
     docker volume create ov-models
     docker volume create vol_evam_pipeline_root
-    docker volume create audio_intelligence_data
+    docker volume create audio_analyzer_data
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
