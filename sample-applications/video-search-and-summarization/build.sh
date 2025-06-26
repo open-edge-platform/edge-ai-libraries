@@ -28,7 +28,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-intelligence)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding-serving, vlm-openvino-serving, audio-intelligence)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -86,12 +86,12 @@ build_dependencies() {
 # Check if the directory exists first
   cd "${uservices_dir}/multimodal-embedding-serving/docker" || return
   if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}multimodal-embedding:${TAG} -f docker/Dockerfile . || { 
-      log_info "${RED}Failed to build multimodal embedding${NC}"; 
+    cd .. && docker_build -t ${REGISTRY}multimodal-embedding-serving:${TAG} -f docker/Dockerfile . || { 
+      log_info "${RED}Failed to build multimodal embedding serving${NC}"; 
       build_success=false; 
     }
   else
-    log_info "${YELLOW}compose.yml not found for multimodal embedding${NC}";
+    log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
   
