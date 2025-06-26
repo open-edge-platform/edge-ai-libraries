@@ -392,7 +392,8 @@ RUN \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docker && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docs && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/infrastructure && \
-    rm -rf /deb-pkg/opt/intel/dlstreamer/tests
+    rm -rf /deb-pkg/opt/intel/dlstreamer/tests && \
+    find /deb-pkg/opt/intel -name "*.a" -delete
 
 COPY docker/ubuntu/debian /deb-pkg/debian
 
@@ -412,12 +413,6 @@ RUN \
 RUN \
     debuild -z1 -us -uc && \
     mv "/intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb" "/intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb"
-
-# Uploading
-ENV PACKAGE_DIR=/
-ENV CA_FILE="/tmp/signfile-lin-x64/intel-ca.crt"
-ENTRYPOINT ["sh", "-c"]
-CMD ["/tmp/packaging/upload_packages.sh ${REPO_USER} ${REPO_PASS} ${REPO_URL} ${PACKAGE_DIR} ${DISTRIBUTION} ${COMPONENT_NAME} ${EDSS_USERNAME} ${EDSS_PASSWORD} ${CA_FILE}"]
 
 # ==============================================================================
 FROM ubuntu:22.04 AS dlstreamer

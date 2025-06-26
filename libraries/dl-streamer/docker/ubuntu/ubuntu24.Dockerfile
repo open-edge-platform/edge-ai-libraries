@@ -343,7 +343,8 @@ RUN \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docker && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docs && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/infrastructure && \
-    rm -rf /deb-pkg/opt/intel/dlstreamer/tests
+    rm -rf /deb-pkg/opt/intel/dlstreamer/tests && \
+    find /deb-pkg/opt/intel -name "*.a" -delete
 
 COPY docker/ubuntu/debian /deb-pkg/debian
 
