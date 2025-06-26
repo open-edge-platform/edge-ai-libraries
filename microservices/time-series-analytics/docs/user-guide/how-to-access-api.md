@@ -52,7 +52,7 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 
     ```json
     {
-    "alert": "message"
+    "message": "Alert message"
     }
     ```
 4. Expand the endpoint, enter the alert data in the request body, and click **Execute**.
