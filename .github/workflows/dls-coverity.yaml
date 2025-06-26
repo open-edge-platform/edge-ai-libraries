@@ -142,6 +142,27 @@ jobs:
           ../cov-analysis/bin/cov-build --dir cov-int cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON ..
           ../cov-analysis/bin/cov-build --dir cov-int make -j$(nproc)
 
+      - name: Analyze Coverity results (excluding thirdparty)
+        run: |
+          cd libraries/dl-streamer/build
+          ../../../cov-analysis/bin/cov-analyze --dir cov-int --file-filter ../coverity-filter.txt
+
+      - name: Generate Coverity HTML report
+        run: |
+          cd libraries/dl-streamer/build
+          ../../../cov-analysis/bin/cov-format-errors --dir cov-int --html-output coverity-report --file-filter ../coverity-filter.txt
+      
+      - name: Convert HTML report to PDF
+        run: |
+          cd libraries/dl-streamer/build/coverity-report
+          wkhtmltopdf index.html ../coverity-report.pdf
+
+      - name: Upload Coverity PDF report artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        with:
+          name: coverity-report
+          path: libraries/dl-streamer/build/coverity-report.pdf
+
       - name: Create tarball for upload
         run: |
           cd libraries/dl-streamer
