@@ -65,11 +65,10 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: volume-data
-              mountPath: /root/.cache/clip
-              subPath: clip-cache
-            - name: volume-data
-              mountPath: /root/.cache/huggingface/hub
+              mountPath: /home/appuser/.cache/huggingface
               subPath: huggingface
+            - name: volume-data
+              mountPath: /app/ov-model
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: dataprep

@@ -80,9 +80,8 @@ cd <repo>/sample-applications/video-search-and-summarization/chart
 #### Step 3: Configure the `values.yaml` File
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
-Choose the appropriate `values*.yaml` file based on the model server you want to use:
+Choose the appropriate `*.yaml` file based on the model server/usecase you want to use:
 
-- **For OVMS**: Use `values_ovms.yaml`.
 
 ### Step 4: Build Helm Dependencies
 

@@ -52,6 +52,8 @@ spec:
           volumeMounts:
           - name: workspace
             mountPath: /app/ov-model
+          - name: workspace
+            mountPath: /home/appuser/.cache/huggingface
           securityContext:
             readOnlyRootFilesystem: false
       volumes:
