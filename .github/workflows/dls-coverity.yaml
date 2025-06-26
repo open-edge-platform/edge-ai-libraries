@@ -34,18 +34,10 @@ jobs:
             echo "No relevant changed files detected."
             echo "run-analysis=false" >> $GITHUB_OUTPUT
             exit 0
+          else 
+            run_analysis=true
           fi
 
-          run_analysis=false
-          for file in $changed_files; do
-            ext="${file##*.}"
-            if [[ "$ext" == "c" || "$ext" == "cpp" ]]; then
-              if [[ "$file" == *"libraries/dl-streamer/"* ]]; then
-                run_analysis=true
-                break
-              fi
-            fi
-          done
 
           echo "Changed files:"
           echo "$changed_files"
