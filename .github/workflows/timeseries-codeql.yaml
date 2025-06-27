@@ -94,8 +94,12 @@ jobs:
           generate_pdf(sarif_data, 'sarif_report.pdf')
           EOF
 
-      - name: Upload PDF Report
-        uses: actions/upload-artifact@v4
+      - name: Create ZIP File
+        run: |
+          zip codeql_reports.zip results.sarif sarif_report.pdf
+
+      - name: Upload ZIP Artifact
+        uses: actions/upload-artifact@v3
         with:
-          name: SARIF Report
-          path: sarif_report.pdf
+          name: Time Series CodeQL Reports
+          path: codeql_reports.zip
