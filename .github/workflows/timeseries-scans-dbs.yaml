@@ -48,6 +48,7 @@ jobs:
           docker compose up -d
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
+          cd microservices/time-series-analytics/docker
           docker pull docker/docker-bench-security
           docker run -i --net host --pid host --cap-add audit_control \
             -v /var/lib:/var/lib \
