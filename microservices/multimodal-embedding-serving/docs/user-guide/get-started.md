@@ -67,13 +67,29 @@ source setup.sh
 
 ### Running the Server
 
-To run the server using Docker Compose, use the following command:
+1. Clone the repo and change to the `multimodal-embedding-serving` directory:
+
+```bash
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/multimodal-embedding-serving
+```
+
+2. To run the service using Docker Compose, use the following command:
 
  ```bash
  # Run on CPU
  docker compose -f docker/compose.yaml up
  # Run on GPU
  docker compose -f docker/compose.arc-gpu.yaml up
+ ```
+
+ 3. To stop the service and bring down the container:
+
+ ```bash
+ # When runing on CPU
+ docker compose -f docker/compose.yaml down
+ # When running on GPU
+ docker compose -f docker/compose.arc-gpu.yaml down
  ```
 
 ## Sample CURL Commands
