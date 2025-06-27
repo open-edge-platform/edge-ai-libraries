@@ -120,6 +120,7 @@ jobs:
         echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}">> $GITHUB_STEP_SUMMARY
+        echo "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
     - name: Clean up
