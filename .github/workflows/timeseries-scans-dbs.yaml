@@ -52,7 +52,7 @@ jobs:
           cd microservices/time-series-analytics/docker
           git clone https://github.com/docker/docker-bench-security.git 
           cd docker-bench-security
-          sh docker-bench-security.sh >> dbs_scan_timeseries.txt
+          bash docker-bench-security.sh >> dbs_scan_timeseries.txt
       - name: Undeploy
         run: |
           cd microservices/time-series-analytics/docker
