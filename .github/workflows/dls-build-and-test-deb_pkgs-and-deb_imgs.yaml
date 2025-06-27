@@ -60,13 +60,13 @@ jobs:
     - name: Build deb final img with cache from GHCR
       env:
         deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        dev_final_img_cached: ghcr.io/${{ github.repository }}/dev-final-img-${{ matrix.ubuntu_version }}:buildcache
+        deb_final_img_cached: ghcr.io/${{ github.repository }}/dev-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --load \
           --target dlstreamer \
-          --tag "${dev_final_img}" \
-          --cache-from="${dev_final_img_cached}" \
+          --tag "${deb_final_img}" \
+          --cache-from="${deb_final_img_cached}" \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           -f ${{ matrix.path_dev }} \
