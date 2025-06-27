@@ -1,8 +1,8 @@
 {
     "test_set_properties": {
         "test.type": "sample",
-        "sample.dir": "/home/runner/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer",
-        "tests.dir": "/home/runner/edge-ai-libraries/libraries/dl-streamer/tests",
+        "sample.dir": "/home/runner/dl-streamer/samples/gstreamer",
+        "tests.dir": "/home/runner/dl-streamer/tests",
         "dataset.video": "/tmp/video-examples",
         "dataset.artifacts": "/tmp/results/metadata",
         "dataset.groundtruth.base": "groundtruth_ov2/on_host/samples_TGL",
