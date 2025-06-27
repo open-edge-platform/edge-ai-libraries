@@ -117,7 +117,7 @@ async def process_video_summary(
             "video_start_time": video_start_time,
             "video_end_time": video_end_time,
             "content_type": "text",
-            "timestamp": datetime.datetime.now().isoformat(),
+            "timestamp": video_start_time,
         }
 
         logger.debug(f"Text metadata for summary: {text_metadata}")
