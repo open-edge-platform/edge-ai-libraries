@@ -180,9 +180,9 @@ jobs:
         python3 -m venv $HOME/.virtualenvs/dlstreamer
         $HOME/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip -r $DLS_REL_PATH/requirements.txt
 
-    - name: Link DL Streamer to home Directory
+    - name: Link DL Streamer to home directory
       run: |
-        ln -s $DLS_REL_PATH $HOME
+        ln -s $PWD/$DLS_REL_PATH $HOME
 
     - name: 🚀 Run tests
       id: run_tests
