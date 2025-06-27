@@ -38,7 +38,7 @@ jobs:
                docker rm $(docker ps -aq)
            fi
            docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
-           echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
+          #  echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
       - name: Build 
         run: |
