@@ -34,9 +34,8 @@ jobs:
            docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
            echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
-      - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
+    - uses: actions/checkout@v1
+      with:
           persist-credentials: false 
       - name: Build 
         run: |
