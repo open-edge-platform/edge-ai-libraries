@@ -37,9 +37,11 @@ jobs:
           upload: "never"
           checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
 
+      - name: Enable Debug Logging
+        run: echo "::set-env name=ACTIONS_RUNNER_DEBUG::true"
 
       - name: Generate CodeQL Report
-        uses: rsdmike/github-security-report-action
+        uses: rsdmike/github-security-report-action@a149b24539044c92786ec39af8ba38c93496495d # v3.0.4
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           template: report
