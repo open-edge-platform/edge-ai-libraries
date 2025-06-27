@@ -64,10 +64,8 @@ jobs:
           ${{ env.DLS_REL_PATH }}
 
     - name: Push Docker img from .deb
-      env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
       run: |
-        docker push ${deb_final_img}
+        docker push ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
 
     - name: Save Ubuntu 22 image info
       id: save-image-ubuntu22
