@@ -113,6 +113,15 @@ jobs:
       run: |
         $DLS_REL_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_REL_PATH/deb_packages
 
+    - name: Print system information
+      run: |
+        echo "## System information" >> $GITHUB_STEP_SUMMARY
+        echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
+        echo "OS codename: $(lsb_release -sc)" >> $GITHUB_STEP_SUMMARY
+        echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
+        echo "Hostname: $(hostname)" >> $GITHUB_STEP_SUMMARY
+        echo "CPU Name: $(lscpu | grep 'Model name' | sed 's/Model name:[ \t]*//')" >> $GITHUB_STEP_SUMMARY
+
     - name: Test hello_dlstreamer script
       id: test_hello_dlstreamer_script
       run: |
