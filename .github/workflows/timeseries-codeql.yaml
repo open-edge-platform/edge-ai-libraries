@@ -38,6 +38,10 @@ jobs:
           checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
           output: results.sarif
 
+      - name: Check 
+        run: | 
+        ls -la 
+        ls -la ${{ github.workspace }}/microservices/time-series-analytics/
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
