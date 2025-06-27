@@ -48,6 +48,7 @@ jobs:
           docker compose up -d
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
+          sudo apt-get -y install bash
           cd microservices/time-series-analytics/docker
           git clone https://github.com/docker/docker-bench-security.git 
           cd docker-bench-security
