@@ -18,36 +18,78 @@ jobs:
   build-dls-pipeline-server-image:
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
     strategy:
       fail-fast: false
       matrix:
         include:
           - ubuntu_version: ubuntu22
+          - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
+
+    - name: Init submodules
+      run: |
+        cd edge-ai-libraries-repo
+        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Set BASE_IMAGE
+      env:
+        BASE_IMAGE22: "intel/dlstreamer:2025.0.1.3-ubuntu22"
+        BASE_IMAGE24: "intel/dlstreamer:2025.0.1.3-ubuntu24"
+      run: |
+        if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
+          echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
+        elif [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
+          echo "BASE_IMAGE=${BASE_IMAGE24}" >> $GITHUB_ENV
+        fi
+
     - name: Build dls-pipeline-server-img
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
+        export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         docker compose build --no-cache --pull
-    
+    - name: Scan Docker image with Trivy
+      uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
+      with:
+        image: "intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}"
+        severity: "CRITICAL"
+        # output-format: "json"
+        output-file: "dlsps-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+
+    - name: Upload Trivy report as artifact
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+      with:
+        name: dlsps-${{ matrix.ubuntu_version }}-trivy-image-report
+        path: dlsps-${{ matrix.ubuntu_version }}-trivy-image-report.txt
     - name: Create summary
       if: always()
       run: |
-        echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }} :ship:" >> $GITHUB_STEP_SUMMARY
+        echo "### DL Streamer Pipeline Server Docker image for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
-        echo "intel/dlstreamer-pipeline-server:3.0.0" >> $GITHUB_STEP_SUMMARY
+        echo "intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}">> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi intel/dlstreamer-pipeline-server:3.0.0 || true
-
+        docker rmi intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} || true
   unit-test-dls-pipeline-server:
     name: Unit Test DLS Pipeline Server
     runs-on: ubuntu-latest
@@ -140,4 +182,52 @@ jobs:
                docker rmi -f $(docker images -aq) || true
         fi
 
-        
+  filter-docker-related-changes:
+    permissions:
+      contents: read
+    name: Detect changes in docker directory
+    runs-on: ubuntu-latest
+    outputs:
+      docker_changed: ${{ steps.check.outputs.docker_changed }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch main branch for comparison
+        run: git fetch origin main
+
+      - id: check
+        name: Detect changes in docker directory
+        run: |
+          echo "🔍 Checking for changes in 'microservices/dlstreamer-pipeline-server/docker'..."
+          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
+          echo "📄 Changed files:"
+          echo "$CHANGED_FILES"
+          if echo "$CHANGED_FILES" | grep -q '^microservices/dlstreamer-pipeline-server/docker'; then
+            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
+            echo "🟡 Docker-related changes detected."
+          else
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ No docker-related changes."
+          fi
+
+  trivy-config-scan:
+    permissions:
+      contents: read
+    needs: [filter-docker-related-changes]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: Scan dlsps docker file
+    strategy:
+      fail-fast: false
+     
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: microservices/dlstreamer-pipeline-server/
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: reports/dlsps_trivy_report.json
+      name: dlsps_trivy_report
+   
