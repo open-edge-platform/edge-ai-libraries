@@ -90,7 +90,7 @@ jobs:
 
               c.save()
 
-          sarif_data = parse_sarif('/tmp/results.sarif')
+          sarif_data = parse_sarif('results/python.sarif')
           generate_pdf(sarif_data, 'sarif_report.pdf')
           EOF
 
