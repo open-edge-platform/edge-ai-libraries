@@ -48,11 +48,20 @@ jobs:
           docker compose up -d
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
-          sudo apt-get -y install bash
-          cd microservices/time-series-analytics/docker
-          git clone https://github.com/docker/docker-bench-security.git 
-          cd docker-bench-security
-          bash docker-bench-security.sh >> dbs_scan_timeseries.txt
+          docker pull docker/docker-bench-security
+          mkdir -p docker-bench-output
+          docker run --net host --pid host --cap-add audit_control \
+            -v /var/lib:/var/lib \
+            -v /var/run/docker.sock:/var/run/docker.sock \
+            -v /etc:/etc:ro \
+            -v /usr/bin/docker:/usr/bin/docker:ro \
+            -v /usr/lib/systemd:/usr/lib/systemd:ro \
+            -v /etc/systemd:/etc/systemd:ro \
+            -v /usr/lib/x86_64-linux-gnu:/usr/lib/x86_64-linux-gnu:ro \
+            -v /lib/x86_64-linux-gnu:/lib/x86_64-linux-gnu:ro \
+            -v /usr/local/bin:/usr/local/bin:ro \
+            -v "$PWD/docker-bench-output:/output" \
+            docker/docker-bench-security > docker-bench-output/output.log
       - name: Undeploy
         run: |
           cd microservices/time-series-analytics/docker
