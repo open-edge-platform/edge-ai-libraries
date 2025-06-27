@@ -39,7 +39,7 @@ jobs:
 
 
       - name: Generate CodeQL Report
-        uses: rsdmike/github-security-report-action@v2
+        uses: rsdmike/github-security-report-action
         with:
           token: ${{ secrets.GITHUB_TOKEN }}
           template: report
