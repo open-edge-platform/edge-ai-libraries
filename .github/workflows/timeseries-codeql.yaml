@@ -36,13 +36,14 @@ jobs:
           category: "/language:python"
           upload: "never"
           checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
-          output: results.sarif
+          output: results
 
       - name: Check 
         run: | 
           ls -la 
           ls -la ${{ github.workspace }}/microservices/time-series-analytics/
-          cp results.sarif /tmp/.
+          ls -la results 
+          cp -r results /tmp/.
           ls -la /tmp
       - name: Set up Python
         uses: actions/setup-python@v4
