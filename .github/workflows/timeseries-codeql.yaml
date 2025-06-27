@@ -38,10 +38,9 @@ jobs:
         uses: github/codeql-action/analyze@v2
         with:
           database: my-database
-          output: results.sarif
+          output: results
           upload: "never"
           category: "/language:python"
-          output: results
 
 
       # - name: Initialize CodeQL
