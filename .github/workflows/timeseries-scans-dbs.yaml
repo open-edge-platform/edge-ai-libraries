@@ -11,7 +11,7 @@ on:
   
 jobs:
   DBS_job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     permissions:
       contents: read
       packages: read          # needed for actions/checkout
@@ -23,6 +23,7 @@ jobs:
           docker version && 
           git version && 
           docker compose version
+
       - name: Runner workspace path
         run: |
            echo "Cleaning up previous run"
@@ -39,6 +40,7 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false
+
       - name: Build 
         run: |
           cd microservices/time-series-analytics/docker
