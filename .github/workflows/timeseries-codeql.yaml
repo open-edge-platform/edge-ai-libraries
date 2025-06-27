@@ -96,7 +96,7 @@ jobs:
 
       - name: Create ZIP File
         run: |
-          zip codeql_reports.zip results.sarif sarif_report.pdf
+          zip codeql_reports.zip results/python.sarif sarif_report.pdf
 
       - name: Upload ZIP Artifact
         uses: actions/upload-artifact@v3
