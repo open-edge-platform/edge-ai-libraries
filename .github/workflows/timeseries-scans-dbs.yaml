@@ -12,7 +12,7 @@ on:
   
 jobs:
   DBS_job:
-    runs-on: ubuntu-latest
+    runs-on: ubuntu-24.04
     
     steps:
       - name: check the system
