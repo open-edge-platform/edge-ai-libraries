@@ -396,7 +396,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
     return {"status": "success", "message": "Configuration updated successfully"}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # pragma: no cover
     # Start the FastAPI server
     def run_server():
         uvicorn.run(app, host="0.0.0.0", port=5000)
