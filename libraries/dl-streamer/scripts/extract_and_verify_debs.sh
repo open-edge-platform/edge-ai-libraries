@@ -18,21 +18,15 @@ if [[ -z "$IMAGE_NAME" ]]; then
     exit 1
 fi
 
-# === RUN CONTAINER AND COPY FILES ===
-echo "Running container to extract .deb files..."
-docker run --name "$CONTAINER_NAME" "$IMAGE_NAME" bash -c '
-    mkdir -p /debs_to_copy
-    shopt -s nullglob
-    files=(/intel-dlstreamer*.deb)
-    if [ ${#files[@]} -eq 0 ]; then
-        echo "No .deb files found in /"
-        exit 1
-    fi
-    cp "${files[@]}" /debs_to_copy/
-'
+if ! docker exec "$CONTAINER_NAME" sh -c 'compgen -G "/debs/*.deb" > /dev/null'; then
+    echo "❌ No .deb files found in /debs inside the container"
+    docker rm -f "$CONTAINER_NAME"
+    exit 1
+fi
+
 echo "Copying files from container to host..."
 mkdir -p "$DEBS_DESTINATION_PATH"
-docker cp "$CONTAINER_NAME:/debs_to_copy/." "$DEBS_DESTINATION_PATH"
+docker cp "$CONTAINER_NAME:/debs/." "$DEBS_DESTINATION_PATH"
 echo "Cleaning up container..."
 docker rm "$CONTAINER_NAME"
 echo "Finished."
