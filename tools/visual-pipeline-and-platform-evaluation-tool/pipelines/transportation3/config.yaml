@@ -1,0 +1,7 @@
+name: Transportation Proxy Pipeline 3 (D-C)
+definition: >
+  Transportation Proxy Pipeline 3 performs license plate detection on vehicles, enabling automated
+  identification and tracking of license plates for transportation analysis and monitoring.
+metadata:
+  classname: LicensePlateDetectionPipeline
+  enabled: true
