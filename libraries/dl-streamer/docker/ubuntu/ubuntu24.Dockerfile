@@ -411,13 +411,14 @@ RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-P
     echo "deb [signed-by=/usr/share/keyrings/intel-sw-products.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" \
     > /etc/apt/sources.list.d/intel-openvino-2025.list
 
-COPY --from=deb-builder /*.deb /
+RUN mkdir -p /debs
+COPY --from=deb-builder /*.deb /debs/
 
 ARG DEBIAN_FRONTEND=noninteractive
 
 RUN \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends ./*.deb && \
+    apt-get install -y -q --no-install-recommends /debs/*.deb && \
     apt-get clean -y && \
     rm -rf /var/lib/apt/lists/* && \
     rm -f /*.deb && \
