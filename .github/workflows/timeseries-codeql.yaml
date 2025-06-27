@@ -3,16 +3,17 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-name: "CodeQL Advanced"
+name: "[Time Series] CodeQL Scan"
+run-name: "[Time Series Analytics] CodeQL Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
   workflow_dispatch:
 
 
 jobs:
   codeql-job:
-    name: Analyze Python
+    name: Scan Python
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-24.04
     permissions:
       security-events: write
       packages: read
@@ -32,6 +33,9 @@ jobs:
         uses: github/codeql-action/analyze@v3
         with:
           category: "/language:python"
+          upload: "never"
+          checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
+
 
       - name: Generate Security Report
         uses: rsdmike/github-security-report-action@v3.0.4
