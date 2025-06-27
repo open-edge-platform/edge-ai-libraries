@@ -99,7 +99,7 @@ jobs:
           zip codeql_reports.zip results/python.sarif sarif_report.pdf
 
       - name: Upload ZIP Artifact
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: Time Series CodeQL Reports
           path: codeql_reports.zip
