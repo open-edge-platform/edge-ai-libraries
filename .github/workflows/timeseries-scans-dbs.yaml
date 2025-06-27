@@ -5,7 +5,6 @@
 #
 name: "[Time SeriesAnalytics] Docker Bench Security Scan"
 run-name: "[Time Series Analytics] Docker Bench Security Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
-permissions: read-all
 
 on:
   workflow_dispatch:
@@ -13,7 +12,9 @@ on:
 jobs:
   DBS_job:
     runs-on: ubuntu-latest
-    
+    permissions:
+      contents: read
+      packages: read          # needed for actions/checkout
     steps:
       - name: check the system
         run: |
@@ -34,7 +35,10 @@ jobs:
            docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
            echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
-      - uses: actions/checkout@v1
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: Build 
         run: |
           cd microservices/time-series-analytics/docker
