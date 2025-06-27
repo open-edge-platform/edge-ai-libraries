@@ -98,7 +98,6 @@ jobs:
         echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
         echo "OS version: $(. /etc/os-release && echo "$PRETTY_NAME")" >> $GITHUB_STEP_SUMMARY
         echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
-        echo "Hostname: $(hostname)" >> $GITHUB_STEP_SUMMARY
         echo "CPU Name: $(lscpu | grep 'Model name' | sed 's/Model name:[ \t]*//')" >> $GITHUB_STEP_SUMMARY
 
     - name: Check models
@@ -225,5 +224,3 @@ jobs:
         rm -rf $HOME/.virtualenvs
         docker rmi ${deb_img} || true
         sudo rm -f $HOME/dl-streamer
-        cd ..
-        sudo rm -rf edge-ai-libraries
