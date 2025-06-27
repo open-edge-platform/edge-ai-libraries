@@ -24,24 +24,25 @@ jobs:
         uses: actions/checkout@v4
         with:
           persist-credentials: false 
+
       - name: Initialize CodeQL
-        uses: github/codeql-action/init@v3
+        uses: github/codeql-action/init@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
         with:
           languages: 'python'
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v3
+        uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
         with:
           category: "/language:python"
           upload: "never"
           checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
 
 
-      - name: Generate Security Report
-        uses: rsdmike/github-security-report-action@v3.0.4
+      - name: Generate CodeQL Report
+        uses: rsdmike/github-security-report-action@a149b24539044c92786ec39af8ba38c93496495d # v3.0.4
         with:
-          template: report
           token: ${{ secrets.GITHUB_TOKEN }}
+          template: report
 
       - name: GitHub Upload Release Artifacts
         uses: actions/upload-artifact@v4
