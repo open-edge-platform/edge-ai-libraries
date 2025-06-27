@@ -34,9 +34,10 @@ jobs:
            docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
            echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
-      - uses: actions/checkout@v4
+      - name: Checkout Code
+        uses: actions/checkout@v4
         with:
-            persist-credentials: false 
+          persist-credentials: false  
       - name: Build 
         run: |
           cd microservices/time-series-analytics/docker
