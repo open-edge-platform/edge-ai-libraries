@@ -74,24 +74,24 @@ jobs:
 
     - name: Unit Test dls-pipeline-server
       run: |
-        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
-        make build
-        make test | tee /tmp/pytest_output.txt
-        exit ${PIPESTATUS[0]}
-        
-    - name: Create Unit Test summary
-      if: always()
-      run: |
-        pytest_output=$(cat /tmp/pytest_output.txt)
-        summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
-        echo "### Unit Test Completed for DLSPS commit id ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
-        echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
-        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-        echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
-        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
-        
+        if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
+
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+          make build
+          make test | tee /tmp/pytest_output.txt
+          exit ${PIPESTATUS[0]}
+          pytest_output=$(cat /tmp/pytest_output.txt)
+          summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
+          echo "### Unit Test Completed for DLSPS commit id ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+          echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+          echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
+          echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+        fi
+                  
     - name: Upload unit test results to Github
-      if: always()
+      if: matrix.ubuntu_version == 'ubuntu22'
+      needs:[ Unit Test dls-pipeline-server]
       uses: actions/upload-artifact@v4
       with:
         name: Coverage-reports
