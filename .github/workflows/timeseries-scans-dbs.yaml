@@ -49,8 +49,7 @@ jobs:
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
           docker pull docker/docker-bench-security
-          mkdir -p docker-bench-output
-          docker run -it --net host --pid host --cap-add audit_control \
+          docker run -i --net host --pid host --cap-add audit_control \
             -v /var/lib:/var/lib \
             -v /var/run/docker.sock:/var/run/docker.sock \
             -v /usr/lib/systemd:/usr/lib/systemd \
