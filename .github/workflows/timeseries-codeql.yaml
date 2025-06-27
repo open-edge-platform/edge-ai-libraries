@@ -42,6 +42,8 @@ jobs:
         run: | 
           ls -la 
           ls -la ${{ github.workspace }}/microservices/time-series-analytics/
+          cp results.sarif /tmp/.
+          ls -la /tmp
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
@@ -87,7 +89,7 @@ jobs:
 
               c.save()
 
-          sarif_data = parse_sarif('results.sarif')
+          sarif_data = parse_sarif('/tmp/results.sarif')
           generate_pdf(sarif_data, 'sarif_report.pdf')
           EOF
 
