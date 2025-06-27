@@ -25,36 +25,18 @@ jobs:
         with:
           persist-credentials: false 
 
-      - name: Set up CodeQL
-        uses: github/codeql-action/init@v2
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
         with:
-          languages: python  # Adjust this to the language used in microservice/2
-
-      - name: Create CodeQL Database
-        run: |
-          codeql database create my-database --language=javascript --source-root=microservices/time-series-analytics
+          languages: 'python'
+          source-root: microservices/time-series-analytics
 
       - name: Perform CodeQL Analysis
-        uses: github/codeql-action/analyze@v2
+        uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
         with:
-          database: my-database
-          output: results
-          upload: "never"
           category: "/language:python"
-
-
-      # - name: Initialize CodeQL
-      #   uses: github/codeql-action/init@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
-      #   with:
-      #     languages: 'python'
-
-      # - name: Perform CodeQL Analysis
-      #   uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
-      #   with:
-          
-          
-      #     checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
-          
+          upload: "never"
+          output: results
 
       - name: Check 
         run: | 
