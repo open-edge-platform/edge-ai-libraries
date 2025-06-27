@@ -57,55 +57,78 @@ jobs:
         username: ${{ github.actor }}
         password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build dev release img with cache from GHCR
+    - name: Build deb final img with cache from GHCR
       env:
-        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        dev_release_img_cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_final_img_cached: ghcr.io/${{ github.repository }}/dev-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
           --load \
-          --tag "${dev_release_img}" \
-          --cache-from="${dev_release_img_cached}" \
-          --build-arg BUILD_ARG=Release \
+          --target dlstreamer \
+          --tag "${dev_final_img}" \
+          --cache-from="${dev_final_img_cached}" \
+          --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
+          --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
           -f ${{ matrix.path_dev }} \
           ${{ env.DLS_REL_PATH }}
 
-    - name: Build deb pkg img using dev release img
-      env:
-        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      run: |
-        docker build \
-          --tag ${deb_pkg_img} \
-          --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
-          --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          --build-arg BASE_IMAGE="${dev_release_img}" \
-          -f ${{ matrix.path_deb }} \
-          ${{ env.DLS_REL_PATH }}
+    # - name: Build dev release img with cache from GHCR
+    #   env:
+    #     dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #     dev_release_img_cached: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:buildcache
+    #   run: |
+    #     docker buildx build \
+    #       --load \
+    #       --target dlstreamer-dev \
+    #       --tag "${dev_release_img}" \
+    #       --cache-from="${dev_release_img_cached}" \
+    #       -f ${{ matrix.path_dev }} \
+    #       ${{ env.DLS_REL_PATH }}
 
-    - name: Extract .deb packages using script
-      env:
-        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      run: |
-        chmod +x ${{ env.DLS_REL_PATH }}/scripts/extract_and_verify_debs.sh
-        ${{ env.DLS_REL_PATH }}/scripts/extract_and_verify_debs.sh ${deb_pkg_img}
-        ls
-        cp -r deb_packages ${{ env.DLS_REL_PATH }}
+    # - name: Build deb pkg img using dev release img
+    #   env:
+    #     dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #     deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #   run: |
+    #     docker build \
+    #       --tag ${deb_pkg_img} \
+    #       --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
+    #       --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
+    #       --build-arg BASE_IMAGE="${dev_release_img}" \
+    #       -f ${{ matrix.path_deb }} \
+    #       ${{ env.DLS_REL_PATH }}
 
-    - name: Build Docker img from .deb
-      env:
-        deb_img: ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      run: |
-        docker build \
-          -t ${deb_img} \
-          -f ${{ env.DLS_REL_PATH }}/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \
-          ${{ env.DLS_REL_PATH }}
+    # - name: Extract .deb packages using script
+    #   env:
+    #     deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #   run: |
+    #     chmod +x ${{ env.DLS_REL_PATH }}/scripts/extract_and_verify_debs.sh
+    #     ${{ env.DLS_REL_PATH }}/scripts/extract_and_verify_debs.sh ${deb_pkg_img}
+    #     ls
+    #     cp -r deb_packages ${{ env.DLS_REL_PATH }}
 
-    - name: Remove Docker images
+    # - name: Build Docker img from .deb
+    #   env:
+    #     deb_img: ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #   run: |
+    #     docker build \
+    #       -t ${deb_img} \
+    #       -f ${{ env.DLS_REL_PATH }}/docker/onebinary/${{ matrix.ubuntu_version }}/dlstreamer_${{ matrix.ubuntu_version }}.Dockerfile \
+    #       ${{ env.DLS_REL_PATH }}
+
+    - name: Extract .deb package
       env:
-        deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
-        dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
-      run: docker rmi ${dev_release_img} ${deb_pkg_img} || true
+        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+      run: |
+        docker run --name temp-container ${deb_final_img } sleep 10
+        docker cp temp-container:/my-package.deb ./my-package.deb
+        docker rm temp-container
+
+    # - name: Remove Docker images
+    #   env:
+    #     deb_pkg_img: ghcr.io/${{ github.repository }}/dls-deb-pkg-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #     dev_release_img: ghcr.io/${{ github.repository }}/dev-release-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+    #   run: docker rmi ${dev_release_img} ${deb_pkg_img} || true
 
     # ======================================================== SCANNING PART ========================================================
     - name: Scan Docker image with Trivy
