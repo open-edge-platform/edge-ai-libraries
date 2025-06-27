@@ -221,4 +221,12 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: reports/dlsps_trivy_report.json
       name: dlsps_trivy_report
-   
+
+  static-code-analysis:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+    name: Static Code Analysis
+    uses: ./.github/workflows/codeql.yaml 
