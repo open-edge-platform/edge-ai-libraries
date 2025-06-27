@@ -40,8 +40,8 @@ jobs:
 
       - name: Check 
         run: | 
-        ls -la 
-        ls -la ${{ github.workspace }}/microservices/time-series-analytics/
+          ls -la 
+          ls -la ${{ github.workspace }}/microservices/time-series-analytics/
       - name: Set up Python
         uses: actions/setup-python@v4
         with:
