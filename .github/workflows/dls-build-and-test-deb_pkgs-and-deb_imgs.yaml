@@ -116,6 +116,7 @@ jobs:
     - name: Print system information
       run: |
         echo "## System information" >> $GITHUB_STEP_SUMMARY
+        echo "Runner name: ${{ runner.name }}" >> $GITHUB_STEP_SUMMARY
         echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
         echo "OS codename: $(lsb_release -sc)" >> $GITHUB_STEP_SUMMARY
         echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
