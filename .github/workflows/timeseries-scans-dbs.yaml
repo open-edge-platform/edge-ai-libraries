@@ -35,9 +35,8 @@ jobs:
            echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
       - name: Checkout Code
-        uses: actions/checkout@v4
-        with:
-          persist-credentials: false  
+        uses: actions/checkout@v1
+        
       - name: Build 
         run: |
           cd microservices/time-series-analytics/docker
