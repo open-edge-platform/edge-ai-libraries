@@ -48,10 +48,10 @@ jobs:
           docker compose up -d
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
-          cd "${{ github.workspace }}"
+          cd microservices/time-series-analytics/docker
           git clone https://github.com/docker/docker-bench-security.git 
           cd docker-bench-security
-          sudo sh docker-bench-security.sh >> dbs_scan_timeseries.txt
+          sh docker-bench-security.sh >> dbs_scan_timeseries.txt
       - name: Undeploy
         run: |
           cd microservices/time-series-analytics/docker
