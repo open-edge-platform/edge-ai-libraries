@@ -36,15 +36,59 @@ jobs:
           category: "/language:python"
           upload: "never"
           checkout_path: ${{ github.workspace }}/microservices/time-series-analytics/
+          output: results.sarif
 
-      - name: Generate CodeQL Report
-        uses: rsdmike/github-security-report-action@a149b24539044c92786ec39af8ba38c93496495d # v3.0.4
+      - name: Set up Python
+        uses: actions/setup-python@v4
         with:
-          token: ${{ secrets.GITHUB_TOKEN }}
-          template: report
+          python-version: '3.x'
 
-      - name: GitHub Upload Release Artifacts
-        uses: actions/upload-artifact@v4
+      - name: Install dependencies
+        run: |
+          pip install reportlab
+
+      - name: Convert SARIF to PDF
+        run: |
+          python - <<EOF
+          import json
+          from reportlab.lib.pagesizes import letter
+          from reportlab.pdfgen import canvas
+
+          def parse_sarif(sarif_file):
+              with open(sarif_file, 'r') as file:
+                  data = json.load(file)
+              return data
+
+          def generate_pdf(data, output_file):
+              c = canvas.Canvas(output_file, pagesize=letter)
+              width, height = letter
+
+              c.drawString(100, height - 100, "SARIF Report")
+              y_position = height - 150
+
+              for run in data.get('runs', []):
+                  for result in run.get('results', []):
+                      message = result.get('message', {}).get('text', 'No message')
+                      severity = result.get('level', 'Unknown')
+                      location = result.get('locations', [{}])[0].get('physicalLocation', {}).get('artifactLocation', {}).get('uri', 'Unknown location')
+
+                      c.drawString(100, y_position, f"Message: {message}")
+                      c.drawString(100, y_position - 20, f"Severity: {severity}")
+                      c.drawString(100, y_position - 40, f"Location: {location}")
+                      y_position -= 80
+
+                      if y_position < 100:
+                          c.showPage()
+                          y_position = height - 100
+
+              c.save()
+
+          sarif_data = parse_sarif('results.sarif')
+          generate_pdf(sarif_data, 'sarif_report.pdf')
+          EOF
+
+      - name: Upload PDF Report
+        uses: actions/upload-artifact@v3
         with:
-          name: python-report
-          path: ./report.pdf
+          name: SARIF Report
+          path: sarif_report.pdf
