@@ -77,14 +77,17 @@ jobs:
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         make build
         make test | tee /tmp/pytest_output.txt
-        exit ${PIPESTATUS[0]}
+        exit ${PIPESTATUS[0]}     
+    - name: Create Unit Test Summary
+      if: matrix.ubuntu_version == 'ubuntu22'
+      run: |
         pytest_output=$(cat /tmp/pytest_output.txt)
         summary_line=$(echo "$pytest_output" | grep -E '==+ .* in .*s ==+')
         echo "### Unit Test Completed for DLSPS commit id ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
         echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
         echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
-        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"             
+        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"            
     - name: Upload unit test results to Github
       if: matrix.ubuntu_version == 'ubuntu22'
       uses: actions/upload-artifact@v4
