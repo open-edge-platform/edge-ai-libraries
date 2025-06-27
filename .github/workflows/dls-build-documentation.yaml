@@ -14,7 +14,7 @@ permissions: {}
 jobs:
   build-docs:
     name: Build DL Streamer documentation
-    runs-on: ubuntu-latest # Change to self-hosted when ready to unblock linkcheck: [self-hosted, linux]
+    runs-on: ubuntu-latest
     permissions:
       contents: read
     steps:
@@ -60,7 +60,17 @@ jobs:
           echo "$result"
           summary_content+="$result\n"
 
+          echo "### Building with Sphinx results" >> $GITHUB_STEP_SUMMARY
           echo -e "$summary_content" >> $GITHUB_STEP_SUMMARY
+
+      - name: Check specific links
+        if: always()
+        run: |
+          cd ./libraries/dl-streamer/docs
+          python3 ./scripts/specific_links_checker.py 2>&1 | tee specific_links_checker_report.txt
+          summary=$(grep -E '✅ All links are working\.|❌ [0-9]+ broken link\(s\)' specific_links_checker_report.txt | tail -n 1)
+          echo "### Extra links checker" >> $GITHUB_STEP_SUMMARY
+          echo "$summary" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload linkcheck report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
@@ -68,6 +78,13 @@ jobs:
         with:
          name: docs_linkcheck_report
          path: ./libraries/dl-streamer/docs/build-linkcheck/
+
+      - name: Upload specific links checker report
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        if: always()
+        with:
+         name: docs_specific_links_checker_report
+         path: ./libraries/dl-streamer/docs/specific_links_checker_report.txt
 
       - name: Upload spelling report
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2

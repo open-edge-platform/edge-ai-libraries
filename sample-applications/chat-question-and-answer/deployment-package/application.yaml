@@ -83,11 +83,13 @@ profiles:
       - name: global.ovmsEmbeddinggpuService.enabled
         displayName: "OVMS Embedding GPU Service"
         type: boolean
-        default: false
+        suggestedValues: ["false", "true"]
+        mandatory: true
       - name: global.gpu.enabled
         displayName: Enable GPU Device
         type: boolean
-        default: false
+        suggestedValues: ["false", "true"]
+        mandatory: true
       - name: global.gpu.key
         displayName: GPU Node Label Key
         type: string

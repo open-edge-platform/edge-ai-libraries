@@ -46,6 +46,25 @@ jobs:
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
+  static-code-analysis:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+    name: Static Code Analysis
+    uses: ./.github/workflows/codeql.yaml
+
+  static-code-analysis-for-c-cpp:
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+    name: DLS Static Code Analysis for C/C++
+    uses: ./.github/workflows/dls-coverity.yaml
+    secrets: inherit
+
   build-dev-images:
     permissions:
       contents: read
@@ -163,17 +182,9 @@ jobs:
         persist-credentials: false
 
     - name: Run Bandit scan
-      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
       with:
         scan-scope: "changed"
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-
-    - name: Upload Bandit Scan Report
-      if: always()
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-      with:
-        name: bandit-report-dlstreamer
-        path: bandit-report*
-

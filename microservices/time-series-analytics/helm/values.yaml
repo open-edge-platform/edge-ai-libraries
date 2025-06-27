@@ -5,6 +5,9 @@
 #
 
 namespace: apps
+# Please provide docker registry details below for docker-compose pull
+# Please provide full registry url with port trail by /
+# e.q. localhost:5000/
 DOCKER_REGISTRY: ''
 DOCKER_USERNAME: ''
 DOCKER_PASSWORD: ''
@@ -26,7 +29,15 @@ config:
   time_series_analytics_microservice:
     name: time-series-analytics-microservice
     kapacitor_port: 9092
+  time_series_analytics_microservice_rest_api:
+    name: time-series-analytics-microservice-rest-api
+    rest_api_port: 5000
     int:
-      port: "9092"
+      port: "5000"
     ext:
-      port: "30009"
+      port: "30002"
+
+images:
+  # Please provide the suffix for the image version you want to use like rc1, rc2, git hash id etc.
+  image_suffix: ""
+  time_series_analytics_image: intel/ia-time-series-analytics-microservice:1.0.0
