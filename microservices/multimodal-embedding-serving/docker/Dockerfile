@@ -4,6 +4,8 @@
 FROM python:3.12.10-slim AS build
 
 ARG ARCH="cpu"
+ARG USER_ID=1000
+ARG USER_GROUP_ID=1000
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
     curl
@@ -15,6 +17,8 @@ RUN pip install poetry==1.8.5
 
 RUN poetry config virtualenvs.create false
 
+RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
@@ -22,7 +26,11 @@ RUN poetry lock --no-update && poetry install --no-root
 
 COPY . .
 RUN mkdir -p /tmp/dataprep/videos
-RUN mkdir -p /app/ov-models
+RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-models && \
+    chown -R appuser:appuser /home/appuser/.cache /app/ov-models
+
+USER appuser
+
 EXPOSE 8000
 
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "debug"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--log-config", "/app/logging.conf"]

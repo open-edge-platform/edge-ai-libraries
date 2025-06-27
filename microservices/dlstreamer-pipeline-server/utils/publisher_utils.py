@@ -10,10 +10,6 @@ import base64
 import numpy as np
 import cv2
 import json
-import codecs
-import pickle
-
-from geti_sdk.utils import show_image_with_annotation_scene
 
 def encode_frame(enc_type, enc_level, frame, height, width, channels, meta_data=None):
     """Helper method to encode given frame

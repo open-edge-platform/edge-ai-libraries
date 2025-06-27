@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from enum import Enum
 from typing import Annotated, Optional, List, Literal, Tuple, get_type_hints, Type
 

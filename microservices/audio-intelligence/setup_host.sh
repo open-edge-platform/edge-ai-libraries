@@ -1,5 +1,8 @@
 #!/bin/bash
 
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 # Color codes for terminal output
 RED='\033[0;31m'
 NC='\033[0m'

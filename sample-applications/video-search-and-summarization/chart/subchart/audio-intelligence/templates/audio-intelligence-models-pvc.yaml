@@ -1,0 +1,12 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.audiointelligence.volumeMounts.modelsPvcName }}
+  annotations:
+    helm.sh/resource-policy: keep  # Prevent Helm from deleting PVC on uninstall
+spec:
+  accessModes:
+    - {{ .Values.audiointelligence.volumeMounts.egai_audio_intelligence_models_pvc.accessMode }}
+  resources:
+    requests:
+      storage: {{ .Values.audiointelligence.volumeMounts.egai_audio_intelligence_models_pvc.size }}

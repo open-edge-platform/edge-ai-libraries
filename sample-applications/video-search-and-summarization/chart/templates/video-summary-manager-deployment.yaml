@@ -1,0 +1,157 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ include "videoSummaryManager.fullname" . }}
+  labels:
+    app: {{ .Values.videoSummaryManager.name }}
+spec:
+  replicas: {{ .Values.videoSummaryManager.replicaCount | default 1 }}
+  selector:
+    matchLabels:
+      app: {{ .Values.videoSummaryManager.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.videoSummaryManager.name }}
+    spec:
+      initContainers:
+        {{- if .Values.vlminference.enabled }}
+        - name: wait-for-vlm
+          image: curlimages/curl:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for VLM service to be ready..."
+              until curl -s -f http://{{ .Values.vlminference.name }}:8000/health; do
+                echo "VLM service is not ready yet, waiting..."
+                sleep 10
+              done
+              echo "VLM service is ready!"
+        {{ end }}
+        {{- if .Values.ovms.enabled }}
+        - name: wait-for-ovms
+          image: curlimages/curl:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for OVMS service to be ready..."
+              RETRIES=0
+              MAX_RETRIES=10
+              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
+                RETRIES=$((RETRIES+1))
+                echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
+                if [ $RETRIES -ge $MAX_RETRIES ]; then
+                  echo "OVMS service health check failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+                sleep 120
+              done
+              echo "OVMS service is ready!"
+        {{- end }}
+      containers:
+        - name: {{ .Values.videoSummaryManager.name }}
+          image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
+          imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
+          ports:
+            - containerPort: {{ .Values.videoSummaryManager.service.targetPort }}
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: MINIO_ROOT_USER
+              value: "{{ .Values.global.env.MINIO_ROOT_USER }}"
+            - name: MINIO_PROTOCOL
+              value: "{{ .Values.global.env.MINIO_PROTOCOL }}"
+            - name: MINIO_HOST
+              value: "{{ .Values.minioServer.name }}"
+            - name: MINIO_PORT
+              value: "{{ .Values.minioServer.service.port }}"
+            - name: MINIO_BUCKET
+              value: "{{ .Values.global.env.MINIO_BUCKET }}"
+            - name: MINIO_ROOT_PASSWORD
+              value: "{{ .Values.global.env.MINIO_ROOT_PASSWORD }}"
+            - name: EVAM_HOST
+              value: "{{ .Values.videoingestion.name }}"
+            - name: EVAM_PIPELINE_PORT
+              value: "{{ .Values.videoingestion.service.port }}"
+            - name: EVAM_PUBLISH_PORT
+              value: "{{ .Values.rabbitmq.service.mqttPort }}"
+            - name: EVAM_DEVICE
+              value: "CPU"
+            - name: RABBITMQ_HOST
+              value: "{{ .Values.rabbitmq.name }}"
+            - name: RABBITMQ_USER
+              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_USER }}"
+            - name: RABBITMQ_PASSWORD
+              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_PASS }}"
+            - name: RABBITMQ_AMQP_PORT
+              value: "{{ .Values.rabbitmq.service.amqpPort }}"
+            - name: LLM_SUMMARIZATION_KEY
+              value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_KEY }}"
+            - name: LLM_SUMMARIZATION_API
+              value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
+            - name: LLM_SUMMARIZATION_DEVICE
+              value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}"
+            - name: LLM_MODEL_NAME
+              value: "{{ .Values.global.env.OVMS_LLM_MODEL_NAME }}"
+            - name: VLM_CAPTIONING_KEY
+              value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_KEY }}"
+            - name: VLM_CAPTIONING_API
+              value: "http://{{ .Values.vlminference.name }}:8000/v1"
+            - name: VLM_CAPTIONING_DEVICE
+              value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}"
+            - name: VLM_MODEL_NAME
+              value: "{{ .Values.global.env.VLM_MODEL_NAME }}"
+            - name: LLM_CONCURRENT
+              value: "{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}"
+            - name: VLM_CONCURRENT
+              value: "{{ .Values.videoSummaryManager.env.VLM_CONCURRENT }}"
+            - name: SUMMARIZATION_MAX_COMPLETION_TOKENS
+              value: "{{ .Values.videoSummaryManager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
+            - name: CAPTIONING_MAX_COMPLETION_TOKENS
+              value: "{{ .Values.videoSummaryManager.env.CAPTIONING_MAX_COMPLETION_TOKENS }}"
+            - name: LLM_MODEL_API
+              value: "{{ .Values.videoSummaryManager.env.LLM_MODEL_API }}"
+            - name: MULTI_FRAME_COUNT
+              value: "{{ .Values.videoSummaryManager.env.MULTI_FRAME_COUNT }}"
+            - name: DB_HOST
+              value: "{{ .Values.postgresql.name }}"
+            - name: DB_PORT
+              value: "{{ .Values.postgresql.service.port }}"
+            - name: DB_USER
+              value: "{{ .Values.global.env.POSTGRES_USER }}"
+            - name: DB_PASSWORD
+              value: "{{ .Values.global.env.POSTGRES_PASSWORD }}"
+            - name: DB_NAME
+              value: "{{ .Values.global.env.POSTGRES_DB }}"
+            - name: AUDIO_HOST
+              value: "http://{{ .Values.audiointelligence.name }}:{{ .Values.audiointelligence.service.port }}"
+            - name: AUDIO_DEVICE
+              value: "{{ .Values.videoSummaryManager.env.AUDIO_DEVICE }}"
+            - name: OTLP_TRACE_URL
+              value: "{{ .Values.global.env.OTLP_ENDPOINT_TRACE }}"
+            - name: SUMMARY_FEATURE
+              value: "{{ .Values.videoSummaryManager.env.SUMMARY_FEATURE }}"
+            - name: SEARCH_FEATURE
+              value: "{{ .Values.videoSummaryManager.env.SEARCH_FEATURE }}"
+            {{- if .Values.videosearch.enabled }}
+            - name: SEARCH_ENDPOINT
+              value: "http://{{ .Values.videosearch.name }}:{{ .Values.videosearch.service.port }}"
+            - name: SEARCH_DATAPREP_ENDPOINT
+              value: "http://{{ .Values.vdmsdataprep.name }}:{{ .Values.vdmsdataprep.service.port }}"
+            {{- end }}
+            - name: USE_OVMS
+              value: "{{ .Values.videoSummaryManager.env.USE_OVMS }}"
+      nodeSelector:
+        {{- toYaml .Values.videoSummaryManager.nodeSelector | nindent 8 }}
+      affinity:
+        {{- toYaml .Values.videoSummaryManager.affinity | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.videoSummaryManager.tolerations | nindent 8 }}
+      tolerations:
+        {{- toYaml .Values.videoSummaryManager.tolerations | nindent 8 }}
