@@ -231,11 +231,6 @@ ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 
 After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
-## Known issues
-
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-
-
 ## ☸️ Running in Kubernetes
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
 
