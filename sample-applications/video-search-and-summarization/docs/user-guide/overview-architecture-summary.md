@@ -64,7 +64,6 @@ The application flow involves the following steps:
 The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
 *Figure 3: Dataflow for Video Summary sample application
-_TODO: Update the diagram_
 
 ## Key Components and Their Roles
 <!--
