@@ -17,7 +17,7 @@
 - Streamlined Build, Deployment and Documentation: Introduction of a setup script to simplify service build and deployment processes.
 
 **HW used for validation**:
-- Xeon 5 + BMG580 GPU
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
 
 **Known Issues/Limitations**:
