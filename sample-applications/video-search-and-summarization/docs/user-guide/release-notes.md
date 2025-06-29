@@ -28,6 +28,7 @@
 - VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct.
 - The Helm chart presently supports only CPU deployments.
 - Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
 
 ## Previous releases
 
