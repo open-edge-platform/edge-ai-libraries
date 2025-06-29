@@ -93,6 +93,15 @@ The key components of Video Summary are as follows:
    - **How it’s used**: UI interface should be used by the user to interact with this microservice.
    - **Benefits**: This microservice should be treated as a sample reference implementation.
 
+5. **Dependent microservices**:
+   The dependent microservices are those that are used by the pipeline to realize the features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are: 
+   - [Audio Analytics](../../../../microservices/audio-intelligence/)
+   - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/)
+   - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) 
+   - [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
+   
+   Refer to their respective documentation for details on their capability. 
+
 ## Extensibility
 
 The video summary sample application is designed with modularity in mind, allowing you to:
