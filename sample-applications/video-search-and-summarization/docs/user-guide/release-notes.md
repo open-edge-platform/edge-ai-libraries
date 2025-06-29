@@ -23,6 +23,7 @@
 **Known Issues/Limitations**:
 - EMF and EMT are not supported yet.
 - Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals).
+- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing.
 - VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct.
 - The Helm chart presently supports only CPU deployments.
 - Known issues are internally tracked. Reference not provided here.
