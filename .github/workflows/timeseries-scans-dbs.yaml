@@ -38,6 +38,7 @@ jobs:
       
       - name: Build Docker Bench Security
         run: |
+          cd docker-bench-security
           docker build --no-cache -t docker-bench-security .
 
       - name: Build Time Series Analytics microservice
