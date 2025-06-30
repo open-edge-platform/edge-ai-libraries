@@ -229,7 +229,7 @@ ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 
 ## 🌐 Accessing the Application
 
-After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
+After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
 ## Known issues
 
