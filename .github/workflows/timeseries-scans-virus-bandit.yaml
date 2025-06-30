@@ -21,7 +21,7 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@v4
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
@@ -56,9 +56,8 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@v4
       with:
-        path: edge-ai-libraries-repo
         persist-credentials: false
     - name: Run Virus Scan
       run: |
