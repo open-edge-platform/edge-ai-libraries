@@ -128,6 +128,12 @@ services:
       DEFAULT_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID-1000} 
+      - ${VIDEO_GROUP_ID}    
+      - ${RENDER_GROUP_ID}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -138,7 +144,7 @@ services:
     networks:
       - vs_network
     volumes:
-      - /home/$USER/.cache/huggingface:/home/appuser/.cache/huggingface
+      - ov-models:/home/appuser/.cache/huggingface
       - data-prep:/tmp/dataprep
       - ov-models:/app/ov-models
 
