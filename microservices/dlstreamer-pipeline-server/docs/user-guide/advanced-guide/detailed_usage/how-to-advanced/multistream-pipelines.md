@@ -6,7 +6,7 @@ DL Streamer Pipeline Server can execute multiple input streams in parallel. If s
 
 `model-instance-id` is an optional property that will hold the model in memory instead of releasing it when the pipeline completes. This improves load time and reduces memory usage when launching the same pipeline multiple times. The model is associated with the given ID to allow subsequent runs to use the same model instance.
 
-1. Update the default config present at `[WORKDIR]/configs/default/config.json`. Replace `pipeline` parameter in default config with below `pipeline`.
+1. Update the default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`. Replace `pipeline` parameter in default config with below `pipeline`.
 
 ```sh
 "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
@@ -18,7 +18,7 @@ DL Streamer Pipeline Server can execute multiple input streams in parallel. If s
 ```sh
 docker compose up -d
 ```
-`NOTE` Run the above command in `[WORKDIR]`
+`NOTE` Run the above command in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/`
 
 4. Start the first pipeline with following curl command - 
 ```sh

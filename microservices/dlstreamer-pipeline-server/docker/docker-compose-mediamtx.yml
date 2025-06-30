@@ -6,7 +6,7 @@
 
 services:
   dlstreamer-pipeline-server:
-    image: intel/dlstreamer-pipeline-server:3.0.0
+    image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
     hostname: dlstreamer-pipeline-server
     container_name: dlstreamer-pipeline-server
     read_only: true
@@ -14,16 +14,15 @@ services:
       - no-new-privileges
     build:
       context: ..
-      target: dlstreamer-pipeline-server
+      target: ${BUILD_TARGET}
+      dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
         UTILS_LIB_VERSION: 4.0.0
         UID: ${UID}
         USER: ${PIPELINE_SERVER_USER}
-        BASE_IMAGE: "ubuntu:22.04"
+        BASE_IMAGE: ${BASE_IMAGE}
         CMAKE_INSTALL_PREFIX: "/opt/intel/eii"
-        # Download sources for GPL/LGPL/AGPL binary distributed components (yes/no)
-        DOWNLOAD_GPL_SOURCES: "no"
         no_proxy: ${no_proxy}
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
@@ -52,6 +51,7 @@ services:
       - RUN_MODE=EVA
       - GENICAM=Balluff
       - GST_DEBUG=1,gencamsrc:2
+      - LOG_LEVEL=${LOG_LEVEL}
       # Default Detection and Classification Device
       - DETECTION_DEVICE=CPU
       - CLASSIFICATION_DEVICE=CPU
@@ -61,6 +61,9 @@ services:
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
+      - MR_URL=${MR_URL}
+      - MR_SAVED_MODELS_DIR=${MR_SAVED_MODELS_DIR}
+      - MR_REQUEST_TIMEOUT=${MR_REQUEST_TIMEOUT}
       - MR_VERIFY_CERT=${MR_VERIFY_CERT}
       # Append pipeline name to a publisher topic
       - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
@@ -75,7 +78,7 @@ services:
       - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT}
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
     volumes:
-      # - "../resources:/home/pipeline-server/resources/"
+      - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"
@@ -91,6 +94,8 @@ services:
       - "109"
       # render group ID for ubuntu 22.04 host OS
       - "110"
+      # render group ID for ubuntu 24.04 host OS
+      - "992"
     device_cgroup_rules:
       # Default run - device-cgroup-rule='c 189:* rmw'
       # Selective rules can be applied for deployment
@@ -115,6 +120,7 @@ services:
       - MTX_RTMP=no
       - MTX_HLS=no
       - MTX_SRT=no
+      - MTX_WEBRTCTRACKGATHERTIMEOUT=${WHIP_SERVER_TIMEOUT}
       - MTX_WEBRTCADDRESS=:${WHIP_SERVER_PORT}
       # - MTX_WEBRTCICESERVERS2_0_URL=
       # - WEBRTCICESERVERS2_0_USERNAME=

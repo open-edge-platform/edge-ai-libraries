@@ -1,0 +1,133 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.config.time_series_analytics_microservice.name }}
+  namespace: {{ .Values.namespace }}
+spec:
+  type: NodePort
+  ports:
+  - name: kapacitor-port
+    port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
+  - name: rest-api-port
+    port: {{ .Values.config.time_series_analytics_microservice_rest_api.rest_api_port }}
+    targetPort: {{ .Values.config.time_series_analytics_microservice_rest_api.int.port }}
+    nodePort: {{ .Values.config.time_series_analytics_microservice_rest_api.ext.port }}
+  selector:
+    app: time-series-analytics-microservice
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  labels:
+    app: time-series-analytics-microservice
+  name: deployment-time-series-analytics-microservice
+  namespace: {{ .Values.namespace }}
+
+spec:
+  selector:
+    matchLabels:
+      app: time-series-analytics-microservice
+  template:
+    metadata:
+      labels:
+        app: time-series-analytics-microservice
+    spec:
+      {{- if and .Values.DOCKER_USERNAME .Values.DOCKER_PASSWORD }}
+      imagePullSecrets:
+      - name: registryauth
+      {{- end }}
+      containers:
+      - name: ia-time-series-analytics-microservice
+        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image }}{{ if .Values.images.image_suffix }}-{{ .Values.images.image_suffix }}{{ end }}
+        imagePullPolicy: {{ .Values.imagePullPolicy }}
+        securityContext:
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          capabilities:
+            drop:
+              - ALL
+          seccompProfile:
+            type: RuntimeDefault
+        volumeMounts:
+        - name: vol-temp-time-series-analytics-microservice
+          mountPath: /tmp
+        - name: time-series-analytics-microservice-config
+          mountPath: /app/config.json
+          subPath: config.json
+        {{ if eq .Values.env.SECURE_MODE true}}
+        - name: certs
+          mountPath: /run/secrets/ca_certificate.pem
+          subPath: ca_certificate.pem
+        - name: certs
+          mountPath: /run/secrets/time_series_analytics_microservice_Server_server_certificate.pem
+          subPath: time_series_analytics_microservice_Server_server_certificate.pem
+        - name: certs
+          mountPath: /run/secrets/time_series_analytics_microservice_Server_server_key.pem
+          subPath: time_series_analytics_microservice_Server_server_key.pem
+        {{ end }}
+
+        env:
+        - name: HTTP_PROXY
+          value: '{{ .Values.env.HTTP_PROXY }}'
+        - name: HTTPS_PROXY
+          value: '{{ .Values.env.HTTPS_PROXY }}'
+        - name: NO_PROXY
+          value: "influxdb,time-series-analytics-microservice,ia-mqtt-broker,ia-opcua-server,localhost,model-registry"
+        - name: TIMESERIES_NO_PROXY
+          value: '{{ .Values.env.TIMESERIES_NO_PROXY }}'
+        - name: SECURE_MODE
+          value: '{{ .Values.env.SECURE_MODE }}'
+        - name: PROTOCOL_BUFFERS_PYTHON_IMPLEMENTATION
+          value: python
+        - name: KAPACITOR_INFLUXDB_0_USERNAME
+          value: '{{ .Values.env.INFLUXDB_USERNAME }}'
+        - name: KAPACITOR_PORT
+          value: '{{ .Values.config.time_series_analytics_microservice.kapacitor_port }}'
+        - name: KAPACITOR_INFLUXDB_0_PASSWORD
+          value: '{{ .Values.env.INFLUXDB_PASSWORD }}'
+        - name: KAPACITOR_URL
+          value: "http://time-series-analytics-microservice:{{ .Values.config.time_series_analytics_microservice.kapacitor_port }}/"
+        - name: KAPACITOR_UNSAFE_SSL
+          value: "true"
+        - name: KAPACITOR_INFLUXDB_0_URLS_0
+          value: ""
+        - name: INFLUX_SERVER
+          value: "influxdb"
+        - name: INFLUXDB_PORT
+          value: "8086"
+        - name: INFLUXDB_DBNAME
+          value: "datain"
+        - name: KAPACITOR_LOGGING_LEVEL
+          value: '{{ .Values.env.LOG_LEVEL }}'
+        - name: MQTT_BROKER_HOST
+          value: "ia-mqtt-broker" 
+        - name: MQTT_BROKER_PORT
+          value: "1883" 
+        - name: SSL_CERT_FILE
+          value: "/run/secrets/ca_certificate.pem"
+        - name: MODEL_REGISTRY_URL
+          value: "http://model-registry:8111"
+      volumes:
+      - name: vol-temp-time-series-analytics-microservice
+        emptyDir: {}
+      - name: time-series-analytics-microservice-config
+        configMap:
+          name: time-series-analytics-microservice-config
+      {{ if eq .Values.env.SECURE_MODE true}}
+      - name: certs
+        secret:
+          secretName: ts-certs
+          items:
+          - key: ca_certificate.pem
+            path: ca_certificate.pem 
+          - key: time_series_analytics_microservice_Server_server_certificate.pem
+            path: time_series_analytics_microservice_Server_server_certificate.pem
+          - key: time_series_analytics_microservice_Server_server_key.pem
+            path: time_series_analytics_microservice_Server_server_key.pem
+      {{ end }}

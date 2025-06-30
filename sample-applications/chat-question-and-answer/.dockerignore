@@ -1,0 +1,13 @@
+**/venv
+.venv/
+__pycache__/
+.vscode
+.dockerignore
+tests/
+ui/
+docs/
+ovms_config/
+deployment_package/
+chart/
+.git/
+.env

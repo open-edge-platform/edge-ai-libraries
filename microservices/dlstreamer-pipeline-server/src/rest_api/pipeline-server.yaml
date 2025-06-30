@@ -8,7 +8,7 @@ openapi: 3.0.0
 info:
   description: Deep Learning Streamer Pipeline Server REST API
   title: DL Streamer Pipeline Server REST API
-  version: 0.0.3
+  version: 3.1.0
 servers:
 - url: /
 paths:
@@ -528,6 +528,20 @@ components:
         - host
         - topic
       type: object
+    OPCUADestination:
+      properties:
+        type:
+          enum:
+          - opcua
+          type: string
+        variable:
+          type: string
+        publish_frame:
+          type: boolean
+      required:
+      - type
+      - variable
+      type: object
     MQTTDestination:
       anyOf:
         - type: object
@@ -603,40 +617,88 @@ components:
         - bucket
         - folder_prefix
       type: object
+    InfluxWrite:
+      properties:
+        type:
+          enum:
+          - influx_write
+          type: string
+        bucket:
+          type: string
+        org:
+          type: string
+        measurement:
+          type: string
+      required:
+        - type
+        - bucket
+        - org
+      type: object
     FrameDestination:
-      discriminator:
-        propertyName: type
-      oneOf:
-        - $ref: '#/components/schemas/RTSPDestination'
-        - $ref: '#/components/schemas/WebRTCDestination'
-        - $ref: '#/components/schemas/S3_write'
-      type: object
+      anyOf:
+        - type: object
+          discriminator:
+            propertyName: type
+          oneOf:
+            - $ref: '#/components/schemas/RTSPDestination'
+            - $ref: '#/components/schemas/WebRTCDestination'
+            - $ref: '#/components/schemas/S3_write'
+        - type: array
+          items:
+            discriminator:
+              propertyName: type
+            oneOf:
+              - $ref: '#/components/schemas/RTSPDestination'
+              - $ref: '#/components/schemas/WebRTCDestination'
+              - $ref: '#/components/schemas/S3_write'
     MetadataDestination:
-      discriminator:
-        propertyName: type
-      oneOf:
-        - $ref: '#/components/schemas/KafkaDestination'
-        - $ref: '#/components/schemas/MQTTDestination'
-        - $ref: '#/components/schemas/FileDestination'
-      type: object
+      anyOf:
+        - type: object
+          discriminator:
+            propertyName: type
+          oneOf:
+            - $ref: '#/components/schemas/KafkaDestination'
+            - $ref: '#/components/schemas/MQTTDestination'
+            - $ref: '#/components/schemas/FileDestination'
+            - $ref: '#/components/schemas/OPCUADestination'
+            - $ref: '#/components/schemas/InfluxWrite'
+        - type: array
+          items:
+            discriminator:
+              propertyName: type
+            oneOf:
+              - $ref: '#/components/schemas/KafkaDestination'
+              - $ref: '#/components/schemas/MQTTDestination'
+              - $ref: '#/components/schemas/FileDestination'
+              - $ref: '#/components/schemas/OPCUADestination'
+              - $ref: '#/components/schemas/InfluxWrite'
     FrameAndMetadataDestination:
+      type: object
+      properties:
+        frame:
+          $ref: '#/components/schemas/FrameDestination'
+        metadata:
+          $ref: '#/components/schemas/MetadataDestination'
+      required:
+        - frame
+        - metadata
+      additionalProperties: false
+    FrameORMetadataDestination:
       anyOf:
         - type: object
           properties:
             frame:
-              anyOf:
-                - $ref: '#/components/schemas/FrameDestination'
-                - type: array
-                  items:
-                    $ref: '#/components/schemas/FrameDestination'
+              $ref: '#/components/schemas/FrameDestination'
           required:
             - frame
+          additionalProperties: false
         - type: object
           properties:
             metadata:
               $ref: '#/components/schemas/MetadataDestination'
           required:
             - metadata
+          additionalProperties: false
     PipelineRequest:
       example:
         async: true
@@ -659,8 +721,8 @@ components:
           type: object
         destination:
           oneOf:
-            - $ref: '#/components/schemas/MetadataDestination'
             - $ref: '#/components/schemas/FrameAndMetadataDestination'
+            - $ref: '#/components/schemas/FrameORMetadataDestination'
           type: object
         tags:
           description: Client specified values. Returned with results.

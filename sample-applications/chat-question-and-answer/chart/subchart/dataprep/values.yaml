@@ -1,13 +1,15 @@
 global:
   huggingface:
-    apiToken: <huggingfacehub-api-token># Set this during installation
+    apiToken:  # Set this during installation
   proxy:
-    no_proxy: <no-proxy>
-    http_proxy: <http-proxy>
-    https_proxy: <https-proxy>
-  POSTGRES_USER: <postgres-user>
-  POSTGRES_PASSWORD: <postgres-password>
-  EMBEDDING_MODEL_NAME: <embedding-model-name>
+    no_proxy:
+    http_proxy:
+    https_proxy:
+  POSTGRES_USER:
+  POSTGRES_PASSWORD:
+  EMBEDDING_MODEL_NAME:
+  MINIO_ROOT_USER:
+  MINIO_ROOT_PASSWORD:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
@@ -17,7 +19,7 @@ dataprepPgvector:
   name: document-ingestion
   image:
     repository: intel/document-ingestion
-    tag: "1.1.1"
+    tag: "1.2.0"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -27,6 +29,9 @@ dataprepPgvector:
     PG_CONNECTION_STRING: postgresql+psycopg://
     PORT_DB: 5432/langchain
     INDEX_NAME: intel-rag
-    DATASTORE_ENDPOINT_URL: http://datastore
     CHUNK_SIZE: 1500
     CHUNK_OVERLAP: 100
+    MINIO_HOST: minio-server
+    MINIO_API_PORT: 9000
+    MINIO_ACCESS_KEY: <dummy-user>
+    MINIO_SECRET_KEY: <dummy-password>

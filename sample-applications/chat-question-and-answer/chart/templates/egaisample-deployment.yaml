@@ -52,27 +52,29 @@ spec:
             - name: PG_CONNECTION_STRING
               value: {{ .Values.Chatqna.env.PG_CONNECTION_STRING }}{{ .Values.global.POSTGRES_USER }}:{{ .Values.global.POSTGRES_PASSWORD }}@pgvector.{{ .Release.Namespace }}:{{ .Values.Chatqna.env.PORT_DB }}
             - name: OTLP_ENDPOINT
-              value:  {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
-                          
-                      {{- else}}
+              value:  {{- if eq .Values.global.OTLP_ENDPOINT ""}} {{- else}}
                          {{ .Values.global.OTLP_ENDPOINT }}
                       {{- end }}
             - name: OTEL_EXPORTER_OTLP_ENDPOINT
-              value:  {{- if eq .Values.global.OTLP_ENDPOINT "<otlp-endpoint>"}} 
-                          
-                      {{- else}}
+              value:  {{- if eq .Values.global.OTLP_ENDPOINT ""}} {{- else}}
                          {{ .Values.global.OTLP_ENDPOINT }}
                       {{- end }}
-            - name: SERVICE_NAME
-              value:  {{ .Values.Chatqna.env.SERVICE_NAME }}
-            - name: SERVICE_ENV
-              value:  {{ .Values.Chatqna.env.SERVICE_ENV }}
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value:  {{- if eq .Values.global.OTLP_ENDPOINT ""}} {{- else}}
+                         {{ .Values.global.OTLP_ENDPOINT }}/v1/traces
+                      {{- end }}
+            - name: OTEL_SERVICE_NAME
+              value:  {{ .Values.Chatqna.env.OTEL_SERVICE_NAME }}
+            - name: OTEL_SERVICE_ENV
+              value:  {{ .Values.Chatqna.env.OTEL_SERVICE_ENV }}
             - name: OTEL_METRICS_EXPORTER
               value:  {{ .Values.Chatqna.env.OTEL_METRICS_EXPORTER }}
             - name: OTEL_TRACES_EXPORTER
               value:  {{ .Values.Chatqna.env.OTEL_TRACES_EXPORTER }}
             - name: OTEL_EXPORTER_OTLP_TRACES_PROTOCOL
               value:  {{ .Values.Chatqna.env.OTEL_EXPORTER_OTLP_TRACES_PROTOCOL }}  
+            - name: OTEL_SERVICE_VERSION
+              value:  {{ .Values.Chatqna.env.OTEL_SERVICE_VERSION }}
             - name: REQUESTS_CA_BUNDLE
               value:  {{ .Values.Chatqna.env.REQUESTS_CA_BUNDLE }}
             - name: ENDPOINT_URL
@@ -80,10 +82,26 @@ spec:
                       {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.vllmService.service.port }}/v1
                     {{ else if .Values.tgiService.enabled  }}
                      {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.tgiService.service.port }}/v1
-                    {{ else  if .Values.ovmsService.enabled }}
+                    {{ else if or .Values.ovmsService.enabled .Values.global.gpu.enabled }}
                       {{ .Values.Chatqna.env.ENDPOINT_URL }}.{{ .Release.Namespace }}:{{ .Values.ovmsService.service.port }}/v3
                     {{ end }}
             - name: FETCH_K
               value: "10"
+            - name: SEED
+              value: "{{ .Values.Chatqna.env.SEED }}"
           securityContext:
             allowPrivilegeEscalation: false
+          volumeMounts:
+            - name: ca-certificates
+              mountPath: /usr/local/share/ca-certificates
+            - name: ssl-certs
+              mountPath: /etc/ssl/certs
+      volumes:
+        - name: ca-certificates
+          hostPath:
+            path: /usr/local/share/ca-certificates
+            type: Directory
+        - name: ssl-certs
+          hostPath:
+            path: /etc/ssl/certs
+            type: Directory

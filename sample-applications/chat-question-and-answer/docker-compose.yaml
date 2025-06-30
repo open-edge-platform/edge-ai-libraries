@@ -1,4 +1,16 @@
 services:
+  nginx:
+    image: nginx:latest
+    ports:
+      - "8101:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - chatqna 
+      - chatqna-ui
+      - dataprep_pgvector 
+    networks:
+      - my_network
   chatqna:
     image: ${BE_IMAGE_NAME}
     build:
@@ -18,12 +30,12 @@ services:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - LLM_MODEL=${LLM_MODEL}
+      - SEED=${SEED}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - SERVICE_ENV=${OTLP_SERVICE_ENV}
-      - OTEL_METRICS_EXPORTER=otlp
-      - OTEL_TRACES_EXPORTER=otlp
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
+      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
     networks:
@@ -31,7 +43,6 @@ services:
     volumes:
       - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
-
   pgvector:
     image: pgvector/pgvector:pg16
     container_name: pgvector_db
@@ -69,7 +80,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:1.1.1
+    image: ${REGISTRY:-}document-ingestion:1.2.0
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -78,23 +89,25 @@ services:
       INDEX_NAME: ${INDEX_NAME}
       TEI_ENDPOINT_URL: ${EMBEDDING_ENDPOINT_URL}
       EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
-      DATASTORE_ENDPOINT_URL: ${DATASTORE_ENDPOINT_URL}
       CHUNK_SIZE: ${CHUNK_SIZE}
       CHUNK_OVERLAP: ${CHUNK_OVERLAP}
       BATCH_SIZE: ${BATCH_SIZE}
       HUGGINGFACEHUB_API_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
       HF_TOKEN: ${HUGGINGFACEHUB_API_TOKEN}
+      MINIO_HOST: ${MINIO_HOST:-minio-server}
+      MINIO_API_PORT: ${MINIO_API_PORT:-9000}
+      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER:?error}
+      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD:?error}
     ports:
       - "8000:8000"
     depends_on:
       - pgvector
-      - data-store
     networks:
       - my_network
 
   chatqna-ui:
     image: ${FE_IMAGE_NAME}
-    container_name: chatqna-ui_server
+    container_name: chatqna-ui
     build:
       context: ./ui/react/
     ports:
@@ -107,6 +120,7 @@ services:
       - http_proxy=${http_proxy}
       - APP_ENDPOINT_URL=${APP_ENDPOINT_URL}
       - APP_DATA_PREP_URL=${APP_DATA_PREP_URL}
+      - APP_MAX_TOKENS=${MAX_TOKENS}
 
   minio-server:
     image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
@@ -125,25 +139,6 @@ services:
       --address ":${MINIO_API_PORT:-9000}"
       --console-address ":${MINIO_CONSOLE_PORT:-9001}"
 
-  data-store:
-    image: ${REGISTRY:-}object-store:1.1.1
-    hostname: data_store
-    environment:
-      - http_proxy
-      - https_proxy
-      - no_proxy
-      - MINIO_HOST=${MINIO_HOST:-minio-server}
-      - MINIO_API_PORT=${MINIO_API_PORT:-9000}
-      # Raise error if following required env vars is not set
-      - MINIO_ACCESS_KEY=${MINIO_ROOT_USER:?error}
-      - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD:?error}
-    ports:
-      - "${DATASTORE_HOST_PORT:-8888}:8000"
-    depends_on:
-      - minio-server
-    networks:
-      - my_network
-
   #Model Server
   vllm-service:
     image: opea/vllm-openvino:1.1
@@ -154,6 +149,8 @@ services:
       - "8080:80"
     volumes:
       - "~/.cache/huggingface:/root/.cache/huggingface"
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /etc/ssl/certs:/etc/ssl/certs
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -172,6 +169,7 @@ services:
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT_TRACE}
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
     cap_add:
       - SYS_NICE
     healthcheck:
@@ -218,8 +216,6 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
-      - WEIGHT_FORMAT=${WEIGHT_FORMAT}
-      - MODEL_DIRECTORY=${MODEL_DIRECTORY_NAME}
     ports:
       - "9300:9300"
       - "8300:80"
@@ -253,25 +249,30 @@ services:
       https_proxy: ${https_proxy}
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
 
-  openvino-model-server:
-    image: openvino/model_server:2025.0
+  ovms-service-gpu:
+    image: openvino/model_server:2025.0-gpu
+    container_name: ovms-service-gpu
     profiles:
-      - OVMS-EMBEDDING
-    container_name: openvino-embedding
-    ports:
-      - "8500:80"
+      - GPU-OVMS
     environment:
-      no_proxy: ${no_proxy}
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+    ports:
+      - "9000:9000"
+      - "8300:80"
     volumes:
       - "${VOLUME_OVMS}:/workspace:ro"
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${RENDER_DEVICE_GID}
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
       interval: 30s
       timeout: 10s
       retries: 3
-    command: [ "--port", "9000", "--rest_port", "80", "--config_path", "workspace/models/config.json" ]
+    command: [ "--port", "9000", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "workspace/models/config.json" ]
     networks:
       - my_network
 

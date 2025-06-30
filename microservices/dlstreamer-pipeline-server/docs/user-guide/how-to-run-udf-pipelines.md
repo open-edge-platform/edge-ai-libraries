@@ -1,13 +1,12 @@
 # How to run User Defined Function (UDF) pipelines
 
 ## Steps
-DL Streamer Pipeline Server supports udfloader element which allow user to write an User Defined Function (UDF) that can transform video frames and/or manipulate metadata. You can do this by adding an element called 'udfloader'. You can try simple udfloader pipeline by replacing the following sections in [WORKDIR]/configs/default/config.json with the following
-Note: Follow instruction in the [Prerequisite section](./how-to-update-default-config.md#prerequisite-for-tutorials) to create a sample configuration file.
+DL Streamer Pipeline Server supports udfloader element which allow user to write an User Defined Function (UDF) that can transform video frames and/or manipulate metadata. You can do this by adding an element called 'udfloader'. You can try simple udfloader pipeline by replacing the following sections in [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json with the following
 
 - replace `"pipeline"` section with  
 
     ```sh
-    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! appsink name=destination",
     ```
 
 - replace `"properties"` section with  
@@ -45,7 +44,7 @@ Save the config.json and restart DL Streamer Pipeline Server
 Ensure that the changes made to the config.json are reflected in the container by volume mounting (as mentioned in this [document](./how-to-change-dlstreamer-pipeline.md)) it.
 
 ```sh
-    cd [WORKDIR]/docker/
+    cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
     docker compose down
     docker compose up
 ```
@@ -66,7 +65,8 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
         },
         "frame": {
             "type": "rtsp",
-            "path": "pallet_defect_detection"
+            "path": "pallet_defect_detection",
+            "overlay": false
         }
     },
     "parameters": {

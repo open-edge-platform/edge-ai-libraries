@@ -1,41 +1,67 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+# --- Stage 1: Build dependencies ---
+FROM python:3.11-slim as python-base
+
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
+
+# Install system build dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
+    libgl1-mesa-glx \
+    libjemalloc-dev \
+    curl && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* && \
+    pip install --no-cache-dir --upgrade pip setuptools && \
+    pip install --no-cache-dir poetry
+
+# Copy only dependency files
+WORKDIR /app
+COPY pyproject.toml poetry.lock README.md ./
+
+# Install dependencies in a temporary location
+RUN poetry config virtualenvs.create false && \
+    poetry install --only main --no-root && \
+    rm -rf ~/.cache
+
+# --- Stage 2: Final slim image ---
 FROM python:3.11-slim
 
-ENV HOME="/home/intelgai"
+ENV HOME="/home/appuser"
+ENV PYTHONDONTWRITEBYTECODE=1
+ENV PYTHONUNBUFFERED=1
 
-# Create a non-root user
-RUN groupadd -g 1001 intelgai && \
-    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
-    chown -R intelgai:intelgai $HOME 
+# Add non-root user
+RUN groupadd -g 1001 appuser && \
+    useradd -m -s /bin/bash -u 1001 -g 1001 appuser && \
+    mkdir -p $HOME/.cache/huggingface && \
+    chown -R appuser:appuser $HOME
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
+# Install only runtime dependencies
+RUN apt-get update -y && \
+    apt-get install -y --no-install-recommends \
     libgl1-mesa-glx \
-    libjemalloc-dev
-
-RUN pip install --no-cache-dir --upgrade pip setuptools && \
-    pip install poetry vllm nltk
-
-RUN poetry config virtualenvs.create false
-
-COPY . my-app
-
-RUN rm -rf /my-app/deploy
+    libjemalloc2 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /my-app
 
-RUN poetry install --only main
+# Copy installed packages from python-base
+COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=python-base /usr/local/bin /usr/local/bin
 
-RUN python -m nltk.downloader punkt_tab averaged_perceptron_tagger_eng
+# Copy application code
+COPY app ./app
 
-RUN mkdir /home/intelgai/.cache/huggingface
+# Set permissions
+RUN chown -R appuser:appuser /my-app
 
-RUN chown intelgai:intelgai /home/intelgai/.cache/huggingface
-
-USER intelgai
+USER appuser
 
 EXPOSE 8080
 
-
-CMD opentelemetry-instrument uvicorn app.server:app --host 0.0.0.0 --port 8080
+CMD uvicorn app.server:app --host 0.0.0.0 --port 8080

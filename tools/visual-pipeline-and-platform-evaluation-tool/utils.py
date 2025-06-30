@@ -10,15 +10,15 @@ import psutil as ps
 from itertools import product
 import logging
 from pipeline import GstPipeline
+import select
+
+
+
+cancelled = False
 
 
 def prepare_video_and_constants(
-    input_video_player,
-    object_detection_model,
-    object_detection_device,
-    batch_size,
-    nireq,
-    inference_interval,
+    **kwargs: dict[str, any],
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -31,6 +31,27 @@ def prepare_video_and_constants(
     Returns:
         tuple: A tuple containing video_output_path, constants, and param_grid.
     """
+
+    # Collect parameters from kwargs
+    input_video_player = kwargs.get("input_video_player", "")
+    object_detection_model = kwargs.get("object_detection_model", "")
+    object_detection_device = kwargs.get("object_detection_device", "")
+    object_detection_batch_size = kwargs.get("object_detection_batch_size", 1)
+    object_detection_inference_interval = kwargs.get(
+        "object_detection_inference_interval", 0.0
+    )
+    object_detection_nireq = kwargs.get("object_detection_nireq", 1)
+    object_classification_model = kwargs.get("object_classification_model", "")
+    object_classification_device = kwargs.get("object_classification_device", "")
+    object_classification_batch_size = kwargs.get("object_classification_batch_size", 1)
+    object_classification_inference_interval = kwargs.get(
+        "object_classification_inference_interval", 0.0
+    )
+    object_classification_reclassify_interval = kwargs.get(
+        "object_classification_reclassify_interval", 0.0
+    )
+    object_classification_nireq = kwargs.get("object_classification_nireq", 1)
+
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
         ".mp4", f"-output-{random_string}.mp4"
@@ -41,15 +62,20 @@ def prepare_video_and_constants(
     if os.path.exists(video_output_path):
         os.remove(video_output_path)
 
+    # Reset the FPS file
+    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+        f.write(f"0.0\n")
+
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
-        "batch_size": [batch_size],
-        "inference_interval": [inference_interval],
-        "nireq": [nireq],
-        # This elements are not used in the current version of the app
-        # "vehicle_classification_device": object_classification_device.split(
-        #     ", "
-        # ),
+        "object_detection_batch_size": [object_detection_batch_size],
+        "object_detection_inference_interval": [object_detection_inference_interval],
+        "object_detection_nireq": [object_detection_nireq],
+        "object_classification_device": object_classification_device.split(", "),
+        "object_classification_batch_size": [object_classification_batch_size],
+        "object_classification_inference_interval": [object_classification_inference_interval],
+        "object_classification_reclassify_interval": [object_classification_reclassify_interval],
+        "object_classification_nireq": [object_classification_nireq],
     }
 
     constants = {
@@ -67,22 +93,79 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
             )
-        case "YOLO v5m":
+        case "YOLO v5m 416x416":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
             )
-        case "YOLO v5s":
+        case "YOLO v5m 640x640":
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json"
+            )
+        case "YOLO v5s 416x416":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
             )
+        case "YOLO v10s 640x640":
+            if object_detection_device == "NPU":
+                raise ValueError(
+                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/yolov10s/FP16/yolov10s.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = None
+        case "YOLO v10m 640x640":
+            if object_detection_device == "NPU":
+                raise ValueError(
+                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_DETECTION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
+            )
+            constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
             raise ValueError("Unrecognized Object Detection Model")
+
+    match object_classification_model:
+        case "ResNet-50 TF":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
+            )
+        case "EfficientNet B0":
+            if object_classification_device == "NPU":
+                raise ValueError(
+                    "EfficientNet B0 model is not supported on NPU device. Please select another model."
+                )
+
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
+            )
+        case "MobileNet V2 PyTorch":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
+            )
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
+                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
+            )
+        case _:
+            raise ValueError("Unrecognized Object Classification Model")
 
     return video_output_path, constants, param_grid
 
@@ -101,6 +184,7 @@ def run_pipeline_and_extract_metrics(
     elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
 ) -> Tuple[Dict[str, float], str, str]:
+    global cancelled
     """
 
     Runs a GStreamer pipeline and extracts FPS metrics.
@@ -113,12 +197,10 @@ def run_pipeline_and_extract_metrics(
     Returns:
         Tuple[Dict[str, float], str, str]: A dictionary of FPS metrics, stdout, and stderr.
     """
-    logger = logging.getLogger("run_pipeline_and_extract_metrics")
+    logger = logging.getLogger("utils")
     results = []
-    # Set the number of channels
-    channels = channels if isinstance(channels, int) else channels[0] + channels[1]
 
-    # Set the number if regular channels
+    # Set the number of regular channels
     # If no tuple is provided, the number of regular channels is 0
     regular_channels = 0 if isinstance(channels, int) else channels[0]
 
@@ -134,11 +216,15 @@ def run_pipeline_and_extract_metrics(
         )
 
         # Log the command
-        logger.info(f"run_pipeline_and_extract_metrics: {pipeline_cmd}")
+        logger.debug(f"Pipeline Command: {_pipeline}")
 
         try:
+            # Set the environment variable to enable all drivers
+            env = os.environ.copy()
+            env["GST_VA_ALL_DRIVERS"] = "1"
+
             # Spawn command in a subprocess
-            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE)
+            process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE, env=env)
 
             exit_code = None
             total_fps = None
@@ -147,26 +233,48 @@ def run_pipeline_and_extract_metrics(
             last_fps = None
             channels = inference_channels + regular_channels
             avg_fps_dict = {}
-
-            # Capture Memory and CPU metrics
-            while process.poll() is None:
-
-                time.sleep(poll_interval)
-
-                if ps.Process(process.pid).status() == "zombie":
-                    exit_code = process.wait()
-                    break
+            process_output = []
 
             # Define pattern to capture FPSCounter metrics
             overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
 
-            logger.info("overall_pattern: {}".format(overall_pattern))
-            logger.info("avg_pattern {}".format(avg_pattern))
-            logger.info("last_pattern {}".format(last_pattern))
-            # Capture FPSCounter metrics
-            for line in iter(process.stdout.readline, b""):
+            # Poll the process to check if it is still running
+            while process.poll() is None:
+                if cancelled:
+                    process.terminate()
+                    cancelled = False
+                    break
+
+                reads, _, _ = select.select([process.stdout], [], [], poll_interval)
+                for r in reads:
+                    line = r.readline()
+                    if not line:
+                        continue
+                    process_output.append(line)
+
+                    # Write the average FPS to the log
+                    line_str = line.decode("utf-8")
+                    match = re.search(avg_pattern, line_str)
+                    if match:
+                        result = {
+                            "total_fps": float(match.group(2)),
+                            "number_streams": int(match.group(3)),
+                            "per_stream_fps": float(match.group(4)),
+                        }
+                        latest_fps = result["per_stream_fps"]
+                        
+                        # Write latest FPS to a file
+                        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                            f.write(f"{latest_fps}\n")
+
+                if ps.Process(process.pid).status() == "zombie":
+                    exit_code = process.wait()
+                    break
+
+            # Process the output and extract FPS metrics
+            for line in process_output:
                 line_str = line.decode("utf-8")
                 match = re.search(overall_pattern, line_str)
                 if match:

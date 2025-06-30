@@ -1,106 +1,99 @@
-import os
-import random
-import string
-import time
-import math
-import requests
 import logging
+import os
+from datetime import datetime
 
 import gradio as gr
-import matplotlib.pyplot as plt
-import numpy as np
-from matplotlib.patches import Arc
+import pandas as pd
+import plotly.graph_objects as go
+import requests
 
-from collect import CollectionReport, MetricsCollectorFactory
-from optimize import OptimizationResult, PipelineOptimizer
-from pipeline import SmartNVRPipeline, Transportation2Pipeline
-
+import utils
+from benchmark import Benchmark
 from device import DeviceDiscovery
 from explore import GstInspector
-from benchmark import Benchmark
+from optimize import OptimizationResult, PipelineOptimizer
+from pipeline import PipelineLoader, GstPipeline
 from utils import prepare_video_and_constants
+from typing import Tuple, Dict
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
-css_code = """
-
-.spark-header {
-  margin: 0px;
-  padding: 0px;
-  background: #0054ae;
-  height:60px;
-}
-
-.spark-logo {
-  margin-left: 20px;
-  margin-right: 20px;
-  width: 60px;
-  height: 60px;
-  float: left;
-}
-
-.spark-title {
-  height: 60px;
-  line-height: 60px;
-  float: left;
-  color:white;
-  font-size: 24px;
-  font-color: white;
-}
-
-.html-container {
-  padding: 0;
-}
-
-.header {
-  margin: 0px;
-  padding: 10px;
-  background: #0054ae;
-  color: white;
-  font-size: 24px;
-  font-color: white;
-}
-
-.spark-footer {
-  background: #0054ae;
-  height:40px;
-  justify-content: center;
-  align-items: center;
-}
-
-.spark-footer-info {
-  margin-left: auto; margin-right: auto;
-  height: 40px;
-  line-height: 40px;
-  color:white;
-  font-size: 18px;
-  font-color: white;
-  text-align: center;
-}
-
-footer {display:none !important}
-
-#results_plot {
-    height: 330px;
-}
-
-#pipeline_image img{
-    cursor: pointer !important;
-    padding: 40px;
-}
-
-"""
-
+with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
+    css_code = f.read()
 
 theme = gr.themes.Default(
     primary_hue="blue",
     font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],
 )
 
-# pipeline = Transportation2Pipeline()
-pipeline = SmartNVRPipeline()
+# Initialize the pipeline based on the PIPELINE environment variable
+current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
+    os.environ.get("PIPELINE", "").lower()
+)
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
+
+# Get available and preferred devices for inference
+device_choices = [
+    (device.full_device_name, device.device_name)
+    for device in device_discovery.list_devices()
+]
+
+# Device detection and chart title logic (move here, fix indentation)
+has_igpu = any("iGPU" in name or "igpu" in name for name, _ in device_choices)
+has_dgpu = any(
+    "dGPU" in name or "dgpu" in name or "Discrete" in name or "discrete" in name
+    for name, _ in device_choices
+)
+
+all_chart_titles = [
+    "Pipeline Throughput [FPS]",
+    "CPU Frequency [KHz]",
+    "CPU Utilization [%]",
+    "CPU Temperature [C°]",
+    "Memory Utilization [%]",
+    "Integrated GPU Power Usage [W] (Package & Total)",
+    "Integrated GPU Frequency [MHz]",
+    "Integrated GPU Engine Utilization [%]",
+    "Discrete GPU Power Usage [W] (Package & Total)",
+    "Discrete GPU Frequency [MHz]",
+    "Discrete GPU Engine Utilization [%]",
+]
+all_y_labels = [
+    "Throughput",
+    "Frequency",
+    "Utilization",
+    "Temperature",
+    "Utilization",
+    "Power",
+    "Frequency",
+    "Utilization",
+    "Power",
+    "Frequency",
+    "Utilization",
+]
+
+igpu_indices = [5, 6, 7]
+dgpu_indices = [8, 9, 10]
+
+indices_to_remove = []
+if not has_igpu:
+    indices_to_remove += igpu_indices
+if not has_dgpu:
+    indices_to_remove += dgpu_indices
+
+chart_titles = [t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove]
+y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
+
+# Create a dataframe for each chart
+stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
+figs = [
+    go.Figure().update_layout(
+        title=chart_titles[i], xaxis_title="Time", yaxis_title=y_labels[i]
+    )
+    for i in range(len(chart_titles))
+]
+
 
 # Download File
 def download_file(url, local_filename):
@@ -108,223 +101,24 @@ def download_file(url, local_filename):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open(local_filename, 'wb') as file:
+        with open(local_filename, "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
-
-# Generate Gagues
-def generate_gauges(results: OptimizationResult, report: CollectionReport):
-    def draw_gauge(ax, value, min_value, max_value, title):
-        ax.set_xlim(-1.2, 1.2)
-        ax.set_ylim(-0.4, 1.2)
-        ax.set_xticks([])
-        ax.set_yticks([])
-        ax.axis("off")
-
-        colors = ["red", "orange", "yellow", "green"]
-        colors.reverse()  # Green for high values
-
-        # Dynamically calculate threshold ranges based on min/max
-        color_thresholds = np.linspace(min_value, max_value, len(colors) + 1)
-
-        # light grey arc
-        full_arc = Arc(
-            (0, 0),
-            2,
-            1.4,
-            angle=0,
-            theta1=0,
-            theta2=180,
-            linewidth=25,
-            color="lightgray",
-        )
-        ax.add_patch(full_arc)
-
-        fill_color = colors[-1]  # Default to highest color
-        for i in range(1, len(color_thresholds)):
-            if value <= color_thresholds[i]:
-                fill_color = colors[i - 1]
-                break
-
-        fill_arc = Arc(
-            (0, 0),
-            2,
-            1.4,
-            angle=0,
-            theta1=180
-            - ((value - min_value) / (max_value - min_value))
-            * 180,  # Left-to-right fill
-            theta2=180,
-            linewidth=25,
-            color=fill_color,
-        )
-        ax.add_patch(fill_arc)
-
-        ax.text(
-            0, 0, f"{value}", ha="center", va="center", fontsize=30, fontweight="bold"
-        )
-
-        ax.text(-1.1, -0.15, f"{min_value}", ha="center", va="center", fontsize=15)
-        ax.text(1.1, -0.15, f"{max_value}", ha="center", va="center", fontsize=15)
-
-        ax.text(
-            0, -0.35, title, ha="center", va="center", fontsize=20, fontweight="bold"
-        )
-
-    # Results should be mapped to this format:
-    mapped_results = [
-        {
-            "label": "Throughput [fps]",
-            "value": round(results.per_stream_fps, 2) if results and isinstance(results.per_stream_fps, (int, float)) else None,
-            "min": 0,
-            "max": 500,
-        },
-        {
-            "label": "CPU Frequency [MHz]",
-            "value": report.avg_cpu_frequency_mhz,
-            "min": 0,
-            "max": 4800,
-        },
-        {
-            "label": "CPU Usage [%]",
-            "value": report.avg_cpu_usage_percent,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "CPU Temperature [K]",
-            "value": round(report.avg_cpu_temperature_kelvins, 2),
-            "min": 0,
-            "max": 500,
-        },
-        {
-            "label": "Memory Usage [%]",
-            "value": report.avg_memory_usage_percent,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "Package Power [Wh]",
-            "value": report.avg_package_power_wh,
-            "min": 0,
-            "max": 100,
-        },
-        {
-            "label": "System Temperature [K]",
-            "value": report.avg_system_temperature_kelvins,
-            "min": 0,
-            "max": 500,
-        },
-    ]
-    
-    mapped_results = [item for item in mapped_results if item["value"] is not None]
-    # Create 1 row with 4 subplots
-    num_metrics = len(mapped_results)
-    num_cols = min(num_metrics, 4)
-    num_rows = (num_metrics - 1) // num_cols + 1
-    fig, axes = plt.subplots(num_rows, num_cols, figsize=(17, 8))  # Adjust width for better spacing
-    axes = axes.flatten()  # Flatten the 2D array of axes for easier iteration
-
-    for ax, metric in zip(axes, mapped_results):
-        draw_gauge(ax, metric["value"], metric["min"], metric["max"], metric["label"])
-
-    # Disable the last axis
-    for ax in axes[len(mapped_results):]:
-        ax.axis("off")
-
-    fig.tight_layout()  # Adjust layout to prevent overlap
-    # plt.show()
-    return fig
-    
-def normalize(values):
-    max_value = max(values)
-    if max_value == 0:
-        return [0] * len(values)
-    return [(value / max_value) * 100 for value in values]
-
-
-def generate_gpu_time_series(report: CollectionReport):
-    num_metrics = len(report.gpu_engine_utils) + 2
-    cols = 2
-    rows = math.ceil(num_metrics/cols)
-    
-    fig_height = max(3 * rows, 8)
-    fig, ax = plt.subplots(rows, cols, figsize=(14, fig_height))
-
-    # Flatten the axes array for easier iteration
-    ax = ax.flatten()
-    
-    gpu_power = report.avg_gpu_power_wh if report.avg_gpu_power_wh else []
-    gpu_freq = report.avg_gpu_frequency_mhz if report.avg_gpu_frequency_mhz else []
-    timestamps = [t / 1000 for t in report.gpu_timestamps] 
-    
-    i = 0
-    if gpu_power:
-        ax[i].plot(timestamps, gpu_power, label="GPU Power (W)", color="r")
-        ax[i].set_xlabel("Time (s)", labelpad=15)
-        ax[i].set_ylabel("Power (W)", labelpad=15)
-        ax[i].set_title("GPU Power Usage", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, max(gpu_power) * 1.1)
-        i += 1
-    
-    if gpu_freq:
-        ax[i].plot(timestamps, gpu_freq, label="GPU Frequency (MHz)", color="b")
-        ax[i].set_xlabel("Time (s)", labelpad=12)
-        ax[i].set_ylabel("Frequency (MHz)", labelpad=12)
-        ax[i].set_title("GPU Frequency", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, max(gpu_freq) * 1.1)
-        i += 1
-    
-    for engine, values in report.gpu_engine_utils.items():
-        # normalized_values = normalize(values)
-        normalized_values = values
-        engine_name = engine.replace("gpu_engine_", "GPU_")
-        ax[i].plot(timestamps, normalized_values, label=engine_name, color="g")
-        ax[i].set_xlabel("Time (s)", labelpad=12)
-        ax[i].set_ylabel("Usage (%)", labelpad=12)
-        ax[i].set_title(f"{engine_name}", fontsize=10)
-        ax[i].title.set_position([0.5, 1.15])
-        ax[i].legend(fontsize=10, loc="upper right", bbox_to_anchor=(1.02,1))
-        ax[i].grid(True)
-        ax[i].set_ylim(0, 100)
-        i += 1
-        
-    # Hide any unused subplots
-    for j in range(i, len(ax)):
-        fig.delaxes(ax[j])
-
-    fig.tight_layout(pad=3)
-    return fig  
-
-# This elements are not used in the current version of the app
-# # Function to check if a click is inside any bounding box
-# def detect_click(evt: gr.SelectData):
-#     x, y = evt.index
-
-#     for x_min, y_min, x_max, y_max, label, description in pipeline.bounding_boxes():
-#         if x_min <= x <= x_max and y_min <= y <= y_max:
-
-#             match label:
-#                 case "Object Detection":
-#                     return gr.update(open=True), gr.update(open=False)
-#                 case "Object Classification":
-#                     return gr.update(open=False), gr.update(open=True)
-
-#     return gr.update(open=False), gr.update(open=False)
 
 
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
     x, y = evt.index
 
-    for x_min, y_min, x_max, y_max, label, description in pipeline.bounding_boxes():
+    for (
+        x_min,
+        y_min,
+        x_max,
+        y_max,
+        label,
+        description,
+    ) in current_pipeline[0].bounding_boxes():
         if x_min <= x <= x_max and y_min <= y <= y_max:
 
             match label:
@@ -334,8 +128,539 @@ def detect_click(evt: gr.SelectData):
     return gr.update(open=False)
 
 
+def read_latest_metrics(target_ns: int = None):
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
+            lines = [line.strip() for line in f.readlines()[-500:]]
+
+    except FileNotFoundError:
+        return [None] * 20  # 12 original + 8 extra for GPU 0
+
+    if target_ns is not None:
+        # Filter only lines near the target timestamp
+        surrounding_lines = [
+            line
+            for line in lines
+            if line.split()
+            and line.split()[-1].isdigit()
+            and abs(int(line.split()[-1]) - target_ns) < 1e9
+        ]
+        lines = surrounding_lines if surrounding_lines else []
+
+    cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
+    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = (
+        None
+    )
+
+    # GPU 0 variables (do not change existing ones for gpu_1)
+    gpu_package_power_0 = gpu_power_0 = gpu_freq_0 = gpu_render_0 = gpu_ve_0 = (
+        gpu_video_0
+    ) = gpu_copy_0 = gpu_compute_0 = None
+
+    for line in reversed(lines):
+        if cpu_user is None and "cpu" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if field.startswith("usage_user="):
+                        try:
+                            cpu_user = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if mem_used_percent is None and "mem" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if field.startswith("used_percent="):
+                        try:
+                            mem_used_percent = float(field.split("=")[1])
+                        except:
+                            pass
+
+        # Only consider GPU-related metrics for gpu_id=1
+        if gpu_package_power is None and "pkg_cur_power" in line and "gpu_id=1" in line:
+            parts = line.split()
+            try:
+                gpu_package_power = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if gpu_power is None and "gpu_cur_power" in line and "gpu_id=1" in line:
+            parts = line.split()
+            try:
+                gpu_power = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if core_temp is None and "temp" in line:
+            parts = line.split()
+            if len(parts) > 1:
+                for field in parts[1].split(","):
+                    if "temp" in field:
+                        try:
+                            core_temp = float(field.split("=")[1])
+                        except:
+                            pass
+
+        if gpu_freq is None and "gpu_frequency" in line and "gpu_id=1" in line:
+            for part in line.split():
+                if part.startswith("value="):
+                    try:
+                        gpu_freq = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if cpu_freq is None and "cpu_frequency_avg" in line:
+            try:
+                parts = [part for part in line.split() if "frequency=" in part]
+                if parts:
+                    cpu_freq = float(parts[0].split("=")[1])
+            except:
+                pass
+
+        if gpu_render is None and "engine=render" in line and "gpu_id=1" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_render = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_copy is None and "engine=copy" in line and "gpu_id=1" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_copy = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_ve is None and "engine=video-enhance" in line and "gpu_id=1" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_ve = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if (
+            gpu_video is None
+            and "engine=video" in line
+            and "engine=video-enhance" not in line
+            and "gpu_id=1" in line
+        ):
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_video = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_compute is None and "engine=compute" in line and "gpu_id=1" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_compute = float(part.split("=")[1])
+                    except:
+                        pass
+
+        # GPU 0 metrics (new variables)
+        if (
+            gpu_package_power_0 is None
+            and "pkg_cur_power" in line
+            and "gpu_id=0" in line
+        ):
+            parts = line.split()
+            try:
+                gpu_package_power_0 = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if gpu_power_0 is None and "gpu_cur_power" in line and "gpu_id=0" in line:
+            parts = line.split()
+            try:
+                gpu_power_0 = float(parts[1].split("=")[1])
+            except:
+                pass
+
+        if gpu_freq_0 is None and "gpu_frequency" in line and "gpu_id=0" in line:
+            for part in line.split():
+                if part.startswith("value="):
+                    try:
+                        gpu_freq_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_render_0 is None and "engine=render" in line and "gpu_id=0" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_render_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_copy_0 is None and "engine=copy" in line and "gpu_id=0" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_copy_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_ve_0 is None and "engine=video-enhance" in line and "gpu_id=0" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_ve_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if (
+            gpu_video_0 is None
+            and "engine=video" in line
+            and "engine=video-enhance" not in line
+            and "gpu_id=0" in line
+        ):
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_video_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if gpu_compute_0 is None and "engine=compute" in line and "gpu_id=0" in line:
+            for part in line.split():
+                if part.startswith("usage="):
+                    try:
+                        gpu_compute_0 = float(part.split("=")[1])
+                    except:
+                        pass
+
+        if all(
+            v is not None
+            for v in [
+                cpu_user,
+                mem_used_percent,
+                gpu_package_power,
+                core_temp,
+                gpu_power,
+                gpu_freq,
+                gpu_render,
+                gpu_ve,
+                gpu_video,
+                gpu_copy,
+                cpu_freq,
+                gpu_compute,
+                gpu_package_power_0,
+                gpu_power_0,
+                gpu_freq_0,
+                gpu_render_0,
+                gpu_ve_0,
+                gpu_video_0,
+                gpu_copy_0,
+                gpu_compute_0,
+            ]
+        ):
+            break
+
+    return [
+        cpu_user,
+        mem_used_percent,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
+        gpu_package_power_0,
+        gpu_power_0,
+        gpu_freq_0,
+        gpu_render_0,
+        gpu_ve_0,
+        gpu_video_0,
+        gpu_copy_0,
+        gpu_compute_0,
+    ]
+
+
+def create_empty_fig(title, y_axis_label):
+    fig = go.Figure()
+    fig.update_layout(title=title, xaxis_title="Time", yaxis_title=y_axis_label)
+    return fig
+
+
+# Store figures globally
+figs = [
+    create_empty_fig(chart_titles[i], y_labels[i]) for i in range(len(chart_titles))
+]
+
+
+def generate_stream_data(i, timestamp_ns=None):
+    new_x = (
+        datetime.now()
+        if timestamp_ns is None
+        else datetime.fromtimestamp(timestamp_ns / 1e9)
+    )
+
+    new_y = 0
+    # Unpack all returned values, but only use the first 13 for current charts
+    (
+        cpu_val,
+        mem_val,
+        gpu_package_power,
+        core_temp,
+        gpu_power,
+        gpu_freq,
+        gpu_render,
+        gpu_ve,
+        gpu_video,
+        gpu_copy,
+        cpu_freq,
+        gpu_compute,
+        gpu_package_power_0,
+        gpu_power_0,
+        gpu_freq_0,
+        gpu_render_0,
+        gpu_ve_0,
+        gpu_video_0,
+        gpu_copy_0,
+        gpu_compute_0,
+    ) = read_latest_metrics(timestamp_ns)
+
+    try:
+        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
+            lines = [line.strip() for line in f.readlines()[-500:]]
+            latest_fps = float(lines[-1])
+
+    except FileNotFoundError:
+        latest_fps = 0
+
+    except IndexError:
+        latest_fps = 0
+
+    title = chart_titles[i]
+
+    if title == "Pipeline Throughput [FPS]":
+        new_y = latest_fps
+    elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
+        new_y = cpu_freq
+    elif title == "CPU Utilization [%]" and cpu_val is not None:
+        new_y = cpu_val
+    elif title == "CPU Temperature [C°]" and core_temp is not None:
+        new_y = core_temp
+    elif title == "Memory Utilization [%]" and mem_val is not None:
+        new_y = mem_val
+    elif title == "Discrete GPU Power Usage [W] (Package & Total)":
+        metrics = {
+            "Package Power": gpu_package_power,
+            "Total Power": gpu_power,
+        }
+        if stream_dfs[i].empty:
+            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        new_row = {"x": new_x}
+        new_row.update(metrics)
+        stream_dfs[i] = pd.concat(
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
+        ).tail(50)
+        fig = figs[i]
+        fig.data = []
+        for key in metrics.keys():
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
+        return fig
+    elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
+        new_y = gpu_freq
+    elif title == "Discrete GPU Engine Utilization [%]":
+        metrics = {
+            "Render": gpu_render,
+            "Video Enhance": gpu_ve,
+            "Video": gpu_video,
+            "Copy": gpu_copy,
+            "Compute": gpu_compute,
+        }
+        # Prepare or update the DataFrame for this chart
+        if stream_dfs[i].empty:
+            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        new_row = {"x": new_x}
+        new_row.update(metrics)
+        stream_dfs[i] = pd.concat(
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
+        ).tail(50)
+        fig = figs[i]
+        fig.data = []
+        for key in metrics.keys():
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
+        return fig
+    elif title == "Integrated GPU Power Usage [W] (Package & Total)":
+        metrics = {
+            "Package Power": gpu_package_power_0,
+            "Total Power": gpu_power_0,
+        }
+        if stream_dfs[i].empty:
+            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        new_row = {"x": new_x}
+        new_row.update(metrics)
+        stream_dfs[i] = pd.concat(
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
+        ).tail(50)
+        fig = figs[i]
+        fig.data = []
+        for key in metrics.keys():
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
+        return fig
+    elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
+        new_y = gpu_freq_0
+    # Consolidated GPU 0 Engine Utilization chart
+    elif title == "Integrated GPU Engine Utilization [%]":
+        # Each line is a metric, so we store all 5 in the same DataFrame
+        # We'll use a wide DataFrame for this chart
+        metrics = {
+            "Render": gpu_render_0,
+            "Video Enhance": gpu_ve_0,
+            "Video": gpu_video_0,
+            "Copy": gpu_copy_0,
+            "Compute": gpu_compute_0,
+        }
+        # Prepare or update the DataFrame for this chart
+        if stream_dfs[i].empty:
+            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        new_row = {"x": new_x}
+        new_row.update(metrics)
+        stream_dfs[i] = pd.concat(
+            [
+                stream_dfs[i] if not stream_dfs[i].empty else None,
+                pd.DataFrame([new_row]),
+            ],
+            ignore_index=True,
+        ).tail(50)
+        fig = figs[i]
+        fig.data = []
+        for key in metrics.keys():
+            fig.add_trace(
+                go.Scatter(
+                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                )
+            )
+        return fig
+
+    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
+    stream_dfs[i] = pd.concat(
+        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], ignore_index=True
+    ).tail(50)
+
+    fig = figs[i]
+    fig.data = []  # clear previous trace
+    fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i]["y"], mode="lines"))
+
+    return fig
+
+
+def on_run(data):
+
+    arguments = {}
+
+    for component in data:
+        component_id = component.elem_id
+        if component_id:
+            arguments[component_id] = data[component]
+
+    video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+
+    # Validate channels
+    if arguments["recording_channels"] + arguments["inferencing_channels"] == 0:
+        raise gr.Error(
+            "Please select at least one channel for recording or inferencing.",
+            duration=10,
+        )
+
+    optimizer = PipelineOptimizer(
+        pipeline=current_pipeline[0],
+        constants=constants,
+        param_grid=param_grid,
+        channels=(arguments["recording_channels"], arguments["inferencing_channels"]),
+        elements=gst_inspector.get_elements(),
+    )
+    optimizer.optimize()
+    best_result = optimizer.evaluate()
+    if best_result is None:
+        best_result_message = "No valid result was returned by the optimizer."
+    else:
+        best_result_message = (
+            f"Total FPS: {best_result.total_fps:.2f}, "
+            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+        )
+
+    return [video_output_path, best_result_message]
+
+
+def on_benchmark(data):
+
+    arguments = {}
+
+    for component in data:
+        component_id = component.elem_id
+        if component_id:
+            arguments[component_id] = data[component]
+
+    _, constants, param_grid = prepare_video_and_constants(**arguments)
+
+    # Initialize the benchmark class
+    bm = Benchmark(
+        video_path=arguments["input_video_player"],
+        pipeline_cls=current_pipeline[0],
+        fps_floor=arguments["fps_floor"],
+        rate=arguments["ai_stream_rate"],
+        parameters=param_grid,
+        constants=constants,
+        elements=gst_inspector.get_elements(),
+    )
+
+    # Run the benchmark
+    s, ai, non_ai, fps = bm.run()
+
+    # Return results
+    return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
+
+
+def on_stop():
+    utils.cancelled = True
+    logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
+
+
 # Create the interface
 def create_interface():
+    """
+    Components declarations starts here.
+    Only components that are used in event handlers needs to be declared.
+    Other components can be created directly in the Blocks context.
+    """
 
     # Video Player
     input_video_player = None
@@ -343,13 +668,14 @@ def create_interface():
     try:
         download_file(
             "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
-            "/tmp/person-bicycle-car-detection.mp4"
+            "/tmp/person-bicycle-car-detection.mp4",
         )
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
             value="/tmp/person-bicycle-car-detection.mp4",
             sources="upload",
+            elem_id="input_video_player",
         )
     except Exception as e:
         print(f"Error loading video player: {e}")
@@ -360,15 +686,16 @@ def create_interface():
             interactive=True,
             value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.12/tests/files/mse.mp4",
             sources="upload",
+            elem_id="input_video_player",
         )
 
     output_video_player = gr.Video(
         label="Output Video", interactive=False, show_download_button=True
     )
 
-    # Input components
+    # Pipeline diagram image
     pipeline_image = gr.Image(
-        value=pipeline.diagram(),
+        value=current_pipeline[0].diagram(),
         label="Pipeline Diagram",
         elem_id="pipeline_image",
         interactive=False,
@@ -376,17 +703,14 @@ def create_interface():
         show_fullscreen_button=False,
     )
 
-    # Textbox to display the best configuration (initially hidden)
+    # Best configuration textbox
     best_config_textbox = gr.Textbox(
         label="Best Configuration",
         interactive=False,
         lines=2,
         placeholder="The best configuration will appear here after benchmarking.",
-        visible=True,  # Initially hidden
+        visible=True,
     )
-
-    # Pipeline parameters accordion
-    pipeline_parameters_accordion = gr.Accordion("Pipeline Parameters", open=True)
 
     # Inferencing channels
     inferencing_channels = gr.Slider(
@@ -396,6 +720,7 @@ def create_interface():
         step=1,
         label="Number of Recording + Inferencing channels",
         interactive=True,
+        elem_id="inferencing_channels",
     )
 
     # Recording channels
@@ -406,323 +731,595 @@ def create_interface():
         step=1,
         label="Number of Recording only channels",
         interactive=True,
+        elem_id="recording_channels",
     )
+
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
         value=30.0,  # Default value
         minimum=1.0,
-        interactive=True
+        interactive=True,
+        elem_id="fps_floor",
     )
 
-    # Object detection accordion
-    object_detection_accordion = gr.Accordion("Object Detection Parameters", open=True)
+    # AI stream rate
+    ai_stream_rate = gr.Slider(
+        label="AI Stream Rate (%)",
+        value=20,  # Default value
+        minimum=0,
+        maximum=100,
+        step=1,
+        interactive=True,
+        elem_id="ai_stream_rate",
+    )
+
+    # Inference accordion
+    inference_accordion = gr.Accordion("Inference Parameters", open=True)
+
+    # Get available and preferred devices for inference
+    device_choices = [
+        (device.full_device_name, device.device_name)
+        for device in device_discovery.list_devices()
+    ]
+
+    preferred_device = next(
+        ("GPU" for device_name in device_choices if "GPU" in device_name),
+        ("CPU"),
+    )
 
     # Object detection model
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
         choices=[
             "SSDLite MobileNet V2",
-            "YOLO v5m",
-            "YOLO v5s",
+            "YOLO v5m 416x416",
+            "YOLO v5s 416x416",
+            "YOLO v5m 640x640",
+            "YOLO v10s 640x640",
+            "YOLO v10m 640x640",
         ],
-        value="YOLO v5s",
+        value="YOLO v5s 416x416",
+        elem_id="object_detection_model",
     )
 
     # Object detection device
-    device_choices = [
-        (device.full_device_name, device.device_name)
-        for device in device_discovery.list_devices()
-    ]
-    preferred_device = next(
-        ( "GPU" for device_name in device_choices if "GPU" in device_name),
-        ( "CPU" ),
-    )
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
         choices=device_choices,
         value=preferred_device,
+        elem_id="object_detection_device",
     )
 
-    # Batch size
-    batch_size = gr.Slider(
+    # Object detection batch size
+    object_detection_batch_size = gr.Slider(
         minimum=0,
         maximum=32,
         value=0,
         step=1,
-        label="Batch Size",
+        label="Object Detection Batch Size",
         interactive=True,
+        elem_id="object_detection_batch_size",
     )
 
-    # Inference interval
-    inference_interval = gr.Slider(
+    # Object detection inference interval
+    object_detection_inference_interval = gr.Slider(
         minimum=1,
         maximum=5,
         value=1,
         step=1,
-        label="Inference Interval",
+        label="Object Detection Inference Interval",
         interactive=True,
+        elem_id="object_detection_inference_interval",
     )
 
-    # Number of inference requests (nireq)
-    nireq = gr.Slider(
+    # Object Detection number of inference requests (nireq)
+    object_detection_nireq = gr.Slider(
         minimum=0,
         maximum=4,
         value=0,
         step=1,
-        label="Number of Inference Requests (nireq)",
+        label="Object Detection Number of Inference Requests (nireq)",
         interactive=True,
+        elem_id="object_detection_nireq",
     )
-    # This elements are not used in the current version of the app
-    # # Object classification accordion
-    # object_classification_accordion = gr.Accordion(
-    #     "Object Classification Parameters", open=False
-    # )
 
-    # # Object classification model
-    # object_classification_model = gr.Dropdown(
-    #     label="Object Classification Model",
-    #     choices=[
-    #         "ResNet-50 TF",
-    #         "EfficientNet B0",
-    #         "Vehicle Attributes Recognition Barrier",
-    #     ],
-    #     value="Vehicle Attributes Recognition Barrier",
-    # )
+    # Object classification model
+    object_classification_model = gr.Dropdown(
+        label="Object Classification Model",
+        choices=[
+            "EfficientNet B0",
+            "MobileNet V2 PyTorch",
+            "ResNet-50 TF",
+        ],
+        value="ResNet-50 TF",
+        elem_id="object_classification_model",
+    )
 
-    # # Object classification device
-    # object_classification_device = gr.Dropdown(
-    #     label="Object Classification Device",
-    #     choices=[
-    #         "CPU",
-    #         "GPU",
-    #     ],
-    #     value="CPU",
-    # )
+    # Object classification device
+    object_classification_device = gr.Dropdown(
+        label="Object Classification Device",
+        choices=device_choices,
+        value=preferred_device,
+        elem_id="object_classification_device",
+    )
 
-    # Results
-    cpu_metrics_plot = gr.Plot(label="Results", elem_id="cpu_metrics_plot")
-    gpu_time_series_plot = gr.Plot(elem_id="gpu_time_series_plot")
+    # Object classification batch size
+    object_classification_batch_size = gr.Slider(
+        minimum=0,
+        maximum=32,
+        value=0,
+        step=1,
+        label="Object Classification Batch Size",
+        interactive=True,
+        elem_id="object_classification_batch_size",
+    )
+
+    # Object classification inference interval
+    object_classification_inference_interval = gr.Slider(
+        minimum=1,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Object Classification Inference Interval",
+        interactive=True,
+        elem_id="object_classification_inference_interval",
+    )
+
+    # Object classification number of inference requests (nireq)
+    object_classification_nireq = gr.Slider(
+        minimum=0,
+        maximum=4,
+        value=0,
+        step=1,
+        label="Object Classification Number of Inference Requests (nireq)",
+        interactive=True,
+        elem_id="object_classification_nireq",
+    )
+
+    # Object classification reclassify interval
+    object_classification_reclassify_interval = gr.Slider(
+        minimum=0,
+        maximum=5,
+        value=1,
+        step=1,
+        label="Object Classification Reclassification Interval",
+        interactive=True,
+        elem_id="object_classification_reclassify_interval",
+    )
 
     # Run button
     run_button = gr.Button("Run")
 
-    # Add a Benchmark button
+    # Benchmark button
     benchmark_button = gr.Button("Benchmark")
+
+    # Stop button
+    stop_button = gr.Button("Stop", variant="stop", visible=False)
+
+    # Metrics plots
+    plots = [
+        gr.Plot(
+            value=create_empty_fig(chart_titles[i], y_labels[i]),
+            label=chart_titles[i],
+            min_width=500,
+            show_label=False,
+        )
+        for i in range(len(chart_titles))
+    ]
+
+    # Timer for stream data
+    timer = gr.Timer(1, active=False)
+
+    # Components Set
+    components = set()
+    components.add(input_video_player)
+    components.add(output_video_player)
+    components.add(pipeline_image)
+    components.add(best_config_textbox)
+    components.add(inferencing_channels)
+    components.add(recording_channels)
+    components.add(fps_floor)
+    components.add(ai_stream_rate)
+    components.add(object_detection_model)
+    components.add(object_detection_device)
+    components.add(object_detection_batch_size)
+    components.add(object_detection_inference_interval)
+    components.add(object_detection_nireq)
+    components.add(object_classification_model)
+    components.add(object_classification_device)
+    components.add(object_classification_batch_size)
+    components.add(object_classification_inference_interval)
+    components.add(object_classification_nireq)
+    components.add(object_classification_reclassify_interval)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code) as demo:
 
-        header = gr.HTML(
+        """
+        Components events handlers and interactions are defined here.
+        """
+
+        # Handle click on the pipeline image
+        pipeline_image.select(
+            detect_click,
+            None,
+            [inference_accordion],
+        )
+
+        # Handle changes on the input video player
+        input_video_player.change(
+            lambda v: (
+                (
+                    gr.update(interactive=bool(v)),
+                    gr.update(value=None),
+                )  # Disable Run button  if input is empty, clears output
+                if v is None or v == ""
+                else (gr.update(interactive=True), gr.update(value=None))
+            ),
+            inputs=input_video_player,
+            outputs=[run_button, output_video_player],
+            queue=False,
+        )
+
+        # Handle timer ticks
+        timer.tick(
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            outputs=plots,
+        )
+
+        # Handle run button clicks
+        run_button.click(
+            # Update the state of the buttons
+            lambda: [
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(visible=True),
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=True,
+        ).then(
+            # Reset the telemetry plots
+            lambda: (
+                globals().update(
+                    stream_dfs=[
+                        pd.DataFrame(columns=["x", "y"])
+                        for _ in range(len(chart_titles))
+                    ]
+                )
+                or [
+                    plots[i].value.update(data=[])
+                    for i in range(len(plots))
+                    if hasattr(plots[i], "value") and plots[i].value is not None
+                ]
+                or plots
+            ),
+            outputs=plots,
+        ).then(
+            # Start the telemetry timer
+            lambda: gr.update(active=True),
+            inputs=None,
+            outputs=timer,
+        ).then(
+            # Execute the pipeline
+            on_run,
+            inputs=components,
+            outputs=[output_video_player, best_config_textbox],
+        ).then(
+            # Stop the telemetry timer
+            lambda: gr.update(active=False),
+            inputs=None,
+            outputs=timer,
+        ).then(
+            # Generate the persistent telemetry data
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            inputs=None,
+            outputs=plots,
+        ).then(
+            # Update the visibility of the buttons
+            lambda: [
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+        )
+
+        # Handle benchmark button clicks
+        benchmark_button.click(
+            # Update the state of the buttons
+            lambda: [
+                gr.update(visible=False),
+                gr.update(visible=False),
+                gr.update(visible=True),
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=False,
+        ).then(
+            # Clear output components here
+            lambda: [
+                gr.update(value=""),
+                gr.update(value=None),
+            ],
+            None,
+            [best_config_textbox, output_video_player],
+        ).then(
+            # Reset the telemetry plots
+            lambda: (
+                globals().update(
+                    stream_dfs=[
+                        pd.DataFrame(columns=["x", "y"])
+                        for _ in range(len(chart_titles))
+                    ]
+                )
+                or [
+                    plots[i].value.update(data=[])
+                    for i in range(len(plots))
+                    if hasattr(plots[i], "value") and plots[i].value is not None
+                ]
+                or plots
+            ),
+            outputs=plots,
+        ).then(
+            # Start the telemetry timer
+            lambda: gr.update(active=True),
+            inputs=None,
+            outputs=timer,
+        ).then(
+            # Execute the benchmark
+            on_benchmark,
+            inputs=components,
+            outputs=[best_config_textbox],
+        ).then(
+            # Stop the telemetry timer
+            lambda: gr.update(active=False),
+            inputs=None,
+            outputs=timer,
+        ).then(
+            # Generate the persistent telemetry data
+            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            inputs=None,
+            outputs=plots,
+        ).then(
+            # Reset the state of the buttons
+            lambda: [
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+        )
+
+        # Handle stop button clicks
+        stop_button.click(
+            # Execute the stop function
+            on_stop,
+        ).then(
+            # Reset the state of the buttons
+            lambda: [
+                gr.update(visible=True),
+                gr.update(visible=True),
+                gr.update(visible=False),
+            ],
+            outputs=[run_button, benchmark_button, stop_button],
+            queue=False,
+        )
+
+        """
+        Components rendering starts here.
+        """
+
+        # Header
+        gr.HTML(
             "<div class='spark-header'>"
+            "  <div class='spark-header-line'></div>"
             "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
-            "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool (ViPPET)</div>"
+            "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool</div>"
             "</div>"
         )
 
-        with gr.Row():
-            with gr.Column(scale=2, min_width=300):
-                pipeline_image.render()
+        # Tab Interface
+        with gr.Tabs() as tabs:
 
-                # Click event handling
-                pipeline_image.select(
-                    detect_click,
-                    None,
-                    # [object_detection_accordion, object_classification_accordion],
-                    [object_detection_accordion],
-                )
-                run_button.render()
-                benchmark_button.render()
-                #results_plot.render()
-                best_config_textbox.render()
-                cpu_metrics_plot.render()
-                
-                gpu_time_series_plot.render()
+            # Home Tab
+            with gr.Tab("Home", id=0):
 
-                def on_run(
-                    recording_channels,
-                    inferencing_channels,
-                    object_detection_model,
-                    object_detection_device,
-                    # This elements are not used in the current version of the app
-                    # object_classification_model,
-                    # object_classification_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
-                    input_video_player,
-                ):
-                    video_output_path, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
-                )
-             
-                    # This elements are not used in the current version of the app
-                    # match object_classification_model:
-                    #     case "ResNet-50 TF":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
-                    #         )
-                    #     case "EfficientNet B0":
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PATH"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/FP16-INT8/efficientnet-b0.xml"
-                    #         )
-                    #         constants["VEHICLE_CLASSIFICATION_MODEL_PROC"] = (
-                    #             f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
-                    #         )
-                    #     case _:
-                    #         raise ValueError("Unrecognized Object Classification Model")
+                gr.Markdown(
+                    """
+                    ## Recommended Pipelines
 
-                    # Validate channels
-                    if recording_channels + inferencing_channels == 0:
-                        raise gr.Error("Please select at least one channel for recording or inferencing.", duration=10)
-
-                    system = os.uname()
-                    collector = MetricsCollectorFactory.get_collector(
-                        sysname=system.sysname, release=system.release
-                    )
-                    optimizer = PipelineOptimizer(
-                        pipeline=pipeline,
-                        constants=constants,
-                        param_grid=param_grid,
-                        channels=(recording_channels, inferencing_channels),
-                        elements=gst_inspector.get_elements(),
-                    )
-                    collector.collect()
-                    time.sleep(3)
-                    optimizer.optimize()
-                    time.sleep(3)
-                    collector.stop()
-                    time.sleep(3)
-                    best_result = optimizer.evaluate()
-                    report = collector.report()
-                    cpu_plot = generate_gauges(best_result, report)
-                    gpu_plot = generate_gpu_time_series(report)
-                    return [video_output_path, cpu_plot, gpu_plot]
-
-                def on_benchmark(
-                    fps_floor,
-                    object_detection_model,
-                    object_detection_device,
-                    batch_size,
-                    inference_interval,
-                    nireq,
-                    input_video_player,
-                ):
-                    
-                    _, constants, param_grid = prepare_video_and_constants(
-                        input_video_player,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        nireq,
-                        inference_interval,
-                    )
-
-                    # Initialize the benchmark class
-                    bm = Benchmark(
-                        video_path=input_video_player,
-                        pipeline_cls=pipeline,
-                        fps_floor=fps_floor,
-                        parameters=param_grid,
-                        constants=constants,
-                        elements=gst_inspector.get_elements(),
-                    )
-
-                    # Run the benchmark
-                    s, ai, non_ai, fps = bm.run()
-
-                    # Return results
-                    return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
-                    
-
-                input_video_player.change(
-                    lambda v: (
-                        (
-                            gr.update(interactive=bool(v)),
-                            gr.update(value=None),
-                        )  # Disable Run button  if input is empty, clears output
-                        if v is None or v == ""
-                        else (gr.update(interactive=True), gr.update(value=None))
-                    ),
-                    inputs=input_video_player,
-                    outputs=[run_button, output_video_player],
-                    queue=False,
+                    Below is a list of recommended pipelines you can use to evaluate video analytics performance.
+                    Click on "Configure and Run" to get started with customizing and benchmarking a pipeline for your
+                    use case.
+                    """
                 )
 
-                run_button.click(
-                    fn=lambda video: gr.update(interactive=False),
-                    inputs=input_video_player,
-                    outputs=[run_button],
-                    queue=True,
-                ).then(
-                    on_run,
-                    inputs=[
-                        recording_channels,
-                        inferencing_channels,
-                        object_detection_model,
-                        object_detection_device,
-                        # This elements are not used in the current version of the app
-                        # object_classification_model,
-                        # object_classification_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
-                        input_video_player,
-                    ],
-                    outputs=[output_video_player, cpu_metrics_plot, gpu_time_series_plot],
-                ).then(
-                    fn=lambda: gr.update(
-                        interactive=True
-                    ),  # Re-enable Run button
-                    outputs=[run_button],
+                with gr.Row():
+
+                    for pipeline in PipelineLoader.list():
+
+                        pipeline_info = PipelineLoader.config(pipeline)
+
+                        with gr.Column(scale=1, min_width=100):
+
+                            gr.Image(
+                                value=lambda x=pipeline: f"./pipelines/{x}/thumbnail.png",
+                                show_label=False,
+                                show_download_button=False,
+                                show_fullscreen_button=False,
+                                interactive=False,
+                                width=710,
+                            )
+
+                            gr.Markdown(
+                                f"### {pipeline_info['name']}\n"
+                                f"{pipeline_info['definition']}"
+                            )
+
+                            is_enabled = pipeline_info.get("metadata", {}).get(
+                                "enabled", False
+                            )
+
+                            gr.Button(
+                                value=(
+                                    "Configure and Run" if is_enabled else "Coming Soon"
+                                ),
+                                elem_classes="configure-and-run-button",
+                                interactive=is_enabled,
+                            ).click(
+                                lambda x=pipeline: globals().__setitem__(
+                                    "current_pipeline", PipelineLoader.load(x)
+                                ),
+                                None,
+                                None,
+                            ).then(
+                                lambda: current_pipeline[0].diagram(),
+                                None,
+                                pipeline_image,
+                            ).then(
+                                # Clear output components here
+                                lambda: [
+                                    gr.update(value=""),
+                                    gr.update(value=None),
+                                ],
+                                None,
+                                [best_config_textbox, output_video_player],
+                            ).then(
+                                # Reset the telemetry plots
+                                lambda: (
+                                    globals().update(
+                                        stream_dfs=[
+                                            pd.DataFrame(columns=["x", "y"])
+                                            for _ in range(len(chart_titles))
+                                        ]
+                                    )
+                                    or [
+                                        plots[i].value.update(data=[])
+                                        for i in range(len(plots))
+                                        if hasattr(plots[i], "value")
+                                        and plots[i].value is not None
+                                    ]
+                                    or plots
+                                ),
+                                outputs=plots,
+                            ).then(
+                                lambda: gr.Tabs(selected=1),
+                                None,
+                                tabs,
+                            )
+
+                gr.Markdown(
+                    """
+                    ## Your System
+
+                    This section provides information about your system's hardware and software configuration.
+                    """
                 )
 
-
-                benchmark_button.click(
-                    on_benchmark,
-                    inputs=[
-                        fps_floor,
-                        object_detection_model,
-                        object_detection_device,
-                        batch_size,
-                        inference_interval,
-                        nireq,
-                        input_video_player,
-                    ],
-                    outputs=[best_config_textbox],
+                devices = device_discovery.list_devices()
+                if devices:
+                    device_table_md = "| Name | Description |\n|------|-------------|\n"
+                    for device in devices:
+                        device_table_md += (
+                            f"| {device.device_name} | {device.full_device_name} |\n"
+                        )
+                else:
+                    device_table_md = "No devices found."
+                gr.Markdown(
+                    value=device_table_md,
+                    elem_id="device_table",
                 )
 
-            with gr.Column(scale=1, min_width=150):
-                with gr.Accordion("Video Player", open=True):
-                    input_video_player.render()
-                    output_video_player.render()
+            # Run Tab
+            with gr.Tab("Run", id=1):
 
-                with pipeline_parameters_accordion.render():
-                    inferencing_channels.render()
-                    recording_channels.render()
-                    fps_floor.render()
+                # Main content
+                with gr.Row():
 
-                with object_detection_accordion.render():
-                    object_detection_model.render()
-                    object_detection_device.render()
-                    batch_size.render()
-                    inference_interval.render()
-                    nireq.render()
+                    # Left column
+                    with gr.Column(scale=2, min_width=300):
 
-                # This elements are not used in the current version of the app
-                # with object_classification_accordion.render():
-                #     object_classification_model.render()
-                #     object_classification_device.render()
+                        # Render the pipeline information
+                        gr.Markdown(
+                            f"### {current_pipeline[1]['name']}\n"
+                            f"{current_pipeline[1]['definition']}"
+                        )
 
-        footer = gr.HTML(
+                        # Render pipeline image
+                        pipeline_image.render()
+
+                        # Render the run button
+                        run_button.render()
+
+                        # Render the benchmark button
+                        benchmark_button.render()
+
+                        # Render the stop button
+                        stop_button.render()
+
+                        # Render the best configuration textbox
+                        best_config_textbox.render()
+
+                        # Metrics plots
+                        with gr.Row():
+
+                            # Render plots
+                            for i in range(len(plots)):
+                                plots[i].render()
+
+                            # Render the timer
+                            timer.render()
+
+                    # Right column
+                    with gr.Column(scale=1, min_width=150):
+
+                        # Video Player Accordion
+                        with gr.Accordion("Video Player", open=True):
+
+                            # Input Video Player
+                            input_video_player.render()
+
+                            # Output Video Player
+                            output_video_player.render()
+
+                        # Pipeline Parameters Accordion
+                        with gr.Accordion("Pipeline Parameters", open=True):
+
+                            # Inference Channels
+                            inferencing_channels.render()
+
+                            # Recording Channels
+                            recording_channels.render()
+
+                        # Benchmark Parameters Accordion
+                        with gr.Accordion("Benchmark Parameters", open=True):
+
+                            # FPS Floor
+                            fps_floor.render()
+
+                            # AI Stream Rate
+                            ai_stream_rate.render()
+
+                        # Inference Parameters Accordion
+                        with inference_accordion.render():
+
+                            # Object Detection Parameters
+                            object_detection_model.render()
+                            object_detection_device.render()
+                            object_detection_batch_size.render()
+                            object_detection_inference_interval.render()
+                            object_detection_nireq.render()
+
+                            # Object Classification Parameters
+                            object_classification_model.render()
+                            object_classification_device.render()
+                            object_classification_batch_size.render()
+                            object_classification_inference_interval.render()
+                            object_classification_nireq.render()
+                            object_classification_reclassify_interval.render()
+
+        # Footer
+        gr.HTML(
             "<div class='spark-footer'>"
             "  <div class='spark-footer-info'>"
             "    ©2025 Intel Corporation  |  Terms of Use  |  Cookies  |  Privacy"
@@ -734,9 +1331,10 @@ def create_interface():
     return demo
 
 
-# Launch the app
-demo = create_interface()
-demo.launch(
-    server_name="0.0.0.0",
-    server_port=7860,
-)
+if __name__ == "__main__":
+    # Launch the app
+    demo = create_interface()
+    demo.launch(
+        server_name="0.0.0.0",
+        server_port=7860,
+    )

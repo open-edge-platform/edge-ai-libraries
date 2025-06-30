@@ -4,7 +4,7 @@ import uvicorn
 from pathlib import Path
 from fastapi import FastAPI, HTTPException, File, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import StreamingResponse
+from fastapi.responses import StreamingResponse, JSONResponse
 from http import HTTPStatus
 from pydantic import BaseModel
 from typing import Annotated
@@ -19,6 +19,7 @@ from .chain import (
     process_query,
 )
 from .document import validate_document, save_document
+from .utils import get_available_devices, get_device_property
 
 app = FastAPI(root_path="/v1/chatqna")
 
@@ -64,6 +65,55 @@ async def get_llm_model():
     llm_model = config.LLM_MODEL_ID
 
     return {"status": "Success", "llm_model": llm_model}
+
+
+@app.get("/devices", tags=["Device API"], summary="Get available devices list")
+async def get_devices():
+    """
+    Retrieve a list of devices.
+    Returns:
+        dict: A dictionary with a key "devices" containing the list of devices.
+    Raises:
+        HTTPException: If an error occurs while retrieving the devices, an HTTP 500 exception is raised with the error details.
+    """
+
+    try:
+        devices = get_available_devices()
+
+        return {"devices": devices}
+
+    except Exception as e:
+        logger.exception("Error getting devices list.", error=e)
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.get("/devices/{device}", tags=["Device API"], summary="Get device property")
+async def get_device_info(device: str = ""):
+    """
+    Retrieve information about a specific device.
+    Args:
+        device (str): The name of the device to retrieve information for. Defaults to an empty string.
+    Returns:
+        JSONResponse: A JSON response containing the properties of the specified device.
+    Raises:
+        HTTPException: If the device is not found or if there is an error retrieving the device properties.
+    """
+
+    try:
+        available_devices = get_available_devices()
+
+        if device not in available_devices:
+            raise HTTPException(
+                status_code=404, detail=f"Device {device} not found. Available devices: {available_devices}"
+            )
+
+        device_props = get_device_property(device)
+
+        return JSONResponse(content=device_props)
+
+    except Exception as e:
+        logger.exception("Error getting properties for device.", error=e)
+        raise HTTPException(status_code=500, detail=str(e))
 
 
 @app.get(

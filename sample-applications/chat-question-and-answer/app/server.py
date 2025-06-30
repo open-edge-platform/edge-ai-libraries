@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from .chain import process_chunks
 import httpx
+from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 app = FastAPI(root_path="/v1/chatqna")
 
@@ -52,6 +53,7 @@ async def redirect_root_to_docs():
 
 class QuestionRequest(BaseModel):
     input: str
+    MAX_TOKENS: int
 
 
 @app.get("/health")
@@ -104,7 +106,9 @@ async def query_chain(payload: QuestionRequest):
     and returns a streaming response with the processed chunks of the question text.
 
     Args:
-        payload (QuestionRequest): The request payload containing the input question text.
+        payload (QuestionRequest): The request payload containing the input question text
+        MaX_TOKENS (int): The maximum number of tokens to process. Defaults to 512 if not provided.
+        or set to 4096 if provided.
 
     Returns:
         StreamingResponse: A streaming response with the processed chunks of the question text.
@@ -113,10 +117,14 @@ async def query_chain(payload: QuestionRequest):
         HTTPException: If the input question text is empty or not provided, a 422 status code is returned.
     """
     question_text = payload.input
+    max_tokens = payload.MAX_TOKENS if payload.MAX_TOKENS else 512
+    if max_tokens > 1024:
+        raise HTTPException(status_code=422, detail="MAX_TOKENS cannot be greater than 1024")
     if not question_text or question_text == "":
         raise HTTPException(status_code=422, detail="Question is required")
-    return StreamingResponse(process_chunks(question_text), media_type="text/event-stream")
+    return StreamingResponse(process_chunks(question_text,max_tokens), media_type="text/event-stream")
 
+FastAPIInstrumentor.instrument_app(app)
 
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8080, reload=True)

@@ -1,0 +1,9 @@
+{
+    "model_registry": {
+        "enable": false,
+        "version": "1.0"
+    },
+    "udfs": {
+        "name": "temperature_classifier"
+    }
+} 

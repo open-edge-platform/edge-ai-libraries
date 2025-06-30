@@ -2,6 +2,18 @@
 
 
 ## Current Release
+
+**Version**: 1.2.0 \
+**Release Date**: WW20 2025 
+
+- Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
+- Bug fixes
+
+### Known Issues/Behavior:
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases.
+
+## Previous releases
+
 **Version**: 1.1.2 \
 **Release Date**: WW16 2025 
 

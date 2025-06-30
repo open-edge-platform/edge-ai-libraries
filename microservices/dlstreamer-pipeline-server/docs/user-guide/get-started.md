@@ -14,89 +14,29 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Pull the image with the latest tag from dockerhub registry
 
+   For Ubuntu 22.04:
    ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.0.0
+     docker pull intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+   ```
+   For Ubuntu 24.04:
+   ```sh
+     docker pull intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
    ```
 
-- Create `docker-compose.yml` file with below contents inside the docker folder within your work directory (`[WORKDIR]/docker/`). `WORKDIR` is your host machine workspace:
+- Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
 
-   ```yaml
-    #
-    # Copyright (C) 2024 Intel Corporation
-    # SPDX-License-Identifier: Apache-2.0
-    #
-
-    services:
-      dlstreamer-pipeline-server:
-        image: intel/dlstreamer-pipeline-server:3.0.0
-        hostname: dlstreamer-pipeline-server
-        container_name: dlstreamer-pipeline-server
-        read_only: true
-        security_opt:
-        - no-new-privileges
-        privileged: false
-        tty: true
-        entrypoint: ["./run.sh"]
-        ports:
-          - '8080:8080'
-          - '8554:8554'
-        networks:
-          - app_network
-        environment:
-          - ENABLE_RTSP=true
-          - RTSP_PORT=8554
-          - no_proxy=$no_proxy,${RTSP_CAMERA_IP}
-          - http_proxy=$http_proxy
-          - https_proxy=$https_proxy
-          - RUN_MODE=EVA
-          - GST_DEBUG=1
-          # Default Detection and Classification Device
-          - DETECTION_DEVICE=CPU
-          - CLASSIFICATION_DEVICE=CPU
-          - ADD_UTCTIME_TO_METADATA=true
-          - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
-          - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
-          # Model Registry Microservice
-          - MR_VERIFY_CERT=/run/secrets/ModelRegistry_Server/ca-bundle.crt
-          # Append pipeline name to a publisher topic
-          - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
-          - REST_SERVER_PORT=8080
-        volumes:
-          # - "../configs/default/config.json:/home/pipeline-server/config.json"
-          - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
-          - "../certificates:/MqttCerts:ro"
-          - "../Certificates/ssl_server/:/run/secrets/DLStreamerPipelineServer_Server:ro"
-          - "../Certificates/model_registry/:/run/secrets/ModelRegistry_Server:ro"
-          - "/run/udev:/run/udev:ro"
-          - "/dev:/dev"
-          - "/tmp:/tmp"
-          - "./mr_models:/home/pipeline-server/mr_models:rw"
-        group_add:
-          - "109"
-          - "110"
-        device_cgroup_rules:
-        - 'c 189:* rmw'
-        - 'c 209:* rmw'
-        - 'a 189:* rwm'
-        devices:
-        - "/dev:/dev"
-
-    networks:
-      app_network:
-        driver: "bridge"
-
-    volumes:
-      vol_pipeline_root:
-        driver: local
-        driver_opts:
-          type: tmpfs
-          device: tmpfs
-   ```
+  ```sh
+    cd [WORKDIR]
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
+    ```
 
 - Bring up the container
+
    ```sh
      docker compose up
    ```
+   
 ### Run default sample
 
 Once the container is up, we will send a pipeline request to DL Streamer pipeline server to run a detection model on a warehouse video. Both the model and video are provided as default sample in the docker image.

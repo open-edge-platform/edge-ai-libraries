@@ -5,51 +5,46 @@ x-vippet: &vippet
     dockerfile: Dockerfile.vippet
   ports:
     - "7860:7860"
-  command: gradio app.py
+  command: python app.py
+  healthcheck:
+    test: ["CMD", "wget", "-qO-", "http://localhost:7860/"]
+    interval: 30s
+    timeout: 10s
+    retries: 5
   depends_on:
-    - models
+    models:
+      condition: service_healthy
   restart: on-failure:5
-  # # The following config applies to WSL2:
-  # environment:
-  #   DISPLAY: ":0"
-  #   WAYLAND_DISPLAY: "wayland-0"
-  #   XDG_RUNTIME_DIR: "/mnt/wslg/runtime-dir"
-  #   PULSE_SERVER: "/mnt/wslg/PulseServer"
-  #   GST_DEBUG: "1"
-  # devices:
-  #   - "/dev/dri:/dev/dri"
-  # volumes:
-  #   - "/run/desktop/mnt/host/wslg/.X11-unix:/tmp/.X11-unix"
-  #   - "/run/desktop/mnt/host/wslg:/mnt/wslg"
-  #   - "/usr/lib/wsl:/usr/lib/wsl"
-  # The following config applies to Linux:
   environment:
     GST_DEBUG: "1"
+    TZ: America/Los_Angeles
+    PIPELINE: smartnvr
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
 
 services:
   models:
-    image: docker.io/openvino/ubuntu22_dev:2025.0.0
+    image: docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
+      - ./models.sh:/tmp/models.sh
+    environment:
+      - MODELS_PATH=/output/
     user: root
-    command: bash -xc '
-        test -f /output/.done || (
-          mkdir -p /output/pipeline-zoo-models &&
-          git clone --depth 1 https://github.com/dlstreamer/pipeline-zoo-models.git &&
-          cp -r pipeline-zoo-models/storage/efficientnet-b0_INT8 /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/ssdlite_mobilenet_v2_INT8/ /output/pipeline-zoo-models &&
-          cp -r pipeline-zoo-models/storage/resnet-50-tf_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5m-416_INT8/ /output/pipeline-zoo-models/ &&
-          cp -r pipeline-zoo-models/storage/yolov5s-416_INT8/ /output/pipeline-zoo-models/
-        ) &&
-        touch /output/.done &&
+    command: bash -c '
+        cp /tmp/models.sh . &&
+        chmod +x models.sh &&
+        bash -c ./models.sh &&
         tail -f /dev/null
       '
     restart: on-failure:5
+    healthcheck:
+      test: ["CMD", "test", "-f", "healthcheck.txt"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu
@@ -74,8 +69,8 @@ services:
   collector:
     image: docker.io/intel/vippet-collector:v1.0.0
     build:
-      context: .
-      dockerfile: Dockerfile.collector
+      context: ./collector
+      dockerfile: Dockerfile
     container_name: collector
     privileged: true
     devices:
@@ -87,11 +82,8 @@ services:
     ipc: host
     pid: host
     volumes:
-      - "collector-signals:/usr/src/app/.collector-signals"
-    command: bash -xc '
-        chmod a+rwx /usr/src/app/.collector-signals &&
-        bash /usr/src/app/collector.sh
-      '
+      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
+      - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
     image: docker.io/intel/vippet-videogenerator:v1.0.0

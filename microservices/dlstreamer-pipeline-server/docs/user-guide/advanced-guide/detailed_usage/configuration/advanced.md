@@ -10,10 +10,6 @@ Here is a sample EIS config file.
 ```sh
 {
     "config": {
-        "logging": {
-            "C_LOG_LEVEL": "INFO",
-            "PY_LOG_LEVEL": "INFO"
-        },
         "cert_type": [
             "grpc"
         ],
@@ -83,7 +79,6 @@ Fields in `config` section.
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
 
 | `cert_type`         | Type of EIS certs to be created. This should be `"zmq"` or `"pem"`.                                      |
-| `logging`           | Set log level for `"C_LOG_LEVEL"`, `"PY_LOG_LEVEL"`. Default is `INFO`.                                      |
 | `pipelines`         | List of DL Streamer pipelines.     
 
 Fields within `pipelines` section. 
