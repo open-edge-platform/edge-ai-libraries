@@ -29,6 +29,17 @@ Set the environment with default values by running the following script:
 source setup.sh
 ```
 
+The `setup.sh` script allows you to configure the environment for either CPU or GPU usage. Modify the script as needed to set the appropriate values for your system.
+
+> **Note**: To run the service with GPU support, set `EMBEDDING_DEVICE=GPU` before sourcing `setup.sh`:
+
+```bash
+export EMBEDDING_DEVICE=GPU
+source setup.sh
+```
+
+The script will automatically set other required variables for GPU.
+
 ### List of Environment Variables
 
 - `APP_NAME`: Name of the application.
@@ -58,11 +69,10 @@ _Document how to get prebuilt docker image_
 To run the server using Docker Compose, use the following command:
 
  ```bash
- # Run on CPU
  docker compose -f docker/compose.yaml up
- # Run on GPU
- docker compose -f docker/compose.arc-gpu.yaml up
  ```
+
+The `setup.sh` script determines whether the server runs on CPU or GPU by setting the appropriate environment variables.
 
 ## Sample CURL Commands
 

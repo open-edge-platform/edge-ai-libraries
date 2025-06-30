@@ -17,5 +17,5 @@ SECURITY.md @xwu2intel
 /microservices/multimodal-embedding-serving/ @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha
 /microservices/visual-data-preparation-for-retrieval/ @bhardwaj-nakul @krish918 @llin60 @xwu2intel
 /microservices/vector-retriever/ @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/audio-intelligence/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
+/microservices/audio-analyzer/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
 /sample-applications/video-search-and-summarization/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey

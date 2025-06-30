@@ -67,10 +67,10 @@ Define the name for minioServer Chart.
 {{- end }}
 
 {{/*
-Define the name for audiointelligence Chart.
+Define the name for audioanalyzer Chart.
 */}}
-{{- define "audiointelligence.fullname" -}}
-{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.audiointelligence.name }}
+{{- define "audioanalyzer.fullname" -}}
+{{ .Release.Name | trunc 57 | trimSuffix "-" }}-{{ .Values.audioanalyzer.name }}
 {{- end }}
 
 {{/*

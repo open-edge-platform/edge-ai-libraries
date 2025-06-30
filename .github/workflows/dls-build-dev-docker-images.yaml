@@ -16,9 +16,9 @@ jobs:
       fail-fast: false
       matrix:
         include:
-          - path_dev: ./libraries/dl-streamer/docker/devel/ubuntu22/dlstreamer_dev_ubuntu22.Dockerfile
+          - path_dockerfile: ./libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
             ubuntu_version: ubuntu22
-          - path_dev: ./libraries/dl-streamer/docker/devel/ubuntu24/dlstreamer_dev_ubuntu24.Dockerfile
+          - path_dockerfile: ./libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
@@ -47,10 +47,11 @@ jobs:
       run: |
         docker buildx build \
           --load \
+          --target dlstreamer-dev \
           --tag "${dev_debug_img}" \
           --cache-from="${dev_debug_img_cached}" \
           --build-arg BUILD_ARG=Debug \
-          -f ${{ matrix.path_dev }} \
+          -f ${{ matrix.path_dockerfile }} \
           ./libraries/dl-streamer
 
     # ======================================================== SCANNING PART ========================================================

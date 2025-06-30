@@ -10,10 +10,10 @@ dependencies:
   - name: minioServer
     version: 0.1.0
     repository: "file://subchart/minioserver"
-  - name: audiointelligence
+  - name: audioanalyzer
     version: 0.1.0
-    repository: "file://subchart/audio-intelligence/"
-    condition: audiointelligence.enabled
+    repository: "file://subchart/audio-analyzer/"
+    condition: audioanalyzer.enabled
   - name: postgresql
     version: 0.1.0
     repository: "file://subchart/postgresql/"

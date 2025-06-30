@@ -16,7 +16,7 @@ vlminference:
 videoingestion:
   enabled: true 
 
-audiointelligence:
+audioanalyzer:
   enabled: true
 
 videoSummaryManager:

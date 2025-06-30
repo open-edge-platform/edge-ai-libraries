@@ -1,6 +1,0 @@
-apiVersion: v2
-name: audiointelligence
-description: A Helm chart for Audio Intelligence service in the Video Search and Summarization application
-type: application
-version: 0.1.0
-appVersion: "1.16.0"

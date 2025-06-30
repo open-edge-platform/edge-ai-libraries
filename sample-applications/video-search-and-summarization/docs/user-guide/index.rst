@@ -20,7 +20,6 @@
 .. toctree::
    :caption: References
 
-   benchmarks
    api-reference
 
 .. toctree::

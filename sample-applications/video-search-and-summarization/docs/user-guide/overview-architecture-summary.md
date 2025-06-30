@@ -64,7 +64,6 @@ The application flow involves the following steps:
 The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
 *Figure 3: Dataflow for Video Summary sample application
-_TODO: Update the diagram_
 
 ## Key Components and Their Roles
 <!--
@@ -93,6 +92,15 @@ The key components of Video Summary are as follows:
    - **What it is**: The UI microservice allows the user to interact with the sample application. It allows the user to configure the capabilities required on summary pipeline, configure the input video details, and trigger the summary pipeline.
    - **How it’s used**: UI interface should be used by the user to interact with this microservice.
    - **Benefits**: This microservice should be treated as a sample reference implementation.
+
+5. **Dependent microservices**:
+   The dependent microservices are those that are used by the pipeline to realize the features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are: 
+   - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/)
+   - [Audio Analyzer](../../../../microservices/audio-analyzer/)
+   - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) 
+   - [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
+   
+   Refer to their respective documentation for details on their capability. 
 
 ## Extensibility
 
