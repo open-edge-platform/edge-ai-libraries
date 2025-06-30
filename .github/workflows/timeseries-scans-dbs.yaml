@@ -28,6 +28,18 @@ jobs:
           git version && 
           docker compose version
 
+      - name: Checkout docker/docker-bench-security (main)
+        uses: actions/checkout@v4
+        with:
+          repository: docker/docker-bench-security
+          ref: main
+          path: docker-bench-security
+          persist-credentials: false
+      
+      - name: Build Docker Bench Security
+        run: |
+          docker build --no-cache -t docker-bench-security .
+
       - name: Build Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
@@ -42,14 +54,16 @@ jobs:
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
-          docker pull docker/docker-bench-security
-          docker run -i --net host --pid host --cap-add audit_control \
-            -v /var/lib:/var/lib \
-            -v /var/run/docker.sock:/var/run/docker.sock \
-            -v /usr/lib/systemd:/usr/lib/systemd \
-            -v /etc:/etc \
-            --label docker_bench_security \
-            docker/docker-bench-security > dbs_scan_timeseries.txt
+          docker run --rm --net host --pid host --userns host --cap-add audit_control \
+          -e DOCKER_CONTENT_TRUST=$DOCKER_CONTENT_TRUST \
+          -v /etc:/etc:ro \
+          -v /usr/bin/containerd:/usr/bin/containerd:ro \
+          -v /usr/bin/runc:/usr/bin/runc:ro \
+          -v /usr/lib/systemd:/usr/lib/systemd:ro \
+          -v /var/lib:/var/lib:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock:ro \
+          --label docker_bench_security \
+          docker-bench-security > dbs_scan_timeseries.txt
 
       - name: Undeploy Time Series Analytics microservice
         run: |
