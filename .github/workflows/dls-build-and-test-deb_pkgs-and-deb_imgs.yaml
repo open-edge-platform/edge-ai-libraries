@@ -9,6 +9,7 @@ env:
   MODELS_PATH: "$HOME/models"
   VIDEO_INPUTS_PATH: "$HOME/videos"
   DLS_REL_PATH: "./libraries/dl-streamer"
+  HELLO_DLS_PATH: "$HOME/test_hello_dlstreamer"
 
 jobs:
   build:
@@ -126,8 +127,8 @@ jobs:
     - name: 👋 Test hello_dlstreamer script
       id: test_hello_dlstreamer_script
       run: |
-        mkdir -p $HOME/test_hello_dlstreamer
-        cd $HOME/test_hello_dlstreamer
+        mkdir -p ${{ env.HELLO_DLS_PATH }}
+        cd ${{ env.HELLO_DLS_PATH }}
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Running hello_dlstreamer.sh on CPU with model yolo11s"
         /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=CPU --model=yolo11s
@@ -151,7 +152,7 @@ jobs:
       if: steps.test_hello_dlstreamer_script.outcome == 'success'
       with:
         name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
-        path: $HOME/test_hello_dlstreamer
+        path: ${{ env.HELLO_DLS_PATH }}
 
     - name: Init tests configurations
       run: |
