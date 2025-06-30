@@ -1,0 +1,13 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+  audio-analyzer:
+    build:
+      target: dev
+    image: ${REGISTRY:-}audio-analyzer:dev
+    volumes:
+      # Mount the code directory to enable hot reloading
+      - ../:/app
+    environment:
+      - DEBUG=true
