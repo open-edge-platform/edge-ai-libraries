@@ -341,22 +341,22 @@
         },
         "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU": {
             "name": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU",
-            "dataset.groundtruth": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU_identity_100.json",
+            "dataset.groundtruth": "instance_segmentation_inception_CPU.json",
             "sample.command": "{sample.dir}/gst_launch/instance_segmentation/instance_segmentation.sh,--model,mask_rcnn_inception_resnet_v2_atrous_coco,--device,CPU,--input,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,--benchmark_sink,{identity_100},--output,json"
         },
         "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_GPU": {
             "name": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_GPU",
-            "dataset.groundtruth": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_GPU_identity_100.json",
+            "dataset.groundtruth": "instance_segmentation_inception_GPU.json",
             "sample.command": "{sample.dir}/gst_launch/instance_segmentation/instance_segmentation.sh,--model,mask_rcnn_inception_resnet_v2_atrous_coco,--device,GPU,--input,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,--benchmark_sink,{identity_100},--output,json"
         },
         "instance_segmentation_mask_rcnn_resnet50_atrous_coco_CPU": {
             "name": "instance_segmentation_mask_rcnn_resnet50_atrous_coco_CPU",
-            "dataset.groundtruth": "instance_segmentation_mask_rcnn_resnet50_atrous_coco_CPU_identity_100.json",
+            "dataset.groundtruth": "instance_segmentation_CPU.json",
             "sample.command": "{sample.dir}/gst_launch/instance_segmentation/instance_segmentation.sh,--model,mask_rcnn_resnet50_atrous_coco,--device,CPU,--input,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,--benchmark_sink,{identity_100},--output,json"
         },
         "instance_segmentation_mask_rcnn_resnet50_atrous_coco_GPU": {
             "name": "instance_segmentation_mask_rcnn_resnet50_atrous_coco_GPU",
-            "dataset.groundtruth": "instance_segmentation_mask_rcnn_resnet50_atrous_coco_GPU_identity_100.json",
+            "dataset.groundtruth": "instance_segmentation_GPU.json",
             "sample.command": "{sample.dir}/gst_launch/instance_segmentation/instance_segmentation.sh,--model,mask_rcnn_resnet50_atrous_coco,--device,GPU,--input,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4,--benchmark_sink,{identity_100},--output,json"
         },
         "action_recognition_CPU": {
