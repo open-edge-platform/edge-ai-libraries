@@ -102,7 +102,11 @@ Before running the application, you need to set several environment variables:
 
     # Multimodal embedding model. Only openai/clip-vit-base models are supported
     export VCLIP_MODEL=openai/clip-vit-base-patch32
+
+    # Text Embedding model. Only Qwen/Qwen3-Embedding-0.6B is supported.
+    export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
     ```
+
 
 **🔐 Working with Gated Models**
 

@@ -17,10 +17,6 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 # Set default tag if not already set
 export TAG=${TAG:-latest}
 
-export APP_NAME="multimodal-embedding-serving"
-export APP_DISPLAY_NAME="Multimodal Embedding serving"
-export APP_DESC="Generates embeddings for text, images, and videos using pretrained models"
-
 # Video processing defaults
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end

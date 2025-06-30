@@ -19,9 +19,6 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 These are environment variables which are crucial for running the application and are required during runtime.
 
-- `APP_NAME`: Name of the application.
-- `APP_DISPLAY_NAME`: Display name of the application.
-- `APP_DESC`: Description of the application.
 - `TEXT_EMBEDDING_MODEL_NAME`: Name of the pre-trained text embedding model.
 - `IMAGE_EMBEDDING_MODEL_NAME`: Name of the pre-trained multimodal embedding model.
 - `USE_ONLY_TEXT_EMBEDDINGS`: Set this to true to enable text embedding generation only, instead of multimodal embeddings.
@@ -44,27 +41,6 @@ The user has an option to either [build the docker images](./how-to-build-from-s
 
 _Document how to get prebuilt docker image_
 
-### Set Required Environment Variables
-
-1. Set the required `VCLIP_MODEL` and `QWEN_MODEL` environment variable:
-
-```bash
-export VCLIP_MODEL="openai/clip-vit-base-patch32"
-export QWEN_MODEL="Qwen/Qwen3-Embedding-0.6B"
-```
-
-2. _(OPTIONAL)_ The service supports multimodal embedding models, but if you want to work only with text embeddings, set the following environment variable:
-
-```bash
-export USE_ONLY_TEXT_EMBEDDINGS=True
-```
-
-3. Set the other required environment with default values by running the following script:
-
-```bash
-source setup.sh
-```
-
 ### Running the Server
 
 1. Clone the repo and change to the `multimodal-embedding-serving` directory:
@@ -74,7 +50,28 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/multimodal-embedding-serving
 ```
 
-2. To run the service using Docker Compose, use the following command:
+2. Set the required `VCLIP_MODEL` and `QWEN_MODEL` environment variable:
+
+```bash
+export VCLIP_MODEL="openai/clip-vit-base-patch32"
+export QWEN_MODEL="Qwen/Qwen3-Embedding-0.6B"
+```
+
+3. _(OPTIONAL)_ The service supports multimodal embedding models (currently using `VCLIP_MODEL`), but if you want to work only with text embeddings (which uses `QWEN_MODEL`), set the following environment variable:
+
+```bash
+export USE_ONLY_TEXT_EMBEDDINGS=True
+```
+
+> __NOTE__: If the above variable is not set, `VCLIP_MODEL` will be used for creating both text embeddings as well as image embeddings.
+
+4. Set the other required environment with default values by running the following script:
+
+```bash
+source setup.sh
+```
+
+5. To run the service using Docker Compose, use the following command:
 
  ```bash
  # Run on CPU
@@ -83,7 +80,7 @@ cd edge-ai-libraries/microservices/multimodal-embedding-serving
  docker compose -f docker/compose.arc-gpu.yaml up
  ```
 
- 3. To stop the service and bring down the container:
+ 6. To stop the service and bring down the container:
 
  ```bash
  # When runing on CPU
