@@ -1,3 +1,6 @@
+# Time Series Analytics
+=======================
+
 .. toctree::
    :hidden:
 
