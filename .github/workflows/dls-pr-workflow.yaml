@@ -61,7 +61,7 @@ jobs:
       actions: read
       contents: read
       packages: read
-    name: SAN DLS static code nalysis for C/C++
+    name: SAN DLS static code analysis for C/C++
     uses: ./.github/workflows/dls-codeql.yaml
 
   build-dev-images:
