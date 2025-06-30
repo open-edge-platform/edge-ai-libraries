@@ -95,8 +95,8 @@ The key components of Video Summary are as follows:
 
 5. **Dependent microservices**:
    The dependent microservices are those that are used by the pipeline to realize the features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are: 
-   - [Audio Analyzer](../../../../microservices/audio-analyzer/)
    - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/)
+   - [Audio Analyzer](../../../../microservices/audio-analyzer/)
    - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) 
    - [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
    
