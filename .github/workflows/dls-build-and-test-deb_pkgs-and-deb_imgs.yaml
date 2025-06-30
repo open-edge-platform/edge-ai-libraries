@@ -9,7 +9,6 @@ env:
   MODELS_PATH: "$HOME/models"
   VIDEO_INPUTS_PATH: "$HOME/videos"
   DLS_REL_PATH: "./libraries/dl-streamer"
-  HELLO_DLS_PATH: "$HOME/test_hello_dlstreamer"
 
 jobs:
   build:
@@ -127,8 +126,8 @@ jobs:
     - name: 👋 Test hello_dlstreamer script
       id: test_hello_dlstreamer_script
       run: |
-        mkdir -p ${{ env.HELLO_DLS_PATH }}
-        cd ${{ env.HELLO_DLS_PATH }}
+        mkdir -p $DLS_REL_PATH/test_hello_dlstreamer
+        cd $DLS_REL_PATH/test_hello_dlstreamer
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Running hello_dlstreamer.sh on CPU with model yolo11s"
         /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=CPU --model=yolo11s
@@ -152,7 +151,7 @@ jobs:
       if: steps.test_hello_dlstreamer_script.outcome == 'success'
       with:
         name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
-        path: ${{ env.HELLO_DLS_PATH }}
+        path: ${{ env.DLS_REL_PATH }}/test_hello_dlstreamer
 
     - name: Init tests configurations
       run: |
@@ -223,6 +222,5 @@ jobs:
       if: always()
       run: |
         rm -rf $HOME/.virtualenvs
-        rm -rf $HOME/test_hello_dlstreamer
-        sudo rm -f $HOME/dl-streamer
         docker rmi ${deb_img} || true
+        sudo rm -f $HOME/dl-streamer
