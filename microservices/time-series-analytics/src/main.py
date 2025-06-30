@@ -84,10 +84,11 @@ def stop_kapacitor_service():
     try:
         response = requests.get(f"{KAPACITOR_URL}/kapacitor/v1/tasks")
         tasks = response.json().get('tasks', [])
-        id = tasks[0].get('id')
-        logger.info(f"Stopping Kapacitor tasks: {id}")
-        subprocess.run(["kapacitor", "disable", id], check=False)
-        subprocess.run(["pkill", "-9", "kapacitord"], check=False)
+        if len(tasks) > 0:
+            id = tasks[0].get('id')
+            logger.info(f"Stopping Kapacitor tasks: {id}")
+            subprocess.run(["kapacitor", "disable", id], check=False)
+            subprocess.run(["pkill", "-9", "kapacitord"], check=False)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error stopping Kapacitor service: {e}")
 
