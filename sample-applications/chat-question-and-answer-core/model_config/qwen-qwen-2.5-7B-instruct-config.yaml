@@ -2,7 +2,6 @@ model_settings:
   EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
   RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
   LLM_MODEL_ID: "Qwen/Qwen2.5-7B-Instruct"
-  # MAX_TOKENS: 30
   PROMPT_TEMPLATE: "
     <|im_start|>
     system:
@@ -20,5 +19,4 @@ model_settings:
     <|im_end|>
 
     <|im_start|>assistant
-
     "

@@ -1,6 +1,6 @@
 from pydantic_settings import BaseSettings
 from os.path import dirname, abspath
-from .prompt import default_rag_prompt_template
+from .prompt import get_prompt_template
 import os
 import yaml
 
@@ -41,6 +41,7 @@ class Settings(BaseSettings):
     EMBEDDING_MODEL_ID: str = ""
     RERANKER_MODEL_ID: str = ""
     LLM_MODEL_ID: str = ""
+    PROMPT_TEMPLATE: str = ""
     EMBEDDING_DEVICE: str = "CPU"
     RERANKER_DEVICE: str = "CPU"
     LLM_DEVICE: str = "CPU"
@@ -49,7 +50,6 @@ class Settings(BaseSettings):
     MAX_TOKENS: int = 1024
     ENABLE_RERANK: bool = True
     TMP_FILE_PATH: str = "/tmp/chatqna/documents"
-    PROMPT_TEMPLATE: str = default_rag_prompt_template
     MODEL_CONFIG_PATH: str = "/tmp/model_config/config.yaml"
 
     def __init__(self, **kwargs):
@@ -57,13 +57,21 @@ class Settings(BaseSettings):
         config_file = self.MODEL_CONFIG_PATH
 
         if os.path.isfile(config_file):
+            print(f"INFO - {config_file} exists. Loading configuration from {config_file}")
             with open(config_file, 'r') as f:
                 config = yaml.safe_load(f)
 
             for key, value in config.get("model_settings", {}).items():
                 if hasattr(self, key):
                     setattr(self, key, value)
+
         else:
-            raise FileNotFoundError(f"Expected a file at {config_file}, but found a directory or nothing.")
+            print(f"WARNING - Expected a file at {config_file}, but found a directory or nothing.")
+            print("INFO - Proceeding with default settings or previously loaded configurations from env variables.")
+
+        if not self.PROMPT_TEMPLATE:
+            print("INFO - PROMPT_TEMPLATE is not set. Get prompt template based on LLM_MODEL_ID.")
+            self.PROMPT_TEMPLATE = get_prompt_template(self.LLM_MODEL_ID)
+
 
 config = Settings()
