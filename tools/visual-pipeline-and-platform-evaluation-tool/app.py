@@ -769,17 +769,18 @@ def create_interface():
     )
 
     # Object detection model
+    # Mapping of this choices to actual model path in utils.py
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
         choices=[
-            "SSDLite MobileNet V2",
-            "YOLO v5m 416x416",
-            "YOLO v5s 416x416",
-            "YOLO v5m 640x640",
-            "YOLO v10s 640x640",
-            "YOLO v10m 640x640",
+            "SSDLite MobileNet V2 (INT8)",
+            "YOLO v5m 416x416 (INT8)",
+            "YOLO v5s 416x416 (INT8)",
+            "YOLO v5m 640x640 (INT8)",
+            "YOLO v10s 640x640 (FP16)",
+            "YOLO v10m 640x640 (FP16)",
         ],
-        value="YOLO v5s 416x416",
+        value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
     )
 
@@ -825,14 +826,15 @@ def create_interface():
     )
 
     # Object classification model
+    # Mapping of this choices to actual model path in utils.py
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
-            "EfficientNet B0",
-            "MobileNet V2 PyTorch",
-            "ResNet-50 TF",
+            "EfficientNet B0 (INT8)" ,
+            "MobileNet V2 PyTorch (FP16)",
+            "ResNet-50 TF (INT8)",
         ],
-        value="ResNet-50 TF",
+        value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",
     )
 
