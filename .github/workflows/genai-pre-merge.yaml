@@ -14,7 +14,7 @@ concurrency:
 on:
   pull_request:
     branches:
-      - main
+      - jira-ITEP-70214
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
