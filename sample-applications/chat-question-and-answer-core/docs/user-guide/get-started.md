@@ -50,7 +50,7 @@ By following this guide, you will learn how to:
     To utilize the release images for the ChatQ&A sample application from the registry, set the following environment variables:
     ```bash
     export REGISTRY="intel/"
-    export UI_TAG=core_1.1.2
+    export UI_TAG=core_1.2.0
     # If you prefer to use the default CPU device, set the following:
     export BACKEND_TAG=core_1.2.0
     # If you want to utilize GPU device for inferencing, set the following:
