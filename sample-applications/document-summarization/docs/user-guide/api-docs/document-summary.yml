@@ -1,0 +1,38 @@
+openapi: 3.0.3
+info:
+  title: Document Summarization API
+  version: "1.0"
+  description: API for uploading documents and receiving AI-generated summaries.
+servers:
+  - url: http://localhost:8090
+paths:
+  /docsum:
+    post:
+      summary: Summarize an uploaded document
+      description: Accepts a document file and returns a summary.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                document:
+                  type: string
+                  format: binary
+                  description: The document file to summarize.
+      responses:
+        '200':
+          description: Summary generated successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: string
+                    description: The generated summary text.
+        '400':
+          description: Invalid input (e.g., missing file, unsupported format).
+        '500':
+          description: Internal server error.

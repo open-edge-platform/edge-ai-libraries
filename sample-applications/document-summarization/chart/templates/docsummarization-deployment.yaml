@@ -1,0 +1,35 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: document-summarization
+  labels:
+    app: document-summarization
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: document-summarization 
+  template:
+    metadata:
+      labels:
+        app: document-summarization
+    spec:        
+      containers:
+        - name: {{.Values.docSumUI.name}}
+          image: "{{ .Values.global.DocSum.image.ui.repository }}:{{ .Values.global.DocSum.image.ui.tag }}"
+          imagePullPolicy: "{{ .Values.global.DocSum.image.ui.pullPolicy }}"
+          ports:
+            - containerPort: {{ .Values.docSumUI.service.port }}
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.noProxy }},localhost"
+            - name: http_proxy
+              value: {{ .Values.global.proxy.httpProxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.httpsProxy }}
+            - name: LLM_MODEL
+              value: "{{ .Values.global.llm.llmModelId }}"
+            - name: API_URL
+              value: "{{ .Values.global.backendApi.url }}"
+          command: ["python"]
+          args: ["ui/gradio_app.py"]
