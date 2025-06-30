@@ -44,8 +44,7 @@ sample-applications/video-search-and-summarization/
 └── README.md                  # Project documentation
 ```
 
-## ⚙️ Setting Required Environment Variables
-<a name="required-env"></a>
+## Setting Required Environment Variables
 
 Before running the application, you need to set several environment variables:
 
@@ -120,7 +119,7 @@ Before running the application, you need to set several environment variables:
    export HUGGINGFACE_TOKEN=<your_huggingface_token>
    ```
 
-Once exported, run the setup script as mentioned [here](#️running-app). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
+Once exported, run the setup script as mentioned [here](#running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ## 📊 Application Stacks Overview
 
@@ -141,8 +140,7 @@ The Video Summary application offers multiple stacks and deployment options:
 | VLM-OVMS-CPU | vlm-openvino-serving on CPU | OVMS Microservice on CPU | `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
-## ▶️ Running the Application
-<a name="running-app"></a>
+## Running the Application
 
 Follow these steps to run the application:
 
@@ -153,7 +151,7 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
-2. Set the required environment variables as described  [above](#️required-env).
+2. Set the required environment variables as described [here](#setting-required-environment-variables).
 
 3. Run the setup script with the appropriate flag, depending on your use case. 
 
