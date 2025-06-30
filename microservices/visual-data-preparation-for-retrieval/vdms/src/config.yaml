@@ -1,0 +1,26 @@
+
+# path of uploaded video and its metadata's temporary location on local storage
+videos_local_temp_dir: /tmp/dataprep/videos
+metadata_local_temp_dir: /tmp/dataprep/metadata
+
+# Whether to extract frames of videos or not (True if not done already, else False)
+generate_frames: True
+
+# Config for generating feature embeddings
+embeddings:
+  vclip_model_name: "openai/clip-vit-base-patch32"
+  vclip_num_frame: 64
+  vector_dimensions: 512
+  # path: "data/uploaded_files/embeddings"
+
+# Chunk duration defines the interval of time that each embedding will occur
+chunk_duration: 30
+# Clip duration defines the length of the interval in which the embedding will occur
+clip_duration: 10
+# e.g. For every <chunk_duration>, you embed the first <clip_duration>'s frames of that interval
+
+# VL-branch config
+vl_branch:
+  cfg_path: embedding/video_llama_config/video_llama_eval_only_vl.yaml
+  model_type: "llama_v2"
+

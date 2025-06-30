@@ -14,7 +14,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [Helm deployment](./docs/user-guide/how-to-deploy-with-helm.md): Instructions for advanced configuration.
 
 - **API Reference**
-  - TBD
+  - [API reference](./docs/user-guide/how-to-access-api.md): Instructions to exercise REST APIs
 
 - **Release Notes**
   - [Release Notes](docs/user-guide/release_notes/Overview.md): Information on the latest updates, improvements, and bug fixes.
@@ -24,7 +24,8 @@ Below, you'll find links to detailed documentation to help you get started, conf
 Follow the steps below to run the unit tests.
 
 ```bash
-cd <path-to-edge-ai-libraries-repo>/microservices/time-series-analytics
+git clone https://github.com/open-edge-platform/edge-ai-libraries
+cd edge-ai-libraries/microservices/time-series-analytics
 echo "Running unit tests"
 ./tests/run_tests.sh
 ```
