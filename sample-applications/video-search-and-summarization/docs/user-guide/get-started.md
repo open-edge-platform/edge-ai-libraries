@@ -45,7 +45,6 @@ sample-applications/video-search-and-summarization/
 ```
 
 ## ⚙️ Setting Required Environment Variables
-<a name="required-env"></a>
 
 Before running the application, you need to set several environment variables:
 
@@ -100,10 +99,11 @@ Before running the application, you need to set several environment variables:
     # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
     export OD_MODEL_NAME="yolov8l-worldv2"
 
-    # Multimodal embedding model. Only openai/clip-vit-base models are supported
+    # SETTING EMBEDDING MODELS
+    # Set this when using --search option to run the application in video search mode. This enables a multimodal embedding model capable of generating correlated text and image embeddings. Only openai/clip-vit-base model is supported as of now.
     export VCLIP_MODEL=openai/clip-vit-base-patch32
 
-    # Text Embedding model. Only Qwen/Qwen3-Embedding-0.6B is supported.
+    # Set this when using --all option to run application in combined summarization and search mode. Only Qwen/Qwen3-Embedding-0.6B is supported as of now.
     export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
     ```
 
@@ -119,7 +119,7 @@ Before running the application, you need to set several environment variables:
    export HUGGINGFACE_TOKEN=<your_huggingface_token>
    ```
 
-Once exported, run the setup script as mentioned [here](#running-app). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
+Once exported, run the setup script as mentioned [here](#️▶️-running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ## 📊 Application Stacks Overview
 
@@ -141,7 +141,6 @@ The Video Summary application offers multiple stacks and deployment options:
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-7B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` |
 
 ## ▶️ Running the Application
-<a name="running-app"></a>
 
 Follow these steps to run the application:
 
@@ -152,7 +151,7 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
-2. Set the required environment variables as described  [above](#required-env).
+2. Set the required environment variables as described  [above](#️⚙️-setting-required-environment-variables).
 
 3. Run the setup script with the appropriate flag, depending on your use case. 
 
