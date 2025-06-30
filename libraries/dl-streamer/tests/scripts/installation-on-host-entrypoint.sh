@@ -54,7 +54,7 @@ docker ps -a
 #Remove gstreamer .cache
 echo_color "Checking $HOME/.cache/gstreamer-1.0/..." "blue"
 if [ -f $HOME/.cache/gstreamer-1.0/ ]; then
-    rm -rf $HOME/.cache/gstreamer-1.0/
+    sudo rm -rf $HOME/.cache/gstreamer-1.0/
     echo_color "Removed $HOME/.cache/gstreamer-1.0/" "blue"
 fi
 
