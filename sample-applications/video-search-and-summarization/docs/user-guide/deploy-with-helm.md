@@ -178,7 +178,7 @@ helm uninstall vss -n <your-namespace>
 - Ensure that all pods are running and the services are accessible.
 - Access the Video Summary application dashboard and verify that it is functioning as expected.
 - Upload a test video to verify that the ingestion, processing, and summary pipeline works correctly.
-- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio intelligence) are functioning properly.
+- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
 
 ## Troubleshooting
 
@@ -203,4 +203,3 @@ helm uninstall vss -n <your-namespace>
 ## Related links
 - [How to Build from Source](./build-from-source.md)
 - [How to Test Performance](./how-to-performance.md)
-- [How to Benchmark](./benchmarks.md)
