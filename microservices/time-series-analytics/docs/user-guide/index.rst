@@ -1,3 +1,6 @@
+# Time Series Analytics
+=======================
+
 .. toctree::
    :hidden:
 
@@ -11,6 +14,7 @@
 .. toctree::
    :caption: How to
    
+   how-to-access-api
    how-to-deploy-with-helm
 
 .. toctree::

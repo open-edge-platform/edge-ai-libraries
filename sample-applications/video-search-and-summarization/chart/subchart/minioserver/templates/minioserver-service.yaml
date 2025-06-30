@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.minioServer.name }}
+  labels:
+    app: {{ include "minioServer.name" . }}
+spec:
+  type: {{ .Values.minioServer.service.type }}
+  ports:
+    - name: api
+      port: {{ .Values.minioServer.service.port }}
+      targetPort: {{ .Values.minioServer.service.targetPort }}
+    - name: console
+      port: {{ .Values.minioServer.service.consolePort }}
+      targetPort: {{ .Values.minioServer.service.consoleTargetPort }}
+  selector:
+    app: {{ .Values.minioServer.name }}

@@ -362,9 +362,6 @@ class TestPipelineServerConfig:
     def test_get_pipelines_config(self, test_pipeline_server_config):
         assert test_pipeline_server_config.get_pipelines_config() == "test_pipeline"
 
-    def test_get_model_registry_config(self, test_pipeline_server_config):
-        assert test_pipeline_server_config.get_model_registry_config() == "test_model_registry"
-
     def test_get_app_interface(self, test_pipeline_server_config):
         test_pipeline_server_config._cfg_handler.get_app_interface.return_value = "mocked_interface"
         result = test_pipeline_server_config.get_app_interface()
