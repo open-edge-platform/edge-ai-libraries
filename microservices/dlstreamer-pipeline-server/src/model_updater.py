@@ -153,7 +153,7 @@ class ModelRegistryClient:
         return value
 
     def _send_request(self, url: str, method: RequestMethod = RequestMethod.GET,
-                       params=None, data=None, stream: bool=False) -> Response:
+                       params = None, data = None, stream: bool = False) -> Response:
         """Sends a HTTP/HTTPS request and retries the request 2 times while attempting
         to obtain a new JWT if the response's status code is 401
 
@@ -235,7 +235,7 @@ class ModelRegistryClient:
                     raise ValueError(
                         f"Received 0 or more than 1 model. " \
                         f"Expected a single model with properties: " \
-                            f"{params_dict_str}")
+                        f"{params_dict_str}")
 
                 model = json_obj[0]
                 self._logger.debug(
