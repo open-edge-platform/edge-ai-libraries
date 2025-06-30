@@ -28,11 +28,11 @@ jobs:
           git version && 
           docker compose version
 
-      - name: Checkout docker/docker-bench-security (main)
+      - name: Checkout docker/docker-bench-security (master)
         uses: actions/checkout@v4
         with:
           repository: docker/docker-bench-security
-          ref: main
+          ref: master
           path: docker-bench-security
           persist-credentials: false
       
