@@ -79,16 +79,16 @@ jobs:
         cp -r deb_packages ${{ env.DLS_REL_PATH }}
 
     # ======================================================== SCANNING PART ========================================================
-    # - name: Scan Docker image with Trivy
-    #   uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
-    #   with:
-    #     scan_target: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
-    #     severity: "CRITICAL"
-    #     scan_type: image
-    #     format: json
-    #     report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
-    #     scan-scope: all
-    #     timeout: 20m
+    - name: Scan Docker image with Trivy
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
+      with:
+        scan_target: "ghcr.io/${{ github.repository }}/dls-deb-${{ matrix.ubuntu_version }}:${{ github.sha }}"
+        severity: "CRITICAL"
+        scan_type: image
+        format: json
+        report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
+        scan-scope: all
+        timeout: 20m
 
     # ======================================================== OH HOST TESTING PART ========================================================
     - name: Print system information
