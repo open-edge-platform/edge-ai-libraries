@@ -7,157 +7,155 @@ import pytest
 import json
 from fastapi.testclient import TestClient
 from unittest.mock import patch, MagicMock, mock_open
-import sys
+import types
+from unittest.mock import patch, MagicMock, AsyncMock
+from opcua_alerts import OpcuaAlerts
 
-import opcua_alerts
 
 @pytest.fixture
-def client():
-    return TestClient(opcua_alerts.app)
-
-def test_load_opcua_config_success(tmp_path):
-    config = {
-        "config": {
-            "alerts": {
-                "opcua": {
-                    "node_id": "123",
-                    "namespace": "2",
-                    "opcua_server": "opc.tcp://localhost:4840"
-                }
+def valid_config():
+    return {
+        "alerts": {
+            "opcua": {
+                "node_id": "123",
+                "namespace": "2",
+                "opcua_server": "opc.tcp://localhost:4840"
             }
         }
     }
-    config_file = tmp_path / "config.json"
-    config_file.write_text(json.dumps(config))
-    node_id, namespace, opcua_server = opcua_alerts.load_opcua_config(str(config_file))
+
+@pytest.fixture
+def invalid_config():
+    return {}
+
+def test_load_opcua_config_success(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    node_id, namespace, opcua_server = alerts.load_opcua_config()
     assert node_id == "123"
     assert namespace == "2"
     assert opcua_server == "opc.tcp://localhost:4840"
 
-def test_load_opcua_config_failure():
-    with patch("builtins.open", side_effect=Exception("fail")):
-        node_id, namespace, opcua_server = opcua_alerts.load_opcua_config("badfile.json")
-        assert node_id is None
-        assert namespace is None
-        assert opcua_server is None
+def test_load_opcua_config_failure(invalid_config, caplog):
+    alerts = OpcuaAlerts(invalid_config)
+    node_id, namespace, opcua_server = alerts.load_opcua_config()
+    assert node_id is None
+    assert namespace is None
+    assert opcua_server is None
+    assert "Fetching app configuration failed" in caplog.text
 
-def test_create_opcua_client_success():
-    @patch("opcua_alerts.Client")
-    def test_successful_connection(self, MockClient):
-        # Create a mock instance of the Client
-        mock_client_instance = MockClient.return_value
-        
-        # Mock the connect method to simulate a successful connection
+@pytest.mark.asyncio
+async def test_connect_opcua_client_success(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    with patch("opcua_alerts.Client") as MockClient:
+        mock_client_instance = AsyncMock()
+        MockClient.return_value = mock_client_instance
         mock_client_instance.connect.return_value = None
-        
-        # Call the function to test
-        client = opcua_alerts.create_opcua_client("test_opcua_server")
-        
-        # Assert that the Client was initialized with the correct server URL
-        MockClient.assert_called_once_with("test_opcua_server")
-        
-        # Assert that the connect method was called on the client instance
-        mock_client_instance.connect.assert_called_once()
-        
-        # Assert that the returned client is the mock instance
-        self.assertEqual(client, mock_client_instance)
-
-def test_create_opcua_client_no_server():
-    client = opcua_alerts.create_opcua_client(None)
-    assert client is None
-
-def test_connect_opcua_client_success():
-    mock_client = MagicMock()
-    mock_client.connect.return_value = None
-    result = opcua_alerts.connect_opcua_client(mock_client, "false", "opc.tcp://localhost:4840")
-    assert result is True
-    mock_client.connect.assert_called_once()
-
-def test_connect_opcua_client_secure_mode():
-    mock_client = MagicMock()
-    mock_client.connect.return_value = None
-    mock_client.set_security_string.return_value = None
-    mock_client.set_user.return_value = None
-    result = opcua_alerts.connect_opcua_client(mock_client, "true", "opc.tcp://localhost:4840")
-    assert result is True
-    mock_client.set_security_string.assert_called()
-    mock_client.set_user.assert_called_with("admin")
-    mock_client.connect.assert_called_once()
-
-def test_connect_opcua_client_failure(monkeypatch):
-    mock_client = MagicMock()
-    mock_client.connect.side_effect = Exception("fail")
-    # Patch sys.exit to prevent exiting test runner
-    monkeypatch.setattr(sys, "exit", lambda code: None)
-    result = opcua_alerts.connect_opcua_client(mock_client, "false", "opc.tcp://localhost:4840", max_retries=1)
-    assert result is False
+        result = await alerts.connect_opcua_client("false")
+        assert result is True
+        mock_client_instance.connect.assert_awaited_once()
 
 @pytest.mark.asyncio
-async def test_send_alert_to_opcua_async_success(monkeypatch):
-    opcua_alerts.client = MagicMock()
-    opcua_alerts.namespace = "2"
-    opcua_alerts.node_id = "123"
-    mock_node = MagicMock()
-    opcua_alerts.client.get_node.return_value = mock_node
-    await opcua_alerts.send_alert_to_opcua_async("test alert")
-    opcua_alerts.client.get_node.assert_called_with("ns=2;i=123")
-    mock_node.write_value.assert_called_with("test alert")
+async def test_connect_opcua_client_secure_mode(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    with patch("opcua_alerts.Client") as MockClient:
+        mock_client_instance = AsyncMock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.connect.return_value = None
+        mock_client_instance.set_security_string.return_value = None
+        mock_client_instance.set_user.return_value = None
+        result = await alerts.connect_opcua_client("true")
+        assert result is True
+        mock_client_instance.set_security_string.assert_called()
+        mock_client_instance.set_user.assert_called_with("admin")
+        mock_client_instance.connect.assert_awaited_once()
 
 @pytest.mark.asyncio
-async def test_send_alert_to_opcua_async_no_client(caplog):
-    opcua_alerts.client = None
-    await opcua_alerts.send_alert_to_opcua_async("test alert")
+async def test_connect_opcua_client_failure(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    with patch("opcua_alerts.Client") as MockClient, patch("opcua_alerts.time.sleep", return_value=None):
+        mock_client_instance = AsyncMock()
+        MockClient.return_value = mock_client_instance
+        mock_client_instance.connect.side_effect = Exception("fail")
+        # Patch sys.exit to prevent exiting test runner
+        with patch("opcua_alerts.sys.exit") as mock_exit:
+            result = await alerts.connect_opcua_client("false", max_retries=2)
+            assert result is False or result is None
+            assert mock_client_instance.connect.await_count == 2
+
+@pytest.mark.asyncio
+async def test_connect_opcua_client_no_server(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.opcua_server = None
+    result = await alerts.connect_opcua_client("false")
+    assert result is None
+
+@pytest.mark.asyncio
+async def test_initialize_opcua_success(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=True)):
+        await alerts.initialize_opcua()
+        assert alerts.node_id == "123"
+        assert alerts.namespace == "2"
+        assert alerts.opcua_server == "opc.tcp://localhost:4840"
+
+@pytest.mark.asyncio
+async def test_initialize_opcua_failure(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    with patch.object(alerts, "connect_opcua_client", new=AsyncMock(return_value=False)):
+        with pytest.raises(RuntimeError):
+            await alerts.initialize_opcua()
+
+@pytest.mark.asyncio
+async def test_send_alert_to_opcua_success(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    alerts.client = MagicMock()
+    mock_node = AsyncMock()
+    alerts.client.get_node.return_value = mock_node
+    alert_message = json.dumps({"message": "test alert"})
+    await alerts.send_alert_to_opcua(alert_message)
+    alerts.client.get_node.assert_called_with("ns=2;i=123")
+    mock_node.write_value.assert_awaited_with(alert_message)
+
+@pytest.mark.asyncio
+async def test_send_alert_to_opcua_no_client(valid_config, caplog):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.client = None
+    await alerts.send_alert_to_opcua("test")
     assert "OPC UA client is not initialized." in caplog.text
 
 @pytest.mark.asyncio
-async def test_send_alert_to_opcua_async_exception(monkeypatch, caplog):
-    opcua_alerts.client = MagicMock()
-    opcua_alerts.namespace = "2"
-    opcua_alerts.node_id = "123"
-    opcua_alerts.client.get_node.side_effect = Exception("fail")
-    await opcua_alerts.send_alert_to_opcua_async("test alert")
-    assert "fail" in caplog.text
+async def test_send_alert_to_opcua_exception(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    alerts.client = MagicMock()
+    alerts.client.get_node.side_effect = Exception("fail")
+    with pytest.raises(Exception) as excinfo:
+        await alerts.send_alert_to_opcua("test")
+    assert "Failed to send alert to OPC UA server node" in str(excinfo.value)
 
-def test_read_root(client):
-    response = client.get("/")
-    assert response.status_code == 200
-    assert response.json() == {"message": "FastAPI server is running"}
+@pytest.mark.asyncio
+async def test_is_connected_true(valid_config):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    alerts.client = MagicMock()
+    mock_node = AsyncMock()
+    alerts.client.get_node.return_value = mock_node
+    mock_node.read_value.return_value = "some_value"
+    result = await alerts.is_connected()
+    assert result is True
+    alerts.client.get_node.assert_called_with("ns=2;i=123")
+    mock_node.read_value.assert_awaited_once()
 
-def test_receive_alert_success(client):
-    with patch.object(opcua_alerts, "send_alert_to_opcua_async") as mock_send:
-        mock_send.return_value = None
-        response = client.post("/opcua_alerts", json={"message": "alert!"})
-        assert response.status_code == 200
-        assert response.json()["status"] == "success"
-        mock_send.assert_called_once_with("alert!")
-
-def test_receive_alert_bad_json(client):
-    response = client.post("/opcua_alerts", data="notjson", headers={"content-type": "application/json"})
-    assert response.status_code == 400
-    assert "Expecting value" in response.json()["detail"]
-
-def test_startup_event_success(monkeypatch):
-    # Patch dependencies used in startup_event
-    mock_load = MagicMock(return_value=("123", "2", "opc.tcp://localhost:4840"))
-    mock_create = MagicMock()
-    mock_connect = MagicMock(return_value=True)
-    monkeypatch.setattr(opcua_alerts, "load_opcua_config", mock_load)
-    monkeypatch.setattr(opcua_alerts, "create_opcua_client", mock_create)
-    monkeypatch.setattr(opcua_alerts, "connect_opcua_client", mock_connect)
-    monkeypatch.setattr(opcua_alerts.os, "getenv", lambda key, default=None: "false")
-    # Call the startup_event function
-    opcua_alerts.startup_event()
-    mock_load.assert_called_once_with("/app/config.json")
-    mock_create.assert_called_once_with("opc.tcp://localhost:4840")
-    mock_connect.assert_called_once_with(mock_create.return_value, "false", "opc.tcp://localhost:4840")
-
-def test_startup_event_failed_connection(monkeypatch, caplog):
-    mock_load = MagicMock(return_value=("123", "2", "opc.tcp://localhost:4840"))
-    mock_create = MagicMock()
-    mock_connect = MagicMock(return_value=False)
-    monkeypatch.setattr(opcua_alerts, "load_opcua_config", mock_load)
-    monkeypatch.setattr(opcua_alerts, "create_opcua_client", mock_create)
-    monkeypatch.setattr(opcua_alerts, "connect_opcua_client", mock_connect)
-    monkeypatch.setattr(opcua_alerts.os, "getenv", lambda key, default=None: "false")
-    opcua_alerts.startup_event()
-    assert "Failed to connect to OPC UA server." in caplog.text
+@pytest.mark.asyncio
+async def test_is_connected_false(valid_config, caplog):
+    alerts = OpcuaAlerts(valid_config)
+    alerts.node_id, alerts.namespace, alerts.opcua_server = alerts.load_opcua_config()
+    alerts.client = MagicMock()
+    alerts.client.get_node.side_effect = Exception("fail")
+    result = await alerts.is_connected()
+    assert result is False
+    assert "Error checking OP CUA connection status" in caplog.text

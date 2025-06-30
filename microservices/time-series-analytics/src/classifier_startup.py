@@ -455,6 +455,8 @@ def classifier_startup(config):
         kapacitor_classifier.exit_with_failure_message(msg)
 
 kapacitor_classifier = KapacitorClassifier(logger)
+
 t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
+t1.daemon = True
 t1.start()
 
