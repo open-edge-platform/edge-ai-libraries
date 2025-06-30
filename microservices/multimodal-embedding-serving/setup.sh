@@ -28,7 +28,12 @@ export DEFAULT_NUM_FRAMES=64
 
 # OpenVINO configuration
 export EMBEDDING_USE_OV=false
-export EMBEDDING_DEVICE=CPU
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+
+# If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
+    export EMBEDDING_USE_OV=true
+fi
 
 export EMBEDDING_SERVER_PORT=9777
 
