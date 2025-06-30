@@ -36,12 +36,12 @@
         "vehicle_pedestrian_tracking_10_gpu": {
             "name": "vehicle_pedestrian_tracking_10_gpu",
             "dataset.groundtruth": "vehicle_pedestrian_tracking_10_gpu.json",
-            "sample.command": "{sample.dir}/gst_launch/vehicle_pedestrian_tracking/vehicle_pedestrian_tracking.sh,{dataset.video}/Pexels_Videos_4786.mp4,10,GPU,json"
+            "sample.command": "{sample.dir}/gst_launch/vehicle_pedestrian_tracking/vehicle_pedestrian_tracking.sh,{dataset.video}/Pexels_Videos_4786.mp4,10,GPU,file"
         },
         "vehicle_pedestrian_tracking_20_gpu": {
             "name": "vehicle_pedestrian_tracking_20_gpu",
             "dataset.groundtruth": "vehicle_pedestrian_tracking_20_gpu.json",
-            "sample.command": "{sample.dir}/gst_launch/vehicle_pedestrian_tracking/vehicle_pedestrian_tracking.sh,{dataset.video}/Pexels_Videos_4786.mp4,20,GPU,json"
+            "sample.command": "{sample.dir}/gst_launch/vehicle_pedestrian_tracking/vehicle_pedestrian_tracking.sh,{dataset.video}/Pexels_Videos_4786.mp4,20,GPU,file"
         },
         "human_pose_estimation_cpu": {
             "name": "human_pose_estimation_cpu",
@@ -206,7 +206,7 @@
         "yolov5s_GPU": {
             "name": "yolov5s_GPU",
             "dataset.groundtruth": "detection_yolov5s_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov5su_GPU": {
             "name": "yolov5su_GPU",
@@ -221,17 +221,17 @@
         "yolov8s_GPU": {
             "name": "yolov8s_GPU",
             "dataset.groundtruth": "detection_yolov8s_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov8s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov8s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov9c_GPU": {
             "name": "yolov9c_GPU",
             "dataset.groundtruth": "detection_yolov9c_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov9c,GPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov9c,GPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov10s_GPU": {
             "name": "yolov10s_GPU",
             "dataset.groundtruth": "detection_yolov10s_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov10s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov10s,GPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolo11s_GPU": {
             "name": "yolo11s_GPU",
@@ -251,7 +251,7 @@
         "yolo11s-pose_GPU": {
             "name": "yolo11s-pose_GPU",
             "dataset.groundtruth": "yolo11s-pose_GPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolo11s-pose,GPU,{dataset.video}/ballerina.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolo11s-pose,GPU,{dataset.video}/ballerina.mp4,file"
         },
         "yolov8n-obb_GPU": {
             "name": "yolov8n-obb_GPU",
@@ -266,7 +266,7 @@
         "multistream_twomodels_cpu_gpu": {
             "name": "multistream_twomodels_cpu_gpu",
             "dataset.groundtruth": "multi_stream_twomodels_cpu_gpu_identity_600.json",
-            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4 {identity_600},CPU,GPU,yolov8s,yolov9c,json"
+            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4 {identity_600},CPU,GPU,yolov8s,yolov9c,file"
         },
         "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU": {
             "name": "instance_segmentation_mask_rcnn_inception_resnet_v2_atrous_coco_CPU",
@@ -338,12 +338,12 @@
         "yolov5s_NPU": {
             "name": "yolov5s_NPU",
             "dataset.groundtruth": "yolov5s_pexels_video_4786_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5s,NPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5s,NPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov5su_NPU": {
             "name": "yolov5su_NPU",
             "dataset.groundtruth": "yolov5su_pexels_video_4786_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5su,NPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5su,NPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov7_NPU": {
             "name": "yolov7_NPU",
@@ -353,17 +353,17 @@
         "yolov8s_NPU": {
             "name": "yolov8s_NPU",
             "dataset.groundtruth": "detection_yolo_base_yolo-v8s_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov8s,NPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov8s,NPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolov9c_NPU": {
             "name": "yolov9c_NPU",
             "dataset.groundtruth": "detection_yolo_base_yolo-v9c_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov9c,NPU,{dataset.video}/Pexels_Videos_4786.mp4,json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov9c,NPU,{dataset.video}/Pexels_Videos_4786.mp4,file"
         },
         "yolo11s_NPU": {
             "name": "yolov11s_NPU",
             "dataset.groundtruth": "yolo11s_NPU_identity_1000.json",
-            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolo11s,NPU,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4 {identity_1000},json"
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolo11s,NPU,{dataset.video}/Pexels_Videos_1192116-sd_640_360_30fps.mp4 {identity_1000},file"
         },
         "yolo11s-obb_NPU": {
             "name": "yolo11s-obb_NPU",
@@ -393,12 +393,12 @@
         "multistream_onemodel_npu_npu": {
             "name": "multistream_onemodel_npu_npu",
             "dataset.groundtruth": "multi_stream_onemodel_NPU_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4,NPU,NPU,yolov8s,yolov8s,json"
+            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4,NPU,NPU,yolov8s,yolov8s,file"
         },
         "multistream_twomodels_npu_npu": {
             "name": "multistream_twomodels_npu_npu",
             "dataset.groundtruth": "multi_stream_twomodels_NPU_NPU.json",
-            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4,NPU,NPU,yolov8s,yolov9c,json"
+            "sample.command": "{sample.dir}/gst_launch/multi_stream/multi_stream_sample.sh,{dataset.video}/Pexels_Videos_4786_960x540.mp4,NPU,NPU,yolov8s,yolov9c,file"
         }
     }
 }
