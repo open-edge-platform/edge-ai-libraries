@@ -122,6 +122,18 @@ class RequestQueueMiddleware(BaseHTTPMiddleware):
             Response: The HTTP response.
         """
         if request.url.path == "/v1/chat/completions":
+            method = request.method
+            url = request.url
+            headers = dict(request.headers)
+            query_params = dict(request.query_params)
+            body = await request.body()  # Read the body (if applicable)
+
+            # Log the complete request details
+            logger.debug(f"Request Method: {method}")
+            logger.debug(f"Request URL: {url}")
+            logger.debug(f"Request Headers: {headers}")
+            logger.debug(f"Request Query Params: {query_params}")
+            logger.debug(f"Request Body: {body.decode('utf-8') if body else 'No Body'}")
             with request_lock:
                 queued_requests.value += 1
                 logger.info(
@@ -395,7 +407,9 @@ async def chat_completions(request: ChatRequest):
                     error = validate_video_inputs(content, settings.VLM_MODEL_NAME)
                     if error:
                         return JSONResponse(status_code=400, content={"error": error})
-                    if isinstance(content, MessageContentImageUrl):
+                    if isinstance(content, str):
+                        prompt = content
+                    elif isinstance(content, MessageContentImageUrl):
                         image_urls.append(content.image_url.get("url"))
                     elif isinstance(content, MessageContentText):
                         prompt = content.text

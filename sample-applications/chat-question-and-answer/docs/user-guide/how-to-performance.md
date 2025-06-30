@@ -36,7 +36,7 @@ Before you begin, ensure that you have the following prerequisites:
       The port number will depend based on if it is docker compose based deployment or Helm based deployment.
 
 4. **Monitor Performance Metrics**:
-    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard. Accordingly provide the right port number. For docker compose, the port number is `5173`.
+    - Monitor key performance metrics such as latency and throughput using the performance testing tool's dashboard. Accordingly provide the right port number. For docker compose, the port number is `8101`.
 
 ## Key Performance Metrics
 

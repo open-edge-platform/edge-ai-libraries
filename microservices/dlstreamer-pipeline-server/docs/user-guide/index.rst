@@ -18,6 +18,7 @@
    how-to-launch-configurable-pipelines
    how-to-start-evam-mqtt-publish
    how-to-store-s3-frame
+   how-to-store-metadata-influxdb
    how-to-launch-and-manage-pipeline
    how-to-use-rtsp-camera-as-video-source
    how-to-run-udf-pipelines
@@ -25,6 +26,7 @@
    how-to-use-image-file-as-source-over-request-payload
    how-to-download-and-run-yolo-models
    how-to-build-from-source
+   how-to-add-system-timestamps-to-metadata
    
 .. toctree::
    :caption: References

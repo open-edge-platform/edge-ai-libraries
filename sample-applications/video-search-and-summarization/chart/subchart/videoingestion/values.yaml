@@ -1,0 +1,50 @@
+global:
+  proxy:
+    no_proxy:
+    http_proxy:
+    https_proxy: 
+  env:
+    RABBITMQ_DEFAULT_USER: 
+    RABBITMQ_DEFAULT_PASS: 
+    MINIO_ROOT_USER: 
+    MINIO_ROOT_PASSWORD: 
+
+videoingestion:
+  name: videoingestion
+  fullnameOverride: videoingestion
+  fullname: videoingestion
+  image:
+    repository: "intel/video-ingestion"
+    tag: "1.2.0"
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8080
+    name: videoingestion
+
+  env:
+    RUN_MODE: EVA
+    DETECTION_DEVICE: cpu
+    ADD_UTCTIME_TO_METADATA: "true"
+    LSFEATURE_NAME: "EVAM"
+    HTTPS: "false"
+    MTLS_VERIFICATION: "false"
+    APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC: "false"
+    REST_SERVER_PORT: 8080
+
+rabbitmq:
+  name: rabbitmq
+  fullname: rabbitmq  
+  service:
+    name: rabbitmq
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+    mqttPort: 1883
+
+minioServer:
+  name: minio-server
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000
