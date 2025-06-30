@@ -35,13 +35,25 @@ Before you begin, ensure that you have the following prerequisites:
       export UI_TAG=1.0
       export BACKEND_TAG=1.0
       ```
-        > **Note:**  
-        > OpenTelemetry and OpenLit Configurations are optional. Set these only if there is an OTLP endpoint available.
 
-        > ```bash
-        >  export OTLP_ENDPOINT=<OTLP-endpoint>
-        >  export no_proxy=${no_proxy},$OTLP_ENDPOINT,
-        >   ```
+      To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
+
+      _Go to https://huggingface.co/settings/tokens to get your token._
+
+      ```bash
+      # Login using huggingface-cli
+      pip install huggingface-hub
+      huggingface-cli login
+      # pass hugging face token
+      ```
+
+      > **Note:**
+      > OpenTelemetry and OpenLit Configurations are optional. Set these only if there is an OTLP endpoint available.
+
+      > ```bash
+      >  export OTLP_ENDPOINT=<OTLP-endpoint>
+      >  export no_proxy=${no_proxy},$OTLP_ENDPOINT,
+      >   ```
       
     - Run the following script to set up the rest of the environment:
 
