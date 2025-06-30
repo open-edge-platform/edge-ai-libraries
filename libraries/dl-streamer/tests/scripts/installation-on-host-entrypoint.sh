@@ -176,16 +176,6 @@ echo "TERM: ${TERM}"
 echo "GST_VAAPI_DRM_DEVICE: ${GST_VAAPI_DRM_DEVICE}"
 echo "GST_VAAPI_ALL_DRIVERS: ${GST_VAAPI_ALL_DRIVERS}"
 
-#Change owner of /opt/opencv (needed for cpp_draw_attributes sample)
-echo_color "Show /opt directory before chown command" "blue"
-ls -l /opt
-sudo chown -R $USER /opt/opencv
-echo_color "Show /opt directory after chown command" "blue"
-ls -l /opt
-
-echo "Checking if vapostproc exists"
-gst-inspect-1.0 vapostproc
-
 if gst-inspect-1.0 gvadetect &> /dev/null; then
     echo_color " Intel® DL Streamer verification successful" "green"
 else
