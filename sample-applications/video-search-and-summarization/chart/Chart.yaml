@@ -9,7 +9,7 @@ dependencies:
     condition: ovms.enabled
   - name: minioServer
     version: 0.1.0
-    repository: "file://subchart/minioserver"
+    repository: "file://subchart/minio-server"
   - name: audiointelligence
     version: 0.1.0
     repository: "file://subchart/audio-intelligence/"
@@ -23,18 +23,18 @@ dependencies:
     condition: rabbitmq.enabled
   - name: videoingestion
     version: 0.1.0
-    repository: "file://subchart/videoingestion/"
+    repository: "file://subchart/video-ingestion/"
     condition: videoingestion.enabled
   - name: videosummaryui
     version: 0.1.0
-    repository: "file://subchart/videosummaryui/"
+    repository: "file://subchart/video-summary-ui/"
   - name: vlminference
     version: 0.1.0
-    repository: "file://subchart/vlminference/"
+    repository: "file://subchart/vlm-inference/"
     condition: vlminference.enabled
   - name: videosearch
     version: 0.1.0
-    repository: "file://subchart/videosearch/"
+    repository: "file://subchart/video-search/"
     condition: videosearch.enabled
   - name: vdmsvectordb
     version: 0.1.0

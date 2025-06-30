@@ -107,7 +107,7 @@ helm uninstall vss -n <your-namespace>
 Deploy the Video Summary application:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -n <your-namespace>
 ```
 
 > Note delete the chart for installing the chart in other modes `helm uninstall vss -n <namespace>`
@@ -121,7 +121,7 @@ Replace `<your-namespace>` with your desired Kubernetes namespace.
 If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml --values ovms_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <your-namespace>
 ```
 **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
@@ -130,7 +130,7 @@ helm install vss . --values values.yaml --values summary_override.yaml --values 
 To deploy only the Video Search functionality, use the search override values:
 
 ```bash
-helm install vss . --values values.yaml --values search_override.yaml -n <your-namespace>
+helm install vss . -f search_override.yaml -n <your-namespace>
 ```
 
 ### Step 6: Verify the Deployment
