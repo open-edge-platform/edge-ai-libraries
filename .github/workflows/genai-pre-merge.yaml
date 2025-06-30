@@ -466,7 +466,8 @@ jobs:
       HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
       LLM_MODEL: Intel/neural-chat-7b-v3-3
       EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
-      RERANKER_MODEL: BAAI/bge-reranker-base    
+      RERANKER_MODEL: BAAI/bge-reranker-base
+      VOLUME_OVMS: "$PWD"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
