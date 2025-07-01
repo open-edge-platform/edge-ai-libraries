@@ -98,8 +98,10 @@ jobs:
         echo "## Basic checks" >> $GITHUB_STEP_SUMMARY
         if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
           echo "Models: found ✅" >> $GITHUB_STEP_SUMMARY
+          ls -A "${{ env.MODELS_PATH }}"
         else
           echo "Models: folder not found or it is empty ❌" >> $GITHUB_STEP_SUMMARY
+          ls -A "${{ env.MODELS_PATH }}"
           exit 1
         fi
 
