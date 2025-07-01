@@ -48,7 +48,7 @@ jobs:
     - name: Download public models
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_public_models.sh
+        ./libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Verify public models downloading
       run: |
