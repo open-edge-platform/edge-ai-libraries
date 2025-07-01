@@ -18,19 +18,37 @@ This section shows you how to:
 - Install Docker Compose tool: [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11` programming language.
 - Access to required model files and API key, if applicable.
+## Supported Models
+All LLM models which are supported by the OpenVINO™ Model Server can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models. 
 
-## Run the Application using Docker Compose Tool
+The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
+
+### LLM Models validated for each model server
+| Model Server | Models Validated |
+   |--------------|-------------------|
+   | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+
+Note: Limited validation was done on DeepSeek model. 
+
+### Getting access to models
+
+To run a **GATED MODEL** like llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page in HuggingFace.
+
+Visit https://huggingface.co/settings/tokens to get your token.
+
+## Run the Application using Docker Compose
 
 1. **Clone the Repository**:
     - Clone the Document Summarization Sample Application repository:
       ```bash
-      git clone <repository-url>
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       ```
+      **Note**: Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd <repository-url>/sample-applications/document-summarization
+      cd edge-ai-libraries/sample-applications/document-summarization
       ```
 
 3. **Set Up Environment Variables**:
