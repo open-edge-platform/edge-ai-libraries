@@ -193,6 +193,61 @@ Follow these steps to run the application:
     ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
     ```
 
+## Running Tests for Video Search Microservice
+
+The project uses pytest for testing. After installing and setting up the application on host, we can run tests as follows:
+
+```bash
+# Run all tests
+python -m pytest src/tests/
+
+# Run tests with verbose output
+python -m pytest src/tests/ -v
+
+# Run tests by module - Utils
+python -m pytest src/tests/test_utils/test_common.py
+python -m pytest src/tests/test_utils/test_directory_watcher.py
+python -m pytest src/tests/test_utils/test_minio_client.py
+python -m pytest src/tests/test_utils/test_utils.py
+
+# Run tests by module - VDMS Retriever
+python -m pytest src/tests/test_vdms_retriever/test_embedding_wrapper.py
+python -m pytest src/tests/test_vdms_retriever/test_retriever.py
+
+# Run all tests in utils directory
+python -m pytest src/tests/test_utils/
+
+# Run all tests in vdms_retriever directory
+python -m pytest src/tests/test_vdms_retriever/
+
+# Run specific test class
+python -m pytest src/tests/test_utils/test_common.py::TestCommon
+
+# Run specific test method
+python -m pytest src/tests/test_utils/test_common.py::TestCommon::test_settings_default_values
+```
+
+### Generate Test Coverage Reports
+
+To generate a coverage report:
+
+```bash
+# Run tests with coverage
+python -m pytest src/tests/ --cov=src
+
+# Generate detailed HTML coverage report
+python -m pytest src/tests/ --cov=src --cov-report=html --cov-report=term-missing
+
+# Open the HTML report (Linux)
+xdg-open htmlcov/index.html
+
+# Open the HTML report (macOS)
+open htmlcov/index.html
+
+# Open the HTML report (Windows)
+start htmlcov/index.html
+
+
 ### ⚡ Using GPU Acceleration
 
 To use GPU acceleration for VLM inference:

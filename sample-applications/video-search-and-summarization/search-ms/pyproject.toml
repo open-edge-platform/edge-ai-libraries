@@ -14,6 +14,7 @@ langchain-community = "^0.3.24"
 vdms = "0.0.21"
 watchdog = "6.0.0"
 minio = "7.2.15"
+pydantic = ">2.1.0,<3.0.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
