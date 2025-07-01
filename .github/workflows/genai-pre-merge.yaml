@@ -468,6 +468,7 @@ jobs:
       EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
       RERANKER_MODEL: BAAI/bge-reranker-base
       VOLUME_OVMS: "volume_ovms"
+      REQUESTS_CA_BUNDLE: "/etc/ssl/certs/ca-certificates.crt"
     steps:
       - name: Checkout Code
         uses: actions/checkout@v4
@@ -482,39 +483,14 @@ jobs:
         shell: bash
         run: |
           cd sample-applications/document-summarization/
-          echo "Running unit test cases"
-          python3.12 -m venv venv
-          source venv/bin/activate
-          #poetry install --with dev || true
-          poetry install || true
-          poetry add pytest-html
-          # source setup.sh
+          echo "Running unit test cases"     
+          source setup.sh
+          poetry install --with dev
           poetry run pytest tests/unit_tests/ --html=pytest-coverage-doc-summary.html
           coverage run --source=. -m pytest
           coverage report -m
-          # Install required packages
-          #poetry add pytest-cov pytest-html
-          
-          # Run tests with coverage and HTML report in one command
-          # poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report-doc-summary.html
-          
-          # For a combined coverage and test report
-          # poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc-summary.html
           deactivate
           rm -rf venv
-          
-      # - name: Upload Coverage Report
-      #   uses: actions/upload-artifact@v4
-      #   continue-on-error: true
-      #   with:
-      #     name: doc-summary-coverage-report
-      #     path: |
-      #       sample-applications/document-summarization/pytest-coverage-doc-summary.html
-      #       sample-applications/document-summarization/pytest-report-doc-summary.html
-      #       # sample-applications/document-summarization/htmlcov/index.html
-      #       # sample-applications/document-summarization/coverage-html/index.html
-      
-      # Note: Skipping npm/UI tests since document-summarization uses Gradio instead of React
       
       - name: trivy repo scan
         continue-on-error: true
