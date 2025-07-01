@@ -31,7 +31,30 @@ curl -sSL https://install.python-poetry.org | python3 -
 
 If you prefer to run the tests in a virtual environment, please follow these steps:
 
-1. **Clone the Repository**
+1. **Install `venv` for python virtual environment creation**
+
+   ```bash
+   sudo apt install python3.11-venv
+   ```
+
+2. **Create a Virtual Environment**
+
+    Navigate to your project directory and create a virtual environment using `venv`:
+
+    ```bash
+    python -m venv venv
+    ```
+
+3. **Activate the Virtual Environment**
+
+    Activate the virtual environment:
+    - On Linux:
+
+      ```bash
+      source venv/bin/activate
+      ```
+
+4. **Clone the Repository**
 
    Clone the repository to your local machine:
 
@@ -40,41 +63,32 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    cd ~/<repository-url>/sample-applications/document-summarization
    ```
 
-2. **Setup the Environment Variables**
-
-   Setup the environment variables:
-
-   ```bash
-    export VOLUME_OVMS==<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-    export LLM_MODEL=microsoft/Phi-3.5-mini-instruct
-    export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
-    export OTLP_ENDPOINT=<your-OTLP-endpoint> # Optional: Only if applicable
-   ```
-
-3. **Run Setup Script**
-
-    Running setup.sh will install, create and activate virtualenv:
-
-    ```bash
-    source setup.sh
-    ```
-
-4. **Install Dependencies with Poetry**
+5. **Install Dependencies with Poetry**
     
     Install application dependencies packages using Poetry in the virtualenv created by setup.sh
 
     ```bash
     poetry install --with dev
     ```
-5. **Navigate to the Tests Directory**
+
+6. **Setup the Environment Variables**
+
+   Setup the environment variables:
+
+   ```bash
+    export VOLUME_OVMS==<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
+    export LLM_MODEL=microsoft/Phi-3.5-mini-instruct
+   ```
+
+7. **Navigate to the Tests Directory**
 
    Change to the directory containing the tests:
 
    ```bash
-   cd edge-ai-libraries/sample-applications/document-summarization/tests/unit_tests
+   cd ~/<repository-url>/sample-applications/document-summarization/tests/unit_tests
    ```
 
-6. **Run the Tests**
+8. **Run the Tests**
 
    Use the below command to run the tests:
 
@@ -83,7 +97,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    ```
    This will discover and run all the test cases defined in the `tests` directory.
 
-7. **Deactivate Virtual Environment**
+9. **Deactivate Virtual Environment**
 
    Remember to deactivate the virtual environment when you are done with the test:
 
@@ -91,7 +105,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    deactivate
    ```
 
-8. **Delete the Virtual Environment [OPTIONAL]**
+10. **Delete the Virtual Environment [OPTIONAL]**
 
     If you no longer need the virtual environment, you can delete it:
 
