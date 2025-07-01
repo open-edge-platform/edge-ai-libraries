@@ -5,8 +5,8 @@ on:
   workflow_dispatch:
 permissions: {}
 env:
-  MODELS_PATH: "$HOME/models"
-  VIDEO_INPUTS_PATH: "$HOME/videos"
+  MODELS_PATH: "/home/runner/models"
+  VIDEO_INPUTS_PATH: "/home/runner/videos"
 
 jobs:
   build:
