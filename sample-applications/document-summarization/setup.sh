@@ -33,7 +33,7 @@ mkdir -p "$VOLUME_OVMS/models"
 echo $?
 python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path "$VOLUME_OVMS/models/config.json" --model_repository_path "$VOLUME_OVMS/models" --target_device $TARGET_DEVICE
 
-
+sleep 100
 # Wait for any process to exit
 #wait -n
 
