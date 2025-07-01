@@ -237,18 +237,6 @@ class PipelineServerConfig:
         app_cfg = self.get_app_config()
         return app_cfg['pipelines']
 
-    def get_model_registry_config(self) -> Dict[str,Any]:
-        """Get the properties related to the model registry microservice in 
-        the config.json file. 
-
-        Returns:
-            Dict[str,Any]: The properties for establishing a 
-            connection to a model registry microservice and storing the 
-            model artifacts locally.
-        """
-        app_cfg = self.get_app_config()
-        return app_cfg.get('model_registry')
-
     def set_app_config(self, new_config: Dict[str, Any]) -> None:
         """Set the application configuration with a new configuration.
 

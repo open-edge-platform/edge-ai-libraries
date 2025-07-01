@@ -6,7 +6,7 @@ DL Streamer Pipeline Server supports udfloader element which allow user to write
 - replace `"pipeline"` section with  
 
     ```sh
-    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! videoconvert ! video/x-raw,format=NV12 ! appsink name=destination",
     ```
 
 - replace `"properties"` section with  
@@ -65,7 +65,8 @@ curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detect
         },
         "frame": {
             "type": "rtsp",
-            "path": "pallet_defect_detection"
+            "path": "pallet_defect_detection",
+            "overlay": false
         }
     },
     "parameters": {

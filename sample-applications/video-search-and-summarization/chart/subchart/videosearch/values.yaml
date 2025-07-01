@@ -1,0 +1,54 @@
+replicaCount: 1
+
+videosearch:
+  image:
+    repository: intel/video-search
+    tag: 1.2.0
+    pullPolicy: IfNotPresent
+  env:
+    VDMS_VDB_HOST: "vdms-vectordb"
+    VDMS_VDB_PORT: "55555"
+    VCLIP_START_OFFSET_SEC: "0"
+    VCLIP_CLIP_DURATION: "10"
+    VCLIP_USE_OV: "CONFIG_OFF"
+    VCLIP_DEVICE: "cpu"
+    VCLIP_HOST: "multimodal-embedding-ms"
+    VS_WATCHER_DIR: "/tmp/watcher-dir"
+    VS_DEBOUNCE_TIME: "2"
+    VS_DELETE_PROCESSED_FILES: "false"
+    VS_INITIAL_DUMP: "false"  # Set to true if you want to dump existing videos on startup
+    VDMS_DATAPREP_UPLOAD: "http://vdms-dataprep:8000/upload"
+    VDMS_BUCKET: "video-summary"
+    VS_DEFAULT_CLIP_DURATION: "15"  # Default chunk duration in seconds
+  service:
+    type: ClusterIP
+    port: 8000
+    targetPort: 8000
+
+global:
+  proxy:
+    no_proxy:
+    http_proxy:
+    https_proxy:
+  env:
+    MINIO_ROOT_USER: 
+    MINIO_ROOT_PASSWORD:
+    VCLIP_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
+    VCLIP_MODEL: "openai/clip-vit-base-patch32"
+    VCLIP_NUM_FRAMES: 15
+    VS_INDEX_NAME: "videosearch-index"
+  # Add other environment variables as needed
+
+mmEmbeddingingMs:
+  enabled: true
+  name: multimodal-embedding-ms
+  service:
+    type: ClusterIP
+    port: 8000
+
+minioServer:
+  name: minio-server
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000

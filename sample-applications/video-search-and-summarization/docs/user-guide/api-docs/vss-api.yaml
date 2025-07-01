@@ -1,0 +1,369 @@
+openapi: 3.0.0
+paths:
+  /app/config:
+    get:
+      operationId: AppController_getSystemConfig
+      parameters: []
+      responses:
+        '200':
+          description: System configuration
+      summary: Get default system configuration
+      tags:
+        - App
+  /app/features:
+    get:
+      operationId: AppController_getFeatures
+      parameters: []
+      responses:
+        default:
+          description: ''
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeaturesRO'
+      tags:
+        - App
+  /pipeline/frames:
+    get:
+      operationId: PipelineController_getFramesPipeline
+      parameters: []
+      responses:
+        '200':
+          description: Get the current status of the frame processing pipeline
+      tags:
+        - Pipeline
+  /pipeline/evam:
+    get:
+      operationId: PipelineController_getEvamPipeline
+      parameters: []
+      responses:
+        '200':
+          description: Get the current status of the EVAM pipeline
+      tags:
+        - Pipeline
+  /audio/models:
+    get:
+      operationId: AudioController_getAudioModels
+      parameters: []
+      responses:
+        '200':
+          description: Fetch available audio models
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AudioModelROSwagger'
+      tags:
+        - Audio
+  /videos:
+    post:
+      operationId: VideoController_videoUpload
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/VideoDTOSwagger'
+      responses:
+        '201':
+          description: ''
+      summary: Upload a video file
+      tags:
+        - Video
+    get:
+      operationId: VideoController_getVideos
+      parameters: []
+      responses:
+        '200':
+          description: Returns a list of videos
+      summary: Get all videos
+      tags:
+        - Video
+  /videos/{videoId}:
+    get:
+      operationId: VideoController_getVideo
+      parameters:
+        - name: videoId
+          required: true
+          in: path
+          description: ID of the video
+          schema:
+            type: string
+      responses:
+        '200':
+          description: ''
+      summary: Get a video by ID
+      tags:
+        - Video
+  /videos/search-embeddings/{videoId}:
+    post:
+      operationId: VideoController_createSearchEmbeddings
+      parameters:
+        - name: videoId
+          required: true
+          in: path
+          description: ID of the video to create search embeddings for
+          schema:
+            type: string
+      responses:
+        '201':
+          description: ''
+      summary: Create search embeddings for a video
+      tags:
+        - Video
+  /search:
+    get:
+      operationId: SearchController_getQueries
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Search
+    post:
+      operationId: SearchController_addQuery
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Search
+  /search/{queryId}:
+    get:
+      operationId: SearchController_getQuery
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Search
+    delete:
+      operationId: SearchController_deleteQuery
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Search
+  /search/query:
+    post:
+      operationId: SearchController_searchQuery
+      parameters: []
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Search
+  /search/{queryId}/watch:
+    patch:
+      operationId: SearchController_watchQuery
+      parameters: []
+      responses:
+        '200':
+          description: ''
+      tags:
+        - Search
+  /summary:
+    get:
+      operationId: SummaryController_getSummary
+      parameters: []
+      responses:
+        '200':
+          description: Get all summary states raw
+      tags:
+        - Summary
+    post:
+      operationId: SummaryController_startSummaryPipeline
+      parameters: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/SummaryPipelineDTOSwagger'
+      responses:
+        '201':
+          description: ''
+      tags:
+        - Summary
+  /summary/{stateId}:
+    get:
+      operationId: SummaryController_getSummaryById
+      parameters:
+        - name: stateId
+          required: true
+          in: path
+          description: ID of the summary state
+          schema: {}
+      responses:
+        '200':
+          description: Get UI Friendly summary state by ID
+      tags:
+        - Summary
+  /summary/{stateId}/raw:
+    get:
+      operationId: SummaryController_getSummaryRawById
+      parameters:
+        - name: stateId
+          required: true
+          in: path
+          description: ID of the summary state to fetch raw data
+          schema: {}
+      responses:
+        '200':
+          description: Get raw summary state data by ID
+      tags:
+        - Summary
+info:
+  title: Pipeline Manager
+  description: Pipeline Manager API
+  version: '1.0'
+  contact: {}
+tags:
+  - name: pipeline
+    description: ''
+servers: []
+components:
+  schemas:
+    FeaturesRO:
+      type: object
+      properties:
+        summary:
+          type: string
+        search:
+          type: string
+          readOnly: true
+      required:
+        - summary
+        - search
+    AudioModelSwagger:
+      type: object
+      properties:
+        model_id:
+          type: string
+          description: Unique identifier for the audio model
+        display_name:
+          type: string
+          description: Display name of the audio model
+        description:
+          type: string
+          description: Description of the audio model
+      required:
+        - model_id
+        - display_name
+        - description
+    AudioModelROSwagger:
+      type: object
+      properties:
+        default_model:
+          type: string
+          description: Default audio model ID
+        models:
+          description: List of available audio models
+          type: array
+          items:
+            $ref: '#/components/schemas/AudioModelSwagger'
+      required:
+        - default_model
+        - models
+    VideoDTOSwagger:
+      type: object
+      properties:
+        video:
+          type: string
+          description: Video file to upload
+          format: binary
+        name:
+          type: string
+          description: Name of the video file
+        tags:
+          type: string
+          description: Tags seperated by commas
+      required:
+        - video
+    SummaryPipelineSamplingSwagger:
+      type: object
+      properties:
+        chunkDuration:
+          type: number
+          description: Duration for a chunk in seconds
+        samplingFrame:
+          type: number
+          description: Start time of the video in seconds
+        frameOverlap:
+          type: number
+          description: Frame overlap count
+        multiFrame:
+          type: number
+          description: Multi frame count
+      required:
+        - chunkDuration
+        - samplingFrame
+        - frameOverlap
+        - multiFrame
+    EVAM Pipeline:
+      type: string
+      enum:
+        - object_detection
+        - video_ingestion
+    SummaryPipelineEvamSwagger:
+      type: object
+      properties:
+        evamPipeline:
+          allOf:
+            - $ref: '#/components/schemas/EVAM Pipeline'
+      required:
+        - evamPipeline
+    SummaryPipelinePromptsSwagger:
+      type: object
+      properties:
+        framePrompt:
+          type: string
+          description: Prompt for frame processing
+        summaryMapPrompt:
+          type: string
+          description: Prompt for summary map processing
+        summaryReducePrompt:
+          type: string
+          description: Prompt for summary reduce processing
+        summarySinglePrompt:
+          type: string
+          description: Prompt for single summary processing
+    SummaryPipelineAudioSwagger:
+      type: object
+      properties:
+        audioModel:
+          type: string
+          description: Audio model configuration
+      required:
+        - audioModel
+    SummaryPipelineDTOSwagger:
+      type: object
+      properties:
+        videoId:
+          type: string
+          description: ID of the video
+        title:
+          type: string
+          description: Title for the summary
+        sampling:
+          description: Sampling configuration for the summary
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineSamplingSwagger'
+        evam:
+          description: EVAM pipeline configuration
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineEvamSwagger'
+        prompts:
+          description: Prompts override
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelinePromptsSwagger'
+        audio:
+          description: Audio model configuration
+          allOf:
+            - $ref: '#/components/schemas/SummaryPipelineAudioSwagger'
+      required:
+        - videoId
+        - title
+        - sampling
+        - evam

@@ -27,17 +27,17 @@ def get_mock_model_registry_client(mocker,
         tuple: A tuple containing the model registry client object and 
         mock request operation
     """
-    if mr_config is None:
+    # if mr_config is None:
         # os.environ["MR_USER_PASSWORD"] = "fake_word"
-        mr_config = {"url": "http://fakeurl.com",
-                     "saved_models_dir": "/fake/dir"
-                     }
+        # os.environ["MR_URL"] = "http://fakeurl.com"
+        # os.environ["MR_SAVED_MODELS_DIR"] = "/fake/dir"
+
     # mock_post = mocker.patch('src.model_updater.requests.post')
     # mock_response = mocker.Mock()
     # mock_response.json.return_value = {"access_token": "fake_token"}
     # mock_post.return_value = mock_response
 
-    return ModelRegistryClient(model_registry_cfg=mr_config)#, mock_post
+    return ModelRegistryClient()#, mock_post
 
 
 @pytest.mark.parametrize("url, is_connected, verify_cert",
@@ -56,14 +56,12 @@ def test_model_registry_client_initialization(mocker, url, is_connected, verify_
 
     if is_connected:
         # os.environ["MR_USER_PASSWORD"] = "fake_word"
-        config = {
-            "url": url,
-            "saved_models_dir": "/fake/dir"
-        }
+        os.environ["MR_URL"] = url
+        os.environ["MR_SAVED_MODELS_DIR"] =  "/fake/dir"
 
         if verify_cert != "/path/to":
             client = get_mock_model_registry_client(
-                mocker, mr_config=config)
+                mocker)
 
         #     mock_post.assert_called_once_with(
         #         url=url+"/login",
@@ -74,15 +72,15 @@ def test_model_registry_client_initialization(mocker, url, is_connected, verify_
         #     assert client._auth_header == {"Authorization": "Bearer fake_token"}
         if client:
             assert client._request_timeout == 300
-    else:
-        # os.environ["MR_USER_PASSWORD"] = "abcdef"
+    # else:
+    #     # os.environ["MR_USER_PASSWORD"] = "abcdef"
 
-        model_registry_cfg = {
-            "url": "",
-            "saved_models_dir": "/path/to/models"
-        }
+    #     model_registry_cfg = {
+    #         "url": "",
+    #         "saved_models_dir": "/path/to/models"
+    #     }
 
-        client = ModelRegistryClient(model_registry_cfg)
+        client = ModelRegistryClient()
     
     if client:
         # assert client._is_connected == is_connected
@@ -109,24 +107,19 @@ def test_connect(mocker, is_connected, url, user_password, auth_header, request)
     # os.environ["MR_USER_PASSWORD"] = user_password
 
     if request.node.callspec.id == "success":
-        config = {
-            "url": url,
-            "saved_models_dir": "/fake/dir"
-        }
+        os.environ["MR_URL"] = url
+        os.environ["MR_SAVED_MODELS_DIR"] = "/fake/dir"
+        
         client = get_mock_model_registry_client(
-            mocker, mr_config=config)
+            mocker)
         # client._login_to_mr_microservice()
 
         # assert mock_post.call_count == 2
         assert client._request_timeout == 300
 
     if request.node.callspec.id == "failed":
-        model_registry_cfg = {
-            "url": "",
-            "saved_models_dir": "/path/to/models"
-        }
-
-        client = ModelRegistryClient(model_registry_cfg)
+        
+        client = ModelRegistryClient()
         # client._login_to_mr_microservice()
 
     # assert client._auth_header == auth_header
@@ -240,12 +233,13 @@ def test_get_model_artifacts_zip_file_data(mocker, model_id, expected, request):
 @pytest.fixture
 def setup_model_registry_client(mocker, tmp_path):
     mock_logger = mocker.patch('src.model_updater.get_logger', return_value=mocker.MagicMock())
-    model_registry_cfg = {
-        "url": "http://fakeurl.com",
-        "saved_models_dir": str(tmp_path),
-        "request_timeout": 300
-    }
-    client = ModelRegistryClient(model_registry_cfg)
+    # model_registry_cfg = {
+    #     "url": "http://fakeurl.com",
+    #     "saved_models_dir": str(tmp_path),
+    #     "request_timeout": 300
+    # }
+    
+    client = ModelRegistryClient()
     client._logger = mock_logger
     return client
 

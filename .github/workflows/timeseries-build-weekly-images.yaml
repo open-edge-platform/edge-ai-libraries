@@ -1,0 +1,46 @@
+name: "[Time Series Analytics] Build weekly imgs"
+run-name: "[Time Series Analytics] Build weekly imgs"
+on:
+  schedule:
+    - cron: '0 14 * * 2' # 14:00 UTC
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  time-series-analytics-microservice-weekly:
+    name: Weekly-Build TimeSeries Analytics Microservice img
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@v1
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Build time-series-analytics-microservices
+      run: |
+        cd microservices/time-series-analytics/docker
+        sed -i "s|DOCKER_REGISTRY=.*|DOCKER_REGISTRY=ghcr.io/${{ github.repository }}/|g" .env
+        docker compose build --no-cache --pull
+
+    - name: Push Docker img
+      run: |
+        docker push ghcr.io/${{ github.repository }}/intel/ia-time-series-analytics-microservice:1.0.0
+
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        docker rmi ghcr.io/${{ github.repository }}intel/ia-time-series-analytics-microservice:1.0.0 || true

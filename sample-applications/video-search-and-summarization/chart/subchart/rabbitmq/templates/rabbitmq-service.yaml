@@ -1,0 +1,20 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.rabbitmq.name }}
+  labels:
+    app: {{ include "rabbitmq.name" . }}
+spec:
+  type: {{ .Values.rabbitmq.service.type }}
+  ports:
+    - name: amqp
+      port: {{ .Values.rabbitmq.service.amqpPort }}
+      targetPort: {{ .Values.rabbitmq.service.amqpPort }}
+    - name: management
+      port: {{ .Values.rabbitmq.service.managementPort }}
+      targetPort: {{ .Values.rabbitmq.service.managementPort }}
+    - name: mqtt
+      port: {{ .Values.rabbitmq.service.mqttPort }}
+      targetPort: {{ .Values.rabbitmq.service.mqttPort }}
+  selector:
+    app: {{ include "rabbitmq.name" . }}

@@ -1,0 +1,104 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "videoingestion.fullname" . }}-model-converter
+  labels:
+    app: {{ include "videoingestion.name" . }}
+data:
+  converter.py: |
+    from ultralytics import YOLO
+    import openvino, sys, shutil, os
+    import argparse
+
+    def convert_model(model_name, model_type, output_dir):
+        weights = model_name + '.pt'
+        model = YOLO(weights)
+        model.info()
+
+        converted_path = model.export(format='openvino')
+        converted_model = converted_path + '/' + model_name + '.xml'
+
+        core = openvino.Core()
+
+        ov_model = core.read_model(model=converted_model)
+        if model_type in ["YOLOv8-SEG", "yolo_v11_seg"]:
+            ov_model.output(0).set_names({"boxes"})
+            ov_model.output(1).set_names({"masks"})
+        ov_model.set_rt_info(model_type, ['model_info', 'model_type'])
+
+        # Create output directories if they don't exist
+        os.makedirs(os.path.join(output_dir, 'FP32'), exist_ok=True)
+        os.makedirs(os.path.join(output_dir, 'FP16'), exist_ok=True)
+
+        # Save models in FP32 and FP16 formats
+        openvino.save_model(ov_model, os.path.join(output_dir, 'FP32', model_name + '.xml'), compress_to_fp16=False)
+        openvino.save_model(ov_model, os.path.join(output_dir, 'FP16', model_name + '.xml'), compress_to_fp16=True)
+
+        # Clean up temporary files
+        shutil.rmtree(converted_path)
+        os.remove(f"{model_name}.pt")
+        
+        print(f"Model converted successfully and saved to {output_dir}")
+
+    def main():
+        parser = argparse.ArgumentParser(description="Convert YOLO models to OpenVINO IR format")
+        parser.add_argument("--model-name", type=str, default='yolov8l-worldv2', 
+                            help="Name of the model (without extension, e.g., 'yolov8l-worldv2')")
+        parser.add_argument("--model-type", type=str, default='yolo_v8', 
+                            help="Type of model (e.g., 'yolo_v8', 'YOLOv8-SEG')")
+        parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld', 
+                            help="Directory to save the converted models")
+        
+        args = parser.parse_args()
+        
+        convert_model(args.model_name, args.model_type, args.output_dir)
+
+    if __name__ == "__main__":
+        main()
+
+  model-converter.sh: |
+    #!/bin/bash
+    set -e
+
+    # Default model settings (can be overridden by environment variables)
+    export OD_MODEL_NAME=${OD_MODEL_NAME:-"yolov8l-worldv2"}
+    export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
+    export OD_MODEL_OUTPUT_DIR=${OD_MODEL_OUTPUT_DIR:-"/home/pipeline-server/models/yoloworld"}
+
+    # Function to convert object detection models
+    convert_object_detection_models() {
+        echo "Setting up Python environment for object detection model conversion..."
+        # Check if python3-venv is already installed
+        if ! dpkg-query -W -f='${Status}' python3-venv 2>/dev/null | grep -q "ok installed"; then
+            echo "Installing python3-venv package..."
+            apt-get update && apt-get install -y python3-venv
+        else
+            echo "python3-venv is already installed, skipping installation"
+        fi
+
+        # Create and activate virtual environment for model conversion
+        python3 -m venv ov_model_venv
+        source ov_model_venv/bin/activate
+
+        echo "Installing required packages for model conversion..."
+        pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
+        pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
+
+        echo "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
+        python3 /scripts/converter.py --model-name "${OD_MODEL_NAME}" --model-type "${OD_MODEL_TYPE}" --output-dir "${OD_MODEL_OUTPUT_DIR}"
+
+        echo "Model conversion completed. Cleaning up..."
+        deactivate
+        rm -rf ov_model_venv
+        echo "Object detection model ${OD_MODEL_NAME} has been successfully converted and saved to ${OD_MODEL_OUTPUT_DIR}"
+    }
+
+    # Check if the object detection model directory exists
+    if [ ! -d "${OD_MODEL_OUTPUT_DIR}" ]; then
+        echo "Object detection model directory does not exist. Creating it..."
+        mkdir -p "${OD_MODEL_OUTPUT_DIR}"
+        convert_object_detection_models
+    else
+        echo "Object detection model directory already exists. Skipping conversion."
+        ls -la "${OD_MODEL_OUTPUT_DIR}/FP32" "${OD_MODEL_OUTPUT_DIR}/FP16"
+    fi

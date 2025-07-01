@@ -34,7 +34,8 @@ RUN groupadd -g 1001 intelgai && \
 
 
 FROM python-base AS builder-base
-RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential
+RUN apt-get update && apt-get install --no-install-recommends -y curl build-essential && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 # Install poetry. Installs in $POETRY_HOME with version $POETRY_VERSION
 RUN curl -sSL https://install.python-poetry.org | python -
@@ -42,7 +43,8 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --only main
+RUN poetry install --no-dev && \
+    rm -rf ~/.cache/pypoetry/* ~/.cache/pip/*
 
 
 # `dev` image is used during development / testing
@@ -52,7 +54,8 @@ ENV FASTAPI_ENV=development
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 WORKDIR $SETUP_PATH
 
@@ -78,7 +81,8 @@ ENV FASTAPI_ENV=production
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 && \
+    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 COPY . /app/

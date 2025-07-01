@@ -4,15 +4,10 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-import numpy as np
 import cv2
 import logging
-import argparse
-import pickle
-import codecs
 import os
 import datetime
-from pathlib import Path
 from time import time
 from time import time_ns
 from geti_sdk.deployment import Deployment

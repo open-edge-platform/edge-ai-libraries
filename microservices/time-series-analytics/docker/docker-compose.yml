@@ -10,7 +10,7 @@ services:
       context: $PWD/../
       dockerfile: $PWD/../Dockerfile
       args:
-        KAPACITOR_VERSION: 1.7.6
+        KAPACITOR_VERSION: 1.7.7
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
         PYTHON_VERSION: "3.10"
@@ -18,7 +18,7 @@ services:
         INSTALL_SOURCES: "no"
     container_name: ia-time-series-analytics-microservice
     hostname: ia-time-series-analytics-microservice
-    image: ${DOCKER_REGISTRY}ia-time-series-analytics-microservice:1.0.0
+    image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}${IMAGE_SUFFIX:+-${IMAGE_SUFFIX}}
     restart: unless-stopped
     security_opt:
     - no-new-privileges
@@ -48,7 +48,7 @@ services:
     networks:
     - timeseries_network
     ports:
-    - 9092:9092
+    - 5000:5000
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
     - ../config.json:/app/config.json

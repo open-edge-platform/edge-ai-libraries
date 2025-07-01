@@ -5,13 +5,31 @@ from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from benchmark import Benchmark
-from pipeline import SmartNVRPipeline
+from pipeline import GstPipeline
+
+class TestPipeline(GstPipeline):
+    def __init__(self):
+        super().__init__()
+        self._pipeline = (
+            "videotestsrc "
+            " num-buffers={NUM_BUFFERS} "
+            " pattern={pattern} ! "
+            "videoconvert ! "
+            "gvafpscounter ! "
+            "fakesink"
+        )
+
+    def evaluate(self, constants, parameters, inference_channels, regular_channels):
+        return "gst-launch-1.0 -q " + " ".join(
+            [self._pipeline.format(**parameters, **constants)]
+            * (inference_channels + regular_channels)
+        )
 
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
         self.video_path = "test_video.mp4"
-        self.pipeline_cls = SmartNVRPipeline
+        self.pipeline_cls = TestPipeline
         self.fps_floor = 30.0
         self.rate = 50
         self.parameters = {"object_detection_device": "cpu"}

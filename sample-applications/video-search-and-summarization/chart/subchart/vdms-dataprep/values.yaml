@@ -1,0 +1,92 @@
+# Default values for VDMS DataPrep Service.
+
+replicaCount: 1
+
+image:
+  repository: intel/vdms-dataprep
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "1.2.0"
+
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: true
+  allowPrivilegeEscalation: false
+  runAsNonRoot: false
+  runAsUser: 0
+  seccompProfile:
+    type: RuntimeDefault    
+
+service:
+  type: ClusterIP
+  name: dataprep-port
+  port: 8000
+
+resources: {}
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  periodSeconds: 20
+  failureThreshold: 15
+readinessProbe:
+  httpGet:
+    path: /health
+    port: 8000
+  periodSeconds: 10
+  failureThreshold: 6
+
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+# Values required to configure DataPrep service
+bucketName: "vdms-bucket"
+indexName: "videosearch-index"
+vdmsVectorDbHost: "vdms-vectordb"
+vdmsVectorDbPort: 55555
+multimodalEmbeddingModelName: "openai/clip-vit-base-patch32"
+multimodalEmbeddingNumFrames: 64
+
+global:
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster).
+  volumeHostPath: ""
+
+  # Set the PVC name here if storage sub-chart is enabled (Used in single/multi node cluster).
+  pvcName: "vss-shared-pvc"
+  # Nodes on which pods using the PV will be scheduled
+  storageNodeAffinity: []
+
+  # Common release tags to be used for several dependencies 
+  commonTag: ""
+  proxy:
+  # setup proxy settings
+    http_proxy: ""
+    https_proxy: ""
+  env:
+    MINIO_ROOT_USER:
+    MINIO_ROOT_PASSWORD:
+
+
+minioServer:
+  name: minio-server
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000

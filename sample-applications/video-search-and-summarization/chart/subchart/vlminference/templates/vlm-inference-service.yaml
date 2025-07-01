@@ -1,0 +1,13 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.vlminference.name }}
+spec:
+  type: {{ .Values.vlminference.service.type }}
+  ports:
+    - port: {{ .Values.vlminference.service.port }}
+      targetPort: {{ .Values.vlminference.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.vlminference.name }}

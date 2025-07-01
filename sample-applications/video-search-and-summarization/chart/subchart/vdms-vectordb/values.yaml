@@ -1,0 +1,71 @@
+# Default values for VDMS vectorDB.
+
+replicaCount: 1
+
+image:
+  repository: intellabs/vdms
+  # This sets the pull policy for images.
+  pullPolicy: IfNotPresent
+  # Overrides the image tag whose default is the chart appVersion.
+  tag: "v2.10.0"
+
+imagePullSecrets: []
+# This is to override the chart name.
+nameOverride: ""
+fullnameOverride: ""
+
+podAnnotations: {}
+podLabels: {}
+
+podSecurityContext: {}
+securityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  runAsNonRoot: false
+  runAsUser: 0
+  seccompProfile:
+    type: RuntimeDefault    
+
+service:
+  type: ClusterIP
+  name: vdms-port
+  port: 55555
+  containerPort: 55555
+
+resources: {}
+
+livenessProbe:
+  tcpSocket:
+    port: 55555
+  periodSeconds: 20
+  failureThreshold: 10
+readinessProbe:
+  tcpSocket:
+    port: 55555
+  periodSeconds: 10
+  failureThreshold: 6
+startupProbe:
+  tcpSocket:
+    port: 55555
+  initialDelaySeconds: 5
+  periodSeconds: 10
+  failureThreshold: 15 
+
+volumes: []
+volumeMounts: []
+
+nodeSelector: {}
+
+tolerations: []
+
+affinity: {}
+
+global:
+  # setup proxy settings
+  proxy:
+    no_proxy: "localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+    http_proxy: ""
+    https_proxy: ""

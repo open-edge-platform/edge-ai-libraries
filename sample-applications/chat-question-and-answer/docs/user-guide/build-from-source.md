@@ -85,7 +85,7 @@ Before you begin, ensure that you have the following prerequisites:
       docker compose up
       ```
 6. **Access the Application**:
-    - Open a browser and go to `http://<host-ip>:5173` to access the application dashboard.
+    - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard.
 
 ## Verification
 

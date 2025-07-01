@@ -12,7 +12,7 @@ data:
     weight_format=$1
     gpu_enabled=$3
     pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
-    
+    pip3 install -U huggingface_hub[hf_xet]
     # Log in to Hugging Face using the provided token
     huggingface-cli login --token $2
 
@@ -26,10 +26,10 @@ data:
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device {{ .Values.global.gpu.device }} --overwrite_models
+        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device {{ .Values.global.gpu.device }} --cache_size 2
     else
         echo "GPU is not enabled, using CPU model"
-        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU --overwrite_models
+        python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU
     fi
     
     cp -r models /opt/data

@@ -53,6 +53,14 @@ spec:
           value: "{{ $.Values.env.HTTPS }}"
         - name: RTSP_PORT
           value: "{{ $.Values.env.RTSP_PORT }}"
+        - name: MR_URL
+          value: {{ $.Values.env.MR_URL }}
+        - name: MR_SAVED_MODELS_DIR
+          value: {{ $.Values.env.MR_SAVED_MODELS_DIR }}
+        - name: MR_REQUEST_TIMEOUT
+          value: {{ $.Values.env.MR_REQUEST_TIMEOUT }}
+        - name: MR_VERIFY_CERT
+          value: {{ $.Values.env.MR_VERIFY_CERT }}
         - name: http_proxy
           value: {{ $.Values.env.http_proxy }}
         - name: https_proxy

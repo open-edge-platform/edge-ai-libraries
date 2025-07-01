@@ -1,0 +1,34 @@
+global:
+  huggingface:
+    apiToken: 
+  proxy:
+    no_proxy: 
+    http_proxy: 
+    https_proxy:
+  LLM_MODEL: Intel/neural-chat-7b-v3-3
+  egai_ovms_pvc:
+    size: 40Gi
+    
+ovms:
+  name: ovms
+  image:
+    repository: openvino/model_server
+    tag: "2025.1"
+    pullPolicy: IfNotPresent
+  readinessProbe:
+    httpGet:
+      path: /v2/health/ready
+      port: 8300
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  service:
+    type: ClusterIP
+    port: 8300
+    targetPort: 8300
+  
+  # scriptconfigmap: ovms-configmap.yaml
+  env:
+    WEIGHT_FORMAT: "fp16"
+    model_directory_name: "converted_model"
+  script:
+    name: "ovms-model-preparation"

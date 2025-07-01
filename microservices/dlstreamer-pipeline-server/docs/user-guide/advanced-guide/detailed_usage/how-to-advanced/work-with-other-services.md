@@ -1,6 +1,6 @@
 # Working with other services 
 DL Streamer Pipeline Server can work with following microservices for visualization and model management.
-- [Model Registry (MRaaS)](#model-registry-mraas)  Hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
+- [Model Registry (MRaaS)](#model-registry-mraas) Hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
 
 ## Model Registry (MRaaS)
 This microservice hosts models to be deployed on the edge node. Users can provide required configurations to DL Streamer Pipeline Server to pull models from Model Registry and deploy downloaded model.
@@ -22,7 +22,7 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
 
 2.  Follow the instructions in the Model Registry's Get Started Guide: https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.3/user-guide/get-started.html to run the microservice.
 3. Send a POST request to store a model.
-   * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
+    * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
 
     ```bash
     curl -X POST 'PROTOCOL://HOSTNAME:32002/models' \
@@ -36,27 +36,27 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
     --form 'architecture="YOLOX-TINY"'
     ```
 
-   * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-   * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
-   * Replace `MODEL_NAME` with the name of the model to be stored.
-   * Replace `MODEL_ARTIFACTS_ZIP_FILE_PATH` with the file path to the zip file containing the model's artifacts.
-   * Replace `MODEL_VERSION` with the version of the model to be stored.
+    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
+    * Replace `MODEL_NAME` with the name of the model to be stored.
+    * Replace `MODEL_ARTIFACTS_ZIP_FILE_PATH` with the file path to the zip file containing the model's artifacts.
+    * Replace `MODEL_VERSION` with the version of the model to be stored.
     > Note: For any manual upload of Intel Geti models on model registry, please make sure to provide `origin` as `Geti`.
 4. Send a GET request to retrieve a list of models and verify the successful storage of the model in Step 3.
-   * Use the following `curl` command to send a GET request to the `/models` endpoint. 
+    * Use the following `curl` command to send a GET request to the `/models` endpoint. 
    ```bash
    curl -X GET 'PROTOCOL://HOSTNAME:32002/models'
    ```
-   * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
+    * Replace `PROTOCOL` with `https` if **HTTPS** mode is enabled. Otherwise, use `http`.
      * If **HTTPS** mode is enabled, and you are using self-signed certificates, add the `-k` option to your `curl` command to ignore SSL certificate verification.
-   * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
+    * Replace `HOSTNAME` with the actual host name or IP address of the host system where the service is running.
 ### DL Streamer Pipeline Server Integration
 #### Pre-requisites
 In order to successfully, store models received from the model registry microservice within the context of DL Streamer Pipeline Server, the following steps are required before starting the Docker* container for DL Streamer Pipeline Server:
 1. Create the `mr_models` directory in the same directory as your `docker-compose.yml` as referenced [here](../../../get-started.md) in the `volumes` section. 
-   * This directory will contain the models downloaded from the model registry using DL Streamer Pipeline Server's REST API.
-   * The ownership of this directory is required to be the same user of the container (`intelmicroserviceuser`) to enable models to be stored successfully.
+    * This directory will contain the models downloaded from the model registry using DL Streamer Pipeline Server's REST API.
+    * The ownership of this directory is required to be the same user of the container (`intelmicroserviceuser`) to enable models to be stored successfully.
     ```sh
     mkdir -p mr_models
     
@@ -70,7 +70,25 @@ In order to successfully, store models received from the model registry microser
 
 ##### HTTPS and HTTP mode
 
-Model registry microservice supports both HTTPS and HTTP protocols. HTTP mode is enabled by default.
+The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
+Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice was configured with when started based on the `ENABLE_HTTPS_MODE` environment variable value and the corresponding steps completed in the previous section.
+
+The following environment variables are used to establish a connection with the model registry microservice.
+* **MR_URL**: The URL where the model registry microservice is accessible. 
+    * If not set or left empty, the DL Streamer Pipeline Server will not be able to connect to the model registry successfully and an **error** message will be displayed in the logs.
+    * Example: `MR_URL=<PROTOCOL>://10.101.10.101:32002`
+* **MR_SAVED_MODELS_DIR**: The directory where models are saved when downloaded from the model registry microservice.
+    * If this directory does not exist in the container, it will be created when a model is saved for the first time.
+    * If you set the value for this variable to a custom path, you will need to update the `/home/pipeline-server/mr_models` path declared in the respective `docker-compose` file.
+    * Default: `"./mr_models"` (Note: `.` represents the default working directory)
+    * Example: `MR_SAVED_MODELS_DIR=./mr_models`
+* **MR_REQUEST_TIMEOUT**: (String): The maximum amount of time in seconds that requests involving the model registry microservice are allowed to take.
+    * Default: `300`
+    * Example: `MR_REQUEST_TIMEOUT=300`
+
+> **Tip:** Set the `LOG_LEVEL` environment variable to `DEBUG` to see detailed log messages about the model registry client's configuration and its communication with the model registry microservice. This is especially useful for troubleshooting, as it will display which environment variables are being used, when defaults are applied, and details about connection attempts and responses.
+
+The model registry microservice supports both HTTPS and HTTP protocols. HTTP mode is enabled by default.
 When enabled in HTTPS MODE, DL Streamer Pipeline Server will attempt to verify its SSL certificate using the file(s) in the `/run/secrets/ModelRegistry_Server` directory within the Docker container by default.
 
 
@@ -118,19 +136,6 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
       # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/model_registry/config.json to config file that DL Streamer Pipeline Server container loads.
       - "../configs/model_registry/config.json:/home/pipeline-server/config.json"
 ```
-The following configuration applies to both the supported protocols HTTPS(default) and HTTP. 
-Replace `<PROTOCOL>` in the following steps with `https` or `http` according to the mode the model registry microservice is in when started based on the value of `ENABLE_HTTPS_MODE` and the corresponding steps completed in the previous section.
-* **model_registry** (Object): The properties used to connect to the model registry microservice and the directory to save models locally within the context of DL Streamer Pipeline Server.
-  * Location: Within the `config` object.
-  * Supported sub-properties:
-    * **url** (String): The service's IP address or hostname and port of the running model registry microservice.
-        * Example: `"url": "<PROTOCOL>://10.101.10.101:32002"`
-    * **request_timeout** (Number, Optional): The maximum amount of time in seconds that requests involving the model registry microservice are allowed to take.
-        * More details: If not provided, a default value of 300 seconds will be applied.
-    * **saved_models_dir** (String): The directory where models are saved when retrieved from the model registry microservice.
-        * More details: If this directory does not exist, it will be created when a model is being saved for the first time.
-        * Example: `"saved_models_dir": "./mr_models"`
-
 * **model_params** (List): The properties used to retrieve a model stored in the model registry microservice provided as list of properties for each model to be downloaded. 
     * Location: Within an object in the `"config.pipelines"` list.
     * Supported sub-properties:
@@ -153,7 +158,7 @@ Replace `<PROTOCOL>` in the following steps with `https` or `http` according to 
         * Example: `"deploy": true`
     * **pipeline_element_name** (String): The name of the inference element in the pipeline to which the model is associated.
         * Example: `"pipeline_element_name": "detection"`
-    * **origin** (String, Optional): The origin of a model to differentiate geti vs non-geti models. When not provided the model is considered a non-geti (omz) model.
+    * **origin** (String, Optional): The origin of a model to differentiate Geti vs non-Geti models. When not provided the model is considered a non-geti (omz) model.
         * Example: `"origin": "Geti"`
     
     The model path is constructed based on the `model query params`.
@@ -168,8 +173,6 @@ Replace `<PROTOCOL>` in the following steps with `https` or `http` according to 
         * Model path: `{config.model_registry.saved_models_dir}`/`{model_params.name}`\_m-`{model_params.version}`_`{model_params.precision}`/`{model_params.precision}`/`{model_params.name}.xml`
             * Location: model property for inferencing element within pipeline definition `"config.pipelines[...]"` list.
             * Example: `"pipeline": "....gvadetect model=./mr_models/yolo11s_m-v1_fp32/FP32/yolo11s.xml name=detection...."`
-
-Replace the `<PROTOCOL>` and `<IP_ADDRESS_OR_SERVICE_HOSTNAME>` accordingly.
 
 The `config.json` file must be volume mounted inside the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` to reflect the configuration changes when DL Streamer Pipeline Server is brought up.
 
@@ -222,7 +225,7 @@ For more details on `model query params` to be provided as part of REST request,
 ##### Example
 Download/Update model: 
 
-Along with model properties, `deploy`, `origin` and `pipeline_element_name` should be provided to download the model and restart the pipeline with the newly download model set for the specific pipeline element.
+Along with model properties, `deploy`, `origin` and `pipeline_element_name` should be provided to download the model and restart the pipeline with the newly downloaded model set for the specific pipeline element.
 ```json
 {
     "name": "pallet-detection-FP32-YOLO",
