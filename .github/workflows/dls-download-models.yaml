@@ -88,3 +88,4 @@ jobs:
       if: always()
       run: |
         rm -rf libraries .virtualenvs .git
+        rm -rf $HOME/.virtualenvs
