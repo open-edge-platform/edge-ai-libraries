@@ -2,7 +2,7 @@
 
 The Document Summarization Sample Application demonstrates how to leverage the LlamaIndex framework, a powerful framework for building applications with large language models (LLMs), to generate concise and informative summaries from long-form documents. By integrating LlamaIndex framework, the application efficiently processes and understands textual content, enabling users to extract key information and insights from a variety of document types. This approach streamlines content review, enhances searchability, and supports advanced use cases such as knowledge management and automated reporting. 
 
-The following are links to detailed documentation to help you get started, configure, and deploy the microservice.
+The following are links to detailed documentation to help you get started, configure, and deploy the microservice..
 
 ## Documentation
 
