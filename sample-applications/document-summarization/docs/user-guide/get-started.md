@@ -61,8 +61,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
       # Docker Image Registry Configuration
       export REGISTRY="/intel"
-      export UI_TAG=1.0
-      export BACKEND_TAG=1.0
+      export TAG=1.0
       ```
         > **Note:**  
         > OpenTelemetry and OpenLit configurations are optional. Set these only if there is an OTLP endpoint available.
