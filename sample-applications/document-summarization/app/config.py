@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+ 
 from pydantic_settings import BaseSettings,SettingsConfigDict
 from os.path import dirname, abspath, join
 

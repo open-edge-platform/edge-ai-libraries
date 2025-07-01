@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 """Simple Summary."""
 
 from typing import Any, Dict, List, Optional, List
