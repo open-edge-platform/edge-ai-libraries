@@ -10,7 +10,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 
 - **Overview**
   - [Overview](docs/user-guide/overview.md): A high-level introduction.
-  - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
+  - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to getting started with the sample application.
