@@ -9,7 +9,7 @@ teiEmbeddingService:
   name: tei-embedding-service
   image: 
     repository: ghcr.io/huggingface/text-embeddings-inference
-    tag: cpu-1.5
+    tag: cpu-ipex-latest
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

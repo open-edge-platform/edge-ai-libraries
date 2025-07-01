@@ -12,5 +12,5 @@ rerankerService:
     targetPort: 80
   image:
     repository: ghcr.io/huggingface/text-embeddings-inference
-    tag: "cpu-1.5"
+    tag: "cpu-ipex-latest"
     pullPolicy: IfNotPresent
