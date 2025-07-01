@@ -481,14 +481,14 @@ jobs:
         continue-on-error: true
         shell: bash
         run: |
-          cd sample-applications/document-summarization
+          cd sample-applications/document-summarization/
           echo "Running unit test cases"
           python3.12 -m venv venv
           source venv/bin/activate
           poetry install --with dev || true
           poetry add pytest-html
           source setup.sh
-          poetry run pytest tests/ --html=pytest-coverage-doc-summary.html
+          poetry run pytest tests/unit_tests/ --html=pytest-coverage-doc-summary.html
           coverage run --source=. -m pytest
           coverage report -m
           # Install required packages
