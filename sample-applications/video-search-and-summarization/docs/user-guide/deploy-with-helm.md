@@ -98,7 +98,7 @@ Depending on your use case, deploy the Helm chart using the appropriate command.
 > NOTE: Before switching to a different mode always stop the current application stack by running:
 
 ```bash
-helm uninstall vss -n <your-namespace>
+helm uninstall vss -n <namespace>
 ```
 
 #### **Use Case 1: Video Summary Only**
@@ -106,21 +106,21 @@ helm uninstall vss -n <your-namespace>
 Deploy the Video Summary application:
 
 ```bash
-helm install vss . -f summary_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -n <namespace>
 ```
 
 > Note delete the chart for installing the chart in other modes `helm uninstall vss -n <namespace>`
 
-Replace `<your-namespace>` with your desired Kubernetes namespace.
+Replace `<namespace>` with your desired Kubernetes namespace.
 
-> Note: If your namespace doesn't exist yet, create it with `kubectl create namespace <your-namespace>` before running the helm install command.
+> Note: If your namespace doesn't exist yet, create it with `kubectl create namespace <namespace>` before running the helm install command.
 
 ##### **Sub Use Case 1: Video Summary with OVMS**
 
 If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
 
 ```bash
-helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <namespace>
 ```
 **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
@@ -129,7 +129,7 @@ helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <your-names
 To deploy only the Video Search functionality, use the search override values:
 
 ```bash
-helm install vss . -f search_override.yaml -n <your-namespace>
+helm install vss . -f search_override.yaml -n <namespace>
 ```
 
 ### Step 6: Verify the Deployment
@@ -137,8 +137,8 @@ helm install vss . -f search_override.yaml -n <your-namespace>
 Check the status of the deployed resources to ensure everything is running correctly:
 
 ```bash
-kubectl get pods -n <your-namespace>
-kubectl get services -n <your-namespace>
+kubectl get pods -n <namespace>
+kubectl get services -n <namespace>
 ```
 
 Ensure all pods are in the "Running" state before proceeding.
@@ -152,7 +152,7 @@ To access the vss-nginx service running in your Kubernetes cluster using NodePor
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=vss-nginx -n <namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
 ```
 
 Simply copy and paste the output into your browser to access the Video Summary application UI.
@@ -170,7 +170,7 @@ helm dependency update
 To uninstall the Video Summary Helm chart, use the following command:
 
 ```bash
-helm uninstall vss -n <your-namespace>
+helm uninstall vss -n <namespace>
 ```
 
 ## Verification
@@ -184,7 +184,7 @@ helm uninstall vss -n <your-namespace>
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
   ```bash
-  kubectl logs <pod-name> -n <your-namespace>
+  kubectl logs <pod-name> -n <namespace>
   ```
 
 - For component-specific issues:

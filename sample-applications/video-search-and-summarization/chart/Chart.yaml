@@ -10,7 +10,7 @@ dependencies:
   - name: minioServer
     version: 0.1.0
     repository: "file://subchart/minio-server"
-  - name: audiointelligence
+  - name: audioanalyzer
     version: 0.1.0
     repository: "file://subchart/audio-analyzer/"
     condition: audioanalyzer.enabled
