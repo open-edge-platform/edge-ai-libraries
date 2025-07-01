@@ -112,7 +112,10 @@ jobs:
       run: | 
         mkdir -p ${RESULTS_DIR}
         chmod -R 777 ${RESULTS_DIR}   
-
+    - name: Show scripts directory
+      run: |
+        ls -a $PWD/libraries/dl-streamer/tests/scripts
+        
     - name: Run tests
       id: run-tests
       env:
@@ -126,8 +129,8 @@ jobs:
           --group-add=$(stat -c "%g" /dev/dri/render*) \
           -v ${{ env.VIDEO_INPUTS_PATH }}:${MAPPED_VIDEO_EXAMPLES_DIR} \
           -v ${{ env.MODELS_PATH }}:${MAPPED_MODELS_PATH} \
-          -v ${RESULTS_DIR}:${MAPPED_RESULTS_DIR}        \
-          -v libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
+          -v $PWD/${RESULTS_DIR}:${MAPPED_RESULTS_DIR}        \
+          -v $PWD/libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
           -e VIDEO_EXAMPLES_DIR=${MAPPED_VIDEO_EXAMPLES_DIR}  \
           -w /home/dlstreamer/dlstreamer  \
           -e MODELS_PATH=${MAPPED_MODELS_PATH}                \
@@ -137,7 +140,7 @@ jobs:
 
     #this script creates output file called unit_test_summary.txt
     - name: Run python script to get Unit Test results
-      run: python3 libraries/dl-streamer/tests/scripts/unit_test_results.py ${RESULTS_DIR}
+      run: python3 libraries/dl-streamer/tests/scripts/unit_test_results.py $PWD/${RESULTS_DIR}
 
     - name: Add test summary to job summary
       if: always ()
@@ -145,7 +148,7 @@ jobs:
         RESULTS_DIR: test-results
       run: |
         echo "## Test Summary for Unit Tests on TGL" >> $GITHUB_STEP_SUMMARY
-        cat ${RESULTS_DIR}/unit_test_summary.txt >> $GITHUB_STEP_SUMMARY
+        cat $PWD/${RESULTS_DIR}/unit_test_summary.txt >> $GITHUB_STEP_SUMMARY
 
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
