@@ -570,11 +570,6 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
-
-
-  if [[ $QUANTIZE != "" ]]; then
-    quantize_yolo_model "$MODEL_NAME"
-  fi
 fi
 
 # Function to export YOLO model
