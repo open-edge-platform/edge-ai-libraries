@@ -655,7 +655,7 @@ def on_stop():
 
 
 # Create the interface
-def create_interface():
+def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
     Components declarations starts here.
     Only components that are used in event handlers needs to be declared.
@@ -936,7 +936,7 @@ def create_interface():
     components.add(object_classification_reclassify_interval)
 
     # Interface layout
-    with gr.Blocks(theme=theme, css=css_code) as demo:
+    with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
 
         """
         Components events handlers and interactions are defined here.
