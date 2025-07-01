@@ -941,6 +941,7 @@ EOF
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
 fi
+<<<<<<< HEAD
 
 # Deactivate and remove venvs
 echo "Removing Python virtual environments..."
@@ -948,3 +949,5 @@ deactivate
 rm -r $VENV_DIR
 rm -r $VENV_DIR_QUANT
 echo "Removed"
+=======
+>>>>>>> 58f9e82 (Undo cleaning in downloading script)
