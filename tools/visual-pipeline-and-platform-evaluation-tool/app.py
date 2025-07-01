@@ -48,33 +48,33 @@ has_dgpu = any(
 
 all_chart_titles = [
     "Pipeline Throughput [FPS]",
-    "CPU Frequency [KHz]",
     "CPU Utilization [%]",
-    "CPU Temperature [C°]",
+    "Integrated GPU Engine Utilization [%]",
+    "Discrete GPU Engine Utilization [%]",
     "Memory Utilization [%]",
     "Integrated GPU Power Usage [W] (Package & Total)",
     "Integrated GPU Frequency [MHz]",
-    "Integrated GPU Engine Utilization [%]",
     "Discrete GPU Power Usage [W] (Package & Total)",
     "Discrete GPU Frequency [MHz]",
-    "Discrete GPU Engine Utilization [%]",
+    "CPU Frequency [KHz]",
+    "CPU Temperature [C°]",
 ]
 all_y_labels = [
     "Throughput",
-    "Frequency",
     "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Power",
+    "Frequency",
+    "Power",
+    "Frequency",
+    "Frequency",
     "Temperature",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
 ]
 
-igpu_indices = [5, 6, 7]
-dgpu_indices = [8, 9, 10]
+igpu_indices = [2, 5, 6]
+dgpu_indices = [3, 7, 8]
 
 indices_to_remove = []
 if not has_igpu:
