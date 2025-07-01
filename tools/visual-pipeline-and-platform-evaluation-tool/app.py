@@ -894,7 +894,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     run_button = gr.Button("Run")
 
     # Benchmark button
-    benchmark_button = gr.Button("Benchmark")
+    benchmark_button = gr.Button("Platform Ceiling Analysis")
 
     # Stop button
     stop_button = gr.Button("Stop", variant="stop", visible=False)
@@ -1294,7 +1294,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             recording_channels.render()
 
                         # Benchmark Parameters Accordion
-                        with gr.Accordion("Benchmark Parameters", open=True):
+                        with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
 
                             # FPS Floor
                             fps_floor.render()
