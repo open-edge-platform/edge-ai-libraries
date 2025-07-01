@@ -102,6 +102,12 @@ def main(cfg: PipelineServerConfig):
     if otel_exporter is not None:
         otel_exporter.stop()
         log.info("OpenTelemetry Exporter stopped")
+
+    # start opentelemetry exporter
+    if strtobool(os.getenv("ENABLE_OPEN_TELEMETRY","false")):
+        otel_exporter = OpenTelemetryExporter()
+        # Start the metrics collection in a separate thread
+        otel_exporter.start()
         
     log.info("DL Streamer Pipeline Server Configuration:")
     app_cfg = cfg.get_app_config()
@@ -139,11 +145,11 @@ def main(cfg: PipelineServerConfig):
         log.info("{}".format(pl))
     log.info("="*40)
 
-    # start opentelemetry exporter
-    if strtobool(os.getenv("ENABLE_OPEN_TELEMETRY","false")):
-        otel_exporter = OpenTelemetryExporter()
-        # Start the metrics collection in a separate thread
-        otel_exporter.start()
+    # # start opentelemetry exporter
+    # if strtobool(os.getenv("ENABLE_OPEN_TELEMETRY","false")):
+    #     otel_exporter = OpenTelemetryExporter()
+    #     # Start the metrics collection in a separate thread
+    #     otel_exporter.start()
 
     # monitor for rest server to stop
     if rest_server is not None:

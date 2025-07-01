@@ -16,12 +16,9 @@ from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExp
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
 
 # Additional imports for log exporting
-# from opentelemetry.sdk.logs import LoggerProvider, LoggingHandler, set_logger_provider
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
 from opentelemetry import _logs
-# from opentelemetry.sdk.logs.export import BatchLogRecordProcessor
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
-# from opentelemetry.exporter.otlp.proto.http.logs_exporter import OTLPLogExporter
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
 from src.common.log import get_logger
@@ -87,9 +84,12 @@ class OpenTelemetryExporter:
 
         # Attach OpenTelemetry logging handler to root logger
         import logging
-        otel_log_level = os.getenv("LOG_LEVEL", "DEBUG").upper()
+        root_logger = logging.getLogger()
+        root_logger.setLevel(logging.NOTSET)
+        otel_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+        self.log.info(f"Setting OpenTelemetry log level to: {otel_log_level}")
         otel_logging_handler = LoggingHandler(level=getattr(logging, otel_log_level, logging.DEBUG))
-        logging.getLogger().addHandler(otel_logging_handler)
+        root_logger.addHandler(otel_logging_handler)
 
         # Create gauges to track CPU and memory usage
         self.cpu_usage = self.meter.create_gauge(

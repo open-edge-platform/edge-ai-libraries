@@ -26,10 +26,10 @@ exporters:
     loglevel: debug
 service:
   pipelines:
-    # logs:
-    #   receivers: [ otlp ]
-    #   processors: [ batch ]
-    #   exporters: [ logging, debug ] # Replace with your service name
+    logs:
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ logging ] # Replace with your service name
     metrics:
       receivers: [ otlp ]  # Collect metrics using OTLP receiver
       exporters: [ prometheus ]  # Export to Prometheus
