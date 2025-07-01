@@ -3,16 +3,7 @@
 
 FROM python:3.11-slim AS build
 
-RUN apt-get update && apt-get install -y \
-    automake \
-    gcc \
-    g++ \
-    subversion \
-    python3-dev \
-    libjpeg-dev \
-    zlib1g-dev \
-    && pip install Pillow==8.2.0 numpy \
-    && pip install --pre torch torchvision --index-url https://download.pytorch.org/whl/nightly/cpu \
+RUN apt-get update && apt-get install -y python3-dev \
     && pip install poetry==2.1.3
 
 WORKDIR /app
