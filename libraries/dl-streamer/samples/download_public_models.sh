@@ -677,7 +677,12 @@ YOLO_MODELS=(
 # Iterate over the models and export them
 for MODEL_NAME in "${!YOLO_MODELS[@]}"; do
   if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
-    export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" "$QUANTIZE"
+    MODEL_NAME_UPPER=$(echo "$MODEL_NAME" | tr '[:lower:]' '[:upper:]')
+    if [[ $MODEL_NAME_UPPER == *"OBB"* || $MODEL_NAME_UPPER == *"POSE"* || $MODEL_NAME_UPPER == *"SEG"* ]]; then
+      export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" ""
+    else
+      export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" "$QUANTIZE"
+    fi
   fi
 done
 
