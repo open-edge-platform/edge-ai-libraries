@@ -37,7 +37,7 @@ services:
       vdms-dataprep:
         condition: service_started
       vclip-embedding-ms:
-        condition: service_started
+        condition: service_healthy
     ipc: host
     ports:
       - "${VS_HOST_PORT}:8000"

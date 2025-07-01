@@ -13,11 +13,11 @@ services:
       vlm-openvino-serving:
         condition: service_healthy
       video-ingestion:
-        condition: service_started
+        condition: service_healthy
       rabbitmq-service:
-        condition: service_started
+        condition: service_healthy
       audio-analyzer:
-        condition: service_started
+        condition: service_healthy
     environment:
       EVAM_HOST: ${EVAM_HOST}
       EVAM_DEVICE: ${EVAM_DEVICE}
@@ -190,7 +190,8 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio} # can be minio or local
     depends_on:
-      - minio-service
+      minio-service:
+        condition: service_healthy
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped
@@ -199,7 +200,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
     networks:
       - vs_network
 
