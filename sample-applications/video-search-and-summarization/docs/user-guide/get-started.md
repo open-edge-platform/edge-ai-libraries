@@ -246,9 +246,9 @@ open htmlcov/index.html
 
 # Open the HTML report (Windows)
 start htmlcov/index.html
+```
 
-
-### ⚡ Using GPU Acceleration
+## Using GPU Acceleration
 
 To use GPU acceleration for VLM inference:
 
