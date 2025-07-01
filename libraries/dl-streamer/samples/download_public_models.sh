@@ -941,3 +941,8 @@ EOF
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
 fi
+
+# Deactivate and remove venvs
+deactivate
+rm -r $VENV_DIR
+rm -r $VENV_DIR_QUANT
