@@ -14,8 +14,10 @@ spec:
   ports:
   - name: kapacitor-port
     port: {{ .Values.config.time_series_analytics_microservice.kapacitor_port }}
-    targetPort: {{ $.Values.config.time_series_analytics_microservice.int.port }}
-    nodePort: {{ $.Values.config.time_series_analytics_microservice.ext.port }}
+  - name: rest-api-port
+    port: {{ .Values.config.time_series_analytics_microservice_rest_api.rest_api_port }}
+    targetPort: {{ .Values.config.time_series_analytics_microservice_rest_api.int.port }}
+    nodePort: {{ .Values.config.time_series_analytics_microservice_rest_api.ext.port }}
   selector:
     app: time-series-analytics-microservice
 ---
@@ -42,7 +44,7 @@ spec:
       {{- end }}
       containers:
       - name: ia-time-series-analytics-microservice
-        image: {{ .Values.DOCKER_REGISTRY }}intel/ia-time-series-analytics-microservice:1.0.0
+        image: {{ .Values.DOCKER_REGISTRY }}{{ .Values.images.time_series_analytics_image }}{{ if .Values.images.image_suffix }}-{{ .Values.images.image_suffix }}{{ end }}
         imagePullPolicy: {{ .Values.imagePullPolicy }}
         securityContext:
           readOnlyRootFilesystem: true
