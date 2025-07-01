@@ -9,7 +9,7 @@ set -e
 
 SCRIPTDIR="$(dirname "$(readlink -fm "$0")")"
 
-build_dir=${1:-"${SCRIPTDIR}/build"}
+build_dir=${1:-"${SCRIPTDIR}/../build"}
 rebuild_with_code_coverage=${2:-"false"}
 result_path=${3}
 build_type=${4:-"Release"}
@@ -84,15 +84,15 @@ ctest -T Test --output-on-failure --verbose "${ctest_args_junit[@]}" || ret_code
 cp ./Testing/"$(head -n 1 Testing/TAG)"/Test.xml "$result_path/CTestResults.xml"
 popd
 
-SRC_DIR=$PWD
+SRC_DIR=$build_dir/..
 
-pushd "$SRC_DIR"/tests/unit_tests/tests_gstgva
+pushd "$SRC_DIR"/tests/tests_gstgva
 py.test --junitxml="$result_path"/python_tests_results.xml || ret_code=$?
 popd
 
 if [ "$rebuild_with_code_coverage" = true ]; then
   mkdir -p "$result_path"/code_coverage
-  gcovr -r "$SRC_DIR" -e "$SRC_DIR"/thirdparty/ -e "$SRC_DIR"/tests/unit_tests/ -e "$SRC_DIR"/samples/ --html --html-details -o "$result_path"/code_coverage/index.html
+  gcovr -r "$SRC_DIR" -e "$SRC_DIR"/thirdparty/ -e "$SRC_DIR"/tests/ -e "$SRC_DIR"/samples/ --html --html-details -o "$result_path"/code_coverage/index.html
 fi
 
 # 1, 8 means that tests were run but some failed. We check it in CI
