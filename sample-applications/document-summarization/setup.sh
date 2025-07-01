@@ -32,7 +32,7 @@ curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/r
 echo $?
 mkdir -p "$VOLUME_OVMS/models"
 echo $?
-python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path "$VOLUME_OVMS/models/config.json" --model_repository_path "$VOLUME_OVMS/models" --target_device $TARGET_DEVICE --extra_quantization_params "--log-level DEBUG"
+python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path "$VOLUME_OVMS/models/config.json" --model_repository_path "$VOLUME_OVMS/models" --target_device $TARGET_DEVICE
 
 
 # Wait for any process to exit
