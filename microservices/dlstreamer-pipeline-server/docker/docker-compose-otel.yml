@@ -25,7 +25,7 @@ services:
       - no-new-privileges
     build:
       context: ..
-      target: dlstreamer-pipeline-server
+      target: ${BUILD_TARGET}
       dockerfile: ${DLSTREAMER_PIPELINE_SERVER_DOCKERFILE}
       args:
         MSGBUS_LIB_VERSION: 4.0.0
@@ -34,8 +34,6 @@ services:
         USER: ${PIPELINE_SERVER_USER}
         BASE_IMAGE: ${BASE_IMAGE}
         CMAKE_INSTALL_PREFIX: "/opt/intel/eii"
-        # Download sources for GPL/LGPL/AGPL binary distributed components (yes/no)
-        DOWNLOAD_GPL_SOURCES: "no"
         no_proxy: ${no_proxy}
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
@@ -93,7 +91,7 @@ services:
     depends_on:
       - otel-collector
     volumes:
-      # - "../resources:/home/pipeline-server/resources/"
+      - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
       - vol_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
       - "../certificates:/MqttCerts:ro"

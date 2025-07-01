@@ -37,6 +37,16 @@ export class TemplateService {
     return template;
   }
 
+  addDetectedObjects(prompt:string, detectedObjects: Set<string>){
+    const objectsList = Array.from(detectedObjects).join(', ');
+    return `${prompt}\n\nDetected objects in these frames: ${objectsList}\n\n`;
+  }
+
+  addAudioTranscript(prompt:string, transcripts:string){
+    return `${prompt}\n\nAudio transcripts for this chunk of video:\n${transcripts}\n\n`;
+  }
+
+
   getCaptionsSummarizeTemplate(): string {
     return CaptionsSummarizeTemplate;
   }
