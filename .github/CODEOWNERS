@@ -8,7 +8,7 @@ SECURITY.md @xwu2intel
 /microservices/object-store/ @bharagha @madhuri-rai07 @yogeshmpandey
 /sample-applications/chat-question-and-answer/  @bharagha @madhuri-rai07 @yogeshmpandey
 /sample-applications/chat-question-and-answer-core/  @bharagha @madhuri-rai07 @yogeshmpandey
-/tools/visual-pipeline-and-platform-evaluation-tool/ @dnoliver @oommensy @basakcap
+/tools/visual-pipeline-and-platform-evaluation-tool/ @p-zak @ktaube26 @tmatenko
 /microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
 /microservices/model-registry/ @rrajore @elroyashjr
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
