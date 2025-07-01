@@ -216,7 +216,7 @@ def run_pipeline_and_extract_metrics(
         )
 
         # Log the command
-        logger.debug(f"Pipeline Command: {_pipeline}")
+        logger.info(f"Pipeline Command: {_pipeline}")
 
         try:
             # Set the environment variable to enable all drivers

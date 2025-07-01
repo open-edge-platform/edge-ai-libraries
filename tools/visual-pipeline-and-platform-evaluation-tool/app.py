@@ -667,13 +667,19 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
     try:
         download_file(
-            "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
-            "/tmp/person-bicycle-car-detection.mp4",
+            "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4",
+            "/tmp/people.mp4",
         )
+
+#        download_file(
+#            "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
+#            "/tmp/person-bicycle-car-detection.mp4",
+#        )
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
-            value="/tmp/person-bicycle-car-detection.mp4",
+#            value="/tmp/person-bicycle-car-detection.mp4",
+            value="/tmp/people.mp4",
             sources="upload",
             elem_id="input_video_player",
         )
@@ -716,7 +722,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     inferencing_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=11,
+        value=8,
         step=1,
         label="Number of Recording + Inferencing channels",
         interactive=True,
@@ -727,7 +733,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     recording_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=3,
+        value=8,
         step=1,
         label="Number of Recording only channels",
         interactive=True,
@@ -807,7 +813,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     object_detection_inference_interval = gr.Slider(
         minimum=1,
         maximum=5,
-        value=1,
+        value=3,
         step=1,
         label="Object Detection Inference Interval",
         interactive=True,
@@ -861,7 +867,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     object_classification_inference_interval = gr.Slider(
         minimum=1,
         maximum=5,
-        value=1,
+        value=3,
         step=1,
         label="Object Classification Inference Interval",
         interactive=True,
