@@ -9,7 +9,7 @@ The Document Summarization Application enables you to upload documents and recei
 This section shows you how to:
 
 - **Set up the sample application**: Use the Docker Compose tool to quickly deploy the application in your environment.
-- **Run the application**: Execute the application to see real-time question and answering based on your data.
+- **Run the application**: Execute the application to generate concise summary for your document.
 
 ## Prerequisites
 
