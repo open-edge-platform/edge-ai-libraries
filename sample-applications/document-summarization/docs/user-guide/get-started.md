@@ -77,14 +77,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
         ```bash
         source ./setup.sh
         ```
-
-4. **Build the Docker Image**:
-    - Build the Docker image for the Document Summarization Sample Application:
-      ```bash
-      docker compose build
-      ```
-
-5. **Run the Docker Container**:
+        
+4. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
       docker compose up
@@ -99,10 +93,17 @@ Visit https://huggingface.co/settings/tokens to get your token.
         - The Gradio UI service (port 9998)
         
         - The NGINX web server (port 8101)
+          
+5. **Verify the Application**:
+   Check that the application is running:
+
+   ```bash
+   docker ps
+   ```
 
 6. **Access the Application**:
-    - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard (Gradio UI at port 9998 and Gradio UI through NGINX web server at port 8101).
-    - To access FastAPI documentation, go to `http://${host_ip}:8090/docs` in the browser.
+    - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard. The application dashboard allows the user to:
+    - Upload document and generate summary
 
 ## Running in Kubernetes Environment
 
