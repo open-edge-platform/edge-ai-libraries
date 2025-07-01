@@ -12,11 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'microservices/time-series-analytics/**'
+  workflow_dispatch:
 
 jobs:   
   trivy-scan-job:
