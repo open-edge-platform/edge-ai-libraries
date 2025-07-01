@@ -485,7 +485,8 @@ jobs:
           echo "Running unit test cases"
           python3.12 -m venv venv
           source venv/bin/activate
-          poetry install --with dev || true
+          #poetry install --with dev || true
+          poetry install || true
           poetry add pytest-html
           # source setup.sh
           poetry run pytest tests/unit_tests/ --html=pytest-coverage-doc-summary.html
