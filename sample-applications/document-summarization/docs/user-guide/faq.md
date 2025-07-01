@@ -1,7 +1,7 @@
 # FAQ: Document Summarization Application
 
 ### Q: What file formats are supported?
-A: PDF and plain-text files are supported.
+A: PDF, docx and plain-text files are supported.
 
 ### Q: How large can my document be?
 A: The maximum file size is configurable through the backend settings.
