@@ -72,6 +72,13 @@ jobs:
     name: Build dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images.yaml
 
+  unit-tests:
+    permissions:
+      contents: read
+      packages: read
+    name: Run Unit tests
+    uses: ./.github/workflows/dls-unit-tests.yaml
+    
   build-and-test-deb-and-deb_img:
     permissions:
       contents: read
