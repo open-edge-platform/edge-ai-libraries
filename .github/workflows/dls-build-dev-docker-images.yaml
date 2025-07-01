@@ -134,10 +134,10 @@ jobs:
           -v $PWD/libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
           -e VIDEO_EXAMPLES_DIR=${MAPPED_VIDEO_EXAMPLES_DIR}  \
           -w /home/dlstreamer/dlstreamer  \
-          -e MODELS_PATH=${MAPPED_MODELS_PATH}                \
+          -e MODELS_PATH=${MAPPED_MODELS_PATH} \
           -e MODELS_PROC_PATH=/home/dlstreamer/dlstreamer/samples/gstreamer/model_proc \
           ${dev_debug_img} \
-          scripts/run_unit_tests.sh "" "" ${MAPPED_RESULTS_DIR}
+          /home/dlstreamer/dlstreamer/scripts/run_unit_tests.sh "" "" ${MAPPED_RESULTS_DIR}
 
     #this script creates output file called unit_test_summary.txt
     - name: Run python script to get Unit Test results
