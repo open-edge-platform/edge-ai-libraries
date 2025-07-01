@@ -115,7 +115,8 @@ jobs:
     - name: Show scripts directory
       run: |
         ls -a $PWD/libraries/dl-streamer/tests/scripts
-        
+        chmod +x $PWD/libraries/dl-streamer/tests/scripts/run_unit_tests.sh
+
     - name: Run tests
       id: run-tests
       env:
