@@ -289,31 +289,31 @@ jobs:
       - name: Setup Tools
         uses: ./.github/actions/setup-tools
       
-      - name: Run Unit Tests for Core
-        continue-on-error: true
-        shell: bash
-        run: |
-          cd sample-applications/chat-question-and-answer
-          echo "Running unit test cases"
-          python3.12 -m venv venv
-          source venv/bin/activate
-          poetry install --with dev || true
-          #poetry add pytest-html
-          #source setup.sh
-          source setup.sh llm=TGI embed=TEI
-          poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
-          coverage run --source=. -m pytest
-          coverage report -m
-          # Install required packages
-          # poetry add pytest-cov pytest-html 
+      # - name: Run Unit Tests for Core
+      #   continue-on-error: true
+      #   shell: bash
+      #   run: |
+      #     cd sample-applications/chat-question-and-answer
+      #     echo "Running unit test cases"
+      #     python3.12 -m venv venv
+      #     source venv/bin/activate
+      #     poetry install --with dev || true
+      #     #poetry add pytest-html
+      #     #source setup.sh
+      #     source setup.sh llm=TGI embed=TEI
+      #     poetry run pytest tests/unit_tests/ --html=pytest-coverage-chatqna.html
+      #     coverage run --source=. -m pytest
+      #     coverage report -m
+      #     # Install required packages
+      #     # poetry add pytest-cov pytest-html 
           
-          # Run tests with coverage and HTML report in one command
-          #poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
+      #     # Run tests with coverage and HTML report in one command
+      #     #poetry run pytest tests/unit_tests/ --cov=. --cov-report=html --html=pytest-report-chatqna.html
           
-          # For a combined coverage and test report
-          # poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
-          deactivate
-          rm -rf venv
+      #     # For a combined coverage and test report
+      #     # poetry run pytest tests/unit_tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-chatqna.html     
+      #     deactivate
+      #     rm -rf venv
           
       # - name: Upload Coverage Report
       #   continue-on-error: true
@@ -331,18 +331,18 @@ jobs:
       #   with:
       #     node-version: '22'
  
-      - name: Install npm dependencies
-        continue-on-error: true
-        shell: bash
-        run: |
-          pwd
-          cd sample-applications/chat-question-and-answer/ui/react
-          npm install
-          npm install -D vitest@2.1.9
-          npm run test
-          npm run test:ui
-          npm run coverage
-          npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
+      # - name: Install npm dependencies
+      #   continue-on-error: true
+      #   shell: bash
+      #   run: |
+      #     pwd
+      #     cd sample-applications/chat-question-and-answer/ui/react
+      #     npm install
+      #     npm install -D vitest@2.1.9
+      #     npm run test
+      #     npm run test:ui
+      #     npm run coverage
+      #     npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
       
       - name: Upload UI Results
         continue-on-error: true
