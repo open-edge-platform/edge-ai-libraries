@@ -9,7 +9,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 ## Documentation
 
 - **Overview**
-  - [Overview](docs/user-guide/overview.md): A high-level introduction
+  - [Overview](docs/user-guide/overview.md): A high-level introduction.
   - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
 
 - **Getting Started**
