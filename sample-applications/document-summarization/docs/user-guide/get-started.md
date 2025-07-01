@@ -57,7 +57,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
       ```bash
       # OVMS Configuration
       export VOLUME_OVMS=<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-      export LLM_MODEL=<llm-model>
+      export LLM_MODEL="microsoft/Phi-3.5-mini-instruct"
 
       # Docker Image Registry Configuration
       export REGISTRY="/intel"

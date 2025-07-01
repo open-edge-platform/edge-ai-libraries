@@ -13,13 +13,14 @@ Before you begin, ensure that you have the following prerequisites:
 1. **Clone the Repository**:
     - Clone the Document Summarization Sample Application repository:
       ```bash
-      git clone <repository-url>
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
       ```
+      **Note**: Adjust the repo link appropriately in case of forked repo.
 
 2. **Navigate to the Directory**:
     - Go to the directory where the Dockerfile is located:
       ```bash
-      cd <repository-url>/sample-applications/document-summarization
+      cd edge-ai-libraries/sample-applications/document-summarization
       ```
 	  
 3. **Set Up Environment Variables**:
@@ -28,12 +29,11 @@ Before you begin, ensure that you have the following prerequisites:
       ```bash
       # OVMS Configuration
       export VOLUME_OVMS=<model-export-path-for-OVMS>  # For example, use: export VOLUME_OVMS="$PWD"
-      export LLM_MODEL=<llm-model>
+      export LLM_MODEL="microsoft/Phi-3.5-mini-instruct"
 
       # Docker Image Registry Configuration
       export REGISTRY="intel/"
-      export UI_TAG=1.0
-      export BACKEND_TAG=1.0
+      export TAG=1.0
       ```
 
       To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
@@ -84,8 +84,7 @@ Before you begin, ensure that you have the following prerequisites:
         - The nginx (port 8101)
 
 6. **Access the Application**:
-    - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard (Gradio UI at port 9998 and Gradio UI through NGINX web server at port 8101).
-    - To access FastAPI documentation, go to `http://${host_ip}:8090/docs` in the browser.
+    - Open a browser and go to `http://<host-ip>:8101` to access the application dashboard.
 
 ## Verification
 
