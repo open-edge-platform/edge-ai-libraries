@@ -92,13 +92,7 @@ Refer to [Deploy with Helm Chart](./deploy-with-helm.md) for the details. Ensure
 
 ## Running Tests
 
-1. Ensure you have the necessary environment variables set up as mentioned in the setup section.
-
-2. Run the tests using `pytest`:
-   ```sh
-   cd sample-applications/document-summarization/tests/unit_tests/
-   poetry run pytest
-   ```
+- Ensure you follow all the steps from [unit test README](./../../tests/unit_tests/README.md) document.
 
 ## Advanced Setup Options
 
