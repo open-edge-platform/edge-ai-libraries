@@ -120,14 +120,12 @@ jobs:
         MAPPED_MODELS_PATH: /home/dlstreamer/models
         MAPPED_RESULTS_DIR: /home/dlstreamer/test-results
         MAPPED_VIDEO_EXAMPLES_DIR: /home/dlstreamer/video-examples
-        MODELS_PATH: "$HOME/models"
-        VIDEO_INPUTS_PATH: "$HOME/videos"
         RESULTS_DIR: test-results
       run: |
         docker run --device /dev/dri --rm \
           --group-add=$(stat -c "%g" /dev/dri/render*) \
-          -v ${VIDEO_INPUTS_PATH}:${MAPPED_VIDEO_EXAMPLES_DIR} \
-          -v ${MODELS_PATH}:${MAPPED_MODELS_PATH} \
+          -v ${{ env.VIDEO_INPUTS_PATH }}:${MAPPED_VIDEO_EXAMPLES_DIR} \
+          -v ${{ env.MODELS_PATH }}:${MAPPED_MODELS_PATH} \
           -v $PWD/${RESULTS_DIR}:${MAPPED_RESULTS_DIR}        \
           -v $PWD/libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
           -e VIDEO_EXAMPLES_DIR=${MAPPED_VIDEO_EXAMPLES_DIR}  \
