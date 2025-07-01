@@ -100,8 +100,8 @@ SUPPORTED_MODELS=(
 # Corresponds to files in 'datasets' directory
 declare -A SUPPORTED_QUANTIZATION_DATASETS
 SUPPORTED_QUANTIZATION_DATASETS=(
-  ["coco"]="https://raw.githubusercontent.com/ultralytics/ultralytics/v8.1.0/ultralytics/cfg/datasets/coco.yaml"
-  ["coco128"]="https://raw.githubusercontent.com/ultralytics/ultralytics/v8.1.0/ultralytics/cfg/datasets/coco128.yaml"
+  ["coco"]="https://raw.githubusercontent.com/ultralytics/ultralytics/v8.3.0/ultralytics/cfg/datasets/coco.yaml"
+  ["coco128"]="https://raw.githubusercontent.com/ultralytics/ultralytics/v8.3.0/ultralytics/cfg/datasets/coco128.yaml"
 )
 
 # Function to display text in a given color
