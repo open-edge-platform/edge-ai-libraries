@@ -9,7 +9,7 @@ set -e
 
 SCRIPTDIR="$(dirname "$(readlink -fm "$0")")"
 
-build_dir=${1:-"${SCRIPTDIR}/../build"}
+build_dir=${1:-"${SCRIPTDIR}/build"}
 rebuild_with_code_coverage=${2:-"false"}
 result_path=${3}
 build_type=${4:-"Release"}
@@ -84,7 +84,7 @@ ctest -T Test --output-on-failure --verbose "${ctest_args_junit[@]}" || ret_code
 cp ./Testing/"$(head -n 1 Testing/TAG)"/Test.xml "$result_path/CTestResults.xml"
 popd
 
-SRC_DIR=$build_dir/..
+SRC_DIR=$PWD
 
 pushd "$SRC_DIR"/tests/unit_tests/tests_gstgva
 py.test --junitxml="$result_path"/python_tests_results.xml || ret_code=$?
