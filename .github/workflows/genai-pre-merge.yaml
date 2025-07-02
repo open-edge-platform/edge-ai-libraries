@@ -482,6 +482,9 @@ jobs:
           cd sample-applications/document-summarization/
           echo "Running unit test cases"
           which poetry
+          sudo apt install python3.13-venv
+          python -m venv venv
+          source venv/bin/activate
           poetry install --with dev
           poetry add --dev pytest-html
           source setup.sh
