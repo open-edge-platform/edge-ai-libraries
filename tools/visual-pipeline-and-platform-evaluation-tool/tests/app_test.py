@@ -1,7 +1,7 @@
 import unittest
 from unittest import mock
 
-from app import create_interface, generate_stream_data, read_latest_metrics
+from app import create_interface, generate_stream_data, read_latest_metrics, chart_titles
 
 
 class TestApp(unittest.TestCase):
@@ -59,7 +59,7 @@ class TestApp(unittest.TestCase):
     def test_generate_stream_data(self):
         mock_data = [1.0 for _ in range(20)]
         with mock.patch("app.read_latest_metrics", return_value=mock_data):
-            for i in range(8):
+            for i in range(len(chart_titles)):
                 stream = generate_stream_data(i)
                 self.assertIsNotNone(stream)
 
