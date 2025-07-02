@@ -76,10 +76,20 @@ spec:
           volumeMounts:
             - name: model-cache
               mountPath: "{{ .Values.global.model_cache_path }}"
+            {{- if and (not .Values.global.EMBEDDING_MODEL) (not .Values.global.RERANKER_MODEL) (not .Values.global.LLM_MODEL) }}
+            - name: model-config
+              mountPath: /tmp/model_config
+              subpath: config.yaml
+            {{- end }}
       volumes:
         - name: model-cache
           persistentVolumeClaim:
             claimName: chatqna-pvc
+        {{- if and (not .Values.global.EMBEDDING_MODEL) (not .Values.global.RERANKER_MODEL) (not .Values.global.LLM_MODEL) }}
+        - name: model-config
+          configMap:
+            name: model-config
+        {{- end }}
       {{- if .Values.gpu.enabled }}
         - name: dri-device
           hostPath:
