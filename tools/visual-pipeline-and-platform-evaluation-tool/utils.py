@@ -51,7 +51,8 @@ def prepare_video_and_constants(
         "object_classification_reclassify_interval", 0.0
     )
     object_classification_nireq = kwargs.get("object_classification_nireq", 1)
-    watermark_enabled = kwargs.get("watermark_enabled", True)
+    pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
+    pipeline_compose_enabled = kwargs.get("pipeline_compose_enabled", True)
 
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
@@ -77,7 +78,8 @@ def prepare_video_and_constants(
         "object_classification_inference_interval": [object_classification_inference_interval],
         "object_classification_reclassify_interval": [object_classification_reclassify_interval],
         "object_classification_nireq": [object_classification_nireq],
-        "watermark_enabled": [watermark_enabled],
+        "pipeline_watermark_enabled": [pipeline_watermark_enabled],
+        "pipeline_compose_enabled": [pipeline_compose_enabled],
     }
 
     constants = {

@@ -897,10 +897,16 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="object_classification_reclassify_interval",
     )
 
-    watermark_enabled = gr.Checkbox(
-        label="Overlay inference results on output video",
+    pipeline_watermark_enabled = gr.Checkbox(
+        label="Overlay inference results on inference channels",
         value=True,
-        elem_id="watermark_enabled",
+        elem_id="pipeline_watermark_enabled",
+    )
+
+    pipeline_compose_enabled = gr.Checkbox(
+        label="Compose and encode video channels",
+        value=True,
+        elem_id="pipeline_compose_enabled",
     )
 
     # Run button
@@ -936,7 +942,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(recording_channels)
     components.add(fps_floor)
     components.add(ai_stream_rate)
-    components.add(watermark_enabled)
     components.add(object_detection_model)
     components.add(object_detection_device)
     components.add(object_detection_batch_size)
@@ -948,6 +953,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_inference_interval)
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
+    components.add(pipeline_watermark_enabled)
+    components.add(pipeline_compose_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -1307,6 +1314,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             # Recording Channels
                             recording_channels.render()
 
+                            # Whether to overlay result with watermarks
+                            pipeline_watermark_enabled.render()
+
+                            # Whether to compose output
+                            pipeline_compose_enabled.render()
+
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
 
@@ -1318,8 +1331,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
-
-                            watermark_enabled.render()
 
                             # Object Detection Parameters
                             object_detection_model.render()

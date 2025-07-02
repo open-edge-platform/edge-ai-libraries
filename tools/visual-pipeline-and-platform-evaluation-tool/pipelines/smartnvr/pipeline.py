@@ -31,6 +31,12 @@ class SmartNVRPipeline(GstPipeline):
             "  location={VIDEO_OUTPUT_PATH} async=false "
         )
 
+        self._fake_sink = (
+            "fakesink "
+            "  sync=false "
+            "  async=false "
+        )
+
         self._recording_stream = (
             "filesrc "
             "  location={VIDEO_PATH} ! "
@@ -42,15 +48,9 @@ class SmartNVRPipeline(GstPipeline):
             "filesink "
             "  location=/tmp/stream{id}.mp4 "
             "t{id}. ! "
-            "queue2 "
-            "  max-size-buffers=0 "
-            "  max-size-bytes=0 "
-            "  max-size-time=0 ! "
+            "queue2 ! "
             "{decoder} ! "
             "gvafpscounter starting-frame=500 ! "
-            "{postprocessing} ! "
-            "video/x-raw,width=640,height=360 ! "
-            "comp.sink_{id} "
         )
 
         self._inference_stream_decode_detect_track = (
@@ -102,6 +102,9 @@ class SmartNVRPipeline(GstPipeline):
             "gvametapublish "
             "  method=file "
             "  file-path=/dev/null ! "
+        )
+
+        self._sink_to_compositor = (
             "queue2 "
             "  max-size-buffers=0 "
             "  max-size-bytes=0 "
@@ -241,17 +244,12 @@ class SmartNVRPipeline(GstPipeline):
                 ),
             )
 
-        # Create the compositor
-        compositor = self._compositor.format(
-            **constants,
-            sinks=sinks,
-            encoder=_encoder_element,
-            compositor=_compositor_element,
-        )
+
 
         # Create the streams
         streams = ""
 
+        # Handle inference channels
         for i in range(inference_channels):
 
             # Handle object detection parameters and constants
@@ -275,7 +273,8 @@ class SmartNVRPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" or parameters["object_classification_device"] == "Disabled") :
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" 
+                    or parameters["object_classification_device"] == "Disabled") :
                 classification_model_config = (
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                     f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
@@ -293,16 +292,25 @@ class SmartNVRPipeline(GstPipeline):
                     classification_model_config=classification_model_config,
                 )
 
-            if parameters["watermark_enabled"]:
+            # Overlay inference results on the inferenced video if enabled
+            if parameters["pipeline_watermark_enabled"]:
                 streams += "gvawatermark ! "
             
             streams += self._inference_stream_metadata_processing.format(
                 **parameters,
                 **constants,
                 id=i,
-                postprocessing=_postprocessing_element,
             )
 
+            # sink to compositor or fake sink depending on the compose flag
+            streams += self._sink_to_compositor.format(
+                    **parameters,
+                    **constants,
+                    id=i,
+                    postprocessing=_postprocessing_element,
+                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
+
+        # Handle regular channels
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(
                 **parameters,
@@ -311,6 +319,22 @@ class SmartNVRPipeline(GstPipeline):
                 decoder=_decoder_element,
                 postprocessing=_postprocessing_element,
             )
+            # sink to compositor or fake sink depending on the compose flag
+            streams += self._sink_to_compositor.format(
+                    **parameters,
+                    **constants,
+                    id=i,
+                    postprocessing=_postprocessing_element,
+                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
+
+        # Prepend the compositor if enabled
+        if parameters["pipeline_compose_enabled"]:
+            streams = self._compositor.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+            ) + streams
 
         # Evaluate the pipeline
-        return "gst-launch-1.0 -q " + compositor + " " + streams
+        return "gst-launch-1.0 -q " + streams
