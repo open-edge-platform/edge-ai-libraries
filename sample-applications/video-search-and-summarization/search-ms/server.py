@@ -3,10 +3,12 @@
 
 import asyncio
 import json
-from datetime import datetime
+from typing import Optional, List, Tuple, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from langchain_community.vectorstores.vdms import VDMS
+
 from src.utils.common import logger, settings
 from src.utils.directory_watcher import (
     get_initial_upload_status,
@@ -59,20 +61,43 @@ async def startup_event():
 class QueryRequest(BaseModel):
     query_id: str
     query: str
+    tags: Optional[list[str]] = None
 
 
 @app.post("/query")
 async def query_endpoint(request: list[QueryRequest]):
     try:
-
+        db: VDMS = get_vectordb()
+        if not db:
+            logger.error("VectorDB could not be initialized. Please verify the connection.")
+            raise HTTPException(status_code=500, detail="Some error ocurred at the DataPrep Service.")
+        
         async def process_query(query_request):
-            docs_with_score = get_vectordb().similarity_search_with_relevance_scores(
-                query_request.query, k=20
+            """ Process a single query request. """
+            
+            logger.debug(f"Processing query: {query_request.query} with filter: {filter}")
+            docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
+                query_request.query, k=20, normalize_distance=True
             )
             query_results = []
             for res, score in docs_with_score:
                 res.metadata["relevance_score"] = score
+                # filter the results on tags
+                if query_request.tags:
+                    result_tags: list = []
+                    if res.metadata.get("tags"):
+                        # construct a list of tags from the tag string in results metadata
+                        if isinstance(res.metadata["tags"], str):
+                            result_tags = res.metadata["tags"].split(",")
+                        else:
+                            result_tags = res.metadata["tags"]
+
+                    # check if any of the query tags are in the result tags
+                    if not set(query_request.tags).intersection(set(result_tags)):
+                        continue
+                        
                 query_results.append(res)
+
             return {"query_id": query_request.query_id, "results": query_results}
 
         async def process_batch(batch):
@@ -90,9 +115,22 @@ async def query_endpoint(request: list[QueryRequest]):
 
         results = await process_requests(request)
         return {"results": results}
+    
+    except KeyError as e:
+        if str(e) == "'entities'":
+            logger.error(f"KeyError in query_endpoint: {str(e)}")
+            logger.error(f"No entities were found. Perhaps, no index is created or no \
+                         embeddings have been generated yet in the index: {settings.INDEX_NAME}")
+            raise HTTPException(status_code=404, detail=f"No entities were found.")
+        else:
+            logger.error(f"KeyError in query_endpoint: {str(e)}")
+            raise HTTPException(status_code=500, detail="Some error ocurred at the DataPrep Service.")
+        
     except Exception as e:
+        import traceback
+        traceback.print_exc()
         logger.error(f"Error in query_endpoint: {str(e)}")
-        raise HTTPException(status_code=500, detail=str(e))
+        raise HTTPException(status_code=500, detail="Some error ocurred at the DataPrep Service.")
 
 
 @app.get("/watcher-last-updated")
