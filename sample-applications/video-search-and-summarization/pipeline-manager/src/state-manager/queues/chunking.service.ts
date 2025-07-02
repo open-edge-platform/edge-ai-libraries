@@ -204,8 +204,6 @@ export class ChunkingService {
                 JSON.stringify(vlmInference),
               );
 
-              console.log('STATE AUDIO', state.audio);
-
               if (state.audio && state.audio.transcript.length > 0) {
                 const chunkDuration = state.userInputs.chunkDuration;
                 const sampleFrames = +state.userInputs.samplingFrame;
@@ -225,8 +223,6 @@ export class ChunkingService {
                 const endTime =
                   endChunk * chunkDuration +
                   (chunkDuration * lastFrame) / sampleFrames;
-
-                console.log('IN AUDIO:', startTime, endTime);
 
                 transcripts = state.audio.transcript
                   .filter(
@@ -249,8 +245,34 @@ export class ChunkingService {
 
               let prompt = state.systemConfig.framePrompt;
 
+              // Process Detected Objects
+              const detectedObjects = new Set<string>();
+
+              for (const frame of nextFrame.frames) {
+                const frameData = this.$state.fetchFrame(stateId, frame);
+                if (
+                  frameData &&
+                  frameData.metadata &&
+                  frameData.metadata.objects &&
+                  frameData.metadata.objects.length > 0
+                ) {
+                  frameData.metadata.objects.forEach((obj) => {
+                    if (obj.detection && obj.detection.label) {
+                      detectedObjects.add(obj.detection.label);
+                    }
+                  });
+                }
+              }
+
+              if (detectedObjects.size > 0) {
+                prompt = this.$template.addDetectedObjects(
+                  prompt,
+                  detectedObjects,
+                );
+              }
+
               if (transcripts) {
-                prompt += `Audio transcripts for this chunk of video:\n${transcripts}\n\n`;
+                prompt = this.$template.addAudioTranscript(prompt, transcripts);
               }
 
               console.log('Prompting for:', nextFrame.queueKey, prompt);
