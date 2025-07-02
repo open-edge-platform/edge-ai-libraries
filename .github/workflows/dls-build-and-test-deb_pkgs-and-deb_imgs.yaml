@@ -42,7 +42,7 @@ jobs:
 
     - name: Init submodules
       run: |
-        git submodule update --init $DLS_REL_PATH/thirdparty/spdlog
+        git submodule update --init edge-ai-libraries-repo/libraries/dl-streamer/thirdparty/spdlog
 
     # ======================================================== BUILDING PART ========================================================
     - name: Set up Docker Buildx
