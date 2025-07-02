@@ -27,12 +27,10 @@ Requires: mesa-libGLU
 Requires: libgudev
 Requires: paho-c
 Requires: python3
-Requires: python3-devel
 Requires: python3-pip
 Requires: python3-gobject
-Requires: python3-gobject-devel
-Requires: cairo-devel
-Requires: cairo-gobject-devel
+Requires: cairo
+Requires: cairo-gobject
 Requires: gobject-introspection
 Requires: libvpx
 Requires: opus
@@ -81,7 +79,6 @@ done
 %license LICENSE
 /opt/intel/dlstreamer/
 /opt/opencv/
-/opt/openh264/
 /opt/rdkafka/
 /opt/ffmpeg/
 

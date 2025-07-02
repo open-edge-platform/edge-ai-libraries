@@ -56,16 +56,17 @@ ENV GST_VA_ALL_DRIVERS=1
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
+# hadolint ignore=DL3041
 RUN \
     dnf install -y \
     "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
     "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" && \
     dnf install -y wget libva-utils xz python3-pip python3-gobject gcc gcc-c++ glibc-devel glib2-devel \
     flex bison autoconf automake libtool libogg-devel make libva-devel yasm mesa-libGL-devel libdrm-devel \
-    python3-gobject-devel python3-devel tbb gnupg2 unzip opencv-devel gflags-devel \
+    python3-gobject-devel python3-devel tbb gnupg2 unzip opencv-devel gflags-devel openssl-devel openssl-devel-engine \
     gobject-introspection-devel x265-devel x264-devel libde265-devel libgudev-devel libusb1 libusb1-devel nasm python3-virtualenv \
-    cairo-devel cairo-gobject-devel libXt-devel mesa-libGLES-devel wayland-protocols-devel libcurl-devel \
-    libssh2-devel cmake git valgrind numactl libvpx-devel opus-devel libsrtp-devel libXv-devel \
+    cairo-devel cairo-gobject-devel libXt-devel mesa-libGLES-devel wayland-protocols-devel libcurl-devel which \
+    libssh2-devel cmake git valgrind numactl libvpx-devel opus-devel libsrtp-devel libXv-devel paho-c-devel \
     kernel-headers pmix pmix-devel hwloc hwloc-libs hwloc-devel libxcb-devel libX11-devel libatomic intel-media-driver && \
     dnf clean all
 
@@ -100,6 +101,7 @@ RUN \
     exceptiongroup==1.2.2 \
     iniconfig==2.0.0
 
+# hadolint ignore=DL3002
 USER root
 
 ENV PATH="/python3venv/bin:${PATH}"
@@ -107,11 +109,13 @@ ENV PATH="/python3venv/bin:${PATH}"
 # ==============================================================================
 FROM builder AS ffmpeg-builder
 #Build ffmpeg
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
 RUN \
     mkdir -p /src/ffmpeg && \
-    wget -q --no-check-certificate https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz -O /src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz && \
-    tar -xf /src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz -C /src/ffmpeg && \
-    rm /src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz
+    wget -q --no-check-certificate "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz" -O "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz" && \
+    tar -xf "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz" -C /src/ffmpeg && \
+    rm "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz"
 
 WORKDIR /src/ffmpeg/ffmpeg-${FFMPEG_VERSION}
 
@@ -133,14 +137,14 @@ RUN \
 ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
 
 WORKDIR /copy_libs
-RUN cp -a /usr/local/lib/libav* ./
-RUN cp -a /usr/local/lib/libswscale* ./
-RUN cp -a /usr/local/lib/libswresample* ./
+RUN cp -a /usr/local/lib/libav* ./ && \
+    cp -a /usr/local/lib/libswscale* ./ && \
+    cp -a /usr/local/lib/libswresample* ./
 
 # ==============================================================================
 FROM ffmpeg-builder AS gstreamer-builder
-# hadolint
-#Build GStreamer
+# Build GStreamer
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 WORKDIR /home/dlstreamer
 
 RUN \
@@ -219,8 +223,8 @@ RUN \
     -Dgstreamer-vaapi:glx=enabled \
     -Dgstreamer-vaapi:wayland=enabled \
     -Dgstreamer-vaapi:egl=enabled \
-    --buildtype=${BUILD_ARG,} \
-    --prefix=${GSTREAMER_DIR} \
+    --buildtype="${BUILD_ARG,}" \
+    --prefix="${GSTREAMER_DIR}" \
     --libdir=lib/ \
     --libexecdir=bin/ \
     build/ && \
@@ -253,6 +257,8 @@ RUN \
 # ==============================================================================
 FROM builder AS opencv-builder
 # OpenCV
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
 WORKDIR /
 
 RUN \
@@ -278,27 +284,22 @@ WORKDIR /copy_libs
 RUN cp -a /usr/local/lib64/libopencv* ./
 
 # ==============================================================================
-FROM builder AS mqqt-builder
-# Build rdkafka and Paho MQTT C client library
+FROM builder AS kafka-builder
+# Build rdkafka
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
-RUN curl -sSL https://github.com/edenhill/librdkafka/archive/v1.5.0.tar.gz | tar -xz
-
-WORKDIR /librdkafka-1.5.0
-RUN ./configure &&\
-    make && make install
-
-WORKDIR /
-RUN curl -sSL https://github.com/eclipse/paho.mqtt.c/archive/v1.3.4.tar.gz | tar -xz
-WORKDIR /paho.mqtt.c-1.3.4
-RUN make && make install
+RUN curl -sSL https://github.com/edenhill/librdkafka/archive/v2.3.0.tar.gz | tar -xz
+WORKDIR /librdkafka-2.3.0
+RUN ./configure && \
+    make && make INSTALL=install install
 
 WORKDIR /copy_libs
 RUN cp -a /usr/local/lib/librdkafka* ./
-RUN cp -a /usr/local/lib/libpaho-mqtt* ./
-
 # ==============================================================================
 
 FROM builder AS dlstreamer-dev
+
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
 COPY --from=ffmpeg-builder /copy_libs/ /usr/local/lib/
 COPY --from=ffmpeg-builder /usr/local/lib/pkgconfig/libswresample* /usr/local/lib/pkgconfig/
@@ -309,9 +310,8 @@ COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
 COPY --from=opencv-builder /usr/local/include/opencv4 /usr/local/include/opencv4
 COPY --from=opencv-builder /copy_libs/ /usr/local/lib64/
 COPY --from=opencv-builder /usr/local/lib64/cmake/opencv4 /usr/local/lib64/cmake/opencv4
-COPY --from=mqqt-builder /copy_libs/ /usr/local/lib/
-COPY --from=mqqt-builder /usr/local/include/librdkafka /usr/local/include/librdkafka
-COPY --from=mqqt-builder /usr/local/include/MQTT* /usr/local/include/
+COPY --from=kafka-builder /copy_libs/ /usr/local/lib/
+COPY --from=kafka-builder /usr/local/include/librdkafka /usr/local/include/librdkafka
 
 ENV PKG_CONFIG_PATH="${GSTREAMER_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig"
 # Intel® Distribution of OpenVINO™ Toolkit
@@ -325,17 +325,14 @@ repo_gpgcheck=1\n\
 gpgkey=https://yum.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB\n" >/tmp/openvino.repo && \
     mv /tmp/openvino.repo /etc/yum.repos.d
 
-RUN dnf install -y openvino-${OPENVINO_VERSION}
+RUN dnf install -y "openvino-${OPENVINO_VERSION}" && \
+    dnf clean all
 
 
 # Intel® DL Streamer
 WORKDIR "$DLSTREAMER_DIR"
 
 COPY . "${DLSTREAMER_DIR}"
-
-RUN \
-    mkdir build && \
-    ${DLSTREAMER_DIR}/scripts/install_metapublish_dependencies.sh
 
 WORKDIR $DLSTREAMER_DIR/build
 
@@ -365,7 +362,7 @@ RUN \
         CXX_FLAGS=""; \
     fi && \
     cmake \
-        -DCMAKE_BUILD_TYPE=${BUILD_ARG} \
+        -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
         -DCMAKE_C_FLAGS="${C_FLAGS}" \
         -DCMAKE_CXX_FLAGS="${CXX_FLAGS}" \
         -DENABLE_PAHO_INSTALLATION=ON \
@@ -383,11 +380,14 @@ USER dlstreamer
 
 FROM dlstreamer-dev AS rpm-builder
 
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
 # hadolint ignore=DL3002
 USER root
 ENV USER=dlstreamer
 ENV RPM_PKG_NAME=intel-dlstreamer-${DLSTREAMER_VERSION}
 
+# hadolint ignore=DL3041
 RUN \
     dnf install -y rpmdevtools patchelf && \
     dnf clean all
@@ -395,16 +395,13 @@ RUN \
 RUN \
     mkdir -p /${RPM_PKG_NAME}/opt/intel/ && \
     mkdir -p /${RPM_PKG_NAME}/opt/opencv/include && \
-    mkdir -p /${RPM_PKG_NAME}/opt/openh264/ && \
     mkdir -p /${RPM_PKG_NAME}/opt/rdkafka && \
     mkdir -p /${RPM_PKG_NAME}/opt/ffmpeg && \
     cp -r "${DLSTREAMER_DIR}" /${RPM_PKG_NAME}/opt/intel/dlstreamer && \
     cp -rT "${GSTREAMER_DIR}" /${RPM_PKG_NAME}/opt/intel/dlstreamer/gstreamer && \
-    cp /usr/lib64/libopencv*.so.410 /${RPM_PKG_NAME}/opt/opencv/ && \
-    cp /usr/local/lib64/libopencv*.so.410 /${RPM_PKG_NAME}/opt/opencv/ && \
-    cp "${GSTREAMER_DIR}"/lib/libopenh264.so /${RPM_PKG_NAME}/opt/openh264/libopenh264.so.7 && \
-    cp /usr/local/lib/librdkafka++.so /${RPM_PKG_NAME}/opt/rdkafka/librdkafka++.so.1 && \
-    cp /usr/local/lib/librdkafka.so /${RPM_PKG_NAME}/opt/rdkafka/librdkafka.so.1 && \
+    cp -a /usr/lib64/libopencv* /${RPM_PKG_NAME}/opt/opencv/ && \
+    cp -a /usr/local/lib64/libopencv* /${RPM_PKG_NAME}/opt/opencv/ && \
+    cp -a /usr/local/lib/librdkafka* /${RPM_PKG_NAME}/opt/rdkafka/ && \
     find /usr/local/lib -regextype grep -regex ".*libav.*so\.[0-9]*$" -exec cp {} /${RPM_PKG_NAME}/opt/ffmpeg \; && \
     find /usr/local/lib -regextype grep -regex ".*libswscale.*so\.[0-9]*$" -exec cp {} /${RPM_PKG_NAME}/opt/ffmpeg \; && \
     find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /${RPM_PKG_NAME}/opt/ffmpeg \; && \
@@ -422,7 +419,7 @@ RUN \
     sed -i -e "s/CURRENT_DATE_TIME/$(date '+%a %b %d %Y')/g" ~/rpmbuild/SPECS/intel-dlstreamer.spec && \
     rpmbuild -bb ~/rpmbuild/SPECS/intel-dlstreamer.spec
 
-RUN cp ~/rpmbuild/RPMS/x86_64/${RPM_PKG_NAME}* /${RPM_PKG_NAME}.${DLSTREAMER_BUILD_NUMBER}-1.fc41.x86_64.rpm
+RUN cp ~/rpmbuild/RPMS/x86_64/${RPM_PKG_NAME}* "/${RPM_PKG_NAME}.${DLSTREAMER_BUILD_NUMBER}-1.fc41.x86_64.rpm"
 
 FROM fedora:41 AS dlstreamer
 
@@ -456,11 +453,6 @@ RUN \
     chown -R dlstreamer: /opt && \
     chmod -R u+rw /opt
 
-RUN \
-    mkdir /python3venv && \
-    chown -R dlstreamer: /python3venv && \
-    chmod -R u+w /python3venv
-
 ENV LIBVA_DRIVER_NAME=iHD
 ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
 ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
@@ -478,11 +470,6 @@ RUN \
 
 WORKDIR /home/dlstreamer
 USER dlstreamer
-
-RUN \
-    python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]
