@@ -769,7 +769,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     )
 
     # Object detection model
-    # Mapping of this choices to actual model path in utils.py
+    # Mapping of these choices to actual model path in utils.py
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
         choices=[
