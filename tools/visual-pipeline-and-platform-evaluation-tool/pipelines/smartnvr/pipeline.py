@@ -253,6 +253,8 @@ class SmartNVRPipeline(GstPipeline):
         streams = ""
 
         for i in range(inference_channels):
+
+            # Handle object detection parameters and constants
             detection_model_config = (
                 f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
                 f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
@@ -263,16 +265,6 @@ class SmartNVRPipeline(GstPipeline):
                     f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
                 )
 
-            classification_model_config = (
-                f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
-            )
-
-            if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
-                classification_model_config = (
-                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                )
-
             streams += self._inference_stream_decode_detect_track.format(
                 **parameters,
                 **constants,
@@ -280,12 +272,26 @@ class SmartNVRPipeline(GstPipeline):
                 decoder=_decoder_element,
                 detection_model_config=detection_model_config,
             )
-            streams += self._inference_stream_classify.format(
-                **parameters,
-                **constants,
-                id=i,
-                classification_model_config=classification_model_config,
-            )
+
+            # Handle object classification parameters and constants
+            # Do this only if the object classification model is not disabled or the device is not disabled
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" or parameters["object_classification_device"] == "Disabled") :
+                classification_model_config = (
+                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                )
+
+                if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
+                    classification_model_config = (
+                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    )
+
+                streams += self._inference_stream_classify.format(
+                    **parameters,
+                    **constants,
+                    id=i,
+                    classification_model_config=classification_model_config,
+                )
 
             if parameters["watermark_enabled"]:
                 streams += "gvawatermark ! "

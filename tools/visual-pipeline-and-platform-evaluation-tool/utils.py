@@ -140,6 +140,9 @@ def prepare_video_and_constants(
             raise ValueError("Unrecognized Object Detection Model")
 
     match object_classification_model:
+        case "Disabled":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = "Disabled"
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = "Disabled"       
         case "ResNet-50 TF (INT8)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"

@@ -836,6 +836,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
+            "Disabled",
             "EfficientNet B0 (INT8)" ,
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
@@ -847,7 +848,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification device
     object_classification_device = gr.Dropdown(
         label="Object Classification Device",
-        choices=device_choices,
+        choices=device_choices + ["Disabled"],
         value=preferred_device,
         elem_id="object_classification_device",
     )
