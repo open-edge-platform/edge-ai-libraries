@@ -49,18 +49,26 @@ unset VLM_MAX_COMPLETION_TOKENS
 # To download Gated Models you need to pass your Huggingface Token as described here (https://huggingface.co/docs/hub/models-gated#access-gated-models-as-a-user)
 # To set a specific value, uncomment and modify the following line:
 # export HUGGINGFACE_TOKEN=<your_huggingface_token_here>
-unset HUGGINGFACE_TOKEN
+# Only unset HUGGINGFACE_TOKEN if it is not already set
+if [ -z "$HUGGINGFACE_TOKEN" ]; then
+    unset HUGGINGFACE_TOKEN
+    echo -e "\nWARNING: HUGGINGFACE_TOKEN is not set."
+    echo "Some models on Hugging Face require authentication to download (e.g., gated or private models)."
+    echo "If you need to access such models, you must set the HUGGINGFACE_TOKEN environment variable."
+    echo "To obtain your token:"
+    echo "  1. Visit https://huggingface.co/settings/tokens and log in."
+    echo "  2. Create or copy your existing access token."
+    echo "  3. Set it in your shell: export HUGGINGFACE_TOKEN=<your_huggingface_token_here>"
+    echo "  4. Then re-run this setup script."
+else
+    echo -e "\nHUGGINGFACE_TOKEN is set."
+fi
 
 # Check if VLM_MODEL_NAME is not defined or empty
 if [ -z "$VLM_MODEL_NAME" ]; then
-    echo -e "ERROR: VLM_MODEL_NAME is not set in your shell environment."
+    echo -e "\nERROR: VLM_MODEL_NAME is not set in your shell environment."
     return
 else
     export VLM_MODEL_NAME=$VLM_MODEL_NAME
-    echo -n VLM_MODEL_NAME: ${VLM_MODEL_NAME}
-fi
-if [ -z "$HUGGINGFACE_TOKEN" ]; then
-    echo -e "\nWARNING: HUGGINGFACE_TOKEN is not set."
-else
-    echo -e "\nHUGGINGFACE_TOKEN is set."
+    echo -n "\nVLM_MODEL_NAME: ${VLM_MODEL_NAME}"
 fi
