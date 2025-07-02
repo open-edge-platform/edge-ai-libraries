@@ -7,29 +7,35 @@ import yaml
 class Settings(BaseSettings):
     """
     Settings for the Chatqna-Core application.
+    This class manages configuration settings for the application, supporting loading from a YAML file,
+    environment variables, or default values. It includes model identifiers, device settings, cache paths,
+    and other application-specific options.
 
     Attributes:
         APP_DISPLAY_NAME (str): The display name of the application.
         BASE_DIR (str): The base directory of the application.
-        SUPPORTED_FORMATS (set): A set of supported file formats.
+        SUPPORTED_FORMATS (set): Supported file formats for input documents.
         DEBUG (bool): Flag to enable or disable debug mode.
-        TMP_FILE_PATH (str): The temporary file path for documents.
-        HF_ACCESS_TOKEN (str): The Hugging Face access token.
-        EMBEDDING_MODEL_ID (str): The ID of the embedding model.
-        RERANKER_MODEL_ID (str): The ID of the reranker model.
-        LLM_MODEL_ID (str): The ID of the large language model.
-        EMBEDDING_DEVICE (str): The device used for embedding.
-        RERANKER_DEVICE (str): The device used for reranker.
-        LLM_DEVICE (str): The device used for LLM inferencing.
-        CACHE_DIR (str): The directory used for caching.
-        HF_DATASETS_CACHE (str): The cache directory for Hugging Face datasets.
-        MAX_TOKENS (int): The maximum number of output tokens.
+        HF_ACCESS_TOKEN (str): Hugging Face access token for model downloads.
+        EMBEDDING_MODEL_ID (str): Identifier for the embedding model.
+        RERANKER_MODEL_ID (str): Identifier for the reranker model.
+        LLM_MODEL_ID (str): Identifier for the large language model.
+        PROMPT_TEMPLATE (str): Template for prompts used by the LLM.
+        EMBEDDING_DEVICE (str): Device to run the embedding model on (e.g., "CPU", "GPU").
+        RERANKER_DEVICE (str): Device to run the reranker model on.
+        LLM_DEVICE (str): Device to run the LLM on.
+        CACHE_DIR (str): Directory for caching models.
+        HF_DATASETS_CACHE (str): Directory for caching Hugging Face datasets.
+        MAX_TOKENS (int): Maximum number of tokens for LLM input/output.
         ENABLE_RERANK (bool): Flag to enable or disable reranking.
-        MODEL_CONFIG_PATH (str): The path to the model configuration file.
+        TMP_FILE_PATH (str): Temporary file path for storing documents.
+        MODEL_CONFIG_PATH (str): Path to the YAML configuration file.
 
-    Init:
-        Initializes the settings and loads configuration from a YAML file if it exists.
-        Raises a FileNotFoundError if the expected configuration file is not found.
+    Methods:
+        __init__(**kwargs):
+            Initializes the Settings instance, loading configuration from a YAML file if it exists,
+            and overriding attributes with values from the file. If PROMPT_TEMPLATE is not set,
+            it is determined based on the LLM_MODEL_ID.
     """
 
     APP_DISPLAY_NAME: str = "Chatqna-Core"
@@ -62,6 +68,10 @@ class Settings(BaseSettings):
                 config = yaml.safe_load(f)
 
             for key, value in config.get("model_settings", {}).items():
+                if hasattr(self, key):
+                    setattr(self, key, value)
+
+            for key, value in config.get("device_settings", {}).items():
                 if hasattr(self, key):
                     setattr(self, key, value)
 
