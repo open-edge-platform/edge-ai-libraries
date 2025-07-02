@@ -87,5 +87,5 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -rf libraries .virtualenvs .git
+        sudo rm -rf libraries .virtualenvs .git
         rm -rf $HOME/.virtualenvs
