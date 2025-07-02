@@ -14,7 +14,7 @@ ARG COPYLEFT_SRC=false
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 python3-pip git ca-certificates && \
+        python3-dev python3-pip git ca-certificates && \
     python3 -m pip install --no-cache-dir --upgrade pip && \
     apt-get purge -y --auto-remove && \
     rm -rf /var/lib/apt/lists/*
@@ -42,32 +42,6 @@ COPY ./requirements.txt .
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip3 install --no-cache-dir -r requirements.txt
 
-# Optionally download copyleft sources if requested
-RUN if [ "$COPYLEFT_SRC" = "true" ]; then \
-        apt-get update && \
-        \
-        # Get list of installed deb packages with copyleft licenses \
-        for pkg in $(apt-mark showmanual | xargs -n1 apt-cache show | \
-            awk '/^Package: /{pkg=$2} /^License: /{if($2 ~ /(MPL|GPL|EPL|CDDL|LGPL)/) print pkg}' | sort -u); do \
-            echo "Downloading source for $pkg"; \
-            apt-get source "$pkg"; \
-        done; \
-        \
-        # Get source code for installed Python packages with copyleft licenses \
-        python3 -m pip install --no-cache-dir --upgrade pip-licenses && \
-        pip-licenses --format=csv --with-license-file --with-authors --with-urls > /tmp/pip_licenses.csv && \
-        awk -F, 'tolower($3) ~ /(mpl|gpl|epl|cddl|lgpl)/ {print $1}' /tmp/pip_licenses.csv | \
-        while read pkg; do \
-            echo "Downloading source for Python package $pkg"; \
-            mkdir -p /python_sources && \
-            python3 -m pip download --no-binary :all: $pkg -d /python_sources || true; \
-            # python3 -m pip download --no-binary=:all: --no-deps "$pkg" -d /tmp/python_sources || true; \
-        done; \
-        rm -f /tmp/pip_licenses.csv; \
-        python3 -m pip uninstall -y pip-licenses; \
-        apt-get purge -y --auto-remove && \
-        rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/*; \
-    fi
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
@@ -83,6 +57,40 @@ COPY ./config/kapacitor*.conf /app/config/
 COPY ./tick_scripts /app/temperature_classifier/tick_scripts/
 COPY ./udfs /app/temperature_classifier/udfs/
 
+# Optionally download copyleft sources if requested
+ARG COPYLEFT_SOURCES=false
+RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
+        apt-get update && \
+        # Get list of installed deb packages with copyleft licenses \
+        sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
+        apt-get update && \
+        mkdir -p /copyleft_sources/deb && cd /copyleft_sources/deb && \
+        echo -n $null > copyleft_package_list.txt && \
+        for package in $(dpkg -l | awk '/^ii/ {print $2}' | cut -d: -f1); do \
+            grep -l 'Copyleft\|GPL\|LGPL\|EPL\|MPL\|CDDL' /usr/share/doc/${package}/copyright; \
+            exit_status=$?; \
+            if [ $exit_status -eq 0 ]; then \
+                echo $package >> copyleft_package_list.txt; \
+                apt-get source -q --download-only $package; \
+            fi; \
+        done; \
+        # Get source code for installed Python packages with copyleft licenses \
+        mkdir -p /copyleft_sources/python && \
+        cd /copyleft_sources/python && \
+        apt-get update && apt-get install -y gcc build-essential libffi-dev && \
+        # Download python package sources with relevant licenses \
+        pip3 freeze | cut -d= -f1 | while read pkg; do \
+            meta=$(pip3 show $pkg 2>/dev/null); \
+            lic=$(echo "$meta" | grep -i '^License:' | grep -E 'MPL|GPL|General Public License|EPL|Eclipse Public License|CDDL|LGPL'); \
+            if [ ! -z "$lic" ]; then \
+                echo "Downloading source for $pkg with license: $lic"; \
+                pip3 download --no-binary :all: $pkg || true; \
+            fi; \
+        done; \
+        apt-get remove --purge -y gcc build-essential libffi-dev; \
+    fi
+
+WORKDIR /app
 # Remove git and clean up to reduce image size
 RUN apt-get purge -y --auto-remove git && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
