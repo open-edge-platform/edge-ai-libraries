@@ -98,6 +98,7 @@ export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+export HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
 
 # env for ovms-service
 export LLM_DEVICE=CPU

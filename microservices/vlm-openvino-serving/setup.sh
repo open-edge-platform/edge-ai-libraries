@@ -45,6 +45,12 @@ export VLM_SEED=42
 # export VLM_MAX_COMPLETION_TOKENS=1000
 unset VLM_MAX_COMPLETION_TOKENS
 
+# By default, HUGGINGFACE_TOKEN is unset
+# To download Gated Models you need to pass your Huggingface Token as described here (https://huggingface.co/docs/hub/models-gated#access-gated-models-as-a-user)
+# To set a specific value, uncomment and modify the following line:
+# export HUGGINGFACE_TOKEN=<your_huggingface_token_here>
+unset HUGGINGFACE_TOKEN
+
 # Check if VLM_MODEL_NAME is not defined or empty
 if [ -z "$VLM_MODEL_NAME" ]; then
     echo -e "ERROR: VLM_MODEL_NAME is not set in your shell environment."
@@ -52,4 +58,9 @@ if [ -z "$VLM_MODEL_NAME" ]; then
 else
     export VLM_MODEL_NAME=$VLM_MODEL_NAME
     echo -n VLM_MODEL_NAME: ${VLM_MODEL_NAME}
+fi
+if [ -z "$HUGGINGFACE_TOKEN" ]; then
+    echo -e "\nWARNING: HUGGINGFACE_TOKEN is not set."
+else
+    echo -e "\nHUGGINGFACE_TOKEN is set."
 fi

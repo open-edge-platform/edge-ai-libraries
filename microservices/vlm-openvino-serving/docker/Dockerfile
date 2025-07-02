@@ -20,6 +20,9 @@ ARG INSTALL_DRIVER_VERSION="24.39.31294"
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 
+ARG HUGGINGFACE_TOKEN=none
+ENV HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
+
 RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
@@ -46,4 +49,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level info --access-logfile - --error-logfile - --log-config /app/logging.conf"]
+CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} ${HUGGINGFACE_TOKEN} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level info --access-logfile - --error-logfile - --log-config /app/logging.conf"]
