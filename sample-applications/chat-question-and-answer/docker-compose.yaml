@@ -64,7 +64,7 @@ services:
       - my_network
 
   reranker:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-ipex-latest
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     container_name: reranker_tei
     ports:
       - "8090:80"
@@ -232,7 +232,7 @@ services:
 
   #Embedding Services
   tei-embedding-service:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-ipex-latest
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     profiles:
       - TEI
     container_name: tei-embedding-service
