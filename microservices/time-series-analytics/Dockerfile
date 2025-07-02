@@ -11,7 +11,7 @@ FROM kapacitor:$KAPACITOR_VERSION
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3-dev python3-pip git ca-certificates && \
+        python3 python3-pip git ca-certificates && \
     python3 -m pip install --no-cache-dir --upgrade pip && \
     apt-get purge -y --auto-remove && \
     rm -rf /var/lib/apt/lists/*
@@ -73,7 +73,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         # Get source code for installed Python packages with copyleft licenses \
         mkdir -p /copyleft_sources/python && \
         cd /copyleft_sources/python && \
-        apt-get update && apt-get install -y gcc build-essential libffi-dev && \
+        apt-get update && apt-get install -y gcc build-essential libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
         pip3 freeze | cut -d= -f1 | while read pkg; do \
             meta=$(pip3 show $pkg 2>/dev/null); \
@@ -83,7 +83,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
                 pip3 download --no-binary :all: $pkg || true; \
             fi; \
         done; \
-        apt-get remove --purge -y gcc build-essential libffi-dev; \
+        apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
 
 WORKDIR /app
