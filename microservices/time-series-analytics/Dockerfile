@@ -8,9 +8,6 @@
 ARG KAPACITOR_VERSION
 FROM kapacitor:$KAPACITOR_VERSION
 
-# Build argument to control downloading copyleft sources
-ARG COPYLEFT_SRC=false
-
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -41,7 +38,6 @@ COPY ./requirements.txt .
 
 # Install Python dependencies efficiently and clean up cache to reduce image size
 RUN pip3 install --no-cache-dir -r requirements.txt
-
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
