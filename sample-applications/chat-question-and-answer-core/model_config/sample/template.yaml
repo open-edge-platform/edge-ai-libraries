@@ -1,0 +1,57 @@
+# Configuration Template for  ChatQnA Core Application
+# This template provides a standard structure for defining model settings.
+# Users should customize the values according to their specific requirements.
+
+model_settings:
+  # ID of the embedding model to be used.
+  # Example: "BAAI/bge-small-en-v1.5"
+  EMBEDDING_MODEL_ID: "<your_embedding_model_id_here>"
+
+  # ID of the reranker model to be used.
+  # Example: "BAAI/bge-reranker-base"
+  RERANKER_MODEL_ID: "<your_reranker_model_id_here>"
+
+  # ID of the large language model (LLM) to be used.
+  # Example: "Intel/neural-chat-7b-v3-3"
+  LLM_MODEL_ID: "<your_llm_model_id_here>"
+
+  # Template for the prompt used by the assistant.
+  # Customize the prompt to fit the context and requirements of your application.
+  # Example:
+    # <|System|>
+    # Use the following pieces of context from retrieved
+    # dataset to answer the question. Do not make up an answer if there is no
+    # context provided to help answer it.
+
+    # <|Context|>
+    # {context}
+
+    # <|User|>
+    # {question}
+
+    # <|Assistant|>
+  PROMPT_TEMPLATE: "<your_prompt_template_here>"
+
+  # Note: Ensure the prompt template is formatted correctly and includes necessary placeholders.
+
+  # Additional model settings can be added under `model_settings` as needed.
+  # For example, you might include MAX_TOKENS, ENABLE_RERANK or DEVICE settings.
+
+  # Maximum number of tokens for the model's response.
+  # Example: 1024 <Rely on LLM model's total context length>
+  # MAX_TOKENS: <your_max_tokens_value_here>
+
+  # Enable or disable reranking of results.
+  # Example: true or false
+  # ENABLE_RERANK: <true_or_false>
+
+# [OPTIONAL] Device settings for model execution.
+# Specify the device on which each model will run.
+# Depends on user system configuration. Default will set to use "CPU".
+
+device_settings:
+  # EMBEDDING_DEVICE: "<your_embedding_device_here>"  # e.g: "CPU", "GPU"
+  # RERANKER_DEVICE: "<your_reranker_device_here>"    # e.g: "CPU", "GPU"
+  # LLM_DEVICE: "<your_llm_device_here>"              # e.g: "CPU", "GPU"
+
+# Ensure to validate the YAML syntax and structure when customizing this template.
