@@ -28,7 +28,7 @@ fi
 # Usage information
 show_usage() {
   echo -e "Usage: $0 [OPTION]"
-  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-intelligence)"
+  echo -e "  --dependencies\t Build sample application dependencies (vdms-dataprep, multimodal-embedding, vlm-openvino-serving, audio-analyzer)"
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
@@ -86,12 +86,12 @@ build_dependencies() {
 # Check if the directory exists first
   cd "${uservices_dir}/multimodal-embedding-serving/docker" || return
   if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}multimodal-embedding:${TAG} -f docker/Dockerfile . || { 
-      log_info "${RED}Failed to build multimodal embedding${NC}"; 
+    cd .. && docker_build -t ${REGISTRY}multimodal-embedding-serving:${TAG} -f docker/Dockerfile . || { 
+      log_info "${RED}Failed to build multimodal embedding serving${NC}"; 
       build_success=false; 
     }
   else
-    log_info "${YELLOW}compose.yml not found for multimodal embedding${NC}";
+    log_info "${YELLOW}compose.yml not found for multimodal embedding serving${NC}";
   fi
 
   
@@ -107,11 +107,11 @@ build_dependencies() {
   fi
 
 
-  # Build audio intelligence microservice
-  cd "${uservices_dir}/audio-intelligence/docker" || return 1
+  # Build audio analyzer microservice
+  cd "${uservices_dir}/audio-analyzer/docker" || return 1
   if [ -f "compose.yaml" ]; then
-    cd .. && docker_build -t ${REGISTRY}audio-intelligence:${TAG} -f docker/Dockerfile . || {
-      log_info "${RED}Failed to build audio-intelligence microservice${NC}"; 
+    cd .. && docker_build -t ${REGISTRY}audio-analyzer:${TAG} -f docker/Dockerfile . || {
+      log_info "${RED}Failed to build audio-analyzer microservice${NC}"; 
       build_success=false; 
     }
   fi

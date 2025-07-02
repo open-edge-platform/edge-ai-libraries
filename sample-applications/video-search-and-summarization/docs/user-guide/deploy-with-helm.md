@@ -80,9 +80,8 @@ cd <repo>/sample-applications/video-search-and-summarization/chart
 #### Step 3: Configure the `values.yaml` File
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
-Choose the appropriate `values*.yaml` file based on the model server you want to use:
+Choose the appropriate `*.yaml` file based on the model server/usecase you want to use:
 
-- **For OVMS**: Use `values_ovms.yaml`.
 
 ### Step 4: Build Helm Dependencies
 
@@ -107,10 +106,10 @@ helm uninstall vss -n <your-namespace>
 Deploy the Video Summary application:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -n <your-namespace>
 ```
 
-> Note delete the chart for installing the chart in other modes `helm uninstall vss -n <namespace>`
+> Note delete the chart for installing the chart in other modes `helm uninstall vss -n <your-namespace>`
 
 Replace `<your-namespace>` with your desired Kubernetes namespace.
 
@@ -121,7 +120,7 @@ Replace `<your-namespace>` with your desired Kubernetes namespace.
 If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml --values ovms_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <your-namespace>
 ```
 **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
@@ -130,7 +129,7 @@ helm install vss . --values values.yaml --values summary_override.yaml --values 
 To deploy only the Video Search functionality, use the search override values:
 
 ```bash
-helm install vss . --values values.yaml --values search_override.yaml -n <your-namespace>
+helm install vss . -f search_override.yaml -n <your-namespace>
 ```
 
 ### Step 6: Verify the Deployment
@@ -179,7 +178,7 @@ helm uninstall vss -n <your-namespace>
 - Ensure that all pods are running and the services are accessible.
 - Access the Video Summary application dashboard and verify that it is functioning as expected.
 - Upload a test video to verify that the ingestion, processing, and summary pipeline works correctly.
-- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio intelligence) are functioning properly.
+- Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
 
 ## Troubleshooting
 
@@ -196,7 +195,7 @@ helm uninstall vss -n <your-namespace>
 
 - The Persistent Volume Claims (PVCs) created during helm chart deployment will remain present until explicitly deleted:
   ```bash
-  kubectl delete pvc <pvc-name> -n <namespace>
+  kubectl delete pvc <pvc-name> -n <your-namespace>
   ```
 
 - If you're experiencing issues with the Hugging Face API, ensure your API token is valid and properly set in the values.yaml file.
@@ -204,4 +203,3 @@ helm uninstall vss -n <your-namespace>
 ## Related links
 - [How to Build from Source](./build-from-source.md)
 - [How to Test Performance](./how-to-performance.md)
-- [How to Benchmark](./benchmarks.md)

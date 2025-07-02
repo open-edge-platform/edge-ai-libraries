@@ -127,11 +127,11 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 export POSTGRES_DB=video_summary_db
 export POSTGRES_HOST=postgres-service
 
-# env for audio-intelligence service
+# env for audio-analyzer service
 export AUDIO_HOST_PORT=8999
 export AUDIO_ENABLED_MODELS=${ENABLED_WHISPER_MODELS}
 export AUDIO_MAX_FILE=314572800 # 300MB
-export AUDIO_HOST=audio-intelligence
+export AUDIO_HOST=audio-analyzer
 export AUDIO_ENDPOINT=http://$AUDIO_HOST:8000
 
 # env for minio-service
@@ -158,8 +158,14 @@ export VCLIP_MODEL=${VCLIP_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
+export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
-export VCLIP_DEVICE=CPU
+# Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
+if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
+    export VCLIP_DEVICE=GPU
+    export VCLIP_USE_OV=true
+    echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
+fi
 export VCLIP_HOST=vclip-embedding-ms
 export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
@@ -373,7 +379,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
     docker volume create ov-models
     docker volume create vol_evam_pipeline_root
-    docker volume create audio_intelligence_data
+    docker volume create audio_analyzer_data
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
