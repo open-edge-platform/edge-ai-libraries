@@ -1,22 +1,83 @@
 ﻿# Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.11-slim AS build
+# Multi-stage build: Build stage
+FROM python:3.11-slim AS builder
 
-RUN apt-get update && apt-get install -y python3-dev \
-    && pip install poetry==2.1.3
+# Set environment variables for Python
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
 
+# Install system dependencies needed for building packages
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    build-essential \
+    python3-dev \
+    && rm -rf /var/lib/apt/lists/*
+
+# Install poetry
+RUN pip install --no-cache-dir poetry==1.8.3
+
+# Set up working directory
 WORKDIR /app
-# Copy the application code
-RUN poetry config virtualenvs.create false 
 
-COPY . .
+# Copy dependency files
+COPY pyproject.toml ./
 
-# Installing root dependencies
-RUN poetry install --only main
+# Configure poetry and install dependencies
+RUN poetry config virtualenvs.create false \
+    && poetry config virtualenvs.in-project false \
+    && poetry install --only=main --no-root --no-dev \
+    && poetry cache clear pypi --all
+
+# Multi-stage build: Runtime stage
+FROM python:3.11-slim AS runtime
+
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME="/home/appuser" \
+    PYTHONPATH="/app"
+
+# Install only runtime system dependencies
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Required for document processing
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
+
+# Create non-root user
+RUN groupadd -g 1001 appuser \
+    && useradd -r -m -s /bin/bash -u 1001 -g 1001 appuser \
+    && mkdir -p $HOME/.cache/huggingface \
+    && chown -R appuser:appuser $HOME
+
+# Copy Python packages from builder stage
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Set working directory
+WORKDIR /app
+
+# Copy application code
+COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser ui ./ui
+
+# Create necessary directories and set permissions
+RUN mkdir -p /tmp/docs \
+    && chown -R appuser:appuser /app /tmp/docs /app/ui
+
+# Switch to non-root user
+USER appuser
+
+# Health check
+HEALTHCHECK --interval=30s --timeout=30s --start-period=5s --retries=3 \
+    CMD python -c "import httpx; httpx.get('http://localhost:8090/v1/docsum/version', timeout=10)" || exit 1
 
 # Expose the port the app runs on
-EXPOSE 8000
+EXPOSE 8090
 
 # Command to run the application
-CMD uvicorn app.server:app --host 0.0.0.0 --port 8000
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8090", "--workers", "1"]
