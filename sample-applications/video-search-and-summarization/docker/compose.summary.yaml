@@ -13,11 +13,11 @@ services:
       vlm-openvino-serving:
         condition: service_healthy
       video-ingestion:
-        condition: service_started
+        condition: service_healthy
       rabbitmq-service:
-        condition: service_started
+        condition: service_healthy
       audio-analyzer:
-        condition: service_started
+        condition: service_healthy
     environment:
       EVAM_HOST: ${EVAM_HOST}
       EVAM_DEVICE: ${EVAM_DEVICE}
@@ -46,6 +46,7 @@ services:
       SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_ON}
       SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_OFF}
       USE_OVMS: "${USE_OVMS_CONFIG:-CONFIG_OFF}"
+      WORKERS: ${WORKERS:-1}
 
   vlm-openvino-serving:
     image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
@@ -61,14 +62,15 @@ services:
       VLM_COMPRESSION_WEIGHT_FORMAT: ${VLM_COMPRESSION_WEIGHT_FORMAT}
       VLM_DEVICE: ${VLM_DEVICE}
       VLM_SEED: ${VLM_SEED}
+      WORKERS: ${WORKERS:-1}
       HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
     group_add:
       - ${USER_GROUP_ID-1000} 
-      - ${VIDEO_GROUP_ID}    
-      - ${RENDER_GROUP_ID} 
+      - ${VIDEO_GROUP_ID-44}    
+      - ${RENDER_GROUP_ID-1002}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -113,6 +115,12 @@ services:
     tty: true
     ports:
       - "${EVAM_PIPELINE_HOST_PORT}:8080"
+    healthcheck:
+      test: ["CMD", "wget", "http://localhost:8080/pipelines", "-O", "/tmp/health"]
+      interval: 60s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     environment:
       no_proxy: ${no_proxy},${MINIO_HOST},${RABBITMQ_HOST}
       http_proxy: ${http_proxy}
@@ -183,7 +191,8 @@ services:
       - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio} # can be minio or local
     depends_on:
-      - minio-service
+      minio-service:
+        condition: service_healthy
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped
@@ -192,7 +201,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
-      start_period: 15s
+      start_period: 10s
     networks:
       - vs_network
 
@@ -202,6 +211,12 @@ services:
       - "${RABBITMQ_AMQP_HOST_PORT}:5672" # AMQP port
       - "${RABBITMQ_MANAGEMENT_UI_HOST_PORT}:15672" # Management UI
       - "${RABBITMQ_MQTT_HOST_PORT}:1883" # MQTT (TCP) port
+    healthcheck:
+      test: ["CMD", "rabbitmq-diagnostics", "check_port_connectivity"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     environment:
       no_proxy: ${no_proxy}
       http_proxy: $http_proxy
