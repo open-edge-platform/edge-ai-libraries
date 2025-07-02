@@ -86,35 +86,35 @@ def prepare_video_and_constants(
     MODELS_PATH = "/home/dlstreamer/vippet/models"
 
     match object_detection_model:
-        case "SSDLite MobileNet V2":
+        case "SSDLite MobileNet V2 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
             )
-        case "YOLO v5m 416x416":
+        case "YOLO v5m 416x416 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
             )
-        case "YOLO v5m 640x640":
+        case "YOLO v5m 640x640 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json"
             )
-        case "YOLO v5s 416x416":
+        case "YOLO v5s 416x416 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
             )
-        case "YOLO v10s 640x640":
+        case "YOLO v10s 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
                     "YOLO v10s model is not supported on NPU device. Please select another model."
@@ -124,10 +124,10 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/public/yolov10s/FP16/yolov10s.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
-        case "YOLO v10m 640x640":
+        case "YOLO v10m 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
-                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                    "YOLO v10m model is not supported on NPU device. Please select another model."
                 )
 
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
@@ -138,14 +138,14 @@ def prepare_video_and_constants(
             raise ValueError("Unrecognized Object Detection Model")
 
     match object_classification_model:
-        case "ResNet-50 TF":
+        case "ResNet-50 TF (INT8)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
             )
-        case "EfficientNet B0":
+        case "EfficientNet B0 (INT8)":
             if object_classification_device == "NPU":
                 raise ValueError(
                     "EfficientNet B0 model is not supported on NPU device. Please select another model."
@@ -157,7 +157,7 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
             )
-        case "MobileNet V2 PyTorch":
+        case "MobileNet V2 PyTorch (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
             )
