@@ -119,6 +119,13 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
+> **Note:**  
+> To include copyleft licensed sources when building the Docker image, use the below command:
+>
+> ```bash
+> docker compose build --build-arg COPYLEFT_SOURCES=true
+> ```
+
 ## Push Docker Images (Optional)
 
 To push images to a Docker registry:
