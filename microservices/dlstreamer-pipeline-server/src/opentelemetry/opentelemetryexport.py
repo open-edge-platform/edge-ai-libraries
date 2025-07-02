@@ -10,14 +10,12 @@ import psutil
 import threading
 import requests
 from opentelemetry import metrics
+from opentelemetry import _logs
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
-
-# Additional imports for log exporting
 from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
-from opentelemetry import _logs
 from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
 from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
 
@@ -73,7 +71,7 @@ class OpenTelemetryExporter:
         
         # Set up LoggerProvider with resource info
         logger_provider = LoggerProvider(resource=resource)
-        # set_logger_provider(logger_provider)
+
         # Set it as the global logger provider
         _logs.set_logger_provider(logger_provider)
 
