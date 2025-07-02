@@ -86,14 +86,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
         ```bash
         source ./setup.sh
-        ```
-4. **Build the Docker Image**:
-    - Build the Docker image for the Document Summarization Sample Application:
-      ```bash
-      docker compose build
-      ```
-        
-5. **Run the Docker Container**:
+        ```        
+4. **Run the Docker Container**:
     - Run the Docker container using the built image:
       ```bash
       docker compose up
