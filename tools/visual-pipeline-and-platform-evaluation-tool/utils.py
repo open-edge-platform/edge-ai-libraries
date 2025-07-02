@@ -127,7 +127,7 @@ def prepare_video_and_constants(
         case "YOLO v10m 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
-                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                    "YOLO v10m model is not supported on NPU device. Please select another model."
                 )
 
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
