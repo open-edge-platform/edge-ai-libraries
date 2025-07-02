@@ -28,7 +28,7 @@ theme = gr.themes.Default(
 
 # Initialize the pipeline based on the PIPELINE environment variable
 current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
-    os.environ.get("PIPELINE", "").lower()
+    "transportation3"
 )
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
@@ -667,7 +667,7 @@ def create_interface():
 
     try:
         download_file(
-            "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
+            "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4",
             "/tmp/person-bicycle-car-detection.mp4",
         )
         input_video_player = gr.Video(
@@ -778,8 +778,9 @@ def create_interface():
             "YOLO v5m 640x640",
             "YOLO v10s 640x640",
             "YOLO v10m 640x640",
+            "YOLO v8 LPR 640x640",
         ],
-        value="YOLO v5s 416x416",
+        value="YOLO v8 LPR 640x640",
         elem_id="object_detection_model",
     )
 
@@ -831,8 +832,9 @@ def create_interface():
             "EfficientNet B0",
             "MobileNet V2 PyTorch",
             "ResNet-50 TF",
+            "PaddleOCR",
         ],
-        value="ResNet-50 TF",
+        value="PaddleOCR",
         elem_id="object_classification_model",
     )
 

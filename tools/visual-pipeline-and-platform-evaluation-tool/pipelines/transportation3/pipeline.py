@@ -17,47 +17,107 @@ class LicensePlateDetectionPipeline(GstPipeline):
         self._pipeline = (
             # Input
             "filesrc location={VIDEO_PATH} ! "
-             # Decoder
-            "decodebin ! "
-            "vapostproc ! "
-            "\"video/x-raw(memory:VAMemory)\",format=NV12 ! "
+            # Decoder
+            "{decoder} ! "
             # Detection
             "gvadetect "
-            "   model=\"/home/dlstreamer/vippet/models/public/yolov8_license_plate_detector/FP16/yolov8_license_plate_detector.xml\" "
-            "   device=GPU "
-            "   pre-process-backend=va-surface-sharing ! "
+            "   {detection_model_config} "
+            "   model-instance-id=detect0 "
+            "   device={object_detection_device} "
+            "   pre-process-backend={object_detection_pre_process_backend} ! "
             "queue ! "
             "videoconvert ! "
             # Classification
             "gvaclassify "
-            "   model=\"/home/dlstreamer/vippet/models/public/ch_PP-OCRv4_rec_infer/FP16/ch_PP-OCRv4_rec_infer.xml\" "
-            "   device=GPU "
-            "   pre-process-backend=opencv ! "
+            "   {classification_model_config} "
+            "   model-instance-id=classify0 "
+            "   device={object_detection_device} "
+            "   pre-process-backend={object_classification_pre_process_backend} ! "
             "queue ! "
             # Metadata
-            "gvametaconvert "
-            "   format=json ! "
-            "gvametapublish "
-            "   file-format=json-lines "
-            "   file-path=\"/tmp/output1.json\" ! "
+            "gvawatermark ! "
             "gvafpscounter ! "
-            # Output
-            "fakesink"
+            "{encoder} ! "
+            "h264parse ! "
+            "mp4mux ! "
+            "filesink "
+            "  location={VIDEO_OUTPUT_PATH} "
         )
 
     def evaluate(
         self,
         constants: dict,
         parameters: dict,
+        regular_channels: int,
+        inference_channels: int,
         elements: list = None,
     ) -> str:
-        
+
+        # Set decoder element based on device
+        _decoder_element = (
+            "decodebin3 "
+            if parameters["object_detection_device"] in ["CPU", "NPU"]
+            else "decodebin3 ! vapostproc ! video/x-raw\\(memory:VAMemory\\)"
+        )
+
+        # Set encoder element based on device
+        _encoder_element = next(
+            ("vah264enc" for element in elements if element[1] == "vah264enc"),
+            next(
+                ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
+                None,  # Fallback to None if no encoder is found
+            ),
+        )
+
+        # Set pre process backed for object detection
+        parameters["object_detection_pre_process_backend"] = (
+            "opencv"
+            if parameters["object_detection_device"] in ["CPU", "NPU"]
+            else "va-surface-sharing"
+        )
+
+        # Set pre process backed for object classification
+        parameters["object_classification_pre_process_backend"] = (
+            "opencv"
+            if parameters["object_classification_device"] in ["CPU", "NPU"]
+            else "va-surface-sharing"
+        )
+
+        # Set model config for object detection
+        detection_model_config = (
+            f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+            f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
+        )
+
+        if not constants["OBJECT_DETECTION_MODEL_PROC"]:
+            detection_model_config = (
+                f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+            )
+
+        # Set model config for object classification
+        classification_model_config = (
+            f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+            f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+        )
+
+        if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
+            classification_model_config = (
+                f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+            )
+
         return "gst-launch-1.0 -q " + " ".join(
             [
                 self._pipeline.format(
                     **parameters,
                     **constants,
+                    decoder=_decoder_element,
+                    encoder=_encoder_element,
+                    detection_model_config=detection_model_config,
+                    classification_model_config=classification_model_config,
                 )
             ]
-            * (constants['channels'] if constants.get('channels') else 1)
+            # Only inference channels are used for the pipeline
+            # Ignore regular channels
+            * (inference_channels)
         )
+
