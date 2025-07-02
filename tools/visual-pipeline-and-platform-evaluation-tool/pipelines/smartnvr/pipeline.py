@@ -53,7 +53,7 @@ class SmartNVRPipeline(GstPipeline):
             "comp.sink_{id} "
         )
 
-        self._inference_stream = (
+        self._inference_stream_decode_detect_track = (
             "filesrc "
             "  location={VIDEO_PATH} ! "
             "qtdemux ! "
@@ -79,6 +79,9 @@ class SmartNVRPipeline(GstPipeline):
             "gvatrack "
             "  tracking-type=short-term-imageless ! "
             "queue2 ! "
+        )
+
+        self._inference_stream_classify = (
             "gvaclassify "
             "  {classification_model_config} "
             "  model-instance-id=classify0 "
@@ -89,7 +92,9 @@ class SmartNVRPipeline(GstPipeline):
             "  nireq={object_classification_nireq} "
             "  reclassify-interval={object_classification_reclassify_interval} ! "
             "queue2 ! "
-            "gvawatermark ! "
+        )
+
+        self._inference_stream_metadata_processing = (
             "gvametaconvert "
             "  format=json "
             "  json-indent=4 "
@@ -268,14 +273,28 @@ class SmartNVRPipeline(GstPipeline):
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                 )
 
-            streams += self._inference_stream.format(
+            streams += self._inference_stream_decode_detect_track.format(
                 **parameters,
                 **constants,
                 id=i,
                 decoder=_decoder_element,
-                postprocessing=_postprocessing_element,
                 detection_model_config=detection_model_config,
+            )
+            streams += self._inference_stream_classify.format(
+                **parameters,
+                **constants,
+                id=i,
                 classification_model_config=classification_model_config,
+            )
+
+            if parameters["watermark_enabled"]:
+                streams += "gvawatermark ! "
+            
+            streams += self._inference_stream_metadata_processing.format(
+                **parameters,
+                **constants,
+                id=i,
+                postprocessing=_postprocessing_element,
             )
 
         for i in range(inference_channels, channels):

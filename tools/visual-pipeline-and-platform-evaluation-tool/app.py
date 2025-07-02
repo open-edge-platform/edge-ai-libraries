@@ -896,6 +896,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="object_classification_reclassify_interval",
     )
 
+    watermark_enabled = gr.Checkbox(
+        label="Overlay inference results on output video",
+        value=True,
+        elem_id="watermark_enabled",
+    )
+
     # Run button
     run_button = gr.Button("Run")
 
@@ -929,6 +935,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(recording_channels)
     components.add(fps_floor)
     components.add(ai_stream_rate)
+    components.add(watermark_enabled)
     components.add(object_detection_model)
     components.add(object_detection_device)
     components.add(object_detection_batch_size)
@@ -1310,6 +1317,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
+
+                            watermark_enabled.render()
 
                             # Object Detection Parameters
                             object_detection_model.render()
