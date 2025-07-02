@@ -8,7 +8,7 @@ The following are links to detailed documentation to help you get started, confi
 
 - **Overview**
   - [Overview](docs/user-guide/Overview.md): A high-level introduction.
-  - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture.
+  - [Overview Architecture](docs/user-guide/overview-architecture.md): Detailed architecture
 
 - **Get Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to get started with the sample application.
