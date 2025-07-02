@@ -21,7 +21,6 @@ ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 
 ARG HUGGINGFACE_TOKEN=none
-ENV HUGGINGFACE_TOKEN=${HUGGINGFACE_TOKEN}
 
 RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
