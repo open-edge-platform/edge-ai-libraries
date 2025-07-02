@@ -1,9 +1,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import datetime
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Body, HTTPException
 
@@ -22,6 +21,7 @@ def verify_params_and_get_video_name(
     video_start_time: float,
     video_end_time: float,
     video_summary: str,
+    tags: List[str] = [],
 ) -> str:
     """
     Verify the parameters and get the video name from the specified bucket and video ID.
@@ -99,14 +99,17 @@ async def process_video_summary(
         # Validate the request model
         summary_request = sanitize_model(summary_request)
 
-        bucket_name = summary_request.bucket_name
-        video_id = summary_request.video_id
-        video_summary = summary_request.video_summary
-        video_start_time = summary_request.video_start_time
-        video_end_time = summary_request.video_end_time
+        bucket_name: str = summary_request.bucket_name
+        video_id: str = summary_request.video_id
+        video_summary: str = summary_request.video_summary
+        video_start_time: float = summary_request.video_start_time
+        video_end_time: float = summary_request.video_end_time
+        tags: List[str] = summary_request.tags or []
+
+        comma_separated_tags: str = ",".join(tags) if tags else ""
 
         video_name: str = verify_params_and_get_video_name(
-            bucket_name, video_id, video_start_time, video_end_time, video_summary
+            bucket_name, video_id, video_start_time, video_end_time, video_summary, tags
         )
 
         # Create metadata for summary text
@@ -118,9 +121,10 @@ async def process_video_summary(
             "video_end_time": video_end_time,
             "content_type": "text",
             "timestamp": video_start_time,
+            "tags": comma_separated_tags,
         }
 
-        logger.debug(f"Text metadata for summary: {text_metadata}")
+        logger.info(f"Text metadata for summary: {text_metadata}")
         # Process video_summary and generate text embeddings
         ids = await generate_text_embedding(text=video_summary, text_metadata=text_metadata)
 
