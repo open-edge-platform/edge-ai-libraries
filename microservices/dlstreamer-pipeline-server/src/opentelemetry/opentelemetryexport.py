@@ -91,6 +91,21 @@ class OpenTelemetryExporter:
         otel_logging_handler = LoggingHandler(level=getattr(logging, otel_log_level, logging.DEBUG))
         root_logger.addHandler(otel_logging_handler)
 
+        # --- Patch all existing loggers to add OTEL handler ---
+        for logger_name, logger_obj in logging.root.manager.loggerDict.items():
+            if isinstance(logger_obj, logging.PlaceHolder):
+                continue
+            if not any(isinstance(h, LoggingHandler) for h in logger_obj.handlers):
+                logger_obj.addHandler(otel_logging_handler)
+                self.log.info(f"Attached OTEL handler to existing logger: {logger_name}")
+            logger_obj.propagate = True
+
+        # Print hierarchy for verification
+        self.log.info("Logging hierarchy after attaching OTEL handler:")
+        for name in logging.root.manager.loggerDict:
+            logger = logging.getLogger(name)
+            self.log.info(f"Logger: {name}, handlers: {logger.handlers}, propagate: {logger.propagate}")
+
         # Create gauges to track CPU and memory usage
         self.cpu_usage = self.meter.create_gauge(
             "cpu_usage_percentage",

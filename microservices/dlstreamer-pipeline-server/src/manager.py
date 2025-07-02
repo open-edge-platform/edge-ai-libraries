@@ -599,7 +599,6 @@ class PipelineServerManager:
                        request:Dict[str, Any]=None)->Tuple[Union[str, None], Union[None, str]]:
         """POST /pipelines/{name}/{version}"""
         try:
-            self.log.info(self._PIPELINES)
             pipeline = self._PIPELINES[version]
         except KeyError:
             errmsg = "Pipeline not found"
