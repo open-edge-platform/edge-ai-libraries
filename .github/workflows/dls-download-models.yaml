@@ -30,6 +30,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
+        path: edge-ai-libraries-repo
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
           libraries/dl-streamer/samples/download_omz_models.sh
@@ -48,7 +49,7 @@ jobs:
     - name: Download public models
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_public_models.sh all coco128
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Verify public models downloading
       run: |
@@ -69,7 +70,7 @@ jobs:
         source .virtualenvs/dlstreamer/bin/activate
         pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_omz_models.sh
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
         deactivate
 
     - name: Verify OMZ models downloading
@@ -87,5 +88,5 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -rf libraries .virtualenvs
+        rm -rf edge-ai-libraries-repo .virtualenvs
         rm -rf $HOME/.virtualenvs
