@@ -480,11 +480,11 @@ jobs:
         shell: bash
         run: |
           cd sample-applications/document-summarization/
-          echo "Running unit test cases"     
-          source setup.sh
+          echo "Running unit test cases"
           which poetry
           poetry install --with dev
           poetry add --dev pytest-html
+          source setup.sh
           poetry run pytest tests/unit_tests/ --html=pytest-coverage-doc-summary.html
           coverage run --source=. -m pytest
           coverage report -m
