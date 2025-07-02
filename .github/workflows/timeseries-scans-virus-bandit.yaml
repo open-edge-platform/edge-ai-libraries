@@ -21,7 +21,7 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@v4
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
@@ -56,16 +56,15 @@ jobs:
           - ubuntu_version: ubuntu24
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@v4
       with:
-        path: edge-ai-libraries-repo
         persist-credentials: false
     - name: Run Virus Scan
       run: |
         mkdir -p reports
         docker pull clamav/clamav
         echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/time-series-analytics/ > ./reports/clamav-report.txt || true
+        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/microservices/time-series-analytics/ > ./reports/clamav-report.txt || true
         echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
     - name: Upload Scan Reports
       uses: actions/upload-artifact@v4
