@@ -1,10 +1,10 @@
 # FAQ: Document Summarization Application
 
 ### Q: What file formats are supported?
-A: PDF, docx and plain-text files are supported.
+A: PDF, docx and TXT (plain-text) files are supported.
 
 ### Q: How large can my document be?
-A: The maximum file size is configurable through the backend settings.
+A: The maximum file size may vary depending on the summarization model being used.
 
 ### Q: Can I use my own summarization model?
 A: Yes, update the model files and configuration in the  OpenVINO™ model server service.

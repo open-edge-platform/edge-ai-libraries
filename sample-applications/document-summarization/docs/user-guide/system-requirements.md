@@ -23,7 +23,7 @@ If the model configuration is reduced, you can reduce the memory size to 32 GB. 
 
 ## Software Requirements
 
-[TODO] Provide links to the software requirements to install the sample application that was given in a different section.
+The software requirements to install the sample application are provided in other documentation pages and is not repeated here.
 
 ## Compatibility Notes
 
