@@ -17,6 +17,12 @@ services:
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
     volumes:
       - ${NGINX_CONFIG}:/etc/nginx/templates/nginx.conf.template
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 5s
     depends_on:
       vss-ui:
         condition: service_started
@@ -88,6 +94,12 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 15s
     volumes:
       - pg_data:/var/lib/postgresql/data
     networks:
@@ -113,6 +125,7 @@ services:
       interval: 30s
       timeout: 10s
       retries: 3
+      start_period: 10s
     restart: unless-stopped
     volumes:
       - "minio_data:/data"
