@@ -74,9 +74,9 @@ videoSummaryManager:
   affinity: {}
   tolerations: []
 
-audiointelligence:
+audioanalyzer:
   enabled: false
-  name: audiointelligence
+  name: audioanalyzer
   service:
     port: 8000
     targetPort: 8000
