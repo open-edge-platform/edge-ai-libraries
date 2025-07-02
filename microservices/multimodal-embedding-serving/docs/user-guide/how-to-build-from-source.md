@@ -42,25 +42,22 @@ cd edge-ai-libraries/microservices/multimodal-embedding-service
 2. **Set up environment values**:
     
 Follow all the instructions provided in the [get started](./get-started.md#set-environment-values) document to set up the environment variables.
+> **Note**: To build or run with GPU support, set EMBEDDING_DEVICE=GPU before sourcing setup.sh.
 
 3. **Build the Docker image**:
 
 To build the Docker image, run the following command:
 ```bash
-# Build for CPU
-docker compose -f compose.yaml build
-# Build for GPU
-docker compose -f compose.arc-gpu.yaml build
+docker compose -f docker/compose.yaml build
 ```
 
 4. **Run the service**:
 
  ```bash
- # Run on CPU
- docker compose -f compose.yaml up
- # Run on GPU
- docker compose -f compose.arc-gpu.yaml up
+ docker compose -f docker/compose.yaml  up
  ```
+
+This will run the service in either CPU or GPU mode depending on your environment variable settings.
 
 ## Validation
 
