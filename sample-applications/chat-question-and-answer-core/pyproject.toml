@@ -16,6 +16,7 @@ langchain-core = "^0.3.60"
 langchain-community = "^0.3.9"
 langchain-huggingface = "^0.1.2"
 optimum = {extras = ["openvino", "nncf"], version = "1.26.1"}
+pillow = "^11.3.0"
 pypdf = "^5.5.0"
 python-multipart = ">=0.0.18"
 requests = "^2.32.4"
