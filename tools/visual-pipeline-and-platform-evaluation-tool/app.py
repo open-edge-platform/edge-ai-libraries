@@ -826,7 +826,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     )
 
     # Object classification model
-    # Mapping of this choices to actual model path in utils.py
+    # Mapping of these choices to actual model path in utils.py
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
