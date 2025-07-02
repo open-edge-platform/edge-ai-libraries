@@ -145,12 +145,6 @@ def main(cfg: PipelineServerConfig):
         log.info("{}".format(pl))
     log.info("="*40)
 
-    # # start opentelemetry exporter
-    # if strtobool(os.getenv("ENABLE_OPEN_TELEMETRY","false")):
-    #     otel_exporter = OpenTelemetryExporter()
-    #     # Start the metrics collection in a separate thread
-    #     otel_exporter.start()
-
     # monitor for rest server to stop
     if rest_server is not None:
         while True:
