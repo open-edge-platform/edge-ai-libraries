@@ -122,7 +122,8 @@ jobs:
         RESULTS_DIR: test-results
       run: | 
         mkdir -p ${RESULTS_DIR}
-        chmod -R 777 ${RESULTS_DIR}   
+        chmod -R 777 ${RESULTS_DIR}
+
     - name: Show scripts directory
       run: |
         ls -a $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts
@@ -153,6 +154,8 @@ jobs:
 
     #this script creates output file called unit_test_summary.txt
     - name: Run python script to get Unit Test results
+      env:
+        RESULTS_DIR: test-results
       run: python3 edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts/unit_test_results.py $PWD/${RESULTS_DIR}
 
     - name: Add test summary to job summary
