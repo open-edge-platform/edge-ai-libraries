@@ -95,17 +95,17 @@ You can run queries like:
 
 ## Visualizing metrics & logs in Grafana
 
-Open Grafana by visiting `http://<HOST_IP>:GRAFANA_PORT` (Default login: `admin` / `admin`)
+Open Grafana by visiting `http://<HOST_IP>:<GRAFANA_PORT>` (Default login: `admin` / `admin`)
 
 ### Add data sources in Grafana
 
 - Add Prometheus
-    - Click on "Add data source and select Prometheus.
+    - Click on "Add data source" and select Prometheus.
     - Set URL to: http://<HOST_IP>:<PROMETHEUS_PORT>
     - Click Save & test.
 
 - Add Loki
-    - Click on "Add data source and select Loki.
+    - Click on "Add data source" and select Loki.
     - Set URL to: http://<HOST_IP>:3100
     - Click Save & test.
 
@@ -118,5 +118,5 @@ Open Grafana by visiting `http://<HOST_IP>:GRAFANA_PORT` (Default login: `admin`
 ### View logs from Loki
 
 - Go to "Explore" and choose Loki as data source.
-- Enter real time logs and add appropriate filters in the query.
+- Enter query with appropriate filters and view real time logs.
 - ![Open telemetry logs example in Grafana](../../../images/loki_logs.png)
