@@ -63,6 +63,7 @@ services:
       VLM_DEVICE: ${VLM_DEVICE}
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri

@@ -22,7 +22,7 @@
 - Documentation updated for ESC compatability. As ESC supports only absolute file path, the links in the documentation will always point to main repo even on forked repos.
 - Bug fixes
 
-## Previous releases
+## Earlier releases
 
 **Version**: 1.1.1 \
 **Release Date**: WW13 2025 
