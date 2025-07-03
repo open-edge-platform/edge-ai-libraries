@@ -38,11 +38,7 @@ class ModelQueryParams(BaseModel):
     pipeline_element_name: str = None
 
     @field_validator('*')
-    def validate_params_not_empty(self, value, info):
-        """
-        Check if the given `value` is None or an empty string.
-        Raise error if `value` is empty
-        """
+    def validate_params_not_empty(cls, value, info):
         if value is not None and value == '':
             raise ValueError(f'{info.field_name} cannot be empty')
         return value
@@ -153,7 +149,7 @@ class ModelRegistryClient:
         return value
 
     def _send_request(self, url: str, method: RequestMethod = RequestMethod.GET,
-                       params = None, data = None, stream: bool = False) -> Response:
+                       params=None, data=None, stream: bool=False) -> Response:
         """Sends a HTTP/HTTPS request and retries the request 2 times while attempting
         to obtain a new JWT if the response's status code is 401
 
@@ -235,7 +231,7 @@ class ModelRegistryClient:
                     raise ValueError(
                         f"Received 0 or more than 1 model. " \
                         f"Expected a single model with properties: " \
-                        f"{params_dict_str}")
+                            f"{params_dict_str}")
 
                 model = json_obj[0]
                 self._logger.debug(
@@ -316,7 +312,7 @@ class ModelRegistryClient:
                 list_pipeline_model_params = pipeline.get("model_params")
                 if list_pipeline_model_params:
                     for pipeline_model_params in list_pipeline_model_params:
-                        model_params = ModelQueryParams(**pipeline_model_params)
+                        model_params = ModelQueryParams(**pipeline_model_params)      
                         model_params = {k: v for k,
                                     v in model_params.model_dump().items() if v is not None}
                         if model_params.get("deploy", False):
@@ -385,68 +381,68 @@ class ModelRegistryClient:
                 list_pipeline_model_params = pipeline.get("model_params")
                 if list_pipeline_model_params:
                     for pipeline_model_params in list_pipeline_model_params:
-                        msg = None
-                        params = ModelQueryParams(**pipeline_model_params)
-                        model = self._get_model(params)
-                        if not model:
-                            msg = "Model is not found."
-                            raise ValueError(msg)
+                            msg = None
+                            params = ModelQueryParams(**pipeline_model_params)
+                            model = self._get_model(params)
+                            if not model:
+                                msg = "Model is not found."
+                                raise ValueError(msg)
 
-                        model_id = model["id"]
+                            model_id = model["id"]
 
-                        models_pipeline_dirpath = (self._saved_models_dir + \
-                            "/" + "_".join((model["name"],
-                                            "m-"+model["version"],
-                                            model["precision"][0]))).lower()
+                            models_pipeline_dirpath = (self._saved_models_dir + \
+                                "/" + "_".join((model["name"],
+                                                "m-"+model["version"],
+                                                model["precision"][0]))).lower()
 
-                        deployment_dirpath = (
-                            models_pipeline_dirpath + "/deployment").lower()
+                            deployment_dirpath = (
+                                models_pipeline_dirpath + "/deployment").lower()
 
-                        dir_info = ("Directory", models_pipeline_dirpath)
-                        is_already_saved = False
+                            dir_info = ("Directory", models_pipeline_dirpath)
+                            is_already_saved = False
 
-                        if not (os.path.exists(deployment_dirpath) or \
-                                os.path.exists(models_pipeline_dirpath)):
+                            if not (os.path.exists(deployment_dirpath) or \
+                                    os.path.exists(models_pipeline_dirpath)):
 
-                            self._logger.info("Downloading model files...")
-                            zip_file_data = self._get_model_artifacts_zip_file_data(
-                                model_id)
+                                self._logger.info("Downloading model files...")
+                                zip_file_data = self._get_model_artifacts_zip_file_data(
+                                    model_id)
 
-                            if zip_file_data:
-                                if not os.path.exists(models_pipeline_dirpath):
-                                    os.makedirs(models_pipeline_dirpath)
+                                if zip_file_data:
+                                    if not os.path.exists(models_pipeline_dirpath):
+                                        os.makedirs(models_pipeline_dirpath)
 
-                                with zipfile.ZipFile(io.BytesIO(zip_file_data), 'r') as zip_ref:
-                                    ignored_filenames = (".DS_Store", "__MACOSX")
-                                    for file_info in zip_ref.infolist():
-                                        file_root_dirname = zip_ref.filelist[0].filename
-                                        fname = file_info.filename
-                                        if not "deployment" in file_root_dirname:
-                                            fname = fname.replace(
-                                                file_root_dirname, "")
-                                        if fname and \
-                                            not file_info.is_dir() and \
-                                                not any(name in fname for name in ignored_filenames):
-                                            extract_path = os.path.join(models_pipeline_dirpath, fname)
-                                            os.makedirs(os.path.dirname(extract_path), exist_ok=True)
-                                            file_info.filename = os.path.basename(file_info.filename)
-                                            zip_ref.extract(file_info, os.path.dirname(extract_path))
+                                    with zipfile.ZipFile(io.BytesIO(zip_file_data), 'r') as zip_ref:
+                                        ignored_filenames = (".DS_Store", "__MACOSX")
+                                        for file_info in zip_ref.infolist():
+                                            file_root_dirname = zip_ref.filelist[0].filename
+                                            fname = file_info.filename
+                                            if not "deployment" in file_root_dirname:
+                                                fname = fname.replace(
+                                                    file_root_dirname, "")
+                                            if fname and \
+                                                not file_info.is_dir() and \
+                                                    not any(name in fname for name in ignored_filenames):
+                                                extract_path = os.path.join(models_pipeline_dirpath, fname)
+                                                os.makedirs(os.path.dirname(extract_path), exist_ok=True)
+                                                file_info.filename = os.path.basename(file_info.filename)
+                                                zip_ref.extract(file_info, os.path.dirname(extract_path))
 
-                                is_artifacts_saved = True
+                                    is_artifacts_saved = True
+                                else:
+                                    msg = "Model artifacts are not found."
                             else:
-                                msg = "Model artifacts are not found."
-                        else:
-                            is_already_saved = True
-                            is_artifacts_saved = True
+                                is_already_saved = True
+                                is_artifacts_saved = True
 
-                        if os.path.exists(deployment_dirpath):
-                            dir_info = ("Deployment directory", deployment_dirpath)
+                            if os.path.exists(deployment_dirpath):
+                                dir_info = ("Deployment directory", deployment_dirpath)
 
-                        if msg is None:
-                            verb_phrase = "already exists " if is_already_saved else "was created "
-                            msg = f"{dir_info[0]} ({dir_info[1]}) {verb_phrase}" \
-                                f"for the {pipeline['name']} pipeline."
-                            self._logger.info(msg)
+                            if msg is None:
+                                verb_phrase = "already exists " if is_already_saved else "was created "
+                                msg = f"{dir_info[0]} ({dir_info[1]}) {verb_phrase}" \
+                                    f"for the {pipeline['name']} pipeline."
+                                self._logger.info(msg)
 
         except Exception as e:
             if isinstance(e, PermissionError):
