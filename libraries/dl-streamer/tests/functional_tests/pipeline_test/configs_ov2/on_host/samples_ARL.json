@@ -17,7 +17,11 @@
         "identity_100": " ! identity eos-after=100 "
     },
     "test_sets": {
-
+        "yolov5su_CPU": {
+            "name": "yolov5su_CPU",
+            "dataset.groundtruth": "yolov5su_pexels_video_4786_CPU.json",
+            "sample.command": "{sample.dir}/gst_launch/detection_with_yolo/yolo_detect.sh,yolov5su,CPU,{dataset.video}/Pexels_Videos_4786.mp4,file,,FP32"
+        },
         "yolov5su_int8_CPU": {
             "name": "yolov5su_int8_CPU",
             "dataset.groundtruth": "detection_yolov5su_int8_CPU.json",
