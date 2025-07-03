@@ -673,7 +673,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
-#            value="/tmp/person-bicycle-car-detection.mp4",
             value="/tmp/people.mp4",
             sources="upload",
             elem_id="input_video_player",
