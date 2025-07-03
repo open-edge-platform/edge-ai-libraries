@@ -92,6 +92,7 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
+export WORKERS=6
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
@@ -481,6 +482,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
+            export WORKERS=1
             echo -e  "Using VLM for summarization on GPU"
         else
             export VLM_DEVICE=CPU
