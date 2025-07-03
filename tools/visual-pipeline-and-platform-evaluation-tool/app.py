@@ -670,8 +670,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4",
             "/tmp/people.mp4",
         )
-
-# Removed commented-out `download_file` block for cleaner codebase.
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
