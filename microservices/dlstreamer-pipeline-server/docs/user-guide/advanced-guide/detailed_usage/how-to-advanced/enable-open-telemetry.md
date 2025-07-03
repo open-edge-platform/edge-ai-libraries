@@ -37,6 +37,8 @@ OTEL_COLLECTOR_PORT=4318 # Open telemetry container will receive data on this po
 OTEL_EXPORT_INTERVAL_MILLIS=5000 # How often to export metrics to the open telemetry collector in milli seconds.
 PROMETHEUS_PORT=9999 # The port on your host where the Prometheus UI & API will be accessible (ex: open http://<HOST_IP>:9999 to see Prometheus).
 GRAFANA_PORT=3000 # The port on your host where the Grafana dashboard is exposed (ex: visit http://<HOST_IP>:3000 to visualize metrics & logs).
+GRAFANA_USERNAME= # Provide username to be used to login to Grafana, ex: GRAFANA_USERNAME=dlsps123
+GRAFANA_PASSWORD= # Provide username to be used to login to Grafana, ex: GRAFANA_PASSWORD=dlsps123
 ```
 
 ---
@@ -95,7 +97,7 @@ You can run queries like:
 
 ## Visualizing metrics & logs in Grafana
 
-Open Grafana by visiting `http://<HOST_IP>:<GRAFANA_PORT>` (Default login: `admin` / `admin`)
+Open Grafana by visiting `http://<HOST_IP>:<GRAFANA_PORT>` (login with: `GRAFANA_USERNAME` / `GRAFANA_PASSWORD`)
 
 ### Add data sources in Grafana
 
