@@ -52,7 +52,7 @@ jobs:
       actions: read
       contents: read
       packages: read
-    name: SACN static code analysis
+    name: SCAN static code analysis
     uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
