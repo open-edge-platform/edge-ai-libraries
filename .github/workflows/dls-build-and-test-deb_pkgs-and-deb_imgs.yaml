@@ -136,7 +136,7 @@ jobs:
         cd $DLS_REL_PATH/test_hello_dlstreamer
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Running hello_dlstreamer.sh on CPU with model yolo11s"
-        /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=CPU --model=yolo11s --precision=INT8
+        /opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --output=file --device=GPU --model=yolo11s --precision=INT8
         OUTPUT_FILE_FOUND=0
         for file in *.mp4; do
             # Check if the file exists and is at least 1kB in size
