@@ -671,10 +671,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "/tmp/people.mp4",
         )
 
-#        download_file(
-#            "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
-#            "/tmp/person-bicycle-car-detection.mp4",
-#        )
+# Removed commented-out `download_file` block for cleaner codebase.
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
