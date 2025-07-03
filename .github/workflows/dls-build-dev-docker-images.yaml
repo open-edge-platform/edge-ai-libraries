@@ -128,6 +128,7 @@ jobs:
       run: |
         ls -a $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts
         chmod +x $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts/run_unit_tests.sh
+        sudo chmod +rw -R $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/unit_tests
 
     - name: Run tests
       id: run-tests
