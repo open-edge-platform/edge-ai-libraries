@@ -28,7 +28,7 @@ theme = gr.themes.Default(
 
 # Initialize the pipeline based on the PIPELINE environment variable
 current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
-    "transportation3"
+    os.environ.get("PIPELINE", "").lower()
 )
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
