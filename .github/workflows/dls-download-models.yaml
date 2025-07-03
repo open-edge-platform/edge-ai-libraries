@@ -77,7 +77,7 @@ jobs:
         mkdir -p .virtualenvs/dlstreamer
         python3 -m venv .virtualenvs/dlstreamer
         source .virtualenvs/dlstreamer/bin/activate
-        pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
+        pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
         export MODELS_PATH=${{ env.MODELS_PATH }}
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
         deactivate
