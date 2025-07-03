@@ -27,6 +27,10 @@ jobs:
           - path_dockerfile: ./edge-ai-libraries-repo/libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
             ubuntu_version: ubuntu24
     steps:
+    - name: Clean before
+      run: |
+        rm -rf edge-ai-libraries-repo
+    
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
