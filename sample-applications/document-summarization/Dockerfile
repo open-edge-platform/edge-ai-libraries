@@ -1,19 +1,62 @@
 ﻿# Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.11-slim AS build
+# Multi-stage build: Build stage
+FROM python:3.11-slim AS builder
 
-RUN apt-get update && apt-get install -y python3-dev \
-    && pip install poetry==2.1.3
+# Set environment variables for PythonAdd commentMore actions
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    PIP_NO_CACHE_DIR=1 \
+    PIP_DISABLE_PIP_VERSION_CHECK=1
+
+RUN apt-get update && apt-get install -y --no-install-recommends python3-dev \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir poetry==2.1.3
 
 WORKDIR /app
+
 # Copy the application code
-RUN poetry config virtualenvs.create false 
+COPY pyproject.toml ./
+RUN poetry config virtualenvs.create false \
+    && poetry install --only=main --no-root \
+    && poetry cache clear pypi --all
 
-COPY . .
+FROM python:3.11-slim AS runtime
 
-# Installing root dependencies
-RUN poetry install --only main
+# Set environment variables
+ENV PYTHONDONTWRITEBYTECODE=1 \
+    PYTHONUNBUFFERED=1 \
+    HOME="/home/appuser" \
+    PYTHONPATH="/app"
+
+# Install only runtime system dependenciesAdd commentMore actions
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    # Required for document processing
+    && apt-get clean \
+    && rm -rf /var/lib/apt/lists/* \
+    && rm -rf /tmp/* \
+    && rm -rf /var/tmp/*
+
+# Create non-root userAdd commentMore actions
+RUN groupadd -g 1001 appuser \
+    && useradd -r -m -s /bin/bash -u 1001 -g 1001 appuser \
+    && mkdir -p $HOME/.cache/huggingface \
+    && chown -R appuser:appuser $HOME
+
+# Copy Python packages from builder stageAdd commentMore actions
+COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
+COPY --from=builder /usr/local/bin /usr/local/bin
+
+# Set working directoryAdd commentMore actions
+WORKDIR /app
+
+# Copy application code
+COPY --chown=appuser:appuser app ./app
+COPY --chown=appuser:appuser ui ./ui
+
+# Switch to non-root userAdd commentMore actions
+USER appuser
 
 # Expose the port the app runs on
 EXPOSE 8000
