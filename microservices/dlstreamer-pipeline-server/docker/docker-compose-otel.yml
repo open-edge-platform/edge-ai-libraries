@@ -145,7 +145,7 @@ services:
       - NO_PROXY=$no_proxy,otel-collector,localhost,127.0.0.1
     command: -config.file=/etc/loki/local-config.yaml
     ports:
-      - "${LOKI_PORT}:3100"
+      - "3100:3100"
     networks:
       - app_network
     volumes:
