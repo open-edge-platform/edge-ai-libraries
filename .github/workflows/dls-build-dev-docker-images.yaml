@@ -179,4 +179,4 @@ jobs:
       if: always ()
       env:
         RESULTS_DIR: test-results
-      run: rm -rf ${RESULTS_DIR} edge-ai-libraries-repo  
+      run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo  

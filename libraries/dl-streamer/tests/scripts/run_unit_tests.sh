@@ -12,7 +12,7 @@ SCRIPTDIR="$(dirname "$(readlink -fm "$0")")"
 build_dir=${1:-"${SCRIPTDIR}/../build"}
 rebuild_with_code_coverage=${2:-"false"}
 result_path=${3}
-build_type=${4:-"Release"}
+build_type=${4:-"Debug"}
 timeout_mult=${5:-20}
 
 # FIXME: our tests on GPU don't fit into default timeout (~4s)
@@ -86,13 +86,13 @@ popd
 
 SRC_DIR=$build_dir/..
 
-pushd "$SRC_DIR"/tests/tests_gstgva
+pushd "$SRC_DIR"/unit_tests/tests_gstgva
 py.test --junitxml="$result_path"/python_tests_results.xml || ret_code=$?
 popd
 
 if [ "$rebuild_with_code_coverage" = true ]; then
   mkdir -p "$result_path"/code_coverage
-  gcovr -r "$SRC_DIR" -e "$SRC_DIR"/thirdparty/ -e "$SRC_DIR"/tests/ -e "$SRC_DIR"/samples/ --html --html-details -o "$result_path"/code_coverage/index.html
+  gcovr -r "$SRC_DIR" -e "$SRC_DIR"/thirdparty/ -e "$SRC_DIR"/unit_tests/ -e "$SRC_DIR"/samples/ --html --html-details -o "$result_path"/code_coverage/index.html
 fi
 
 # 1, 8 means that tests were run but some failed. We check it in CI
