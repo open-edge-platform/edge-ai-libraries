@@ -15,9 +15,9 @@ IMAGE_PATH = os.path.join(SCRIPT_DIR, "test_files", "face_detection.png")
 
 d_model_name = "face-detection-adas-0001"
 d_model_path = get_model_path(d_model_name)
-c_model_name = "emotion-ferplus-8"
-c_model_path = get_model_path(c_model_name, "onnx")
-c_model_proc_name = "emotion-ferplus-8"
+c_model_name = "emotions-recognition-retail-0003"
+c_model_path = get_model_path(c_model_name)
+c_model_proc_name = "emotions-recognition-retail-0003"
 c_model_proc_path = get_model_proc_path(c_model_proc_name)
 
 
