@@ -40,7 +40,7 @@ spec:
             - name: INDEX_NAME
               value: {{ .Values.Chatqna.env.INDEX_NAME }}
             - name: HOME
-              value: /home/intelgai
+              value: /home/appuser
             - name: EMBEDDING_ENDPOINT_URL
               value: {{- if .Values.global.teiEmbeddingService.enabled }}
                       http://tei-embedding-service.{{ .Release.Namespace }}:6006
