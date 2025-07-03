@@ -5,3 +5,6 @@ definition: >
 metadata:
   classname: SmartNVRPipeline
   enabled: true
+recording:
+  url: "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4"
+  filename: person-bicycle-car-detection.mp4

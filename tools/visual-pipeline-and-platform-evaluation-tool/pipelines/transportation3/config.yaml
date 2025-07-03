@@ -5,3 +5,6 @@ definition: >
 metadata:
   classname: LicensePlateDetectionPipeline
   enabled: true
+recording:
+  url: "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp45"
+  filename: license-plate-detection.mp4

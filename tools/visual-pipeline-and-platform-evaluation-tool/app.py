@@ -101,7 +101,7 @@ def download_file(url, local_filename):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open(local_filename, "wb") as file:
+        with open("/tmp/"+local_filename, "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
@@ -662,32 +662,22 @@ def create_interface():
     Other components can be created directly in the Blocks context.
     """
 
-    # Video Player
-    input_video_player = None
-
     try:
-        download_file(
-            "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4",
-            "/tmp/person-bicycle-car-detection.mp4",
-        )
-        input_video_player = gr.Video(
-            label="Input Video",
-            interactive=True,
-            value="/tmp/person-bicycle-car-detection.mp4",
-            sources="upload",
-            elem_id="input_video_player",
-        )
+        # Download the pipeline recording files
+        for pipeline in PipelineLoader.list():
+            pipeline_info = PipelineLoader.config(pipeline)
+            download_file(
+                pipeline_info['recording']['url'],
+                pipeline_info['recording']['filename'],
+            )
     except Exception as e:
         print(f"Error loading video player: {e}")
         print("Falling back to local video player")
 
-        input_video_player = gr.Video(
-            label="Input Video",
-            interactive=True,
-            value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.12/tests/files/mse.mp4",
-            sources="upload",
-            elem_id="input_video_player",
-        )
+    # Video Player
+    input_video_player = gr.Video(
+        label="Input Video", interactive=True, show_download_button=True, sources="upload", elem_id="input_video_player",
+    )
 
     output_video_player = gr.Video(
         label="Output Video", interactive=False, show_download_button=True
@@ -1178,6 +1168,10 @@ def create_interface():
                                 lambda: current_pipeline[0].diagram(),
                                 None,
                                 pipeline_image,
+                            ).then(
+                                lambda: gr.update(value="/tmp/"+current_pipeline[1]['recording']['filename']),
+                                None,
+                                input_video_player,
                             ).then(
                                 # Clear output components here
                                 lambda: [
