@@ -15,7 +15,7 @@
 
 #include <gio/gio.h>
 #include <gst/gst.h>
-#include <opencv2/opencv.hpp>
+#include <opencv4/opencv.hpp>
 
 #include "dlstreamer/gst/videoanalytics/video_frame.h"
 #include "draw_axes.h"

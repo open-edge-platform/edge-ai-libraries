@@ -5,6 +5,6 @@
  ******************************************************************************/
 
 #include <gst/gst.h>
-#include <opencv2/opencv.hpp>
+#include <opencv4/opencv.hpp>
 
 void drawAxes(cv::Mat &frame, cv::Point3f cpoint, double yaw, double pitch, double roll, float scale);
