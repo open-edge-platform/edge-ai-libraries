@@ -199,10 +199,6 @@ jobs:
         source $HOME/.virtualenvs/dlstreamer/bin/activate
         ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
 
-        cd ../..
-        mkdir /home/runner/test_videos
-        cp -r * /home/runner/test_videos
-
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       if: steps.run_tests.outcome == 'success'
