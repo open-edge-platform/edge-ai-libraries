@@ -263,4 +263,24 @@ RUN . /etc/os-release && \
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
 
+# Set environment variables up front to ensure locales work properly
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+# ROS2 installation
+RUN apt update && \
+    apt install -y locales software-properties-common && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=${LC_ALL} LANG=${LANG} && \
+    add-apt-repository universe && \
+    apt update && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+        http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+        | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt update && \
+    apt install -y ros-humble-ros-base python3-colcon-common-extensions && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+
 USER ${USER}
