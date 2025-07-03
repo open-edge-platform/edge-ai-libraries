@@ -15,7 +15,7 @@
 #                /         \                        |
 #               V           V                       |
 #      ffmpeg-builder   opencv-builder              |
-#               |              |                mqqt-builder
+#               |              |                kafka-builder
 #               V              |                    |
 #       gstreamer-builder      | (copy libs)        |
 #                \            /                     |
