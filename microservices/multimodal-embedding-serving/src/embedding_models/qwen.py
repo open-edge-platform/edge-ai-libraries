@@ -54,10 +54,16 @@ class QwenEmbeddings(BaseModel, Embeddings):
 class Qwen3Model(nn.Module):
     # Qwen3 600M Params embedding model
     def __init__(self, cfg):
-        logger.info("Initializing Qwen3 embedding model . . .")
         super().__init__()
 
-        self.model_name = cfg.get("qwen_model_name", "Qwen/Qwen3-Embedding-0.6B")
+        self.model_name = cfg.get("qwen_model_name")
+        if not self.model_name:
+            raise ValueError(
+                "Qwen model name must be provided in the configuration.\
+                Please check if 'QWEN_MODEL' environment variable is set."
+            )
+        
+        logger.info(f"Initializing Qwen embedding model: {self.model_name}")
         self.max_length = cfg.get("qwen_sequence_length", 8192)
 
         self.model = AutoModel.from_pretrained(self.model_name)

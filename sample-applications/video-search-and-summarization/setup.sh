@@ -203,7 +203,7 @@ echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL
 
 
 # Verify if required environment variables are set in current shell, only when container down is not requested.
-if [ "$1" != "--down" ]; then
+if [ "$1" != "--down" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return
