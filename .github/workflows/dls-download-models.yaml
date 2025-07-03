@@ -1,41 +1,92 @@
-name: "[DLS] Download public models"
-run-name: "[DLS] Download public models (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[DLS] Models update on self-hosted runners"
+run-name: "[DLS] Models update on self-hosted runners (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
+  schedule:
+    - cron: '0 5 * * MON' # 5:00 UTC each Monday
   workflow_dispatch:
 permissions: {}
+env:
+  MODELS_PATH: "$HOME/models"
 
 jobs:
-  download-models:
-    name: Download models
-    runs-on: ubuntu-latest
+  update_linux_hosts:
+    name: Update on Linux runners
+    runs-on: ${{ matrix.host_labels }}
     permissions:
       contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - host_labels: [self-hosted, DLS-ARL-01]
+          - host_labels: [self-hosted, DLS-ARL-02]
+          - host_labels: [self-hosted, DLS-TGL-01]
+          - host_labels: [self-hosted, DLS-TGL-02]
+          - host_labels: [self-hosted, DLS-TGL-03]
+          - host_labels: [self-hosted, DLS-TGL-04]
+          - host_labels: [self-hosted, DLS-TGL-05]
     steps:
-    - name: Check out edge-ai-libraries repository
+    - name: Get script
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
+        sparse-checkout: |
+          libraries/dl-streamer/samples/download_public_models.sh
+          libraries/dl-streamer/samples/download_omz_models.sh
+          libraries/dl-streamer/samples/models_omz_samples.lst
+        sparse-checkout-cone-mode: false
 
-    - name: Download omz models
-      env:
-        MODELS_PATH: /home/runner/dls-models
+    - name: Prepare directory
       run: |
-        mkdir -p edge-ai-libraries-repo/.virtualenvs/dlstreamer
-        python3 -m venv edge-ai-libraries-repo/.virtualenvs/dlstreamer
-        edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/pip install --no-cache-dir --upgrade pip tensorflow openvino-dev[onnx]
-        source edge-ai-libraries-repo/.virtualenvs/dlstreamer/bin/activate
-        export MODELS_PATH=${MODELS_PATH}
-        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
+        if [ -d "${{ env.MODELS_PATH }}" ]; then
+          echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
+          rm -rf "${{ env.MODELS_PATH }}"
+        fi
+        mkdir -p ${{ env.MODELS_PATH }}
+        echo "Directory created: ${{ env.MODELS_PATH }}"
 
     - name: Download public models
-      env:
-        MODELS_PATH: /home/runner/dls-models
       run: |
-        export MODELS_PATH=${MODELS_PATH}
-        edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
+
+    - name: Verify public models downloading
+      run: |
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public )" ]; then
+          echo "Models not downloaded correctly ❌"
+          echo "Public models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
+          echo "Exiting..."
+          exit 1
+        else
+          echo "Models downloaded ✅"
+          echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Download OMZ models
+      run: |
+        mkdir -p .virtualenvs/dlstreamer
+        python3 -m venv .virtualenvs/dlstreamer
+        source .virtualenvs/dlstreamer/bin/activate
+        pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
+        deactivate
+
+    - name: Verify OMZ models downloading
+      run: |
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel )" ]; then
+          echo "Models not downloaded correctly ❌"
+          echo "Open Model Zoo models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
+          echo "Exiting..."
+          exit 1
+        else
+          echo "Models downloaded ✅"
+          echo "Open Model Zoo models downloaded ✅" >> $GITHUB_STEP_SUMMARY
+        fi
 
     - name: Clean up
       if: always()
       run: |
-        sudo rm -rf edge-ai-libraries-repo /home/runner/dls-models
+        rm -rf edge-ai-libraries-repo .virtualenvs
+        rm -rf $HOME/.virtualenvs
