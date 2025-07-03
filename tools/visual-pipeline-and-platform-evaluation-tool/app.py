@@ -806,7 +806,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object detection inference interval
     object_detection_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
+        maximum=6,
         value=3,
         step=1,
         label="Object Detection Inference Interval",
@@ -861,7 +861,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification inference interval
     object_classification_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
+        maximum=6,
         value=3,
         step=1,
         label="Object Classification Inference Interval",
