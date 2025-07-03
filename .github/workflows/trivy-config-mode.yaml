@@ -108,6 +108,7 @@ jobs:
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
             echo "❌ Found $FAILURE_COUNT failures! Failing the job."
+            cat ${output_report_path}
             exit 1
           else
             echo "✅ No failures found. Passing."
@@ -115,11 +116,13 @@ jobs:
 
       - name: Upload Trivy report as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        if: always ()
         with:
           name: trivy-config-report-${{ inputs.name }}
           path: ${{ inputs.output-report-path }}
 
       - name: Clean up
+        if: always ()
         env:
           output_report_path: ${{ inputs.output-report-path }}
         run: rm -rf "${output_report_path}"
