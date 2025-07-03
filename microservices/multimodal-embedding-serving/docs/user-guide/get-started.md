@@ -71,24 +71,20 @@ _Document how to get prebuilt docker image_
     ```bash
     source setup.sh
     ```
+    The `setup.sh` script determines whether the server runs on CPU or GPU by setting the appropriate environment variables.
 
 5. To run the service using Docker Compose, use the following command:
 
     ```bash
-    # Run on CPU
     docker compose -f docker/compose.yaml up
-    # Run on GPU
-    docker compose -f docker/compose.arc-gpu.yaml up
     ```
 
  6. To stop the service and bring down the container:
 
     ```bash
-    # When runing on CPU
     docker compose -f docker/compose.yaml down
-    # When running on GPU
-    docker compose -f docker/compose.arc-gpu.yaml down
     ```
+
 
 ## Sample CURL Commands
 

@@ -66,6 +66,6 @@ affinity: {}
 global:
   # setup proxy settings
   proxy:
-    no_proxy: "localhost,127.0.0.1,audiointelligence,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
+    no_proxy: "localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
     http_proxy: ""
     https_proxy: ""

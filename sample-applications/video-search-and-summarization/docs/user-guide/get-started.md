@@ -53,7 +53,7 @@ Before running the application, you need to set several environment variables:
 
     ```bash
     export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
-    export PROJECT_NAME=<your-project-name>              # e.g. "egai" or "video-summary"
+    export PROJECT_NAME=<your-project-name>              # e.g. "video-search-and-summary""
     export TAG=<your-tag>                                # e.g. "rc4" or "latest"
     ```
 
@@ -91,7 +91,7 @@ Before running the application, you need to set several environment variables:
     # (Optional) For OVMS-based video summary (when using with ENABLE_OVMS_LLM_SUMMARY=true or ENABLE_OVMS_LLM_SUMMARY_GPU=true)
     export OVMS_LLM_MODEL_NAME="Intel/neural-chat-7b-v3-3"  # or any other supported LLM model
 
-    # Model used by Audio Intelligence service. Only Whisper models variants are supported.
+    # Model used by Audio Analyzer service. Only Whisper models variants are supported.
     # Common Supported models: tiny.en, small.en, medium.en, base.en, large-v1, large-v2, large-v3.
     # You can provide just one or comma-separated list of models.
     export ENABLED_WHISPER_MODELS="tiny.en,small.en,medium.en"
@@ -216,6 +216,12 @@ To use GPU acceleration for OVMS-based summary:
 ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary
 ```
 
+To use GPU acceleration for vclip-embedding-ms for search usecase:
+
+```bash
+ENABLE_EMBEDDING_GPU=true source setup.sh --search
+```
+
 To verify configuration and resolved environment variables without running the application:
 
 ```bash
@@ -228,16 +234,16 @@ ENABLE_VLM_GPU=true source setup.sh --summary config
 ENABLE_OVMS_LLM_SUMMARY_GPU=true source setup.sh --summary config
 ```
 
-> **_NOTE:_** Please avoid setting `ENABLE_VLM_GPU` or `ENABLE_OVMS_LLM_SUMMARY_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
+```bash
+# For vclip-embedding-ms on GPU
+ENABLE_EMBEDDING_GPU=true source setup.sh --search config
+```
+
+> **_NOTE:_** Please avoid setting `ENABLE_VLM_GPU`, `ENABLE_OVMS_LLM_SUMMARY_GPU`, or `ENABLE_EMBEDDING_GPU` explicitly on shell using `export`, as you need to switch these flags off as well, to return back to CPU configuration.
 
 ## 🌐 Accessing the Application
 
-After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
-
-## Known issues
-
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-
+After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
 ## ☸️ Running in Kubernetes
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
