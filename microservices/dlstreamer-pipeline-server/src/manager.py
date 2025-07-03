@@ -286,7 +286,7 @@ class PipelineInstance:
             ERR = None
         except queue.Full:
             ERR = "Could not execute requeust due to timeout."
-            self.log.error(MSG_PREFIX, ERR)
+            self.log.error(f"{MSG_PREFIX} {ERR}")
             return DATA, ERR
         
         if not self.is_async:
@@ -294,7 +294,7 @@ class PipelineInstance:
             if not isinstance(self.publisher.image_publisher,ImagePublisher):
                 ERR = "Invalid publisher type for image ingestor"
                 DATA=None
-                self.log.error(MSG_PREFIX, ERR)
+                self.log.error(f"{MSG_PREFIX} {ERR}")
             else:
                 try:
                     RESPONSE_TIMEOUT = 5
@@ -315,7 +315,7 @@ class PipelineInstance:
                 except queue.Empty:
                     DATA= None
                     ERR= "Request execution timed out"
-                    self.log.error(MSG_PREFIX, ERR)
+                    self.log.error(f"{MSG_PREFIX} {ERR}")
         return DATA, ERR
 
     def get_status(self):
