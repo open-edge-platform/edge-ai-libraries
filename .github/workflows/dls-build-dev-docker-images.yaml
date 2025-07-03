@@ -128,7 +128,6 @@ jobs:
       run: |
         ls -a $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts
         chmod +x $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts/run_unit_tests.sh
-        sudo chmod +rw -R $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/unit_tests
 
     - name: Run tests
       id: run-tests
@@ -145,7 +144,7 @@ jobs:
           -v ${{ env.MODELS_PATH }}:${MAPPED_MODELS_PATH} \
           -v $PWD/${RESULTS_DIR}:${MAPPED_RESULTS_DIR}        \
           -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
-          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/unit_tests:/home/dlstreamer/dlstreamer/tests/unit_tests \
+          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/unit_tests:/home/dlstreamer/dlstreamer/tests \
           -e VIDEO_EXAMPLES_DIR=${MAPPED_VIDEO_EXAMPLES_DIR}  \
           -w /home/dlstreamer/dlstreamer  \
           -e MODELS_PATH=${MAPPED_MODELS_PATH} \
