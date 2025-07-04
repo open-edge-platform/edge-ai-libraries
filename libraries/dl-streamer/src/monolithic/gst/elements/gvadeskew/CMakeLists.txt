@@ -6,6 +6,7 @@
 
 set(TARGET_NAME "gvadeskew")
 
+pkg_search_module(VA va libva REQUIRED)
 find_package(OpenCV REQUIRED core imgproc calib3d)
 
 file(GLOB DESKEW_SRC
@@ -28,6 +29,8 @@ target_include_directories(${TARGET_NAME}
         ${GSTVIDEO_INCLUDE_DIRS}
         ${GSTALLOC_INCLUDE_DIRS}
 )
+
+target_link_directories(${TARGET_NAME} PUBLIC ${VA_LIBRARY_DIRS})
 
 target_link_libraries(${TARGET_NAME}
     PRIVATE

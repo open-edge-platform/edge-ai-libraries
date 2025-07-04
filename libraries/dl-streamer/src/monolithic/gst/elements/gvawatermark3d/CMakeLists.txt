@@ -6,6 +6,7 @@
 
 set(TARGET_NAME "gvawatermark3d")
 
+pkg_search_module(VA va libva REQUIRED)
 find_package(OpenCV REQUIRED core imgproc calib3d)
 
 file(GLOB WATERMARK3D_SRC
@@ -29,6 +30,7 @@ target_include_directories(${TARGET_NAME}
         ${GSTALLOC_INCLUDE_DIRS}
 )
 
+target_link_directories(${TARGET_NAME} PUBLIC ${VA_LIBRARY_DIRS})
 target_link_libraries(${TARGET_NAME}
     PRIVATE
         ${GSTREAMER_LIBRARIES}
