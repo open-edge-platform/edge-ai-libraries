@@ -2,8 +2,6 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
-> **Note:** The dependent microservices must be built separately from their respective microservice folders.
-
 ## Prerequisites
 
 1. Address all [prerequisites](./get-started.md#-prerequisites).
@@ -25,7 +23,7 @@ This section shows how to build the Video Search and Summary sample application 
 
 3. **Build the Docker Image**:
 
-    If you need to customize the application or build your own images, you can use the `build.sh` script included in the repository.
+    To customize the application or build your own images, use the `build.sh` script included in the repository.
 
     ### ⚙️ Customizing Build Configuration
 
@@ -44,18 +42,18 @@ This section shows how to build the Video Search and Summary sample application 
     The build script provides options to build and push the images. Build script provides option to build only the application microservices or build together with all the dependent microservices. The dependent microservices are the following microservices: [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/), [Audio Analyzer](../../../../microservices/audio-analyzer/), [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/), and [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
 
     ```bash
+    sudo chmod +x ./build.sh
+    # Build all microservice dependencies (vlm-openvino-serving, multimodal-embedding-serving, vdms-dataprep etc.)
+    ./build.sh
 
-    # Build the sample applications services
-    ./build.sh 
-
-    # Build the sample applications dependencies
-    ./build.sh --dependencies
+    # Build only the sample applications (pipeline-manager, video-search and UI)
+    ./build.sh --sample-app
 
     # Push all built images to the configured registry
     ./build.sh --push
     ```
 
-    After building, you can verify the created images with:
+    After building, verify the created images with:
 
     ```bash
     docker images | grep <your-project-name>
@@ -64,7 +62,8 @@ This section shows how to build the Video Search and Summary sample application 
 
 4. **Run the Docker Container**:
 
-    The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the below command to run the application:
+
+    The Video Search and Summary application offers multiple stacks and deployment options, to verify the newly created images run the following command to run the application:
 
     ```bash
     source setup.sh --summary
@@ -72,7 +71,11 @@ This section shows how to build the Video Search and Summary sample application 
 
 5. 🌐 Accessing the Application
 
-    After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
+    After successfully starting the application, you can access the UI at URL provided by following command:
+
+    ```bash
+    echo "http://${HOST_IP}:${APP_HOST_PORT}"
+    ```
 
 ## Verification
 
