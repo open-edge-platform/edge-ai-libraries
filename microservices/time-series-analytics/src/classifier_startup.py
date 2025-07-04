@@ -127,9 +127,9 @@ class KapacitorClassifier():
 
         python_package_requirement_file = "/tmp/" + dir_name + "/udfs/requirements.txt"
         python_package_installation_path = "/tmp/py_package"
-        os.system(f"mkdir -p {python_package_installation_path}")
+        subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
         if os.path.isfile(python_package_requirement_file):
-            os.system(f"pip3 install -r {python_package_requirement_file} --target {python_package_installation_path}")
+            subprocess.run(["pip3", "install", "-r", python_package_requirement_file, "--target", python_package_installation_path], check=False)
 
     def start_kapacitor(self,
                         kapacitor_url_hostname,
@@ -455,6 +455,8 @@ def classifier_startup(config):
         kapacitor_classifier.exit_with_failure_message(msg)
 
 kapacitor_classifier = KapacitorClassifier(logger)
+
 t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
+t1.daemon = True
 t1.start()
 

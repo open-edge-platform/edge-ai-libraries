@@ -92,6 +92,7 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
+export WORKERS=6
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
@@ -158,8 +159,14 @@ export VCLIP_MODEL=${VCLIP_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
+export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
-export VCLIP_DEVICE=CPU
+# Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
+if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
+    export VCLIP_DEVICE=GPU
+    export VCLIP_USE_OV=true
+    echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
+fi
 export VCLIP_HOST=vclip-embedding-ms
 export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
@@ -475,6 +482,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
+            export WORKERS=1
             echo -e  "Using VLM for summarization on GPU"
         else
             export VLM_DEVICE=CPU
