@@ -711,7 +711,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     inferencing_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=11,
+        value=8,
         step=1,
         label="Number of Recording + Inferencing channels",
         interactive=True,
@@ -722,7 +722,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     recording_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=3,
+        value=8,
         step=1,
         label="Number of Recording only channels",
         interactive=True,
@@ -802,8 +802,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object detection inference interval
     object_detection_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
-        value=1,
+        maximum=6,
+        value=3,
         step=1,
         label="Object Detection Inference Interval",
         interactive=True,
@@ -826,6 +826,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
+            "Disabled",
             "EfficientNet B0 (INT8)" ,
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
@@ -838,7 +839,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification device
     object_classification_device = gr.Dropdown(
         label="Object Classification Device",
-        choices=device_choices,
+        choices=device_choices + ["Disabled"],
         value=preferred_device,
         elem_id="object_classification_device",
     )
@@ -857,8 +858,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification inference interval
     object_classification_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
-        value=1,
+        maximum=6,
+        value=3,
         step=1,
         label="Object Classification Inference Interval",
         interactive=True,
@@ -886,6 +887,13 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         interactive=True,
         elem_id="object_classification_reclassify_interval",
     )
+
+    pipeline_watermark_enabled = gr.Checkbox(
+        label="Overlay inference results on inference channels",
+        value=True,
+        elem_id="pipeline_watermark_enabled",
+    )
+
 
     # Run button
     run_button = gr.Button("Run")
@@ -931,6 +939,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_inference_interval)
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
+    components.add(pipeline_watermark_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -1294,6 +1303,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # Recording Channels
                             recording_channels.render()
+
+                            # Whether to overlay result with watermarks
+                            pipeline_watermark_enabled.render()
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):

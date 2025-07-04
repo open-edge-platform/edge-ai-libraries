@@ -51,6 +51,7 @@ def prepare_video_and_constants(
         "object_classification_reclassify_interval", 0.0
     )
     object_classification_nireq = kwargs.get("object_classification_nireq", 1)
+    pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
 
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
@@ -76,6 +77,7 @@ def prepare_video_and_constants(
         "object_classification_inference_interval": [object_classification_inference_interval],
         "object_classification_reclassify_interval": [object_classification_reclassify_interval],
         "object_classification_nireq": [object_classification_nireq],
+        "pipeline_watermark_enabled": [pipeline_watermark_enabled],
     }
 
     constants = {
@@ -148,6 +150,9 @@ def prepare_video_and_constants(
             raise ValueError("Unrecognized Object Detection Model")
 
     match object_classification_model:
+        case "Disabled":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = "Disabled"
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = "Disabled"       
         case "ResNet-50 TF (INT8)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
@@ -231,7 +236,7 @@ def run_pipeline_and_extract_metrics(
         )
 
         # Log the command
-        logger.debug(f"Pipeline Command: {_pipeline}")
+        logger.info(f"Pipeline Command: {_pipeline}")
 
         try:
             # Set the environment variable to enable all drivers
@@ -278,6 +283,14 @@ def run_pipeline_and_extract_metrics(
                             "number_streams": int(match.group(3)),
                             "per_stream_fps": float(match.group(4)),
                         }
+                        logger.info(
+                            f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
+                        )
+
+                        # Skip the result if the number of streams does not match the expected channels
+                        if result["number_streams"] != channels:
+                            continue
+
                         latest_fps = result["per_stream_fps"]
                         
                         # Write latest FPS to a file
