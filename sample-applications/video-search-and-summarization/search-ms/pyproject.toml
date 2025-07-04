@@ -1,9 +1,8 @@
-
 [tool.poetry]
 name = "video-search"
 version = "0.1.0"
 description = "Intel EGAI Video Search Microservice"
-readme = "README.md"
+package-mode = false
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.13"
@@ -14,6 +13,12 @@ langchain-community = "^0.3.24"
 vdms = "0.0.21"
 watchdog = "6.0.0"
 minio = "7.2.15"
+pydantic = ">2.1.0,<3.0.0"
+
+[tool.poetry.group.dev.dependencies]
+pytest = "^7.4.0"
+pytest-cov = "^4.1.0"
+pytest-asyncio = "^0.21.0"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]
