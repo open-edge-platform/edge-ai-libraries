@@ -5,7 +5,6 @@
 #
 name: "[Time SeriesAnalytics] Docker Bench Security Scan"
 run-name: "[Time Series Analytics] Docker Bench Security Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
-permissions: read-all
 
 on:
   workflow_dispatch:
@@ -13,8 +12,14 @@ on:
 jobs:
   DBS_job:
     runs-on: ubuntu-24.04
-    
+    permissions:
+      contents: read
+      packages: read          # needed for actions/checkout
     steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
       - name: check the system
         run: |
           docker ps &&
@@ -22,41 +27,50 @@ jobs:
           docker version && 
           git version && 
           docker compose version
-      - name: Runner workspace path
-        run: |
-           echo "Cleaning up previous run"
-           if [ -n "$(docker ps -aq)" ]; then
-               docker stop $(docker ps -aq)
-           fi
-           if [ -n "$(docker ps -aq)" ]; then
-               docker rm $(docker ps -aq)
-           fi
-           docker images --quiet --filter=dangling=true | xargs --no-run-if-empty docker rmi -f
-           echo $PASSWORD | sudo -SE rm -rf "${{ github.workspace }}"
 
-      - name: Checkout Code
+      - name: Checkout docker/docker-bench-security (master)
         uses: actions/checkout@v4
         with:
-          persist-credentials: false 
-      - name: Build 
+          repository: docker/docker-bench-security
+          ref: master
+          path: docker-bench-security
+          persist-credentials: false
+      
+      - name: Build Docker Bench Security
+        run: |
+          cd docker-bench-security
+          docker build --no-cache -t docker-bench-security .
+
+      - name: Build Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
           sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
           docker compose build
+
       - name: Deploy Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
           docker compose up -d
+
       - name: DBS download and scan for Time Series Analytics microservice
         run: |
-          cd "${{ github.workspace }}"
-          git clone https://github.com/docker/docker-bench-security.git 
-          cd docker-bench-security
-          echo $PASSWORD | sudo sh docker-bench-security.sh >> dbs_scan_timeseries.txt
-      - name: Undeploy
+          cd microservices/time-series-analytics/docker
+          docker run --rm --net host --pid host --userns host --cap-add audit_control \
+          -e DOCKER_CONTENT_TRUST=$DOCKER_CONTENT_TRUST \
+          -v /etc:/etc:ro \
+          -v /usr/bin/containerd:/usr/bin/containerd:ro \
+          -v /usr/bin/runc:/usr/bin/runc:ro \
+          -v /usr/lib/systemd:/usr/lib/systemd:ro \
+          -v /var/lib:/var/lib:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock:ro \
+          --label docker_bench_security \
+          docker-bench-security > dbs_scan_timeseries.txt
+
+      - name: Undeploy Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
           docker compose down -v
+          
       - name: Upload Scan artifact to Github
         uses: actions/upload-artifact@v4
         with:

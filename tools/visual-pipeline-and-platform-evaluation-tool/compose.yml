@@ -53,7 +53,7 @@ services:
     <<: *vippet
     container_name: vippet-gpu
     group_add:
-     - "110"
+     - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
     profiles: [gpu]
@@ -61,7 +61,7 @@ services:
     <<: *vippet
     container_name: vippet-npu
     group_add:
-     - "110"
+     - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
       - "/dev/accel:/dev/accel"

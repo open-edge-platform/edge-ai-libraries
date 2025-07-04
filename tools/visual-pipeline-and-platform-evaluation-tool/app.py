@@ -50,33 +50,33 @@ has_dgpu = any(
 
 all_chart_titles = [
     "Pipeline Throughput [FPS]",
-    "CPU Frequency [KHz]",
     "CPU Utilization [%]",
-    "CPU Temperature [C°]",
+    "Integrated GPU Engine Utilization [%]",
+    "Discrete GPU Engine Utilization [%]",
     "Memory Utilization [%]",
     "Integrated GPU Power Usage [W] (Package & Total)",
     "Integrated GPU Frequency [MHz]",
-    "Integrated GPU Engine Utilization [%]",
     "Discrete GPU Power Usage [W] (Package & Total)",
     "Discrete GPU Frequency [MHz]",
-    "Discrete GPU Engine Utilization [%]",
+    "CPU Frequency [KHz]",
+    "CPU Temperature [C°]",
 ]
 all_y_labels = [
     "Throughput",
-    "Frequency",
     "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Power",
+    "Frequency",
+    "Power",
+    "Frequency",
+    "Frequency",
     "Temperature",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
 ]
 
-igpu_indices = [5, 6, 7]
-dgpu_indices = [8, 9, 10]
+igpu_indices = [2, 5, 6]
+dgpu_indices = [3, 7, 8]
 
 indices_to_remove = []
 if not has_igpu:
@@ -661,7 +661,7 @@ def on_stop():
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
 
 # Create the interface
-def create_interface():
+def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
     Components declarations starts here.
     Only components that are used in event handlers needs to be declared.
@@ -764,18 +764,19 @@ def create_interface():
     )
 
     # Object detection model
+    # Mapping of these choices to actual model path in utils.py
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
         choices=[
-            "SSDLite MobileNet V2",
-            "YOLO v5m 416x416",
-            "YOLO v5s 416x416",
-            "YOLO v5m 640x640",
-            "YOLO v10s 640x640",
-            "YOLO v10m 640x640",
-            "YOLO v8 LPR 640x640",
+            "SSDLite MobileNet V2 (INT8)",
+            "YOLO v5m 416x416 (INT8)",
+            "YOLO v5s 416x416 (INT8)",
+            "YOLO v5m 640x640 (INT8)",
+            "YOLO v10s 640x640 (FP16)",
+            "YOLO v10m 640x640 (FP16)",
+            "YOLO v8 LPR 640x640 (FP16)",
         ],
-        value="YOLO v8 LPR 640x640",
+        value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
     )
 
@@ -821,15 +822,16 @@ def create_interface():
     )
 
     # Object classification model
+    # Mapping of these choices to actual model path in utils.py
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
-            "EfficientNet B0",
-            "MobileNet V2 PyTorch",
-            "ResNet-50 TF",
+            "EfficientNet B0 (INT8)" ,
+            "MobileNet V2 PyTorch (FP16)",
+            "ResNet-50 TF (INT8)",
             "PaddleOCR",
         ],
-        value="PaddleOCR",
+        value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",
     )
 
@@ -889,7 +891,7 @@ def create_interface():
     run_button = gr.Button("Run")
 
     # Benchmark button
-    benchmark_button = gr.Button("Benchmark")
+    benchmark_button = gr.Button("Platform Ceiling Analysis")
 
     # Stop button
     stop_button = gr.Button("Stop", variant="stop", visible=False)
@@ -931,7 +933,7 @@ def create_interface():
     components.add(object_classification_reclassify_interval)
 
     # Interface layout
-    with gr.Blocks(theme=theme, css=css_code) as demo:
+    with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
 
         """
         Components events handlers and interactions are defined here.
@@ -1294,7 +1296,7 @@ def create_interface():
                             recording_channels.render()
 
                         # Benchmark Parameters Accordion
-                        with gr.Accordion("Benchmark Parameters", open=True):
+                        with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
 
                             # FPS Floor
                             fps_floor.render()
