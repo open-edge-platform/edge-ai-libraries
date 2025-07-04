@@ -12,7 +12,7 @@
 - Bug fixes.
 
 ### Known Issues/Behavior:
-- Permission denied in pod/chatqna-ui during helm deployment.
+- UI and NGINX container running as root Privillage in Helm Deployment
 
 ## Previous Release
 
