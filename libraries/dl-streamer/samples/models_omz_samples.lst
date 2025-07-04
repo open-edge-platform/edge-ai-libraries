@@ -15,3 +15,5 @@ instance-segmentation-security-1040
 efficientnet-b0
 mask_rcnn_inception_resnet_v2_atrous_coco
 mask_rcnn_resnet50_atrous_coco
+vehicle-license-plate-detection-barrier-0106
+license-plate-recognition-barrier-0007
