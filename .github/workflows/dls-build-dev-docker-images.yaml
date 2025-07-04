@@ -54,6 +54,18 @@ jobs:
           -f ${{ matrix.path_dockerfile }} \
           ./libraries/dl-streamer
 
+    - name: Build dlstreamer img with python
+      env:
+        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        dev_debug_testing_img: ghcr.io/${{ github.repository }}/dev_debug_testing_img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+      id: dlstreamer-with-python
+      run: |
+        docker build \
+        -f $DLS_REL_PATH/docker/ubuntu/ubuntu-testing.Dockerfile \
+        -t $dev_debug_testing_img \
+        --build-arg BASE_IMAGE=$dev_debug_img \
+        ${{ env.DLS_REL_PATH }}
+
     # ======================================================== SCANNING PART ========================================================
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
