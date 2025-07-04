@@ -17,7 +17,7 @@ SHELL ["cmd", "/S", "/C"]
 # Install Build Tools
 RUN `
     # Download the Build Tools bootstrapper.
-    curl -SL --output vs_buildtools.exe "https://aka.ms/vs/17/release/vs_buildtools.exe" `
+    curl -SL --output vs_buildtools.exe https://aka.ms/vs/17/release/vs_buildtools.exe `
    `
    # Install Build Tools with the Microsoft.VisualStudio.Workload.AzureBuildTools workload, excluding workloads and components with known issues.
    && (start /w vs_buildtools.exe --quiet --wait --norestart --nocache `
@@ -31,22 +31,22 @@ RUN `
 
 # Install Windows SDK
 RUN `
-    curl -SL --output winsdksetup.exe "https://go.microsoft.com/fwlink/?linkid=2320455" `
+    curl -SL --output winsdksetup.exe https://go.microsoft.com/fwlink/?linkid=2320455 `
 	&& winsdksetup.exe /features + /q /norestart `
 	&& del /q winsdksetup.exe
 
 # Download GStreamer
 RUN `
-	curl -SL --output gstreamer-1.0-msvc-x86_64.msi "https://gstreamer.freedesktop.org/data/pkg/windows/%GSTREAMER_VERSION%/msvc/gstreamer-1.0-msvc-x86_64-%GSTREAMER_VERSION%.msi" `
+	curl -SL --output gstreamer-1.0-msvc-x86_64.msi https://gstreamer.freedesktop.org/data/pkg/windows/%GSTREAMER_VERSION%/msvc/gstreamer-1.0-msvc-x86_64-%GSTREAMER_VERSION%.msi `
     && msiexec /passive INSTALLDIR=C:\gstreamer /i gstreamer-1.0-msvc-x86_64.msi `
 	&& del /q gstreamer-1.0-msvc-x86_64.msi `
-	&& curl -SL --output gstreamer-1.0-devel-msvc-x86_64.msi "https://gstreamer.freedesktop.org/data/pkg/windows/%GSTREAMER_VERSION%/msvc/gstreamer-1.0-devel-msvc-x86_64-%GSTREAMER_VERSION%.msi" `
+	&& curl -SL --output gstreamer-1.0-devel-msvc-x86_64.msi https://gstreamer.freedesktop.org/data/pkg/windows/%GSTREAMER_VERSION%/msvc/gstreamer-1.0-devel-msvc-x86_64-%GSTREAMER_VERSION%.msi `
 	&& msiexec /passive INSTALLDIR=C:\gstreamer /i gstreamer-1.0-devel-msvc-x86_64.msi `
 	&& del /q gstreamer-1.0-devel-msvc-x86_64.msi
 
 # Download OpenVINO
 RUN `
-    curl -SL --output openvino.zip "https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/windows/openvino_toolkit_windows_2025.1.0.18503.6fec06580ab_x86_64.zip" `
+    curl -SL --output openvino.zip https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.1/windows/openvino_toolkit_windows_2025.1.0.18503.6fec06580ab_x86_64.zip `
 	&& powershell -command "Expand-Archive -Path \"openvino.zip\" -DestinationPath \"C:\" " `
     && del /q openvino.zip `
 	&& move openvino_toolkit_windows_2025.1.0.18503.6fec06580ab_x86_64 openvino
@@ -55,10 +55,10 @@ RUN `
 ENV VCPKG_ROOT="C:\vcpkg"
 
 RUN `
-    curl -SL --output git_setup.exe "https://github.com/git-for-windows/git/releases/download/v2.49.0.windows.1/Git-2.49.0-64-bit.exe" `
+    curl -SL --output git_setup.exe https://github.com/git-for-windows/git/releases/download/v2.49.0.windows.1/Git-2.49.0-64-bit.exe `
 	&& powershell -command "Start-Process -FilePath git_setup.exe -ArgumentList \"/SILENT\", \"/NORESTART\", \"/DIR=C:\git\" -Wait -NoNewWindow" `
 	&& del /q git_setup.exe `
-    && C:\git\bin\git.exe clone "https://github.com/microsoft/vcpkg.git" `
+    && C:\git\bin\git.exe clone https://github.com/microsoft/vcpkg.git `
     && cd %VCPKG_ROOT% `
 	&& "C:\Program Files (x86)\Microsoft Visual Studio\2022\BuildTools\Common7\Tools\VsDevCmd.bat" `
     && bootstrap-vcpkg.bat `
@@ -83,13 +83,13 @@ RUN `
 
 # Install libva
 RUN `
-    curl -SL --output nuget.exe "https://dist.nuget.org/win-x86-commandline/latest/nuget.exe" `
+    curl -SL --output nuget.exe https://dist.nuget.org/win-x86-commandline/latest/nuget.exe `
     && nuget install Microsoft.Direct3D.VideoAccelerationCompatibilityPack `
 	&& setx PKG_CONFIG_PATH "%PKG_CONFIG_PATH%;C:\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\lib\pkgconfig" `
 	&& setx LIBVA_DRIVER_NAME "vaon12" `
 	&& setx LIBVA_DRIVERS_PATH "C:\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
 
-# Build dlstreamer
+# Build dlstreamer	
 RUN `
 	cd C:\dlstreamer\build `
     && C:\openvino\setupvars.bat `
