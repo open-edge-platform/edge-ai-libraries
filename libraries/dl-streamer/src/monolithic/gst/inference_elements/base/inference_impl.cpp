@@ -429,7 +429,7 @@ void UpdateConfigWithLayerInfo(const std::vector<ModelInputProcessorInfo::Ptr> &
 
         int reverse_channels = 0; // TODO: verify that channel reversal works correctly with mean and std!
         if (gst_structure_get_int(it->params, "reverse_input_channels", &reverse_channels)) {
-            config[KEY_BASE][KEY_MODEL_FORMAT] = reverse_channels ? "RGB" : "BGR";
+            config[KEY_BASE][KEY_MODEL_FORMAT] = reverse_channels ? "BGR" : "RGB";
         }
     }
 }
