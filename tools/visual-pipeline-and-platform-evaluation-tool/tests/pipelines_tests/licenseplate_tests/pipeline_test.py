@@ -93,5 +93,35 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
         # Check that va-surface-sharing is used for pre-processing
         self.assertIn("pre-process-backend=va-surface-sharing", result)
 
+    def test_evaluate_no_model_proc(self):
+        result = self.pipeline.evaluate(
+            constants={
+                "VIDEO_OUTPUT_PATH": "output.mp4",
+                "VIDEO_PATH": "input.mp4",
+                "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
+                "OBJECT_DETECTION_MODEL_PROC": None,
+                "OBJECT_CLASSIFICATION_MODEL_PATH": "classification_model.xml",
+                "OBJECT_CLASSIFICATION_MODEL_PROC": None,
+            },
+            parameters={
+                "object_detection_device": "GPU",
+                "object_classification_device": "GPU",
+            },
+            regular_channels=0,
+            inference_channels=self.inference_channels,
+            elements=[
+                ("va", "decodebin3", "..."),
+                ("va", "vah264enc", "..."),
+                ("va", "vah264dec", "..."),
+                ("va", "vapostproc", "..."),
+            ],
+        )
+
+        # Common checks
+        self.common_checks(result)
+
+        # Check that no model proc is used
+        self.assertNotIn("model-proc=", result)
+
 if __name__ == "__main__":
     unittest.main()
