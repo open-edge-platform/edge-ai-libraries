@@ -1,4 +1,4 @@
-README.md @xwu2intel
+README.md @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 LICENSE @xwu2intel
 CONTRIBUTING.md @xwu2intel
 CODE_OF_CONDUCT.md @xwu2intel
@@ -23,9 +23,8 @@ SECURITY.md @xwu2intel
 # documentation content
 /libraries/dl-streamer/docs @open-edge-platform/open-edge-platform-docs-write
 /libraries/dl-streamer/README.md @open-edge-platform/open-edge-platform-docs-write
-/libraries/dl-streamer/*.md @open-edge-platform/open-edge-platform-docs-write
 /microservices/**/docs @open-edge-platform/open-edge-platform-docs-write
 /microservices/**/README.md @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/**/docs @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/**/README.md @open-edge-platform/open-edge-platform-docs-write
-README.md @open-edge-platform/open-edge-platform-docs-write
+
