@@ -50,11 +50,12 @@ The Video Summary sample application provides the above listed capabilities thro
     - **Audio capability**: For certain videos, the audio provides richer context which can positively influence the accuracy of the summary. The audio pipeline will provide a mechanism to create transcription of the audio channel and use the same as additional context information for the VLM.
 
 ## How to Use the Application Effectively
-The Video Summary pipeline offers features to improve accuracy for complex long long form videos. Choosing which features to use involves balancing accuracy and performance. To use the tool effectively, start by answering the following key questions:
-1. What is the complexity of the video that need to be summarized?
-2. What is the accuracy target the summary pipeline needs to achieve as measured by key qualitative metrics like BERT score as well as from manual inspection?
-3. What are the available compute resources to run the pipeline? 
-4. What are the key performance metrics like throughput, latency and so on that need to be achieved by the pipeline?
+The Video Summary pipeline offers features to improve accuracy for complex long long-form videos. Choosing which features to use involves balancing accuracy and performance. To use the tool effectively, start by answering the following key questions:
+
+- What is the complexity of the video that need to be summarized?
+- What is the accuracy target the summary pipeline needs to achieve as measured by key qualitative metrics like BERT score as well as from manual inspection?
+- What are the available compute resources to run the pipeline?
+- What are the key performance metrics like throughput, latency and so on that need to be achieved by the pipeline?
 
 Answering key questions determines the tradeoff between compute and accuracy. Based on these decisions, the pipeline is configured and customized using various settings in the sample application. Once the pipeline is optimized for accuracy on the specific hardware, the application is ready for deployment. You upload the video to be summarized, set required parameters like chunk duration and frame count, and submit the request. The application updates the user on progress and provides the final summary. The API specification outlines how to access the application's features.
 

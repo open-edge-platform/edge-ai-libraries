@@ -12,7 +12,7 @@ Before you begin, ensure that you have the following:
 ## Steps to deploy with Helm
 Do the following to deploy VSS using Helm chart. 
 
-**_Steps 1 to 3 varies depending on if the user prefers to build or pull the Helm details._**
+**_Steps 1 to 3 vary depending on whether you prefers to build or pull the Helm details._**
 
 ### Option 1: Install from Docker Hub
 
