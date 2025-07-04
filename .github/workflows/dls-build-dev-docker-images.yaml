@@ -61,10 +61,10 @@ jobs:
       id: dlstreamer-with-python
       run: |
         docker build \
-        -f $DLS_REL_PATH/docker/ubuntu/ubuntu-testing.Dockerfile \
+        -f ./libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile \
         -t $dev_debug_testing_img \
         --build-arg BASE_IMAGE=$dev_debug_img \
-        ${{ env.DLS_REL_PATH }}
+        ./libraries/dl-streamer
 
     # ======================================================== SCANNING PART ========================================================
     - name: Scan Docker image with Trivy
