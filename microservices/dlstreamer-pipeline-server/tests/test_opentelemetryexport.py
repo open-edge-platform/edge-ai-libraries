@@ -135,11 +135,11 @@ def test_init(mock_reader, mock_exporter):
 
         exporter = OpenTelemetryExporter()
         
-        assert exporter.collector_url == "http://test_host:9999/v1/metrics"
+        assert exporter.metrics_collector_url == "http://test_host:9999/v1/metrics"
+        assert exporter.logs_collector_url == "http://test_host:9999/v1/logs"
         assert exporter.api_url == "http://api_host:9090/pipelines/status"
-        assert exporter.otlp_exporter == mock_exporter.return_value
-
-        # Ensure the meter is properly initialized (not checking type)
+        
+        # Ensure the meter is properly initialized
         assert exporter.meter is not None  
         assert exporter.cpu_usage is not None  
         assert exporter.memory_usage is not None  

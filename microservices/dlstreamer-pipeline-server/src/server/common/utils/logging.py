@@ -44,7 +44,7 @@ def get_logger(name, is_static=False):
         json_handler.set_name('JSON_Handler')
         logger.addHandler(json_handler)
     _set_log_level(logger, LOG_LEVEL)
-    logger.propagate = False
+    logger.propagate = True
     if is_static:
         _static_loggers.append(logger)
     return logger
