@@ -10,6 +10,8 @@ FROM $BASE_IMAGE
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
+ARG DEBIAN_FRONTEND=noninteractive
+
 USER root
 
 RUN \
