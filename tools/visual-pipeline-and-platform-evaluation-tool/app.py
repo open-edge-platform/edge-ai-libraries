@@ -830,7 +830,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "EfficientNet B0 (INT8)" ,
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
-            "PaddleOCR",
+            "PaddleOCR (FP16)",
         ],
         value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",

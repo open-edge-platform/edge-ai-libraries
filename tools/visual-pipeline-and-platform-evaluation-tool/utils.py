@@ -136,7 +136,7 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
-        case "YOLO v8 LPR 640x640":
+        case "YOLO v8 LPR 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
                     "YOLO v8 LPR model is not supported on NPU device. Please select another model."
@@ -179,7 +179,7 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
             )
-        case "PaddleOCR":
+        case "PaddleOCR (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP16/ch_PP-OCRv4_rec_infer.xml"
             )
