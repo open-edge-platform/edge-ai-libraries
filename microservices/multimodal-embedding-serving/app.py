@@ -7,7 +7,7 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.common import ErrorMessages, logger, settings
-from src.models import VClipModel
+from src.models import ModelFactory, get_model_handler, list_available_models, EmbeddingModel
 from src.utils import decode_base64_image, download_image
 
 app = FastAPI(title=settings.APP_DISPLAY_NAME, description=settings.APP_DESC)
@@ -28,12 +28,34 @@ health_status = False
 @app.on_event("startup")
 async def startup_event():
     global vclip_model, health_status
-    cfg = {"model_name": settings.MODEL_NAME}
-    vclip_model = VClipModel(cfg)
-    if settings.EMBEDDING_USE_OV:
-        await vclip_model.async_init()
-    health_status = vclip_model.check_health()
-    logger.info("Model loaded successfully")
+    logger.info(f"Starting application with model: {settings.EMBEDDING_MODEL_NAME}")
+    
+    # Check if the model is supported
+    if not ModelFactory.is_model_supported(settings.EMBEDDING_MODEL_NAME):
+        logger.error(f"Model {settings.EMBEDDING_MODEL_NAME} is not supported")
+        available_models = list_available_models()
+        logger.error(f"Available models: {available_models}")
+        raise RuntimeError(f"Unsupported model: {settings.EMBEDDING_MODEL_NAME}")
+    
+    # Create model using the factory pattern
+    try:
+        model_handler = get_model_handler(settings.EMBEDDING_MODEL_NAME)
+        model_handler.load_model()
+        
+        # Convert to OpenVINO if enabled
+        if settings.EMBEDDING_USE_OV:
+            logger.info("Converting model to OpenVINO format...")
+            model_handler.convert_to_openvino(settings.EMBEDDING_OV_MODELS_DIR)
+        
+        # Wrap with application-level functionality
+        vclip_model = EmbeddingModel(model_handler)
+        
+        # Check model health
+        health_status = vclip_model.check_health()
+        logger.info(f"Model {settings.EMBEDDING_MODEL_NAME} loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load model {settings.EMBEDDING_MODEL_NAME}: {e}")
+        raise RuntimeError(f"Failed to initialize model: {e}")
 
 
 class TextInput(BaseModel):
@@ -104,6 +126,49 @@ async def health_check() -> dict:
         return {"status": "healthy"}
     else:
         raise HTTPException(status_code=500, detail="Model is not healthy")
+
+
+@app.get("/models")
+async def list_models() -> dict:
+    """
+    List all available models.
+
+    Returns:
+        dict: Dictionary containing available models and their configurations.
+    """
+    try:
+        available_models = list_available_models()
+        current_model = settings.EMBEDDING_MODEL_NAME
+        
+        return {
+            "current_model": current_model,
+            "available_models": available_models,
+            "total_models": sum(len(models) for models in available_models.values())
+        }
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing models: {e}")
+
+
+@app.get("/model/current")
+async def get_current_model() -> dict:
+    """
+    Get information about the currently loaded model.
+
+    Returns:
+        dict: Dictionary containing current model information.
+    """
+    try:
+        return {
+            "model_name": settings.EMBEDDING_MODEL_NAME,
+            "embedding_length": vclip_model.get_embedding_length(),
+            "model_config": vclip_model.model_config,
+            "device": vclip_model.device,
+            "use_openvino": vclip_model.use_openvino
+        }
+    except Exception as e:
+        logger.error(f"Error getting current model info: {e}")
+        raise HTTPException(status_code=500, detail=f"Error getting model info: {e}")
 
 
 @app.post("/embeddings")

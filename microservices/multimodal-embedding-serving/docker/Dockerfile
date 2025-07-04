@@ -20,6 +20,8 @@ WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
 RUN poetry install --no-root
+# Install additional dependencies with no dependencies to avoid conflicts
+RUN poetry run pip install git+https://github.com/apple/ml-mobileclip.git salesforce-lavis==1.0.2 --no-deps
 
 RUN apt-get install -y --no-install-recommends curl ca-certificates libxml2 gnupg
 
