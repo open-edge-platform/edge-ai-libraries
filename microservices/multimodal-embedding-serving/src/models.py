@@ -1,6 +1,11 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Legacy models.py file - maintained for backward compatibility.
+New implementations should use the models module (src/models/).
+"""
+
 import os
 import time
 from pathlib import Path
@@ -23,6 +28,9 @@ from src.utils import (
     download_video,
     extract_video_frames,
 )
+
+# Import the new model factory for future use
+from src.models import ModelFactory, get_model_handler
 
 
 class VClipModel:
