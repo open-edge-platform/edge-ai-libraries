@@ -593,8 +593,8 @@ def on_run(data):
 
     video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
 
-    recording_channels = arguments['recording_channels'] or 0
-    inferencing_channels = arguments['inferencing_channels'] or 0
+    recording_channels = arguments.get('recording_channels', 0) or 0
+    inferencing_channels = arguments.get('inferencing_channels', 0) or 0
     # Validate channels
     if recording_channels + inferencing_channels == 0:
         raise gr.Error(

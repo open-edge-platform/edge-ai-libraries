@@ -15,6 +15,8 @@ class Benchmark:
 
     """Benchmarking class for pipeline evaluation."""
 
+    DEFAULT_RATE = 100  # Default rate for AI stream percentage
+
     def __init__(
         self,
         video_path: str,
@@ -28,7 +30,7 @@ class Benchmark:
         self.video_path = video_path
         self.pipeline_cls = pipeline_cls
         self.fps_floor = fps_floor
-        self.rate = rate if rate is not None else 100
+        self.rate = rate if rate is not None else self.DEFAULT_RATE
         self.parameters = parameters
         self.constants = constants
         self.elements = elements if elements is not None else []
