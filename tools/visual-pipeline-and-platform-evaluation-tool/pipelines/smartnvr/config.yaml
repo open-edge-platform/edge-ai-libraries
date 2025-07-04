@@ -5,3 +5,9 @@ definition: >
 metadata:
   classname: SmartNVRPipeline
   enabled: true
+parameters:
+  run:
+    recording_channels: true
+  benchmark:
+    ai_stream_rate: true
+    result_format: "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
