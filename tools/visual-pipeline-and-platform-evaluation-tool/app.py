@@ -18,6 +18,8 @@ from typing import Tuple, Dict
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+TEMP_DIR = "/tmp/"
+
 with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
     css_code = f.read()
 
@@ -101,11 +103,16 @@ def download_file(url, local_filename):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open("/tmp/"+local_filename, "wb") as file:
+        with open(TEMP_DIR+local_filename, "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
 
+# Set video path for the input video player
+def set_video_path(filename):
+    if not os.path.exists(TEMP_DIR + filename):
+        return gr.update(label="Error: Video file not found. Verify the recording URL or proxy settings.", value=None)
+    return gr.update(label="Input Video", value=TEMP_DIR + filename)
 
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
@@ -653,7 +660,6 @@ def on_stop():
     utils.cancelled = True
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
 
-
 # Create the interface
 def create_interface():
     """
@@ -671,8 +677,7 @@ def create_interface():
                 pipeline_info['recording']['filename'],
             )
     except Exception as e:
-        print(f"Error loading video player: {e}")
-        print("Falling back to local video player")
+        print(f"Error downloading pipeline recordings: {e}")
 
     # Video Player
     input_video_player = gr.Video(
@@ -944,13 +949,14 @@ def create_interface():
             lambda v: (
                 (
                     gr.update(interactive=bool(v)),
+                    gr.update(None),
                     gr.update(value=None),
                 )  # Disable Run button  if input is empty, clears output
                 if v is None or v == ""
-                else (gr.update(interactive=True), gr.update(value=None))
+                else (gr.update(interactive=True), gr.update(label="Input Video"), gr.update(value=None))
             ),
             inputs=input_video_player,
-            outputs=[run_button, output_video_player],
+            outputs=[run_button, input_video_player, output_video_player],
             queue=False,
         )
 
@@ -1169,7 +1175,7 @@ def create_interface():
                                 None,
                                 pipeline_image,
                             ).then(
-                                lambda: gr.update(value="/tmp/"+current_pipeline[1]['recording']['filename']),
+                                lambda: set_video_path(current_pipeline[1]['recording']['filename']),
                                 None,
                                 input_video_player,
                             ).then(
