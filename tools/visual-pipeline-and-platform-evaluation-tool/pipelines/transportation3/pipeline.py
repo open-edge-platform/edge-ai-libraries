@@ -31,7 +31,7 @@ class LicensePlateDetectionPipeline(GstPipeline):
             "gvaclassify "
             "   {classification_model_config} "
             "   model-instance-id=classify0 "
-            "   device={object_detection_device} "
+            "   device={object_classification_device} "
             "   pre-process-backend={object_classification_pre_process_backend} ! "
             "queue ! "
             # Metadata
