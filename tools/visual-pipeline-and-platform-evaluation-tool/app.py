@@ -1305,9 +1305,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
 
-                            # Whether to compose output
-                            #pipeline_compose_enabled.render()
-
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
 
