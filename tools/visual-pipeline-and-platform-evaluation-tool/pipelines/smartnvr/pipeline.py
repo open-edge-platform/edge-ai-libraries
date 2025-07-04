@@ -31,11 +31,6 @@ class SmartNVRPipeline(GstPipeline):
             "  location={VIDEO_OUTPUT_PATH} async=false "
         )
 
-        self._fake_sink = (
-            "fakesink "
-            "  sync=false "
-            "  async=false "
-        )
 
         self._recording_stream = (
             "filesrc "
@@ -106,7 +101,7 @@ class SmartNVRPipeline(GstPipeline):
 
         self._sink_to_compositor = (
             "queue2 "
-            "  max-size-buffers=0 "
+            "  max-size-buffers={max_size_buffers} "
             "  max-size-bytes=0 "
             "  max-size-time=0 ! "
             "{postprocessing} ! "
@@ -304,12 +299,12 @@ class SmartNVRPipeline(GstPipeline):
 
             # sink to compositor or fake sink depending on the compose flag
             streams += self._sink_to_compositor.format(
-                    **parameters,
-                    **constants,
-                    id=i,
-                    postprocessing=_postprocessing_element,
-                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
-
+                **parameters,
+                **constants,
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=0,
+            )
         # Handle regular channels
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(
@@ -321,20 +316,19 @@ class SmartNVRPipeline(GstPipeline):
             )
             # sink to compositor or fake sink depending on the compose flag
             streams += self._sink_to_compositor.format(
-                    **parameters,
-                    **constants,
-                    id=i,
-                    postprocessing=_postprocessing_element,
-                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
-
-        # Prepend the compositor if enabled
-        if parameters["pipeline_compose_enabled"]:
-            streams = self._compositor.format(
+                **parameters,
                 **constants,
-                sinks=sinks,
-                encoder=_encoder_element,
-                compositor=_compositor_element,
-            ) + streams
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=1,
+            )
+        # Prepend the compositor 
+        streams = self._compositor.format(
+            **constants,
+            sinks=sinks,
+            encoder=_encoder_element,
+            compositor=_compositor_element,
+        ) + streams
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams

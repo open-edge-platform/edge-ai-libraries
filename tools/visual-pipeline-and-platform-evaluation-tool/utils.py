@@ -52,7 +52,6 @@ def prepare_video_and_constants(
     )
     object_classification_nireq = kwargs.get("object_classification_nireq", 1)
     pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
-    pipeline_compose_enabled = kwargs.get("pipeline_compose_enabled", True)
 
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
@@ -79,7 +78,6 @@ def prepare_video_and_constants(
         "object_classification_reclassify_interval": [object_classification_reclassify_interval],
         "object_classification_nireq": [object_classification_nireq],
         "pipeline_watermark_enabled": [pipeline_watermark_enabled],
-        "pipeline_compose_enabled": [pipeline_compose_enabled],
     }
 
     constants = {
@@ -270,6 +268,14 @@ def run_pipeline_and_extract_metrics(
                             "number_streams": int(match.group(3)),
                             "per_stream_fps": float(match.group(4)),
                         }
+                        logger.info(
+                            f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
+                        )
+
+                        # Skip the result if the number of streams does not match the expected channels
+                        if result["number_streams"] != channels:
+                            continue
+
                         latest_fps = result["per_stream_fps"]
                         
                         # Write latest FPS to a file

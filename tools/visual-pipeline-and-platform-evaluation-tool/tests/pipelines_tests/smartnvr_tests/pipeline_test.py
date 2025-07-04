@@ -63,7 +63,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": False,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -84,41 +83,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
         # Check gvawatermark is not present
         self.assertNotIn("gvawatermark", result)
 
-    def test_evaluate_no_compose(self):
-        result = self.pipeline.evaluate(
-            constants=self.constants,
-            parameters={
-                "object_detection_device": "CPU",
-                "object_detection_batch_size": 0,
-                "object_detection_inference_interval": 1,
-                "object_detection_nireq": 0,
-                "object_classification_device": "CPU",
-                "object_classification_batch_size": 0,
-                "object_classification_inference_interval": 1,
-                "object_classification_nireq": 0,
-                "object_classification_reclassify_interval": 1,
-                "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": False,
-            },
-            regular_channels=self.regular_channels,
-            inference_channels=self.inference_channels,
-            elements=[
-                ("va", "vacompositor", "..."),
-                ("va", "vah264enc", "..."),
-                ("va", "vah264dec", "..."),
-                ("va", "vapostproc", "..."),
-            ],
-        )
-
-        # Common checks
-        self.common_checks(result)
-        self.output_absent_check(result)
-        self.sink_absent_check(result)
-        self.gvaclassify_count_check(result, self.inference_channels)
-
-        # Check compositor is not present
-        self.assertNotIn("compositor", result)
-
     def test_evaluate_classification_disabled_by_device(self):
         result = self.pipeline.evaluate(
             constants=self.constants,
@@ -133,7 +97,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -172,7 +135,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -204,7 +166,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -243,7 +204,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -292,7 +252,6 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
-                "pipeline_compose_enabled": True,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
