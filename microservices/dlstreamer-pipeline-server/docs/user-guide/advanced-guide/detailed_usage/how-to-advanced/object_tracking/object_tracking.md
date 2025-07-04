@@ -27,7 +27,7 @@ To disable tracking, the above elements (if present) following the `udfloader` e
 
 Here is an example for enabling tracking for Pallet Defect Detection pipeline that uses Geti UDF. In Geti UDF, `metadata_converter` should be set to `geti_to_dcaas`.
   ```bash
-  "pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvapython class=AddDetectionRoi function=process module=/home/pipeline-server/gvapython/detection/add_roi.py name=add_roi ! gvatrack tracking-type=short-term-imageless ! appsink name=destination",
+  "pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin3 ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvapython class=AddDetectionRoi function=process module=/home/pipeline-server/gvapython/detection/add_roi.py name=add_roi ! gvatrack tracking-type=short-term-imageless ! appsink name=destination",
   ```
 
   ```bash
