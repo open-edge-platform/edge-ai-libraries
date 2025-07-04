@@ -92,6 +92,7 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
+export WORKERS=6
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
@@ -127,11 +128,11 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 export POSTGRES_DB=video_summary_db
 export POSTGRES_HOST=postgres-service
 
-# env for audio-intelligence service
+# env for audio-analyzer service
 export AUDIO_HOST_PORT=8999
 export AUDIO_ENABLED_MODELS=${ENABLED_WHISPER_MODELS}
 export AUDIO_MAX_FILE=314572800 # 300MB
-export AUDIO_HOST=audio-intelligence
+export AUDIO_HOST=audio-analyzer
 export AUDIO_ENDPOINT=http://$AUDIO_HOST:8000
 
 # env for minio-service
@@ -159,8 +160,14 @@ export QWEN_MODEL=${QWEN_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
+export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
-export VCLIP_DEVICE=CPU
+# Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
+if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
+    export VCLIP_DEVICE=GPU
+    export VCLIP_USE_OV=true
+    echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
+fi
 export VCLIP_HOST=vclip-embedding-ms
 export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
@@ -203,7 +210,7 @@ echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL
 
 
 # Verify if required environment variables are set in current shell, only when container down is not requested.
-if [ "$1" != "--down" ]; then
+if [ "$1" != "--down" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return
@@ -381,7 +388,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
     docker volume create ov-models
     docker volume create vol_evam_pipeline_root
-    docker volume create audio_intelligence_data
+    docker volume create audio_analyzer_data
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
@@ -484,6 +491,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
+            export WORKERS=1
             echo -e  "Using VLM for summarization on GPU"
         else
             export VLM_DEVICE=CPU

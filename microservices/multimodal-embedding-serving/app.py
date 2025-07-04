@@ -29,18 +29,20 @@ health_status = False
 async def startup_event():
     global embedder, health_status
 
-    cfg = {
+    # Configuration for the vclip and qwen embedding model
+    config: dict = {
         "vclip_model_name": settings.IMAGE_EMBEDDING_MODEL_NAME,
         "qwen_model_name": settings.TEXT_EMBEDDING_MODEL_NAME,
-        "qwen_sequence_length": 8192
+        "qwen_sequence_length": 8192,
+        "vclip_sequence_length": 77,
     }
 
     # Load Qwen model if only text embeddings are used, otherwise load VClip model
     if settings.USE_ONLY_TEXT_EMBEDDINGS:
-        embedder = QwenEmbeddings(model=Qwen3Model(cfg))
+        embedder = QwenEmbeddings(model=Qwen3Model(config))
         logger.debug("Using Qwen model to generate text embeddings only.")
     else:
-        embedder = VClipModel(cfg)
+        embedder = VClipModel(config)
         logger.debug("Using VClip model to generate text and image embeddings.")
         if settings.EMBEDDING_USE_OV:
             await embedder.async_init()

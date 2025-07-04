@@ -71,7 +71,15 @@ class VClipModel:
         Args:
             cfg (dict): Configuration dictionary containing model name.
         """
-        self.model_name = cfg["vclip_model_name"]
+        self.model_name = cfg.get("vclip_model_name")
+        if not self.model_name:
+            raise ValueError(
+                "VClip model name must be provided in the configuration.\
+                Please check if 'VCLIP_MODEL' environment variable is set."
+            )
+
+        logger.info(f"Initializing VClip embedding model : {self.model_name}")
+
         self.clip = CLIPModel.from_pretrained(self.model_name)
         self.processor = AutoProcessor.from_pretrained(self.model_name)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)

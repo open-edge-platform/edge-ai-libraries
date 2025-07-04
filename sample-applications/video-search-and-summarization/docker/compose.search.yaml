@@ -33,7 +33,7 @@ services:
       vdms-vector-db:
         condition: service_started
       minio-service:
-        condition: service_started
+        condition: service_healthy
       vdms-dataprep:
         condition: service_started
       vclip-embedding-ms:
@@ -110,7 +110,7 @@ services:
       vclip-embedding-ms:
         condition: service_healthy
       minio-service:
-        condition: service_started
+        condition: service_healthy
     volumes:
       - data-prep:/tmp/dataprep
     networks:
@@ -133,6 +133,12 @@ services:
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
       USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS} 
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID-1000} 
+      - ${VIDEO_GROUP_ID-44}    
+      - ${RENDER_GROUP_ID-1002}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]

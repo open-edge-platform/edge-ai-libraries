@@ -4,6 +4,7 @@
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
 from pydantic import Field, field_validator
@@ -46,8 +47,8 @@ class Settings(BaseSettings):
         "The VClip Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
     )
 
-    TEXT_EMBEDDING_MODEL_NAME: str = "Qwen/Qwen3-Embedding-0.6B"
-    IMAGE_EMBEDDING_MODEL_NAME: str = "openai/clip-vit-base-patch32"
+    TEXT_EMBEDDING_MODEL_NAME: Optional[str] = None
+    IMAGE_EMBEDDING_MODEL_NAME: Optional[str] = None
     USE_ONLY_TEXT_EMBEDDINGS: bool = False
     http_proxy: str = Field(default=None, env="http_proxy")
     https_proxy: str = Field(default=None, env="https_proxy")

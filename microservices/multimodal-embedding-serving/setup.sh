@@ -17,10 +17,6 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 # Set default tag if not already set
 export TAG=${TAG:-latest}
 
-export APP_NAME="multimodal-embedding-serving"
-export APP_DISPLAY_NAME="Multimodal Embedding serving"
-export APP_DESC="Generates embeddings for text, images, and videos using pretrained models"
-
 # Video processing defaults
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
@@ -28,7 +24,12 @@ export DEFAULT_NUM_FRAMES=64
 
 # OpenVINO configuration
 export EMBEDDING_USE_OV=false
-export EMBEDDING_DEVICE=CPU
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+
+# If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
+    export EMBEDDING_USE_OV=true
+fi
 
 export EMBEDDING_SERVER_PORT=9777
 export USE_ONLY_TEXT_EMBEDDINGS=${USE_ONLY_TEXT_EMBEDDINGS}  # Setup multimodal embedding models, not just text models.

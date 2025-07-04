@@ -143,6 +143,12 @@ async def watcher_last_updated():
         raise HTTPException(status_code=500, detail=str(e))
 
 
+@app.get("/health")
+async def health_check():
+    """Simple health check endpoint to verify the service is running."""
+    return {"status": "ok", "timestamp": datetime.now().isoformat()}
+
+
 @app.get("/initial-upload-status")
 async def initial_upload_status():
     try:
