@@ -79,6 +79,8 @@ services:
       - OVERRIDE_pmgd_path=/db/graph
     ports:
       - "${VDMS_VDB_HOST_PORT}:55555"
+    volumes:
+      - vdms-db:/db
     networks:
       - vs_network
 
@@ -146,6 +148,8 @@ services:
       - ov-models:/app/ov-models
 
 volumes:
+  vdms-db:
+    driver: local
   ov-models:
     external: true
   data-prep:
