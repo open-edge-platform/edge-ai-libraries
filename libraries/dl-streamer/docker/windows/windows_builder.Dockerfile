@@ -1,10 +1,10 @@
+# escape=`
+
 # ==============================================================================
 # Copyright (C) 2025 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
-
-# escape=`
 
 # Use the Windows Server Core 2022 image.
 FROM mcr.microsoft.com/windows/servercore:ltsc2022
@@ -89,7 +89,7 @@ RUN `
 	&& setx LIBVA_DRIVER_NAME "vaon12" `
 	&& setx LIBVA_DRIVERS_PATH "C:\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
 
-# Build dlstreamer	
+# Build dlstreamer
 RUN `
 	cd C:\dlstreamer\build `
     && C:\openvino\setupvars.bat `
