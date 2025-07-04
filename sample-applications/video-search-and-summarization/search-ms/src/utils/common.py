@@ -33,36 +33,42 @@ class Settings(BaseSettings):
         APP_DESC (str): Description of the application.
 
     """
-    model_config = SettingsConfigDict(env_file='.env', env_file_encoding='utf-8')
+    model_config = {"env_file": ".env", "env_file_encoding": "utf-8"}
 
     APP_NAME: str = "Video-Search"
     APP_DISPLAY_NAME: str = "Video Search Microservice"
     APP_DESC: str = (
         "The Video Search Microservice is designed to handle video search queries and return relevant results."
     )
-    VDMS_VDB_HOST: str = "vdms-vector-db"
-    VDMS_VDB_PORT: int = 55555
-    VCLIP_EMBEDDINGS_ENDPOINT: str = ""
-    VCLIP_EMBEDDINGS_MODEL_NAME: str = ""
-    VCLIP_EMBEDDINGS_NUM_FRAMES: int = 16
-    SEARCH_ENGINE: str = "FaissFlat"
-    DISTANCE_STRATEGY: str = "IP"
-    INDEX_NAME: str = "videoqna"
-    no_proxy_env: str = ""
-    http_proxy: str = ""
-    https_proxy: str = ""
-    WATCH_DIRECTORY: str = ""
-    WATCH_DIRECTORY_CONTAINER_PATH: str = "/tmp/watcher-dir"
-    DEBOUNCE_TIME: int = 5
-    DATAPREP_UPLOAD_URL: str = ""
-    VS_INITIAL_DUMP: bool = False
-    DELETE_PROCESSED_FILES: bool = False
-    MINIO_API_PORT: str = ""
-    MINIO_HOST: str = ""
-    MINIO_ROOT_USER: str = ""
-    MINIO_ROOT_PASSWORD: str = ""
-    VDMS_BUCKET: str = ""
-    CHUNK_DURATION: int = 10
+    VDMS_VDB_HOST: str = Field(default="vdms-vector-db", validation_alias="VDMS_VDB_HOST")
+    VDMS_VDB_PORT: int = Field(default=55555, validation_alias="VDMS_VDB_PORT")
+    VCLIP_EMBEDDINGS_ENDPOINT: str = Field(default="", validation_alias="VCLIP_EMBEDDINGS_ENDPOINT")
+    VCLIP_EMBEDDINGS_MODEL_NAME: str = Field(
+        default="", validation_alias="VCLIP_EMBEDDINGS_MODEL_NAME"
+    )
+    VCLIP_EMBEDDINGS_NUM_FRAMES: int = Field(
+        default=16, validation_alias="VCLIP_EMBEDDINGS_NUM_FRAMES"
+    )
+    SEARCH_ENGINE: str = Field(default="FaissFlat", validation_alias="SEARCH_ENGINE")
+    DISTANCE_STRATEGY: str = Field(default="IP", validation_alias="DISTANCE_STRATEGY")
+    INDEX_NAME: str = Field(default="videoqna", validation_alias="INDEX_NAME")
+    no_proxy_env: str = Field(default="", validation_alias="no_proxy_env")
+    http_proxy: str = Field(default="", validation_alias="http_proxy")
+    https_proxy: str = Field(default="", validation_alias="https_proxy")
+    WATCH_DIRECTORY: str = Field(default="", validation_alias="WATCH_DIRECTORY")
+    WATCH_DIRECTORY_CONTAINER_PATH: str = Field(
+        default="/tmp/watcher-dir", validation_alias="WATCH_DIRECTORY_CONTAINER_PATH"
+    )
+    DEBOUNCE_TIME: int = Field(default=5, validation_alias="DEBOUNCE_TIME")
+    DATAPREP_UPLOAD_URL: str = Field(default="", validation_alias="DATAPREP_UPLOAD_URL")
+    VS_INITIAL_DUMP: bool = Field(default=False, validation_alias="VS_INITIAL_DUMP")
+    DELETE_PROCESSED_FILES: bool = Field(default=False, validation_alias="DELETE_PROCESSED_FILES")
+    MINIO_API_PORT: str = Field(default="", validation_alias="MINIO_API_PORT")
+    MINIO_HOST: str = Field(default="", validation_alias="MINIO_HOST")
+    MINIO_ROOT_USER: str = Field(default="", validation_alias="MINIO_ROOT_USER")
+    MINIO_ROOT_PASSWORD: str = Field(default="", validation_alias="MINIO_ROOT_PASSWORD")
+    VDMS_BUCKET: str = Field(default="", validation_alias="VDMS_BUCKET")
+    CHUNK_DURATION: int = Field(default=10, validation_alias="CHUNK_DURATION")
 
 
 settings = Settings()
