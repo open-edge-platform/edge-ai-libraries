@@ -33,7 +33,7 @@ from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
 from src.publisher.influx.influx_writer import InfluxdbWriter
-from src.publisher.ros.ros2_publisher import ROS2Publisher
+from src.publisher.ros2.ros2_publisher import ROS2Publisher
 
 class Publisher:
     """EII Pipeline Server publisher thread.
