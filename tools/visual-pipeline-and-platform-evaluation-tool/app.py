@@ -651,7 +651,7 @@ def on_benchmark(data):
     try:
         result = current_pipeline[1]['parameters']['benchmark']['result_format']
     except KeyError:
-        result = "Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
+        result = "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
 
     return result.format(s=s, ai=ai, non_ai=non_ai, fps=fps)
 
