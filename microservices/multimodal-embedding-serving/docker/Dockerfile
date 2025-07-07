@@ -12,14 +12,14 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missin
 RUN pip install --upgrade --no-cache pip setuptools && \
     pip install --no-cache torch~=2.7.1 torchvision~=0.22.1 --index-url https://download.pytorch.org/whl/cpu;
 
-RUN pip install poetry
+RUN pip install poetry==1.8.5
 
 RUN poetry config virtualenvs.create false
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN poetry install --no-root
+RUN poetry lock --no-update && poetry install --no-root
 
 RUN apt-get install -y --no-install-recommends curl ca-certificates libxml2 gnupg
 

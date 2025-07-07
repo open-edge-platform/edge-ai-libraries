@@ -8,6 +8,7 @@ coverage
 .coverage
 virtual_env
 workspace
+ov_models
 .vscode
 .venv
 .coverage-report/

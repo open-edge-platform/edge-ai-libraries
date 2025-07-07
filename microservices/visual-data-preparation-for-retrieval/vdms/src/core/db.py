@@ -6,13 +6,9 @@ from typing import Any
 
 from langchain_community.vectorstores import VDMS
 from langchain_community.vectorstores.vdms import VDMS_Client
-from langchain_core.runnables import ConfigurableField
 
-from src.common import Strings
-from src.core.embedding import vCLIPEmbeddings
-from src.core.embedding_wrapper import vCLIPEmbeddingsWrapper
+from src.common import Strings, logger
 from src.core.util import read_config
-from src.logger import logger
 
 
 class VDMSClient:
@@ -21,8 +17,9 @@ class VDMSClient:
         host: str,
         port: str,
         collection_name: str,
-        model: Any,
-        video_metadata_path: pathlib.Path,
+        embedder: Any,
+        video_metadata_path: pathlib.Path | None = None,
+        text_metadata: dict = {},
         embedding_dimensions: int = 512,
         video_search_type: str = "similarity",
     ):
@@ -33,12 +30,10 @@ class VDMSClient:
         self.video_search_type = video_search_type
         self.constraints = None
         self.video_collection = collection_name
-        if isinstance(model, vCLIPEmbeddingsWrapper):
-            self.video_embedder = model
-        else:
-            self.video_embedder = vCLIPEmbeddings(model=model)
+        self.video_embedder = embedder
         self.embedding_dimensions = embedding_dimensions
         self.video_metadata_path = video_metadata_path
+        self.text_metadata = text_metadata
 
         # initialize_db
         self.init_db()
@@ -104,4 +99,27 @@ class VDMSClient:
             return videos_ids
         except Exception as ex:
             logger.error(f"Error in store_embeddings: {ex}")
+            raise Exception(Strings.embedding_error)
+
+    def store_text_embedding(self, text: str) -> list[str]:
+        """
+        Embeds text and stores it in the VDMS Vector DB with associated metadata.
+
+        Args:
+            text (str): Text content to embed
+
+        Returns:
+            ids (list): List of string IDs for documents added to vector DB
+        """
+
+        logger.info("Storing text embedding...")
+        try:
+            # Add text embedding to the vector DB
+            ids: list = self.video_db.add_texts(texts=[text], metadatas=[self.text_metadata])
+
+            logger.debug(f"Text embedding stored with ids: {ids}")
+            return ids
+
+        except Exception as ex:
+            logger.error(f"Error in store_text_embedding: {ex}")
             raise Exception(Strings.embedding_error)

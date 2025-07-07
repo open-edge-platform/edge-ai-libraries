@@ -2,11 +2,11 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import logging.config
-from typing import Any, ClassVar, Dict
+from typing import Any, Dict
 
 from pydantic import BaseModel
 
-from src.common import settings
+from .settings import settings
 
 
 class Logger(BaseModel):

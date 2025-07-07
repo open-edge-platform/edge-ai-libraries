@@ -68,6 +68,7 @@ class Settings(BaseSettings):
     MINIO_ROOT_PASSWORD: str = Field(default="", env="MINIO_ROOT_PASSWORD")
     VDMS_BUCKET: str = Field(default="", env="VDMS_BUCKET")
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
+    EMBEDDING_LENGTH: int = 0
 
 
 settings = Settings()

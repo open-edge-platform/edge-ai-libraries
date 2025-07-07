@@ -2,7 +2,8 @@
 [tool.poetry]
 name = "video-search"
 version = "0.1.0"
-description = "Intel EGAI Video Search Microservice"
+description = "Video Search Microservice"
+authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]

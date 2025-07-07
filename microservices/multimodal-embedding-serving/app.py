@@ -1,13 +1,13 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from typing import List, Union
+from typing import List, Union, Optional, Any
 
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
 from src.common import ErrorMessages, logger, settings
-from src.models import VClipModel
+from src.embedding_models import VClipModel, Qwen3Model, QwenEmbeddings
 from src.utils import decode_base64_image, download_image
 
 app = FastAPI(title=settings.APP_DISPLAY_NAME, description=settings.APP_DESC)
@@ -20,19 +20,34 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-# Initialize the model once
-vclip_model = None
+# Set the global embedder API to None initially
+embedder: Any = None
 health_status = False
 
 
 @app.on_event("startup")
 async def startup_event():
-    global vclip_model, health_status
-    cfg = {"model_name": settings.MODEL_NAME}
-    vclip_model = VClipModel(cfg)
-    if settings.EMBEDDING_USE_OV:
-        await vclip_model.async_init()
-    health_status = vclip_model.check_health()
+    global embedder, health_status
+
+    # Configuration for the vclip and qwen embedding model
+    config: dict = {
+        "vclip_model_name": settings.IMAGE_EMBEDDING_MODEL_NAME,
+        "qwen_model_name": settings.TEXT_EMBEDDING_MODEL_NAME,
+        "qwen_sequence_length": 8192,
+        "vclip_sequence_length": 77,
+    }
+
+    # Load Qwen model if only text embeddings are used, otherwise load VClip model
+    if settings.USE_ONLY_TEXT_EMBEDDINGS:
+        embedder = QwenEmbeddings(model=Qwen3Model(config))
+        logger.debug("Using Qwen model to generate text embeddings only.")
+    else:
+        embedder = VClipModel(config)
+        logger.debug("Using VClip model to generate text and image embeddings.")
+        if settings.EMBEDDING_USE_OV:
+            await embedder.async_init()
+        health_status = embedder.check_health()
+
     logger.info("Model loaded successfully")
 
 
@@ -75,7 +90,7 @@ class VideoFileInput(BaseModel):
 
 
 class EmbeddingRequest(BaseModel):
-    model: str
+    model: Optional[str] = None
     input: Union[
         TextInput,
         ImageUrlInput,
@@ -87,6 +102,13 @@ class EmbeddingRequest(BaseModel):
     ]
     encoding_format: str
 
+    def model_post_init(self, __context):
+        super().model_post_init(__context)
+        if settings.USE_ONLY_TEXT_EMBEDDINGS and self.input.type != "text":
+            raise ValueError(
+                "Invalid input type. With current configuration of Embedding API Service, only text inputs are allowed."
+            )
+
 
 @app.get("/health")
 async def health_check() -> dict:
@@ -96,14 +118,7 @@ async def health_check() -> dict:
     Returns:
         dict: Dictionary containing the health status.
     """
-    global health_status
-    if health_status:
-        return {"status": "healthy"}
-    elif vclip_model.check_health():
-        health_status = True
-        return {"status": "healthy"}
-    else:
-        raise HTTPException(status_code=500, detail="Model is not healthy")
+    return {"status": "healthy"}
 
 
 @app.post("/embeddings")
@@ -121,19 +136,19 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
         HTTPException: If there is an error during the embedding process.
     """
     try:
-        # logger.debug(f"Creating embedding for request: {request}")
         input_data = request.input
         if input_data.type == "text":
             if isinstance(input_data.text, list):
-                embedding = vclip_model.embed_documents(input_data.text)
+                embedding = embedder.embed_documents(input_data.text)
             else:
-                embedding = vclip_model.embed_query(input_data.text)
+                embedding = embedder.embed_query(input_data.text)
+                    
         elif input_data.type == "image_url":
-            embedding = await vclip_model.get_image_embedding_from_url(
+            embedding = await embedder.get_image_embedding_from_url(
                 input_data.image_url
             )
         elif input_data.type == "image_base64":
-            embedding = vclip_model.get_image_embedding_from_base64(
+            embedding = embedder.get_image_embedding_from_base64(
                 input_data.image_base64
             )
         elif input_data.type == "video_frames":
@@ -143,17 +158,17 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
                     frames.append(await download_image(frame.image_url))
                 elif frame.type == "image_base64":
                     frames.append(decode_base64_image(frame.image_base64))
-            embedding = vclip_model.get_video_embeddings([frames])
+            embedding = embedder.get_video_embeddings([frames])
         elif input_data.type == "video_url":
-            embedding = await vclip_model.get_video_embedding_from_url(
+            embedding = await embedder.get_video_embedding_from_url(
                 input_data.video_url, input_data.segment_config
             )
         elif input_data.type == "video_base64":
-            embedding = vclip_model.get_video_embedding_from_base64(
+            embedding = embedder.get_video_embedding_from_base64(
                 input_data.video_base64, input_data.segment_config
             )
         elif input_data.type == "video_file":
-            embedding = await vclip_model.get_video_embedding_from_file(
+            embedding = await embedder.get_video_embedding_from_file(
                 input_data.video_path, input_data.segment_config
             )
         else:
