@@ -22,46 +22,39 @@ from std_msgs.msg import String
 
 from src.common.log import get_logger
 
-DEFAULT_APPDEST_MQTT_QUEUE_SIZE = 1000
+DEFAULT_APPDEST_ROS2_QUEUE_SIZE = 1000
+
 
 class ROS2Publisher():
     """ROS2 Publisher.
     """
 
-    def __init__(self, config, qsize=DEFAULT_APPDEST_MQTT_QUEUE_SIZE):
+    def __init__(self, config, qsize=DEFAULT_APPDEST_ROS2_QUEUE_SIZE):
         """Constructor
         :param json app_cfg: Application config
             the meta-data for the frame (df: True)
         """
+        ros.init()
         self.queue = deque(maxlen=qsize)
         self.stop_ev = th.Event()
-        self.topic = config.get('topic', "dlstreamer_pipeline_results")
+        self.topic = config.get('topic', "/dlstreamer_pipeline_results")
         assert len(self.topic) > 0, f'No specified topic'
 
         self.log = get_logger(f'{__name__} ({self.topic})')
 
         self.log.info(f'Initializing ROS2 publisher for topic {self.topic}')
-        self.host = os.getenv("MQTT_HOST")
-        self.port = os.getenv("MQTT_PORT")
-        if not self.host:
-            self.log.error(f'Empty value given for MQTT_HOST. It cannot be blank')
-        if not self.port:
-            self.log.error(f'Empty value given for MQTT_PORT. It cannot be blank')
-        else:
-            self.port = int(self.port)
 
         self.publish_frame = config.get("publish_frame", False)
 
-        self.tls_config = config.get('tls', None)
 
-        self.client = MQTTClient(self.host, self.port, self.topic, self.qos, self.protocol, self.tls_config)
+        self.client = self.create_publisher(String, self.topic, 10)
         self.initialized=True
-        self.log.info("MQTT publisher initialized")
+        self.log.info("ROS2 publisher initialized")
 
     def start(self):
         """Start publisher.
         """
-        self.log.info("Starting publish thread for MQTT")
+        self.log.info("Starting publish thread for ROS2")
         self.th = th.Thread(target=self._run)
         self.th.start()
 
@@ -73,30 +66,30 @@ class ROS2Publisher():
         self.stop_ev.set()
         self.th.join()
         self.th = None
-        self.log.info('MQTT publisher thread stopped')
+        self.log.info('ROS2 publisher thread stopped')
 
     def error_handler(self, msg):
-        self.log.error('Error in MQTT thread: {}'.format(msg))
+        self.log.error('Error in ROS2 thread: {}'.format(msg))
         self.stop()
 
     def _run(self):
         """Run method for publisher.
         """
-        self.log.info("MQTT Publish thread started")
+        self.log.info("ROS2 Publish thread started")
         try:
             while not self.stop_ev.is_set():
                 try:
                     frame, meta_data = self.queue.popleft()
                     self._publish(frame, meta_data)
                 except IndexError:
-                    self.log.debug("No data in client queue")
+                    self.log.debug("No data in client queue for ROS2 publish thread")
                     time.sleep(0.005)
                     
         except Exception as e:
             self.error_handler(e)
     
     def _publish(self, frame, meta_data):
-        """Publish frame/metadata to mqtt broker
+        """Publish frame/metadata over ROS2
 
         :param frame: video frame
         :type: bytes
