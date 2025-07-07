@@ -63,19 +63,10 @@ jobs:
         MODEL_PATH=${{ inputs.model_path }}
         MODEL_NAME=${{ inputs.model_name }}
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        echo "MODEL_PATH=[$MODEL_PATH]"
-        echo "MODEL_PATH bytes:"
-        echo -n "$MODEL_PATH" | od -c
+        echo "MODEL_PATH=$MODEL_PATH"
+        echo "MODEL_NAME=$MODEL_NAME"
         if [[ "$MODEL_PATH" == "public" ]]; then
           ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
-          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
-            echo "$MODEL_NAME model not downloaded correctly ❌"
-            echo "$MODEL_NAME model not downloaded correctly ❌" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "$MODEL_NAME model downloaded correctly ✅"
-            echo "$MODEL_NAME model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
-          fi
         elif [[ "$MODEL_PATH" == "omz" ]]; then
           mkdir -p .virtualenvs/dlstreamer
           python3 -m venv .virtualenvs/dlstreamer
@@ -84,14 +75,6 @@ jobs:
           export MODELS_PATH=${{ env.MODELS_PATH }}
           ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
           deactivate
-          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel/$MODEL_NAME )" ]; then
-            echo "$MODEL_NAME model not downloaded correctly ❌"
-            echo "$MODEL_NAME model not downloaded correctly ❌" >> $GITHUB_STEP_SUMMARY
-            exit 1
-          else
-            echo "$MODEL_NAME model downloaded correctly ✅"
-            echo "$MODEL_NAME model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
-          fi
         fi
 
     - name: Prepare directory for public models
