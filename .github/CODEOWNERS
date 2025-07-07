@@ -75,8 +75,8 @@ README.md           @xwu2intel
 /microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel
 /microservices/vlm-openvino-serving/ @bharagha @bhardwaj-nakul @yogeshmpandey @llin60
 /microservices/multimodal-embedding-serving/ @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha
-/microservices/visual-data-preparation-for-retrieval/ @bhardwaj-nakul @krish918 @llin60 @@zhangcong2019
-/microservices/vector-retriever/ @bhardwaj-nakul @krish918 @llin60 @@zhangcong2019
+/microservices/visual-data-preparation-for-retrieval/ @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
+/microservices/vector-retriever/ @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/audio-analyzer/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
 /sample-applications/video-search-and-summarization/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
 >>>>>>> 2b4fd12 (update code owners for visual-data-preparation-for-retrieval and vector-retriever)
