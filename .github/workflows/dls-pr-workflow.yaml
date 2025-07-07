@@ -71,7 +71,7 @@ jobs:
       packages: read
     name: BUILD dev imgs
     uses: ./.github/workflows/dls-build-dev-docker-images-and-run-unit.yaml
-    
+
   build-and-test-deb-and-deb_img:
     permissions:
       contents: read
