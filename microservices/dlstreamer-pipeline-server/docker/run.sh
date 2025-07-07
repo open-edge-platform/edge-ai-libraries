@@ -32,6 +32,8 @@ gpu_execution_prequisites
 
 # genicam_prequisites
 
+source /opt/ros/humble/setup.bash
+
 python3 -m src
 
 wait
