@@ -48,33 +48,33 @@ has_dgpu = any(
 
 all_chart_titles = [
     "Pipeline Throughput [FPS]",
-    "CPU Frequency [KHz]",
     "CPU Utilization [%]",
-    "CPU Temperature [C°]",
+    "Integrated GPU Engine Utilization [%]",
+    "Discrete GPU Engine Utilization [%]",
     "Memory Utilization [%]",
     "Integrated GPU Power Usage [W] (Package & Total)",
     "Integrated GPU Frequency [MHz]",
-    "Integrated GPU Engine Utilization [%]",
     "Discrete GPU Power Usage [W] (Package & Total)",
     "Discrete GPU Frequency [MHz]",
-    "Discrete GPU Engine Utilization [%]",
+    "CPU Frequency [KHz]",
+    "CPU Temperature [C°]",
 ]
 all_y_labels = [
     "Throughput",
-    "Frequency",
     "Utilization",
+    "Utilization",
+    "Utilization",
+    "Utilization",
+    "Power",
+    "Frequency",
+    "Power",
+    "Frequency",
+    "Frequency",
     "Temperature",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Utilization",
 ]
 
-igpu_indices = [5, 6, 7]
-dgpu_indices = [8, 9, 10]
+igpu_indices = [2, 5, 6]
+dgpu_indices = [3, 7, 8]
 
 indices_to_remove = []
 if not has_igpu:
@@ -655,7 +655,7 @@ def on_stop():
 
 
 # Create the interface
-def create_interface():
+def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
     Components declarations starts here.
     Only components that are used in event handlers needs to be declared.
@@ -667,13 +667,13 @@ def create_interface():
 
     try:
         download_file(
-            "https://github.com/intel-iot-devkit/sample-videos/raw/master/person-bicycle-car-detection.mp4",
-            "/tmp/person-bicycle-car-detection.mp4",
+            "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4",
+            "/tmp/people.mp4",
         )
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
-            value="/tmp/person-bicycle-car-detection.mp4",
+            value="/tmp/people.mp4",
             sources="upload",
             elem_id="input_video_player",
         )
@@ -716,7 +716,7 @@ def create_interface():
     inferencing_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=11,
+        value=8,
         step=1,
         label="Number of Recording + Inferencing channels",
         interactive=True,
@@ -727,7 +727,7 @@ def create_interface():
     recording_channels = gr.Slider(
         minimum=0,
         maximum=30,
-        value=3,
+        value=8,
         step=1,
         label="Number of Recording only channels",
         interactive=True,
@@ -769,17 +769,18 @@ def create_interface():
     )
 
     # Object detection model
+    # Mapping of these choices to actual model path in utils.py
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
         choices=[
-            "SSDLite MobileNet V2",
-            "YOLO v5m 416x416",
-            "YOLO v5s 416x416",
-            "YOLO v5m 640x640",
-            "YOLO v10s 640x640",
-            "YOLO v10m 640x640",
+            "SSDLite MobileNet V2 (INT8)",
+            "YOLO v5m 416x416 (INT8)",
+            "YOLO v5s 416x416 (INT8)",
+            "YOLO v5m 640x640 (INT8)",
+            "YOLO v10s 640x640 (FP16)",
+            "YOLO v10m 640x640 (FP16)",
         ],
-        value="YOLO v5s 416x416",
+        value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
     )
 
@@ -805,8 +806,8 @@ def create_interface():
     # Object detection inference interval
     object_detection_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
-        value=1,
+        maximum=6,
+        value=3,
         step=1,
         label="Object Detection Inference Interval",
         interactive=True,
@@ -825,21 +826,23 @@ def create_interface():
     )
 
     # Object classification model
+    # Mapping of these choices to actual model path in utils.py
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
         choices=[
-            "EfficientNet B0",
-            "MobileNet V2 PyTorch",
-            "ResNet-50 TF",
+            "Disabled",
+            "EfficientNet B0 (INT8)" ,
+            "MobileNet V2 PyTorch (FP16)",
+            "ResNet-50 TF (INT8)",
         ],
-        value="ResNet-50 TF",
+        value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",
     )
 
     # Object classification device
     object_classification_device = gr.Dropdown(
         label="Object Classification Device",
-        choices=device_choices,
+        choices=device_choices + ["Disabled"],
         value=preferred_device,
         elem_id="object_classification_device",
     )
@@ -858,8 +861,8 @@ def create_interface():
     # Object classification inference interval
     object_classification_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
-        value=1,
+        maximum=6,
+        value=3,
         step=1,
         label="Object Classification Inference Interval",
         interactive=True,
@@ -888,11 +891,18 @@ def create_interface():
         elem_id="object_classification_reclassify_interval",
     )
 
+    pipeline_watermark_enabled = gr.Checkbox(
+        label="Overlay inference results on inference channels",
+        value=True,
+        elem_id="pipeline_watermark_enabled",
+    )
+
+
     # Run button
     run_button = gr.Button("Run")
 
     # Benchmark button
-    benchmark_button = gr.Button("Benchmark")
+    benchmark_button = gr.Button("Platform Ceiling Analysis")
 
     # Stop button
     stop_button = gr.Button("Stop", variant="stop", visible=False)
@@ -932,9 +942,10 @@ def create_interface():
     components.add(object_classification_inference_interval)
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
+    components.add(pipeline_watermark_enabled)
 
     # Interface layout
-    with gr.Blocks(theme=theme, css=css_code) as demo:
+    with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
 
         """
         Components events handlers and interactions are defined here.
@@ -1291,8 +1302,11 @@ def create_interface():
                             # Recording Channels
                             recording_channels.render()
 
+                            # Whether to overlay result with watermarks
+                            pipeline_watermark_enabled.render()
+
                         # Benchmark Parameters Accordion
-                        with gr.Accordion("Benchmark Parameters", open=True):
+                        with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
 
                             # FPS Floor
                             fps_floor.render()

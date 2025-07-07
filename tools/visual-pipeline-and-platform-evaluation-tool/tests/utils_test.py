@@ -29,12 +29,12 @@ class TestUtils(unittest.TestCase):
         mock_exists.return_value = True
         output_path, constants, param_grid = prepare_video_and_constants(
             input_video_player=self.input_video,
-            object_detection_model="SSDLite MobileNet V2",
+            object_detection_model="SSDLite MobileNet V2 (INT8)",
             object_detection_device="CPU",
             object_detection_batch_size=1,
             object_detection_nireq=1,
             object_detection_inference_interval=1,
-            object_classification_model="ResNet-50 TF",
+            object_classification_model="ResNet-50 TF (INT8)",
             object_classification_device="CPU",
             object_classification_batch_size=1,
             object_classification_nireq=1,
