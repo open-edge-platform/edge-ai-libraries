@@ -65,8 +65,8 @@ jobs:
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         if [[ "$MODEL_PATH" == "public" ]]; then
-        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
-            if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
+          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
             echo "$MODEL_NAME model not downloaded correctly ❌"
             echo "$MODEL_NAME model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
             exit 1
