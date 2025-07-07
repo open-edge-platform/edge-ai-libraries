@@ -17,7 +17,7 @@
                         }
                     }
                 },
-                "ros2_publisher":{
+                "ros2_publisher": {
                     "publish_frame": false,
                     "topic": "/dlstreamer_pipeline_results"
                 },

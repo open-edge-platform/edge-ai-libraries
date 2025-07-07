@@ -33,6 +33,9 @@ gpu_execution_prequisites
 # genicam_prequisites
 
 source /opt/ros/humble/setup.bash
+export ROS_LOG_DIR=/tmp/ros_logs
+mkdir -p $ROS_LOG_DIR
+echo "ROS_LOG_DIR set to $ROS_LOG_DIR"
 
 python3 -m src
 

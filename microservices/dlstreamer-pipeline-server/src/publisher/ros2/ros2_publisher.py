@@ -36,7 +36,7 @@ class ROS2Publisher():
         """
         self.queue = deque(maxlen=qsize)
         self.stop_ev = th.Event()
-        self.topic = config.get('topic', "/dlstreamer_pipeline_results")
+        self.topic = config.get('topic', "dlstreamer_pipeline_results")
         assert len(self.topic) > 0, f'No specified topic'
 
         self.log = get_logger(f'{__name__} ({self.topic})')
@@ -115,11 +115,12 @@ class ROS2Publisher():
             msg["blob"]=""
             self.log.info(
                 f"Publishing meta data: {meta_data}")
-         
-        msg = json.dumps(msg)
 
+        ros2_msg = String()
+        ros2_msg.data = json.dumps(msg)
         self.log.info(f'Publishing ROS2 message to topic: {self.topic}')
-        self.publisher.publish(msg)
+        self.publisher.publish(ros2_msg)
 
         # Discarding publish message
         del msg
+        del ros2_msg
