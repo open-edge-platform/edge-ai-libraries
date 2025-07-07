@@ -344,15 +344,16 @@ jobs:
       #     npm run coverage
       #     npx vitest run --reporter=html --outputFile=chatqna-ui-results.html --coverage --coverage.reporter=html --coverage.reportsDirectory=chat-qna-ui-coverage-html
       
-      - name: Upload UI Results
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        if: always()
-        with:
-          name: chatqna-ui-test-results-qa
-          path: |
-              sample-applications/chat-question-and-answer/ui/react/ui-results.html
-              sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
+      # - name: Upload UI Results
+      #   continue-on-error: true
+      #   uses: actions/upload-artifact@v4
+      #   if: always()
+      #   with:
+      #     name: chatqna-ui-test-results-qa
+      #     path: |
+      #         sample-applications/chat-question-and-answer/ui/react/ui-results.html
+      #         sample-applications/chat-question-and-answer/ui/react/ui-coverage-html/
+      
       - name: trivy repo scan
         continue-on-error: true
         shell: bash
@@ -374,6 +375,7 @@ jobs:
           name: trivy-code-scan-results-chatqna
           path: |
               sample-applications/chat-question-and-answer/trivy_code_scan_chatqna.html
+      
       - name: ClamAV Antivirus Scan
         continue-on-error: true
         shell: bash
@@ -437,6 +439,30 @@ jobs:
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_backend.spdx.json
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.html
                 sample-applications/chat-question-and-answer/trivy_image_scan_chatqna_frontend.spdx.json
+
+      - name: Trivy Dockerfile Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Scanning Dockerfile for chat-qna"
+              trivy config --severity HIGH,CRITICAL,MEDIUM ./sample-applications/chat-question-and-answer/Dockerfile --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_dockerfile_scan_chatqna_backend.html
+              trivy config --severity HIGH,CRITICAL,MEDIUM ./sample-applications/chat-question-and-answer/ui/react/Dockerfile --format template --template "@trivy-html.tpl" -o sample-applications/chat-question-and-answer/trivy_dockerfile_scan_chatqna_frontend.html
+              echo "completed chat-qna Dockerfile Scanning"
+              
+            
+      - name: Upload Trivy chat-qna Dockerfile Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy Dockerfile scan report-chat-qna
+          path: |
+                sample-applications/chat-question-and-answer/trivy_dockerfile_scan_chatqna_backend.html
+                sample-applications/chat-question-and-answer/trivy_dockerfile_scan_chatqna_frontend.html
+                
+      
       - name: Run Bandit Security Scan
         continue-on-error: true
         shell: bash
@@ -574,6 +600,34 @@ jobs:
           path: |
                 sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
                 sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json
+
+      - name: Trivy Dockerfile Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Scanning Dockerfile for doc-summary-backend"
+              trivy config --severity HIGH,CRITICAL,MEDIUM ./sample-applications/document-summarization/Dockerfile --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_dockerfile_scan_doc_summary_backend.html
+              echo "completed doc-summary-backend Dockerfile Scanning"
+              
+              # Note: document-summarization uses Gradio (not separate frontend), so only one image to scan
+              echo "print all the files"
+              pwd
+              ls -lrt
+              echo "**************************************************************"
+            
+            
+      - name: Upload Trivy Dockerfile Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy Dockerfile scan report-doc-summary
+          path: |
+                sample-applications/document-summarization/trivy_dockerfile_scan_doc_summary_backend.html
+
+                
       - name: Run Bandit Security Scan
         continue-on-error: true
         shell: bash
