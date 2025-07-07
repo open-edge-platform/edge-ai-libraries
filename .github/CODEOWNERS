@@ -5,6 +5,7 @@ SECURITY.md         @xwu2intel
 README.md           @xwu2intel
 
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
+<<<<<<< HEAD
 
 /libraries/dl-streamer/    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
 /tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @pmalatyn
@@ -62,3 +63,20 @@ README.md           @xwu2intel
 /libraries/dl-streamer/README.md                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/docs        @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
+=======
+/microservices/document-ingestion/ @bharagha @madhuri-rai07 @yogeshmpandey
+/microservices/object-store/ @bharagha @madhuri-rai07 @yogeshmpandey
+/sample-applications/chat-question-and-answer/  @bharagha @madhuri-rai07 @yogeshmpandey
+/sample-applications/chat-question-and-answer-core/  @bharagha @madhuri-rai07 @yogeshmpandey
+/tools/visual-pipeline-and-platform-evaluation-tool/ @p-zak @ktaube26 @tmatenko @pmalatyn
+/microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
+/microservices/model-registry/ @rrajore @elroyashjr
+/libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
+/microservices/time-series-analytics/  @vkb1 @sathyendranv @pooja-intel
+/microservices/vlm-openvino-serving/ @bharagha @bhardwaj-nakul @yogeshmpandey @llin60
+/microservices/multimodal-embedding-serving/ @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha
+/microservices/visual-data-preparation-for-retrieval/ @bhardwaj-nakul @krish918 @llin60 @@zhangcong2019
+/microservices/vector-retriever/ @bhardwaj-nakul @krish918 @llin60 @@zhangcong2019
+/microservices/audio-analyzer/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
+/sample-applications/video-search-and-summarization/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
+>>>>>>> 2b4fd12 (update code owners for visual-data-preparation-for-retrieval and vector-retriever)
