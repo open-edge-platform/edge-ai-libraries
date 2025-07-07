@@ -661,6 +661,15 @@ def on_stop():
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
 
 
+def show_hide_component(component, config_key):
+    component.unrender()
+    try:
+        if config_key:
+            component.render()
+    except KeyError:
+        pass
+
+
 # Create the interface
 def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
@@ -1306,13 +1315,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # Recording Channels
                             @gr.render(triggers=[run_tab.select])
-                            def show_recording_channels():
-                                recording_channels.unrender()
-                                try:
-                                    if current_pipeline[1]['parameters']['run']['recording_channels']:
-                                        recording_channels.render()
-                                except KeyError:
-                                    pass
+                            def _():
+                                show_hide_component(
+                                    recording_channels,
+                                    current_pipeline[1]["parameters"]["run"]["recording_channels"],
+                                )
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
@@ -1322,13 +1329,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # AI Stream Rate
                             @gr.render(triggers=[run_tab.select])
-                            def show_ai_stream_rate():
-                                ai_stream_rate.unrender()
-                                try:
-                                    if current_pipeline[1]['parameters']['benchmark']['ai_stream_rate']:
-                                        ai_stream_rate.render()
-                                except KeyError:
-                                    pass
+                            def _():
+                                show_hide_component(
+                                    ai_stream_rate,
+                                    current_pipeline[1]["parameters"]["benchmark"]["ai_stream_rate"],
+                                )
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
