@@ -54,6 +54,13 @@ class VideoRequest(BaseModel):
             description="Length of clip in seconds, inside each of the video chunks. Frames for embedding are selected from this interval.",
         ),
     ] = None
+    tags: Annotated[
+        Optional[List[str]],
+        Field(
+            default_factory=list,
+            description="List of tags to be associated with the video. Useful for filtering the search.",
+        ),
+    ] = None
 
 
 class VideoInfo(BaseModel):
@@ -111,3 +118,10 @@ class VideoSummaryRequest(BaseModel):
         float,
         Field(description="The end timestamp in seconds for the video or video chunk"),
     ]
+    tags: Annotated[
+        Optional[List[str]],
+        Field(
+            default_factory=list,
+            description="List of tags to be associated with the video. Useful for filtering the search.",
+        ),
+    ] = None

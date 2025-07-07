@@ -76,6 +76,7 @@ async def generate_video_embedding(
     metadata_temp_path: pathlib.Path,
     chunk_duration: int = None,
     clip_duration: int = None,
+    tags: List[str] | str = [],
 ) -> List[str]:
     """
     Generate metadata and embeddings for a video file.
@@ -105,6 +106,7 @@ async def generate_video_embedding(
         chunk_duration=chunk_duration,
         clip_duration=clip_duration,
         metadata_temp_path=str(metadata_temp_path),
+        tags=tags,
     )
 
     logger.debug(f"Metadata generated and saved to {metadata_file}")

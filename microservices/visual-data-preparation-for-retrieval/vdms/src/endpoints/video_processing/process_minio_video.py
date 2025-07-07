@@ -5,7 +5,7 @@ import datetime
 import pathlib
 import shutil
 from http import HTTPStatus
-from typing import Annotated
+from typing import Annotated, List
 
 from fastapi import APIRouter, Body, HTTPException
 
@@ -132,6 +132,7 @@ async def process_minio_video(
         video_name = video_request.video_name
         chunk_duration = video_request.chunk_duration or config.get("chunk_duration", 30)
         clip_duration = video_request.clip_duration or config.get("clip_duration", 10)
+        tags: List[str] = video_request.tags or []
 
         # Validate the provided minio parameters and get the video name, if not provided
         video_name = _validate_and_get_video_name(
@@ -180,6 +181,7 @@ async def process_minio_video(
             metadata_temp_path=metadata_temp_dir,
             chunk_duration=chunk_duration,
             clip_duration=clip_duration,
+            tags=tags,
         )
 
         logger.info(f"Embeddings created for videos: {ids}")

@@ -5,7 +5,7 @@ import datetime
 import pathlib
 import shutil
 from http import HTTPStatus
-from typing import Annotated, Optional
+from typing import Annotated, List, Optional
 
 from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
@@ -40,6 +40,13 @@ async def upload_and_process_video(
     clip_duration: Annotated[
         Optional[int],
         Query(ge=3, description="Length of clip in seconds for embedding selection"),
+    ] = None,
+    tags: Annotated[
+        Optional[List[str]],
+        Query(
+            default_factory=list,
+            description="List of tags to be associated with the video. Useful for filtering the search.",
+        ),
     ] = None,
 ) -> DataPrepResponse:
     """
@@ -137,6 +144,7 @@ async def upload_and_process_video(
             metadata_temp_path=metadata_temp_dir,
             chunk_duration=chunk_duration,
             clip_duration=clip_duration,
+            tags=tags or [],
         )
 
         logger.info(f"Embeddings created for video: {ids}")
