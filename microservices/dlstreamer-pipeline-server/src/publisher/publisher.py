@@ -181,7 +181,7 @@ class Publisher:
         if not self.influx_config and self.app_cfg.get("influx_write"):
             self.influx_config = self.app_cfg["influx_write"]
         if not self.ros2_config and self.app_cfg.get("ros2_publisher"):
-            self.ros2_config = self.app_cfg["ros2_publisher"]
+            self.ros2_config = self.app_cfg.get("ros2_publisher")
 
     def _get_publishers(self):
         """Get publishers based on config.

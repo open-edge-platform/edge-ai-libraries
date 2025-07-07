@@ -1,0 +1,28 @@
+{
+    "config": {
+        "pipelines": [
+            {
+                "name": "pallet_defect_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! jpegenc ! appsink name=destination",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
+                        }
+                    }
+                },
+                "ros2_publisher":{
+                    "publish_frame": false,
+                    "topic": "/dlstreamer_pipeline_results"
+                },
+                "auto_start": false
+            }
+        ]
+    }
+}
