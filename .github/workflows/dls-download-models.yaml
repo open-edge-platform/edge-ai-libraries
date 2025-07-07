@@ -62,33 +62,36 @@ jobs:
 
     - name: Download only specific model
       if: ${{ inputs.models_to_download == 'specified_model' }} 
+      env:  
+        MODEL_PATH: ${{ inputs.model_path }}
+        MODEL_NAME: ${{ inputs.model_name }}
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        if [ ${{ inputs.model_path == 'public' }} ]; then
-          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh ${{ inputs.model_name }} coco128
-          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/${{ inputs.model_name }} )" ]; then
-            echo "${{ inputs.model_name }} model not downloaded correctly ❌"
-            echo "${{ inputs.model_name }} model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+        if [ "$MODEL_PATH" = "public" ]; then
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
+            if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
+            echo "$MODEL_NAME} model not downloaded correctly ❌"
+            echo "$MODEL_NAME model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
-            echo "${{ inputs.model_name }} model downloaded correctly ✅"
-            echo "${{ inputs.model_name }} model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
+            echo "$MODEL_NAME} model downloaded correctly ✅"
+            echo "$MODEL_NAME model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
           fi
-        elif [ ${{ inputs.model_path == 'omz' }} ]; then
+        elif [ "$MODEL_PATH" = "omz" ]; then
           mkdir -p .virtualenvs/dlstreamer
           python3 -m venv .virtualenvs/dlstreamer
           source .virtualenvs/dlstreamer/bin/activate
           pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
           export MODELS_PATH=${{ env.MODELS_PATH }}
-          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh ${{ inputs.model_name }}
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
           deactivate
-          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel/${{ inputs.model_name }} )" ]; then
-            echo "${{ inputs.model_name }} model not downloaded correctly ❌"
-            echo "${{ inputs.model_name }} model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel/$MODEL_NAME )" ]; then
+            echo "$MODEL_NAME model not downloaded correctly ❌"
+            echo "$MODEL_NAME model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
-            echo "${{ inputs.model_name }} model downloaded correctly ✅"
-            echo "${{ inputs.model_name }} model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
+            echo "$MODEL_NAME model downloaded correctly ✅"
+            echo "$MODEL_NAME model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
           fi
         fi
 
