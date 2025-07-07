@@ -13,7 +13,7 @@ import {
   File as CustomFile,
 } from './conversation.ts';
 import client from '../../utils/client.ts';
-import { CHAT_QNA_URL, DATA_PREP_URL, LINK_PREP_URL } from '../../config.ts';
+import { CHAT_QNA_URL, DATA_PREP_URL, LINK_PREP_URL, MAX_TOKENS } from '../../config.ts';
 import {
   checkHealth,
   getCurrentTimeStamp,
@@ -453,6 +453,7 @@ export const doConversation = (conversationRequest: ConversationRequest) => {
 
   const body = {
     input: userPrompt.content,
+    MAX_TOKENS: MAX_TOKENS,
   };
 
   store.dispatch(setIsGenerating(true));

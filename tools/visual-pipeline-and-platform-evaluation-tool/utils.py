@@ -18,18 +18,7 @@ cancelled = False
 
 
 def prepare_video_and_constants(
-    input_video_player,
-    object_detection_model,
-    object_detection_device,
-    object_detection_batch_size,
-    object_detection_nireq,
-    object_detection_inference_interval,
-    object_classification_model,
-    object_classification_device,
-    object_classification_batch_size,
-    object_classification_nireq,
-    object_classification_inference_interval,
-    object_classification_reclassify_interval,
+    **kwargs: dict[str, any],
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -42,6 +31,28 @@ def prepare_video_and_constants(
     Returns:
         tuple: A tuple containing video_output_path, constants, and param_grid.
     """
+
+    # Collect parameters from kwargs
+    input_video_player = kwargs.get("input_video_player", "")
+    object_detection_model = kwargs.get("object_detection_model", "")
+    object_detection_device = kwargs.get("object_detection_device", "")
+    object_detection_batch_size = kwargs.get("object_detection_batch_size", 1)
+    object_detection_inference_interval = kwargs.get(
+        "object_detection_inference_interval", 0.0
+    )
+    object_detection_nireq = kwargs.get("object_detection_nireq", 1)
+    object_classification_model = kwargs.get("object_classification_model", "")
+    object_classification_device = kwargs.get("object_classification_device", "")
+    object_classification_batch_size = kwargs.get("object_classification_batch_size", 1)
+    object_classification_inference_interval = kwargs.get(
+        "object_classification_inference_interval", 0.0
+    )
+    object_classification_reclassify_interval = kwargs.get(
+        "object_classification_reclassify_interval", 0.0
+    )
+    object_classification_nireq = kwargs.get("object_classification_nireq", 1)
+    pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
+
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
         ".mp4", f"-output-{random_string}.mp4"
@@ -51,6 +62,10 @@ def prepare_video_and_constants(
     # and stop.
     if os.path.exists(video_output_path):
         os.remove(video_output_path)
+
+    # Reset the FPS file
+    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+        f.write(f"0.0\n")
 
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
@@ -62,6 +77,7 @@ def prepare_video_and_constants(
         "object_classification_inference_interval": [object_classification_inference_interval],
         "object_classification_reclassify_interval": [object_classification_reclassify_interval],
         "object_classification_nireq": [object_classification_nireq],
+        "pipeline_watermark_enabled": [pipeline_watermark_enabled],
     }
 
     constants = {
@@ -72,35 +88,35 @@ def prepare_video_and_constants(
     MODELS_PATH = "/home/dlstreamer/vippet/models"
 
     match object_detection_model:
-        case "SSDLite MobileNet V2":
+        case "SSDLite MobileNet V2 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/FP16-INT8/ssdlite_mobilenet_v2.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/ssdlite_mobilenet_v2_INT8/ssdlite_mobilenet_v2.json"
             )
-        case "YOLO v5m 416x416":
+        case "YOLO v5m 416x416 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/FP16-INT8/yolov5m-416_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-416_INT8/yolo-v5.json"
             )
-        case "YOLO v5m 640x640":
+        case "YOLO v5m 640x640 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/FP16-INT8/yolov5m-640_INT8.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5m-640_INT8/yolo-v5.json"
             )
-        case "YOLO v5s 416x416":
+        case "YOLO v5s 416x416 (INT8)":
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/FP16-INT8/yolov5s.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/yolov5s-416_INT8/yolo-v5.json"
             )
-        case "YOLO v10s 640x640":
+        case "YOLO v10s 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
                     "YOLO v10s model is not supported on NPU device. Please select another model."
@@ -110,10 +126,10 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/public/yolov10s/FP16/yolov10s.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
-        case "YOLO v10m 640x640":
+        case "YOLO v10m 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
-                    "YOLO v10s model is not supported on NPU device. Please select another model."
+                    "YOLO v10m model is not supported on NPU device. Please select another model."
                 )
 
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
@@ -124,14 +140,17 @@ def prepare_video_and_constants(
             raise ValueError("Unrecognized Object Detection Model")
 
     match object_classification_model:
-        case "ResNet-50 TF":
+        case "Disabled":
+            constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = "Disabled"
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = "Disabled"       
+        case "ResNet-50 TF (INT8)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.json"
             )
-        case "EfficientNet B0":
+        case "EfficientNet B0 (INT8)":
             if object_classification_device == "NPU":
                 raise ValueError(
                     "EfficientNet B0 model is not supported on NPU device. Please select another model."
@@ -143,7 +162,7 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/efficientnet-b0_INT8/efficientnet-b0.json"
             )
-        case "MobileNet V2 PyTorch":
+        case "MobileNet V2 PyTorch (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
             )
@@ -249,6 +268,14 @@ def run_pipeline_and_extract_metrics(
                             "number_streams": int(match.group(3)),
                             "per_stream_fps": float(match.group(4)),
                         }
+                        logger.info(
+                            f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
+                        )
+
+                        # Skip the result if the number of streams does not match the expected channels
+                        if result["number_streams"] != channels:
+                            continue
+
                         latest_fps = result["per_stream_fps"]
                         
                         # Write latest FPS to a file

@@ -17,8 +17,12 @@ RUN poetry config virtualenvs.create false && poetry install --no-root
 FROM python:3.12.10-slim
 
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG USER_ID=1000
+ARG USER_GROUP_ID=1000
 
-RUN groupadd -g 1001 appuser && useradd -m -s /bin/bash -u 1001 -g 1001 appuser
+ARG HUGGINGFACE_TOKEN=none
+
+RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
 RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
     curl 
@@ -37,11 +41,11 @@ WORKDIR /app
 COPY . .
 RUN chmod +x /app/scripts/compress_model.sh
 
-RUN mkdir -p /root/.cache/huggingface /app/ov-model && \
-    chown -R appuser:appuser /root/.cache/huggingface /app/ov-model
+RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-model && \
+    chown -R appuser:appuser /home/appuser/.cache /app/ov-model
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level info --access-logfile - --error-logfile - --log-config /app/logging.conf"]
+CMD ["/bin/bash", "-c", "/app/scripts/compress_model.sh ${VLM_MODEL_NAME} ${VLM_COMPRESSION_WEIGHT_FORMAT} ${HUGGINGFACE_TOKEN} && gunicorn -b 0.0.0.0:8000 -k uvicorn.workers.UvicornWorker src.app:app --timeout 10000 -w ${WORKERS:-1} --log-level info --access-logfile - --error-logfile - --log-config /app/logging.conf"]

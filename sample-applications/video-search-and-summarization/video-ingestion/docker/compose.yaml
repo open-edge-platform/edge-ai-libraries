@@ -1,0 +1,128 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: ${PROJECT_NAME:-video-ingestion}
+services:
+  video-ingestion:
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    image: ${REGISTRY}video-ingestion:${TAG:-latest}
+    hostname: video-ingestion
+    read_only: true
+    security_opt:
+    - no-new-privileges
+    privileged: false
+    tty: true
+    entrypoint: ["./run.sh"]
+    ports:
+      - "${EVAM_HOST_PORT:-8090}:${EVAM_PORT:-8080}"
+    networks:
+      - app_network
+    environment:
+      - no_proxy=$no_proxy
+      - http_proxy=$http_proxy
+      - https_proxy=$https_proxy
+      - RABBITMQ_HOST=${RABBITMQ_SERVICE}
+      - RABBITMQ_PORT=1883
+      - MINIO_SERVER=${MINIO_SERVER}
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+      - RUN_MODE=EVA
+      # Default Detection and Classification Device
+      - DETECTION_DEVICE=CPU
+      - ADD_UTCTIME_TO_METADATA=true
+      - LSFEATURE_NAME="EVAM"
+      - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
+      - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
+      # Append pipeline name to a publisher topic
+      - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
+      - REST_SERVER_PORT=${EVAM_PORT:-8080}
+    volumes:
+      - vol_evam_pipeline_root:/var/cache/pipeline_root:uid=1999,gid=1999
+      - "/run/udev:/run/udev:ro"
+      - "/dev:/dev"
+      - "/tmp:/tmp"
+      - ./ov_models:/home/pipeline-server/models
+    group_add:
+      # render group ID for ubuntu 20.04 host OS
+      - "109"
+      # render group ID for ubuntu 22.04 host OS
+      - "110"
+    device_cgroup_rules:
+    # Default run - device-cgroup-rule='c 189:* rmw'
+    # Selective rules can be applied for deployment
+    - 'c 189:* rmw'
+    - 'c 209:* rmw'
+    - 'a 189:* rwm'
+    devices:
+    # Following devices under /dev filesystem will be needed based on usecase
+    # dri - GPU
+    # USB camera devices
+    # Selective mount can be done for deployment as mounting whole /dev is not recommended
+    - "/dev:/dev"
+
+
+  rabbitmq:
+    image: rabbitmq:3-management-alpine
+    ports:
+      - "${AMQP_HOST_PORT:-5672}:5672"         # AMQP port
+      - "${RABBITMQ_UI_HOST_PORT:-15672}:15672"       # Management UI
+      - "${MQTT_HOST_PORT:-1883}:1883"         # MQTT (TCP) port
+    environment:
+      - no_proxy=$no_proxy
+      - http_proxy=$http_proxy
+      - https_proxy=$https_proxy
+      - RABBITMQ_DEFAULT_USER=${RABBITMQ_DEFAULT_USER}
+      - RABBITMQ_DEFAULT_PASS=${RABBITMQ_DEFAULT_PASS}
+    volumes:
+      - ../resources/conf/rabbitmq.conf:/etc/rabbitmq/rabbitmq.conf
+    command: >
+      sh -c "rabbitmq-plugins enable --offline rabbitmq_mqtt rabbitmq_web_mqtt &&
+             rabbitmq-server"
+    healthcheck:
+      test: rabbitmq-diagnostics -q ping
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 10s
+    networks:
+      - app_network
+
+  minio:
+    image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+    environment:
+      - no_proxy=$no_proxy
+      - http_proxy=$http_proxy
+      - https_proxy=$https_proxy
+      - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+      - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+    ports:
+      - "${MINIO_HOST_PORT:-9000}:9000"
+      - "${MINIO_CONSOLE_HOST_PORT:-9001}:9001"
+    volumes:
+      - minio_data:/data
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: server /data --console-address ":9001"
+    networks:
+      - app_network
+
+networks:
+  app_network:
+    driver: "bridge"
+
+volumes:
+  vol_evam_pipeline_root:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  minio_data:
+    driver: local
+

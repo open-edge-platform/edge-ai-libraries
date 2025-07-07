@@ -54,15 +54,18 @@ Directory details is as below:
   
 ### **`config.json`**:
 
-The `task` section defines the settings for the Kapacitor task and User-Defined Functions (UDFs).
 
 | Key                     | Description                                                                                     | Example Value                          |
 |-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-| `fetch_from_model_registry` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
-| `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
-| `tick_script`           | The name of the TICK script file used for data processing and analytics.                        | `"temperature_classifier.tick"`  |
-| `task_name`             | The name of the Kapacitor task.                                                                | `"temperature_classifier"`       |
+| `model_registry` | Configuration for the Model Registry microservice.       | See below for details.                      |
 | `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                           | See below for details.                 |
+
+**Model Registry Configuration**:
+
+| Key                     | Description                                                                                     | Example Value                          |
+|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
+| `enable` | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.       | `true` or `false`                      |
+| `version`               | Specifies the version of the task or model to use.                                             | `"1.0"`                                |
 
 **UDFs Configuration**:
 
@@ -70,7 +73,6 @@ The `udfs` section specifies the details of the UDFs used in the task.
 
 | Key     | Description                                                                 | Example Value                          |
 |---------|-----------------------------------------------------------------------------|----------------------------------------|
-| `type`  | The type of UDF. Currently, only `python` is supported.                     | `"python"`                             |
 | `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
 
 
@@ -117,6 +119,13 @@ Navigate to the application directory and build the Docker image:
 docker compose build
 ```
 
+> **Note:**  
+> To include copyleft licensed sources when building the Docker image, use the below command:
+>
+> ```bash
+> docker compose build --build-arg COPYLEFT_SOURCES=true
+> ```
+
 ## Push Docker Images (Optional)
 
 To push images to a Docker registry:
@@ -149,7 +158,8 @@ docker compose up -d
 Run the following script to ingest temperature data into the Time Series Analytics Microservice:
 
 ```sh
-python3 src/temperature_input.py --mode docker
+pip3 install -r simulator/requirements.txt
+python3 simulator/temperature_input.py --port 5000
 ```
 
 ### Verify the Temperature Classifier Results
@@ -161,6 +171,10 @@ Run below commands to see the filtered temperature results:
 docker logs -f ia-time-series-analytics-microservice
 ```
 
+### Accessing the Swagger UI
+
+The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
+Please refer [API documentation](./how-to-access-api.md).
 
 ## Troubleshooting
 

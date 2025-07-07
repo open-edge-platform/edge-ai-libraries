@@ -1,0 +1,160 @@
+global:
+  huggingface:
+    apiToken: <huggingface-api-token> # Set this during installation
+  proxy:
+    http_proxy: 
+    https_proxy:
+  env:
+    UI_NODEPORT: 31998
+    POSTGRES_USER: 
+    POSTGRES_PASSWORD: 
+    POSTGRES_DB: 
+    MINIO_ROOT_USER: 
+    MINIO_PROTOCOL: "http:"
+    MINIO_BUCKET: 
+    MINIO_ROOT_PASSWORD: 
+    RABBITMQ_DEFAULT_USER:
+    RABBITMQ_DEFAULT_PASS: 
+    VLM_MODEL_NAME: 
+    OVMS_LLM_MODEL_NAME:
+    OTLP_ENDPOINT: ""
+    OTLP_ENDPOINT_TRACE: ""
+
+videosummaryui:
+  name: videosummaryui
+  service:
+    type: ClusterIP
+    port: 8100
+    targetPort: 80
+
+rabbitmq:
+  name: rabbitmq
+  fullname: rabbitmq  
+  service:
+    name: rabbitmq
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+    mqttPort: 1883
+    
+minioServer:
+  name: minio-server
+  service:
+    type: ClusterIP
+    port: 9000
+    targetPort: 9000
+
+videoSummaryManager:
+  name: videosummarybackend
+  image:
+    repository: intel/pipeline-manager
+    tag: 1.2.0
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 3000
+    targetPort: 3000
+  env:
+    LLM_SUMMARIZATION_KEY: ""
+    LLM_SUMMARIZATION_DEVICE: "CPU"
+    VLM_CAPTIONING_KEY: ""
+    VLM_CAPTIONING_DEVICE: "CPU"
+    LLM_CONCURRENT: "2"
+    VLM_CONCURRENT: "4"
+    SUMMARIZATION_MAX_COMPLETION_TOKENS: "4000"
+    CAPTIONING_MAX_COMPLETION_TOKENS: "1024"
+    LLM_MODEL_API: "v1/config"
+    MULTI_FRAME_COUNT: "12"
+    AUDIO_DEVICE: "cpu"
+    OTLP_TRACE_URL: ""
+    USE_OVMS: "CONFIG_OFF"
+    SUMMARY_FEATURE: "FEATURE_ON"
+    SEARCH_FEATURE: "FEATURE_OFF"
+  nodeSelector: {}
+  affinity: {}
+  tolerations: []
+
+audioanalyzer:
+  enabled: false
+  name: audioanalyzer
+  service:
+    port: 8000
+    targetPort: 8000
+    type: ClusterIP
+
+videoingestion:
+  enabled: false
+  name: videoingestion
+  fullnameOverride: videoingestion
+  fullname: videoingestion
+  service:
+    type: ClusterIP
+    port: 8080
+
+ovms:
+  name: ovms
+  enabled: false
+  service:
+    port: 8300
+
+vlminference:
+  enabled: false
+  name: vlm-inference-microservice
+
+# Add nginx configuration
+nginx:
+  name: video-summary-nginx
+  service:
+    type: NodePort
+    port: 80
+    targetPort: 80
+    nodePort: 31999
+  affinity:
+    nodeAffinity:
+      requiredDuringSchedulingIgnoredDuringExecution:
+        nodeSelectorTerms:
+        - matchExpressions:
+          - key: kubernetes.io/ready
+            operator: In
+            values:
+            - "true"
+
+postgresql:
+  name: postgresql
+  fullname: postgresql
+  service:
+    type: ClusterIP
+    port: 5432
+
+
+# Placeholder for multimodal-embedding-ms subchart
+multimodalembeddingms:
+  enabled: false
+  name: multimodal-embedding-ms
+  service:
+    type: ClusterIP
+    port: 8000
+
+# Placeholder for vdms-dataprep subchart
+vdmsdataprep:
+  enabled: false
+  name: vdms-dataprep
+  service:
+    type: ClusterIP
+    port: 8000
+
+# Placeholder for vdms-vectordb subchart
+vdmsvectordb:
+  enabled: false
+  name: vdms-vectordb
+  service:
+    type: ClusterIP
+    port: 55555
+
+# Placeholder for videosearch subchart
+videosearch:
+  enabled: false
+  name: videosearch
+  service:
+    type: ClusterIP
+    port: 8000

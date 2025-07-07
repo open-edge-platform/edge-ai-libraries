@@ -2,7 +2,7 @@ services:
   nginx:
     image: nginx:latest
     ports:
-      - "8101:80"
+      - "8101:8101"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -30,14 +30,12 @@ services:
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - LLM_MODEL=${LLM_MODEL}
+      - SEED=${SEED}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
       - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
-      - OTEL_METRICS_EXPORTER=otlp
-      - OTEL_TRACES_EXPORTER=otlp
       - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
       - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
     networks:
@@ -45,7 +43,6 @@ services:
     volumes:
       - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
-
   pgvector:
     image: pgvector/pgvector:pg16
     container_name: pgvector_db
@@ -67,7 +64,7 @@ services:
       - my_network
 
   reranker:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     container_name: reranker_tei
     ports:
       - "8090:80"
@@ -83,7 +80,7 @@ services:
     command: --model-id ${RERANKER_MODEL} --auto-truncate
 
   dataprep_pgvector:
-    image: ${REGISTRY:-}document-ingestion:1.2.0
+    image: ${REGISTRY:-}document-ingestion:1.2.1
     container_name: dataprep_pgvector
     environment:
       no_proxy: ${no_proxy},tei-embedding-service
@@ -114,7 +111,7 @@ services:
     build:
       context: ./ui/react/
     ports:
-      - "5173:80"
+      - "5173:8101"
     networks:
       - my_network
     environment:
@@ -123,6 +120,7 @@ services:
       - http_proxy=${http_proxy}
       - APP_ENDPOINT_URL=${APP_ENDPOINT_URL}
       - APP_DATA_PREP_URL=${APP_DATA_PREP_URL}
+      - APP_MAX_TOKENS=${MAX_TOKENS}
 
   minio-server:
     image: minio/minio:RELEASE.2025-02-07T23-21-09Z-cpuv1
@@ -151,6 +149,8 @@ services:
       - "8080:80"
     volumes:
       - "~/.cache/huggingface:/root/.cache/huggingface"
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /etc/ssl/certs:/etc/ssl/certs
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -169,6 +169,7 @@ services:
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
       - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT_TRACE}
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
     cap_add:
       - SYS_NICE
     healthcheck:
@@ -231,7 +232,7 @@ services:
 
   #Embedding Services
   tei-embedding-service:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     profiles:
       - TEI
     container_name: tei-embedding-service
@@ -250,7 +251,7 @@ services:
 
   ovms-service-gpu:
     image: openvino/model_server:2025.0-gpu
-    container_name: ovms-service
+    container_name: ovms-service-gpu
     profiles:
       - GPU-OVMS
     environment:
