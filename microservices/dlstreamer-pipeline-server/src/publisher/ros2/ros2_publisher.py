@@ -34,7 +34,6 @@ class ROS2Publisher():
         :param json app_cfg: Application config
             the meta-data for the frame (df: True)
         """
-        ros.init()
         self.queue = deque(maxlen=qsize)
         self.stop_ev = th.Event()
         self.topic = config.get('topic', "/dlstreamer_pipeline_results")
@@ -45,9 +44,13 @@ class ROS2Publisher():
         self.log.info(f'Initializing ROS2 publisher for topic {self.topic}')
 
         self.publish_frame = config.get("publish_frame", False)
+        
+        # Ensure ROS client library is initialized only once across threads and not yet shut down
+        if not rclpy.ok():
+            rclpy.init()
 
-
-        self.client = self.create_publisher(String, self.topic, 10)
+        self.node = Node(f'ros2_publisher_{th.get_ident()}')
+        self.publisher = self.node.create_publisher(String, self.topic, 10)
         self.initialized=True
         self.log.info("ROS2 publisher initialized")
 
@@ -66,6 +69,7 @@ class ROS2Publisher():
         self.stop_ev.set()
         self.th.join()
         self.th = None
+        self.node.destroy_node()
         self.log.info('ROS2 publisher thread stopped')
 
     def error_handler(self, msg):
@@ -82,7 +86,7 @@ class ROS2Publisher():
                     frame, meta_data = self.queue.popleft()
                     self._publish(frame, meta_data)
                 except IndexError:
-                    self.log.debug("No data in client queue for ROS2 publish thread")
+                    self.log.debug("No data in publisher queue for ROS2 publish thread")
                     time.sleep(0.005)
                     
         except Exception as e:
@@ -96,16 +100,10 @@ class ROS2Publisher():
         :param meta_data: Meta data
         :type: Dict
         """
-        if not self.client.is_connected():
-            self.log.error(f"Client is not connected to MQTT broker. Message not published. {meta_data}")
+        if not self.publisher is not None:
+            self.log.error(f"ROS2 publisher doesn't exist. Message not published. {meta_data}")
             return
 
-        if self.filter:
-            if not self.filter.check_filter_criteria(meta_data):
-                self.log.info("Filter criteria not met, skipping...")
-                return
-
-        
         msg = dict()
         msg["metadata"]=meta_data
         if self.publish_frame:
@@ -120,8 +118,8 @@ class ROS2Publisher():
          
         msg = json.dumps(msg)
 
-        self.log.info(f'Publishing message to topic: {self.topic}')
-        self.client.publish(self.topic, payload=msg)
+        self.log.info(f'Publishing ROS2 message to topic: {self.topic}')
+        self.publisher.publish(msg)
 
         # Discarding publish message
         del msg
