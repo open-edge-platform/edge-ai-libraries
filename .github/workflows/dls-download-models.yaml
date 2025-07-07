@@ -70,7 +70,7 @@ jobs:
           ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
           if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
             echo "$MODEL_NAME model not downloaded correctly ❌"
-            echo "$MODEL_NAME model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+            echo "$MODEL_NAME model not downloaded correctly ❌" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
             echo "$MODEL_NAME model downloaded correctly ✅"
@@ -86,7 +86,7 @@ jobs:
           deactivate
           if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel/$MODEL_NAME )" ]; then
             echo "$MODEL_NAME model not downloaded correctly ❌"
-            echo "$MODEL_NAME model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+            echo "$MODEL_NAME model not downloaded correctly ❌" >> $GITHUB_STEP_SUMMARY
             exit 1
           else
             echo "$MODEL_NAME model downloaded correctly ✅"
