@@ -11,15 +11,15 @@
 #                     |
 #                     V
 #                  builder --------------------------
-#                 /       \                         |
-#                /         \                        |
-#               V           V                       |
-#      ffmpeg-builder   opencv-builder              |
-#               |              |                kafka-builder
-#               V              |                    |
-#       gstreamer-builder      | (copy libs)        |
+#                     |                             |
+#                     |                             |
+#                     V                             |
+#                ffmpeg-builder                     V
+#                /           \                 kafka-builder
+#               V             V                     |
+#      gstreamer-builder  opencv-builder            |
 #                \            /                     |
-#      (copy libs)\          /                      |
+#      (copy libs)\          /(copy libs)           |
 #                  V        V        (copy libs)    |
 #                dlstreamer-dev <-------------------|
 #                      |
@@ -255,20 +255,20 @@ RUN \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
 
 # ==============================================================================
-FROM builder AS opencv-builder
+FROM ffmpeg-builder AS opencv-builder
 # OpenCV
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
 WORKDIR /
 
 RUN \
-    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip && \
-    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.6.0.zip && \
+    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip && \
+    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.10.0.zip && \
     unzip opencv.zip && \
     unzip opencv_contrib.zip && \
     rm opencv.zip opencv_contrib.zip && \
-    mv opencv-4.6.0 opencv && \
-    mv opencv_contrib-4.6.0 opencv_contrib && \
+    mv opencv-4.10.0 opencv && \
+    mv opencv_contrib-4.10.0 opencv_contrib && \
     mkdir -p opencv/build
 
 WORKDIR /opencv/build
@@ -360,10 +360,10 @@ ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/pyth
 RUN \
     if [ "${BUILD_ARG}" == "Debug" ]; then \
         C_FLAGS="-Og -g"; \
-        CXX_FLAGS="-Og -g"; \
+        CXX_FLAGS="-Og -g -Wno-error=deprecated-enum-enum-conversion"; \
     else \
         C_FLAGS=""; \
-        CXX_FLAGS=""; \
+        CXX_FLAGS="-Wno-error=deprecated-enum-enum-conversion"; \
     fi && \
     cmake \
         -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
@@ -417,14 +417,9 @@ RUN \
     find /usr/local/lib -regextype grep -regex ".*libswresample.*so\.[0-9]*$" -exec cp {} /${RPM_PKG_NAME}/opt/ffmpeg \; && \
     cp -r /usr/local/include/opencv4/* /${RPM_PKG_NAME}/opt/opencv/include && \
     cp "${DLSTREAMER_DIR}"/LICENSE /${RPM_PKG_NAME}/ && \
-    rm -rf /${RPM_PKG_NAME}/opt/intel/dlstreamer/archived && \
-    rm -rf /${RPM_PKG_NAME}/opt/intel/dlstreamer/docker && \
-    rm -rf /${RPM_PKG_NAME}/opt/intel/dlstreamer/docs && \
-    rm -rf /${RPM_PKG_NAME}/opt/intel/dlstreamer/infrastructure && \
-    rm -rf /${RPM_PKG_NAME}/opt/intel/dlstreamer/tests && \
     rpmdev-setuptree && \
     tar -czf ~/rpmbuild/SOURCES/${RPM_PKG_NAME}.tar.gz -C / ${RPM_PKG_NAME} && \
-    cp "${DLSTREAMER_DIR}"/docker/onebinary/fedora41/intel-dlstreamer.spec ~/rpmbuild/SPECS/ && \
+    cp "${DLSTREAMER_DIR}"/docker/fedora41/intel-dlstreamer.spec ~/rpmbuild/SPECS/ && \
     sed -i -e "s/DLSTREAMER_VERSION/${DLSTREAMER_VERSION}/g" ~/rpmbuild/SPECS/intel-dlstreamer.spec && \
     sed -i -e "s/CURRENT_DATE_TIME/$(date '+%a %b %d %Y')/g" ~/rpmbuild/SPECS/intel-dlstreamer.spec && \
     find /${RPM_PKG_NAME}/opt/intel/dlstreamer/bin -type f ! -name "liblibrarymock1.so" ! -name "liblibrarymock2.so" ! -name "draw_face_attributes" -exec rm -f {} + && \
