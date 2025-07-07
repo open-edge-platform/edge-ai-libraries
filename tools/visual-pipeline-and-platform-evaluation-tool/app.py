@@ -960,7 +960,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             lambda v: (
                 (
                     gr.update(interactive=bool(v)),
-                    gr.update(None),
+                    gr.update(value=None),
                     gr.update(value=None),
                 )  # Disable Run button  if input is empty, clears output
                 if v is None or v == ""
