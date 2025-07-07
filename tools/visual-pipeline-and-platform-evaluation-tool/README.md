@@ -63,6 +63,10 @@ The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video 
 
 **Visualization & Analysis**: View real-time performance metrics on the dashboard to compare configurations and optimize settings.
 
+## Coming Soon
+
+**Transportation Proxy Pipeline 3**: A new pipeline designed to perform license plate detection on vehicles, enabling automated identification and tracking of license plates for transportation analysis and monitoring. Stay tuned for updates!
+
 ## Learn More
 - [System Requirements](docs/user-guide/system-requirements.md)
 - [Get Started](docs/user-guide/get-started.md)
