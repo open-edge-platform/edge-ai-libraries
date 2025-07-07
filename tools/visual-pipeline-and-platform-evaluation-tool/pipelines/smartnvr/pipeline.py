@@ -5,6 +5,9 @@ from typing import List
 
 from pipeline import GstPipeline
 
+import logging
+import struct
+
 
 class SmartNVRPipeline(GstPipeline):
     def __init__(self):
@@ -20,6 +23,24 @@ class SmartNVRPipeline(GstPipeline):
             "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
         )
 
+        # Add shmsink for live streaming (shared memory)
+        self._shmsink = (
+            "shmsink socket-path=/tmp/shared_memory/video_stream "
+            "wait-for-connection=false "
+            "sync=true "
+            "shm-size=67108864 "
+        )
+
+        # Use tee to split output to both file and live stream
+        self._compositor_with_tee = (
+            "{compositor} "
+            "  name=comp "
+            "  {sinks} ! tee name=livetee "
+            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            # Change to BGR format
+            "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width=640,height=360 ! {shmsink} "
+        )
+
         self._compositor = (
             "{compositor} "
             "  name=comp "
@@ -30,7 +51,6 @@ class SmartNVRPipeline(GstPipeline):
             "filesink "
             "  location={VIDEO_OUTPUT_PATH} async=false "
         )
-
 
         self._recording_stream = (
             "filesrc "
@@ -110,12 +130,12 @@ class SmartNVRPipeline(GstPipeline):
         )
 
     def evaluate(
-        self,
-        constants: dict,
-        parameters: dict,
-        regular_channels: int,
-        inference_channels: int,
-        elements: List[tuple[str, str, str]] = [],
+            self,
+            constants: dict,
+            parameters: dict,
+            regular_channels: int,
+            inference_channels: int,
+            elements: List[tuple[str, str, str]] = [],
     ) -> str:
 
         # Set pre process backed for object detection
@@ -145,8 +165,8 @@ class SmartNVRPipeline(GstPipeline):
 
         # Find the available compositor in elements dynamically
         if (
-            parameters["object_detection_device"].startswith("GPU.")
-            and int(parameters["object_detection_device"].split(".")[1]) > 0
+                parameters["object_detection_device"].startswith("GPU.")
+                and int(parameters["object_detection_device"].split(".")[1]) > 0
         ):
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
@@ -173,8 +193,8 @@ class SmartNVRPipeline(GstPipeline):
 
         # Find the available encoder dynamically
         if (
-            parameters["object_detection_device"].startswith("GPU.")
-            and int(parameters["object_detection_device"].split(".")[1]) > 0
+                parameters["object_detection_device"].startswith("GPU.")
+                and int(parameters["object_detection_device"].split(".")[1]) > 0
         ):
             gpu_index = parameters["object_detection_device"].split(".")[1]
             # Map GPU index to the corresponding VAAPI element suffix (e.g., "129" for GPU.1)
@@ -201,8 +221,8 @@ class SmartNVRPipeline(GstPipeline):
 
         # Find the available decoder and postprocessing elements dynamically
         if (
-            parameters["object_detection_device"].startswith("GPU.")
-            and int(parameters["object_detection_device"].split(".")[1]) > 0
+                parameters["object_detection_device"].startswith("GPU.")
+                and int(parameters["object_detection_device"].split(".")[1]) > 0
         ):
             # Extract the GPU index (e.g., "1" from "GPU.1")
             gpu_index = parameters["object_detection_device"].split(".")[1]
@@ -239,8 +259,6 @@ class SmartNVRPipeline(GstPipeline):
                 ),
             )
 
-
-
         # Create the streams
         streams = ""
 
@@ -268,8 +286,8 @@ class SmartNVRPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" 
-                    or parameters["object_classification_device"] == "Disabled") :
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                    or parameters["object_classification_device"] == "Disabled"):
                 classification_model_config = (
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                     f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
@@ -290,7 +308,7 @@ class SmartNVRPipeline(GstPipeline):
             # Overlay inference results on the inferenced video if enabled
             if parameters["pipeline_watermark_enabled"]:
                 streams += "gvawatermark ! "
-            
+
             streams += self._inference_stream_metadata_processing.format(
                 **parameters,
                 **constants,
@@ -322,12 +340,27 @@ class SmartNVRPipeline(GstPipeline):
                 postprocessing=_postprocessing_element,
                 max_size_buffers=1,
             )
-        # Prepend the compositor 
-        streams = self._compositor.format(
+
+        # Always produce both file and live stream outputs
+        try:
+            os.makedirs("/tmp/shared_memory", exist_ok=True)
+            with open("/tmp/shared_memory/video_stream.meta", "wb") as f:
+                # width=640, height=360, dtype_size=1 (uint8)
+                f.write(struct.pack("III", 360, 640, 1))
+            logging.info("Wrote shared memory meta file for live streaming: /tmp/shared_memory/video_stream.meta")
+            logging.info(
+                "Live stream format: BGR, shape=(360,640,3), dtype=uint8, shm_path=/tmp/shared_memory/video_stream")
+        except Exception as e:
+            logging.warning(f"Could not write shared memory meta file: {e}")
+
+        # Compose pipeline with tee: file + live stream
+        logging.info("Pipeline will output both to file and shared memory (live stream)")
+        streams = self._compositor_with_tee.format(
             **constants,
             sinks=sinks,
             encoder=_encoder_element,
             compositor=_compositor_element,
+            shmsink=self._shmsink,
         ) + streams
 
         # Evaluate the pipeline
