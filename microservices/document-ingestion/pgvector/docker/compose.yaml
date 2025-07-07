@@ -47,7 +47,7 @@ services:
       - minio-server
 
   tei-embedding-service:
-    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.5
+    image: ghcr.io/huggingface/text-embeddings-inference:cpu-1.7
     ports:
       - "${TEI_HOST_PORT:-6006}:80"
     volumes:

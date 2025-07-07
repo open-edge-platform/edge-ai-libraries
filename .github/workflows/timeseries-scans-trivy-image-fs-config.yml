@@ -12,11 +12,7 @@ concurrency:
   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
-  pull_request:
-    branches:
-      - main
-    paths:
-      - 'microservices/time-series-analytics/**'
+  workflow_dispatch:
 
 jobs:   
   trivy-scan-job:
@@ -73,8 +69,41 @@ jobs:
               sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
               docker compose build
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+
+              cat << 'EOF' > csv.tpl
+              {{ range . }}
+              Trivy Vulnerability Scan Results ({{- .Target -}})
+              VulnerabilityID,Severity,CVSS Score,Title,Library,Vulnerable Version,Fixed Version,Information URL,Triage Information
+              {{ range .Vulnerabilities }}
+                  {{- .VulnerabilityID }},
+                  {{- .Severity }},
+                  {{- range $key, $value := .CVSS }}
+                      {{- if (eq $key "nvd") }}
+                          {{- .V3Score -}}
+                      {{- end }}
+                  {{- end }},
+                  {{- quote .Title }},
+                  {{- quote .PkgName }},
+                  {{- quote .InstalledVersion }},
+                  {{- quote .FixedVersion }},
+                  {{- .PrimaryURL }}
+              {{ else -}}
+                  No vulnerabilities found at this time.
+              {{ end }}
+              Trivy Dependency Scan Results ({{ .Target }})
+              ID,Name,Version,Notes
+              {{ range .Packages -}}
+                  {{- quote .ID }},
+                  {{- quote .Name }},
+                  {{- quote .Version }}
+              {{ else -}}
+                  No dependencies found at this time.
+              {{ end }}
+              {{ end }}
+              EOF
               trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
               trivy image --quiet --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
+              trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
               echo "completed Time Series Analytics scanning"
             
       - name: Upload Trivy Image Scan Report
@@ -84,8 +113,7 @@ jobs:
         with:
           name: Trivy image scan report
           path: |
-                microservices/time-series-analytics/docker/trivy_image_scan.html
-                microservices/time-series-analytics/docker/trivy_image_scan.spdx.json
+                microservices/time-series-analytics/docker/trivy_*
 
       - name: Trivy config scan for helm charts 
         run: |
