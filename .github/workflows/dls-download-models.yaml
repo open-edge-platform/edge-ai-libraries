@@ -64,7 +64,7 @@ jobs:
         MODEL_NAME: ${{ inputs.model_name }}
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        if [ "$MODEL_PATH" = "public" ]; then
+        if [[ "$MODEL_PATH" == "public" ]]; then
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
             if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/$MODEL_NAME )" ]; then
             echo "$MODEL_NAME model not downloaded correctly ❌"
@@ -74,7 +74,7 @@ jobs:
             echo "$MODEL_NAME model downloaded correctly ✅"
             echo "$MODEL_NAME model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
           fi
-        elif [ "$MODEL_PATH" = "omz" ]; then
+        elif [[ "$MODEL_PATH" == "omz" ]]; then
           mkdir -p .virtualenvs/dlstreamer
           python3 -m venv .virtualenvs/dlstreamer
           source .virtualenvs/dlstreamer/bin/activate
