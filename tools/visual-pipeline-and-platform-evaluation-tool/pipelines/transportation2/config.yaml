@@ -4,7 +4,7 @@ definition: >
   and collects additional data for tracking vehicles.
 metadata:
   classname: Transportation2Pipeline
-  enabled: true
+  enabled: false
 parameters:
   benchmark:
     result_format: "Best Config: {ai} AI streams -> {fps:.2f} FPS"
