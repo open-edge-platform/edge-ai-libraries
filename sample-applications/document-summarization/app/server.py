@@ -6,6 +6,7 @@ import uvicorn
 import shutil
 import logging
 import traceback
+import openlit
 from typing import Any
 from openai import OpenAI
 from fastapi import FastAPI, File, UploadFile
@@ -17,14 +18,11 @@ from llama_index.llms.openai_like import OpenAILike
 from llama_index.core.base.llms.types import CompletionResponse, CompletionResponseGen
 from llama_index.core.llms.callbacks import llm_completion_callback
 from app.config import Settings
-
-config = Settings()
 from opentelemetry import trace
 from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
-
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -33,7 +31,7 @@ logger = logging.getLogger(__name__)
 # Check if OTLP endpoint is set in environment variables
 otlp_endpoint = os.environ.get("OTEL_EXPORTER_OTLP_ENDPOINT", False)
 
-import openlit
+config = Settings()
 
 
 if not isinstance(trace.get_tracer_provider(), TracerProvider):
@@ -59,7 +57,7 @@ if not isinstance(trace.get_tracer_provider(), TracerProvider):
 
 
 LLM_INFERENCE_URL = config.LLM_ENDPOINT_URL or "http://ovms-service"
-model_name = config.LLM_MODEL or "microsoft/Phi-3.5-mini-instruct"
+model_name = config.LLM_MODEL
 
 app = FastAPI(root_path="/v1/docsum", title="Document Summarization API")
 
@@ -245,5 +243,5 @@ if __name__ == "__main__":
     port = int(config.API_PORT or "8090")
     
     # Start FastAPI with Uvicorn
-    print(f"Starting Document Summarization API on port {port}")
+    logger.info(f"Starting Document Summarization API on port {port}")
     uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
