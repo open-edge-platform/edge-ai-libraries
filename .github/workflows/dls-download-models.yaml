@@ -14,6 +14,15 @@ on:
           - all
           - public
           - omz
+          - specified_model
+      model_name:
+        description: 'What model do you want to download?'
+        required: false
+        type: string
+      model_path:
+        description: 'Where do you want to download your specific model? (pulic/omz)'
+        required: false
+        type: string
 
 permissions: {}
 env:
@@ -48,8 +57,28 @@ jobs:
           libraries/dl-streamer/samples/models_omz_samples.lst
         sparse-checkout-cone-mode: false
 
+    - name: Download only specific model
+      if: ${{ inputs.models_to_download == 'specified_model' }} 
+      run: |
+        MODEL_PATH=${{ inputs.model_path }}
+        MODEL_NAME=${{ inputs.model_name }}
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        echo "MODEL_PATH=$MODEL_PATH"
+        echo "MODEL_NAME=$MODEL_NAME"
+        if [[ "$MODEL_PATH" == "public" ]]; then
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
+        elif [[ "$MODEL_PATH" == "omz" ]]; then
+          mkdir -p .virtualenvs/dlstreamer
+          python3 -m venv .virtualenvs/dlstreamer
+          source .virtualenvs/dlstreamer/bin/activate
+          pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
+          export MODELS_PATH=${{ env.MODELS_PATH }}
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
+          deactivate
+        fi
+
     - name: Prepare directory for public models
-      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule' }}
       run: |
         if [ -d "${{ env.MODELS_PATH }}/public" ]; then
           echo "Removing public models directory"
@@ -57,7 +86,7 @@ jobs:
         fi
 
     - name: Prepare directory for OMZ models
-      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         if [ -d "${{ env.MODELS_PATH }}/intel" ]; then
           echo "Removing OMZ models directory"
@@ -65,14 +94,14 @@ jobs:
         fi
 
     - name: Download public models
-      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Downloading public models"
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Download OMZ models (setup venv, dependencies and download)
-      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         mkdir -p .virtualenvs/dlstreamer
         python3 -m venv .virtualenvs/dlstreamer
@@ -83,7 +112,7 @@ jobs:
         deactivate
 
     - name: Verify public models downloading
-      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public )" ]; then
           echo "Public models not downloaded correctly ❌"
@@ -95,7 +124,7 @@ jobs:
         fi
 
     - name: Verify OMZ models downloading
-      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' }}
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel )" ]; then
           echo "Open Model Zoo models not downloaded correctly ❌"
