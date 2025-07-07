@@ -59,10 +59,9 @@ jobs:
 
     - name: Download only specific model
       if: ${{ inputs.models_to_download == 'specified_model' }} 
-      env:  
-        MODEL_PATH: ${{ inputs.model_path }}
-        MODEL_NAME: ${{ inputs.model_name }}
       run: |
+        MODEL_PATH=${{ inputs.model_path }}
+        MODEL_NAME=${{ inputs.model_name }}
         export MODELS_PATH=${{ env.MODELS_PATH }}
         if [[ "$MODEL_PATH" == "public" ]]; then
           ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
