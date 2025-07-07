@@ -14,6 +14,18 @@ on:
           - all
           - public
           - omz
+          - specified_model
+      model_name:
+        description: 'What model do you want to download?'
+        required: false
+        type: string
+      model_path:
+        description: 'Where do you want to download your specific model?'
+        required: false
+        type: choice
+        options:
+          - public
+          - omz
 
 permissions: {}
 env:
@@ -47,6 +59,38 @@ jobs:
           libraries/dl-streamer/samples/download_omz_models.sh
           libraries/dl-streamer/samples/models_omz_samples.lst
         sparse-checkout-cone-mode: false
+
+    - name: Download only specific model
+      if: ${{ inputs.models_to_download == 'specified_model' }} 
+      run: |
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        if [ ${{ inputs.model_path == 'public' }} ]; then
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh ${{ inputs.model_name }} coco128
+          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public/${{ inputs.model_name }} )" ]; then
+            echo "${{ inputs.model_name }} model not downloaded correctly ❌"
+            echo "${{ inputs.model_name }} model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "${{ inputs.model_name }} model downloaded correctly ✅"
+            echo "${{ inputs.model_name }} model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
+          fi
+        elif [ ${{ inputs.model_path == 'omz' }} ]; then
+          mkdir -p .virtualenvs/dlstreamer
+          python3 -m venv .virtualenvs/dlstreamer
+          source .virtualenvs/dlstreamer/bin/activate
+          pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
+          export MODELS_PATH=${{ env.MODELS_PATH }}
+          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh ${{ inputs.model_name }}
+          deactivate
+          if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel/${{ inputs.model_name }} )" ]; then
+            echo "${{ inputs.model_name }} model not downloaded correctly ❌"
+            echo "${{ inputs.model_name }} model not downloaded correctly ❌"❌" >> $GITHUB_STEP_SUMMARY
+            exit 1
+          else
+            echo "${{ inputs.model_name }} model downloaded correctly ✅"
+            echo "${{ inputs.model_name }} model downloaded correctly ✅" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
 
     - name: Prepare directory for public models
       if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule' }}
