@@ -1,16 +1,19 @@
 import os
 import gc
+import shutil
 import subprocess
 from concurrent.futures import ThreadPoolExecutor
 from enum import Enum
 from typing import List, Optional, TypedDict
-from fastapi import FastAPI, Header, HTTPException
+from fastapi import FastAPI, HTTPException, Depends
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, ValidationError
 from huggingface_hub import snapshot_download
 from .logger import logger
 
-app = FastAPI(root_path="/api/v1",title="Model Download Service", version="1.0.0")
+app = FastAPI(root_path="/api/v1", title="Model Download Service", version="1.0.0")
+auth_token = HTTPBearer(auto_error=False)
 
 # Add CORS middleware
 app.add_middleware(
@@ -47,6 +50,7 @@ class ModelResult(TypedDict):
 
 class ModelRequest(BaseModel):
     name: str
+    hub: str
     type: Optional[str] = None
     is_ovms: bool = False
     revision: Optional[str] = None
@@ -60,33 +64,36 @@ class ModelDownloadRequest(BaseModel):
     parallel_downloads: Optional[bool] = False
 
 @app.post("/models/download")
-async def download_huggingface_models(
+async def download_models(
     request: ModelDownloadRequest,
     download_path: str = "models",
-    Authorization: str = Header(...)
+    Authorization: Optional[HTTPAuthorizationCredentials] = Depends(auth_token)
 ):
     """
-    Unified endpoint to download one or more models from Hugging Face.
+    Unified endpoint to download one or more models from Hugging Face or Ollama.
 
     Args:
         request: ModelDownloadRequest containing models to download and configuration
         download_path: Base directory for model downloads
-        Authorization: Hugging Face API token
+        Authorization: Hugging Face API token (required only for Hugging Face models)
 
     Returns:
         dict: Response containing download status and results for each model
 
     Raises:
-        HTTPException: 
-            - 401: If authorization token is missing or invalid
+        HTTPException:
+            - 401: If authorization token is missing for Hugging Face models
             - 422: If request validation fails
             - 400: If model download process fails
     """
     try:
-        if not Authorization:
+        # Check if Authorization is required (only for Hugging Face models)
+        huggingface_models = [model for model in request.models if model.hub == "huggingface"]
+
+        if huggingface_models and (not Authorization or not Authorization.credentials):
             raise HTTPException(
                 status_code=401,
-                detail="Authorization token is required"
+                detail="Authorization token is required for Hugging Face models"
             )
 
         # Log download request details with configuration
@@ -99,7 +106,11 @@ async def download_huggingface_models(
                     lambda model: download_and_process_model(
                         model=model,
                         model_path=download_path,
-                        hf_token=Authorization
+                        hf_token=(Authorization.credentials if Authorization else None)
+                    ) if model.hub == "huggingface" else 
+                    download_ollama_model(
+                        model=model,
+                        model_path=download_path
                     ),
                     request.models
                 ))
@@ -149,7 +160,7 @@ async def download_huggingface_models(
             detail=f"Unexpected error in model download process: {str(e)}"
         )
 
-def download_and_process_model(model: ModelRequest, model_path: str, hf_token: str) -> ModelResult:
+def download_and_process_model(model: ModelRequest, model_path: str, hf_token: Optional[str]) -> ModelResult:
     """
     Download a model from Hugging Face and optionally convert it to OVMS format
     
@@ -167,7 +178,17 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: s
     """
     try:
         logger.info(f"Starting download for model: {model.name}")
-        
+
+        # Validate that HF token is provided for Hugging Face models
+        if model.hub == "huggingface" and not hf_token:
+            return ModelResult(
+                status="error",
+                model_name=model.name,
+                model_path=None,
+                error="Hugging Face token is required for Hugging Face models",
+                is_ovms=None
+            )
+
         # Create model-specific directory
         model_specific_path = os.path.join(model_path, model.name.replace('/', '_'))
         try:
@@ -269,10 +290,81 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: s
             is_ovms=None
         )
 
+    finally:
+        cleanup_model_directory(model_specific_path)
+
+def download_ollama_model(model: str, model_path: str) -> ModelResult:
+    """
+    Download a model from Ollama.
+
+    Args:
+        model (str): The name of the Ollama model to download.
+        model_path: Base path for model downloads
+
+    Returns:
+        ModelResult: Result containing the status and details of the model processing.
+
+    Raises:
+        OSError: If directory creation fails
+        HTTPException: If model download fails
+    """
+    import time
+
+    try:
+        # Create model-specific directory
+        model_specific_path = os.path.join(model_path, model.name.replace("/", "_"))
+        os.environ["OLLAMA_MODELS"] = model_specific_path
+
+        logger.info(f"Directory for Ollama model: {model_specific_path}")
+        try:
+            os.makedirs(model_specific_path, exist_ok=True)
+        except OSError as e:
+            logger.error(f"Failed to create directory {model_specific_path}: {str(e)}")
+            return ModelResult(
+                status="error",
+                model_name=model.name,
+                model_path=None,
+                error=f"Failed to create model directory: {str(e)}",
+                is_ovms=None,
+            )
+
+        logger.info("Starting ollama server")
+        process = subprocess.Popen(["ollama", "serve"])
+
+        # Sleep for 1 second to allow the server to be start
+        time.sleep(1)
+
+        logger.info(f"Starting download for Ollama model: {model.name}")
+        subprocess.run(["ollama", "pull", model.name], check=True)
+        logger.info(f"Ollama model {model} downloaded successfully.")
+
+        return ModelResult(
+            status="success",
+            model_name=model.name,
+            model_path=model_specific_path,
+            error=None,
+            is_ovms=model.is_ovms,
+        )
+
+    except subprocess.CalledProcessError as e:
+        logger.error(f"Failed to download Ollama model {model}: {str(e)}")
+        return ModelResult(
+            status="error",
+            model_name=model.name,
+            model_path=None,
+            error=f"Failed to download Ollama model: {str(e)}",
+            is_ovms=False
+        )
+
+    finally:
+        logger.info("Stopping ollama server")
+        process.terminate()
+        cleanup_model_directory(model_specific_path)
+
 def convert_to_ovms_format(
     model_name: str,
     weight_format: str,
-    huggingface_token: str,
+    huggingface_token: Optional[str],
     model_type: str,
     target_device: str,
     model_directory: str,
@@ -308,6 +400,13 @@ def convert_to_ovms_format(
     export_type = export_type_map[model_type]
 
     try:
+        # Validate that HF token is provided for OVMS conversion
+        if not huggingface_token:
+            raise HTTPException(
+                status_code=401,
+                detail="Hugging Face token is required for OVMS conversion"
+            )
+
         # Step 1: Log in to Hugging Face
         logger.info("Logging in to Hugging Face...")
         result = subprocess.run(["huggingface-cli", "login", "--token", huggingface_token])
@@ -330,7 +429,8 @@ def convert_to_ovms_format(
 
         # Step 3: Export the model
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
-        #models directory
+
+        # models directory
         os.makedirs(model_directory, exist_ok=True)
         
         # Build command with base arguments
@@ -365,3 +465,17 @@ def convert_to_ovms_format(
             status_code=500,
             detail=f"Unexpected error during model conversion: {str(e)}"
         )
+
+def cleanup_model_directory(model_dir_path: str):
+    subdirs = [
+        os.path.join(model_dir_path, d) 
+        for d in os.listdir(model_dir_path) 
+        if os.path.isdir(os.path.join(model_dir_path, d))
+    ]
+    if not os.listdir(model_dir_path) or all(not os.listdir(d) for d in subdirs):
+        try:
+            logger.warning(f"No files found in the directory {model_dir_path}. Removing empty directory.")
+            shutil.rmtree(model_dir_path)
+
+        except OSError as e:
+            logger.error(f"Failed to remove empty directory {model_dir_path}: {str(e)}")

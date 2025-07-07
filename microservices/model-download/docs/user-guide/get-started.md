@@ -51,11 +51,13 @@ Authorization: your_hugging_face_token
 Downloads one or more models from Hugging Face and optionally converts them to OVMS format.
 
 **Request Body:**
+If the model is present in HuggingFace hub
 ```json
 {
   "models": [
     {
       "name": "microsoft/Phi-3.5-mini-instruct",
+      "hub": "huggingface",
       "type": "llm",
       "is_ovms": true,
       "ovms_config": {
@@ -69,8 +71,23 @@ Downloads one or more models from Hugging Face and optionally converts them to O
 }
 ```
 
+If the model is present in Ollama hub (OVMS support not available yet for Ollama models)
+```json
+{
+  "models": [
+    {
+      "name": "tinyllama",
+      "hub": "ollama",
+      "type": "llm",
+    }
+  ],
+  "parallel_downloads": false
+}
+```
+
 **Parameters:**
 - `name` (required): The name/ID of the Hugging Face model
+- `hub` (required): The model hub to download from (Options - huggingface or ollama)
 - `type`: Model type (e.g., llm, embeddings, rerank)
 - `is_ovms`: Whether to convert the model to OVMS format (default: false)
 - `ovms_config`: Configuration for OVMS conversion

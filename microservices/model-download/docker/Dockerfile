@@ -17,6 +17,9 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 # Add Poetry to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
+# Install Ollama
+RUN curl -fsSL https://ollama.com/install.sh | sh
+
 # Copy only the Poetry configuration files first to leverage Docker caching
 COPY pyproject.toml poetry.lock /app/
 

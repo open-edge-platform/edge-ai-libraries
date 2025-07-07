@@ -2,9 +2,9 @@ openapi: 3.0.0
 info:
   title: Model Download Service API
   description: |
-    API for downloading and converting models from Hugging Face to OVMS format.
-    This service provides endpoints to download models and optionally convert them
-    to OpenVINO Model Server (OVMS) format.
+    API for downloading and converting models from HuggingFace or Ollama to OVMS format.
+    This service provides endpoints to download models and optionally convert them to 
+    OpenVINO Model Server (OVMS) format (conversion of Ollama models to OVMS is not yet supported).
   version: 1.0.0
   contact:
     name: Intel GenAI Team
@@ -52,6 +52,9 @@ components:
         name:
           type: string
           description: The name/ID of the Hugging Face model
+        hub:
+          type: string
+          description: The model hub to download from (Options - huggingface or ollama)
         type:
           type: string
           description: The type of the model (e.g., llm, embeddings, rerank)
@@ -140,9 +143,10 @@ paths:
     post:
       summary: Download and optionally convert models
       description: |
-        Downloads one or more models from Hugging Face and optionally converts them
-        to OVMS format. Supports parallel downloads and custom configurations.
-      operationId: downloadHuggingFaceModels
+        Downloads one or more models from HuggingFace or Ollama and optionally converts them
+        to OVMS format (conversion of Ollama models to OVMS is not yet supported). Supports 
+        parallel downloads and custom configurations.
+      operationId: downloadModels
       security:
         - ApiKeyAuth: []
       parameters:
@@ -161,6 +165,7 @@ paths:
             example:
               models:
                 - name: microsoft/Phi-3.5-mini-instruct
+                  hub: huggingface
                   type: llm
                   is_ovms: true
                   ovms_config:
