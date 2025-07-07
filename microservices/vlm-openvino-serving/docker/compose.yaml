@@ -22,6 +22,7 @@ services:
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
       VLM_MAX_COMPLETION_TOKENS: ${VLM_MAX_COMPLETION_TOKENS}
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
