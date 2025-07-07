@@ -6,7 +6,7 @@
 
 # ==============================================================================
 # Build flow:
-#                ubuntu:24.04
+#                 fedora:41
 #                     |
 #                     |
 #                     V
@@ -262,10 +262,13 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 WORKDIR /
 
 RUN \
-    wget -q --no-check-certificate -O opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip && \
+    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip && \
+    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.6.0.zip && \
     unzip opencv.zip && \
-    rm opencv.zip && \
-    mv opencv-4.10.0 opencv && \
+    unzip opencv_contrib.zip && \
+    rm opencv.zip opencv_contrib.zip && \
+    mv opencv-4.6.0 opencv && \
+    mv opencv_contrib-4.6.0 opencv_contrib && \
     mkdir -p opencv/build
 
 WORKDIR /opencv/build
@@ -276,6 +279,7 @@ RUN \
     -DBUILD_PERF_TESTS=OFF \
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_opencv_apps=OFF \
+    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
     -GNinja .. && \
     ninja -j "$(nproc)" && \
     ninja install
@@ -397,7 +401,13 @@ RUN \
     mkdir -p /${RPM_PKG_NAME}/opt/opencv/include && \
     mkdir -p /${RPM_PKG_NAME}/opt/rdkafka && \
     mkdir -p /${RPM_PKG_NAME}/opt/ffmpeg && \
-    cp -r "${DLSTREAMER_DIR}" /${RPM_PKG_NAME}/opt/intel/dlstreamer && \
+    mkdir -p /${RPM_PKG_NAME}/opt/dlstreamer && \
+    cp -r "${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}" /${RPM_PKG_NAME}/opt/intel/dlstreamer && \
+    cp -r "${DLSTREAMER_DIR}/samples/" /${RPM_PKG_NAME}/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/python/" /${RPM_PKG_NAME}/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/scripts/" /${RPM_PKG_NAME}/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/include/" /${RPM_PKG_NAME}/opt/intel/dlstreamer/ && \
+    cp "${DLSTREAMER_DIR}/README.md" /${RPM_PKG_NAME}/opt/intel/dlstreamer && \
     cp -rT "${GSTREAMER_DIR}" /${RPM_PKG_NAME}/opt/intel/dlstreamer/gstreamer && \
     cp -a /usr/lib64/libopencv* /${RPM_PKG_NAME}/opt/opencv/ && \
     cp -a /usr/local/lib64/libopencv* /${RPM_PKG_NAME}/opt/opencv/ && \
@@ -417,6 +427,9 @@ RUN \
     cp "${DLSTREAMER_DIR}"/docker/onebinary/fedora41/intel-dlstreamer.spec ~/rpmbuild/SPECS/ && \
     sed -i -e "s/DLSTREAMER_VERSION/${DLSTREAMER_VERSION}/g" ~/rpmbuild/SPECS/intel-dlstreamer.spec && \
     sed -i -e "s/CURRENT_DATE_TIME/$(date '+%a %b %d %Y')/g" ~/rpmbuild/SPECS/intel-dlstreamer.spec && \
+    find /${RPM_PKG_NAME}/opt/intel/dlstreamer/bin -type f ! -name "liblibrarymock1.so" ! -name "liblibrarymock2.so" ! -name "draw_face_attributes" -exec rm -f {} + && \
+    find /${RPM_PKG_NAME}/opt/intel/dlstreamer/bin -type d -empty -delete && \
+    find /${RPM_PKG_NAME}/opt/intel -name "*.a" -delete && \
     rpmbuild -bb ~/rpmbuild/SPECS/intel-dlstreamer.spec
 
 RUN cp ~/rpmbuild/RPMS/x86_64/${RPM_PKG_NAME}* "/${RPM_PKG_NAME}.${DLSTREAMER_BUILD_NUMBER}-1.fc41.x86_64.rpm"
@@ -454,12 +467,12 @@ RUN \
     chmod -R u+rw /opt
 
 ENV LIBVA_DRIVER_NAME=iHD
-ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
-ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
+ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
 ENV LIBVA_DRIVERS_PATH=/usr/lib64/dri-nonfree
 ENV GST_VA_ALL_DRIVERS=1
 ENV MODEL_PROC_PATH=/opt/intel/dlstreamer/samples/gstreamer/model_proc
-ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:$PATH
+ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
 ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/home/dlstreamer/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:
 ENV TERM=xterm
 ENV GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib64/girepository-1.0
