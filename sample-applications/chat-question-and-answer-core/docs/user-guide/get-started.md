@@ -52,10 +52,10 @@ By following this guide, you will learn how to:
     export REGISTRY="intel/"
     export UI_TAG=core_1.1.2
     # If you prefer to use the default CPU device, set the following:
-    export BACKEND_TAG=core_1.2.0
+    export BACKEND_TAG=core_1.2.1
     # If you want to utilize GPU device for inferencing, set the following:
     # Note: This image also supports CPU devices.
-    export BACKEND_TAG=core_gpu_1.2.0
+    export BACKEND_TAG=core_gpu_1.2.1
     ```
     Skip this step if you prefer to build the sample application from source. For detailed instructions, refer to **[How to Build from Source](./build-from-source.md)** guide for details.
 
