@@ -1205,6 +1205,21 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 None,
                                 pipeline_image,
                             ).then(
+                                lambda: [
+                                    gr.Dropdown(
+                                        choices=current_pipeline[1]["parameters"]["inference"]["detection_models"],
+                                        value=current_pipeline[1]["parameters"]["inference"]["detection_model_default"],
+                                    ),
+                                    gr.Dropdown(
+                                        choices=current_pipeline[1]["parameters"]["inference"]["classification_models"],
+                                        value=current_pipeline[1]["parameters"]["inference"]["classification_model_default"],
+                                    )
+                                ],
+                                outputs=[
+                                    object_detection_model,
+                                    object_classification_model,
+                                ]
+                            ).then(
                                 # Clear output components here
                                 lambda: [
                                     gr.update(value=""),
