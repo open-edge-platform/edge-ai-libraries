@@ -6,5 +6,8 @@ metadata:
   classname: Transportation2Pipeline
   enabled: false
 parameters:
+  run:
+    recording_channels: false
   benchmark:
+    ai_stream_rate: false
     result_format: "Best Config: {ai} AI streams -> {fps:.2f} FPS"
