@@ -1,9 +1,6 @@
 name: "[DLS] [U22/24] Build dev imgs and run Unit Tests"
 run-name: "[DLS] [U22/24] Build dev imgs and run Unit Tests(by ${{ github.actor }})"
 on:
-  push:
-    branches:
-      - 'nsz-unit'
   workflow_call:
   workflow_dispatch:
 permissions: {}
@@ -13,8 +10,8 @@ env:
 
 jobs:
   build:
-    name: Build dev ${{ matrix.ubuntu_version }} imgs
-    runs-on: TGL
+    name: Build dev ${{ matrix.ubuntu_version }} imgs and run unit
+    runs-on: dls
     permissions:
       contents: read
       packages: read
@@ -60,7 +57,6 @@ jobs:
       run: |
         docker buildx build \
           --load \
-          --no-cache \
           --target dlstreamer-dev \
           --tag "${dev_debug_img}" \
           --cache-from="${dev_debug_img_cached}" \
@@ -126,11 +122,6 @@ jobs:
         mkdir -p ${RESULTS_DIR}
         chmod -R 777 ${RESULTS_DIR}
 
-    - name: Show scripts directory
-      run: |
-        ls -a $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts
-        chmod +x $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts/run_unit_tests.sh
-
     - name: Run tests
       id: run-tests
       env:
@@ -181,4 +172,4 @@ jobs:
       if: always ()
       env:
         RESULTS_DIR: test-results
-      run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo  
+      run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo
