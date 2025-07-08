@@ -1,6 +1,8 @@
 import logging
 import os
 from datetime import datetime
+import time
+import threading
 
 import gradio as gr
 import pandas as pd
@@ -582,7 +584,111 @@ def generate_stream_data(i, timestamp_ns=None):
     return fig
 
 
+def log_output_file_status_periodically(video_output_path, duration=30):
+    logger = logging.getLogger("app")
+    start_time = time.time()
+    time.sleep(2)  # Wait 2 seconds after Run
+    while time.time() - start_time < duration:
+        exists = os.path.exists(video_output_path)
+        size = os.path.getsize(video_output_path) if exists else 0
+        logger.info(f"[Live Preview] Output file: {video_output_path}, exists={exists}, size={size} bytes")
+        time.sleep(0.5)
+
+
+def poll_for_output_file(video_output_path, max_wait_sec=30):
+    """
+    Poll every 100ms for up to max_wait_sec seconds until the file exists and size > 0.
+    Return a gr.update for output_video_player if ready, else None.
+    """
+    logger = logging.getLogger("app")
+    waited = 0
+    while waited < max_wait_sec:
+        exists = os.path.exists(video_output_path)
+        size = os.path.getsize(video_output_path) if exists else 0
+        logger.info(f"[Live Preview] Output file: {video_output_path}, exists={exists}, size={size} bytes")
+        if exists and size > 0:
+            return gr.update(value=video_output_path, autoplay=True, show_download_button=False)
+        time.sleep(0.1)
+        waited += 0.1
+    logger.warning(f"[Live Preview] Output file not ready after {max_wait_sec}s: {video_output_path}")
+    return gr.update(value=None)
+
+def poll_for_output_file_and_return(video_output_path, max_wait_sec=30):
+    """
+    Poll every 100ms for up to max_wait_sec seconds until the file exists and size > 0.
+    Return a gr.update for output_video_player if ready, else None.
+    """
+    logger = logging.getLogger("app")
+    if not video_output_path or not isinstance(video_output_path, str):
+        logger.warning(f"[Live Preview] Output file path is invalid: {video_output_path!r}")
+        return gr.update(value=None)
+    waited = 0
+    while waited < max_wait_sec:
+        exists = os.path.exists(video_output_path)
+        size = os.path.getsize(video_output_path) if exists else 0
+        logger.info(f"[Live Preview] Output file: {video_output_path}, exists={exists}, size={size} bytes")
+        if exists and size > 0:
+            logger.info(f"[Live Preview] File ready, showing in player: {video_output_path}")
+            return gr.update(value=video_output_path, autoplay=True, show_download_button=False)
+        time.sleep(0.1)
+        waited += 0.1
+    logger.warning(f"[Live Preview] Output file not ready after {max_wait_sec}s: {video_output_path}")
+    return gr.update(value=None)
+
+
+def log_output_file_status_until_ready(video_output_path):
+    """
+    Log every 100ms whether the output file exists and its size.
+    Stop when the file exists and size > 0.
+    """
+    logger = logging.getLogger("app")
+    while True:
+        exists = os.path.exists(video_output_path)
+        size = os.path.getsize(video_output_path) if exists else 0
+        logger.info(f"[Live Preview] Output file: {video_output_path}, exists={exists}, size={size} bytes")
+        if exists and size > 0:
+            break
+        time.sleep(0.1)
+
+
+def poll_for_output_file_async(video_output_path, output_video_player):
+    """
+    Poll every 100ms asynchronously until the file exists and size > 0.
+    When ready, update the output_video_player using gradio's .update.
+    """
+    logger = logging.getLogger("app")
+    logger.info(f"[Live Preview] output_video_player type: {type(output_video_player)}")
+    waited = 0
+    max_wait_sec = 30
+    while waited < max_wait_sec:
+        exists = os.path.exists(video_output_path)
+        size = os.path.getsize(video_output_path) if exists else 0
+        logger.info(f"[Live Preview] Output file: {video_output_path}, exists={exists}, size={size} bytes")
+        if exists and size > 0:
+            logger.info(f"[Live Preview] File ready, showing in player: {video_output_path}")
+            logger.info(f"[Live Preview] output_video_player type at update: {type(output_video_player)}")
+            try:
+                gr.update(value=video_output_path, autoplay=True, show_download_button=False)
+            except Exception as e:
+                logger.error(f"[Live Preview] Could not update output_video_player: {e}")
+            break
+        time.sleep(0.1)
+        waited += 0.1
+    if waited >= max_wait_sec:
+        logger.warning(f"[Live Preview] Output file not ready after {max_wait_sec}s: {video_output_path}")
+
+
 def on_run(data):
+    ovp = None
+    # Log all elements in data with their type and value
+    logger = logging.getLogger("on_run")
+    logger.info("Dumping all elements from data:")
+    for idx, element in enumerate(data):
+        logger.info(f"data[{idx}] type={type(element)} value={element}")
+        component_id = element.elem_id
+        if component_id and component_id == "output_video_player":
+            ovp = element
+            logger.info(f"ovp] type={type(ovp)} value={ovp}")
 
     arguments = {}
 
@@ -591,7 +697,29 @@ def on_run(data):
         if component_id:
             arguments[component_id] = data[component]
 
+    # Log all elements in arguments with their component_id, type and value
+    logger.info("Dumping all elements from arguments:")
+    for component_id, value in arguments.items():
+        logger.info(f"arguments['{component_id}']: type={type(value)} value={value}")
+
     video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+
+    # Extract output_video_player by name and cast to gr.Video
+    # ovp = arguments["output_video_player"]
+    logging.info(f"[Live Preview] output_video_player type before cast: {type(ovp)}")
+    if not isinstance(ovp, gr.Video):
+        # Try to find the gr.Video instance among globals (fallback)
+        ovp = None
+        for v in arguments.values():
+            if isinstance(v, gr.Video):
+                ovp = v
+                break
+    logging.info(f"[Live Preview] output_video_player type after cast: {type(ovp)}")
+
+    # Start polling for the file asynchronously, so UI is not blocked
+    def start_async_poll():
+        poll_for_output_file_async(video_output_path, ovp)
+    threading.Thread(target=start_async_poll, daemon=True).start()
 
     # Validate channels
     if arguments["recording_channels"] + arguments["inferencing_channels"] == 0:
@@ -690,7 +818,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         )
 
     output_video_player = gr.Video(
-        label="Output Video", interactive=False, show_download_button=True
+        label="Output Video", interactive=False, show_download_button=True, elem_id="output_video_player", streaming=true, autoplay=true
     )
 
     # Pipeline diagram image
