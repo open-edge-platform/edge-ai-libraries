@@ -288,3 +288,42 @@ For alternative ways to set up the sample application, see:
 ## 📚 Supporting Resources
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
+
+
+## Troubleshooting
+
+### VLM Microservice Model Loading Issues
+
+**Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
+
+**Cause**: This issue occurs when the `ov-models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
+
+**Symptoms**:
+- VLM microservice container fails to start or crashes during model loading
+- Permission denied errors in VLM service logs
+- Model conversion or caching failures
+- Error messages mentioning `/home/appuser/.cache/huggingface` or `/app/ov-model` access issues
+
+**Solution**:
+1. Stop the running application:
+   ```bash
+   source setup.sh --down
+   ```
+
+2. Remove the existing `ov-models` Docker volume:
+   ```bash
+   docker volume rm ov-models
+   ```
+
+3. Restart the application (the volume will be recreated with correct permissions):
+   ```bash
+   # For Video Summary
+   source setup.sh --summary
+   
+   # Or for Video Search
+   source setup.sh --search
+   ```
+
+**Note**: Removing the `ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+
+**Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
