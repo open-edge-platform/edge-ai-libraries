@@ -136,13 +136,44 @@ services:
     networks:
       - app_network
 
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    environment:
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+      - NO_PROXY=$no_proxy,otel-collector,localhost,127.0.0.1
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - app_network
+    volumes:
+      - loki-data:/loki
+      
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    depends_on:
+      - prometheus
+      - loki
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - app_network
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.94.0
     container_name: otel-collector
     environment:
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
-      NO_PROXY: $no_proxy,prometheus,dlstreamer-pipeline-server,localhost,127.0.0.1
+      NO_PROXY: $no_proxy,prometheus,loki,dlstreamer-pipeline-server,localhost,127.0.0.1
     ports:
       - "4317:4317"  # OTLP gRPC receiver (default for metrics)
       - "4318:4318"  # Prometheus scrape target
@@ -162,3 +193,5 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+  grafana-data:
+  loki-data:
