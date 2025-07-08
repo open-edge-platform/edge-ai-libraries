@@ -7,7 +7,7 @@ This tutorial will help you add timestamp to metadata of each frame. This tutori
 
 * Update "pipeline" variable as follows -
 ```sh
-"pipeline": "{auto_source} name=source  ! decodebin ! timecodestamper set=always ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} name=source  ! decodebin3 ! timecodestamper set=always ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 `NOTE` Make sure that proprety `set` of `timecodestamper` is set to `always`. `timecodestamper` element follows SMPTE format of storing data (hours:minutes:seconds:frames). 
