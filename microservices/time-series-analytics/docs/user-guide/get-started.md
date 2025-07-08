@@ -1,6 +1,6 @@
 # Get Started
 
--   **Time to Complete:** 30 minutes
+-   **Time to Complete all the steps in this section:** 30 minutes
 -   **Programming Language:**  Python 3
 
 ## Prerequisites
@@ -8,7 +8,7 @@
 - [System Requirements](system-requirements.md)
 
 
-### Docker Configuration
+### Configure Docker
 
 1. **Run Docker as Non-Root**: Follow the steps in [Manage Docker as a non-root user](https://docs.docker.com/engine/install/linux-postinstall/#manage-docker-as-a-non-root-user).
 2. **Configure Proxy (if required)**:
@@ -46,11 +46,10 @@
 ## How it works
 
 **Time Series Analytics Microservice** uses the User Defined Function(UDF) deployment package(TICK Scripts, UDFs, Models) which is already built-in to the container image.
-By default, we have a simple UDF python script at `edge-ai-libraries/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for
-inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25. 
+By default, there is a simple UDF python script at `edge-ai-libraries/microservices/time-series-analtyics/udfs/temperature_classifier.py` which does not use any model file for inferencing, it just does a simple check to filter the temperature points which are less than 20 OR greater than 25. 
 The corresponding tick script is available at `edge-ai-libraries/microservices/time-series-analtyics/temperature_classifier.tick`. 
 
-Directory details is as below:
+Directory details are as follows:
   
 ### **`config.json`**:
 
@@ -81,7 +80,7 @@ The `udfs` section specifies the details of the UDFs used in the task.
 **Alerts Configuration**: <Optional>
 
 The `alerts` section defines the settings for alerting mechanisms, such as MQTT protocol.
-Please note the MQTT broker needs to be available.
+Note the MQTT broker must be available.
 
 **MQTT Configuration**:
 
@@ -164,7 +163,7 @@ python3 simulator/temperature_input.py --port 5000
 
 ### Verify the Temperature Classifier Results
 
-Run below commands to see the filtered temperature results:
+Run the following command to see the filtered temperature results:
 
 
 ``` bash
@@ -174,9 +173,9 @@ docker logs -f ia-time-series-analytics-microservice
 ### Accessing the Swagger UI
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
-Please refer [API documentation](./how-to-access-api.md).
+See [API documentation](./how-to-access-api.md).
 
-## Troubleshooting
+## Check Logs - troubleshooting
 
 - Check container logs to catch any failures:
 

@@ -7,7 +7,9 @@
    Overview
 
 .. toctree::
+   :caption: How it works
 
+   high-level-arch
    system-requirements
    get-started
 

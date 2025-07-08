@@ -1,4 +1,4 @@
-# How to access Time Series Analytics Microservice API
+# Access Time Series Analytics Microservice API
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://localhost:5000/docs`.
 
@@ -11,14 +11,14 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 1. Open the Swagger UI in your browser.
 2. Locate the `GET /config` endpoint.
 3. Expand the endpoint and click **Execute**.
-4. The response will display the current configuration of the Time Series Analytics Microservice.
+The response displays the current configuration of the Time Series Analytics Microservice.
 
 ### To update the current configuration:
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /config` endpoint.
 3. Expand the endpoint, enter the new configuration in the request body, and click **Execute**.
-4. This enables dynamic configuration at runtime. The service will apply the updated configuration and start with the new configuration.
+This enables dynamic configuration at runtime. The service applies the updated configuration and start with the new configuration.
 
 > **Note:** If you restart the Time Series Analytics Microservice, it will start with the default configuration present in the `config.json` file.
 
@@ -27,7 +27,7 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 1. Open the Swagger UI in your browser.
 2. Find the `POST /input` endpoint.
 3. The input data consists of keys `topic`, `tags`(optional), `fields` and `timestamp`(optional).
-4. Below is the example configuration for `temperature_classifier` UDF input:
+Following is the example configuration for `temperature_classifier` UDF input:
 
     ```json
     {
@@ -42,13 +42,13 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
     }
     ```
 5. Expand the endpoint, enter the input data in the request body, and click **Execute**.
-6. The service will use the input for processing data.
+The service will use the input for processing data.
 
 ### To send OP CUA alerts
 
 1. Open the Swagger UI in your browser.
 2. Find the `POST /opcua_alerts` endpoint.
-3. Below is the example configuration for alert input:
+Following is the example configuration for alert input:
 
     ```json
     {
@@ -65,4 +65,4 @@ The Time Series Analytics Microservice provides an interactive Swagger UI at `ht
 1. Open the Swagger UI in your browser.
 2. Locate the `GET /health` endpoint.
 3. Expand the endpoint and click **Execute**.
-4. The response will display the current status of Kapacitor daemon of the Time Series Analytics Microservice.
+The response displays the current status of Kapacitor daemon of the Time Series Analytics Microservice.
