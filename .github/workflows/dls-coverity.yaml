@@ -119,7 +119,7 @@ jobs:
           sudo gpg --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
           echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list
           sudo apt update
-          sudo apt install openvino-2025.1.0
+          sudo apt install openvino-2025.2.0
 
           echo "Install metapublish dependencies"
           cd libraries/dl-streamer
