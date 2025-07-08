@@ -91,11 +91,12 @@ jobs:
           sudo env PATH="$PWD/../python3venv/bin:$PATH" meson install -C build/
           cd ..
 
-          echo "Install metapublish dependencies"
-          cd libraries/dl-streamer
-          sudo ./scripts/install_dependencies/install_openvino.sh
-          sudo -E /opt/intel/openvino_2025/install_dependencies/install_openvino_dependencies.sh
-          source /opt/intel/openvino_2025/setupvars.sh
+          echo "Install OpenVINO"
+          echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | tee /etc/apt/sources.list.d/intel-openvino-2025.list
+          curl -sSL -O https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo apt-get update && sudo apt-get install --no-install-recommends -y openvino-2025.1.0
+          sudo apt-get clean
 
       - name: Download Coverity Scan Tool
         run: |
