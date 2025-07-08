@@ -20,7 +20,7 @@ By following this guide, you will learn how to:
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
-- Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
+- Install Docker Compose : `Required version 2.33` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
 
 <!--
