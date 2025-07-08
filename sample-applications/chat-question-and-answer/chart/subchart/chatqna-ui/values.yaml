@@ -13,7 +13,7 @@ chatqnaui:
   service:
     type: ClusterIP
     port: 80
-    targetPort: 80
+    targetPort: 8101
   env:
     APP_ENDPOINT_URL: "/v1/chatqna"
     APP_DATA_PREP_URL: "/v1/dataprep"
