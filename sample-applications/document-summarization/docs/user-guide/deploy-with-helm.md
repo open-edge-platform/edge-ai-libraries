@@ -89,7 +89,7 @@ helm dependency build
 Deploy the OVMS Helm chart:
 
 ```bash
-helm install document-summarization . --debug -n <your-namespace>
+helm install document-summarization . -n <your-namespace>
 ```
 **Note:** When deploying OVMS, the OVMS service is observed to take more time than other model serving due to model conversion time.
 
