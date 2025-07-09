@@ -3,6 +3,11 @@ import sys
 import rclpy
 from rclpy.node import Node
 from std_msgs.msg import String
+import json
+import base64
+import cv2
+import numpy as np
+import re
 
 class SimpleSubscriber(Node):
     def __init__(self, topic_name):
@@ -14,10 +19,36 @@ class SimpleSubscriber(Node):
             self.listener_callback,
             10
         )
+        self.counter = 0
+        # clean topic name for filename (remove /)
+        self.topic_safe = re.sub(r'[^a-zA-Z0-9_]', '_', topic_name)
         print(f"Subscribed to topic: {topic_name}")
 
     def listener_callback(self, msg):
-        print(f"On topic {self.topic_name}, received message: {msg.data}")
+        try:
+            data = json.loads(msg.data)
+
+            metadata = data.get("metadata", {})
+            print(f"Metadata on topic {self.topic_name}: {metadata}")
+
+            image_b64 = data.get("blob", "")
+            if image_b64:
+                img_bytes = base64.b64decode(image_b64)
+                np_arr = np.frombuffer(img_bytes, np.uint8)
+                img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                
+                if img is not None:
+                    filename = f"{self.topic_safe}_{self.counter}.jpg"
+                    cv2.imwrite(filename, img)
+                    print(f"Image from topic {self.topic_name} saved to {filename}")
+                    self.counter += 1
+                else:
+                    print("Failed to decode image.")
+            else:
+                print("No image data in message.")
+
+        except Exception as e:
+            print(f"Error on topic {self.topic_name}: {e}")
 
 def main(args=None):
     rclpy.init(args=args)
