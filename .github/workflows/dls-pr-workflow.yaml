@@ -65,12 +65,12 @@ jobs:
     uses: ./.github/workflows/dls-coverity.yaml
     secrets: inherit
 
-  build-dev-images:
+  build-dev-images-and-run-unit-tests:
     permissions:
       contents: read
       packages: read
-    name: BUILD dev imgs
-    uses: ./.github/workflows/dls-build-dev-docker-images.yaml
+    name: BUILD dev imgs & run unit tests
+    uses: ./.github/workflows/dls-build-dev-docker-images-and-run-unit.yaml
 
   build-and-test-deb-and-deb_img:
     permissions:
@@ -128,11 +128,8 @@ jobs:
             path: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
             output: reports/dlstreamer_ubuntu24.json
           - name: dlstreamer_fedora41
-            path: libraries/dl-streamer/docker/fedora41/dlstreamer_fedora41.Dockerfile
+            path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
             output: reports/dlstreamer_fedora41.json
-          - name: dlstreamer_dev_fedora41
-            path: libraries/dl-streamer/docker/fedora41/dlstreamer_dev_fedora41.Dockerfile
-            output: reports/dlstreamer_dev_fedora41.json
           - name: dlstreamer-testing-ubuntu
             path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
             output: reports/dlstreamer-testing-ubuntu.json
