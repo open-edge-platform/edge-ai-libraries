@@ -40,11 +40,11 @@ Key components of the **Edge AI Libraries**:
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
-Please visit each library/microservice/tool/sample sub-directory for respective **Getting Started**, **Build** instructions and **Development** guides.
+Visit each library, microservice, tool, or sample sub-directory for the respective **Getting Started**, **Build** instructions and **Development** guides.
 
 ## More Sample Applications
 
-Please visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
+Visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
 
 ## Contribute
 
