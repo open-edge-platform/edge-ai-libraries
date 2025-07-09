@@ -1,34 +1,43 @@
-import structlog
 from .config import Settings
+from typing import Optional
+import logging
+import sys
 
 config = Settings()
 
-
-def add_service_name(_, __, event_dict):
+def initialize_logger(name: Optional[str] = None) -> logging.Logger:
     """
-    Adds custom processors to add the service name to the event dictionary.
-
+    Initializes and returns a logger with a specific configuration.
+    If a logger with the given name does not already have handlers, this function sets up a stream handler
+    that outputs to stdout, with a formatter that includes timestamp, logger name, filename, line number,
+    log level, and message. The log level is set to DEBUG if config.DEBUG is True, otherwise INFO.
     Args:
-        _ (Any): Placeholder for the first argument, not used.
-        __ (Any): Placeholder for the second argument, not used.
-        event_dict (dict): The event dictionary to which the service name will be added.
-
+        name (Optional[str]): The name of the logger. If None, uses the module's __name__.
     Returns:
-        dict: The updated event dictionary with the service name added.
+        logging.Logger: The configured logger instance.
     """
 
-    event_dict["service_name"] = config.APP_DISPLAY_NAME
-    return event_dict
+    logger_name = name if name else __name__
+    logger = logging.getLogger(logger_name)
+
+    if not logger.handlers:
+        log_level = logging.DEBUG if config.DEBUG else logging.INFO
+        logger.setLevel(log_level)
+
+        handler = logging.StreamHandler(sys.stdout)
+        handler.setLevel(log_level)
+
+        formatter = logging.Formatter(
+            '%(asctime)s - %(name)s - %(filename)s:%(lineno)d - %(levelname)s - %(message)s',
+            datefmt='%Y-%m-%d %H:%M:%S'
+        )
+
+        handler.setFormatter(formatter)
+
+        logger.addHandler(handler)
+
+    return logger
 
 
-# Configure structlog
-structlog.configure(
-    processors=[
-        structlog.processors.TimeStamper(fmt="iso"),
-        add_service_name,
-        structlog.processors.JSONRenderer(),
-    ]
-)
-
-# Create logger
-logger = structlog.get_logger()
+# Optional: create a default logger instance for convenience
+logger = initialize_logger(config.APP_DISPLAY_NAME)

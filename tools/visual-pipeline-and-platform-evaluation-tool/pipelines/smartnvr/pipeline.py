@@ -28,8 +28,9 @@ class SmartNVRPipeline(GstPipeline):
             "h264parse ! "
             "mp4mux ! "
             "filesink "
-            "  location={VIDEO_OUTPUT_PATH} "
+            "  location={VIDEO_OUTPUT_PATH} async=false "
         )
+
 
         self._recording_stream = (
             "filesrc "
@@ -37,34 +38,30 @@ class SmartNVRPipeline(GstPipeline):
             "qtdemux ! "
             "h264parse ! "
             "tee name=t{id} ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "queue2 ! "
             "mp4mux ! "
             "filesink "
             "  location=/tmp/stream{id}.mp4 "
             "t{id}. ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "queue2 ! "
             "{decoder} ! "
-            "gvafpscounter starting-frame=1000 ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
-            "{postprocessing} ! "
-            "video/x-raw,width=640,height=360 ! "
-            "comp.sink_{id} "
+            "gvafpscounter starting-frame=500 ! "
         )
 
-        self._inference_stream = (
+        self._inference_stream_decode_detect_track = (
             "filesrc "
             "  location={VIDEO_PATH} ! "
             "qtdemux ! "
             "h264parse ! "
             "tee name=t{id} ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "queue2 ! "
             "mp4mux ! "
             "filesink "
             "  location=/tmp/stream{id}.mp4 "
             "t{id}. ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
+            "queue2 ! "
             "{decoder} ! "
-            "gvafpscounter starting-frame=1000 ! "
+            "gvafpscounter starting-frame=500 ! "
             "gvadetect "
             "  {detection_model_config} "
             "  model-instance-id=detect0 "
@@ -73,16 +70,13 @@ class SmartNVRPipeline(GstPipeline):
             "  batch-size={object_detection_batch_size} "
             "  inference-interval={object_detection_inference_interval} "
             "  nireq={object_detection_nireq} ! "
-            "queue2 "
-            "  max-size-buffers=0 "
-            "  max-size-bytes=0 "
-            "  max-size-time=0 ! "
+            "queue2 ! "
             "gvatrack "
             "  tracking-type=short-term-imageless ! "
-            "queue2 "
-            "  max-size-buffers=0 "
-            "  max-size-bytes=0 "
-            "  max-size-time=0 ! "
+            "queue2 ! "
+        )
+
+        self._inference_stream_classify = (
             "gvaclassify "
             "  {classification_model_config} "
             "  model-instance-id=classify0 "
@@ -92,11 +86,10 @@ class SmartNVRPipeline(GstPipeline):
             "  inference-interval={object_classification_inference_interval} "
             "  nireq={object_classification_nireq} "
             "  reclassify-interval={object_classification_reclassify_interval} ! "
-            "queue2 "
-            "  max-size-buffers=0 "
-            "  max-size-bytes=0 "
-            "  max-size-time=0 ! "
-            "gvawatermark ! "
+            "queue2 ! "
+        )
+
+        self._inference_stream_metadata_processing = (
             "gvametaconvert "
             "  format=json "
             "  json-indent=4 "
@@ -104,7 +97,13 @@ class SmartNVRPipeline(GstPipeline):
             "gvametapublish "
             "  method=file "
             "  file-path=/dev/null ! "
-            "queue2 max-size-bytes=0 max-size-time=0 ! "
+        )
+
+        self._sink_to_compositor = (
+            "queue2 "
+            "  max-size-buffers={max_size_buffers} "
+            "  max-size-bytes=0 "
+            "  max-size-time=0 ! "
             "{postprocessing} ! "
             "video/x-raw,width=640,height=360 ! "
             "comp.sink_{id} "
@@ -240,18 +239,15 @@ class SmartNVRPipeline(GstPipeline):
                 ),
             )
 
-        # Create the compositor
-        compositor = self._compositor.format(
-            **constants,
-            sinks=sinks,
-            encoder=_encoder_element,
-            compositor=_compositor_element,
-        )
+
 
         # Create the streams
         streams = ""
 
+        # Handle inference channels
         for i in range(inference_channels):
+
+            # Handle object detection parameters and constants
             detection_model_config = (
                 f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
                 f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
@@ -262,26 +258,54 @@ class SmartNVRPipeline(GstPipeline):
                     f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
                 )
 
-            classification_model_config = (
-                f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
-            )
-
-            if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
-                classification_model_config = (
-                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                )
-
-            streams += self._inference_stream.format(
+            streams += self._inference_stream_decode_detect_track.format(
                 **parameters,
                 **constants,
                 id=i,
                 decoder=_decoder_element,
-                postprocessing=_postprocessing_element,
                 detection_model_config=detection_model_config,
-                classification_model_config=classification_model_config,
             )
 
+            # Handle object classification parameters and constants
+            # Do this only if the object classification model is not disabled or the device is not disabled
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" 
+                    or parameters["object_classification_device"] == "Disabled") :
+                classification_model_config = (
+                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                )
+
+                if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
+                    classification_model_config = (
+                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    )
+
+                streams += self._inference_stream_classify.format(
+                    **parameters,
+                    **constants,
+                    id=i,
+                    classification_model_config=classification_model_config,
+                )
+
+            # Overlay inference results on the inferenced video if enabled
+            if parameters["pipeline_watermark_enabled"]:
+                streams += "gvawatermark ! "
+            
+            streams += self._inference_stream_metadata_processing.format(
+                **parameters,
+                **constants,
+                id=i,
+            )
+
+            # sink to compositor or fake sink depending on the compose flag
+            streams += self._sink_to_compositor.format(
+                **parameters,
+                **constants,
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=0,
+            )
+        # Handle regular channels
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(
                 **parameters,
@@ -290,6 +314,21 @@ class SmartNVRPipeline(GstPipeline):
                 decoder=_decoder_element,
                 postprocessing=_postprocessing_element,
             )
+            # sink to compositor or fake sink depending on the compose flag
+            streams += self._sink_to_compositor.format(
+                **parameters,
+                **constants,
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=1,
+            )
+        # Prepend the compositor 
+        streams = self._compositor.format(
+            **constants,
+            sinks=sinks,
+            encoder=_encoder_element,
+            compositor=_compositor_element,
+        ) + streams
 
         # Evaluate the pipeline
-        return "gst-launch-1.0 -q " + compositor + " " + streams
+        return "gst-launch-1.0 -q " + streams
