@@ -191,7 +191,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_DATAPREP_UPLOAD=$VDMS_DATAPREP_ENDPOINT/videos/upload
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_PIPELINE_MANAGER_HOST:3000
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
@@ -214,16 +214,16 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 export VS_HOST_PORT=7890
 export VS_INDEX_NAME=videosearch
 export VS_WATCHER_DIR=$PWD/data
-export VS_WATCHER_DEBOUNCE_TIME=2
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=2
+export VS_DEBOUNCE_TIME=1
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
 
 # env for pipeline-manager
 export PM_HOST_PORT=3001
+export PM_PIPELINE_MANAGER_HOST=pipeline-manager
 export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
 export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
 export PM_LLM_CONCURRENT=2
@@ -539,6 +539,7 @@ elif [ "$1" = "--search" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Search services: ${NC}"
     docker volume create ov-models
     docker volume create data-prep
+    mkdir -p ${VS_WATCHER_DIR}
 
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"
