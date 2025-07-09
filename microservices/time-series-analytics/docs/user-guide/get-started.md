@@ -171,7 +171,7 @@ Run below commands to see the filtered temperature results:
 docker logs -f ia-time-series-analytics-microservice
 ```
 
-### Accessing the Swagger UI
+### Accessing the Swagger User Interface
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://<host_ip>:5000/docs`.
 Please refer [API documentation](./how-to-access-api.md).
