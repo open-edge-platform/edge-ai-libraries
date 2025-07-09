@@ -27,182 +27,39 @@ Refer to [model list](./Overview.md#models-supported) for the supported models t
 
 > **_NOTE:_** You can change the model name, model compression format, device and the number of Uvicorn workers by editing the `setup.sh` file.
 
-### Optional: Configure OpenVINO Settings
+### Optional Environment Variables
 
-Before sourcing the setup script, you can optionally export custom OpenVINO configuration. The `OV_CONFIG` parameter allows you to customize OpenVINO runtime behavior by passing configuration parameters as a JSON string:
+The VLM OpenVINO Serving microservice supports many optional environment variables for customizing behavior, performance, and logging. For complete details on all available environment variables, including examples and advanced configurations, see the [Environment Variables Guide](./environment-variables.md).
 
-```bash
-# Default latency-optimized configuration (equivalent to not setting OV_CONFIG)
-export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY"}'
-
-# Throughput-optimized configuration
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-
-# Custom configuration with multiple streams and threads
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "NUM_STREAMS": 4, "INFERENCE_NUM_THREADS": 8}'
-
-# Configuration with cache directory
-export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY", "CACHE_DIR": "/tmp/ov_cache"}'
-```
-
-For a complete list of OpenVINO configuration options, refer to the [OpenVINO Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-
-### Optional: Configure Compute Device
-
-You can specify which compute device to use for inference:
+**Quick Configuration Examples**:
 
 ```bash
-# Use CPU for inference (default)
-export VLM_DEVICE=CPU
-
-# Use GPU for inference (if available)
-export VLM_DEVICE=GPU
-
-# Use specific GPU device (if multiple GPUs available)
-export VLM_DEVICE=GPU.0
-export VLM_DEVICE=GPU.1
-
-# Use integrated GPU (Intel iGPU)
-export VLM_DEVICE=GPU.0
-
-# Use discrete GPU (Intel dGPU)
-export VLM_DEVICE=GPU.1
-```
-
-**Device Selection Guidelines:**
-
-- **CPU**: Best for development, testing, and when GPU is not available. Provides consistent performance across different systems.
-- **GPU**: Recommended for production workloads when GPU acceleration is available. Provides better performance for large models.
-- **Multi-GPU**: When multiple GPUs are available, you can specify which one to use (e.g., `GPU.0`, `GPU.1`).
-
-**Device Discovery:**
-
-To see available devices on your system, you can use the `/device` endpoint after starting the service:
-
-```bash
-# Get list of available devices
-curl --location --request GET 'http://localhost:9764/device'
-
-# Get specific device details
-curl --location --request GET 'http://localhost:9764/device/GPU'
-```
-
-> **Note**: When using GPU, the setup script automatically adjusts compression format to `int4` and sets workers to 1 for optimal GPU performance.
-
-For more details about OpenVINO device selection and configuration, refer to the [OpenVINO Inference Devices Documentation](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html).
-
-### Optional: Configure Logging Level
-
-You can control the verbosity of logs by setting the log level:
-
-```bash
-# Set to debug for detailed logging (useful for troubleshooting)
-export VLM_LOG_LEVEL=debug
-
-# Set to info for standard logging (default)
-export VLM_LOG_LEVEL=info
-
-# Set to warning for only warnings and errors
-export VLM_LOG_LEVEL=warning
-
-# Set to error for only error messages
-export VLM_LOG_LEVEL=error
-```
-
-**Log Level Details:**
-
-- `debug`: Enables detailed logging including OpenVINO debug information. Useful for troubleshooting and development. This affects both application logs and server (Gunicorn/Uvicorn) logs.
-- `info`: Standard logging level showing general operational information (default). This affects both application logs and server logs.
-- `warning`: Shows only warnings and errors. This affects both application logs and server logs.
-- `error`: Shows only error messages. This affects both application logs and server logs.
-
-> **Note**: Setting `VLM_LOG_LEVEL=debug` will also enable OpenVINO debug logging, which can be very verbose but helpful for diagnosing performance and inference issues. The log level controls both the application's internal logging and the web server's logging for consistent behavior.
-
-### Optional: Configure Access Logs
-
-You can control where HTTP access logs (including health check requests) are written:
-
-```bash
-# Send access logs to stdout (default)
-export VLM_ACCESS_LOG_FILE="-"
-
-# Disable access logs completely (recommended for production to reduce log noise)
-export VLM_ACCESS_LOG_FILE="/dev/null"
-
-# Write access logs to a specific file
-export VLM_ACCESS_LOG_FILE="/app/logs/access.log"
-```
-
-**Access Log Details:**
-
-- **Access logs** are HTTP request logs generated by the web server (Gunicorn/Uvicorn), showing requests like health checks, API calls, etc.
-- **Application logs** are logs from your Python application code, controlled by `VLM_LOG_LEVEL`
-- Health check requests (`/health` endpoint) appear in access logs regardless of your application log level
-- Setting `VLM_ACCESS_LOG_FILE="/dev/null"` is recommended for production to reduce log noise from health checks
-
-> **Note**: Access logs are separate from application logs. Even if you set `VLM_LOG_LEVEL=error`, you'll still see health check requests in access logs unless you disable them with `VLM_ACCESS_LOG_FILE="/dev/null"`.
-
-### Optional: Configure Maximum Completion Tokens
-
-You can set a limit on the maximum number of tokens to generate:
-
-```bash
-# Set maximum completion tokens to 1000
-export VLM_MAX_COMPLETION_TOKENS=1000
-
-# Set maximum completion tokens to 500 for shorter responses
-export VLM_MAX_COMPLETION_TOKENS=500
-```
-
-This parameter is useful for:
-
-- Controlling response length
-- Managing computational resources
-- Ensuring consistent output sizes
-
-### Optional: Configure Hugging Face Token
-
-For accessing gated or private models on Hugging Face Hub, you need to set your Hugging Face token:
-
-```bash
-# Set your Hugging Face token
-export HUGGINGFACE_TOKEN=hf_your_token_here
-```
-
-To obtain your Hugging Face token:
-
-1. Visit [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) and log in
-2. Create or copy your existing access token
-3. Set it using the export command above
-
-> **Note**: Only set `HUGGINGFACE_TOKEN` if you need to access gated or private models. Public models don't require authentication.
-
-### Complete Setup Example
-
-Here's a complete example showing how to configure all optional settings:
-
-```bash
-# Required: Set the model name
+# Basic CPU setup (default)
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 
-# Optional: Set compute device (CPU, GPU, GPU.0, GPU.1, etc.)
+# GPU acceleration
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 export VLM_DEVICE=GPU
 
-# Optional: Set log level (debug, info, warning, error)
-export VLM_LOG_LEVEL=info
+# Performance optimization
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
 
-# Optional: Configure OpenVINO for throughput optimization
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "NUM_STREAMS": 2}'
-
-# Optional: Set maximum completion tokens
-export VLM_MAX_COMPLETION_TOKENS=1000
-
-# Optional: Set Hugging Face token (only if needed for gated models)
-export HUGGINGFACE_TOKEN=hf_your_token_here
-
-# Run the setup script
-source setup.sh
+# Production setup with clean logging
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_LOG_LEVEL=warning
+export VLM_ACCESS_LOG_FILE="/dev/null"
 ```
+
+**Key Environment Variables**:
+
+- **VLM_DEVICE**: Set to `CPU` (default) or `GPU` for device selection
+- **OV_CONFIG**: JSON string for OpenVINO performance tuning
+- **VLM_LOG_LEVEL**: Control logging verbosity (`debug`, `info`, `warning`, `error`)
+- **VLM_MAX_COMPLETION_TOKENS**: Limit response length
+- **HUGGINGFACE_TOKEN**: Required for gated models
+
+For detailed information about each variable, configuration examples, and advanced setups, refer to the [Environment Variables Guide](./environment-variables.md).
 
 Set the environment with default values by running the following script:
 
@@ -210,100 +67,7 @@ Set the environment with default values by running the following script:
 source setup.sh
 ```
 
-The server takes the runtime values from .env file
-
-- `http_proxy`: Specifies the HTTP proxy server URL to be used for HTTP requests.
-- `https_proxy`: Specifies the HTTPS proxy server URL to be used for HTTPS requests.
-- `no_proxy_env`: A comma-separated list of domain names or IP addresses that should bypass the proxy.
-- `VLM_MODEL_NAME`: The name or path of the model to be used, e.g., `microsoft/Phi-3.5-vision-instruct`.
-- `VLM_COMPRESSION_WEIGHT_FORMAT`: Specifies the format for compression weights, e.g., `int4`.
-- `VLM_DEVICE`: Specifies the compute device to use for inference. Supported values include `CPU` (default), `GPU`, `GPU.0`, `GPU.1`, etc. When set to `GPU`, the system will automatically optimize settings for GPU inference. For multi-GPU systems, specify the device index (e.g., `GPU.0` for first GPU, `GPU.1` for second GPU). See [OpenVINO Inference Devices](https://docs.openvino.ai/2025/openvino-workflow/running-inference/inference-devices-and-modes.html) for more details.
-- `VLM_SERVICE_PORT`: The port number on which the FastAPI server will run, e.g., `9764`.
-- `TAG`[Optional]: Specifies the tag for the Docker image, e.g., `latest`.
-- `REGISTRY`[Optional]: Specifies the Docker registry URL.
-- `VLM_SEED` [Optional]: An optional environment variable used to set the seed value for deterministic behavior in the VLM inference Serving. This can be useful for debugging or reproducing results. If not provided, a random seed will be used by default.
-- `VLM_LOG_LEVEL` [Optional]: Sets the logging level for the VLM service. Accepted values are `debug`, `info`, `warning`, `error`. If not provided, defaults to `info`. When set to `debug`, it also enables detailed OpenVINO logging.
-- `VLM_MAX_COMPLETION_TOKENS` [Optional]: Sets the maximum number of tokens to generate in the completion. If not provided, the model will use its default maximum. This can be useful for controlling response length and managing computational resources.
-- `HUGGINGFACE_TOKEN` [Optional]: Required for accessing gated or private models on Hugging Face Hub. Some models require authentication to download. If not provided, only public models will be accessible.
-- `OV_CONFIG` [Optional]: A JSON string containing OpenVINO configuration parameters. Common parameters include `PERFORMANCE_HINT` (LATENCY/THROUGHPUT), `NUM_STREAMS`, `INFERENCE_NUM_THREADS`, `CACHE_DIR`, etc. If not provided, defaults to `{"PERFORMANCE_HINT": "LATENCY"}`.
-
-### Environment Variables Usage Examples
-
-#### Basic Usage (Default Settings)
-
-```bash
-# Minimal setup - only required variable
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-source setup.sh
-```
-
-#### Performance Optimization
-
-```bash
-# Configure for maximum throughput
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-source setup.sh
-```
-
-#### GPU Acceleration
-
-```bash
-# Use GPU for better performance
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_DEVICE=GPU
-source setup.sh
-```
-
-#### Multi-GPU Setup
-
-```bash
-# Use specific GPU device
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_DEVICE=GPU.0
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-source setup.sh
-```
-
-#### Response Length Control
-
-```bash
-# Limit response length
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_MAX_COMPLETION_TOKENS=500
-source setup.sh
-```
-
-#### Debug Mode Setup
-
-```bash
-# Enable debug logging for troubleshooting
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_LOG_LEVEL=debug
-source setup.sh
-```
-
-#### Gated Model Access
-
-```bash
-# Access gated models from Hugging Face
-export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
-export HUGGINGFACE_TOKEN=hf_your_token_here
-source setup.sh
-```
-
-#### Complete Configuration
-
-```bash
-# Full configuration example with GPU acceleration
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
-export VLM_DEVICE=CPU
-export VLM_LOG_LEVEL=info
-export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-export VLM_MAX_COMPLETION_TOKENS=1000
-export HUGGINGFACE_TOKEN=hf_your_token_here
-source setup.sh
-```
+> **_NOTE:_** For a complete reference of all environment variables, their descriptions, and usage examples, see the [Environment Variables Guide](./environment-variables.md).
 
 ## Quick Start with Docker
 
@@ -325,7 +89,7 @@ To run the server with GPU acceleration, follow these steps:
 
 ### 1. Configure GPU Device
 
-Configure your GPU device using the instructions in the [Configure Compute Device](#optional-configure-compute-device) section above. For GPU setup:
+Configure your GPU device using the instructions in the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration). For GPU setup:
 
 ```bash
 # For single GPU or automatic GPU selection
@@ -362,7 +126,7 @@ curl --location --request GET 'http://localhost:9764/health'
 curl --location --request GET 'http://localhost:9764/device'
 ```
 
-For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the [Configure Compute Device](#optional-configure-compute-device) section above.
+For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
 
 ## Sample CURL Commands
 
@@ -686,15 +450,16 @@ These steps will help you verify the functionality of the microservice and ensur
     - Run `docker logs {{container-name}}` to identify the issue.
     - Check if the required port is available.
 
-
 2. **Cannot Access the Microservice**:
     - Confirm the container is running:
+
       ```bash
       docker ps
       ```
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](Overview.md)
+- [Environment Variables Guide](environment-variables.md)
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)

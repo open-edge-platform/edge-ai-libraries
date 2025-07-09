@@ -22,7 +22,7 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 docker volume create ov-models
 echo "Created docker volume for the models."
 
-export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+export VLM_COMPRESSION_WEIGHT_FORMAT=${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
 # Number of uvicorn workers
 export WORKERS=${WORKERS:-1}
 
@@ -37,8 +37,8 @@ export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
-export VLM_SERVICE_PORT=9764
-export VLM_SEED=42
+export VLM_SERVICE_PORT=${VLM_SERVICE_PORT:-9764}
+export VLM_SEED=${VLM_SEED:-42}
 export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
 
 # VLM_ACCESS_LOG_FILE: Controls where Gunicorn access logs go
