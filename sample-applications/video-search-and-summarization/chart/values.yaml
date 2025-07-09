@@ -28,6 +28,7 @@ videosummaryui:
     targetPort: 80
 
 rabbitmq:
+  enabled: false
   name: rabbitmq
   fullname: rabbitmq  
   service:
@@ -47,7 +48,7 @@ minioServer:
 videoSummaryManager:
   name: videosummarybackend
   image:
-    repository: intel/pipeline-manager
+    repository: amr-fm-registry.caas.intel.com/esh-user/egai/pipeline-manager:rc4.4
     tag: 1.2.0
     pullPolicy: IfNotPresent
   service:

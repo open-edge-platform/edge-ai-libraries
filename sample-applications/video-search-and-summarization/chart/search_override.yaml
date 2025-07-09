@@ -1,3 +1,5 @@
+rabbitmq:
+  enabled: false
 multimodalembeddingms:
   enabled: true
 vdmsdataprep:

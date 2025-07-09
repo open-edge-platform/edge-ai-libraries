@@ -10,6 +10,9 @@ vdmsvectordb:
 videosearch:
   enabled: false
 
+rabbitmq:
+  enabled: true
+
 vlminference:
   enabled: true
 
