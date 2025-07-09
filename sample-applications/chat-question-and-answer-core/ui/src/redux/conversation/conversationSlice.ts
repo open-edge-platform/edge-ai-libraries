@@ -20,8 +20,10 @@ import {
   uuidv4,
 } from '../../utils/util.ts';
 import store, { RootState } from '../store.ts';
-import { NotificationSeverity } from '../../components/Notification/notify.ts';
-import { notify } from '../../components/Notification/notify.ts';
+import {
+  NotificationSeverity,
+  notify,
+} from '../../components/Notification/notify.ts';
 
 const initialState: ConversationReducer = {
   conversations: [],
@@ -140,6 +142,18 @@ export const conversationSlice = createSlice({
   },
 });
 
+const handleConnectionError = async (message?: string) => {
+  const healthStatus = await checkHealth();
+
+  if (healthStatus.status === 503) {
+    notify(
+      message ||
+        'The backend service is starting up. Please try again in a few moments.',
+      NotificationSeverity.ERROR,
+    );
+  }
+};
+
 export const fetchInitialFiles = createAsyncThunk(
   'conversation/fetchInitialFiles',
   async (_, { rejectWithValue }) => {
@@ -173,6 +187,8 @@ export const uploadFile = createAsyncThunk(
     try {
       const body = new FormData();
       body.append('files', file);
+
+      await handleConnectionError();
 
       const response = await client.post(DATA_PREP_URL, body);
 
@@ -211,6 +227,8 @@ export const removeFile = createAsyncThunk(
         throw new Error('File not found');
       }
 
+      await handleConnectionError();
+
       const response = await client.delete(
         `${DATA_PREP_URL}?document=${encodeURIComponent(fileName)}&delete_all=${deleteAll}`,
       );
@@ -245,6 +263,8 @@ export const removeAllFiles = createAsyncThunk(
       if (state.conversations.files.length === 0) {
         throw new Error('No files to delete');
       }
+
+      await handleConnectionError();
 
       const response = await client.delete(
         `${DATA_PREP_URL}?delete_all=${true}`,
@@ -297,6 +317,8 @@ export const doConversation = (conversationRequest: ConversationRequest) => {
     store.dispatch(addMessageToMessages(userPrompt));
   }
 
+  handleConnectionError().catch(console.error);
+
   let result: string = '';
   try {
     fetchEventSource(CHAT_QNA_URL, {
@@ -340,21 +362,6 @@ export const doConversation = (conversationRequest: ConversationRequest) => {
         store.dispatch(setIsGenerating(false));
         store.dispatch(setOnGoingResult(''));
 
-        (async () => {
-          const healthStatus = await checkHealth();
-          if (healthStatus.status !== 200) {
-            notify(
-              healthStatus.message ||
-                'LLM model server is not ready to accept connections. Please try after a few minutes.',
-              NotificationSeverity.ERROR,
-            );
-          } else {
-            notify(
-              err.message || 'Could not connect to backend at this moment',
-              NotificationSeverity.ERROR,
-            );
-          }
-        })();
         throw err;
       },
       onclose() {
