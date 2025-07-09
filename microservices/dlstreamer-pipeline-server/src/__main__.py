@@ -20,23 +20,13 @@ from src.model_updater import ModelRegistryClient
 from src.opentelemetry.opentelemetryexport import OpenTelemetryExporter
 
 VERSION = "3.1.0"
-EII_MODE = True if os.getenv('RUN_MODE') == "EII" else False
-
-if EII_MODE:
-    from utils import lem
 
 rest_server = None
 pipeline_server_mgr = None
-lic_handler = None
 otel_exporter = None
 
-def release_license():
-    if lic_handler is not None and (os.getenv("LICENSE_ENABLED", "").lower() == "true"):
-        lic_handler.can_exit.set()
-        lic_handler.stop()
-
 def exit_handler():
-    release_license()   # if license check enabled
+    
     global rest_server
     global pipeline_server_mgr
     global otel_exporter
@@ -76,7 +66,6 @@ def callback_func(key, _json):
     
 
 def main(cfg: PipelineServerConfig):
-    # stop the server and any threads (for etcd change scenario in eii mode)
     # define pipeline server and pipelines
     # start REST server in a new thread -> start/stop/discover pipelines
     # monitor for exceptions and handle
@@ -168,13 +157,8 @@ if __name__ == "__main__":
     
     try:
         log = get_logger(__name__)        
-        
-        if EII_MODE:
-            lic_handler = lem.LicenseHandler()
-            lic_handler.start_license_check()
-
         log.info("DL Streamer Pipeline Server version: {}".format(VERSION))
-        cfg = PipelineServerConfig(mode=EII_MODE, watch_cb=callback_func, watch_file_cbfunc=watch_file_cbfunc)
+        cfg = PipelineServerConfig(watch_cb=callback_func, watch_file_cbfunc=watch_file_cbfunc)
         main(cfg)
         while True:
             log.info("sleeping...")
