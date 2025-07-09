@@ -847,7 +847,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         label="Object Classification Model",
         choices=[
             "Disabled",
-            "EfficientNet B0 (INT8)" ,
+            "EfficientNet B0 (INT8)",
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
         ],

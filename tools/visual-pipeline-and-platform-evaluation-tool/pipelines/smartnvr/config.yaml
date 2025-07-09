@@ -21,6 +21,7 @@ parameters:
       - "YOLO v10m 640x640 (FP16)"
     detection_model_default: "YOLO v5s 416x416 (INT8)"
     classification_models:
+      - "Disabled"
       - "EfficientNet B0 (INT8)"
       - "MobileNet V2 PyTorch (FP16)"
       - "ResNet-50 TF (INT8)"
