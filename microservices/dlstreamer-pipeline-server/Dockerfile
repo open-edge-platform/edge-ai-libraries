@@ -283,6 +283,4 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN echo "source /opt/ros/humble/setup.bash" >> /etc/bash.bashrc
-
 USER ${USER}
