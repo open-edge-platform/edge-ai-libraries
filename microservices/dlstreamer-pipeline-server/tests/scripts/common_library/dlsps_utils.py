@@ -15,32 +15,36 @@ base_source_uri = {"uri": "file:///home/pipeline-server/resources/videos/warehou
 base_detection_properties = {"model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml", "device": "CPU"}
 base_rtsp_frame = {"type": "rtsp", "path": "pallet_defect_detection"}
 
-def create_pipeline_config(source, destination_frame, detection_properties=None):
+def create_pipeline_config(source, destination_frame, detection_properties):
     return {
         "source": source,
         "destination": {"frame": destination_frame},
-        **({"parameters": {"detection-properties": detection_properties}} if detection_properties else {})
-    }
+        "parameters": {"detection-properties": detection_properties}}
 
-dlsps_data_gvadetect_rtsp = create_pipeline_config(
-    source={"uri": f"rtsp://{hostIP}:8555/live.sdp", "type": "uri"},
-    destination_frame=base_rtsp_frame,
-    detection_properties=base_detection_properties
-)
-dlsps_data_gvadetect = create_pipeline_config(
-    source=base_source_uri,
-    destination_frame=base_rtsp_frame,
-    detection_properties=base_detection_properties
-)
-
-eii_utils = {
-    'genops': {'log_param': {'dlstreamer-pipeline-server': "dlsps_log_param"}},
+pipeline_sources = {
+    "rtsp": {"uri": f"rtsp://{hostIP}:8555/live.sdp", "type": "uri"},
+    "file": base_source_uri
 }
+
+dlsps_data = {
+    "gvadetect_rtsp": create_pipeline_config(
+        source=pipeline_sources["rtsp"],
+        destination_frame=base_rtsp_frame,
+        detection_properties=base_detection_properties
+    ),
+    "gvadetect": create_pipeline_config(
+        source=pipeline_sources["file"],
+        destination_frame=base_rtsp_frame,
+        detection_properties=base_detection_properties
+    )
+}
+
+dlsps_data_gvadetect_rtsp = dlsps_data["gvadetect_rtsp"]
+dlsps_data_gvadetect = dlsps_data["gvadetect"]
 
 class dlsps_utils():
     def __init__(self):
         self.repo_path = repo_path
-        self.eii_utils_genops = eii_utils['genops']
         self.dlsps_path = f"{repo_path}/docker"
         self.dlsps_config = f"{repo_path}/configs/default/config.json"
         print(f"dlsps_path: {self.dlsps_path}")
@@ -60,36 +64,24 @@ class dlsps_utils():
     def change_docker_compose_for_standalone(self):
         print('\n********** Updating docker-compose.yml **********')
         os.chdir(self.dlsps_path)
-        self.set_env({'RTSP_CAMERA_IP': hostIP})
+        for key, value in {'RTSP_CAMERA_IP': hostIP}.items():
+            subprocess.run("sed -i 's#{Key}=.*#{Key}={Value}#g' .env".format(Key=key, Value=value), shell=True, executable='/bin/bash', check=True)
         with open("docker-compose.yml", 'r') as file:
             data = yaml.safe_load(file)
         service = data.get('services', {}).get('dlstreamer-pipeline-server', {})
         volumes = service.get('volumes', [])
         config_path = "../configs/default/config.json"
-        if os.path.exists(os.path.abspath(config_path)):
-            volumes.append(f"{os.path.abspath(config_path)}:/home/pipeline-server/config.json")
-        else:
-            print(f"Warning: The directory {config_path} does not exist.")
+        volumes.append(f"{os.path.abspath(config_path)}:/home/pipeline-server/config.json")
         service['volumes'] = volumes
         with open("docker-compose.yml", 'w') as file:
             yaml.safe_dump(data, file)
 
 
-    def _execute_cmd(self, cmd):
-        return subprocess.check_output(cmd, shell=True, executable='/bin/bash')
-
-
-    def set_env(self, configdict):
-        os.chdir('{}'.format(self.dlsps_path))
-        for key, value in configdict.items():
-            self._execute_cmd("sed -i 's#{Key}=.*#{Key}={Value}#g' .env".format(Key=key, Value=value))
-
-
     def common_service_steps_dlsps(self):
         print('********** Building and running dlsps **********')
         os.chdir(self.dlsps_path)
-        self._execute_cmd('docker compose build')
-        self._execute_cmd('docker compose up -d')
+        subprocess.run('docker compose build', shell=True, executable='/bin/bash', check=True)
+        subprocess.run('docker compose up -d', shell=True, executable='/bin/bash', check=True)
 
 
     def change_config_for_dlsps_standalone(self, value):
@@ -109,41 +101,35 @@ class dlsps_utils():
 
 
     def execute_curl_command(self, value):
-        try:
-            instance_map = {
-                "auto_source_gvadetect": dlsps_data_gvadetect,
-                "auto_source_gvadetect_rtsp": dlsps_data_gvadetect_rtsp,
-            }
-            data = instance_map.get(value.get("instance"), dlsps_data_gvadetect)
-            url = "http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection"
-            dlsps_headers = {'Content-Type': 'application/json'}
-            print(f"Sending POST request to {url} with data: {json.dumps(data, indent=4)}")
-            time.sleep(3)
-            response = requests.post(url, headers=dlsps_headers, data=json.dumps(data))
-            response.raise_for_status()
-            pipeline_id = response.text[1:33]
-            print(f"Pipeline started with ID: {pipeline_id}")
-            status_url = "http://localhost:8080/pipelines/status"
-            time.sleep(3)
-            status_response = requests.get(status_url)
-            status_response.raise_for_status()
-            status_data = status_response.json()
-
-            for status in status_data:
-                if status.get("id") == pipeline_id:
-                    pipeline_state = status.get("state")
-                    print(f"Pipeline {pipeline_id} state: {pipeline_state}")
-                    if pipeline_state in ["RUNNING", "COMPLETED"]:
-                        print("Pipeline is running or completed successfully.")
-                        return
-                    else:
-                        raise Exception(f"Pipeline {pipeline_id} is in unexpected state: {pipeline_state}")
+        instance_map = {
+            "auto_source_gvadetect": dlsps_data_gvadetect,
+            "auto_source_gvadetect_rtsp": dlsps_data_gvadetect_rtsp,
+        }
+        data = instance_map.get(value.get("instance"), dlsps_data_gvadetect)
+        url = "http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection"
+        dlsps_headers = {'Content-Type': 'application/json'}
+        print(f"Sending POST request to {url} with data: {json.dumps(data, indent=4)}")
+        time.sleep(3)
+        response = requests.post(url, headers=dlsps_headers, data=json.dumps(data))
+        response.raise_for_status()
+        pipeline_id = response.text[1:33]
+        print(f"Pipeline started with ID: {pipeline_id}")
+        status_url = "http://localhost:8080/pipelines/status"
+        time.sleep(3)
+        status_response = requests.get(status_url)
+        status_response.raise_for_status()
+        status_data = status_response.json()
+        for status in status_data:
+            if status.get("id") == pipeline_id:
+                pipeline_state = status.get("state")
+                print(f"Pipeline {pipeline_id} state: {pipeline_state}")
+                if pipeline_state in ["RUNNING", "COMPLETED"]:
+                    print("Pipeline is running or completed successfully.")
+                    return
                 else:
-                    raise Exception(f"Pipeline {pipeline_id} not found in status response.")
-            raise Exception(f"Pipeline {pipeline_id} did not reach a running or completed state within the timeout.")
-        except Exception as err:
-            print(f"An error occurred: {err}")
-            raise
+                    raise Exception(f"Pipeline {pipeline_id} is in unexpected state: {pipeline_state}")
+            else:
+                raise Exception(f"Pipeline {pipeline_id} not found in status response.")
 
 
     def container_logs_checker_dlsps(self, item, tc, value):
@@ -154,8 +140,8 @@ class dlsps_utils():
         for container in containers:
             log_file = f"logs_{container}_{tc}.txt"
             print(f"================== {container} ==================")
-            self._execute_cmd(f"docker compose logs --tail=1000 {container} | tee {log_file}")
-            keywords = value.get(self.eii_utils_genops['log_param'].get(container, ""), [])
+            subprocess.run(f"docker compose logs --tail=1000 {container} | tee {log_file}", shell=True, executable='/bin/bash', check=True)
+            keywords = value.get({'dlstreamer-pipeline-server': "dlsps_log_param"}.get(container, ""), [])
             log_present[container] = all(self.search_element(log_file, keyword) for keyword in keywords)
             if not log_present[container]:
                 print(f"FAIL: Keywords not found in logs for container {container}")

@@ -1,4 +1,4 @@
-import json
+import subprocess
 import os
 import time
 import unittest
@@ -28,8 +28,8 @@ class test_dlsps_cases(unittest.TestCase):
     @classmethod
     def tearDownClass(self):
         os.chdir('{}'.format(self.dlsps_utils.dlsps_path))
-        self.dlsps_utils._execute_cmd("docker compose down -v")
-        self.dlsps_utils._execute_cmd("git checkout docker-compose.yml")
+        subprocess.run('docker compose down -v', shell=True, executable='/bin/bash', check=True)
+        subprocess.run('git checkout docker-compose.yml', shell=True, executable='/bin/bash', check=True)
         os.chdir('{}'.format(self.dlsps_utils.dlsps_path + "/../configs/default"))
-        self.dlsps_utils._execute_cmd("git checkout config.json")
+        subprocess.run('git checkout config.json', shell=True, executable='/bin/bash', check=True)
         time.sleep(5)
