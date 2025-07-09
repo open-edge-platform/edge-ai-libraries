@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""MQTT Publisher.
+"""ROS2 Publisher.
 Publishes data from a pipeline with gstreamer app destination.
 """
 
@@ -45,8 +45,9 @@ class ROS2Publisher():
 
         self.publish_frame = config.get("publish_frame", False)
         
-        # Ensure ROS client library is initialized only once across threads and not yet shut down
+        # Ensure ROS2 client library is initialized only once across threads and not yet shut down
         if not rclpy.ok():
+            self.log.info("ROS2 client library not initialized, initializing now...")
             rclpy.init()
 
         self.node = Node(f'ros2_publisher_{th.get_ident()}')
@@ -57,7 +58,7 @@ class ROS2Publisher():
     def start(self):
         """Start publisher.
         """
-        self.log.info("Starting publish thread for ROS2")
+        self.log.info("Starting publish thread for ROS2...")
         self.th = th.Thread(target=self._run)
         self.th.start()
 
@@ -73,13 +74,13 @@ class ROS2Publisher():
         self.log.info('ROS2 publisher thread stopped')
 
     def error_handler(self, msg):
-        self.log.error('Error in ROS2 thread: {}'.format(msg))
+        self.log.error('Error in ROS2 publisher thread: {}'.format(msg))
         self.stop()
 
     def _run(self):
         """Run method for publisher.
         """
-        self.log.info("ROS2 Publish thread started")
+        self.log.info("ROS2 Publish thread started. Enable debug logs for seeing the messages being published")
         try:
             while not self.stop_ev.is_set():
                 try:
@@ -109,16 +110,16 @@ class ROS2Publisher():
         if self.publish_frame:
             # Encode frame and convert to utf-8 string
             msg["blob"]=base64.b64encode(frame).decode('utf-8') 
-            self.log.info(
-                f"Publishing frames along with meta data: {meta_data}")
+            self.log.debug(
+                f"Publishing frame along with meta data: {meta_data}")
         else:
             msg["blob"]=""
-            self.log.info(
+            self.log.debug(
                 f"Publishing meta data: {meta_data}")
 
         ros2_msg = String()
         ros2_msg.data = json.dumps(msg)
-        self.log.info(f'Publishing ROS2 message to topic: {self.topic}')
+        self.log.debug(f'Publishing ROS2 message to topic: {self.topic}')
         self.publisher.publish(ros2_msg)
 
         # Discarding publish message
