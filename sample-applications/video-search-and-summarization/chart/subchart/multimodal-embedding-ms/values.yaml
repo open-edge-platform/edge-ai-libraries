@@ -56,7 +56,9 @@ tolerations: []
 affinity: {}
 
 # Environment variables
-modelName: 'openai/clip-vit-base-patch32'
+imageEmbeddingModelName: openai/clip-vit-base-patch32
+textEmbeddingModelName: Qwen/Qwen3-Embedding-0.6B
+useOnlyTextEmbeddings: false
 defaultStartOffsetSec: 0
 defaultClipDuration: 10
 defaultNumFrames: 64

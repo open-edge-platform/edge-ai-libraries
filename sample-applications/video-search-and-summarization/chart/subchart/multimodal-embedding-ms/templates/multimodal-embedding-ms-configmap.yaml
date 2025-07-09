@@ -5,7 +5,9 @@ metadata:
   labels:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
-  MODEL_NAME: {{ .Values.modelName | quote }}
+  TEXT_EMBEDDING_MODEL_NAME: {{ .Values.textEmbeddingModelName | quote }}
+  IMAGE_EMBEDDING_MODEL_NAME: {{ .Values.imageEmbeddingModelName | quote }}
+  USE_ONLY_TEXT_EMBEDDINGS: {{ .Values.useOnlyTextEmbeddings | quote }}
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
   DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
