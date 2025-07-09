@@ -774,7 +774,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "YOLO v5m 640x640 (INT8)",
             "YOLO v10s 640x640 (FP16)",
             "YOLO v10m 640x640 (FP16)",
-            "YOLO v8 LPR 640x640 (FP16)",
+            "YOLO v8 License Plate Detector (FP16)",
         ],
         value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
@@ -894,6 +894,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_watermark_enabled",
     )
 
+    pipeline_video_enabled = gr.Checkbox(
+        label="Enable video output",
+        value=True,
+        elem_id="pipeline_video_enabled",
+    )
 
     # Run button
     run_button = gr.Button("Run")
@@ -940,6 +945,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
+    components.add(pipeline_video_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -1306,6 +1312,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
+
+                            # Whether to enable video output
+                            pipeline_video_enabled.render()
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):

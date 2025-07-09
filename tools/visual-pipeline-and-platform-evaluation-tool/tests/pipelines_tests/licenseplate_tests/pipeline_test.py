@@ -26,12 +26,17 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
         # Check that input is set
         self.assertIn("location=input.mp4", result)
 
-        # Check that output is set
-        self.assertIn("location=output.mp4", result)
-
         # Check that the number of inference channels is correct
         self.assertEqual(result.count("gvadetect"), self.inference_channels)
         self.assertEqual(result.count("gvaclassify"), self.inference_channels)
+
+    def output_present_check(self, result):
+        # Check that output is set
+        self.assertIn("location=output.mp4", result)
+
+    def output_absent_check(self, result):
+        # Check that output is not set
+        self.assertNotIn("location=output.mp4", result)
 
     def test_evaluate_cpu(self):
         result = self.pipeline.evaluate(
@@ -46,6 +51,8 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": True,
+                "pipeline_video_enabled": True,
             },
             regular_channels=0,
             inference_channels=self.inference_channels,
@@ -70,6 +77,9 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
         # Check that opencv is used for pre-processing
         self.assertIn("pre-process-backend=opencv", result)
 
+        # Check that output is set
+        self.output_present_check(result)
+
     def test_evaluate_gpu(self):
         result = self.pipeline.evaluate(
             constants=self.constants,
@@ -83,6 +93,8 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": True,
+                "pipeline_video_enabled": True,
             },
             regular_channels=0,
             inference_channels=self.inference_channels,
@@ -107,6 +119,9 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
         # Check that va-surface-sharing is used for pre-processing
         self.assertIn("pre-process-backend=va-surface-sharing", result)
 
+        # Check that output is set
+        self.output_present_check(result)
+
     def test_evaluate_no_model_proc(self):
         result = self.pipeline.evaluate(
             constants={
@@ -127,6 +142,8 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": True,
+                "pipeline_video_enabled": True,
             },
             regular_channels=0,
             inference_channels=self.inference_channels,
@@ -143,6 +160,109 @@ class TestLicensePlateDetectionPipeline(unittest.TestCase):
 
         # Check that no model proc is used
         self.assertNotIn("model-proc=", result)
+
+        # Check that output is set
+        self.output_present_check(result)
+
+    def test_evaluate_no_overlay(self):
+        result = self.pipeline.evaluate(
+            constants=self.constants,
+            parameters={
+                "object_detection_device": "GPU",
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "GPU",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": False,
+                "pipeline_video_enabled": True,
+            },
+            regular_channels=0,
+            inference_channels=self.inference_channels,
+            elements=[
+                ("va", "decodebin3", "..."),
+                ("va", "vah264enc", "..."),
+            ],
+        )
+
+        # Common checks
+        self.common_checks(result)
+
+        # Check gvawatermark is not present
+        self.assertNotIn("gvawatermark", result)
+
+        # Check that output is set
+        self.output_present_check(result)
+
+    def test_evaluate_no_overlay_no_video(self):
+        result = self.pipeline.evaluate(
+            constants=self.constants,
+            parameters={
+                "object_detection_device": "GPU",
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "GPU",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": False,
+                "pipeline_video_enabled": False,
+            },
+            regular_channels=0,
+            inference_channels=self.inference_channels,
+            elements=[
+                ("va", "decodebin3", "..."),
+                ("va", "vah264enc", "..."),
+            ],
+        )
+
+        # Common checks
+        self.common_checks(result)
+
+        # Check gvawatermark is not present
+        self.assertNotIn("gvawatermark", result)
+
+        # Check that output is not set
+        self.output_absent_check(result)
+
+    def test_evaluate_no_overlay_when_video_disabled(self):
+        result = self.pipeline.evaluate(
+            constants=self.constants,
+            parameters={
+                "object_detection_device": "GPU",
+                "object_detection_batch_size": 0,
+                "object_detection_inference_interval": 1,
+                "object_detection_nireq": 0,
+                "object_classification_device": "GPU",
+                "object_classification_batch_size": 0,
+                "object_classification_inference_interval": 1,
+                "object_classification_nireq": 0,
+                "object_classification_reclassify_interval": 1,
+                "pipeline_watermark_enabled": True,
+                "pipeline_video_enabled": False,
+            },
+            regular_channels=0,
+            inference_channels=self.inference_channels,
+            elements=[
+                ("va", "decodebin3", "..."),
+                ("va", "vah264enc", "..."),
+            ],
+        )
+
+        # Common checks
+        self.common_checks(result)
+
+        # Check gvawatermark is not present even when watermark is enabled
+        # because video is disabled
+        self.assertNotIn("gvawatermark", result)
+
+        # Check that output is not set
+        self.output_absent_check(result)
 
 if __name__ == "__main__":
     unittest.main()

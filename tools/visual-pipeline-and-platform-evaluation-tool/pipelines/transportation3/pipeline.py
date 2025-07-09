@@ -14,7 +14,7 @@ class LicensePlateDetectionPipeline(GstPipeline):
             (331, 100, 451, 160, "Inference", "Inference"),
         ]
 
-        self._pipeline = (
+        self._inference_stream_decode_detect_classify = (
             # Input
             "filesrc location={VIDEO_PATH} ! "
             # Decoder
@@ -41,9 +41,10 @@ class LicensePlateDetectionPipeline(GstPipeline):
             "   nireq={object_classification_nireq} "
             "   reclassify-interval={object_classification_reclassify_interval} ! "
             "queue ! "
-            # Metadata
-            "gvawatermark ! "
             "gvafpscounter ! "
+        )
+
+        self._inference_output_stream = (
             "{encoder} ! "
             "h264parse ! "
             "mp4mux ! "
@@ -112,19 +113,26 @@ class LicensePlateDetectionPipeline(GstPipeline):
                 f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
             )
 
-        return "gst-launch-1.0 -q " + " ".join(
-            [
-                self._pipeline.format(
-                    **parameters,
-                    **constants,
-                    decoder=_decoder_element,
-                    encoder=_encoder_element,
-                    detection_model_config=detection_model_config,
-                    classification_model_config=classification_model_config,
-                )
-            ]
-            # Only inference channels are used for the pipeline
-            # Ignore regular channels
-            * (inference_channels)
-        )
+        streams = ""
 
+        for i in range(inference_channels):
+            streams += self._inference_stream_decode_detect_classify.format(
+                **parameters,
+                **constants,
+                decoder=_decoder_element,
+                detection_model_config=detection_model_config,
+                classification_model_config=classification_model_config,
+            )
+
+            # Overlay inference results on the inferred video if enabled
+            if parameters["pipeline_watermark_enabled"] and parameters["pipeline_video_enabled"]:
+                streams += "gvawatermark ! "
+
+            # Use video output for the first inference channel if enabled, otherwise use fakesink
+            streams += (
+                self._inference_output_stream.format(**constants, encoder=_encoder_element)
+                if i == 0 and parameters["pipeline_video_enabled"]
+                else "fakesink "
+            )
+
+        return "gst-launch-1.0 -q " + streams
