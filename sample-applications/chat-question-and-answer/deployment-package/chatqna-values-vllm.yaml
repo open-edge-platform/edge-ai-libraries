@@ -16,8 +16,8 @@ global:
   LLM_MODEL: <LLM_MODEL>
   EMBEDDING_MODEL_NAME: <EMBEDDING_MODEL_NAME>
   RERANKER_MODEL: <RERANKER_MODEL>
-  OTLP_ENDPOINT: <otlp-endpoint>
-  OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
+  OTLP_ENDPOINT:
+  OTLP_ENDPOINT_TRACE:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
@@ -89,3 +89,8 @@ reranker:
 chatqnaui:
   service:
     port: 80
+
+nginxService:
+  annotations:
+    service-proxy.app.orchestrator.io/ports: "80"
+    external-dns.alpha.kubernetes.io/hostname: "chatqna.example.org"
