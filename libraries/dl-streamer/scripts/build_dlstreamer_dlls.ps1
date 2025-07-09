@@ -38,11 +38,11 @@ $GSTREAMER_VERSION = "1.26.1"
 
 if (-Not (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi")) {
 	echo "Installing GStreamer ${GSTREAMER_VERSION}. Please wait."
-    Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
+	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
 	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
 	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
 	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
-	Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
+	(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
 }
 
 $OPENVINO_FULL_VERSION = "2025.2.0.19140.c01cd93e24d"
@@ -50,7 +50,7 @@ $OPENVINO_VERSION = "2025.2"
 $OPENVINO_DEST_FOLDER = "C:\\openvino"
 
 if (-Not (Test-Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip")) {
-    echo "Installing OpenVINO ${OPENVINO_FULL_VERSION}. Please wait."
+	echo "Installing OpenVINO ${OPENVINO_FULL_VERSION}. Please wait."
 	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip -Uri "https://storage.openvinotoolkit.org/repositories/openvino/packages/${OPENVINO_VERSION}/windows/openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip"
 	Expand-Archive -Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip" -DestinationPath "C:\"
 	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
