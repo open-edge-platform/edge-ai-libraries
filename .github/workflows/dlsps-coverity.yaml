@@ -57,7 +57,7 @@ jobs:
       run: docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
   coverity-scan:
     needs: build-dls-pipeline-server-image
-    
+    runs-on: ubuntu-latest
     container:
       image: ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-ubuntu22
 
