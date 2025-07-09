@@ -1,4 +1,4 @@
-# How to Deploy with Helm
+# Deploy with Helm
 
 ## Prerequisites
 

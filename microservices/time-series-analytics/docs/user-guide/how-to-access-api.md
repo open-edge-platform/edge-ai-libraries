@@ -1,4 +1,4 @@
-# How to access Time Series Analytics Microservice API
+# Access Time Series Analytics Microservice API
 
 The Time Series Analytics Microservice provides an interactive Swagger UI at `http://localhost:5000/docs`.
 
