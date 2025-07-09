@@ -74,7 +74,7 @@ jobs:
           tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
       - name: Build with Coverity Analysis
         run: |
-          docker run -it  intel/dlstreamer-pipeline-server:3.1.0-ubuntu22 cd /home/pipeline-server/gst-udf-loader/ \
+          cd /home/pipeline-server/gst-udf-loader/ \
           /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
           && if [ -d \"build\" ] ; then rm -rf build ; fi \
           && mkdir build \
