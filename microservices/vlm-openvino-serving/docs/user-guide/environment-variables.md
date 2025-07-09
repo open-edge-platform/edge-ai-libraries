@@ -245,7 +245,11 @@ export WORKERS=4   # Multiple workers for CPU
 
 #### HUGGINGFACE_TOKEN
 
-**Description**: Required for accessing gated or private models on Hugging Face Hub.
+**Description**:
+
+To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
+
+_Go to [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens) to get your token._
 
 **Default**: None
 
@@ -263,7 +267,7 @@ export HUGGINGFACE_TOKEN=hf_your_token_here
 
 **How to Obtain**:
 
-1. Visit [https://huggingface.co/settings/tokens](https://huggingface.co/settings/tokens)
+1. Visit [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens)
 2. Log in to your Hugging Face account
 3. Create or copy your existing access token
 4. Get access to the model you want to use from the Hugging Face Hub
