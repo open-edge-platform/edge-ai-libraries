@@ -7,7 +7,9 @@
 set (TARGET_NAME "gstvideoanalytics")
 
 file(GLOB_RECURSE GVA_METAPUBLISH_EXPORT_H "${DLSTREAMER_BASE_DIR}/*/gvametapublish_export.h")
-get_filename_component(GVA_METAPUBLISH_EXPORT_DIR ${GVA_METAPUBLISH_EXPORT_H} DIRECTORY)
+if(${GVA_METAPUBLISH_EXPORT_H})
+    get_filename_component(GVA_METAPUBLISH_EXPORT_DIR ${GVA_METAPUBLISH_EXPORT_H} DIRECTORY)
+endif()
 
 find_package(PkgConfig REQUIRED)
 pkg_search_module(VA va libva REQUIRED)
