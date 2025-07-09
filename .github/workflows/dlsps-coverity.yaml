@@ -84,11 +84,12 @@ jobs:
           && ../cov-analysis/bin/cov-build --dir cov-int make" 
       - name: Create tarball for upload
         run: |
-          cd /home/pipeline-server/gst-udf-loader/build
-          tar czf coverity-output.tgz cov-int
+          cd /home/pipeline-server/gst-udf-loader
+          ls -al
+          tar czf coverity-output.tgz -C build cov-int
       - name: Upload to Coverity Scan
         run: |
-          cd libraries/dl-streamer
+          cd /home/pipeline-server/gst-udf-loader/build
           curl --form token=${{ secrets.DLSPS_COVERITY_TOKEN }} \
                --form email=${{ secrets.DLSPS_COVERITY_EMAIL }} \
                --form file=@coverity-output.tgz \
