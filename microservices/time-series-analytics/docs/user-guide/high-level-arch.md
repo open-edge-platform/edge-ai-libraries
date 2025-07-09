@@ -14,10 +14,6 @@ The input data that this microservice takes can be broadly divided into two:
 As a default flow, we have sample temperature simulator to ingest data in JSON format and have pre-packaged simple process based User Defined Function (UDF) in `Time Series Analytics` microservice to flag the temperature
 points if they don't fall under a range as anomalies. The output is seen in the logs of the microservice now.
 
-
-As a default process, we have a sample temperature simulator that ingests data in JSON format and includes a pre-packaged simple process-based User Defined Function (UDF) in the `Time Series Analytics` microservice. This UDF flags temperature points that do not fall within a specified range as anomalies. You can view the output in the microservice's logs.
-
-
 For understanding the other ways of ingesting data, UDF deployment package configuration, publishing alerts and writing data back to InfluxDB via TICKScripts, please refer the following docs of Wind Turbine Sample app:
 - [Overview.md](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/wind-turbine-anomaly-detection/docs/user-guide/Overview.md)
 - [Getting Started](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/wind-turbine-anomaly-detection/docs/user-guide/get-started.md)
