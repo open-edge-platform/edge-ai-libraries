@@ -14,7 +14,7 @@ on:
   workflow_call:
 permissions: {}
 env:
-  DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}
+  DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
   DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
   BASE_IMAGE="intel/dlstreamer:2025.0.1.3-ubuntu22"
   BUILD_TARGET=gstudfloader-builder
