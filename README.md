@@ -37,6 +37,7 @@ Key components of the **Edge AI Libraries**:
 | [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/user-guide/build-from-source.md) instructions |
 | [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/user-guide/build-from-source.md) instructions |
 | [Video Search and Summarization](sample-applications/video-search-and-summarization) | Sample Application | [Link](sample-applications/video-search-and-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/video-search-and-summarization/docs/user-guide/build-from-source.md) instructions |
+| [Document Summarization](sample-applications/document-summarization) | Sample Application | [Link](sample-applications/document-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/document-summarization/docs/user-guide/build-from-source.md) instructions |
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
