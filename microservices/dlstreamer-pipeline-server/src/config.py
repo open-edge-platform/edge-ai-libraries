@@ -68,7 +68,7 @@ class PipelineServerConfig:
     Abstracts config sources whether its from a config file"""
 
     class _ConfigHandler:
-        def __init__(self, watch_cb=None, watch_file_cbfunc=None) -> None:
+        def __init__(self) -> None:
             self.log = get_logger(__name__)
             try:
                 with open("config.json", "r") as f:
@@ -93,9 +93,9 @@ class PipelineServerConfig:
             """Return list of mqtt subscribers"""
             raise NotImplementedError
 
-    def __init__(self, watch_cb=None, watch_file_cbfunc=None) -> None:
+    def __init__(self) -> None:
         self.log = get_logger(__name__)
-        self._cfg_handler = self._ConfigHandler(watch_cb, watch_file_cbfunc)
+        self._cfg_handler = self._ConfigHandler()
 
     def get_app_config(self):
         return self._cfg_handler.get_app_cfg()
@@ -108,8 +108,9 @@ class PipelineServerConfig:
         publishers = []
         self.log.info("Fetching publishers")
         mqtt_publishers = self._cfg_handler.get_mqtt_publisher()
-        for p in self._cfg_handler.get_mqtt_publisher():
-            publishers.append(PublisherConfig(p))  # simply add config dict
+        if mqtt_publishers:
+            for p in self._cfg_handler.get_mqtt_publisher():
+                publishers.append(PublisherConfig(p))  # simply add config dict
         self.log.info(f"Publishers: {publishers}")
         self.log.info("="*100)
         return publishers

@@ -158,7 +158,7 @@ if __name__ == "__main__":
     try:
         log = get_logger(__name__)        
         log.info("DL Streamer Pipeline Server version: {}".format(VERSION))
-        cfg = PipelineServerConfig(watch_cb=callback_func, watch_file_cbfunc=watch_file_cbfunc)
+        cfg = PipelineServerConfig()
         main(cfg)
         while True:
             log.info("sleeping...")
