@@ -52,7 +52,7 @@ jobs:
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BASE_IMAGE="intel/dlstreamer:2025.0.1.3-ubuntu22"
-        export BUILD_TARGET=gst-udf-loader
+        export BUILD_TARGET=gstudfloader-builder
         docker compose build --no-cache --pull
   coverity-scan:
     needs: build-dls-pipeline-server-image
