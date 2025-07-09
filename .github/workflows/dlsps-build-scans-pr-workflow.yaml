@@ -93,13 +93,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Coverage-reports
-        path: /tmp/htmlcov
-    - name: Coverity Scan dls-pipeline-server
-      if: matrix.ubuntu_version == 'ubuntu22'
-      container:
-        image: intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}
-      run: |
-        printenv  
+        path: /tmp/htmlcov  
     - name: Scan Docker image with Trivy
       uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
