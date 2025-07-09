@@ -65,7 +65,7 @@ if (-Not (Test-Path "C:\\Program Files\\Git")) {
 }
 
 ${env:VCPKG_ROOT}="C:\\vcpkg"
-setx path "${env:VCPKG_ROOT};${env:VCPKG_ROOT}\downloads\tools\cmake-3.30.1-windows\cmake-3.30.1-windows-i386\bin;${env:VCPKG_ROOT}\downloads\tools\python\python-3.12.7-x64-1"
+setx path "${env:VCPKG_ROOT};C:\Program Files\Git\bin;${env:VCPKG_ROOT}\downloads\tools\cmake-3.30.1-windows\cmake-3.30.1-windows-i386\bin;${env:VCPKG_ROOT}\downloads\tools\python\python-3.12.7-x64-1"
 setx PKG_CONFIG_PATH "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig;C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\lib\pkgconfig"
 setx LIBVA_DRIVER_NAME "vaon12"
 setx LIBVA_DRIVERS_PATH "C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
