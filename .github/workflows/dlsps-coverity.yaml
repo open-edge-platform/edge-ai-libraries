@@ -74,14 +74,15 @@ jobs:
           tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
       - name: Build with Coverity Analysis
         run: |
-          cd /home/pipeline-server/gst-udf-loader/ \
+          cd /home/pipeline-server/gst-udf-loader/ 
+          ls -al
           /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
           && if [ -d \"build\" ] ; then rm -rf build ; fi \
           && mkdir build \
           && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/build/intel64/Release/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
           && cd build \
-          && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. 
-          ../cov-analysis/bin/cov-build --dir cov-int make" 
+          && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
+          && ../cov-analysis/bin/cov-build --dir cov-int make" 
           ls -al
           echo "Create tarball for upload"
           
