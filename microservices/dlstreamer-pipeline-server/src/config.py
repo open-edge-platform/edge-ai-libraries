@@ -117,9 +117,8 @@ class PipelineServerConfig:
     
     def get_subscribers(self)-> List[SubscriberConfig]:
         subscribers = []
-        self.log.info("Fetching subscribers")
+        self.log.warning("Subscribers mode of ingestion unavailable.")
         # TODO: get mqtt subscriber for each pipeline
-        subscribers.append(SubscriberConfig(s))  # simply add config dict
         return subscribers
     
     def get_pipelines_config(self) -> List[Dict[str,Any]]:
