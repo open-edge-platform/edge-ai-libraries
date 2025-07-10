@@ -92,13 +92,53 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
-export WORKERS=6
+export WORKERS=${WORKERS:-6}
+export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
+export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
+export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
+# Set VLM_OPENVINO_LOG_LEVEL based on VLM_LOG_LEVEL
+# OpenVINO log levels: 0=NO, 1=ERR, 2=WARNING, 3=INFO, 4=DEBUG, 5=TRACE
+case "${VLM_LOG_LEVEL}" in
+    "debug")
+        export VLM_OPENVINO_LOG_LEVEL=4  # DEBUG
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "info")
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+    "warning")
+        export VLM_OPENVINO_LOG_LEVEL=2  # WARNING
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "error")
+        export VLM_OPENVINO_LOG_LEVEL=1  # ERR
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    *)
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO (default)
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+esac
+
+# OpenVINO Configuration (optional)
+# OV_CONFIG allows you to pass OpenVINO configuration parameters as a JSON string
+# If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
+if [ -n "$OV_CONFIG" ]; then
+    export OV_CONFIG=$OV_CONFIG
+    echo -e "${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
+else
+    unset OV_CONFIG
+    # Default configuration will be handled by the VLM service
+    echo -e "${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
+fi
 
 # env for ovms-service
 export LLM_DEVICE=CPU
@@ -483,10 +523,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
             export WORKERS=1
-            echo -e  "Using VLM for summarization on GPU"
+            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
         else
             export VLM_DEVICE=CPU
-            echo -e  "Using VLM for summarization"
+            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
         fi
 
         # if config is passed, set the command to only generate the config

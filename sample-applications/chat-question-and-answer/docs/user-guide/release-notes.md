@@ -13,6 +13,8 @@
 
 ### Known Issues/Behavior:
 - UI and NGINX container running as root Privillage in Helm Deployment
+- Not validated with EMF deployment package
+- Not validated on EMT edge node
 
 ## Previous Release
 
