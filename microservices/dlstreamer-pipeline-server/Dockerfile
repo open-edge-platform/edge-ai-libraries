@@ -153,12 +153,14 @@ RUN . /etc/os-release && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
+RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so
+
 RUN \
     mkdir /python3venv && \
     chmod -R u+w /python3venv
 
 RUN \
-    python3 -m venv /python3venv && \
+    python3 -m venv --system-site-packages /python3venv && \
     /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
 
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
@@ -212,7 +214,8 @@ COPY ./src/ ./src
 
 USER root
 
-RUN pip3 uninstall --no-cache-dir -y Flask && \
+RUN pip3 install --no-cache-dir wheel==0.45.1 && \
+    pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
     pip3 install --no-cache-dir Flask==2.2.5 && \
     pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
