@@ -221,7 +221,41 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: reports/dlsps_trivy_report.json
       name: dlsps_trivy_report
+  pylint:
+    runs-on: ubuntu-latest
 
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          path: edge-ai-libraries-repo
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  # Adjust as needed
+
+      - name: Install dependencies from all requirements.txt files
+        run: |
+          python -m pip install --upgrade pip
+          cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
+          find . -type f -iname 'requirements.txt' -exec pip install -r {} \;
+
+      - name: Install pylint
+        run: pip install pylint
+
+      - name: Run pylint
+        run: |
+          cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/
+          find . -type f -iname '*.py' -exec pylint {} \;  > pylint_report.txt || true
+          cp pylint_report.txt ${{ github.workspace }}\
+
+      - name: Upload pylint report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: pylint_report.txt
   static-code-analysis:
     permissions:
       security-events: write
