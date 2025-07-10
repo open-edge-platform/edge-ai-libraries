@@ -217,7 +217,7 @@ COPY ./src/ ./src
 
 USER root
 
-RUN pip3 install --no-cache-dir wheel==0.45.1 setuptools==80.9.0 && \
+RUN pip3 install --no-cache-dir wheel==0.45.1 setuptools==80.9.0 packaging==25.0 && \
     pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
     pip3 install --no-cache-dir Flask==2.2.5 && \

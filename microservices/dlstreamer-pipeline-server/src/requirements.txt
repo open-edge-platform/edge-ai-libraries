@@ -22,7 +22,6 @@ jsonschema[format_nongpl]==3.2.0
 
 # General
 orjson==3.10.12
-packaging==24.2
 numpy==1.26.4
 
 # S3 write
