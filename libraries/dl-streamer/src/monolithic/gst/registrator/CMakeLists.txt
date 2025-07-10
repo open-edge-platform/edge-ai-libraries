@@ -6,11 +6,6 @@
 
 set (TARGET_NAME "gstvideoanalytics")
 
-file(GLOB_RECURSE GVA_METAPUBLISH_EXPORT_H "${DLSTREAMER_BASE_DIR}/*/gvametapublish_export.h")
-if(${GVA_METAPUBLISH_EXPORT_H})
-    get_filename_component(GVA_METAPUBLISH_EXPORT_DIR ${GVA_METAPUBLISH_EXPORT_H} DIRECTORY)
-endif()
-
 find_package(PkgConfig REQUIRED)
 pkg_search_module(VA va libva REQUIRED)
 pkg_check_modules(GSTREAMER gstreamer-1.0>=1.16 REQUIRED)
@@ -31,7 +26,6 @@ PRIVATE
     ${CMAKE_CURRENT_SOURCE_DIR}/../elements/gvametapublish/
     ${CMAKE_CURRENT_SOURCE_DIR}/../elements/gvametapublish/base/
     ${CMAKE_CURRENT_SOURCE_DIR}/../elements/gvametapublish/file/
-    ${GVA_METAPUBLISH_EXPORT_DIR}
     ${CMAKE_CURRENT_SOURCE_DIR}/../elements/gvatrack/
     ${CMAKE_CURRENT_SOURCE_DIR}/../elements/gvawatermark/
 )
