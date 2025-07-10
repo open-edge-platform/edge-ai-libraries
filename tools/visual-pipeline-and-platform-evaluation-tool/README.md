@@ -65,7 +65,7 @@ The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video 
 
 ## Coming Soon
 
-**Transportation Proxy Pipeline 3**: A new pipeline designed to perform license plate detection on vehicles, enabling automated identification and tracking of license plates for transportation analysis and monitoring. Stay tuned for updates!
+**Simple Video Structurization (D-T-C) Pipeline**: A new versatile pipeline supporting various object detection and classification tasks, adaptable to the selected model. Stay tuned for updates!
 
 ## Learn More
 - [System Requirements](docs/user-guide/system-requirements.md)
