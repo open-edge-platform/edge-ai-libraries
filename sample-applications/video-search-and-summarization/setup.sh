@@ -144,7 +144,6 @@ export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell befor
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
-export VDMS_BUCKET=vdms-bucket
 export VDMS_VDB_HOST=vdms-vector-db
 
 # env for vdms-dataprep-ms
