@@ -82,13 +82,11 @@ jobs:
           && cd build \
           && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
           && ../cov-analysis/bin/cov-build --dir cov-int make" 
-      - name: Create tarball for upload
-        run: |
+          echo "Create tarball for upload"
           cd /home/pipeline-server/gst-udf-loader/build
           ls -al
           tar czf coverity-output.tgz cov-int
-      - name: Upload to Coverity Scan
-        run: |
+          echo "Upload to Coverity Scan"
           cd /home/pipeline-server/gst-udf-loader/build
           curl --form token=${{ secrets.DLSPS_COVERITY_TOKEN }} \
                --form email=${{ secrets.DLSPS_COVERITY_EMAIL }} \
