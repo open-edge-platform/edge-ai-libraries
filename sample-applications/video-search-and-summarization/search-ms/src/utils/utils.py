@@ -41,14 +41,14 @@ def upload_videos_to_dataprep(file_paths):
         try:
             sanitized_name = sanitize_file_path(file_path)
             with open(file_path, "rb") as file:
-                use_no_proxy = should_use_no_proxy(settings.DATAPREP_UPLOAD_URL)
+                use_no_proxy = should_use_no_proxy(settings.VIDEO_UPLOAD_ENDPOINT)
                 logger.debug(
-                    f"Using no_proxy: {use_no_proxy} for URL: {settings.DATAPREP_UPLOAD_URL}"
+                    f"Using no_proxy: {use_no_proxy} for URL: {settings.VIDEO_UPLOAD_ENDPOINT}"
                 )
 
                 # Step 1: Upload video to get ID
                 upload_response = requests.post(
-                    f"{settings.DATAPREP_UPLOAD_URL}/videos",
+                    f"{settings.VIDEO_UPLOAD_ENDPOINT}/videos",
                     files={"video": (sanitized_name, file, "video/mp4")},
                     proxies=(
                         None
@@ -71,7 +71,7 @@ def upload_videos_to_dataprep(file_paths):
 
                 # Step 2: Process video for search embeddings
                 embedding_response = requests.post(
-                    f"{settings.DATAPREP_UPLOAD_URL}/videos/search-embeddings/{video_id}",
+                    f"{settings.VIDEO_UPLOAD_ENDPOINT}/videos/search-embeddings/{video_id}",
                     proxies=(
                         None
                         if use_no_proxy

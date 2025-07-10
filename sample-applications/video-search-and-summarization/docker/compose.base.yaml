@@ -9,9 +9,9 @@ services:
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      no_proxy: ${no_proxy},${MINIO_HOST},vss-ui,${PM_PIPELINE_MANAGER_HOST}
+      no_proxy: ${no_proxy},${MINIO_HOST},vss-ui,${PM_HOST}
       APP_UI: vss-ui
-      APP_MANAGER: ${PM_PIPELINE_MANAGER_HOST}:3000
+      APP_MANAGER: ${PM_HOST}:3000
       APP_ASSETS: minio-service
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
       NGINX_ENVSUBST_OUTPUT_DIR: /etc/nginx
@@ -42,7 +42,7 @@ services:
     ports:
       - "${UI_HOST_PORT}:80"
     environment:
-      no_proxy: ${no_proxy},${HOST_IP},${PM_PIPELINE_MANAGER_HOST},minio-service
+      no_proxy: ${no_proxy},${HOST_IP},${PM_HOST},minio-service
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}

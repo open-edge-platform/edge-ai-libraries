@@ -42,7 +42,7 @@ services:
     ports:
       - "${VS_HOST_PORT}:8000"
     environment:
-      no_proxy: ${no_proxy},${VCLIP_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_PIPELINE_MANAGER_HOST}
+      no_proxy: ${no_proxy},${VCLIP_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       VDMS_VDB_HOST: ${VDMS_VDB_HOST}
@@ -59,7 +59,7 @@ services:
       MINIO_HOST: ${MINIO_HOST}
       MINIO_ROOT_USER: ${MINIO_ROOT_USER}
       MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
-      DATAPREP_UPLOAD_URL: ${VDMS_PIPELINE_MANAGER_UPLOAD}
+      VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
       VDMS_BUCKET: ${VDMS_BUCKET}
       CHUNK_DURATION: ${VS_DEFAULT_CLIP_DURATION}
     restart: unless-stopped

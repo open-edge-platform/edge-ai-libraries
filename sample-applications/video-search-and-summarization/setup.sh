@@ -140,6 +140,16 @@ else
     echo -e "${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
 fi
 
+# env for pipeline-manager
+export PM_HOST_PORT=3001
+export PM_HOST=pipeline-manager
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
+export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+export PM_LLM_CONCURRENT=2
+export PM_VLM_CONCURRENT=4
+export PM_MULTI_FRAME_COUNT=12
+export PM_MINIO_BUCKET=video-summary
+
 # env for ovms-service
 export LLM_DEVICE=CPU
 export LLM_MODEL_API="v1/models"
@@ -191,7 +201,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_PIPELINE_MANAGER_HOST:3000
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
@@ -220,16 +230,6 @@ export VS_DEFAULT_CLIP_DURATION=15
 export VS_DEBOUNCE_TIME=1
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
-
-# env for pipeline-manager
-export PM_HOST_PORT=3001
-export PM_PIPELINE_MANAGER_HOST=pipeline-manager
-export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
-export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
-export PM_LLM_CONCURRENT=2
-export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
-export PM_MINIO_BUCKET=video-summary
 
 # env for vss-ui
 export UI_HOST_PORT=9998
