@@ -5,6 +5,9 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
+$env:HTTP_PROXY="http://proxy-dmz.intel.com:911"
+$env:HTTPS_PROXY="http://proxy-dmz.intel.com:912"
+$env:NO_PROXY=""
 $DLSTREAMER_TMP = "C:\\dlstreamer_tmp"
 
 if (-Not (Test-Path $DLSTREAMER_TMP)) {
