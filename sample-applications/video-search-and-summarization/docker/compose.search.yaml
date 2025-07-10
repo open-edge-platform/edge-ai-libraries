@@ -25,7 +25,7 @@ services:
       SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
 
   video-search:
-    image: egaidev/video-search:latest-dev
+    image: ${REGISTRY:-}video-search:${TAG:-latest}
     build:
       context: ../search-ms
       dockerfile: docker/Dockerfile
@@ -80,7 +80,7 @@ services:
       - vs_network
 
   vdms-dataprep:
-    image: egaidev/vdms-dataprep:latest-dev
+    image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
     hostname: vdms-dataprep
     environment:
       no_proxy: ${no_proxy},${VDMS_VDB_HOST},${VCLIP_HOST},${MINIO_HOST}
@@ -112,7 +112,7 @@ services:
       - vs_network
 
   vclip-embedding-ms:
-    image: egaidev/multimodal-embedding-serving:latest-dev
+    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
     ports:
       - "${VCLIP_HOST_PORT}:8000"
     ipc: host
