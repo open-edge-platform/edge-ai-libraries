@@ -62,6 +62,7 @@ if (-Not (Test-Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL
 if (-Not (Test-Path "C:\\Program Files\\Git")) {
 	echo "Installing Git. Please wait."
 	winget install --id Git.Git -e --source winget
+	git config --system core.longpaths true
 }
 
 ${env:VCPKG_ROOT} = "C:\\vcpkg"
