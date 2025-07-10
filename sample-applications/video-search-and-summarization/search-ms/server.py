@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import datetime
 import asyncio
 import json
 from typing import Optional, List, Tuple, Any
@@ -124,7 +125,7 @@ async def query_endpoint(request: list[QueryRequest]):
             raise HTTPException(status_code=404, detail=f"No entities were found.")
         else:
             logger.error(f"KeyError in query_endpoint: {str(e)}")
-            raise HTTPException(status_code=500, detail="Some error ocurred at the DataPrep Service.")
+            raise HTTPException(status_code=500, detail="Some error ocurred while running the search query.")
         
     except Exception as e:
         import traceback

@@ -56,16 +56,12 @@ class Qwen3(nn.Module):
             max_length=self.max_length,
             return_tensors="pt",
         )
-        logger.debug(f"before conversion : Input text: {text_inputs}")
 
         text_inputs.to(self.model.device)
         output = self.model(**text_inputs)
 
-        logger.debug(f"self.model.device: {self.model.device}")
-        logger.debug(f"after conversion : Input text: {text_inputs}")
         logger.debug(f"Input IDs: {text_inputs['input_ids']}")
         logger.debug(f"Input text shape: {text_inputs['input_ids'].shape}")
-
         logger.debug(f"Output: {output}")
         logger.debug(f"Output shape: {output.last_hidden_state.shape}")
 
