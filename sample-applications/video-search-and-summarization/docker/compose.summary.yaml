@@ -234,7 +234,7 @@ volumes:
   audio_analyzer_data:
     driver: local
   ov-models:
-    external: true
+    driver: local
   vol_evam_pipeline_root:
     driver: local
     driver_opts:
