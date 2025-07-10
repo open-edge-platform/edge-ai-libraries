@@ -99,9 +99,6 @@ class TestPipelineInstance:
         with pytest.raises(RuntimeError, match="Unsupported source:"):
             pipeline_instance.start()
 
-    
-
-
     def test_execute_request_invalid_source_type(self, pipeline_instance):
         pipeline_instance.source_type = "invalid_source_type"
         pipeline_instance.instance_id = "valid_instance_id"
@@ -172,7 +169,6 @@ class TestPipelineInstance:
         pipeline_instance.instance_id = "mock_instance_id"
         status = pipeline_instance.get_status()
         assert status == {"status": "running"}
-
 
 
 class TestPipeline:

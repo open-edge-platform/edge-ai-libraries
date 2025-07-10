@@ -35,7 +35,6 @@ from src.publisher.influx.influx_writer import InfluxdbWriter
 class Publisher:
    
     def __init__(self, app_cfg, 
-                 #pub_cfg, 
                  queue,
                  request:str=None,
                  add_timestamp:bool=True, 
@@ -49,7 +48,6 @@ class Publisher:
         :param queue.Queue queue: Python queue of data to publish
         """
         self.app_cfg = app_cfg
-        #self.pub_cfg = pub_cfg
         self.add_timestamp = add_timestamp
         self.append_pipeline_name_to_topic = append_pipeline_name_to_topic
         self.queue = queue
@@ -175,7 +173,6 @@ class Publisher:
         publishers = []
         self.mqtt_publish_frame = False
         self.opcua_publish_frame = False
-        #self.grpc_publish = False
         self.s3_config = None
         self.mqtt_config = None
         self.opcua_config = None
