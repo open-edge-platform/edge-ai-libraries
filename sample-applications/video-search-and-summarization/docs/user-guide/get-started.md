@@ -222,7 +222,7 @@ Follow these steps to run the application:
     ENABLE_OVMS_LLM_SUMMARY=true source setup.sh --summary config
     ```
 
-### ⚡ Using GPU Acceleration
+## Using GPU Acceleration
 
 To use GPU acceleration for VLM inference:
 
