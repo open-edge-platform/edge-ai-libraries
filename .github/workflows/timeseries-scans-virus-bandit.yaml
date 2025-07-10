@@ -3,8 +3,8 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-name: "[Time SeriesAnalytics] Virus and Bandit Scan"
-run-name: "[Time Series Analytics] Virus and Bandit Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[Time SeriesAnalytics] Virus, Bandit and Pylint Scan"
+run-name: "[Time Series Analytics] Virus, Bandit and Pylint Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 permissions: read-all
 
 on:
@@ -100,4 +100,10 @@ jobs:
 
       - name: Run Pylint
         run: |
-          pylint microservices/time-series-analytics/**/*.py
+          pylint microservices/time-series-analytics/**/*.py > reports/pylint-report.txt || true
+      
+      - name: Upload Pylint report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: reports/pylint-report.txt
