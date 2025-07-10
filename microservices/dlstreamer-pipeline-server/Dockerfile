@@ -136,7 +136,8 @@ RUN . /etc/os-release && \
         libopencv-core406 \
         libopencv-imgcodecs406 \
         libcjson1 \
-        libxtst6; \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.12.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.12.so; \
     else \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
@@ -148,12 +149,14 @@ RUN . /etc/os-release && \
         libopencv-core4.5d \
         libopencv-imgcodecs4.5d \
         libcjson1 \
-        libxtst6; \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so
+# RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so
+# RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.12.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.12.so
 
 RUN \
     mkdir /python3venv && \
@@ -214,7 +217,7 @@ COPY ./src/ ./src
 
 USER root
 
-RUN pip3 install --no-cache-dir wheel==0.45.1 && \
+RUN pip3 install --no-cache-dir wheel==0.45.1 setuptools==80.9.0 && \
     pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
     pip3 install --no-cache-dir Flask==2.2.5 && \
@@ -275,7 +278,7 @@ RUN apt-get update && \
 RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "24.04" ]; then \
         apt-get update && \
-        apt-get install -y --no-install-recommends curl build-essential && \
+        apt-get install -y --no-install-recommends python3-dev curl build-essential && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
@@ -288,28 +291,7 @@ RUN . /etc/os-release && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
 
-
 # Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
 RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
-
-# Set environment variables up front to ensure locales work properly
-ENV LANG=en_US.UTF-8 \
-    LC_ALL=en_US.UTF-8
-
-# ROS2 installation
-RUN apt update && \
-    apt install -y locales software-properties-common && \
-    locale-gen en_US en_US.UTF-8 && \
-    update-locale LC_ALL=${LC_ALL} LANG=${LANG} && \
-    add-apt-repository universe && \
-    apt update && \
-    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
-    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
-        http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
-        | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
-    apt update && \
-    apt install -y ros-humble-ros-base python3-colcon-common-extensions && \
-    apt clean && \
-    rm -rf /var/lib/apt/lists/*
 
 USER ${USER}

@@ -33,10 +33,6 @@ from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
 from src.publisher.influx.influx_writer import InfluxdbWriter
-try:
-    from src.publisher.ros2.ros2_publisher import ROS2Publisher
-except Exception as e:
-    get_logger(__name__).warning("Ignoring this import error since ROS2 is present only in extended DL Streamer Pipeline Server image: {}".format(e))
 
 class Publisher:
     """EII Pipeline Server publisher thread.
@@ -137,9 +133,6 @@ class Publisher:
             elif "type" in meta_destination and meta_destination["type"] == "influx_write":
                 self.influx_config = meta_destination
                 self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
-            elif "type" in meta_destination and meta_destination["type"] == "ros2":
-                self.ros2_config = meta_destination
-                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
         elif isinstance(meta_destination, list):
             for dest in meta_destination:
                 if "type" in dest and dest["type"] == "mqtt":
@@ -148,8 +141,6 @@ class Publisher:
                     self.opcua_config = dest
                 elif "type" in dest and dest["type"] == "influx_write":
                     self.influx_config = dest
-                elif "type" in dest and dest["type"] == "ros2":
-                    self.ros2_config = dest
                 self.request["destination"]["metadata"].remove(dest)
             if len(self.request["destination"]["metadata"]) == 0: # Remove the metadata from destination if list is empty
                 self.request["destination"].pop("metadata")
@@ -183,8 +174,6 @@ class Publisher:
             self.s3_config = self.app_cfg["S3_write"]
         if not self.influx_config and self.app_cfg.get("influx_write"):
             self.influx_config = self.app_cfg["influx_write"]
-        if not self.ros2_config and self.app_cfg.get("ros2_publisher"):
-            self.ros2_config = self.app_cfg.get("ros2_publisher")
 
     def _get_publishers(self):
         """Get publishers based on config.
@@ -196,12 +185,10 @@ class Publisher:
         self.mqtt_publish_frame = False
         self.opcua_publish_frame = False
         self.grpc_publish = False
-        self.ros2_publish_frame = False
         self.s3_config = None
         self.mqtt_config = None
         self.opcua_config = None
         self.influx_config = None
-        self.ros2_config = None
 
         try:
             launch_string = self.app_cfg.get("pipeline")
@@ -231,11 +218,7 @@ class Publisher:
                     publishers.append(opcua_pub)
                 if self.influx_config:
                     influx_pub = InfluxdbWriter(self.influx_config)
-                    publishers.append(influx_pub)
-                if self.ros2_config:
-                    ros2_pub = ROS2Publisher(self.ros2_config)
-                    self.ros2_publish_frame = ros2_pub.publish_frame
-                    publishers.append(ros2_pub)
+                    publishers.append(influx_pub)          
                         
             if os.getenv('RUN_MODE') == "EII":
                 dev_mode = os.getenv("DEV_MODE", "False")
@@ -576,7 +559,7 @@ class Publisher:
                     #    - Update metadata (encoding type/level)
                     if meta_data['caps'].split(',')[0] == "video/x-raw":
                         self.log.debug("Processing raw frame")
-                        if self.mqtt_publish_frame or self.grpc_publish or self.opcua_publish_frame or self.s3_config or self.ros2_publish_frame:
+                        if self.mqtt_publish_frame or self.grpc_publish or self.opcua_publish_frame or self.s3_config:
                             if (self.encoding == True) or (not self.publish_raw_frame):
                                 self.log.debug("Encoding frame of format {}".format(meta_data["img_format"]))
                                 try:
