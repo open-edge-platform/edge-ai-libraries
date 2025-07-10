@@ -33,7 +33,11 @@ from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
 from src.publisher.influx.influx_writer import InfluxdbWriter
-from src.publisher.ros2.ros2_publisher import ROS2Publisher
+try:
+    from src.publisher.ros2.ros2_publisher import ROS2Publisher
+except Exception as e:
+    get_logger(__name__).warning("Ignoring this import error since ROS2 is present only in extended DL Streamer Pipeline Server image: {}".format(e))
+
 
 class Publisher:
     """EII Pipeline Server publisher thread.
