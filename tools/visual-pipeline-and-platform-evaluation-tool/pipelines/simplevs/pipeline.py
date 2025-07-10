@@ -4,7 +4,7 @@ from pathlib import Path
 from pipeline import GstPipeline
 
 
-class SimpleVideoStructurization(GstPipeline):
+class SimpleVideoStructurizationPipeline(GstPipeline):
     def __init__(self):
         super().__init__()
 

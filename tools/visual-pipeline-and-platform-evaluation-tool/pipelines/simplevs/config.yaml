@@ -4,7 +4,7 @@ definition: >
   license plate recognition, vehicle detection with attribute classification, and other object detection and
   classification tasks, adaptable based on the selected model.
 metadata:
-  classname: SimpleVideoStructurization
+  classname: SimpleVideoStructurizationPipeline
   enabled: false
 recording:
   url: "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4"

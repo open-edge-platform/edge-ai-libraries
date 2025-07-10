@@ -1,11 +1,11 @@
 import unittest
 
-from pipelines.transportation3.pipeline import LicensePlateDetectionPipeline
+from pipelines.simplevs.pipeline import SimpleVideoStructurizationPipeline
 
 
-class TestLicensePlateDetectionPipeline(unittest.TestCase):
+class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
     def setUp(self):
-        self.pipeline = LicensePlateDetectionPipeline()
+        self.pipeline = SimpleVideoStructurizationPipeline()
         self.constants = {
             "VIDEO_OUTPUT_PATH": "output.mp4",
             "VIDEO_PATH": "input.mp4",
