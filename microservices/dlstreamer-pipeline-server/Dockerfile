@@ -3,10 +3,9 @@ FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
 
+ENV DEBIAN_FRONTEND=noninteractive
+
 ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
-ENV VIRTUAL_ENV=/python3venv
-ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
 ARG WORKDIR=/home/pipeline-server
 WORKDIR ${WORKDIR}
@@ -14,6 +13,7 @@ WORKDIR ${WORKDIR}
 RUN export no_proxy= && \
     apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git autoconf  \
     automake \
+    libgirepository1.0-dev \
     libglib2.0-dev \
     libusb-1.0-0-dev \
     libtool \
@@ -22,9 +22,26 @@ RUN export no_proxy= && \
     zip \
     unzip \
     libopencv-dev \
-    libcjson-dev && \
+    libcjson-dev \
+    python3-pip \
+    python3-full \
+    python-gi-dev \
+    python3-dev \
+    libcairo2-dev && \
     rm -rf /var/lib/apt/lists/*
 
+RUN \
+    mkdir /python3venv && \
+    chmod -R u+w /python3venv
+
+RUN \
+    python3 -m venv /python3venv && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
+
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
 RUN apt-get update && apt-get install -y --no-install-recommends wget && \
     wget -qO- https://cmake.org/files/v3.15/cmake-3.15.0-Linux-x86_64.tar.gz | \
@@ -93,7 +110,7 @@ RUN export no_proxy= && \
 RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
     && if [ -d \"build\" ] ; then rm -rf build ; fi \
     && mkdir build \
-    && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/build/intel64/Release/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
+    && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
     && cd build \
     && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
     && make"
@@ -104,11 +121,6 @@ FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
 
 USER root
 
-ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
-ENV VIRTUAL_ENV=/python3venv
-ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
-
 ARG WORKDIR=/home/pipeline-server
 WORKDIR ${WORKDIR}
 
@@ -116,6 +128,7 @@ RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "24.04" ]; then \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        python3-venv \
         libglib2.0-0 \
         libusb-1.0-0 \
         libtool \
@@ -126,7 +139,8 @@ RUN . /etc/os-release && \
         libxtst6; \
     else \
         export no_proxy= && \
-        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        python3-venv \
         libglib2.0-0 \
         libusb-1.0-0 \
         libtool \
@@ -138,6 +152,19 @@ RUN . /etc/os-release && \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
+
+RUN \
+    mkdir /python3venv && \
+    chmod -R u+w /python3venv
+
+RUN \
+    python3 -m venv /python3venv && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
+
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
 ARG CMAKE_INSTALL_PREFIX
 
@@ -185,8 +212,7 @@ COPY ./src/ ./src
 
 USER root
 
-RUN pip3 install --no-cache-dir --upgrade pip && \
-    pip3 uninstall --no-cache-dir -y Flask && \
+RUN pip3 uninstall --no-cache-dir -y Flask && \
     # Downgrading Flask due to an atttribute error(JSONEncoder)
     pip3 install --no-cache-dir Flask==2.2.5 && \
     pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
