@@ -1357,8 +1357,13 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
 
-                            # Whether to enable video output
-                            pipeline_video_enabled.render()
+                            # Enable video output checkbox
+                            @gr.render(triggers=[run_tab.select])
+                            def _():
+                                show_hide_component(
+                                    pipeline_video_enabled,
+                                    current_pipeline[1]["parameters"]["run"]["video_output_checkbox"],
+                                )
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):

@@ -11,6 +11,7 @@ recording:
 parameters:
   run:
     recording_channels: true
+    video_output_checkbox: false
   benchmark:
     ai_stream_rate: true
     result_format: "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
