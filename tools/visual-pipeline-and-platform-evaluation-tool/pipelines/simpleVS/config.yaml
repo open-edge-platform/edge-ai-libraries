@@ -1,7 +1,8 @@
 name: Simple Video Structurization (D-T-C)
 definition: >
-  Transportation Proxy Pipeline 3 performs license plate detection on vehicles, enabling automated
-  identification and tracking of license plates for transportation analysis and monitoring.
+  The Simple Video Structurization (D-T-C) pipeline is a versatile, use case-agnostic solution that supports
+  license plate recognition, vehicle detection with attribute classification, and other object detection and
+  classification tasks, adaptable based on the selected model.
 metadata:
   classname: SimpleVideoStructurization
   enabled: false
