@@ -103,7 +103,7 @@ jobs:
               EOF
               trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
               trivy image --quiet --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
-              trivy image ia-time-series-analytics-microservice:latest --ignore-unfixed --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
+              trivy image ia-time-series-analytics-microservice:latest --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
               echo "completed Time Series Analytics scanning"
             
       - name: Upload Trivy Image Scan Report
