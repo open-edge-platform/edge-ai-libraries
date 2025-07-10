@@ -108,6 +108,9 @@ Start-Process -Wait -FilePath "vcpkg" -ArgumentList "install", "--triplet=x64-wi
 
 C:\openvino\setupvars.ps1
 
-Start-Process -Wait -FilePath "cmake" -ArgumentList "-DVCPKG_BUILD_TYPE=release", "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}" -NoNewWindow
-Start-Process -Wait -FilePath "cmake" -ArgumentList "--build", ".", "--parallel", "16", "--target", "ALL_BUILD", "--config", "Release" -NoNewWindow
+$exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "-DVCPKG_BUILD_TYPE=release", "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}", "-Wno-dev" -NoNewWindow
+if (-Not $exit_code.ExitCode) {
+	$exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "--build", ".", "--parallel", "16", "--target", "ALL_BUILD", "--config", "Release", "--" -NoNewWindow
+}
 
+exit $exit_code.ExitCode
