@@ -10,6 +10,10 @@
 - Update in Setup Scripts for default model download path in the backend.
 - Bug fixes.
 
+### Known Issues/Behavior:
+- Not validated with EMF deployment package
+- Not validated on EMT edge node
+
 ## Previous Release
 
 **Version**: 1.2.0 \
