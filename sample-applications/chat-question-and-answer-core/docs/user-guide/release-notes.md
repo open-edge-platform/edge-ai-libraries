@@ -11,7 +11,7 @@
 - Bug fixes.
 
 ### Known Issues/Behavior:
-- Not validated with EMF deployment package
+- Not validated with the EMF deployment package
 - Not validated on EMT edge node
 
 ## Previous Release
@@ -32,7 +32,7 @@
 **Release Date**: WW16 2025
 
 - Persistent volume used instead of hostpath. This is enabled by default requiring clusters to support dynamic storage support.
-- Documentation updated for ESC compatability. As ESC supports only absolute file path, the links in the documentation will always point to main repo even on forked repos.
+- Documentation updated for ESC compatability. As ESC supports only absolute file path, the links in the documentation always point to main repo even on forked repos.
 - Bug fixes
 
 **Version**: 1.1.1 \
