@@ -154,7 +154,7 @@ paths:
           name: download_path
           schema:
             type: string
-            default: models
+            default: None
           description: Base path for model downloads
       requestBody:
         required: true

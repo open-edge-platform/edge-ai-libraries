@@ -1,7 +1,7 @@
 [tool.poetry]
 name = "model_download"
 version = "0.1.0"
-description = "A FastAPI application for downloading and converting Hugging Face models."
+description = "A FastAPI application for downloading and converting HuggingFace/Ollama models."
 authors = []
 packages = [{ include = "app" }]
 
@@ -15,7 +15,6 @@ openvino-tokenizers = { version = "2025.0.*", extras = ["transformers"] }
 openvino = "2025.0.*"
 nncf = "2.14.0" 
 sentence_transformers = "3.1.1"
-openai = "1.59.4"
 transformers = "<4.45"
 huggingface-hub = { version = "0.29.0", extras = ["hf-transfer"] }
 optimum = {extras = ["openvino", "nncf"], version = "1.24.0"}
@@ -26,6 +25,14 @@ pytest-cov = "^4.1.0"
 pytest-asyncio = "^0.21.1"
 httpx = "^0.24.1"
 pytest-mock = "^3.11.1"
+
+[tool.poetry.group.cpu.dependencies]
+torch = { version = "^2.7.1", source = "pytorch-cpu" }
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

@@ -8,6 +8,6 @@ services:
     ports:
       - "32004:8000"  # Map container port 8000 to host port 8000
     volumes:
-      # Mount a volume for caching Hugging Face models
+      # Mount a volume for caching Hugging Face/Ollama models
       - ~/.cache/huggingface:/root/.cache/huggingface
       - ~/models:/app/models

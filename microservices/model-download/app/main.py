@@ -66,7 +66,7 @@ class ModelDownloadRequest(BaseModel):
 @app.post("/models/download")
 async def download_models(
     request: ModelDownloadRequest,
-    download_path: str = "models",
+    download_path: Optional[str] = None,
     Authorization: Optional[HTTPAuthorizationCredentials] = Depends(auth_token)
 ):
     """
@@ -87,8 +87,15 @@ async def download_models(
             - 400: If model download process fails
     """
     try:
+        # Validate if the model hub is supported
+        if any(model.hub not in {"huggingface", "ollama"} for model in request.models):
+            raise HTTPException(
+                status_code=400,
+                detail="Unsupported model hub(s) detected. Supported hubs are 'huggingface' and 'ollama'."
+            )
+
         # Check if Authorization is required (only for Hugging Face models)
-        huggingface_models = [model for model in request.models if model.hub == "huggingface"]
+        huggingface_models = any(model.hub == "huggingface" for model in request.models)
 
         if huggingface_models and (not Authorization or not Authorization.credentials):
             raise HTTPException(
@@ -99,18 +106,22 @@ async def download_models(
         # Log download request details with configuration
         logger.info(f"Initiating model download for {len(request.models)} model(s)")
 
+        model_download_path = os.path.join("models", download_path) if download_path else "models"
+        # logger.info(f"Download path: {download_path}")
+        # logger.info(f"Model download path: {model_download_path}")
+        # exit()
         try:
             # Process models either in parallel or sequentially
             with ThreadPoolExecutor(max_workers=len(request.models) if request.parallel_downloads else 1) as executor:
                 results = list(executor.map(
                     lambda model: download_and_process_model(
                         model=model,
-                        model_path=download_path,
+                        model_path=model_download_path,
                         hf_token=(Authorization.credentials if Authorization else None)
                     ) if model.hub == "huggingface" else 
                     download_ollama_model(
                         model=model,
-                        model_path=download_path
+                        model_path=model_download_path
                     ),
                     request.models
                 ))
@@ -190,7 +201,7 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: O
             )
 
         # Create model-specific directory
-        model_specific_path = os.path.join(model_path, model.name.replace('/', '_'))
+        model_specific_path = os.path.join(model_path, 'huggingface_models', model.name.replace('/', '_'))
         try:
             os.makedirs(model_specific_path, exist_ok=True)
         except OSError as e:
@@ -233,7 +244,9 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: O
             )
             
             # Prepare OVMS configuration
-            model_downloaded_path = os.path.join(ovms_config.device.value, model_specific_path)
+            model_downloaded_path = os.path.join(model_path, 'ovms_models', ovms_config.device.value, model.name.replace('/', '_'))
+            logger.info(f"OVMS model directory: {model_downloaded_path}")
+
             try:
                 os.makedirs(model_downloaded_path, exist_ok=True)
             except OSError as e:
@@ -310,9 +323,14 @@ def download_ollama_model(model: str, model_path: str) -> ModelResult:
     """
     import time
 
+    if model.is_ovms:
+        raise NotImplementedError(
+            "Ollama models do not support OVMS conversion at this time."
+        )
+
     try:
         # Create model-specific directory
-        model_specific_path = os.path.join(model_path, model.name.replace("/", "_"))
+        model_specific_path = os.path.join(model_path, 'ollama_models', model.name.replace("/", "_"))
         os.environ["OLLAMA_MODELS"] = model_specific_path
 
         logger.info(f"Directory for Ollama model: {model_specific_path}")
@@ -417,15 +435,19 @@ def convert_to_ovms_format(
             )
 
         # Step 2: Download the export_model.py script
-        logger.info("Downloading export_model.py script...")
+        logger.info("Checking for export_model.py script...")
         export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py"
-        try:
-            subprocess.run(["curl", "-o", "export_model.py", export_script_url], check=True)
-        except subprocess.CalledProcessError as e:
-            raise HTTPException(
-                status_code=500,
-                detail=f"Failed to download export script: {str(e)}"
-            )
+        if not os.path.exists("export_model.py"):
+            logger.info("Downloading export_model.py script...")
+            try:
+                subprocess.run(["curl", "-o", "export_model.py", export_script_url], check=True)
+            except subprocess.CalledProcessError as e:
+                raise HTTPException(
+                    status_code=500,
+                    detail=f"Failed to download export script: {str(e)}"
+                )
+        else:
+            logger.info("export_model.py already exists, skipping download.")
 
         # Step 3: Export the model
         logger.info(f"Exporting model: {model_name} with weight format: {weight_format} and export type: {export_type}...")
@@ -442,9 +464,10 @@ def convert_to_ovms_format(
             "--model_repository_path", model_directory,
             "--target_device", target_device
         ]
+
         # Add optional parameters if provided
-        if cache_size is not None:
-            command += ["--cache", str(cache_size)]
+        if export_type == "text_generation" and cache_size is not None:
+            command += ["--cache_size", str(cache_size)]
 
         try:
             subprocess.run(command, check=True)
