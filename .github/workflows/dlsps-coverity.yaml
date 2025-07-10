@@ -84,9 +84,9 @@ jobs:
           && ../cov-analysis/bin/cov-build --dir cov-int make" 
       - name: Create tarball for upload
         run: |
-          cd /home/pipeline-server/gst-udf-loader
+          cd /home/pipeline-server/gst-udf-loader/build
           ls -al
-          tar czf coverity-output.tgz -C build cov-int
+          tar czf coverity-output.tgz cov-int
       - name: Upload to Coverity Scan
         run: |
           cd /home/pipeline-server/gst-udf-loader/build
