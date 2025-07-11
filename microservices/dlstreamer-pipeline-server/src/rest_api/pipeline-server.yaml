@@ -634,32 +634,6 @@ components:
         - bucket
         - org
       type: object
-    ROS2Destination:
-      anyOf:
-        - type: object
-          properties:
-            topic:
-              type: string
-            type:
-              enum:
-              - ros2
-              type: string
-          required:
-            - topic
-            - type
-        - type: object
-          properties:
-            publish_frame:
-              type: boolean
-            topic:
-              type: string
-            type:
-              enum:
-              - ros2
-              type: string
-          required:
-            - topic
-            - type
     FrameDestination:
       anyOf:
         - type: object
@@ -688,7 +662,6 @@ components:
             - $ref: '#/components/schemas/FileDestination'
             - $ref: '#/components/schemas/OPCUADestination'
             - $ref: '#/components/schemas/InfluxWrite'
-            - $ref: '#/components/schemas/ROS2Destination'
         - type: array
           items:
             discriminator:
@@ -699,7 +672,6 @@ components:
               - $ref: '#/components/schemas/FileDestination'
               - $ref: '#/components/schemas/OPCUADestination'
               - $ref: '#/components/schemas/InfluxWrite'
-              - $ref: '#/components/schemas/ROS2Destination'
     FrameAndMetadataDestination:
       type: object
       properties:

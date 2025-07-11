@@ -13,7 +13,7 @@ In case users want to update default pipeline, they need to update the same in c
 ```
 As an example we are creating `video-ingestion and resize` pipeline. We need to update `pipeline` key in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` as shown below.  It would create DL Streamer pipeline that reads user provided video file, decodes it, and resize to 1280x720.
 ```sh
-"pipeline": "{auto_source} name=source  ! decodebin ! videoscale ! video/x-raw, width=1280,height=720 ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} name=source  ! decodebin3 ! videoscale ! video/x-raw, width=1280,height=720 ! gvametapublish name=destination ! appsink name=appsink",
 ```
 `Note`: If needed users can change pipeline name by updating `name` key in `config.json`. If user is updating this field, accordingly endpoint in curl request needs to be changed to `<SERVER-IP>:<PORT>/pipelines/user_defined_pipelines/<NEW-NAME>`. In this example, we are only changing pipeline.
 

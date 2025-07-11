@@ -74,7 +74,7 @@ def get_logger(name):
             logger.setLevel(LOG_LEVELS[os.environ['LOG_LEVEL'].upper()])
         else:
             logger.setLevel(logging.INFO)
-        logger.propagate = 0
+        logger.propagate = True
         formatter = logging.Formatter(
             "%(asctime)s - %(levelname)s - %(module)s\t - %(funcName)s [%(lineno)3d] - %(message)s")
         streamHandler = logging.StreamHandler(sys.stdout)
