@@ -12,8 +12,9 @@ on:
 
 permissions:
   contents: read
-  security-events: write
-
+  packages: read           
+  security-events: write  
+  
 jobs:  
   bandit-scans:
     permissions:
