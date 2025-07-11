@@ -31,16 +31,12 @@ class TestPipelineInstance:
                                 "name": "test_pipeline", 
                                 "pipeline": "test ! gstreamer ! pipeline",
                                 "parameters": {"param1":"test_param1"}}
-        test_publisher_config = ["test_publisher_cfg"]
         test_request= {"mock_request_key": "mock_request_value"}
-        test_subscriber_config = "test_subscriber_cfg"
         test_subscriber_topic = "test_subscriber_topic"
         test_publish_frame = False
 
-        pipeline_obj = PipelineInstance(test_pipeline_name, test_pipeline_version, test_config, test_publisher_config, test_subscriber_config, test_subscriber_topic, test_publish_frame, test_request) 
+        pipeline_obj = PipelineInstance(test_pipeline_name, test_pipeline_version, test_config, test_subscriber_topic, test_publish_frame, test_request) 
         
-        assert pipeline_obj.pub_cfg == test_publisher_config
-        assert pipeline_obj.sub_cfg == test_subscriber_config
         assert pipeline_obj.sub_topic == test_subscriber_topic
         assert pipeline_obj.config == test_config
         assert pipeline_obj.publish_frame == False
@@ -54,13 +50,11 @@ class TestPipelineInstance:
             "source": "ingestor",
             "parameters": {"param1": "value1"}
         }
-        publisher_config = ["mock_publisher"]
-        subscriber_config = {"mock_subscriber_key": "mock_subscriber_value"}
         subscriber_topic = "mock_topic"
         publish_frame = True
         request = {"mock_request_key": "mock_request_value"}
 
-        return PipelineInstance(name, version, config, publisher_config, subscriber_config, subscriber_topic, publish_frame, request)
+        return PipelineInstance(name, version, config, subscriber_topic, publish_frame, request)
 
     def test_mutable_deepcopy_none(self, pipeline_instance):
         result = pipeline_instance._mutable_deepcopy(None)
@@ -104,9 +98,6 @@ class TestPipelineInstance:
         mock_publisher.return_value.publishers = [MagicMock()]
         with pytest.raises(RuntimeError, match="Unsupported source:"):
             pipeline_instance.start()
-
-    
-
 
     def test_execute_request_invalid_source_type(self, pipeline_instance):
         pipeline_instance.source_type = "invalid_source_type"
@@ -180,7 +171,6 @@ class TestPipelineInstance:
         assert status == {"status": "running"}
 
 
-
 class TestPipeline:
     
     @pytest.fixture
@@ -201,19 +191,17 @@ class TestPipeline:
         return {}
 
     @pytest.fixture
-    def setup_pipeline_obj(self, mocker, tmp_path, pipeline_config, publisher_config, subscriber_config):
+    def setup_pipeline_obj(self, mocker, tmp_path, pipeline_config):
         test_root_dir = tmp_path
         test_pipeline_name = "test_pipeline_name"
         test_subscriber_topic = "test_subscriber_topic"        
-        pipeline_obj = Pipeline(test_root_dir, test_pipeline_name, pipeline_config, publisher_config, subscriber_config, test_subscriber_topic)
+        pipeline_obj = Pipeline(test_root_dir, test_pipeline_name, pipeline_config, test_subscriber_topic)
         return pipeline_obj
 
     def test_pipeline_initialization(self, setup_pipeline_obj, tmp_path, pipeline_config):
         pipeline_obj = setup_pipeline_obj
         assert pipeline_obj.root == tmp_path
         assert pipeline_obj.pipeline_name == "test_pipeline_name"
-        assert pipeline_obj.pub_cfg == []
-        assert pipeline_obj.sub_cfg == {}
         assert pipeline_obj.sub_topic == "test_subscriber_topic"
         assert pipeline_obj.pipeline_config == pipeline_config
         assert pipeline_obj.publish_frame == False
@@ -244,8 +232,6 @@ class TestPipeline:
             pipeline_obj.pipeline_name,
             pipeline_obj.pipeline_version,
             pipeline_obj.pipeline_config,
-            pipeline_obj.pub_cfg,
-            pipeline_obj.sub_cfg,
             pipeline_obj.sub_topic,
             pipeline_obj.publish_frame,
             None
@@ -282,13 +268,12 @@ class TestPipelineServerManager:
         config = MagicMock()
         config.get_app_config.return_value = {
             'pipelines': [
-                {'name': 'pipeline1', 'source': 'grpc', 'publish_frame': False},
-                {'name': 'pipeline2', 'source': 'grpc', 'publish_frame': True}
+                {'name': 'pipeline1', 'publish_frame': False},
+                {'name': 'pipeline2', 'publish_frame': True}
             ]
         }
         config.get_publishers.return_value = [MagicMock(), MagicMock()]
         config.get_subscribers.return_value = [MagicMock()]
-        config.is_eii_mode = True
         return PipelineServerManager(config)
 
     def test_initialize_pipelines(self, mocker, pipeline_server_manager):
@@ -296,34 +281,10 @@ class TestPipelineServerManager:
         pipeline_server_manager._initialize_pipelines()
         assert len(pipeline_server_manager._PIPELINES) == 2
 
-    def test_initialize_pipelines_multiple_subscribers(self, pipeline_server_manager):
-        pipeline_server_manager.app_config = {
-            'pipelines': [
-                {'name': 'pipeline1', 'source': 'grpc', 'publish_frame': False}
-            ]
-        }
-        mock_subscriber1 = MagicMock()
-        mock_subscriber2 = MagicMock()
-        pipeline_server_manager.config.get_subscribers = MagicMock(return_value=[mock_subscriber1, mock_subscriber2])
-        with pytest.raises(ValueError, match="Only single subscriber is supported."):
-            pipeline_server_manager._initialize_pipelines()
-
-    def test_initialize_pipelines_invalid_subscriber(self, pipeline_server_manager):
-        pipeline_server_manager.app_config = {
-            'pipelines': [
-                {'name': 'pipeline1', 'source': 'grpc', 'publish_frame': False}
-            ]
-        }
-        mock_subscriber = MagicMock()
-        mock_subscriber.is_emb_subscriber.return_value = False
-        pipeline_server_manager.config.get_subscribers = MagicMock(return_value=[mock_subscriber])
-        with pytest.raises(ValueError, match="Subsciber must be an edge grpc subscriber"):
-            pipeline_server_manager._initialize_pipelines()
-
     def test_get_loaded_pipelines(self, pipeline_server_manager):
         mock_loaded_pipelines = [
-            {"name": "pipeline1", "source": "grpc", "publish_frame": False},
-            {"name": "pipeline2", "source": "grpc", "publish_frame": True}
+            {"name": "pipeline1", "publish_frame": False},
+            {"name": "pipeline2", "publish_frame": True}
         ]
         pipeline_server_manager.pserv = MagicMock()
         pipeline_server_manager.pserv.pipeline_manager.get_loaded_pipelines = MagicMock(return_value=mock_loaded_pipelines)
