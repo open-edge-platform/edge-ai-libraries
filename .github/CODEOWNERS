@@ -1,4 +1,4 @@
-README.md @xwu2intel
+README.md @xwu2intel @open-edge-platform/open-edge-platform-docs-write
 LICENSE @xwu2intel
 CONTRIBUTING.md @xwu2intel
 CODE_OF_CONDUCT.md @xwu2intel
@@ -8,7 +8,7 @@ SECURITY.md @xwu2intel
 /microservices/object-store/ @bharagha @madhuri-rai07 @yogeshmpandey
 /sample-applications/chat-question-and-answer/  @bharagha @madhuri-rai07 @yogeshmpandey
 /sample-applications/chat-question-and-answer-core/  @bharagha @madhuri-rai07 @yogeshmpandey
-/tools/visual-pipeline-and-platform-evaluation-tool/ @p-zak @ktaube26 @tmatenko
+/tools/visual-pipeline-and-platform-evaluation-tool/ @p-zak @ktaube26 @tmatenko @pmalatyn
 /microservices/dlstreamer-pipeline-server/ @ajagadi1 @rrajore @sajeevrajput
 /microservices/model-registry/ @rrajore @elroyashjr
 /libraries/dl-streamer/ @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
@@ -19,3 +19,12 @@ SECURITY.md @xwu2intel
 /microservices/vector-retriever/ @bhardwaj-nakul @krish918 @llin60 @xwu2intel
 /microservices/audio-analyzer/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
 /sample-applications/video-search-and-summarization/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
+
+# documentation content
+/libraries/dl-streamer/docs @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/README.md @open-edge-platform/open-edge-platform-docs-write
+/microservices/**/docs @open-edge-platform/open-edge-platform-docs-write
+/microservices/**/README.md @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/**/docs @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/**/README.md @open-edge-platform/open-edge-platform-docs-write
+
