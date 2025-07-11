@@ -276,6 +276,9 @@ jobs:
           cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
           echo "Scanning for .sh files and running ShellCheck..."
           find . -type f -name "*.sh" | tee shell_files.txt | xargs -r shellcheck -f gcc > shellcheck_report.txt || true
+          echo "### ShellCheck Results" >> $GITHUB_STEP_SUMMARY
+          echo "Please find ShellCheck report in shellcheck_report.txt" >> $GITHUB_STEP_SUMMARY
+          cp shellcheck_report.txt ${{ github.workspace }}
 
       - name: Upload ShellCheck report
         uses: actions/upload-artifact@v4
