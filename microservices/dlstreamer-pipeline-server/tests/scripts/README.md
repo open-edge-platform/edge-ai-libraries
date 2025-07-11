@@ -39,12 +39,12 @@ tests --> scripts
 
 To start RTSP servers in the background, execute the following commands:
 
-    ```sh
-    cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
-    chmod a+x stream_rtsp.sh
-    ./stream_rtsp.sh start <no_of_streams> <path_to_video> <system_ip>
-    ```
-    
+```sh
+cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
+chmod a+x stream_rtsp.sh
+./stream_rtsp.sh start <no_of_streams> <path_to_video> <system_ip>
+```
+
 - Replace `<no_of_streams>` with the number of streams to start.
 - Replace `<path_to_video>` with the path to the video file.
 - Replace `<system_ip>` with the system's IP address.
@@ -53,18 +53,25 @@ To start RTSP servers in the background, execute the following commands:
 
 To stop the RTSP servers, run:
 
-    ```sh
-    ./stream_rtsp.sh stop
-    ```
+```sh
+./stream_rtsp.sh stop
+```
 
 ## Running DLStreamer Pipeline Server Automation Tests
 
 To run sanity test cases for DLStreamer Pipeline Server, use the following command:
 
-    ```sh
-    cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/tests/scripts/robot_files
-    robot test_main_sanity.robot
-    ```
+```sh
+cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/tests/scripts/robot_files
+robot test_main_sanity.robot
+```
 
 - **Explanation:**
   - `robot test_main_sanity.robot` executes the Robot Framework sanity test file.
+
+After running the tests, the following files will be generated in the `robot_files` directory:
+- `log.html`
+- `output.xml`
+- `report.html`
+
+To view the test results, open the `report.html` file in a web browser.
