@@ -1,5 +1,5 @@
 ***Settings***
-Documentation    This is main test case file.
+Documentation    This is the main test case file for DL Streamer Pipeline Server sanity tests.
 Library          test_suit_dlsps_cases.py
 
 
