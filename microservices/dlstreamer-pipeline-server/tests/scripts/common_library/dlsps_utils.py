@@ -1,3 +1,9 @@
+#
+# Apache v2 license
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+
 import os, sys, time, json, yaml, subprocess, os.path, requests
 from collections import OrderedDict
 
@@ -43,7 +49,19 @@ dlsps_data_gvadetect_rtsp = dlsps_data["gvadetect_rtsp"]
 dlsps_data_gvadetect = dlsps_data["gvadetect"]
 
 class dlsps_utils():
+    """
+    Utility class for managing and testing the DL Streamer Pipeline Server.
+
+    Attributes:
+        repo_path (str): Path to the repository root.
+        dlsps_path (str): Path to the Docker directory for DL Streamer Pipeline Server.
+        dlsps_config (str): Path to the default configuration file.
+    """
+
     def __init__(self):
+        """
+        Initializes the dlsps_utils class with repository paths.
+        """
         self.repo_path = repo_path
         self.dlsps_path = f"{repo_path}/docker"
         self.dlsps_config = f"{repo_path}/configs/default/config.json"
@@ -52,6 +70,16 @@ class dlsps_utils():
 
 
     def json_reader(self, tc, JSON_PATH):
+        """
+        Reads a JSON file and retrieves the value for a specific test case.
+
+        Args:
+            tc (str): Test case key to search for in the JSON file.
+            JSON_PATH (str): Path to the JSON file.
+
+        Returns:
+            The test case key and its value.
+        """
         print('\n********** Reading json **********')
         with open(JSON_PATH, "r") as jsonFile:
             json_config = json.load(jsonFile)
@@ -62,6 +90,12 @@ class dlsps_utils():
 
 
     def change_docker_compose_for_standalone(self):
+        """
+        Updates the Docker Compose configuration for standalone mode.
+
+        Modifies the `.env` file to set the RTSP_CAMERA_IP and updates the
+        `docker-compose.yml` file to include the default configuration volume.
+        """
         print('\n********** Updating docker-compose.yml **********')
         os.chdir(self.dlsps_path)
         for key, value in {'RTSP_CAMERA_IP': hostIP}.items():
@@ -78,6 +112,9 @@ class dlsps_utils():
 
 
     def common_service_steps_dlsps(self):
+        """
+        Builds and runs the DL Streamer Pipeline Server using Docker Compose.
+        """
         print('********** Building and running dlsps **********')
         os.chdir(self.dlsps_path)
         subprocess.run('docker compose build', shell=True, executable='/bin/bash', check=True)
@@ -85,6 +122,12 @@ class dlsps_utils():
 
 
     def change_config_for_dlsps_standalone(self, value):
+        """
+        Updates the DL Streamer Pipeline Server configuration file.
+
+        Args:
+            value (dict): Dictionary containing the new source configuration and pipeline type.
+        """
         print('********** Changing config.json **********')
         with open(self.dlsps_config, "r") as jsonFile:
             data = json.load(jsonFile, object_pairs_hook=OrderedDict)
@@ -101,6 +144,15 @@ class dlsps_utils():
 
 
     def execute_curl_command(self, value):
+        """
+        Sends a POST request to start a pipeline and checks its status.
+
+        Args:
+            value (dict): Dictionary containing the instance type and other parameters.
+
+        Raises:
+            Exception: If the pipeline is in an unexpected state or not found.
+        """
         instance_map = {
             "auto_source_gvadetect": dlsps_data_gvadetect,
             "auto_source_gvadetect_rtsp": dlsps_data_gvadetect_rtsp,
@@ -132,7 +184,17 @@ class dlsps_utils():
                 raise Exception(f"Pipeline {pipeline_id} not found in status response.")
 
 
-    def container_logs_checker_dlsps(self, item, tc, value):
+    def container_logs_checker_dlsps(self, tc, value):
+        """
+        Checks the logs of specified Docker containers for specific keywords.
+
+        Args:
+            tc (str): Test case identifier.
+            value (dict): Dictionary containing container names and keywords to check.
+
+        Returns:
+            bool: True if all keywords are found in the logs, False otherwise.
+        """
         print('********** Checking container logs **********')
         time.sleep(3)
         containers = value.get("check_logs", "").split()
@@ -154,6 +216,16 @@ class dlsps_utils():
 
 
     def search_element(self, logFile, keyword):
+        """
+        Searches for a specific keyword in a log file.
+
+        Args:
+            logFile (str): Path to the log file.
+            keyword (str): Keyword to search for.
+
+        Returns:
+            bool: True if the keyword is found, False otherwise.
+        """
         keyword_found = False
         keywords_file = os.path.abspath(logFile)
         with open(keywords_file, 'rb') as file:
