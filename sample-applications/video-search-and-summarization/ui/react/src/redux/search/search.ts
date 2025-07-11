@@ -62,8 +62,12 @@ export interface SearchQuery {
   updatedAt: string;
 }
 
+export interface SearchQueryUI extends SearchQuery {
+  topK: number;
+}
+
 export interface SearchState {
-  searchQueries: SearchQuery[];
+  searchQueries: SearchQueryUI[];
   unreads: string[];
   selectedQuery: string | null;
   triggerLoad: boolean;

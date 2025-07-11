@@ -1,0 +1,132 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: ovms-pvc
+  {{- if .Values.global.keeppvc }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.global.ovms_pvc.size }}
+---
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ .Values.ovmServer.script.name }}
+  labels:
+    app: {{ .Values.ovmServer.script.name }}
+
+data:
+  init-script.sh: |-
+    #!/bin/bash
+    model=$0
+    weight_format=$1
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
+    
+    # Log in to Hugging Face using the provided token
+    huggingface-cli login --token $2
+
+    # Check if the login was successful
+    if [ $? -eq 0 ]; then
+        echo "Successfully logged in to Hugging Face!"
+    else
+        echo "Failed to log in to Hugging Face. Please check your token and try again."
+    fi
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
+    mkdir models
+    python export_model.py text_generation --source_model "${model}" --weight-format int4 --config_file_path models/config.json --model_repository_path models --target_device CPU
+    
+    cp -r models /opt/data
+
+    echo "All the steps are completed successfully"
+---
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.ovmServer.name }}
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: {{ .Values.ovmServer.name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Values.ovmServer.name }}
+    spec:
+      initContainers:
+        - name: init-script
+          image: "python:3.10.12"
+          command:
+              - /bin/sh
+              - -c
+              - |
+                if [ -f /opt/data/models/config.json ]; then
+                  echo "Config file found, checking for model conversion."
+                  if grep '"name": "{{ .Values.global.llm.llmModelId }}"' /opt/data/models/config.json; then
+                    echo "Model already converted, skipping conversion."
+                  else
+                    echo "Model not converted, running init script. /config/init-script.sh "{{ .Values.global.llm.llmModelId }}" "{{ .Values.global.ovms.weightFormat }}" "{{ .Values.global.huggingface.token }}""
+                    . /config/init-script.sh
+                  fi
+                else
+                  echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.llm.llmModelId }}" "{{ .Values.global.ovms.weightFormat }}" "{{ .Values.global.huggingface.token }}""
+                  . /config/init-script.sh
+                fi
+          args: ["{{ .Values.global.llm.llmModelId}}","{{ .Values.global.ovms.weightFormat }}","{{ .Values.global.huggingface.token }}"]
+          env:
+            - name: http_proxy
+              value: {{ .Values.global.proxy.httpProxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.httpsProxy }}
+            - name: no_proxy
+              value: {{ .Values.global.proxy.noProxy }}
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /config
+            - name: workspace
+              mountPath: /opt/data
+      containers:
+        - name: {{ .Values.ovmServer.name }}
+          image: {{ .Values.ovmServer.image.repository }}:{{ .Values.ovmServer.image.tag }}
+          imagePullPolicy: {{ .Values.ovmServer.image.pullPolicy }}
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.ovmServer.readinessProbe.httpGet.path }}
+              port: {{ .Values.ovmServer.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.ovmServer.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.ovmServer.readinessProbe.periodSeconds }}
+          ports:
+            - containerPort: {{ .Values.ovmServer.service.port }}
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+          volumeMounts:
+            - name: scripts-volume
+              mountPath: /config
+            - name: workspace
+              mountPath: /opt/data
+          env:
+            - name: http_proxy
+              value: {{ .Values.global.proxy.httpProxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.httpsProxy }}
+            - name: no_proxy
+              value: {{ .Values.global.proxy.noProxy }}
+            - name: WEIGHT_FORMAT
+              value: {{ .Values.global.ovms.weightFormat }}
+          args: ["--port", "9300", "--rest_port", "8300", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
+      volumes:
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: ovms-pvc
+        - name: scripts-volume
+          configMap:
+            name: {{ .Values.ovmServer.script.name }}
+            defaultMode: 0777
