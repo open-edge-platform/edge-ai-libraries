@@ -266,7 +266,7 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
           persist-credentials: false
-          path: edge-ai-libraries-repo@v4
+          path: edge-ai-libraries-repo
 
       - name: Install ShellCheck
         run:  sudo apt-get update &&  sudo apt-get install -y shellcheck
