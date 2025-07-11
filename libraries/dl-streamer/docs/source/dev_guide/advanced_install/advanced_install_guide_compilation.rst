@@ -135,8 +135,7 @@ You can uninstall it with the following command (if installed from source):
 
     .. tab:: Ubuntu 22
         
-        NOTE: If you have installed different version of OpenCV using apt-get, it is recommended to uninstall it first.
-        You can uninstall it with the command below:
+        NOTE: If you have installed different version of OpenCV using apt-get, you can uninstall it with the command below instead:
         
         .. code:: sh
 
