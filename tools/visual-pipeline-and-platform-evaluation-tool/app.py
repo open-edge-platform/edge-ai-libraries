@@ -848,6 +848,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
             "PaddleOCR (FP16)",
+            "Vehicle Attributes Recognition Barrier 0039 (FP16)",
         ],
         value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",

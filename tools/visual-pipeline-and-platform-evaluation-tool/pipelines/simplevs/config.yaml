@@ -32,4 +32,5 @@ parameters:
       - "MobileNet V2 PyTorch (FP16)"
       - "ResNet-50 TF (INT8)"
       - "PaddleOCR (FP16)"
+      - "Vehicle Attributes Recognition Barrier 0039 (FP16)"
     classification_model_default: "PaddleOCR (FP16)"

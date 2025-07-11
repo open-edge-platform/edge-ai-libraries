@@ -89,6 +89,20 @@ else
     echo "Model mobilenet-v2-pytorch already exists. Skipping download."
 fi
 
+# TEMPORARY: download vehicle-attributes-recognition-barrier-0039 until the download script supports it
+if [ ! -d /output/public/vehicle-attributes-recognition-barrier-0039 ]; then
+    python3 -m pip install openvino-dev[onnx] torch torchvision \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+    omz_downloader --name vehicle-attributes-recognition-barrier-0039
+    omz_converter --name vehicle-attributes-recognition-barrier-0039
+    cp -r ./intel/vehicle-attributes-recognition-barrier-0039 /output/public/
+    cp \
+        /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json \
+        /output/public/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
+else
+    echo "Model vehicle-attributes-recognition-barrier-0039 already exists. Skipping download."
+fi
+
 # Create the healthcheck file
 touch healthcheck.txt
 
