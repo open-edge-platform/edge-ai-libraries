@@ -10,7 +10,11 @@ permissions: read-all
 on:
   workflow_dispatch:
   workflow_call:
- 
+
+permissions:
+  contents: read
+  pull-requests: read
+
 jobs:  
   bandit-scans:
     name: Run Bandit Scan
