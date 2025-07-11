@@ -28,9 +28,28 @@ gpu_execution_prequisites() {
     export cl_cache_dir=/var/tmp/.cl-cache
 }
 
+ros2_prerequisites() {
+    if [ -f /opt/ros/humble/setup.bash ]; then
+        echo "Sourcing ROS2 Humble environment..."
+        source /opt/ros/humble/setup.bash
+    elif [ -f /opt/ros/jazzy/setup.bash ]; then
+        echo "Sourcing ROS2 Jazzy environment..."
+        source /opt/ros/jazzy/setup.bash
+    else
+        echo "No ROS2 setup.bash file found for Humble or Jazzy. Skipping."
+        return
+    fi
+
+    export ROS_LOG_DIR=/tmp/ros_logs
+    mkdir -p "$ROS_LOG_DIR"
+    echo "ROS_LOG_DIR set to $ROS_LOG_DIR"
+}
+
 gpu_execution_prequisites
 
 # genicam_prequisites
+
+ros2_prerequisites
 
 python3 -m src
 
