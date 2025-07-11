@@ -307,8 +307,13 @@ RUN apt update && \
         http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
         | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
     apt update && \
-    apt install -y ros-humble-ros-base python3-colcon-common-extensions && \
+    . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt install -y ros-jazzy-ros-base python3-colcon-common-extensions; \
+    else \
+        apt install -y ros-humble-ros-base python3-colcon-common-extensions; \
+    fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-    
+
 USER ${USER}

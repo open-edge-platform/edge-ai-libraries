@@ -12,6 +12,14 @@ Ensure to build/pull the DL Streamer Pipeline Server extended image i.e., `intel
 
 ## Publish 
 
+- A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_ros2_publisher/config.json`. We need to volume mount the sample config file into dlstreamer-pipeline-server service present in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` file. Refer below snippets:
+
+    ```sh
+        volumes:
+        # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_ros2_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
+        - "../configs/sample_ros2_publisher/config.json:/home/pipeline-server/config.json"
+    ```
+
 - Start the services
     ```sh
         docker compose up
@@ -45,8 +53,9 @@ Ensure to build/pull the DL Streamer Pipeline Server extended image i.e., `intel
 
 Below is an example that shows how to subscribe to the published data.
 
-- Install ROS2 Humble on Ubuntu22
+- Install ROS2 Humble on Ubuntu22 and source it. Install pythyon and related dependencies too.
     ```sh
+        # Install ROS2 Humble
         sudo apt update && sudo apt install -y curl gnupg lsb-release
         sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
         echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
@@ -54,6 +63,30 @@ Below is an example that shows how to subscribe to the published data.
             sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
         sudo apt update
         sudo apt install -y ros-humble-ros-base python3-colcon-common-extensions
+
+        # Source ROS2 Humble
+        source /opt/ros/humble/setup.bash
+
+        # Install Python and dependencies
+        sudo apt install -y python3 python3-pip python3-opencv
+    ```
+
+- Install ROS2 Jazzy on Ubuntu24 and source it. Install pythyon and related dependencies too.
+    ```sh
+        # Install ROS2 Jazzy
+        sudo apt update && sudo apt install -y curl gnupg lsb-release
+        sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg
+        echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+            http://packages.ros.org/ros2/ubuntu $(lsb_release -cs) main" | \
+            sudo tee /etc/apt/sources.list.d/ros2.list > /dev/null
+        sudo apt update
+        sudo apt install -y ros-jazzy-ros-base python3-colcon-common-extensions
+
+        # Source ROS2 Jazzy
+        source /opt/ros/jazzy/setup.bash
+
+        # Install Python and dependencies
+        sudo apt install -y python3 python3-pip python3-opencv
     ```
 
 - Save the below sample subscriber script as `ros_subscriber.py`
@@ -114,7 +147,7 @@ Below is an example that shows how to subscribe to the published data.
             rclpy.init(args=args)
 
             # get topic from command line
-            topic_name = '/dlstreamer_pipeline_result'  # default
+            topic_name = '/dlstreamer_pipeline_results'  # default
             if len(sys.argv) > 1:
                 topic_name = sys.argv[1]
 
@@ -127,7 +160,7 @@ Below is an example that shows how to subscribe to the published data.
             main()
     ```
 
-- Run the sample subscriber script as follows and view the metadata being printed.
+- Run the sample subscriber script as follows and view the metadata being printed and frames being saved.
     ```sh
-    python3 ros_subscriber.py /dlstreamer_pipeline_result
+    python3 ros_subscriber.py /dlstreamer_pipeline_results
     ```
