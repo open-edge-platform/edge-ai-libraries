@@ -127,9 +127,7 @@ You can uninstall it with the following command (if installed from source):
 
     .. tab:: Ubuntu 24
 
-        NOTE: If you have build and installed different version of OpenCV locally it can cause build error and it is recomended to uninstall it first.
-        You can uninstall it with the command above.
-        And then reinstall OpenCV with the following command:
+        After uninstalling OpenCV, reinstall it with the following command:
         
         .. code:: sh
 
