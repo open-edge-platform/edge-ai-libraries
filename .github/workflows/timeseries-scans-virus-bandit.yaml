@@ -13,6 +13,9 @@ on:
 
 jobs:  
   bandit-scans:
+    permissions:
+      contents: read
+      packages: read
     name: Run Bandit Scan
     runs-on: ubuntu-24.04
     strategy:
@@ -50,6 +53,9 @@ jobs:
   virus-scans:
     name: Run Virus Scan
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -82,6 +88,9 @@ jobs:
   pylint-scans:
     name: Run Pylint
     runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
     strategy:
       fail-fast: false
       matrix:
