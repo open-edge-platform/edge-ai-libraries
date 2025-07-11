@@ -81,6 +81,7 @@ jobs:
         fi
   pylint-scans:
     name: Run Pylint
+    runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
       matrix:
