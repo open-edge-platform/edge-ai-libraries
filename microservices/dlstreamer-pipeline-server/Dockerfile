@@ -155,9 +155,6 @@ RUN . /etc/os-release && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-# RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so
-# RUN ln -sf /usr/lib/x86_64-linux-gnu/libpython3.12.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.12.so
-
 RUN \
     mkdir /python3venv && \
     chmod -R u+w /python3venv
