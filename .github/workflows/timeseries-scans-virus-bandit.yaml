@@ -9,6 +9,7 @@ permissions: read-all
 
 on:
   workflow_dispatch:
+  workflow_call:
  
 jobs:  
   bandit-scans:
