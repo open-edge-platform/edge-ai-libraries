@@ -1,4 +1,4 @@
-gradio==5.27.1
+gradio==5.36.2
 psutil==6.1.1
 codecarbon==2.8.3
 matplotlib==3.10.0
