@@ -118,12 +118,6 @@ Before running the application, you need to set several environment variables:
 
     # Throughput-optimized configuration
     export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
-
-    # Custom configuration with multiple streams and threads
-    # export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT", "NUM_STREAMS": 4, "INFERENCE_NUM_THREADS": 8}'
-
-    # Configuration with cache directory
-    # export OV_CONFIG='{"PERFORMANCE_HINT": "LATENCY", "CACHE_DIR": "/tmp/ov_cache"}'
     ```
 
     > **_IMPORTANT:_** The `OV_CONFIG` variable is used to pass OpenVINO configuration parameters to the VLM service. It allows you to optimize inference performance based on your hardware and workload.
