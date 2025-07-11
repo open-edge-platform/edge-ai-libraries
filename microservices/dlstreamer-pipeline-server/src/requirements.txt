@@ -35,7 +35,7 @@ marshmallow==4.0.0
 
 # OpenTelemetry
 opentelemetry-api==1.30.0
-opentelemetry-sdk==1.30.0
+opentelemetry-sdk[logs]==1.30.0
 opentelemetry-exporter-prometheus==0.51b0
 opentelemetry-exporter-otlp==1.30.0
 opentelemetry-exporter-otlp-proto-grpc==1.30.0
