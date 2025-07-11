@@ -258,6 +258,30 @@ jobs:
         with:
           name: pylint-report
           path: pylint_report.txt
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          path: edge-ai-libraries-repo@v4
+
+      - name: Install ShellCheck
+        run:  apt-get update &&  apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+          echo "Scanning for .sh files and running ShellCheck..."
+          find . -type f -name "*.sh" | tee shell_files.txt | xargs -r shellcheck -f gcc > shellcheck_report.txt || true
+
+      - name: Upload ShellCheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-report
+          path: shellcheck_report.txt
   static-code-analysis:
     permissions:
       security-events: write
