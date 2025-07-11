@@ -5,7 +5,6 @@
 #
 name: "[Time SeriesAnalytics] Virus, Bandit and Pylint Scan"
 run-name: "[Time Series Analytics] Virus, Bandit and Pylint Scan workflow (by @${{ github.actor }} via ${{ github.event_name }})"
-permissions: read-all
 
 on:
   workflow_dispatch:
