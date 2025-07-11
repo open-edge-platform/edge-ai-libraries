@@ -269,7 +269,7 @@ jobs:
           path: edge-ai-libraries-repo@v4
 
       - name: Install ShellCheck
-        run:  apt-get update &&  apt-get install -y shellcheck
+        run:  sudo apt-get update &&  sudo apt-get install -y shellcheck
 
       - name: Run ShellCheck
         run: |
