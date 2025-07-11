@@ -112,15 +112,40 @@ Clone and build GStreamer:
     ninja -C build
     sudo env PATH=~/python3venv/bin:$PATH meson install -C build/
 
-Step 6: Build OpenCV (ubuntu 22/fedora)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Step 6: Build OpenCV
+^^^^^^^^^^^^^^^^^^^^
 
-Download and build OpenCV:
+NOTE: If you have build and installed different version of OpenCV locally it can cause build error and it is recomended to uninstall it first.
+If you have installed OpenCV from source you can uninstall it with the following command:
 
+.. code:: sh
+
+    cd ${HOME}/opencv/build # Change to the directory where OpenCV was built
+    sudo ninja uninstall
+        
 .. tabs::
 
-    .. tab:: Ubuntu 22
+    .. tab:: Ubuntu 24
 
+        NOTE: If you have build and installed different version of OpenCV locally it can cause build error and it is recomended to uninstall it first.
+        You can uninstall it with the command above.
+        And then reinstall OpenCV with the following command:
+        
+        .. code:: sh
+
+            sudo apt-get install --reinstall libopencv-dev
+
+    .. tab:: Ubuntu 22
+        
+        NOTE: If you have installed different version of OpenCV using apt-get, it is recommended to uninstall it first.
+        You can uninstall it with the command below:
+        
+        .. code:: sh
+
+            sudo apt-get remove --purge libopencv*
+
+        Download and build OpenCV:
+        
         .. code:: sh
 
             wget --no-check-certificate -O ~/opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip
@@ -138,6 +163,14 @@ Download and build OpenCV:
             sudo env PATH=~/python3venv/bin:$PATH ninja install
 
     .. tab:: Fedora 41
+         
+         NOTE: If you have installed different version of OpenCV using dnf, it is recommended to uninstall it first.
+         You can uninstall it with the command below:
+        
+        .. code:: sh
+            sudo dnf remove --allmatches opencv*
+        
+        Download and build OpenCV:
 
         .. code:: sh
 
