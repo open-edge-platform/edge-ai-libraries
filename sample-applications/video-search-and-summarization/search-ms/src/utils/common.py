@@ -62,11 +62,6 @@ class Settings(BaseSettings):
     DATAPREP_UPLOAD_URL: str = Field(default="", env="DATAPREP_UPLOAD_URL")
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
-    MINIO_API_PORT: str = Field(default="", env="MINIO_API_PORT")
-    MINIO_HOST: str = Field(default="", env="MINIO_HOST")
-    MINIO_ROOT_USER: str = Field(default="", env="MINIO_ROOT_USER")
-    MINIO_ROOT_PASSWORD: str = Field(default="", env="MINIO_ROOT_PASSWORD")
-    VDMS_BUCKET: str = Field(default="", env="VDMS_BUCKET")
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
     EMBEDDING_LENGTH: int = 0
 

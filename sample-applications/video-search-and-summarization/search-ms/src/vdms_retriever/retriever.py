@@ -3,7 +3,6 @@
 
 from langchain_community.vectorstores.vdms import VDMS, VDMS_Client
 
-# from .vCLIP import vCLIP
 from src.utils.common import settings
 from src.vdms_retriever.embedding_wrapper import vCLIPEmbeddingsWrapper
 
