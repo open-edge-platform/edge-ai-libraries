@@ -12,14 +12,14 @@ on:
 
 permissions:
   contents: read
-  packages: read           
-  security-events: write  
-  
+  # packages: read           
+  # security-events: write  
+
 jobs:  
   bandit-scans:
     permissions:
       contents: read
-      packages: read
+      # packages: read
     name: Run Bandit Scan
     runs-on: ubuntu-24.04
     strategy:
@@ -59,7 +59,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: read
+      # packages: read
     strategy:
       fail-fast: false
       matrix:
@@ -94,7 +94,7 @@ jobs:
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: read
+      # packages: read
     strategy:
       fail-fast: false
       matrix:

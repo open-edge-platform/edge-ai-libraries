@@ -116,7 +116,4 @@ jobs:
         path: /tmp/report.txt
   
   timeseries-scans:
-    permissions:
-      contents: read
-      packages: read
     uses: ./.github/workflows/timeseries-scans-virus-bandit-pylint.yaml
