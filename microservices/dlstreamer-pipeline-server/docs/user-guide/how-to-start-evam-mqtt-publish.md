@@ -30,7 +30,7 @@ curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X 
                 "destination": {
                     "metadata": {
                         "type": "mqtt",
-                        "publish_frame": true,
+                        "publish_frame":true,
                         "topic": "pallet_defect_detection"
                     },
                     "frame": {
