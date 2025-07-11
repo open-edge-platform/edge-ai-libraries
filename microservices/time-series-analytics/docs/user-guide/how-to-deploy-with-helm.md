@@ -1,4 +1,4 @@
-# How to Deploy with Helm
+# Deploy with Helm
 
 ## Prerequisites
 
@@ -34,8 +34,8 @@
 ## Install helm charts - use only one of the options below:
 
 > **Note:**
-> 1. Please uninstall the helm charts if already installed.
-> 2. If the worker nodes are running behind proxy server, then please additionally set env.HTTP_PROXY and env.HTTPS_PROXY env like the way env.TELEGRAF_INPUT_PLUGIN is being set below with helm install command
+> -  Uninstall the helm charts if already installed.
+> -  If the worker nodes are running behind proxy server, then please additionally set env.HTTP_PROXY and env.HTTPS_PROXY env like the way env.TELEGRAF_INPUT_PLUGIN is being set as follows with helm install command
 
 ```bash
 cd edge-ai-libraries/microservices/time-series-analytics/helm # path relative to git clone folder
@@ -63,7 +63,7 @@ python3 simulator/temperature_input.py --port 30002
 
 ## Verify the Temperature Classifier Results
 
-Run below commands to see the filtered temperature results:
+Run following commands to see the filtered temperature results:
 
 
 ``` bash
