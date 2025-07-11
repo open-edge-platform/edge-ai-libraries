@@ -116,7 +116,7 @@ Step 6: Build OpenCV
 ^^^^^^^^^^^^^^^^^^^^
 
 NOTE: If you have built and installed a different version of OpenCV locally, it can cause build errors. It is recommended to uninstall it first.
-If you have installed OpenCV from source you can uninstall it with the following command:
+You can uninstall it with the following command (if installed from source):
 
 .. code:: sh
 
