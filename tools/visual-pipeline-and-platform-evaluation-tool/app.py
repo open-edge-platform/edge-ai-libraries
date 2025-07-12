@@ -18,6 +18,8 @@ from typing import Tuple, Dict
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
+TEMP_DIR = "/tmp/"
+
 with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
     css_code = f.read()
 
@@ -101,11 +103,16 @@ def download_file(url, local_filename):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open(local_filename, "wb") as file:
+        with open(TEMP_DIR+local_filename, "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
 
+# Set video path for the input video player
+def set_video_path(filename):
+    if not os.path.exists(TEMP_DIR + filename):
+        return gr.update(label="Error: Video file not found. Verify the recording URL or proxy settings.", value=None)
+    return gr.update(label="Input Video", value=TEMP_DIR + filename)
 
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
@@ -678,32 +685,21 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     Other components can be created directly in the Blocks context.
     """
 
-    # Video Player
-    input_video_player = None
-
     try:
-        download_file(
-            "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4",
-            "/tmp/people.mp4",
-        )
-        input_video_player = gr.Video(
-            label="Input Video",
-            interactive=True,
-            value="/tmp/people.mp4",
-            sources="upload",
-            elem_id="input_video_player",
-        )
+        # Download the pipeline recording files
+        for pipeline in PipelineLoader.list():
+            pipeline_info = PipelineLoader.config(pipeline)
+            download_file(
+                pipeline_info['recording']['url'],
+                pipeline_info['recording']['filename'],
+            )
     except Exception as e:
-        print(f"Error loading video player: {e}")
-        print("Falling back to local video player")
+        print(f"Error downloading pipeline recordings: {e}")
 
-        input_video_player = gr.Video(
-            label="Input Video",
-            interactive=True,
-            value="/opt/intel/dlstreamer/gstreamer/src/gst-plugins-bad-1.24.12/tests/files/mse.mp4",
-            sources="upload",
-            elem_id="input_video_player",
-        )
+    # Video Player
+    input_video_player = gr.Video(
+        label="Input Video", interactive=True, show_download_button=True, sources="upload", elem_id="input_video_player",
+    )
 
     output_video_player = gr.Video(
         label="Output Video", interactive=False, show_download_button=True
@@ -795,6 +791,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "YOLO v5m 640x640 (INT8)",
             "YOLO v10s 640x640 (FP16)",
             "YOLO v10m 640x640 (FP16)",
+            "YOLO v8 License Plate Detector (FP16)",
         ],
         value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
@@ -850,6 +847,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "EfficientNet B0 (INT8)",
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
+            "PaddleOCR (FP16)",
+            "Vehicle Attributes Recognition Barrier 0039 (FP16)",
         ],
         value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",
@@ -913,6 +912,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_watermark_enabled",
     )
 
+    pipeline_video_enabled = gr.Checkbox(
+        label="Enable video output",
+        value=True,
+        elem_id="pipeline_video_enabled",
+    )
 
     # Run button
     run_button = gr.Button("Run")
@@ -964,6 +968,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
+    components.add(pipeline_video_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -985,12 +990,13 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                 (
                     gr.update(interactive=bool(v)),
                     gr.update(value=None),
+                    gr.update(value=None),
                 )  # Disable Run button  if input is empty, clears output
                 if v is None or v == ""
-                else (gr.update(interactive=True), gr.update(value=None))
+                else (gr.update(interactive=True), gr.update(label="Input Video"), gr.update(value=None))
             ),
             inputs=input_video_player,
-            outputs=[run_button, output_video_player],
+            outputs=[run_button, input_video_player, output_video_player],
             queue=False,
         )
 
@@ -1229,6 +1235,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                     object_classification_model,
                                 ]
                             ).then(
+                                lambda: set_video_path(current_pipeline[1]['recording']['filename']),
+                                None,
+                                input_video_player,
+                            ).then(
                                 # Clear output components here
                                 lambda: [
                                     gr.update(value=""),
@@ -1347,6 +1357,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
+
+                            # Enable video output checkbox
+                            @gr.render(triggers=[run_tab.select])
+                            def _():
+                                show_hide_component(
+                                    pipeline_video_enabled,
+                                    current_pipeline[1]["parameters"]["run"]["video_output_checkbox"],
+                                )
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
