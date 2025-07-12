@@ -20,6 +20,14 @@ class SmartNVRPipeline(GstPipeline):
             "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
         )
 
+        # Add shmsink for live streaming (HLS)
+        self._hls_shmsink = (
+            "tee name=hlstee ! "
+            "queue2 ! "
+            "shmsink socket-path=/tmp/hls_shm.sock wait-for-connection=false sync=false shm-size=67108864 "
+            "hlstee. ! "
+        )
+
         self._compositor = (
             "{compositor} "
             "  name=comp "
@@ -29,6 +37,19 @@ class SmartNVRPipeline(GstPipeline):
             "mp4mux ! "
             "filesink "
             "  location={VIDEO_OUTPUT_PATH} async=false "
+        )
+
+        self._compositor_hls = (
+            "{compositor} "
+            "  name=comp "
+            "  {sinks} ! "
+            "queue ! videorate ! video/x-raw,framerate=30/1,format=I420 ! identity silent=false sync=true ! "
+            "{encoder} ! "
+            "tee name=hlstee "
+            # HLS branch (write to FIFO for ffmpeg)
+            "hlstee. ! queue ! h264parse ! mpegtsmux alignment=7 ! filesink location=/tmp/hls_fifo sync=false "
+            # File branch
+            "hlstee. ! queue ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
         )
 
 
@@ -61,6 +82,7 @@ class SmartNVRPipeline(GstPipeline):
             "t{id}. ! "
             "queue2 ! "
             "{decoder} ! "
+            "identity sync=true ! "
             "gvafpscounter starting-frame=500 ! "
             "gvadetect "
             "  {detection_model_config} "
@@ -116,6 +138,7 @@ class SmartNVRPipeline(GstPipeline):
         regular_channels: int,
         inference_channels: int,
         elements: List[tuple[str, str, str]] = [],
+        enable_hls: bool = False,  # NEW: enable HLS output
     ) -> str:
 
         # Set pre process backed for object detection
@@ -190,7 +213,7 @@ class SmartNVRPipeline(GstPipeline):
                     ("vah264enc" for element in elements if element[1] == "vah264enc"),
                     next(
                         (
-                            "x264enc bitrate=16000 speed-preset=superfast"
+                            "x264enc bitrate=16000 speed-preset=superfast key-int-max=25"
                             for element in elements
                             if element[1] == "x264enc"
                         ),
@@ -323,12 +346,20 @@ class SmartNVRPipeline(GstPipeline):
                 max_size_buffers=1,
             )
         # Prepend the compositor 
-        streams = self._compositor.format(
-            **constants,
-            sinks=sinks,
-            encoder=_encoder_element,
-            compositor=_compositor_element,
-        ) + streams
+        if enable_hls:
+            streams = self._compositor_hls.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+            ) + streams
+        else:
+            streams = self._compositor.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+            ) + streams
 
         # Evaluate the pipeline
-        return "gst-launch-1.0 -q " + streams
+        return "gst-launch-1.0 " + streams

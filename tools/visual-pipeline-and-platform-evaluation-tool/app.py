@@ -1,11 +1,19 @@
 import logging
 import os
 from datetime import datetime
+import stat
 
 import gradio as gr
 import pandas as pd
 import plotly.graph_objects as go
 import requests
+import subprocess
+import threading
+import time
+import shutil
+# from flask import Flask, send_from_directory, abort
+import asyncio
+from werkzeug.utils import safe_join
 
 import utils
 from benchmark import Benchmark
@@ -15,6 +23,8 @@ from optimize import OptimizationResult, PipelineOptimizer
 from pipeline import PipelineLoader, GstPipeline
 from utils import prepare_video_and_constants
 from typing import Tuple, Dict
+
+# from flask_cors import CORS
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -112,12 +122,12 @@ def detect_click(evt: gr.SelectData):
     x, y = evt.index
 
     for (
-        x_min,
-        y_min,
-        x_max,
-        y_max,
-        label,
-        description,
+            x_min,
+            y_min,
+            x_max,
+            y_max,
+            label,
+            description,
     ) in current_pipeline[0].bounding_boxes():
         if x_min <= x <= x_max and y_min <= y <= y_max:
 
@@ -142,8 +152,8 @@ def read_latest_metrics(target_ns: int = None):
             line
             for line in lines
             if line.split()
-            and line.split()[-1].isdigit()
-            and abs(int(line.split()[-1]) - target_ns) < 1e9
+               and line.split()[-1].isdigit()
+               and abs(int(line.split()[-1]) - target_ns) < 1e9
         ]
         lines = surrounding_lines if surrounding_lines else []
 
@@ -244,10 +254,10 @@ def read_latest_metrics(target_ns: int = None):
                         pass
 
         if (
-            gpu_video is None
-            and "engine=video" in line
-            and "engine=video-enhance" not in line
-            and "gpu_id=1" in line
+                gpu_video is None
+                and "engine=video" in line
+                and "engine=video-enhance" not in line
+                and "gpu_id=1" in line
         ):
             for part in line.split():
                 if part.startswith("usage="):
@@ -266,9 +276,9 @@ def read_latest_metrics(target_ns: int = None):
 
         # GPU 0 metrics (new variables)
         if (
-            gpu_package_power_0 is None
-            and "pkg_cur_power" in line
-            and "gpu_id=0" in line
+                gpu_package_power_0 is None
+                and "pkg_cur_power" in line
+                and "gpu_id=0" in line
         ):
             parts = line.split()
             try:
@@ -316,10 +326,10 @@ def read_latest_metrics(target_ns: int = None):
                         pass
 
         if (
-            gpu_video_0 is None
-            and "engine=video" in line
-            and "engine=video-enhance" not in line
-            and "gpu_id=0" in line
+                gpu_video_0 is None
+                and "engine=video" in line
+                and "engine=video-enhance" not in line
+                and "gpu_id=0" in line
         ):
             for part in line.split():
                 if part.startswith("usage="):
@@ -337,29 +347,29 @@ def read_latest_metrics(target_ns: int = None):
                         pass
 
         if all(
-            v is not None
-            for v in [
-                cpu_user,
-                mem_used_percent,
-                gpu_package_power,
-                core_temp,
-                gpu_power,
-                gpu_freq,
-                gpu_render,
-                gpu_ve,
-                gpu_video,
-                gpu_copy,
-                cpu_freq,
-                gpu_compute,
-                gpu_package_power_0,
-                gpu_power_0,
-                gpu_freq_0,
-                gpu_render_0,
-                gpu_ve_0,
-                gpu_video_0,
-                gpu_copy_0,
-                gpu_compute_0,
-            ]
+                v is not None
+                for v in [
+                    cpu_user,
+                    mem_used_percent,
+                    gpu_package_power,
+                    core_temp,
+                    gpu_power,
+                    gpu_freq,
+                    gpu_render,
+                    gpu_ve,
+                    gpu_video,
+                    gpu_copy,
+                    cpu_freq,
+                    gpu_compute,
+                    gpu_package_power_0,
+                    gpu_power_0,
+                    gpu_freq_0,
+                    gpu_render_0,
+                    gpu_ve_0,
+                    gpu_video_0,
+                    gpu_copy_0,
+                    gpu_compute_0,
+                ]
         ):
             break
 
@@ -583,11 +593,10 @@ def generate_stream_data(i, timestamp_ns=None):
 
 
 def on_run(data):
-
     arguments = {}
 
     for component in data:
-        component_id = component.elem_id
+        component_id = getattr(component, "elem_id", None)
         if component_id:
             arguments[component_id] = data[component]
 
@@ -620,8 +629,17 @@ def on_run(data):
     return [video_output_path, best_result_message]
 
 
-def on_benchmark(data):
+def on_run_cleanup(ffmpeg_proc, flask_thread, output_video_path):
+    # Stop ffmpeg and Flask, clean up HLS
+    logging.info("Stopping HLS streaming and cleaning up...")
+    stop_ffmpeg(ffmpeg_proc)
+    # stop_flask_server()
+    clean_hls_dir()
+    # Return the path to the generated file for playback
+    return output_video_path
 
+
+def on_benchmark(data):
     arguments = {}
 
     for component in data:
@@ -652,6 +670,150 @@ def on_benchmark(data):
 def on_stop():
     utils.cancelled = True
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
+
+
+# --- HLS Live Streaming Management ---
+
+# flask_app = Flask(__name__)
+# CORS(flask_app, origins="*", supports_credentials=True)
+#
+# MIMETYPES = {
+#     '.m3u8': 'application/vnd.apple.mpegurl',
+#     '.ts': 'video/mp2t'
+# }
+#
+#
+# @flask_app.route('/<path:filename>')
+# def serve_hls(filename):
+#     logging.info("Serving HLS file: %s", filename)
+#
+#     # Bezpieczne złączenie ścieżki, zabezpiecza przed ../
+#     safe_path = safe_join(HLS_DIR, filename)
+#     if not safe_path or not os.path.isfile(safe_path):
+#         return abort(404)
+#
+#     # Wymuszamy obsługiwane rozszerzenia
+#     _, ext = os.path.splitext(filename)
+#     mimetype = MIMETYPES.get(ext.lower())
+#     if not mimetype:
+#         return abort(403)  # tylko .m3u8 i .ts
+#
+#     # Serwujemy plik z katalogu
+#     return send_from_directory(HLS_DIR, filename, mimetype=mimetype)
+
+
+def stop_ffmpeg(proc):
+    pass
+
+
+def stop_flask_server():
+    pass
+
+
+def clean_hls_dir():
+    pass
+
+
+def start_hls_streaming(hls_ready_event):
+    pass
+
+
+# --- End HLS Management ---
+
+hls_autoplay_js = """
+<script>
+  function waitForHlsSegments(url, cb, retries=60, delay=1000) {
+    let tryCount = 0;
+    function check() {
+      fetch(url, {cache: "no-store"})
+        .then(r => r.text())
+        .then(txt => {
+          if (txt.includes("#EXTINF")) {
+            cb();
+          } else if (++tryCount < retries) {
+            setTimeout(check, delay);
+          } else {
+            let video = document.getElementById("video");
+            if (video) {
+              video.outerHTML = "<p>Stream not available. Please try again later.</p>";
+            }
+          }
+        })
+        .catch(() => {
+          if (++tryCount < retries) setTimeout(check, delay);
+        });
+    }
+    check();
+  }
+
+  function attachHlsAutoplay() {
+    let video = document.getElementById("video");
+    if (!video) {
+      console.log("Video element not found, retrying...");
+      setTimeout(attachHlsAutoplay, 100); // Spróbuj ponownie za 100 ms
+      return;
+    }
+    //let hls_url = window.location.protocol + "//" + window.location.hostname + ":8888/stream.m3u8";
+    let hls_url = window.location.origin + "/api/hls/stream.m3u8";
+    console.log("Using HLS url:", hls_url);
+    waitForHlsSegments(hls_url, function () {
+      let hlsScript = document.createElement("script");
+      hlsScript.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
+      hlsScript.onload = function () {
+        if (window.Hls && window.Hls.isSupported()) {
+          let hls = new Hls();
+          hls.attachMedia(video);
+          hls.loadSource(hls_url);
+          hls.on(Hls.Events.MANIFEST_PARSED, function () {
+            video.play();
+          });
+        } else if (video.canPlayType("application/vnd.apple.mpegurl")) {
+          video.src = hls_url;
+          video.play();
+        } else {
+          video.outerHTML = "<p>Your browser does not support HLS playback.</p>";
+        }
+      };
+      let cont = document.getElementById("hlsjs-script-container");
+      cont.appendChild(hlsScript);
+    });
+  }
+
+console.warn("Hello!")
+attachHlsAutoplay()
+</script>
+"""
+
+js = """
+<script>
+console.log("HLS JS loaded!");
+alert("HLS JS loaded!");
+</script>
+"""
+
+script = """
+<script>
+function waitForButton() {
+  const button = document.querySelector("#my_btn");
+  if (button) {
+    button.addEventListener("click", e => {
+      alert("Clicked");
+      console.warn("Button clicked!");
+    });
+  } else {
+    setTimeout(waitForButton, 100); // Spróbuj ponownie za 100 ms
+  }
+}
+waitForButton();
+</script>
+"""
+
+
+def get_hls_player_html():
+    return """
+    <video id="video" controls style="width:100%; max-width: 720px;" muted></video>
+    <div id="hlsjs-script-container"></div>
+    """
 
 
 # Create the interface
@@ -689,8 +851,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             elem_id="input_video_player",
         )
 
+    output_video_player_html = gr.HTML(
+        get_hls_player_html(), visible=True, elem_id="output_video_player_html"
+    )
     output_video_player = gr.Video(
-        label="Output Video", interactive=False, show_download_button=True
+        label="Output Video", interactive=False, show_download_button=True, visible=True
     )
 
     # Pipeline diagram image
@@ -831,7 +996,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         label="Object Classification Model",
         choices=[
             "Disabled",
-            "EfficientNet B0 (INT8)" ,
+            "EfficientNet B0 (INT8)",
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
         ],
@@ -897,7 +1062,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_watermark_enabled",
     )
 
-
     # Run button
     run_button = gr.Button("Run")
 
@@ -924,6 +1088,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Components Set
     components = set()
     components.add(input_video_player)
+    components.add(output_video_player_html)
     components.add(output_video_player)
     components.add(pipeline_image)
     components.add(best_config_textbox)
@@ -944,9 +1109,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
 
-    # Interface layout
-    with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
+    # HLS file logger stop event (define here so it's always available)
+    hls_file_logger_stop_event = threading.Event()
 
+    # Interface layout
+    with gr.Blocks(theme=theme, css=css_code, title=title, head=hls_autoplay_js) as demo:
         """
         Components events handlers and interactions are defined here.
         """
@@ -981,29 +1148,35 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
         # Handle run button clicks
         run_button.click(
-            # Update the state of the buttons
-            lambda: [
-                gr.update(visible=False),
-                gr.update(visible=False),
-                gr.update(visible=True),
-            ],
+            # Start HLS file logger thread
+            lambda: (
+                        hls_file_logger_stop_event.clear(),
+                        threading.Thread(
+                            target=start_hls_file_logger,
+                            args=(hls_file_logger_stop_event,),
+                            daemon=True,
+                        ).start(),
+                        gr.update(visible=False),
+                        gr.update(visible=False),
+                        gr.update(visible=True),
+                    )[2:5],  # Return exactly three values for three outputs
             outputs=[run_button, benchmark_button, stop_button],
             queue=True,
         ).then(
             # Reset the telemetry plots
             lambda: (
-                globals().update(
-                    stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
-                        for _ in range(len(chart_titles))
+                    globals().update(
+                        stream_dfs=[
+                            pd.DataFrame(columns=["x", "y"])
+                            for _ in range(len(chart_titles))
+                        ]
+                    )
+                    or [
+                        plots[i].value.update(data=[])
+                        for i in range(len(plots))
+                        if hasattr(plots[i], "value") and plots[i].value is not None
                     ]
-                )
-                or [
-                    plots[i].value.update(data=[])
-                    for i in range(len(plots))
-                    if hasattr(plots[i], "value") and plots[i].value is not None
-                ]
-                or plots
+                    or plots
             ),
             outputs=plots,
         ).then(
@@ -1012,7 +1185,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             inputs=None,
             outputs=timer,
         ).then(
-            # Execute the pipeline
+            lambda: (
+                gr.update(value=get_hls_player_html()),  # Always visible, just update value
+                gr.update(visible=False)
+            ),
+            inputs=None,
+            outputs=[output_video_player_html, output_video_player],
+        ).then(
+            # Execute the pipeline and start HLS
             on_run,
             inputs=components,
             outputs=[output_video_player, best_config_textbox],
@@ -1026,6 +1206,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
             inputs=None,
             outputs=plots,
+        ).then(
+            # After pipeline run, show generated file
+            lambda output_video_path: (
+                gr.update(value=get_hls_player_html()),  # Always visible, just update value
+                gr.update(value=output_video_path, visible=True)  # Show Video player
+            ),
+            inputs=[output_video_player],
+            outputs=[output_video_player_html, output_video_player],
         ).then(
             # Update the visibility of the buttons
             lambda: [
@@ -1057,18 +1245,18 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         ).then(
             # Reset the telemetry plots
             lambda: (
-                globals().update(
-                    stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
-                        for _ in range(len(chart_titles))
+                    globals().update(
+                        stream_dfs=[
+                            pd.DataFrame(columns=["x", "y"])
+                            for _ in range(len(chart_titles))
+                        ]
+                    )
+                    or [
+                        plots[i].value.update(data=[])
+                        for i in range(len(plots))
+                        if hasattr(plots[i], "value") and plots[i].value is not None
                     ]
-                )
-                or [
-                    plots[i].value.update(data=[])
-                    for i in range(len(plots))
-                    if hasattr(plots[i], "value") and plots[i].value is not None
-                ]
-                or plots
+                    or plots
             ),
             outputs=plots,
         ).then(
@@ -1148,11 +1336,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                 with gr.Row():
 
                     for pipeline in PipelineLoader.list():
-
                         pipeline_info = PipelineLoader.config(pipeline)
 
                         with gr.Column(scale=1, min_width=100):
-
                             gr.Image(
                                 value=lambda x=pipeline: f"./pipelines/{x}/thumbnail.png",
                                 show_label=False,
@@ -1198,19 +1384,19 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             ).then(
                                 # Reset the telemetry plots
                                 lambda: (
-                                    globals().update(
-                                        stream_dfs=[
-                                            pd.DataFrame(columns=["x", "y"])
-                                            for _ in range(len(chart_titles))
+                                        globals().update(
+                                            stream_dfs=[
+                                                pd.DataFrame(columns=["x", "y"])
+                                                for _ in range(len(chart_titles))
+                                            ]
+                                        )
+                                        or [
+                                            plots[i].value.update(data=[])
+                                            for i in range(len(plots))
+                                            if hasattr(plots[i], "value")
+                                               and plots[i].value is not None
                                         ]
-                                    )
-                                    or [
-                                        plots[i].value.update(data=[])
-                                        for i in range(len(plots))
-                                        if hasattr(plots[i], "value")
-                                        and plots[i].value is not None
-                                    ]
-                                    or plots
+                                        or plots
                                 ),
                                 outputs=plots,
                             ).then(
@@ -1246,10 +1432,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                 # Main content
                 with gr.Row():
-
                     # Left column
                     with gr.Column(scale=2, min_width=300):
-
                         # Render the pipeline information
                         gr.Markdown(
                             f"### {current_pipeline[1]['name']}\n"
@@ -1273,7 +1457,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Metrics plots
                         with gr.Row():
-
                             # Render plots
                             for i in range(len(plots)):
                                 plots[i].render()
@@ -1283,19 +1466,17 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                     # Right column
                     with gr.Column(scale=1, min_width=150):
-
                         # Video Player Accordion
                         with gr.Accordion("Video Player", open=True):
-
                             # Input Video Player
                             input_video_player.render()
 
                             # Output Video Player
+                            output_video_player_html.render()
                             output_video_player.render()
 
                         # Pipeline Parameters Accordion
                         with gr.Accordion("Pipeline Parameters", open=True):
-
                             # Inference Channels
                             inferencing_channels.render()
 
@@ -1307,7 +1488,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
-
                             # FPS Floor
                             fps_floor.render()
 
@@ -1316,7 +1496,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
-
                             # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()
@@ -1345,10 +1524,178 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     return demo
 
 
+HLS_DIR = "/tmp/hls"
+HLS_FIFO = "/tmp/hls_fifo"
+HLS_PLAYLIST = "stream.m3u8"
+HLS_PORT = 8888
+HLS_HOST = "0.0.0.0"
+
+from fastapi import FastAPI, Response
+from fastapi.responses import FileResponse
+
+demo = create_interface()
+
+app = FastAPI()
+
+
+@app.get("/api/hls/{filename:path}")
+def serve_hls(filename: str):
+    logging.info(f"Serving HLS file: {filename}")
+    file_path = os.path.join(HLS_DIR, filename)
+    if not os.path.isfile(file_path):
+        return Response(status_code=404)
+    if filename.endswith('.m3u8'):
+        media_type = "application/vnd.apple.mpegurl"
+    elif filename.endswith('.ts'):
+        media_type = "video/mp2t"
+    else:
+        media_type = "application/octet-stream"
+    return FileResponse(file_path, media_type=media_type)
+
+
+# def get_hls_player_html():
+#     hls_url = f"http://localhost:{HLS_PORT}/{HLS_PLAYLIST}"
+#     playlist_path = os.path.join(HLS_DIR, HLS_PLAYLIST)
+#     logging.info(f"[get_hls_player_html] Called. HLS URL: {hls_url}")
+#     logging.info(f"[get_hls_player_html] Checking for playlist at: {playlist_path}")
+#     if os.path.exists(playlist_path):
+#         logging.info(f"[get_hls_player_html] Playlist found at: {playlist_path}")
+#     else:
+#         logging.warning(f"[get_hls_player_html] Playlist NOT found at: {playlist_path}")
+#
+#     # Workaround for Gradio script escaping: inject script dynamically
+#     player_html = f"""
+#     <video id="video" controls autoplay style="width:100%; max-width: 720px;"></video>
+#     <div id="hlsjs-script-container"></div>
+#     <script>
+#       (function() {{
+#         // Remove any previous script if present
+#         var prev = document.getElementById('hlsjs-script');
+#         if (prev) prev.remove();
+#
+#         // HLS.js logic as a string
+#         var hlsLogic = `
+#           var video = document.getElementById('video');
+#           var hls_url = '{hls_url}';
+#
+#           function waitForStream(url, callback, retries = 10, delay = 1000) {{
+#             fetch(url)
+#               .then(res => {{
+#                 if (res.ok) {{
+#                   console.log("[HLS.js] Stream found at: " + url);
+#                   callback();
+#                 }} else {{
+#                   throw new Error("Stream not ready (bad HTTP status)");
+#                 }}
+#               }})
+#               .catch((err) => {{
+#                 console.warn("[HLS.js] Stream not available yet:", err);
+#                 if (retries > 0) {{
+#                   setTimeout(() => waitForStream(url, callback, retries - 1, delay), delay);
+#                 }} else {{
+#                   video.outerHTML = "<p>Stream not available. Please try again later.</p>";
+#                 }}
+#               }});
+#           }}
+#
+#           if (window.Hls && Hls.isSupported()) {{
+#             var hls = new Hls();
+#
+#             hls.on(Hls.Events.ERROR, function (event, data) {{
+#               console.error("HLS.js error:", data);
+#               if (data.fatal) {{
+#                 switch (data.type) {{
+#                   case Hls.ErrorTypes.NETWORK_ERROR:
+#                     console.warn("Fatal network error — trying to recover...");
+#                     hls.startLoad();
+#                     break;
+#                   case Hls.ErrorTypes.MEDIA_ERROR:
+#                     console.warn("Fatal media error — trying to recover...");
+#                     hls.recoverMediaError();
+#                     break;
+#                   default:
+#                     console.error("Unrecoverable error. Destroying player.");
+#                     hls.destroy();
+#                     video.outerHTML = "<p>Playback error occurred.</p>";
+#                     break;
+#                 }}
+#               }}
+#             }});
+#
+#             waitForStream(hls_url, () => {{
+#               console.log("[HLS.js] Loading source: " + hls_url);
+#               hls.loadSource(hls_url);
+#               hls.attachMedia(video);
+#             }});
+#
+#           }} else if (video.canPlayType('application/vnd.apple.mpegurl')) {{
+#             video.src = hls_url;
+#           }} else {{
+#             video.outerHTML = "<p>Your browser does not support HLS playback.</p>";
+#           }}
+#         `;
+#
+#         // Dynamically load HLS.js, then run logic
+#         var script = document.createElement('script');
+#         script.id = 'hlsjs-script';
+#         script.src = "https://cdn.jsdelivr.net/npm/hls.js@latest";
+#         script.onload = function() {{
+#           // Run the HLS logic after HLS.js is loaded
+#           var logicScript = document.createElement('script');
+#           logicScript.innerHTML = hlsLogic;
+#           document.body.appendChild(logicScript);
+#         }};
+#         document.getElementById('hlsjs-script-container').appendChild(script);
+#       }})();
+#     </script>
+#     """
+#     return player_html
+
+
+def set_output_video_player_to_hls():
+    """
+    Set the output video player to the HLS stream HTML.
+    """
+    logging.info("Setting output_video_player to live HLS stream (HTML player)")
+    return gr.update(value=get_hls_player_html(), visible=True)
+
+
+def set_output_video_player_to_file(video_path):
+    """
+    Set the output video player to the generated file (mp4).
+    """
+    logging.info(f"Setting output_video_player to generated file: {video_path}")
+    # Hide the HTML player and show the gr.Video player
+    return gr.update(visible=False), gr.update(value=video_path, visible=True)
+
+
+def start_hls_file_logger(stop_event):
+    """
+    Logs the size of /tmp/hls_fifo and /tmp/hls/stream.m3u8 every second until stop_event is set.
+    """
+    fifo_path = HLS_FIFO
+    playlist_path = os.path.join(HLS_DIR, HLS_PLAYLIST)
+    while not stop_event.is_set():
+        fifo_size = -1 if not os.path.exists(fifo_path) else os.path.getsize(fifo_path)
+        playlist_size = -1 if not os.path.exists(playlist_path) else os.path.getsize(playlist_path)
+        logging.info(f"[HLS File Logger] FIFO size: {fifo_size}, Playlist size: {playlist_size}")
+        time.sleep(1)
+
+
+# def run_flask_hls():
+#     flask_app.run(host=HLS_HOST, port=HLS_PORT, debug=False, use_reloader=False)
+
+
+app = gr.mount_gradio_app(app, demo, path="")
+
 if __name__ == "__main__":
+    # threading.Thread(target=run_flask_hls, daemon=True).start()
+
     # Launch the app
-    demo = create_interface()
-    demo.launch(
-        server_name="0.0.0.0",
-        server_port=7860,
-    )
+    # demo = create_interface()
+    # demo.launch(
+    #     server_name="0.0.0.0",
+    #     server_port=7860,
+    # )
+    import uvicorn
+    uvicorn.run(app, host="0.0.0.0", port=7860)

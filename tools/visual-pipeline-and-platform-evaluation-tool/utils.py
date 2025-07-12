@@ -6,13 +6,12 @@ import random
 import string
 from typing import List, Dict, Tuple
 from subprocess import Popen, PIPE
-import psutil as ps
 from itertools import product
 import logging
 from pipeline import GstPipeline
-import select
-
-
+import stat
+import shutil
+import threading
 
 cancelled = False
 
@@ -181,6 +180,97 @@ def _iterate_param_grid(param_grid: Dict[str, List[str]]):
         yield dict(zip(keys, combination))
 
 
+HLS_DIR = "/tmp/hls"
+HLS_FIFO = "/tmp/hls_fifo"
+HLS_PLAYLIST = "stream.m3u8"
+
+def prepare_hls_dir_and_fifo():
+    if os.path.exists(HLS_DIR):
+        shutil.rmtree(HLS_DIR)
+    os.makedirs(HLS_DIR, exist_ok=True)
+    if os.path.exists(HLS_FIFO):
+        if not os.path.isfile(HLS_FIFO) or not stat.S_ISFIFO(os.stat(HLS_FIFO).st_mode):
+            os.remove(HLS_FIFO)
+    os.mkfifo(HLS_FIFO)
+
+def wait_for_fifo_data(timeout=15):
+    waited = 0.0
+    interval = 0.1
+    while waited < timeout:
+        if os.path.exists(HLS_FIFO) and os.path.getsize(HLS_FIFO) > 0:
+            return True
+        time.sleep(interval)
+        waited += interval
+    return False
+
+def _log_ffmpeg_stream(stream, logger, level="info"):
+    for line in iter(stream.readline, ''):
+        if not line:
+            break
+        msg = f"[ffmpeg] {line.strip()}"
+        if level == "error":
+            logger.error(msg)
+        else:
+            logger.info(msg)
+
+def start_ffmpeg_hls():
+    cmd = [
+        "ffmpeg",
+        "-y",
+        "-hide_banner",
+        "-loglevel", "warning",
+        "-thread_queue_size", "512",
+        "-i", HLS_FIFO,
+        "-c:v", "copy",
+        "-f", "hls",
+        "-hls_time", "1",
+        "-hls_list_size", "0",
+        "-hls_flags", "append_list",
+        "-hls_segment_filename", f"{HLS_DIR}/stream%d.ts",
+        os.path.join(HLS_DIR, HLS_PLAYLIST)
+    ]
+    logger = logging.getLogger("utils")
+    logger.info("Starting ffmpeg for HLS: %s", " ".join(cmd))
+    proc = subprocess.Popen(
+        cmd,
+        stdout=subprocess.PIPE,
+        stderr=subprocess.PIPE,
+        bufsize=1,
+        universal_newlines=True,
+    )
+
+    # Start threads to log stdout and stderr live
+    threading.Thread(target=_log_ffmpeg_stream, args=(proc.stdout, logger, "info"), daemon=True).start()
+    threading.Thread(target=_log_ffmpeg_stream, args=(proc.stderr, logger, "error"), daemon=True).start()
+
+    return proc
+
+def stop_ffmpeg(proc):
+    if proc and proc.poll() is None:
+        proc.terminate()
+        try:
+            proc.wait(timeout=5)
+        except Exception:
+            proc.kill()
+
+def clean_hls_dir():
+    if os.path.exists(HLS_DIR):
+        shutil.rmtree(HLS_DIR)
+    if os.path.exists(HLS_FIFO):
+        os.remove(HLS_FIFO)
+
+def _log_gst_stream(stream, logger, level="info", output_list=None):
+    for line in iter(stream.readline, b''):
+        if not line:
+            break
+        msg = f"[gstreamer] {line.decode('utf-8', errors='replace').strip()}"
+        if output_list is not None:
+            output_list.append(line)
+        if level == "error":
+            logger.error(msg)
+        else:
+            logger.info(msg)
+
 def run_pipeline_and_extract_metrics(
     pipeline_cmd: GstPipeline,
     constants: Dict[str, str],
@@ -217,30 +307,56 @@ def run_pipeline_and_extract_metrics(
 
         # Evaluate the pipeline with the given parameters, constants, and channels
         _pipeline = pipeline_cmd.evaluate(
-            constants, params, regular_channels, inference_channels, elements
+            constants, params, regular_channels, inference_channels, elements, True
         )
 
-        # Log the command
-        logger.info(f"Pipeline Command: {_pipeline}")
+        # --- HLS/ffmpeg logic start ---
+
+        prepare_hls_dir_and_fifo()
 
         try:
             # Set the environment variable to enable all drivers
             env = os.environ.copy()
             env["GST_VA_ALL_DRIVERS"] = "1"
+            # env["GST_DEBUG"] = "GST_BUFFER:5"
 
+            ffmpeg_proc = start_ffmpeg_hls()
+            # --- HLS/ffmpeg logic end ---
+
+            time.sleep(0.5)
+
+            # Log the command
+            logger.info(f"Pipeline Command: {_pipeline}")
             # Spawn command in a subprocess
             process = Popen(_pipeline.split(" "), stdout=PIPE, stderr=PIPE, env=env)
+
+            # # Wait for FIFO to have data before starting ffmpeg
+            # if not wait_for_fifo_data(timeout=45):
+            #     logger.error("FIFO did not receive data from GStreamer in time.")
+            #     process.terminate()
+            #     continue
+
+            # Live logging for GStreamer stdout/stderr
+            process_output = []
+            gst_stdout_thread = threading.Thread(
+                target=_log_gst_stream, args=(process.stdout, logger, "info", process_output), daemon=True
+            )
+            gst_stderr_thread = threading.Thread(
+                target=_log_gst_stream, args=(process.stderr, logger, "error", process_output), daemon=True
+            )
+            gst_stdout_thread.start()
+            gst_stderr_thread.start()
+            # Define pattern to capture FPSCounter metrics
 
             exit_code = None
             total_fps = None
             per_stream_fps = None
+            # Poll the process to check if it is still running
             num_streams = None
             last_fps = None
-            channels = inference_channels + regular_channels
+            channels_count = inference_channels + regular_channels
             avg_fps_dict = {}
-            process_output = []
 
-            # Define pattern to capture FPSCounter metrics
             overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
@@ -252,15 +368,10 @@ def run_pipeline_and_extract_metrics(
                     cancelled = False
                     break
 
-                reads, _, _ = select.select([process.stdout], [], [], poll_interval)
-                for r in reads:
-                    line = r.readline()
-                    if not line:
-                        continue
-                    process_output.append(line)
-
-                    # Write the average FPS to the log
-                    line_str = line.decode("utf-8")
+                # Parse only the last 100 lines for FPS info
+                lines_to_parse = process_output[-100:]
+                for line in lines_to_parse:
+                    line_str = line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line
                     match = re.search(avg_pattern, line_str)
                     if match:
                         result = {
@@ -271,24 +382,20 @@ def run_pipeline_and_extract_metrics(
                         logger.info(
                             f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
                         )
-
-                        # Skip the result if the number of streams does not match the expected channels
-                        if result["number_streams"] != channels:
+                        if result["number_streams"] != channels_count:
                             continue
-
                         latest_fps = result["per_stream_fps"]
-                        
-                        # Write latest FPS to a file
                         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
                             f.write(f"{latest_fps}\n")
+                time.sleep(poll_interval)
 
-                if ps.Process(process.pid).status() == "zombie":
-                    exit_code = process.wait()
-                    break
+            exit_code = process.wait()
+            gst_stdout_thread.join(timeout=1)
+            gst_stderr_thread.join(timeout=1)
 
-            # Process the output and extract FPS metrics
+            # Parse all collected output for final FPS metrics
             for line in process_output:
-                line_str = line.decode("utf-8")
+                line_str = line.decode("utf-8", errors="replace") if isinstance(line, bytes) else line
                 match = re.search(overall_pattern, line_str)
                 if match:
                     result = {
@@ -296,7 +403,7 @@ def run_pipeline_and_extract_metrics(
                         "number_streams": int(match.group(3)),
                         "per_stream_fps": float(match.group(4)),
                     }
-                    if result["number_streams"] == channels:
+                    if result["number_streams"] == channels_count:
                         total_fps = result["total_fps"]
                         num_streams = result["number_streams"]
                         per_stream_fps = result["per_stream_fps"]
@@ -321,14 +428,14 @@ def run_pipeline_and_extract_metrics(
                     last_fps = result
 
             if total_fps is None and avg_fps_dict.keys():
-                if channels in avg_fps_dict.keys():
-                    total_fps = avg_fps_dict[channels]["total_fps"]
-                    num_streams = avg_fps_dict[channels]["number_streams"]
-                    per_stream_fps = avg_fps_dict[channels]["per_stream_fps"]
+                if channels_count in avg_fps_dict.keys():
+                    total_fps = avg_fps_dict[channels_count]["total_fps"]
+                    num_streams = avg_fps_dict[channels_count]["number_streams"]
+                    per_stream_fps = avg_fps_dict[channels_count]["per_stream_fps"]
                 else:
                     closest_match = min(
                         avg_fps_dict.keys(),
-                        key=lambda x: abs(x - channels),
+                        key=lambda x: abs(x - channels_count),
                         default=None,
                     )
                     total_fps = avg_fps_dict[closest_match]["total_fps"]
@@ -336,20 +443,29 @@ def run_pipeline_and_extract_metrics(
                     per_stream_fps = avg_fps_dict[closest_match]["per_stream_fps"]
 
             if total_fps is None and last_fps:
+            # Log the metrics
                 total_fps = last_fps["total_fps"]
                 num_streams = last_fps["number_streams"]
                 per_stream_fps = last_fps["per_stream_fps"]
 
             if total_fps is None:
+            # Log stdout and stderr if exit code is not 0
                 total_fps = "N/A"
                 num_streams = "N/A"
                 per_stream_fps = "N/A"
+            # --- HLS/ffmpeg cleanup ---
+            # stop_ffmpeg(ffmpeg_proc)
+            # clean_hls_dir()
+            # --- end cleanup ---
 
-            # Log the metrics
             logger.info("Exit code: {}".format(exit_code))
             logger.info("Total FPS is {}".format(total_fps))
             logger.info("Per Stream FPS is {}".format(per_stream_fps))
             logger.info("Num of Streams is {}".format(num_streams))
+
+            if exit_code is not None and exit_code != 0:
+                logger.error(f"Pipeline exited with code {exit_code}")
+
 
             # Save results
             results.append(
