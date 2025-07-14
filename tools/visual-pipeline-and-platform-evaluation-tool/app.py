@@ -601,7 +601,13 @@ def on_run(data):
         if component_id:
             arguments[component_id] = data[component]
 
-    video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+    try:
+        video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+    except ValueError as e:
+        raise gr.Error(
+            f"Error: {str(e)}",
+            duration=10,
+        )
 
     recording_channels = arguments.get('recording_channels', 0) or 0
     inferencing_channels = arguments.get('inferencing_channels', 0) or 0
@@ -641,7 +647,13 @@ def on_benchmark(data):
         if component_id:
             arguments[component_id] = data[component]
 
-    _, constants, param_grid = prepare_video_and_constants(**arguments)
+    try:
+        _, constants, param_grid = prepare_video_and_constants(**arguments)
+    except ValueError as e:
+        raise gr.Error(
+            f"Error: {str(e)}",
+            duration=10,
+        )
 
     # Initialize the benchmark class
     bm = Benchmark(
