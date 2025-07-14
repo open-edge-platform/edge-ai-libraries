@@ -74,7 +74,7 @@ components:
         cache_dir:
           type: string
           description: Custom cache directory for the model
-        ovms_config:
+        config:
           $ref: '#/components/schemas/OVMSConfig'
           description: OVMS-specific configuration
 
@@ -168,7 +168,7 @@ paths:
                   hub: huggingface
                   type: llm
                   is_ovms: true
-                  ovms_config:
+                  config:
                     precision: int8
                     device: CPU
                     cache_size: 10
