@@ -67,12 +67,16 @@ if (-Not (Test-Path "C:\\Program Files\\Git")) {
 }
 
 ${env:VCPKG_ROOT} = "C:\\vcpkg"
-${env:PATH} = "C:\Program Files\Git\bin;${env:PATH}"
-setx path "${env:VCPKG_ROOT};${env:VCPKG_ROOT}\downloads\tools\cmake-3.30.1-windows\cmake-3.30.1-windows-i386\bin;${env:VCPKG_ROOT}\downloads\tools\python\python-3.12.7-x64-1"
+
+if (-Not ${env:PATH_SETUP_DONE}) {
+	echo "Setting PATH"
+	${env:PATH} = "C:\Program Files\Git\bin;${env:PATH}"
+	setx path "${env:VCPKG_ROOT};${env:VCPKG_ROOT}\downloads\tools\cmake-3.30.1-windows\cmake-3.30.1-windows-i386\bin;${env:VCPKG_ROOT}\downloads\tools\python\python-3.12.7-x64-1"
+	${env:PATH_SETUP_DONE} = 1
+}
 setx PKG_CONFIG_PATH "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig;C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\lib\pkgconfig"
 setx LIBVA_DRIVER_NAME "vaon12"
 setx LIBVA_DRIVERS_PATH "C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
-
 C:\BuildTools\Common7\Tools\Launch-VsDevShell.ps1
 
 $DLSTREAMER_SRC_LOCATION = $PWD.Path
@@ -84,9 +88,16 @@ if (-Not (Test-Path "${env:VCPKG_ROOT}")) {
 	Add-Content -Path ${env:VCPKG_ROOT}\triplets\x64-windows.cmake -Value "`r`nset(VCPKG_BUILD_TYPE release)"
 }
 
+if (-Not (Get-Command python -errorAction SilentlyContinue)) {
+	echo "Installing Python. Please wait."
+	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\python-3.12.7-amd64.exe -Uri https://www.python.org/ftp/python/3.12.7/python-3.12.7-amd64.exe
+	Start-Process -Wait -FilePath "${DLSTREAMER_TMP}\\python-3.12.7-amd64.exe"  -ArgumentList "/quiet", "InstallAllUsers=1", "PrependPath=1", "Include_test=0" -NoNewWindow
+}
+
 if (-Not (Get-Command py -errorAction SilentlyContinue)) {
 	Set-Alias -Name python3 -Value python
 	Set-Alias -Name py -Value python
+	py --version
 }
 
 if (-Not (Test-Path "C:\\libva")) {
@@ -105,12 +116,14 @@ mkdir "${DLSTREAMER_TMP}\\build"
 Set-Location -Path "${DLSTREAMER_TMP}\\build"
 Start-Process -Wait -FilePath "vcpkg" -ArgumentList "integrate", "install", "--triplet=x64-windows" -NoNewWindow
 Start-Process -Wait -FilePath "vcpkg" -ArgumentList "install", "--triplet=x64-windows", "--vcpkg-root=${env:VCPKG_ROOT}", "--x-manifest-root=${DLSTREAMER_SRC_LOCATION}" -NoNewWindow
+Start-Process -Wait -FilePath "taskkill" -ArgumentList "/im", "msbuild.exe", "/f", "/t" -NoNewWindow
 
 C:\openvino\setupvars.ps1
 
-$exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "-DVCPKG_BUILD_TYPE=release", "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}", "-Wno-dev" -NoNewWindow
+$exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}" -NoNewWindow
 if (-Not $exit_code.ExitCode) {
-	$exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "--build", ".", "--parallel", "16", "--target", "ALL_BUILD", "--config", "Release", "--" -NoNewWindow
+	cmake --build . -v --parallel 16 --target ALL_BUILD --config Release
+} else {
+	exit $exit_code.ExitCode
 }
 
-exit $exit_code.ExitCode
