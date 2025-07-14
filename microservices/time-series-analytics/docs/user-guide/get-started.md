@@ -75,8 +75,7 @@ The `udfs` section specifies the details of the UDFs used in the task.
 |---------|-----------------------------------------------------------------------------|----------------------------------------|
 | `name`  | The name of the UDF script.                                                 | `"temperature_classifier"`       |
 
-
----
+> **Note:** The maximum allowed size for `config.json` is 5 KB.
 
 **Alerts Configuration**: <Optional>
 
@@ -118,6 +117,13 @@ Navigate to the application directory and build the Docker image:
 ```bash
 docker compose build
 ```
+
+> **Note:**  
+> To include copyleft licensed sources when building the Docker image, use the below command:
+>
+> ```bash
+> docker compose build --build-arg COPYLEFT_SOURCES=true
+> ```
 
 ## Push Docker Images (Optional)
 

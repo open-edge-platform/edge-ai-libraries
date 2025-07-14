@@ -92,12 +92,63 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
+export WORKERS=${WORKERS:-6}
+export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
+export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
+export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
+# Set VLM_OPENVINO_LOG_LEVEL based on VLM_LOG_LEVEL
+# OpenVINO log levels: 0=NO, 1=ERR, 2=WARNING, 3=INFO, 4=DEBUG, 5=TRACE
+case "${VLM_LOG_LEVEL}" in
+    "debug")
+        export VLM_OPENVINO_LOG_LEVEL=4  # DEBUG
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "info")
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+    "warning")
+        export VLM_OPENVINO_LOG_LEVEL=2  # WARNING
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "error")
+        export VLM_OPENVINO_LOG_LEVEL=1  # ERR
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    *)
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO (default)
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+esac
+
+# OpenVINO Configuration (optional)
+# OV_CONFIG allows you to pass OpenVINO configuration parameters as a JSON string
+# If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
+if [ -n "$OV_CONFIG" ]; then
+    export OV_CONFIG=$OV_CONFIG
+    echo -e "${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
+else
+    unset OV_CONFIG
+    # Default configuration will be handled by the VLM service
+    echo -e "${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
+fi
+
+# env for pipeline-manager
+export PM_HOST_PORT=3001
+export PM_HOST=pipeline-manager
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
+export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+export PM_LLM_CONCURRENT=2
+export PM_VLM_CONCURRENT=4
+export PM_MULTI_FRAME_COUNT=12
+export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
 export LLM_DEVICE=CPU
@@ -127,11 +178,11 @@ export POSTGRES_PASSWORD=${POSTGRES_PASSWORD}  # Set this in your shell before r
 export POSTGRES_DB=video_summary_db
 export POSTGRES_HOST=postgres-service
 
-# env for audio-intelligence service
+# env for audio-analyzer service
 export AUDIO_HOST_PORT=8999
 export AUDIO_ENABLED_MODELS=${ENABLED_WHISPER_MODELS}
 export AUDIO_MAX_FILE=314572800 # 300MB
-export AUDIO_HOST=audio-intelligence
+export AUDIO_HOST=audio-analyzer
 export AUDIO_ENDPOINT=http://$AUDIO_HOST:8000
 
 # env for minio-service
@@ -150,7 +201,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_DATAPREP_UPLOAD=$VDMS_DATAPREP_ENDPOINT/videos/upload
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
@@ -158,8 +209,14 @@ export VCLIP_MODEL=${VCLIP_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
+export VCLIP_DEVICE=${VCLIP_DEVICE:-CPU}
 export VCLIP_USE_OV=false
-export VCLIP_DEVICE=CPU
+# Set VCLIP_USE_OV to true if VCLIP_DEVICE is GPU
+if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
+    export VCLIP_DEVICE=GPU
+    export VCLIP_USE_OV=true
+    echo -e "${BLUE}VCLIP-EMBEDDING-MS will use OpenVINO on GPU${NC}"
+fi
 export VCLIP_HOST=vclip-embedding-ms
 export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
@@ -167,22 +224,12 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 export VS_HOST_PORT=7890
 export VS_INDEX_NAME=videosearch
 export VS_WATCHER_DIR=$PWD/data
-export VS_WATCHER_DEBOUNCE_TIME=2
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=2
+export VS_DEBOUNCE_TIME=1
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
-
-# env for pipeline-manager
-export PM_HOST_PORT=3001
-export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
-export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
-export PM_LLM_CONCURRENT=2
-export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
-export PM_MINIO_BUCKET=video-summary
 
 # env for vss-ui
 export UI_HOST_PORT=9998
@@ -373,7 +420,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
     docker volume create ov-models
     docker volume create vol_evam_pipeline_root
-    docker volume create audio_intelligence_data
+    docker volume create audio_analyzer_data
 
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
@@ -475,10 +522,11 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
-            echo -e  "Using VLM for summarization on GPU"
+            export WORKERS=1
+            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
         else
             export VLM_DEVICE=CPU
-            echo -e  "Using VLM for summarization"
+            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
         fi
 
         # if config is passed, set the command to only generate the config
@@ -491,6 +539,7 @@ elif [ "$1" = "--search" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Search services: ${NC}"
     docker volume create ov-models
     docker volume create data-prep
+    mkdir -p ${VS_WATCHER_DIR}
 
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"
