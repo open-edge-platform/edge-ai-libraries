@@ -6,6 +6,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 
 **Operating Systems**
 - Ubuntu 22.04 LTS
+- Ubuntu 24.04 LTS
 
 **Hardware Platforms**
 - 11th Generation Intel® Core™ processor or above with Intel® HD Graphics or  Intel® Xeon® processor
