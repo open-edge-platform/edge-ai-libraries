@@ -48,7 +48,6 @@ services:
       - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},otel-collector
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
-      - RUN_MODE=EVA
       - GENICAM=Balluff
       - GST_DEBUG=1,gencamsrc:2
       - LOG_LEVEL=${LOG_LEVEL}
