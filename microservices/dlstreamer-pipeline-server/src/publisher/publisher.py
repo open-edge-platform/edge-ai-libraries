@@ -36,7 +36,8 @@ from src.publisher.influx.influx_writer import InfluxdbWriter
 try:
     from src.publisher.ros2.ros2_publisher import ROS2Publisher
 except Exception as e:
-    get_logger(__name__).warning("Ignoring this import error since ROS2 is present only in extended DL Streamer Pipeline Server image: {}".format(e))
+    # ROS2 is available only in extended image of DL Streamer Pipeline Server
+    pass
 
 
 class Publisher:

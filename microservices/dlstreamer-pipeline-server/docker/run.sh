@@ -36,7 +36,6 @@ ros2_prerequisites() {
         echo "Sourcing ROS2 Jazzy environment..."
         source /opt/ros/jazzy/setup.bash
     else
-        echo "No ROS2 setup.bash file found for Humble or Jazzy. Skipping."
         return
     fi
 
