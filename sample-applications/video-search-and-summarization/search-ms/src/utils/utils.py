@@ -39,17 +39,15 @@ def upload_videos_to_dataprep(file_paths):
         try:
             sanitized_name = sanitize_file_path(file_path)
             with open(file_path, "rb") as file:
-                use_no_proxy = should_use_no_proxy(settings.DATAPREP_UPLOAD_URL)
+                use_no_proxy = should_use_no_proxy(settings.VIDEO_UPLOAD_ENDPOINT)
                 logger.debug(
-                    f"Using no_proxy: {use_no_proxy} for URL: {settings.DATAPREP_UPLOAD_URL}"
+                    f"Using no_proxy: {use_no_proxy} for URL: {settings.VIDEO_UPLOAD_ENDPOINT}"
                 )
-                response = requests.post(
-                    settings.DATAPREP_UPLOAD_URL,
-                    files={"files": (sanitized_name, file, "video/mp4")},
-                    data={
-                        "chunk_duration": settings.CHUNK_DURATION,
-                        "clip_duration": settings.CHUNK_DURATION,
-                    },
+
+                # Step 1: Upload video to get ID
+                upload_response = requests.post(
+                    f"{settings.VIDEO_UPLOAD_ENDPOINT}/videos",
+                    files={"video": (sanitized_name, file, "video/mp4")},
                     proxies=(
                         None
                         if use_no_proxy
@@ -59,21 +57,48 @@ def upload_videos_to_dataprep(file_paths):
                         }
                     ),
                 )
-                response.raise_for_status()
+                upload_response.raise_for_status()
+
+                # Extract video ID from response
+                video_data = upload_response.json()
+                video_id = video_data.get("videoId")
+                if not video_id:
+                    raise ValueError("No video ID returned from upload")
+
+                logger.info(f"Successfully uploaded {file_path}, received ID: {video_id}")
+
+                # Step 2: Process video for search embeddings
+                embedding_response = requests.post(
+                    f"{settings.VIDEO_UPLOAD_ENDPOINT}/videos/search-embeddings/{video_id}",
+                    proxies=(
+                        None
+                        if use_no_proxy
+                        else {
+                            "http": settings.http_proxy,
+                            "https": settings.https_proxy,
+                        }
+                    ),
+                )
+                embedding_response.raise_for_status()
+
                 uploaded_files.add(file_path)
-                logger.info(f"Successfully uploaded {file_path} to data-prep service.")
+                logger.info(f"Successfully processed {file_path} for search embeddings.")
+
                 if settings.DELETE_PROCESSED_FILES:
                     os.remove(file_path)
                     logger.info(f"Deleted processed file {file_path}")
+
         except requests.exceptions.HTTPError as http_err:
             all_success = False
-            if response.status_code == 422:
+            if hasattr(http_err, "response") and http_err.response.status_code == 422:
                 logger.error(
-                    f"Failed to upload {file_path} to data-prep service: {response.status_code} Client Error: Unprocessable Entity for url: {response.url}"
+                    f"Failed to process {file_path}: {http_err.response.status_code} Client Error: Unprocessable Entity for url: {http_err.response.url}"
                 )
             else:
-                logger.error(f"HTTP error occurred: {http_err}")
+                logger.error(
+                    f"HTTP error occurred while processing {file_path}: {http_err}"
+                )
         except Exception as e:
             all_success = False
-            logger.error(f"Failed to upload {file_path} to data-prep service: {str(e)}")
+            logger.error(f"Failed to process {file_path}: {str(e)}")
     return all_success

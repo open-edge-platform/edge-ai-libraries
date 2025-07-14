@@ -20,13 +20,46 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 First, set the required VLM_MODEL_NAME environment variable:
 
 ```bash
-export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
 ```
 
 Refer to [model list](./Overview.md#models-supported) for the supported models that can be used.
 
 > **_NOTE:_** You can change the model name, model compression format, device and the number of Uvicorn workers by editing the `setup.sh` file.
 
+### Optional Environment Variables
+
+The VLM OpenVINO Serving microservice supports many optional environment variables for customizing behavior, performance, and logging. For complete details on all available environment variables, including examples and advanced configurations, see the [Environment Variables Guide](./environment-variables.md).
+
+**Quick Configuration Examples**:
+
+```bash
+# Basic CPU setup (default)
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+
+# GPU acceleration
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_DEVICE=GPU
+
+# Performance optimization
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export OV_CONFIG='{"PERFORMANCE_HINT": "THROUGHPUT"}'
+
+# Production setup with clean logging
+export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-3B-Instruct
+export VLM_LOG_LEVEL=warning
+export VLM_ACCESS_LOG_FILE="/dev/null"
+```
+
+**Key Environment Variables**:
+
+- **VLM_DEVICE**: Set to `CPU` (default) or `GPU` for device selection
+- **OV_CONFIG**: JSON string for OpenVINO performance tuning
+- **VLM_LOG_LEVEL**: Control logging verbosity (`debug`, `info`, `warning`, `error`)
+- **VLM_MAX_COMPLETION_TOKENS**: Limit response length
+- **HUGGINGFACE_TOKEN**: Required for gated models
+
+For detailed information about each variable, configuration examples, and advanced setups, refer to the [Environment Variables Guide](./environment-variables.md).
 
 Set the environment with default values by running the following script:
 
@@ -34,18 +67,7 @@ Set the environment with default values by running the following script:
 source setup.sh
 ```
 
-The server takes the runtime values from .env file
-
-- `http_proxy`: Specifies the HTTP proxy server URL to be used for HTTP requests.
-- `https_proxy`: Specifies the HTTPS proxy server URL to be used for HTTPS requests.
-- `no_proxy_env`: A comma-separated list of domain names or IP addresses that should bypass the proxy.
-- `VLM_MODEL_NAME`: The name or path of the model to be used, e.g., `microsoft/Phi-3.5-vision-instruct`.
-- `VLM_COMPRESSION_WEIGHT_FORMAT`: Specifies the format for compression weights, e.g., `int4`.
-- `VLM_DEVICE`: Specifies the device to be used for computation, e.g., `CPU`.
-- `VLM_SERVICE_PORT`: The port number on which the FastAPI server will run, e.g., `9764`.
-- `TAG`[Optional]: Specifies the tag for the Docker image, e.g., `latest`.
-- `REGISTRY`[Optional]: Specifies the Docker registry URL.
-- `VLM_SEED` [Optional]: An optional environment variable used to set the seed value for deterministic behavior in the VLM inference Serving. This can be useful for debugging or reproducing results. If not provided, a random seed will be used by default.
+> **_NOTE:_** For a complete reference of all environment variables, their descriptions, and usage examples, see the [Environment Variables Guide](./environment-variables.md).
 
 ## Quick Start with Docker
 
@@ -63,14 +85,48 @@ docker compose up -d
 
 ## Running the Server with GPU
 
-See the `/device` `GET` endpoint to fetch the GPU device name. If multiple GPUs are available then we have to pass like `GPU.0`. If only one GPU device is present the we can pass `GPU`.
-Change the `VLM_DEVICE=GPU` in `setup.sh` script and run it again.
+To run the server with GPU acceleration, follow these steps:
 
-To run the server using the GPU Docker Compose file, use the following command:
+### 1. Configure GPU Device
+
+Configure your GPU device using the instructions in the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration). For GPU setup:
+
+```bash
+# For single GPU or automatic GPU selection
+export VLM_DEVICE=GPU
+
+# For specific GPU device (if multiple GPUs available)
+export VLM_DEVICE=GPU.0  # Use first GPU
+export VLM_DEVICE=GPU.1  # Use second GPU
+```
+
+### 2. Run Setup Script
+
+```bash
+source setup.sh
+```
+
+> **Note**: When `VLM_DEVICE=GPU` is set, the setup script automatically optimizes settings for GPU performance (changes compression format to `int4` and sets workers to 1).
+
+### 3. Start the Service
 
 ```bash
 docker compose up -d
 ```
+
+### 4. Verify GPU Configuration
+
+After starting the service, verify your GPU setup:
+
+```bash
+# Check service health
+curl --location --request GET 'http://localhost:9764/health'
+
+# Check available devices and current configuration
+curl --location --request GET 'http://localhost:9764/device'
+```
+
+For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
 
 ## Sample CURL Commands
 
@@ -394,15 +450,16 @@ These steps will help you verify the functionality of the microservice and ensur
     - Run `docker logs {{container-name}}` to identify the issue.
     - Check if the required port is available.
 
-
 2. **Cannot Access the Microservice**:
     - Confirm the container is running:
+
       ```bash
       docker ps
       ```
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](Overview.md)
+- [Environment Variables Guide](environment-variables.md)
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)

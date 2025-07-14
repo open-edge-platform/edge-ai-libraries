@@ -159,7 +159,7 @@ For alternative ways to set up the microservice, see:
     ```sh
     # Sample pipeline
  
-    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink"
+    "pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! videoconvert ! video/x-raw, format=(string)NV12 ! appsink name=appsink"
     ```
 
 - **Resolving Time Sync Issues in Prometheus**

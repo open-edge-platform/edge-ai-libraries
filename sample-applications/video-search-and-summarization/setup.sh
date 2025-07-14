@@ -92,13 +92,63 @@ export VLM_MODEL_NAME=${VLM_MODEL_NAME}
 export VLM_COMPRESSION_WEIGHT_FORMAT=int8
 export VLM_DEVICE=CPU
 export VLM_SEED=42
-export WORKERS=6
+export WORKERS=${WORKERS:-6}
+export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
+export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
+export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
 export VLM_HOST=vlm-openvino-serving
 export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
 export USER_ID=$(id -u)
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
+# Set VLM_OPENVINO_LOG_LEVEL based on VLM_LOG_LEVEL
+# OpenVINO log levels: 0=NO, 1=ERR, 2=WARNING, 3=INFO, 4=DEBUG, 5=TRACE
+case "${VLM_LOG_LEVEL}" in
+    "debug")
+        export VLM_OPENVINO_LOG_LEVEL=4  # DEBUG
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "info")
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+    "warning")
+        export VLM_OPENVINO_LOG_LEVEL=2  # WARNING
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    "error")
+        export VLM_OPENVINO_LOG_LEVEL=1  # ERR
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:--}
+        ;;
+    *)
+        export VLM_OPENVINO_LOG_LEVEL=0  # INFO (default)
+        export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+        ;;
+esac
+
+# OpenVINO Configuration (optional)
+# OV_CONFIG allows you to pass OpenVINO configuration parameters as a JSON string
+# If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
+if [ -n "$OV_CONFIG" ]; then
+    export OV_CONFIG=$OV_CONFIG
+    echo -e "${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
+else
+    unset OV_CONFIG
+    # Default configuration will be handled by the VLM service
+    echo -e "${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
+fi
+
+# env for pipeline-manager
+export PM_HOST_PORT=3001
+export PM_HOST=pipeline-manager
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
+export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+export PM_LLM_CONCURRENT=2
+export PM_VLM_CONCURRENT=4
+export PM_MULTI_FRAME_COUNT=12
+export PM_MINIO_BUCKET=video-summary
 
 # env for ovms-service
 export LLM_DEVICE=CPU
@@ -150,7 +200,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_DATAPREP_UPLOAD=$VDMS_DATAPREP_ENDPOINT/videos/upload
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
@@ -173,22 +223,12 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 # env for video-search
 export VS_HOST_PORT=7890
 export VS_WATCHER_DIR=$PWD/data
-export VS_WATCHER_DEBOUNCE_TIME=2
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=2
+export VS_DEBOUNCE_TIME=1
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
-
-# env for pipeline-manager
-export PM_HOST_PORT=3001
-export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
-export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
-export PM_LLM_CONCURRENT=2
-export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
-export PM_MINIO_BUCKET=video-summary
 
 # env for vss-ui
 export UI_HOST_PORT=9998
@@ -479,10 +519,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
             export WORKERS=1
-            echo -e  "Using VLM for summarization on GPU"
+            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
         else
             export VLM_DEVICE=CPU
-            echo -e  "Using VLM for summarization"
+            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
         fi
 
         # if config is passed, set the command to only generate the config
@@ -491,6 +531,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     fi
 
 elif [ "$1" = "--search" ]; then
+    mkdir -p ${VS_WATCHER_DIR}
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"
     export SEARCH_FEATURE="FEATURE_ON"

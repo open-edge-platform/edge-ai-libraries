@@ -59,7 +59,7 @@ class Settings(BaseSettings):
         default="/tmp/watcher-dir", env="WATCH_DIRECTORY_CONTAINER_PATH"
     )
     DEBOUNCE_TIME: int = Field(default=5, env="DEBOUNCE_TIME")
-    DATAPREP_UPLOAD_URL: str = Field(default="", env="DATAPREP_UPLOAD_URL")
+    VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")

@@ -26,7 +26,7 @@ from enum import Enum
 def setup(mocker):
     app_cfg = {'encoding': {'level': 95, 'type': 'jpeg'},
         'publish_raw_frame': True,
-        'pipeline': 'source ! decodebin ! gvatrack ! appsink', 
+        'pipeline': 'source ! decodebin3 ! gvatrack ! appsink', 
         'img_handle_length': 10}
     pub_cfg = MagicMock()
     
@@ -365,8 +365,8 @@ class TestPublisher:
 
 
     @pytest.mark.parametrize("pipeline, expected", [
-        ("source ! decodebin ! gvatrack ! appsink", True),
-        ("source ! decodebin ! appsink", False)
+        ("source ! decodebin3 ! gvatrack ! appsink", True),
+        ("source ! decodebin3 ! appsink", False)
     ])
     def test_is_tracking_enabled(self, pub_obj, pipeline, expected):
         """Test that tracking is correctly identified from the pipeline configuration."""
