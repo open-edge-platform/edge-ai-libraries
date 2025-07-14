@@ -195,6 +195,12 @@ Follow these steps to run the application:
     source setup.sh --search
     ```
 
+- **To run Unified Video Search and Summary :**
+
+    ```bash
+    source setup.sh --all
+    ```
+
 - **To run Video Summary with OVMS Microservice for final summary :**
 
     ```bash
