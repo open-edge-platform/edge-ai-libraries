@@ -180,5 +180,5 @@ Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.
 ## Learn More
 
 -   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
--   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html). 
+<!-- -   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html).  -->
 -   For more tutorials refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html)
