@@ -1,11 +1,11 @@
 # Model Download Service
 
-The Model Download Service is a microservice that facilitates downloading and converting models from Hugging Face to OpenVINO Model Server (OVMS) format. This service provides a RESTful API for managing model downloads and conversions.
+The Model Download Service is a microservice that facilitates downloading the models from Hugging Face/Ollama and in case of Hugging Face, converting to OpenVINO Model Server (OVMS) format. This service provides a RESTful API for managing model downloads and conversions.
 
 ## Features
 
-- Download models from Hugging Face Hub
-- Convert models to OVMS format
+- Download models from Hugging Face/Ollama model hub
+- Convert models to OVMS format (Hugging Face models only)
 - Support for various model precisions (INT8, FP16, FP32)
 - Support for different device targets (CPU, GPU)
 - Parallel download capability
@@ -15,17 +15,21 @@ The Model Download Service is a microservice that facilitates downloading and co
 ## Prerequisites
 
 - Docker and Docker Compose
-- Hugging Face API token
+- Hugging Face API token (not needed for Ollama model hub)
 - Sufficient disk space for model storage
 
 ## Quick Start
 
-1. Clone the repository and navigate to the model-download directory:
+1. Clone the repository and navigate to the `model-download` directory:
 ```bash
 cd microservices/model-download
 ```
 
-2. Start the service using Docker Compose:
+2. Setup the directory for storing the downloaded models with appropriate permissions
+```bash
+source setup_model_path.sh
+```
+3. Start the service using Docker Compose:
 ```bash
 docker compose -f docker/compose.yaml up --build
 ```
@@ -36,10 +40,10 @@ The service will be available at `http://localhost:32004/api/v1`
 
 ### Authentication
 
-All API endpoints require authentication using a Hugging Face API token. Pass the token in the `Authorization` header:
+All API endpoints require authentication using a Hugging Face API token. Pass the token in the `Authorize` section:
 
 ```http
-Authorization: your_hugging_face_token
+HTTPBearer: your_hugging_face_token
 ```
 
 ### Endpoints
@@ -86,7 +90,7 @@ If the model is present in Ollama hub (OVMS support not available yet for Ollama
 ```
 
 **Parameters:**
-- `name` (required): The name/ID of the Hugging Face model
+- `name` (required): The name/ID of the Hugging Face/Ollama model
 - `hub` (required): The model hub to download from (Options - huggingface or ollama)
 - `type`: Model type (e.g., llm, embeddings, rerank)
 - `is_ovms`: Whether to convert the model to OVMS format (default: false)
@@ -118,7 +122,7 @@ The service can be configured through environment variables and Docker volumes:
 - `HF_HUB_ENABLE_HF_TRANSFER`: Enable Hugging Face transfer (default: 1)
 
 #### Volumes:
-- `~/.cache/huggingface:/root/.cache/huggingface`: Cache Hugging Face models
+- `~/.cache/huggingface:/home/appuser/.cache/huggingface`: Cache Hugging Face models
 - `~/models:/app/models`: Persist downloaded models
 
 ## Docker Compose Configuration
@@ -136,8 +140,10 @@ services:
     ports:
       - "32004:8000"
     volumes:
-      - ~/.cache/huggingface:/root/.cache/huggingface
+      - ~/.cache/huggingface:/home/appuser/.cache/huggingface
       - ~/models:/app/models
+    group_add:
+      - ${USER_GROUP_ID:-1000}
 ```
 
 ## Error Handling

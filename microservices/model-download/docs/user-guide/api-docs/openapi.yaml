@@ -51,7 +51,7 @@ components:
       properties:
         name:
           type: string
-          description: The name/ID of the Hugging Face model
+          description: The name/ID of the Hugging Face/Ollama model
         hub:
           type: string
           description: The model hub to download from (Options - huggingface or ollama)
@@ -136,7 +136,7 @@ components:
       type: apiKey
       in: header
       name: Authorization
-      description: Hugging Face API token for authentication
+      description: Hugging Face API token for authentication (Not applicable for Ollama models)
 
 paths:
   /models/download:
