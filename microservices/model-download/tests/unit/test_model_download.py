@@ -190,7 +190,7 @@ class TestValidation:
                     "name": "bert-base-uncased",
                     "type": "llm",
                     "is_ovms": True,
-                    "ovms_config": {
+                    "config": {
                         "precision": "fp16",
                         "device": "GPU",
                         "cache_size": 20

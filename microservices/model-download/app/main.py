@@ -57,7 +57,7 @@ class ModelRequest(BaseModel):
     model_family: Optional[str] = None
     description: Optional[str] = None
     cache_dir: Optional[str] = None
-    ovms_config: Optional[OVMSConfig] = None
+    config: Optional[OVMSConfig] = None
 
 class ModelDownloadRequest(BaseModel):
     models: List[ModelRequest]
@@ -219,7 +219,8 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: O
             model_downloaded_path = snapshot_download(
                 repo_id=model.name,
                 token=hf_token,
-                local_dir=model_specific_path
+                local_dir=model_specific_path,
+                revision=model.revision if model.revision else None,
             )
             logger.info(f"Model download completed: {model.name}")
         except Exception as e:
@@ -237,7 +238,7 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: O
             logger.info(f"Starting OVMS conversion for model: {model.name}")
 
             # Use model-specific OVMS config if provided, otherwise initialize default settings
-            ovms_config = model.ovms_config if model.ovms_config else OVMSConfig(
+            ovms_config = model.config if model.config else OVMSConfig(
                 precision=ModelPrecision.INT8,
                 device=DeviceType.CPU,
                 cache_size=10

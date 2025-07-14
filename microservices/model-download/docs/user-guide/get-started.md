@@ -60,7 +60,7 @@ If the model is present in HuggingFace hub
       "hub": "huggingface",
       "type": "llm",
       "is_ovms": true,
-      "ovms_config": {
+      "config": {
         "precision": "int8",
         "device": "CPU",
         "cache_size": 10
@@ -90,7 +90,7 @@ If the model is present in Ollama hub (OVMS support not available yet for Ollama
 - `hub` (required): The model hub to download from (Options - huggingface or ollama)
 - `type`: Model type (e.g., llm, embeddings, rerank)
 - `is_ovms`: Whether to convert the model to OVMS format (default: false)
-- `ovms_config`: Configuration for OVMS conversion
+- `config`: Configuration for OVMS conversion
   - `precision`: Model precision (int8, fp16, fp32)
   - `device`: Target device (CPU, GPU)
   - `cache_size`: Cache size for model optimization
