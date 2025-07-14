@@ -29,11 +29,16 @@ RUN poetry config virtualenvs.create false && poetry install --no-root
 # ---- Stage 2: Final slim image ----
 FROM python:3.11-slim
 
+ARG UID=1000
+ARG GID=1000
+
 RUN apt-get update && apt-get install -y \
     curl \
     && rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
+    
+# Create a non-root user
+RUN groupadd -g ${GID} appuser && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser
 
 # Copy installed dependencies from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
@@ -41,6 +46,14 @@ COPY --from=python-base /usr/local/bin /usr/local/bin
 
 # Copy the application files into the container
 COPY . /app
+
+WORKDIR /app
+
+# Change the user of working directory to non-root user
+RUN chown -R appuser:appuser /app
+
+# Switch to non-root user
+USER appuser
 
 # Expose the port the app runs on
 EXPOSE 8000
