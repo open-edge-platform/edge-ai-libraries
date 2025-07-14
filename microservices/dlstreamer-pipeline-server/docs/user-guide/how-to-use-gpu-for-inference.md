@@ -1,8 +1,8 @@
 # How to use GPU for inference
 
 ## Pre-requisites
-In order to benefit from hardware acceleration, pipelines can be constructed such that different stages such as decoding, inference etc can make use of these devices.
-For containerized application such as the DLStreamer Pipeline Server, first we need to provide container user to have access to the GPU devices.
+In order to benefit from hardware acceleration, pipelines can be constructed in a manner that different stages such as decoding, inference etc can make use of these devices.
+For containerized application such as the DLStreamer Pipeline Server, first we need to provide GPU device(s) access to the container user.
 
 ### Provide GPU access to the container
 This can be done by making the following changes to the docker compose file.
@@ -19,14 +19,14 @@ services:
       # you can add specific devices in case you don't want to provide access to all like below.
       - "/dev:/dev"
 ```
+The changes above adds the container user to the `render` group and provides access to the GPU devices.
 
 ### Hardware specific encoder/decoders
 Unlike the changes done for the container above, the following requires a modification to the media pipeline itself.
 
-Gstreamer has a variety of hardware specific encoders and decoders elements such as Intel specific VA-API elements that you can benefit from by adding them
-in your media pipeline. Examples of such elements are `vah264dec`, `vah264enc`, `vajpegdec`, `vajpegdec`, etc.
+Gstreamer has a variety of hardware specific encoders and decoders elements such as Intel specific VA-API elements that you can benefit from by adding them into your media pipeline. Examples of such elements are `vah264dec`, `vah264enc`, `vajpegdec`, `vajpegdec`, etc.
 
-Additionally, one can also enforce zero-copy of buffers using Gstreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete)
+Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete).
 
 Read DLStreamer [docs](https://dlstreamer.github.io/dev_guide/gpu_device_selection.html) for more.
 
