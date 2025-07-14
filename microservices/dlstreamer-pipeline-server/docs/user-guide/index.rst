@@ -36,11 +36,6 @@
 
 
 .. toctree::
-   :hidden:
-
-   advanced-guide/Overview
-
-.. toctree::
 
    release_notes/Overview
 

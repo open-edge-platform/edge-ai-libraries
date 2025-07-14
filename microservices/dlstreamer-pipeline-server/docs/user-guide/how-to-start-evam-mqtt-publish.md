@@ -16,6 +16,14 @@ You can do this by adding these variables to `.env` file present in the same fol
           - MQTT_PORT=<MQTT_BROKER_PORT>
     ```
 
+A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
+
+```sh
+    volumes:
+      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_mqtt_publisher/config.json to config file that DL Streamer Pipeline Server container loads.
+      - "../configs/sample_mqtt_publisher/config.json:/home/pipeline-server/config.json"
+```
+
 The below CURL command publishes metadata to a MQTT broker and sends frames over RTSP for streaming.
 
 Assuming broker is running in the same host over port `1883`, replace the `<SYSTEM_IP_ADDRESS>` field with your system IP address.  
