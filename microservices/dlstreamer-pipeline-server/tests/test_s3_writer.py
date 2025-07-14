@@ -16,7 +16,7 @@ from src.publisher.s3.s3_writer import S3Writer
 
 @pytest.fixture
 def setup(mocker):
-    src.common.log.configure_logging('DEBUG', False)
+    src.common.log.configure_logging('DEBUG')
 
     app_cfg = {
         "S3_write": {

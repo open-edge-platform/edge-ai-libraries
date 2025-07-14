@@ -19,22 +19,18 @@ LOG_LEVELS = {
 }
 
 # Globals
-DEV_MODE = None
 LOG_LEVEL = None
 
-def configure_logging(log_level, dev_mode):
+def configure_logging(log_level):
     """Set the global variables for the logging utilities.
 
     :param str log_level: Global application log level
-    :param bool dev_mode: Flag for whether the service is running in dev mode
     """
-    global DEV_MODE
     global LOG_LEVEL
 
     log_level = log_level.upper()
 
 
-    DEV_MODE = dev_mode
     LOG_LEVEL = log_level
 
 
@@ -49,7 +45,7 @@ def get_logger(name):
         logger.setLevel(LOG_LEVELS[os.environ['LOG_LEVEL'].upper()])
     else:
         logger.setLevel(logging.INFO)
-    logger.propagate = 0
+    logger.propagate = 1
     formatter = logging.Formatter(
         "%(asctime)s - %(levelname)s - %(module)s\t - %(funcName)s [%(lineno)3d] - %(message)s")
     streamHandler = logging.StreamHandler(sys.stdout)
