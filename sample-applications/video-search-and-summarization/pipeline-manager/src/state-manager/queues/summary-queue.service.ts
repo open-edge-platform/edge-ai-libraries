@@ -1,35 +1,22 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
-import {
-  ChunkQueueItem,
-  SummaryQueueItem,
-} from 'src/evam/models/message-broker.model';
+import { SummaryQueueItem } from 'src/evam/models/message-broker.model';
 import { LlmService } from 'src/language-model/services/llm.service';
 import { StateService } from '../services/state.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import {
-  ChunkSummaryComplete,
-  ChunkSummaryTrigger,
   PipelineDTOBase,
   PipelineEvents,
   SummaryCompleteRO,
 } from 'src/events/Pipeline.events';
 import { AppEvents } from 'src/events/app.events';
-import { Subject, Subscription } from 'rxjs';
-import { TemplateService } from 'src/language-model/services/template.service';
+import { Subject, Subscription, takeUntil } from 'rxjs';
 import { ConfigService } from '@nestjs/config';
+import { InferenceCountService } from 'src/language-model/services/inference-count.service';
 
 @Injectable()
-export class SummaryService {
+export class SummaryQueueService {
   waiting: SummaryQueueItem[] = [];
-
   processing: SummaryQueueItem[] = [];
-
-  maxConcurrent: number = this.$config.get<number>(
-    'openai.llmSummarization.concurrent',
-  )!;
 
   private subs = new Subscription();
 
@@ -40,6 +27,7 @@ export class SummaryService {
     private $state: StateService,
     private $llm: LlmService,
     private $emitter: EventEmitter2,
+    private $inferenceCount: InferenceCountService,
   ) {}
 
   @OnEvent(PipelineEvents.SUMMARY_TRIGGER)
@@ -48,6 +36,7 @@ export class SummaryService {
   }
 
   startVideoSummary(data: SummaryQueueItem) {
+    this.$inferenceCount.incrementLlmProcessCount();
     const { stateId } = data;
 
     this.$emitter.emit(PipelineEvents.SUMMARY_PROCESSING, { stateId });
@@ -57,7 +46,7 @@ export class SummaryService {
     if (state && Object.values(state.frameSummaries).length > 0) {
       const streamer = new Subject<string>();
 
-      let texts = Object.values(state.frameSummaries)
+      const texts = Object.values(state.frameSummaries)
         .sort((a, b) => +a.startFrame - +b.startFrame)
         .map((el) => el.summary);
 
@@ -88,6 +77,7 @@ export class SummaryService {
           streamer,
         )
         .catch((error) => {
+          this.$inferenceCount.decrementLlmProcessCount();
           console.error('Error summarizing video:', error);
         });
 
@@ -109,14 +99,23 @@ export class SummaryService {
               summary,
             });
           },
+          error: () => {
+            this.$inferenceCount.decrementLlmProcessCount();
+          },
         }),
       );
     }
   }
 
+  @OnEvent(AppEvents.SUMMARY_REMOVED)
+  removeSummary(stateId: string) {
+    this.waiting = this.waiting.filter((el) => el.stateId !== stateId);
+    this.processing = this.processing.filter((el) => el.stateId !== stateId);
+  }
+
   @OnEvent(AppEvents.TICK)
   processQueue() {
-    if (this.processing.length < this.maxConcurrent) {
+    if (this.waiting.length > 0 && this.$inferenceCount.hasLlmSlots()) {
       const queueItem = this.waiting.shift();
 
       if (queueItem) {
@@ -127,7 +126,8 @@ export class SummaryService {
   }
 
   @OnEvent(PipelineEvents.SUMMARY_COMPLETE)
-  summaryComplete({ stateId, summary }: SummaryCompleteRO) {
+  summaryComplete({ stateId }: SummaryCompleteRO) {
+    this.$inferenceCount.decrementLlmProcessCount();
     const processingIndex = this.processing.findIndex(
       (el) => el.stateId == stateId,
     );

@@ -47,7 +47,7 @@ services:
       https_proxy: ${https_proxy}
       APP_ENDPOINT_URL: ${UI_PM_ENDPOINT}
       APP_ASSETS_URL: ${UI_ASSETS_ENDPOINT}
-      APP_FEATURE_MUX: ATOMIC
+      APP_FEATURE_MUX: ${APP_FEATURE_MUX}
     depends_on:
       pipeline-manager:
         condition: service_started
@@ -83,6 +83,11 @@ services:
       DB_NAME: ${POSTGRES_DB}
       OTLP_TRACE_URL: ${OTLP_TRACE_URL:-}
     restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:3000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
     networks:
       - vs_network
 

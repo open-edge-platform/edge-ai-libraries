@@ -17,7 +17,7 @@ export const VideoTile: FC<VideoTileProps> = ({ videoId, startTime, relevance })
   const { getVideoUrl } = useAppSelector(videosSelector);
 
   useEffect(() => {
-    if (videoRef.current && startTime) {
+    if (videoRef.current && startTime && typeof startTime === 'number') {
       videoRef.current.currentTime = startTime;
     }
   }, [startTime]);

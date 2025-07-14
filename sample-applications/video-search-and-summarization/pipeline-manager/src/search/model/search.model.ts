@@ -1,9 +1,11 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 export interface SearchQueryDTO {
   query: string;
-  tags?: string[];
+  tags?: string;
+}
+
+export enum SearchQueryStatus {
+  IDLE = 'idle',
+  RUNNING = 'running',
 }
 
 export interface SearchShimQuery {
@@ -58,6 +60,7 @@ export interface SearchQuery {
   query: string;
   watch: boolean;
   results: SearchResult[];
+  queryStatus: SearchQueryStatus;
   tags: string[];
   createdAt: string;
   updatedAt: string;
@@ -69,6 +72,15 @@ export interface DataPrepMinioDTO {
   video_name: string;
   chunk_duration?: number;
   clip_duration?: number;
+}
+
+export interface DataPrepSummaryDTO {
+  bucket_name: string;
+  video_id: string;
+  video_summary: string;
+  video_start_time: number;
+  video_end_time: number;
+  tags: string[];
 }
 
 export interface DataPrepMinioRO {

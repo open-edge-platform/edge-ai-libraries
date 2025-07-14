@@ -2,10 +2,11 @@ import { FC } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tooltip } from '@carbon/react';
-import { SearchActions, SearchSelector } from '../../redux/search/searchSlice';
+import { IconButton, Slider, Tag, Tooltip } from '@carbon/react';
+import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
+import { Trigger } from '@carbon/react/icons';
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -82,8 +83,19 @@ const NothingSelectedWrapper = styled.div`
   padding: 0 2rem;
 `;
 
+const TagsContainer = styled.div`
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-start;
+  margin-left: 1rem;
+  .cds--tag {
+    margin: 0.25rem;
+  }
+`;
+
 export const SearchContent: FC = () => {
-  const { selectedQuery, selectedResults } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInProgress } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
@@ -95,13 +107,33 @@ export const SearchContent: FC = () => {
     );
   };
 
+  const refetchQuery = () => {
+    if (selectedQuery) {
+      dispatch(RerunSearch(selectedQuery.queryId));
+    }
+  };
+
   const QueryHeading = () => {
     return (
       <QueryHeader>
         <Tooltip align='bottom' label={selectedQuery?.query}>
           <span className='query-title'>{selectedQuery?.query}</span>
         </Tooltip>
+        {selectedQuery && selectedQuery?.tags.length > 0 && (
+          <TagsContainer>
+            {selectedQuery.tags.map((tag, index) => (
+              <Tag key={index} size='sm' type='high-contrast'>
+                {tag}
+              </Tag>
+            ))}
+          </TagsContainer>
+        )}
         <span className='spacer'></span>
+        {isSelectedInProgress && (
+          <Tag size='sm' type='blue'>
+            {t('searchInProgress')}
+          </Tag>
+        )}
         {selectedQuery && (
           <>
             <SliderLabel>{t('topK')}</SliderLabel>
@@ -116,6 +148,9 @@ export const SearchContent: FC = () => {
             />
           </>
         )}
+        <IconButton label={t('SearchRerun')} autoAlign onClick={refetchQuery} kind='ghost'>
+          <Trigger />
+        </IconButton>
       </QueryHeader>
     );
   };

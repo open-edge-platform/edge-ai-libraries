@@ -1,10 +1,8 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import {
   BadRequestException,
   Body,
   Controller,
+  Delete,
   Get,
   InternalServerErrorException,
   NotFoundException,
@@ -20,8 +18,10 @@ import { VideoService } from 'src/video-upload/services/video.service';
 import { Video } from 'src/video-upload/models/video.model';
 import { AppConfigService } from 'src/video-upload/services/app-config.service';
 import { StateService } from 'src/state-manager/services/state.service';
+import { State } from 'src/state-manager/models/state.model';
 import { ApiBody, ApiOkResponse, ApiParam } from '@nestjs/swagger';
 import { UiService } from 'src/state-manager/services/ui.service';
+import { SummaryService } from '../services/summary.service';
 
 @Controller('summary')
 export class SummaryController {
@@ -30,12 +30,21 @@ export class SummaryController {
     private $appConfig: AppConfigService,
     private $state: StateService,
     private $ui: UiService,
+    private $summary: SummaryService,
   ) {}
 
   @Get('')
   @ApiOkResponse({ description: 'Get all summary states raw' })
-  getSummary() {
+  getSummary(): State[] {
     return this.$state.fetchAll();
+  }
+
+  @Get('ui')
+  @ApiOkResponse({ description: 'Get a list of summary ids' })
+  getSummaryList() {
+    const states = this.$state.fetchAll();
+    const uiStates = states.map((curr) => this.$ui.getUiState(curr.stateId));
+    return uiStates;
   }
 
   @Get(':stateId')
@@ -153,5 +162,24 @@ export class SummaryController {
     }
 
     return { summaryPipelineId: stateId };
+  }
+
+  @Delete(':stateId')
+  @ApiParam({
+    name: 'stateId',
+    required: true,
+    description: 'ID of the summary state to delete',
+  })
+  @ApiOkResponse({ description: 'Delete a summary state by ID' })
+  async deleteSummaryById(@Param() params: { stateId: string }) {
+    const { stateId } = params;
+
+    if (!this.$state.exists(stateId)) {
+      throw new NotFoundException('State not found');
+    }
+
+    await this.$summary.removeSummary(stateId);
+
+    return { message: 'State deleted successfully' };
   }
 }

@@ -1,18 +1,15 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import { Test, TestingModule } from '@nestjs/testing';
-import { SummaryService } from './summary.service';
+import { SummaryQueueService } from './summary-queue.service';
 import { StateService } from '../services/state.service';
 import { LlmService } from 'src/language-model/services/llm.service';
 import { EventEmitter2 } from '@nestjs/event-emitter';
 import { ConfigService } from '@nestjs/config';
 import { PipelineEvents, SummaryCompleteRO } from 'src/events/Pipeline.events';
-import { Subject, of } from 'rxjs';
+import { Subject } from 'rxjs';
 import { TemplateService } from 'src/language-model/services/template.service';
 
-describe('SummaryService', () => {
-  let service: SummaryService;
+describe('SummaryQueueService', () => {
+  let service: SummaryQueueService;
   let stateService: jest.Mocked<StateService>;
   let llmService: jest.Mocked<LlmService>;
   let eventEmitter: jest.Mocked<EventEmitter2>;
@@ -20,7 +17,6 @@ describe('SummaryService', () => {
   let templateService: jest.Mocked<TemplateService>;
 
   const mockStateId = 'test-state-id';
-  const mockSummary = 'This is a test video summary.';
 
   const mockState = {
     stateId: mockStateId,
@@ -76,7 +72,7 @@ describe('SummaryService', () => {
 
     const module: TestingModule = await Test.createTestingModule({
       providers: [
-        SummaryService,
+        SummaryQueueService,
         { provide: StateService, useValue: stateServiceMock },
         { provide: LlmService, useValue: llmServiceMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
@@ -85,7 +81,7 @@ describe('SummaryService', () => {
       ],
     }).compile();
 
-    service = module.get<SummaryService>(SummaryService);
+    service = module.get<SummaryQueueService>(SummaryQueueService);
     stateService = module.get(StateService) as jest.Mocked<StateService>;
     llmService = module.get(LlmService) as jest.Mocked<LlmService>;
     eventEmitter = module.get(EventEmitter2) as jest.Mocked<EventEmitter2>;

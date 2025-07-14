@@ -118,6 +118,7 @@ services:
     ipc: host
     environment:
       no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
+      no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}

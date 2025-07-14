@@ -149,7 +149,7 @@ The Video Summary application offers multiple stacks and deployment options:
 |-------|-------------|------|
 | Video Summary | Video frame captioning and Summary | `--summary` |
 | Video Search | Video indexing and semantic search | `--search` |
-| Video Search + Summary **_(Under Construction)_** | Both summary and search capabilities | `--all` |
+| Video Search + Summary | Both summary and search capabilities | `--all` |
 
 ### 🧩 Deployment Options for Video Summary
 

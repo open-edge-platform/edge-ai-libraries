@@ -34,7 +34,6 @@ const SidebarItemWrapper = styled.div`
 
   &.unread {
     border-color: red;
-    background-color: rgb(15 98 254 / 48%);
   }
 
   &.selected,
@@ -99,7 +98,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
 
         <span className='text-container'>{item.query}</span>
 
-        <IconButton align='left' kind='ghost' label={t('queryDeleteLabel')} onClick={handleDeleteClick}>
+        <IconButton kind='ghost' label={t('queryDeleteLabel')} autoAlign onClick={handleDeleteClick}>
           <TrashCan />
         </IconButton>
       </SidebarItemWrapper>
