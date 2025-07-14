@@ -173,7 +173,7 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
-2. Set the required environment variables as described [here](#setting-required-environment-variables).
+2. Set the required environment variables as described [here](#required-env).
 
 3. Run the setup script with the appropriate flag, depending on your use case.
 
