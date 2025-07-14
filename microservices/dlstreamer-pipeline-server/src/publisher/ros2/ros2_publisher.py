@@ -50,7 +50,7 @@ class ROS2Publisher():
             self.log.info("ROS2 client library not initialized, initializing now...")
             rclpy.init()
 
-        self.node = Node(f'ros2_publisher_{th.get_ident()}')
+        self.node = Node(f'ros2_publisher_{id(self)}')
         self.publisher = self.node.create_publisher(String, self.topic, 10)
         self.initialized=True
         self.log.info("ROS2 publisher initialized")
