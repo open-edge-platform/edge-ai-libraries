@@ -32,8 +32,8 @@ GOLD_TRUE = [
     BBox(0.6926184892654419, 0.18179790675640106, 0.822385311126709, 0.5055984705686569,
          [
              {
-                 'label': "happy",
-                 'layer_name': "detection_out",
+                 'label': "surprise",
+                 'layer_name': "prob_emotion",
                  'name': "detection"
              }
          ], class_id=1
@@ -50,7 +50,7 @@ GOLD_TRUE = [
 ]
 
 
-class TestDetectionClassificationONNXPipeline(unittest.TestCase):
+class TestDetectionClassificationPipeline(unittest.TestCase):
     def test_pipeline_face_detection_and_emotions_recognition_retail_0003(self):
         pipeline_runner = TestPipelineRunner()
         pipeline_runner.set_pipeline(PIPELINE_STR,
