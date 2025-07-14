@@ -131,11 +131,11 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
-Update the following lines for choosing the right base image and also for naming the image that gets built.
+Update the following lines in [.env file](./docker/.env) for choosing the right base image and also for naming the image that gets built.
 
   ``` sh
-  # For Ubuntu 22.04: intel/dlstreamer:2025.0.1.3-ubuntu22
-  # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
+  # For Ubuntu 22.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22@sha256:865290076ab40d45dd15e18a58f6d8df31afd87f518706c4cc0786a3d3d26030
+  # For Ubuntu 24.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24@sha256:01c3b47f588e7560a7f0ca2ae04d59b525c073b822596f2a7e349a3d25282547
   BASE_IMAGE=
 
   # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
@@ -148,6 +148,8 @@ Update the following lines for choosing the right base image and also for naming
   # For extended image: dlstreamer-pipeline-server-extended
   BUILD_TARGET=
   ```
+
+  Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer#build-the-dlstreamer-docker-image-with) and use it as `BASE_IMAGE` in the above mentioned `.env` file
 
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 
