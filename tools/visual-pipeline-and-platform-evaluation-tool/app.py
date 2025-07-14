@@ -20,6 +20,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 TEMP_DIR = "/tmp/"
 
+INFERENCING_CHANNELS_LABEL = "Number of Inferencing channels"
+RECORDING_AND_INFERENCING_CHANNELS_LABEL = "Number of Recording + Inferencing channels"
+
 with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
     css_code = f.read()
 
@@ -676,6 +679,10 @@ def show_hide_component(component, config_key):
     except KeyError:
         pass
 
+def update_inferencing_channels_label():
+    if current_pipeline[1]["parameters"]["run"]["recording_channels"]:
+        return gr.update(minimum=0, value=8, label=RECORDING_AND_INFERENCING_CHANNELS_LABEL)
+    return gr.update(minimum=1, value=8, label=INFERENCING_CHANNELS_LABEL)
 
 # Create the interface
 def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
@@ -1219,6 +1226,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 lambda: current_pipeline[0].diagram(),
                                 None,
                                 pipeline_image,
+                            ).then(
+                                lambda: update_inferencing_channels_label(),
+                                None,
+                                inferencing_channels,
                             ).then(
                                 lambda: [
                                     gr.Dropdown(
