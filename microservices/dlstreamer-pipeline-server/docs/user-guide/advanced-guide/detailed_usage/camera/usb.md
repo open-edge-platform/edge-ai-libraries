@@ -1,3 +1,6 @@
+```{eval-rst}
+:orphan:
+```
 # USB v4l2 Cameras
 
 - Refer the following pipeline for USB v4l2 camera and modify the appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
