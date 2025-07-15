@@ -1,9 +1,4 @@
-```{eval-rst}
-:orphan:
-```
 # USB v4l2 Cameras
-
-For information or configurations details on the USB cameras, refer to [docs/usb_doc.md](./docs/usb_doc.md).
 
 - Refer the following pipeline for USB v4l2 camera and modify the appropriate config.json file in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs` directory.
 
