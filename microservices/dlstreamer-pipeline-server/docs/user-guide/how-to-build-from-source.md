@@ -75,5 +75,5 @@ Refer [here](./get-started.md#run-default-sample) to run default sample upon bri
 ## Learn More
 
 -   Understand the components, services, architecture, and data flow, in the [Overview](./Overview.md)
-<!-- -   For more details on advanced configuration, usage of features refer to [Detailed Usage](./advanced-guide/Overview.md).  -->
+-   For more details on advanced configuration, usage of features refer to [Detailed Usage](./advanced-guide/Overview.md)
 -   For more tutorials please refer `How-to` section
