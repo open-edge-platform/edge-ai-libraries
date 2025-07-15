@@ -91,11 +91,14 @@ spec:
               value: "{{ .Values.Chatqna.env.SEED }}"
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if .Values.global.OTLP_ENDPOINT }}
           volumeMounts:
             - name: ca-certificates
               mountPath: /usr/local/share/ca-certificates
             - name: ssl-certs
               mountPath: /etc/ssl/certs
+          {{ end}}
+      {{- if .Values.global.OTLP_ENDPOINT }}
       volumes:
         - name: ca-certificates
           hostPath:
@@ -105,3 +108,4 @@ spec:
           hostPath:
             path: /etc/ssl/certs
             type: Directory
+      {{ end}}
