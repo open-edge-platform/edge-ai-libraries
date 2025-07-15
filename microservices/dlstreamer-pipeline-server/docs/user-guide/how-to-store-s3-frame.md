@@ -48,7 +48,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
             command: server --console-address ":9090" /data
         ```
 
-    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service. Also include the S3 and MQTT environment variables.
+    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service.
         ```yaml
         services:
           dlstreamer-pipeline-server:

@@ -48,7 +48,6 @@
 -   [Multistream pipelines with shared model instance](./detailed_usage/how-to-advanced/multistream-pipelines.md)
 -   [Cross stream batching](./detailed_usage/how-to-advanced/cross-stream-batching.md)
 -   [Enable Open Telemetry](./detailed_usage/how-to-advanced/enable-open-telemetry.md)
--   [WebRTC Frame Streaming](./detailed_usage/how-to-advanced/webrtc-frame-streaming.md)
 -   [Working with other services](./detailed_usage/how-to-advanced/work-with-other-services.md)
 
 
