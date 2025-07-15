@@ -23,7 +23,7 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
+Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/Overview.html)
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 - Pull the image with the latest tag from registry
 
    ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.0.0
+     docker pull intel/dlstreamer-pipeline-server:3.1.0
    ```
 
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
@@ -167,7 +167,7 @@ Run the following commands:
 
 ---
 ### Run default sample
-Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ---
 ## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
@@ -179,6 +179,6 @@ Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
--   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html). 
--   For more tutorials refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started.html)
