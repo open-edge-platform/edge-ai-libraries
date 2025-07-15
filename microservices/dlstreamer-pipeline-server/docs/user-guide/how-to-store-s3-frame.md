@@ -48,18 +48,12 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
             command: server --console-address ":9090" /data
         ```
 
-    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service. Also include the S3 and MQTT environment variables.
+    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service.
         ```yaml
         services:
           dlstreamer-pipeline-server:
             environment:
               - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},minio-server
-              - S3_STORAGE_HOST=${S3_STORAGE_HOST}
-              - S3_STORAGE_PORT=${S3_STORAGE_PORT}
-              - S3_STORAGE_USER=${S3_STORAGE_USER}
-              - S3_STORAGE_PASS=${S3_STORAGE_PASS}
-              - MQTT_HOST=${MQTT_HOST}
-              - MQTT_PORT=${MQTT_PORT}
         ```
         
         > **Note** Ensure that the value added to `no_proxy` matches the `container_name` specified for the `minio` service in the docker-compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In this example, it is `minio-server`.
