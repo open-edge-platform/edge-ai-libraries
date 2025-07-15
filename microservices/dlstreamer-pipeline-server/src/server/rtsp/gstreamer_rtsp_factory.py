@@ -22,11 +22,28 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0" 
 
     _RtspVideoPipeline = " ! videoconvert  \
-        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0" 
+        ! gvawatermark ! jpegenc name=jpegencoder ! rtpjpegpay name=pay0"
+    
+    # GPU pipeline variants for hardware-accelerated buffers
+    # _RtspVideoPipeline_GPU_VASurface = " ! vaapipostproc ! vaapijpegenc ! rtpjpegpay name=pay0"
+    
+    # _RtspVideoPipeline_GPU_DMABuf = " ! videoconvert ! gvawatermark ! vaapijpegenc ! rtpjpegpay name=pay0"
+    
+    # _RtspVideoPipeline_GPU_VAMemory = " ! videoconvert ! gvawatermark ! vaapijpegenc ! rtpjpegpay name=pay0" 
 
     # Decoding audio again as there is issue with audio pipeline element audiomixer
     _RtspAudioPipeline = " ! queue ! decodebin ! audioresample ! audioconvert " \
     " ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96"
+
+    def replace_with_vaelements_VAMemory(self, pipeline):
+        """
+        Replace elements in the pipeline with VA-API equivalents.
+        """
+        if "jpegenc" in pipeline:
+            pipeline = pipeline.replace("jpegenc", "vaapijpegenc")
+        if "jpegdec" in pipeline:
+            pipeline = pipeline.replace("jpegdec", "vajpegdec")        
+        return pipeline        
 
     def __init__(self, rtsp_server):
         GstRtspServer.RTSPMediaFactory.__init__(self)
@@ -49,6 +66,29 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
                     new_caps.append(cap)
         return new_caps
 
+    def _is_gpu_buffer(self, caps):
+        """
+        Determine if the caps indicate GPU buffer based on memory features.
+        Returns tuple: (is_gpu, caps_feature_type)
+        
+        GPU buffer types:
+        - VASurface: Video Acceleration Surface (Intel GPU)
+        - DMABuf: Direct Memory Access Buffer (cross-device)
+        - VAMemory: Video Acceleration Memory (Intel GPU)
+        """
+        caps_string = caps.to_string()
+        
+        # Check for GPU buffer indicators
+        if "memory:VASurface" in caps_string:
+            return True, "VASurface"
+        elif "memory:DMABuf" in caps_string:
+            return True, "DMABuf"  
+        elif "memory:VAMemory" in caps_string:
+            return True, "VAMemory"
+        else:
+            # System memory (CPU)
+            return False, "System"
+
     def do_create_element(self, url):
         # pylint: disable=arguments-differ
         # pylint disable added as pylint comparing do_create_element with some other method with same name.
@@ -64,6 +104,10 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
         overlay = stream.overlay
         new_caps = self._select_caps(caps.to_string())
         s_src = "{} caps=\"{}\"".format(GStreamerRtspFactory._source, ','.join(new_caps))
+        
+        # Determine if we're dealing with GPU or CPU buffers
+        is_gpu, buffer_type = self._is_gpu_buffer(caps)
+        
         if "image/jpeg" in new_caps:
             if overlay:
                 media_pipeline = GStreamerRtspFactory._RtspVideoPipeline_withjpeginput_overlay
@@ -73,6 +117,11 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
             media_pipeline = GStreamerRtspFactory._RtspVideoPipeline
             if overlay is False:
                 media_pipeline = media_pipeline.replace("gvawatermark ! ", "")
+
+        if is_gpu and buffer_type == "VAMemory":
+            self._logger.info("Using GPU pipeline for caps: {} (type: {})".format(caps.to_string(), buffer_type))
+            # Replace elements with VA-API equivalents if necessary
+            media_pipeline = self.replace_with_vaelements_VAMemory(media_pipeline)
         is_audio_pipeline = False
         if caps.to_string().startswith('audio'):
             media_pipeline = GStreamerRtspFactory._RtspAudioPipeline
