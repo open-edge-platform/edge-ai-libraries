@@ -3,8 +3,8 @@
 DL Streamer Pipeline Server supports streaming the frames on WebRTC protocol using mediamtx media server.
 There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
 
-Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images through webrtc protocol to webrtc browser client. This is done via the MediaMTX server used for signaling. 
-Note: As an optional recommendation, Coturn server can be used to facilitate NAT traversal and ensure that the webrtc stream is accessible on a non-native browser client and helps in cases where firewall is enabled. See example usage [here](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-vision)
+Once a pipeline is started, DL Streamer Pipeline Server sends a stream of images through webrtc protocol to webrtc browser client. This is done via the MediaMTX server used for signaling.
+Note: As an optional recommendation, Coturn server can be used to facilitate NAT traversal and ensure that the webrtc stream is accessible on a non-native browser client and helps in cases where firewall is enabled. See example usage of coturn server in webrtc streaming [here](https://github.com/open-edge-platform/edge-ai-suites/tree/main/manufacturing-ai-suite/industrial-edge-insights-vision)
 
 Below are the necessary configuration to be aware of (or modify accordingly based on your deployment) in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` (They will be consumed appropriately in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`):
 ```sh
