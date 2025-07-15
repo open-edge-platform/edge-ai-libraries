@@ -1,4 +1,4 @@
-# WebRTC frame streaming
+# How to perform WebRTC frame streaming
 
 DL Streamer Pipeline Server supports streaming the frames on WebRTC protocol using mediamtx media server.
 There is a dedicated docker compose file for demonstrating WebRTC streaming for DL Streamer Pipeline Server. It is available in DL Streamer Pipeline Server's github repository, under the "docker" folder i.e., `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose-mediamtx.yml`
