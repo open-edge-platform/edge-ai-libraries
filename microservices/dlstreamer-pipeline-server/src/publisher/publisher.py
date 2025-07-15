@@ -43,8 +43,7 @@ class Publisher:
     def __init__(self, app_cfg, 
                  queue,
                  request:str=None,
-                 add_timestamp:bool=True, 
-                 append_pipeline_name_to_topic=strtobool(os.getenv("APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC","false"))):
+                 add_timestamp:bool=True):
         """Constructor
 
         .. note:: This method immediately starts the publishing thread.
@@ -55,7 +54,6 @@ class Publisher:
         """
         self.app_cfg = app_cfg
         self.add_timestamp = add_timestamp
-        self.append_pipeline_name_to_topic = append_pipeline_name_to_topic
         self.queue = queue
         self.request=request
         self.stop_ev = th.Event()

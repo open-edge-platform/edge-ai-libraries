@@ -45,18 +45,12 @@ services:
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
       - WEBRTC_SIGNALING_SERVER=http://${WHIP_SERVER_IP}:${WHIP_SERVER_PORT}
-      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},otel-collector
+      - no_proxy=$no_proxy,${RTSP_CAMERA_IP},otel-collector
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
-      - GENICAM=Balluff
-      - GST_DEBUG=1,gencamsrc:2
+      - GST_DEBUG=1
       - LOG_LEVEL=${LOG_LEVEL}
-      # Default Detection and Classification Device
-      - DETECTION_DEVICE=CPU
-      - CLASSIFICATION_DEVICE=CPU
       - ADD_UTCTIME_TO_METADATA=true
-      - RUNTIME_LICENSE_CHECK_FREQ_SECS=${RUNTIME_LICENSE_CHECK_FREQ_SECS}
-      - APPLICATION_RESTART_FREQ_SECS=${APPLICATION_RESTART_FREQ_SECS}
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
@@ -64,8 +58,6 @@ services:
       - MR_SAVED_MODELS_DIR=${MR_SAVED_MODELS_DIR}
       - MR_REQUEST_TIMEOUT=${MR_REQUEST_TIMEOUT}
       - MR_VERIFY_CERT=${MR_VERIFY_CERT}
-      # Append pipeline name to a publisher topic
-      - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
       - REST_SERVER_PORT=8080
       - SERVICE_NAME=dlstreamer-pipeline-server
       - OPCUA_SERVER_IP=$OPCUA_SERVER_IP
@@ -121,9 +113,6 @@ services:
       - MTX_SRT=no
       - MTX_WEBRTCTRACKGATHERTIMEOUT=${WHIP_SERVER_TIMEOUT}
       - MTX_WEBRTCADDRESS=:${WHIP_SERVER_PORT}
-      # - MTX_WEBRTCICESERVERS2_0_URL=
-      # - WEBRTCICESERVERS2_0_USERNAME=
-      # - WEBRTCICESERVERS2_0_PASSWORD=
     network_mode: host
 
 networks:

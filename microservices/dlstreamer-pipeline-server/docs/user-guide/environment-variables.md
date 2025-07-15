@@ -52,8 +52,6 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
 
 ### Miscellaneous env variables 
 - **GST_DEBUG**=1 : Enable GST debug logs
-- **DETECTION_DEVICE**=CPU : Default Detection Device
-- **CLASSIFICATION_DEVICE**=CPU : Default Classification Device
 - **ADD_UTCTIME_TO_METADATA**=true : Add UTC timestamp in metadata by DL Streamer Pipeline Server publisher
 - **HTTPS**=false : Make it `true` to enable SSL/TLS secure mode, mount the generated certificates
 - **MTLS_VERIFICATION**=false : Enable/disable client certificate verification for mTLS Model Registry Microservice
@@ -73,5 +71,4 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - To enable SSL certificate verification using the system's default CA bundle, set this variable to: `yes`, `y`, `true`, `t`, or `1`
   - To verify the certificates issued by CAs not included in the system's default bundle, set it to the file or directory path that contains the custom CA bundle
   - To disable verification, set it to: `no`, `n`, `false`, `f`, `0`, or leave it empty
-- **APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC**=false: Add pipeline name to a published topic(optional)
 - **LOG_LEVEL**=INFO : Set the logging level for DL Streamer Pipeline Server
