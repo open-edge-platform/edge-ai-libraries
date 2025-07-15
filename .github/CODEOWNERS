@@ -2,7 +2,7 @@ LICENSE             @xwu2intel
 CONTRIBUTING.md     @xwu2intel
 CODE_OF_CONDUCT.md  @xwu2intel
 SECURITY.md         @xwu2intel
-README.md           @xwu2intel @open-edge-platform/open-edge-platform-docs-write
+README.md           @xwu2intel
 
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
 
