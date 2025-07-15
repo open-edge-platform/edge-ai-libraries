@@ -227,7 +227,7 @@ export VS_WATCHER_DIR=$PWD/data
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=1
+export VS_DEBOUNCE_TIME=10
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
 

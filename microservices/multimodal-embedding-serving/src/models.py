@@ -72,9 +72,55 @@ class VClipModel:
             cfg (dict): Configuration dictionary containing model name.
         """
         self.model_name = cfg["model_name"]
-        self.clip = CLIPModel.from_pretrained(self.model_name)
-        self.processor = AutoProcessor.from_pretrained(self.model_name)
-        self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+        # Create paths for local storage
+        flattened_model_name = self.model_name.replace("/", "_")
+        self.ov_dir = Path(settings.EMBEDDING_MODEL_PATH)
+        self.ov_dir.mkdir(parents=True, exist_ok=True)
+
+        self.processor_dir = self.ov_dir / f"{flattened_model_name}_processor"
+        self.tokenizer_dir = self.ov_dir / f"{flattened_model_name}_tokenizer"
+        self.model_dir = self.ov_dir / f"{flattened_model_name}_model"
+
+        # Try to load from local storage, fall back to online if not available
+        try:
+            logger.info(f"Attempting to load models from local storage at {self.ov_dir}")
+            if self.model_dir.exists():
+                self.clip = CLIPModel.from_pretrained(str(self.model_dir))
+            else:
+                self.clip = CLIPModel.from_pretrained(self.model_name)
+                self.clip.save_pretrained(str(self.model_dir))
+                logger.info(f"Saved model to {self.model_dir}")
+
+            if self.processor_dir.exists():
+                self.processor = AutoProcessor.from_pretrained(str(self.processor_dir))
+            else:
+                self.processor = AutoProcessor.from_pretrained(self.model_name)
+                self.processor.save_pretrained(str(self.processor_dir))
+                logger.info(f"Saved processor to {self.processor_dir}")
+
+            if self.tokenizer_dir.exists():
+                self.tokenizer = AutoTokenizer.from_pretrained(str(self.tokenizer_dir))
+            else:
+                self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+                self.tokenizer.save_pretrained(str(self.tokenizer_dir))
+                logger.info(f"Saved tokenizer to {self.tokenizer_dir}")
+
+        except Exception as e:
+            logger.error(f"Error loading models locally: {e}. Attempting to download from HuggingFace.")
+            # Fallback to online loading
+            self.clip = CLIPModel.from_pretrained(self.model_name)
+            self.processor = AutoProcessor.from_pretrained(self.model_name)
+            self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
+            # Try to save them for future use
+            try:
+                self.clip.save_pretrained(str(self.model_dir))
+                self.processor.save_pretrained(str(self.processor_dir))
+                self.tokenizer.save_pretrained(str(self.tokenizer_dir))
+                logger.info(f"Downloaded and saved models to {self.ov_dir}")
+            except Exception as save_error:
+                logger.error(f"Failed to save models locally: {save_error}")
+
         self.text_model = None
         self.image_model = None
 
@@ -82,15 +128,13 @@ class VClipModel:
         """
         Asynchronous initialization for the VClipModel.
         """
-
         flattened_model_name = self.model_name.replace("/", "_")
-        ov_dir = Path(settings.EMBEDDING_MODEL_PATH)
-        ov_dir.mkdir(parents=True, exist_ok=True)
-        text_model_path = ov_dir / f"{flattened_model_name}_text.xml"
-        image_model_path = ov_dir / f"{flattened_model_name}_image.xml"
+        text_model_path = self.ov_dir / f"{flattened_model_name}_text.xml"
+        image_model_path = self.ov_dir / f"{flattened_model_name}_image.xml"
+
         if not text_model_path.exists() or not image_model_path.exists():
             logger.info(
-                f"Model files for model {self.model_name} not found in {ov_dir}. Converting and saving the models"
+                f"Model files for model {self.model_name} not found in {self.ov_dir}. Converting and saving the models"
             )
             await self.download_convert_clip_model(text_model_path, image_model_path)
         core = ov.Core()
