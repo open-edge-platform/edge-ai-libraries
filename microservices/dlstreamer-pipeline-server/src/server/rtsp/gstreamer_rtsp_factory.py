@@ -35,14 +35,14 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
     _RtspAudioPipeline = " ! queue ! decodebin ! audioresample ! audioconvert " \
     " ! avenc_aac ! queue ! mpegtsmux ! rtpmp2tpay  name=pay0 pt=96"
 
-    def replace_with_vaelements_VAMemory(self, pipeline):
+    def replace_with_vaelements_when_VAMemory(self, pipeline):
         """
         Replace elements in the pipeline with VA-API equivalents.
         """
         if "jpegenc" in pipeline:
-            pipeline = pipeline.replace("jpegenc", "vaapijpegenc")
+            pipeline = pipeline.replace("jpegenc", "vajpegenc")
         if "jpegdec" in pipeline:
-            pipeline = pipeline.replace("jpegdec", "vajpegdec")        
+            pipeline = pipeline.replace("jpegdec", "vajpegdec")
         return pipeline        
 
     def __init__(self, rtsp_server):
@@ -119,9 +119,9 @@ class GStreamerRtspFactory(GstRtspServer.RTSPMediaFactory):
                 media_pipeline = media_pipeline.replace("gvawatermark ! ", "")
 
         if is_gpu and buffer_type == "VAMemory":
-            self._logger.info("Using GPU pipeline for caps: {} (type: {})".format(caps.to_string(), buffer_type))
+            self._logger.debug("Using GPU pipeline for caps: {} (type: {})".format(caps.to_string(), buffer_type))
             # Replace elements with VA-API equivalents if necessary
-            media_pipeline = self.replace_with_vaelements_VAMemory(media_pipeline)
+            media_pipeline = self.replace_with_vaelements_when_VAMemory(media_pipeline)
         is_audio_pipeline = False
         if caps.to_string().startswith('audio'):
             media_pipeline = GStreamerRtspFactory._RtspAudioPipeline
