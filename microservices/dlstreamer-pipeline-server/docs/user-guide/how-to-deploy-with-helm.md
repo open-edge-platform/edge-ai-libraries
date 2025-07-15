@@ -118,7 +118,7 @@ In this get started guide, you learned how to start the DL Streamer Pipeline Ser
 -   For getting started with the deployment using docker, please go [here](get-started.md)
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](Overview.md).
-<!-- -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md) -->
+-   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
 -   For more details on Deep Learning Streamer visit [this](https://dlstreamer.github.io/) page.
 
 ## Legal Information
