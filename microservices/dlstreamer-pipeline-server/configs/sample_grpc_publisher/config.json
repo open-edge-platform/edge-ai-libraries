@@ -5,7 +5,7 @@
                 "name": "pallet_defect_detection",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin3 ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! appsink name=destination",
+                "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/warehouse.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! appsink name=destination",
                 "parameters": {
                     "type": "object",
                     "properties": {

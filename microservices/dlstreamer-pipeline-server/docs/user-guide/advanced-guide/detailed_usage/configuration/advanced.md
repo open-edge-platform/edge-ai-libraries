@@ -18,7 +18,7 @@ Here is a sample EIS config file.
                 "name": "dlstreamer_pipeline_results",
                 "source": "gstreamer",
                 "queue_maxsize": 50,
-                "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/anomalib_pcb_test.avi name=source ! h264parse ! decodebin3 ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! appsink name=destination",
+                "pipeline": "multifilesrc loop=TRUE location=/home/pipeline-server/resources/videos/anomalib_pcb_test.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=RGB ! udfloader name=udfloader ! appsink name=destination",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -102,16 +102,16 @@ Fields within `pipelines` section.
 - Encoding elements can be used in the `pipeline` as an alternative to specifying the `encoding` parameters.
 Refer to the below pipeline for using `jpegenc` in config.json.
   ```javascript
-  "pipeline": "multifilesrc loop=FALSE stop-index=0 location=/home/pipeline-server/resources/pcb_d2000.avi name=source ! h264parse ! decodebin3 ! videoconvert ! video/x-raw,format=BGR ! udfloader name=udfloader ! jpegenc ! appsink name=destination",
+  "pipeline": "multifilesrc loop=FALSE stop-index=0 location=/home/pipeline-server/resources/pcb_d2000.avi name=source ! h264parse ! decodebin ! videoconvert ! video/x-raw,format=BGR ! udfloader name=udfloader ! jpegenc ! appsink name=destination",
   ```
 - Refer to the below pipeline for using `pngenc` in config.json.
   ```javascript
-  "pipeline": "multifilesrc loop=FALSE stop-index=0 location=/home/pipeline-server/resources/pcb_d2000.avi name=source ! h264parse ! decodebin3 ! videoconvert ! video/x-raw,format=BGR ! udfloader name=udfloader ! videoconvert ! pngenc ! appsink name=destination",
+  "pipeline": "multifilesrc loop=FALSE stop-index=0 location=/home/pipeline-server/resources/pcb_d2000.avi name=source ! h264parse ! decodebin ! videoconvert ! video/x-raw,format=BGR ! udfloader name=udfloader ! videoconvert ! pngenc ! appsink name=destination",
   ```
 - `convert_metadata_to_dcaas_format`, when set to `true` in config.json converts the metadata to DCaaS compatible format. Currently this has been tested for `gvadetect` element used in the pipeline.
 Refer to the below pipeline for example,
   ```javascript
-  "pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/classroom.avi name=source ! h264parse ! decodebin3 ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=BGR ! gvadetect model=/home/pipeline-server/models/object_detection/person/FP32/person-detection-retail-0013.xml model-proc=/home/pipeline-server/models/object_detection/person/person-detection-retail-0013.json ! queue ! jpegenc ! appsink name=destination",
+  "pipeline": "multifilesrc loop=TRUE stop-index=0 location=/home/pipeline-server/resources/classroom.avi name=source ! h264parse ! decodebin ! queue max-size-buffers=10 ! videoconvert ! video/x-raw,format=BGR ! gvadetect model=/home/pipeline-server/models/object_detection/person/FP32/person-detection-retail-0013.xml model-proc=/home/pipeline-server/models/object_detection/person/person-detection-retail-0013.json ! queue ! jpegenc ! appsink name=destination",
   ```
 - For MQTT publishing,
 
