@@ -6,3 +6,5 @@ requests==2.32.4
 pydantic==2.10.6
 openvino==2025.1.0
 plotly==6.0.1
+ruff==0.12.3
+mypy==1.16.1

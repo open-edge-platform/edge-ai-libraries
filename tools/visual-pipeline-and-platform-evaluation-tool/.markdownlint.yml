@@ -1,0 +1,25 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+default: true
+MD004:
+  style: dash
+MD010:
+  # Code blocks may have hard tabs.
+  code_blocks: false
+MD013:
+  line_length: 120  # Max line length checking.
+  code_blocks: false
+MD025:
+  # Ignore the front matter title.  Pages still need a top level header (#).
+  front_matter_title: ""
+MD029:
+  style: ordered
+MD033:
+  allowed_elements:
+    - ref  # allow hugo relative reference links
+    - br  # allow mermaid <br> to create new line
+    - a  # allow anchors created by protoc-gen-doc and similar tools
+    - img # allow images - needed if you need to define a size
+    - span # allow span tags - needed if you need to highlight text in color
