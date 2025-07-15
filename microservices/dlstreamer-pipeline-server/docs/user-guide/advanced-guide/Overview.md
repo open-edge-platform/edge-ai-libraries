@@ -1,5 +1,3 @@
-:orphan:
-
 # Advanced user guide
 
 ## Rest API
