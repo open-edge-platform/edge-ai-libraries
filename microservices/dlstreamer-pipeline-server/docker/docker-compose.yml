@@ -56,7 +56,7 @@ services:
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
       - WEBRTC_SIGNALING_SERVER=http://${WHIP_SERVER_IP}:${WHIP_SERVER_PORT}
-      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST},${INFLUXDB_HOST},influxdb
+      - no_proxy=$no_proxy,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST},${INFLUXDB_HOST},influxdb,minio-server
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
       - RUN_MODE=EVA
