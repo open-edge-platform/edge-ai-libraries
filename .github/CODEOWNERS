@@ -21,10 +21,10 @@ SECURITY.md @xwu2intel
 /sample-applications/video-search-and-summarization/ @bhardwaj-nakul @krish918 @bharagha @yogeshmpandey
 
 # documentation content
-/libraries/dl-streamer/docs @open-edge-platform/open-edge-platform-docs-write
-/libraries/dl-streamer/README.md @open-edge-platform/open-edge-platform-docs-write
-/microservices/**/docs @open-edge-platform/open-edge-platform-docs-write
-/microservices/**/README.md @open-edge-platform/open-edge-platform-docs-write
-/sample-applications/**/docs @open-edge-platform/open-edge-platform-docs-write
-/sample-applications/**/README.md @open-edge-platform/open-edge-platform-docs-write
+#/libraries/dl-streamer/docs @open-edge-platform/open-edge-platform-docs-write
+#/libraries/dl-streamer/README.md @open-edge-platform/open-edge-platform-docs-write
+#/microservices/**/docs @open-edge-platform/open-edge-platform-docs-write
+#/microservices/**/README.md @open-edge-platform/open-edge-platform-docs-write
+#/sample-applications/**/docs @open-edge-platform/open-edge-platform-docs-write
+#/sample-applications/**/README.md @open-edge-platform/open-edge-platform-docs-write
 

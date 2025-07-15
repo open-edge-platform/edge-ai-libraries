@@ -14,7 +14,7 @@ from src.subscriber.cam_ingestor import XirisCamIngestor
 # Mock setup for publisher object creation
 @pytest.fixture
 def cam_ing_cfg(mocker):
-    src.common.log.configure_logging('DEBUG', False)
+    src.common.log.configure_logging('DEBUG')
     cam_ing_cfg = {
         'xiris': {
             'ip_address': '192.168.1.1',

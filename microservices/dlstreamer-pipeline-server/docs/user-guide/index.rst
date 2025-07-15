@@ -19,6 +19,7 @@
    how-to-start-evam-mqtt-publish
    how-to-store-s3-frame
    how-to-store-metadata-influxdb
+   how-to-publish-metadata-over-ros2
    how-to-launch-and-manage-pipeline
    how-to-use-rtsp-camera-as-video-source
    how-to-run-udf-pipelines
