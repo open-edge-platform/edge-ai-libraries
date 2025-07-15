@@ -50,16 +50,12 @@ For the sake of demonstration, we will be using InfluxDB v2.7.11 to store the me
             influxdb:
         ```
 
-    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `influxdb` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service. Also include the InfluxDB environment variables.
+    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `influxdb` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service.
         ```yaml
         services:
           dlstreamer-pipeline-server:
             environment:
               - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},${OTEL_COLLECTOR_HOST},${S3_STORAGE_HOST},${INFLUXDB_HOST},influxdb
-              - INFLUXDB_HOST=${INFLUXDB_HOST}
-              - INFLUXDB_PORT=${INFLUXDB_PORT}
-              - INFLUXDB_USER=${INFLUXDB_USER}
-              - INFLUXDB_PASS=${INFLUXDB_PASS}
         ```
         
         > **Note** The value added to `no_proxy` must match with the value of `container_name` specified in the `influxdb` service section at docker compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In our example, its `influxdb`.
