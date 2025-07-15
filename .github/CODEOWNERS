@@ -30,36 +30,35 @@ README.md           @xwu2intel
 
 
 # documentation content: microservices
-/microservices/audio-analyzer/docs/                            @open-edge-platform/open-edge-platform-docs-write @bharagha @bhardwaj-nakul @krish918 @yogeshmpandey
-/microservices/audio-analyzer/README.md                        @open-edge-platform/open-edge-platform-docs-write @bharagha @bhardwaj-nakul @krish918 @yogeshmpandey
-/microservices/dlstreamer-pipeline-server/docs/                @open-edge-platform/open-edge-platform-docs-write @rrajore @sajeevrajput @ajagadi1
-/microservices/dlstreamer-pipeline-server/README.md            @open-edge-platform/open-edge-platform-docs-write @rrajore @sajeevrajput @ajagadi1
-/microservices/document-ingestion/docs/                        @open-edge-platform/open-edge-platform-docs-write @bharagha @madhuri-rai07 @yogeshmpandey
-/microservices/document-ingestion/README.md                    @open-edge-platform/open-edge-platform-docs-write @bharagha @madhuri-rai07 @yogeshmpandey
-/microservices/model-registry/docs/                            @open-edge-platform/open-edge-platform-docs-write @rrajore @elroyashjr
-/microservices/model-registry/README.md                        @open-edge-platform/open-edge-platform-docs-write @rrajore @elroyashjr
-/microservices/multimodal-embedding-serving/docs/              @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha
-/microservices/multimodal-embedding-serving/README.md          @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha
-/microservices/time-series-analytics/docs/                     @open-edge-platform/open-edge-platform-docs-write @vkb1 @sathyendranv @pooja-intel
-/microservices/time-series-analytics/README.md                 @open-edge-platform/open-edge-platform-docs-write @vkb1 @sathyendranv @pooja-intel
-/microservices/vector-retriever/docs/                          @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/vector-retriever/README.md                      @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/visual-data-preparation-for-retrieval/docs/     @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/visual-data-preparation-for-retrieval/README.md @open-edge-platform/open-edge-platform-docs-write @bhardwaj-nakul @krish918 @llin60 @xwu2intel
-/microservices/vlm-openvino-serving/docs/                      @open-edge-platform/open-edge-platform-docs-write @bharagha @bhardwaj-nakul @yogeshmpandey @llin60
-/microservices/vlm-openvino-serving/README.md                  @open-edge-platform/open-edge-platform-docs-write @bharagha @bhardwaj-nakul @yogeshmpandey @llin60
+/microservices/audio-analyzer/docs/                             @bharagha @bhardwaj-nakul @krish918 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write
+/microservices/audio-analyzer/README.md                         @bharagha @bhardwaj-nakul @krish918 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/docs/                 @rrajore @sajeevrajput @ajagadi1                    @open-edge-platform/open-edge-platform-docs-write
+/microservices/dlstreamer-pipeline-server/README.md             @rrajore @sajeevrajput @ajagadi1                    @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/docs/                         @bharagha @madhuri-rai07 @yogeshmpandey             @open-edge-platform/open-edge-platform-docs-write
+/microservices/document-ingestion/README.md                     @bharagha @madhuri-rai07 @yogeshmpandey             @open-edge-platform/open-edge-platform-docs-write
+/microservices/model-registry/docs/                             @rrajore @elroyashjr                                @open-edge-platform/open-edge-platform-docs-write
+/microservices/model-registry/README.md                         @rrajore @elroyashjr                                @open-edge-platform/open-edge-platform-docs-write
+/microservices/multimodal-embedding-serving/docs/               @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha    @open-edge-platform/open-edge-platform-docs-write
+/microservices/multimodal-embedding-serving/README.md           @bhardwaj-nakul @yogeshmpandey @llin60 @bharagha    @open-edge-platform/open-edge-platform-docs-write
+/microservices/time-series-analytics/docs/                      @vkb1 @sathyendranv @pooja-intel                    @open-edge-platform/open-edge-platform-docs-write
+/microservices/time-series-analytics/README.md                  @vkb1 @sathyendranv @pooja-intel                    @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/docs/                           @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
+/microservices/vector-retriever/README.md                       @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
+/microservices/visual-data-preparation-for-retrieval/docs/      @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
+/microservices/visual-data-preparation-for-retrieval/README.md  @bhardwaj-nakul @krish918 @llin60 @xwu2intel        @open-edge-platform/open-edge-platform-docs-write
+/microservices/vlm-openvino-serving/docs/                       @bharagha @bhardwaj-nakul @yogeshmpandey @llin60    @open-edge-platform/open-edge-platform-docs-write
+/microservices/vlm-openvino-serving/README.md                   @bharagha @bhardwaj-nakul @yogeshmpandey @llin60    @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content:sample-applications
-/sample-applications/chat-question-and-answer/docs/            @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/chat-question-and-answer/README.md        @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/chat-question-and-answer-core/docs/       @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/chat-question-and-answer-core/README.md   @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/video-search-and-summarization/docs/      @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
-/sample-applications/video-search-and-summarization/README.md  @open-edge-platform/open-edge-platform-docs-write @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
+/sample-applications/chat-question-and-answer/docs/             @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer/README.md         @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer-core/docs/        @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/chat-question-and-answer-core/README.md    @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/video-search-and-summarization/docs/       @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
+/sample-applications/video-search-and-summarization/README.md   @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content:s tools and libraries
-/libraries/dl-streamer/docs                                    @open-edge-platform/open-edge-platform-docs-write @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-/libraries/dl-streamer/README.md                               @open-edge-platform/open-edge-platform-docs-write @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-/tools/visual-pipeline-and-platform-evaluation-tool/docs       @open-edge-platform/open-edge-platform-docs-write @p-zak @ktaube26 @tmatenko @pmalatyn
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md  @open-edge-platform/open-edge-platform-docs-write @p-zak @ktaube26 @tmatenko @pmalatyn
-
+/libraries/dl-streamer/docs                                     @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/README.md                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/docs        @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @pmalatyn                @open-edge-platform/open-edge-platform-docs-write
