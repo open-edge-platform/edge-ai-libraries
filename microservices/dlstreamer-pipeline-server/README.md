@@ -120,7 +120,7 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 ---
 ## Build from source 
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK and the OpenVINO Model API on top of the optimized image.
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
