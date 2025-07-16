@@ -92,4 +92,4 @@ chatqnaui:
   name: chatqna-ui
   nameOverride: "ui"
   service:
-    port: 80
+    port: 8101
