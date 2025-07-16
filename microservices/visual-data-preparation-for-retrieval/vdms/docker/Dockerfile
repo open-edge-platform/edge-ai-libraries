@@ -47,7 +47,7 @@ RUN poetry lock --no-update
 
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 # If value of ARCH is cpu, install with optional cpu dependencies else install main dependencies
-RUN if [ ${ARCH} = "cpu" ]; \
+RUN if [ "${ARCH}" = "cpu" ]; \
     then poetry install --with cpu; \
     else poetry install --only main; fi
 
@@ -74,7 +74,7 @@ RUN mkdir -p /tmp/dataprep/videos
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ] 
-CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.app:app" ]
+CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--reload", "src.main:app" ]
 
 # Linter stage to lint code in dev image
 FROM dev AS lint
@@ -109,4 +109,4 @@ RUN mkdir -p /tmp/dataprep/videos
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--access-logfile", "-"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.main:app", "--timeout", "300", "--access-logfile", "-"]

@@ -194,7 +194,6 @@ export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell befor
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
-export VDMS_BUCKET=vdms-bucket
 export VDMS_VDB_HOST=vdms-vector-db
 
 # env for vdms-dataprep-ms
@@ -206,6 +205,7 @@ export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
 export VCLIP_MODEL=${VCLIP_MODEL}
+export QWEN_MODEL=${QWEN_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
@@ -222,7 +222,6 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
 # env for video-search
 export VS_HOST_PORT=7890
-export VS_INDEX_NAME=videosearch
 export VS_WATCHER_DIR=$PWD/data
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
@@ -249,7 +248,7 @@ echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL
 
 
 # Verify if required environment variables are set in current shell, only when container down is not requested.
-if [ "$1" != "--down" ]; then
+if [ "$1" != "--down" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return
@@ -268,33 +267,45 @@ if [ "$1" != "--down" ]; then
         echo -e "${RED}ERROR: POSTGRES_PASSWORD is not set in your shell environment.${NC}"
         return
     fi
-
-    if [ -z "$RABBITMQ_USER" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}"
-        return
+    if [ "$1" != "--search" ]; then
+        if [ -z "$RABBITMQ_USER" ]; then
+            echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$RABBITMQ_PASSWORD" ]; then
+            echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$VLM_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$ENABLED_WHISPER_MODELS" ]; then
+            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$OD_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
+            return
+        fi
     fi
-    if [ -z "$RABBITMQ_PASSWORD" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
-        return
+    if [ "$1" != "--summary" ] || [ "$1" != "--all" ]; then
+        if [ -z "$VCLIP_MODEL" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
+            return
+        elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'.${NC}"
+            return
+        fi
     fi
-    if [ -z "$VCLIP_MODEL" ]; then
-        echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
-        return
-    elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-        echo -e "${RED}ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'.${NC}"
-        return
-    fi
-    if [ -z "$VLM_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
-        return
-    fi
-    if [ -z "$ENABLED_WHISPER_MODELS" ]; then
-        echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
-        return
-    fi
-    if [ -z "$OD_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
-        return
+    if [ "$1" = "--all" ]; then
+        if [ -z "$VCLIP_MODEL" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
+            return
+        elif [ -z "$QWEN_MODEL" ] || [ "$QWEN_MODEL" != "Qwen/Qwen3-Embedding-0.6B" ]; then
+            echo -e "${RED}ERROR: QWEN_MODEL is either not set or set to invalid value in your shell environment.${NC}"
+            return
+        fi
     fi
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
@@ -309,11 +320,6 @@ if [ "$1" = "--setenv" ]; then
     echo -e  "${BLUE}Done setting up all environment variables. ${NC}"
     return 0
 fi
-
-# Generate docker volume
-echo -e  "${BLUE}Creating Docker volumes for common services:${NC}"
-docker volume create pg_data
-docker volume create minio_data
 
 # Add rendering device group ID for GPU support when needed
 # Check if render device exist
@@ -416,15 +422,10 @@ export_model_for_ovms() {
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
-
-    echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
-    docker volume create ov-models
-    docker volume create vol_evam_pipeline_root
-    docker volume create audio_analyzer_data
-
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
     export SEARCH_FEATURE="FEATURE_OFF"
+    export APP_FEATURE_MUX="ATOMIC"
 
     # If summarization is enabled, set up the environment for OVMS or VLM for summarization
     [ "$1" = "--summary" ] && APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml" && \
@@ -433,8 +434,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     # If no arguments are passed or if --all is passed, set up both summarization and search   
     [ "$1" = "--all" ] && \
         echo -e  "${BLUE}Creating Docker volumes for Video Search services:${NC}" && \
-        docker volume create data-prep && \
         export SEARCH_FEATURE="FEATURE_ON" && \
+        export USE_ONLY_TEXT_EMBEDDINGS=True && \
+        export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
+        export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
         echo -e  "${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
 
@@ -535,15 +538,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     fi
 
 elif [ "$1" = "--search" ]; then
-
-    echo -e  "${BLUE}Creating Docker volumes for Video Search services: ${NC}"
-    docker volume create ov-models
-    docker volume create data-prep
     mkdir -p ${VS_WATCHER_DIR}
-
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"
     export SEARCH_FEATURE="FEATURE_ON"
+    export APP_FEATURE_MUX="ATOMIC"
+    export USE_ONLY_TEXT_EMBEDDINGS=False  # When only search is enabled, we use both text and video embeddings
+    export VS_INDEX_NAME="video_frame_embeddings"  # DB Index or DB Collection name for video search standalone setup
 
     # If search is enabled, set up video search only
     APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml" 

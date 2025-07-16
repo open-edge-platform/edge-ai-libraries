@@ -3,8 +3,6 @@
 
 import os
 import re
-from datetime import datetime
-from fastapi import UploadFile
 import requests
 from src.utils.common import settings, logger
 from urllib.parse import urlparse
