@@ -1,0 +1,18 @@
+ovmServer:
+  name: ovms-service
+  image:
+    repository: openvino/model_server
+    tag: 2025.1
+    pullPolicy: IfNotPresent
+  service:
+    type: ClusterIP
+    port: 8300
+    targetPort: 8300
+  readinessProbe:
+    httpGet:
+      path: /v2/health/ready
+      port: 8300
+    initialDelaySeconds: 60
+    periodSeconds: 30
+  script:
+    name: "ovms-model-preparation"
