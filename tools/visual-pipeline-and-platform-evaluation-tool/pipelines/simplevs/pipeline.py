@@ -10,12 +10,13 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         self._diagram = Path(os.path.dirname(__file__)) / "diagram.png"
 
-        self._inference_stream_decode_detect_classify = (
+        self._inference_stream_decode_detect_track = (
             # Input
             "filesrc location={VIDEO_PATH} ! "
             # Decoder
             "{decoder} ! "
             # Detection
+            "gvafpscounter starting-frame=500 ! "
             "gvadetect "
             "   {detection_model_config} "
             "   model-instance-id=detect0 "
@@ -28,7 +29,9 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "gvatrack "
             "  tracking-type=short-term-imageless ! "
             "queue ! "
-            # Classification
+        )
+
+        self._inference_stream_classify = (
             "gvaclassify "
             "   {classification_model_config} "
             "   model-instance-id=classify0 "
@@ -39,7 +42,6 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "   nireq={object_classification_nireq} "
             "   reclassify-interval={object_classification_reclassify_interval} ! "
             "queue ! "
-            "gvafpscounter starting-frame=500 ! "
         )
 
         self._inference_output_stream = (
@@ -107,27 +109,36 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
             )
 
-        # Set model config for object classification
-        classification_model_config = (
-            f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-            f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
-        )
-
-        if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
-            classification_model_config = (
-                f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-            )
-
         streams = ""
 
         for i in range(inference_channels):
-            streams += self._inference_stream_decode_detect_classify.format(
+            streams += self._inference_stream_decode_detect_track.format(
                 **parameters,
                 **constants,
                 decoder=_decoder_element,
                 detection_model_config=detection_model_config,
-                classification_model_config=classification_model_config,
             )
+
+            # Handle object classification parameters and constants
+            # Do this only if the object classification model is not disabled or the device is not disabled
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                    or parameters["object_classification_device"] == "Disabled"):
+                # Set model config for object classification
+                classification_model_config = (
+                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                )
+
+                if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
+                    classification_model_config = (
+                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                    )
+
+                streams += self._inference_stream_classify.format(
+                    **parameters,
+                    **constants,
+                    classification_model_config=classification_model_config,
+                )
 
             # Overlay inference results on the inferred video if enabled
             if parameters["pipeline_watermark_enabled"] and parameters["pipeline_video_enabled"]:
