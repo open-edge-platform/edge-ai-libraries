@@ -94,7 +94,10 @@ You can uninstall it with the following command (if installed from source):
             cd ${HOME}/ffmpeg # Change to the directory where ffmpeg was built
             sudo make uninstall
 
-            # then reinstall ffmpeg libs
+        Then reinstall ffmpeg libs:
+
+        .. code:: sh
+
             sudo apt-get install --reinstall ffmpeg libpostproc-dev libavfilter-dev libavdevice-dev \
                         libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev
 
