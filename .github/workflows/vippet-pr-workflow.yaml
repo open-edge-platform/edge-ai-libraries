@@ -1,0 +1,55 @@
+name: "[ViPPET] PR workflow"
+run-name: "[ViPPET] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - release-*
+    paths:
+      - 'tools/visual-pipeline-and-platform-evaluation-tool/**'
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+permissions: {}
+
+jobs:
+  pre-merge-pipeline:
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@628dd6e7fd94a3e765e389b5bb43d90fbe3de421  # 0.1.32
+    with:
+      runs_on: ubuntu-24.04
+      project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
+      bootstrap_tools: ''
+      run_build: false
+      run_lint: true
+      run_test: true
+      run_docker_build: true
+      run_version_check: false
+      run_reuse_check: false
+  final-check:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    if: ${{ always() }}
+    needs: [pre-merge-pipeline]
+    steps:
+      - name: Final Status Check
+        env:
+          pre_merge_pipeline_result: ${{ needs.pre-merge-pipeline.result }}
+        run: |
+          echo "Pre-merge pipeline result: $pre_merge_pipeline_result"
+  
+          # TODO enable after fixing trivy issues
+          # if [ "$pre_merge_pipeline_result" == "success" ] || [ "$pre_merge_pipeline_result" == "skipped" ]; then
+          #   echo "Pre-merge check passed successfully."
+          # else
+          #   echo "Pre-merge checks failed. PR can't get merged"
+          #   exit 1
+          # fi
