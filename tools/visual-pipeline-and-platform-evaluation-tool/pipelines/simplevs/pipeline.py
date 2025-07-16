@@ -71,7 +71,14 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             ("vah264enc" for element in elements if element[1] == "vah264enc"),
             next(
                 ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
-                None,  # Fallback to None if no encoder is found
+                next(
+                    (
+                        "x264enc bitrate=16000 speed-preset=superfast"
+                        for element in elements
+                        if element[1] == "x264enc"
+                    ),
+                    None,  # Fallback to None if no encoder is found
+                ),
             ),
         )
 
