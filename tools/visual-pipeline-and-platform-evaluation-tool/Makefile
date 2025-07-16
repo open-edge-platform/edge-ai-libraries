@@ -102,7 +102,7 @@ clean: ## Clean all build artifacts
 	rm -rf models/ videos/
 
 help: ## Print help for each target
-	@echo buildall make targets
+	@echo ViPPET make targets
 	@echo "Target               Makefile:Line    Description"
 	@echo "-------------------- ---------------- -----------------------------------------"
 	@grep -H -n '^[[:alnum:]_-]*:.* ##' $(MAKEFILE_LIST) \
