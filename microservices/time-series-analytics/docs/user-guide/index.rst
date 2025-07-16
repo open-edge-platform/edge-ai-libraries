@@ -20,6 +20,11 @@
    how-to-deploy-with-helm
 
 .. toctree::
+   :caption: References
+   
+   api-reference
+
+.. toctree::
    :caption: Release Notes
 
    release_notes/Overview
