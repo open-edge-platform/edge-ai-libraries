@@ -328,7 +328,7 @@ The following parameters can be optionally used to customize the stream:
 ### WebRTC
 
 #### Request WebRTC Frame Output
-1. To stream over WebRTC follow the pre-requisite steps for [WebRTC](../how-to-advanced/webrtc-frame-streaming.md) before sending the REST API request.
+1. To stream over WebRTC follow the pre-requisite steps for [WebRTC](../../../how-to-perform-webrtc-frame-streaming.md) before sending the REST API request.
 
 2. Start a pipeline to request frame destination type set as WebRTC and unique `peer-id` value set. For demonstration, peer-id is set as `pallet_defect_detection` in example request below.
 

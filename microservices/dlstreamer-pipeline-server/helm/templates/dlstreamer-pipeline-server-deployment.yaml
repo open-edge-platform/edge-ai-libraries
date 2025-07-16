@@ -37,14 +37,8 @@ spec:
             {{ $.Values.gpu.type }}: {{ $.Values.gpu.count }}
         {{- end }}
         env:
-        - name: APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC
-          value: "{{ $.Values.env.APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC }}"
         - name: REST_SERVER_PORT
           value: "{{ $.Values.env.REST_SERVER_PORT }}"
-        - name: CLASSIFICATION_DEVICE
-          value: {{ $.Values.env.CLASSIFICATION_DEVICE }}
-        - name: DETECTION_DEVICE
-          value: {{ $.Values.env.DETECTION_DEVICE }}
         - name: ENABLE_RTSP
           value: "{{ $.Values.env.ENABLE_RTSP }}"
         - name: GST_DEBUG

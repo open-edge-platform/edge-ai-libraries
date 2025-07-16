@@ -77,3 +77,5 @@ for i in range(1, 500):
     else:
         print("Write successful.")
     time.sleep(5)
+
+print("End of Simulation... Finished sending temperature data.")
