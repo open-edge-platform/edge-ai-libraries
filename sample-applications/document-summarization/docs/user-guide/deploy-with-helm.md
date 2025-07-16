@@ -86,7 +86,7 @@ helm dependency build
 
 ### Step 5: Deploy the Helm Chart
 
-Deploy the Helm chart:
+Deploy the Document Summarization Helm chart:
 
 ```bash
 helm install document-summarization . -n <your-namespace>
