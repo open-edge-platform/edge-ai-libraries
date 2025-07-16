@@ -14,3 +14,6 @@ The key features include:
 
 For more information on creating custom UDFs, see the [Kapacitor Anomaly Detection Guide](https://docs.influxdata.com/kapacitor/v1/guides/anomaly_detection/)
 
+# How it works
+
+Refer [link](./high-level-arch.md)
