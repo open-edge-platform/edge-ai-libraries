@@ -3,8 +3,7 @@
 
 FROM python:3.12.10-slim AS build
 
-RUN pip install --upgrade --no-cache pip setuptools && \
-    pip install --no-cache torch~=2.7.0 torchvision~=0.22.0 --index-url https://download.pytorch.org/whl/cpu;
+RUN pip install --upgrade --no-cache pip setuptools
 
 RUN pip install poetry
 
