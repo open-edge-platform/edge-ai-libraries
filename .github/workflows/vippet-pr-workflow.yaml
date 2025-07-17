@@ -26,7 +26,7 @@ jobs:
     with:
       runs_on: ubuntu-24.04
       project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
-      bootstrap_tools: ''
+      bootstrap_tools: 'nodejs'
       run_build: false
       run_lint: true
       run_test: true
