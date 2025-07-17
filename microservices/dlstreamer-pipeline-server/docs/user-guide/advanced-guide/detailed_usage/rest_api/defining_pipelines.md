@@ -280,7 +280,7 @@ Once defined these parameters can be used in a pipeline template by
 direct substitution.
 
 ```json
-"pipeline": " urisourcebin name=source ! concat name=c ! decodebin3 ! videoscale",
+"pipeline": " urisourcebin name=source ! concat name=c ! decodebin ! videoscale",
                 " ! video/x-raw,height={parameters[height]},width={parameters[width]}",
                 " ! appsink name=appsink"
 ```
@@ -566,7 +566,7 @@ supplied in the request it is set to the specified default value.
 Pipeline Template:
 
 ```json
-"pipeline": "urisourcebin name=source uri={source[uri]} ! concat name=c ! decodebin3 ! videoscale"
+"pipeline": "urisourcebin name=source uri={source[uri]} ! concat name=c ! decodebin ! videoscale"
              " ! video/x-raw,height={parameters[height]},width={parameters[width]}"
              " ! appsink name=appsink"
 ```
@@ -609,7 +609,7 @@ Pipeline Request:
 Parameter Resolution:
 
 ```
-"urisourcebin name=source uri=file:///temp.mp4 ! concat name=c ! decodebin3 ! videoscale" \
+"urisourcebin name=source uri=file:///temp.mp4 ! concat name=c ! decodebin ! videoscale" \
 " ! video/x-raw,height=300,width=300" \
 " ! appsink name=appsink"
 ```
@@ -625,7 +625,7 @@ explicitly reference the parameter.
 Pipeline Template:
 
 ```json
-"pipeline": "urisourcebin name=source ! concat name=c ! decodebin3 ! videoscale"
+"pipeline": "urisourcebin name=source ! concat name=c ! decodebin ! videoscale"
              " ! video/x-raw,height=300,width=300"
              " ! appsink name=appsink"
 ```
@@ -668,7 +668,7 @@ Parameter Resolution:
 > illustrative purposes only.
 
 ```
-"urisourcebin name=source uri=file:///temp.mp4 ! concat name=c ! decodebin3 ! videoscale method=nearest-neighbour" \
+"urisourcebin name=source uri=file:///temp.mp4 ! concat name=c ! decodebin ! videoscale method=nearest-neighbour" \
 " ! video/x-raw,height=300,width=300" \
 " ! appsink name=appsink"
 ```
