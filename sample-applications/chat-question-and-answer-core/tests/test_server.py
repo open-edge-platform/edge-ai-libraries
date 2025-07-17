@@ -189,12 +189,15 @@ def test_fail_get_documents(test_client, mocker):
 
     mocker.patch('app.server.get_document_from_vectordb', side_effect=Exception("Error getting documents."))
 
+    mock_logger = mocker.patch('app.server.logger')
+    mock_logger.exception.return_value = None
+
     response = test_client.get("/documents")
 
     assert response.status_code == 500
     assert response.json() == {
         "detail": "Error getting documents."
-}
+    }
 
 
 def test_delete_embedding_failure(test_client, mocker):
@@ -214,6 +217,9 @@ def test_delete_embedding_failure(test_client, mocker):
     """
 
     mocker.patch('app.server.delete_embedding_from_vectordb', side_effect=Exception("Error deleting embeddings."))
+
+    mock_logger = mocker.patch('app.server.logger')
+    mock_logger.exception.return_value = None
 
     response = test_client.delete("/documents", params={"document": "test1.txt"})
 

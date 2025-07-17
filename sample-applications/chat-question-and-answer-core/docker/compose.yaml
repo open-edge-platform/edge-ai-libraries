@@ -36,13 +36,11 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
       HF_ACCESS_TOKEN: ${HF_ACCESS_TOKEN}
-      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
-      RERANKER_MODEL_ID: ${RERANKER_MODEL_ID}
-      LLM_MODEL_ID: ${LLM_MODEL_ID}
     ports:
       - "8888:8888"
     volumes:
       - "${MODEL_CACHE_PATH}:/tmp/model_cache"
+      - "${MODEL_CONFIG_PATH:-/dev/null}:/tmp/model_config/config.yaml"
     group_add:
       - ${USER_GROUP_ID-1000}
 
@@ -62,12 +60,6 @@ services:
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
       HF_ACCESS_TOKEN: ${HF_ACCESS_TOKEN}
-      EMBEDDING_MODEL_ID: ${EMBEDDING_MODEL_ID}
-      RERANKER_MODEL_ID: ${RERANKER_MODEL_ID}
-      LLM_MODEL_ID: ${LLM_MODEL_ID}
-      EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
-      RERANKER_DEVICE: ${RERANKER_DEVICE}
-      LLM_DEVICE: ${LLM_DEVICE}
     devices:
       - /dev/dri:/dev/dri
     group_add:
@@ -77,6 +69,7 @@ services:
       - "8888:8888"
     volumes:
       - "${MODEL_CACHE_PATH}:/tmp/model_cache"
+      - "${MODEL_CONFIG_PATH:-/dev/null}:/tmp/model_config/config.yaml"
 
   chatqna-core-ui:
     image: ${REGISTRY:-}chatqna-ui:${UI_TAG:-latest}
