@@ -12,15 +12,46 @@ import { SearchEvents } from 'src/events/Pipeline.events';
 import { SearchShimService } from './search-shim.service';
 import { lastValueFrom } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
-import { SearchEntity } from '../model/search.entity';
+import { VideoService } from 'src/video-upload/services/video.service';
+import { VideoEntity } from 'src/video-upload/models/video.entity';
 
 @Injectable()
 export class SearchStateService {
   constructor(
     private $searchDB: SearchDbService,
+    private $video: VideoService,
     private $emitter: EventEmitter2,
     private $searchShim: SearchShimService,
   ) {}
+
+  async getQueries() {
+    let queries = await this.$searchDB.readAll();
+
+    const videos = await this.$video.getVideos();
+
+    const videosKeyedById = videos.reduce(
+      (acc, video) => {
+        acc[video.videoId] = video;
+        return acc;
+      },
+      {} as Record<string, VideoEntity>,
+    );
+
+    queries = queries.map((query) => {
+      if (query.results && query.results.length > 0) {
+        query.results = query.results.map((result) => {
+          const video = videosKeyedById[result.metadata.video_id];
+          if (video) {
+            result.video = video;
+          }
+          return result;
+        });
+      }
+      return query;
+    });
+
+    return queries;
+  }
 
   async newQuery(query: string, tags: string[] = []) {
     const searchQuery: SearchQuery = {

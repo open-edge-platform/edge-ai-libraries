@@ -12,12 +12,12 @@ import { from, Subscription } from 'rxjs';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
 import { ConfigService } from '@nestjs/config';
 
-import { SearchDataPrepShimService } from 'src/search/services/search-data-prep-shim.service';
-import { DataPrepSummaryDTO } from 'src/search/model/search.model';
 import { FeaturesEnum, FeaturesService } from 'src/features/features.service';
 import { InferenceCountService } from 'src/language-model/services/inference-count.service';
 import { State, StateChunkFrame } from '../models/state.model';
 import { TemplateService } from 'src/language-model/services/template.service';
+import { DataPrepShimService } from 'src/data-prep/services/data-prep-shim.service';
+import { DataPrepSummaryDTO } from 'src/data-prep/models/data-prep.models';
 
 @Injectable()
 export class ChunkingService {
@@ -39,7 +39,7 @@ export class ChunkingService {
     private $vlm: VlmService,
     private $emitter: EventEmitter2,
     private $dataStore: DatastoreService,
-    private $searchDataPrep: SearchDataPrepShimService,
+    private $searchDataPrep: DataPrepShimService,
     private $feature: FeaturesService,
     private $inferenceCount: InferenceCountService,
     private $template: TemplateService,

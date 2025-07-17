@@ -27,7 +27,7 @@ export class SearchController {
 
   @Get('')
   async getQueries() {
-    return await this.$searchDB.readAll();
+    return await this.$search.getQueries();
   }
 
   @Get('watched')

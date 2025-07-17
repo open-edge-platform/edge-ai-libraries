@@ -20,6 +20,7 @@ import { SearchEntity } from './search/model/search.entity';
 import { TagEntity } from './video-upload/models/tags.entity';
 import { SummaryModule } from './summary/summary.module';
 import { HealthModule } from './health/health.module';
+import { DataPrepModule } from './data-prep/data-prep.module';
 
 const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
   metrics: {
@@ -64,6 +65,7 @@ const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
     SearchModule,
     SummaryModule,
     HealthModule,
+    DataPrepModule,
   ],
   controllers: [AppController],
   providers: [AppService],
