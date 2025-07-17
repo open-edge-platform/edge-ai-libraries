@@ -1,11 +1,11 @@
 # SPDX-FileCopyrightText: (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-SHELL	:= bash -eu -o pipefail
+SHELL := bash -eu -o pipefail
 
 # default goal to show help
 .DEFAULT_GOAL := help
-.PHONY: all lint build mdlint ruff style-fix mypy run build-dev run-dev test \
+.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help
 
 # Project Variables
