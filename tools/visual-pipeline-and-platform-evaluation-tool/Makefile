@@ -17,7 +17,7 @@ COMPOSE_FILE := compose.yml
 DEV_COMPOSE_FILE := compose.dev.yml
 
 # Python venv Target
-VENV_DIR := .venv_vippet
+VENV_DIR := .venv
 
 # Placeholder to prevent warnings about missing variables.
 # This value is overridden by setup_env.sh in relevant targets.
@@ -25,15 +25,15 @@ export RENDER_GROUP_ID := 1000
 
 $(VENV_DIR): requirements.txt ## Create Python venv
 	python3 -m venv $@ ;\
-  set +u; . ./$@/bin/activate; set -u ;\
-  python -m pip install --upgrade pip ;\
-  python -m pip install -r requirements.txt
+	set +u; . ./$@/bin/activate; set -u ;\
+	python -m pip install --upgrade pip ;\
+	python -m pip install -r requirements-dev.txt
 
 all: lint build run test ## Run lint, build, run and test
 
 lint: $(VENV_DIR) mdlint ruff mypy ## Run all linters
 
-MD_FILES := $(shell find . -type f \( -name '*.md' \) -print )
+MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint all markdown files
 	markdownlint --version
 	markdownlint $(MD_FILES)
@@ -41,16 +41,21 @@ mdlint: ## Lint all markdown files
 ruff: $(VENV_DIR) ## Run ruff linter
 	set +u; . ./$</bin/activate; set -u ;\
 	ruff --version ;\
-	ruff check
+	ruff check ;\
 	ruff format --check
 
-style-fix: $(VENV_DIR) ## Fix style issues with ruff
+fix-linter: $(VENV_DIR) ## Fix linter issues using ruff
+	set +u; . ./$</bin/activate; set -u ;\
 	ruff check --fix
+
+format: $(VENV_DIR) ## Format code using ruff
+	set +u; . ./$</bin/activate; set -u ;\
 	ruff format
 
-mypy: $(VENV_DIR) ## Run mypy type checker
-	mypy -V
-	mypy .
+pyright: $(VENV_DIR) ## Run mypy type checker
+	set +u; . ./$</bin/activate; set -u ;\
+	pyright --version ;\
+	pyright .
 
 check-device-type:
 	@if [ -z "$(DEVICE_TYPE)" ]; then \
@@ -70,13 +75,14 @@ run: check-device-type ## Run the docker compose services
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose up -d
 
-run-dev: check-device-type $(VENV_DIR) ## Run the docker compose services for development
+run-dev: check-device-type ## Run the docker compose services for development
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
-test: ## Run tests
-	source setup_env.sh -d GPU && \
-	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet-gpu python -m unittest discover -v -s ./tests -p '*_test.py'
+test: check-device-type ## Run tests
+	source setup_env.sh -d $(DEVICE_TYPE) && \
+	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
+		vippet-$(shell echo $(DEVICE_TYPE) | tr '[:upper:]' '[:lower:]') python -m unittest discover -v -s ./tests -p '*_test.py'
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
@@ -99,7 +105,7 @@ stop: ## Stop the docker compose services
 	docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
-	rm -rf models/ videos/
+	rm -rf .collector-signals/ models/ videos/
 
 help: ## Print help for each target
 	@echo ViPPET make targets

@@ -21,5 +21,5 @@ MD033:
     - ref  # allow hugo relative reference links
     - br  # allow mermaid <br> to create new line
     - a  # allow anchors created by protoc-gen-doc and similar tools
-    - img # allow images - needed if you need to define a size
-    - span # allow span tags - needed if you need to highlight text in color
+    - img  # allow images - needed if you need to define a size
+    - span  # allow span tags - needed if you need to highlight text in color
