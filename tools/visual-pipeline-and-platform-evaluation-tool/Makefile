@@ -31,7 +31,7 @@ $(VENV_DIR): requirements.txt ## Create Python venv
 
 all: lint build run test ## Run lint, build, run and test
 
-lint: $(VENV_DIR) mdlint ruff mypy ## Run all linters
+lint: $(VENV_DIR) mdlint ruff pyright ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
