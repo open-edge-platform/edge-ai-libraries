@@ -34,42 +34,59 @@ class Settings(BaseSettings):
         APP_NAME (str): Name of the application.
         APP_DISPLAY_NAME (str): Display name of the application.
         APP_DESC (str): Description of the application.
-        MODEL_NAME (str): Name of the pre-trained model.
+        EMBEDDING_MODEL_NAME (str): Name of the pre-trained model.
         http_proxy (str): HTTP proxy setting.
         https_proxy (str): HTTPS proxy setting.
         no_proxy_env (str): No proxy setting.
     """
 
-    APP_NAME: str = "VClip-Embedding"
-    APP_DISPLAY_NAME: str = "VClip Embedding serving"
+    APP_NAME: str = "Multimodal-Embedding-Serving"
+    APP_DISPLAY_NAME: str = "Multimodal Embedding Serving"
     APP_DESC: str = (
-        "The VClip Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
+        "The Multimodal Embedding Serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It supports multiple models including CLIP, MobileCLIP, SigLIP, and BLIP-2."
     )
 
-    MODEL_NAME: str = "openai/clip-vit-base-patch32"
-    http_proxy: str = Field(default=None, env="http_proxy")
-    https_proxy: str = Field(default=None, env="https_proxy")
-    no_proxy_env: str = Field(default=None, env="no_proxy_env")
-
-    DEFAULT_START_OFFSET_SEC: int = Field(default=0, env="DEFAULT_START_OFFSET_SEC")
-    DEFAULT_CLIP_DURATION: int = Field(default=-1, env="DEFAULT_CLIP_DURATION")
-    DEFAULT_NUM_FRAMES: int = Field(default=64, env="DEFAULT_NUM_FRAMES")
+    # Generic model configuration - supports all model types from config
+    EMBEDDING_MODEL_NAME: str = Field(default="CLIP/clip-vit-b-16", env="EMBEDDING_MODEL_NAME")
     EMBEDDING_DEVICE: str = Field(default="CPU", env="EMBEDDING_DEVICE")
     EMBEDDING_MODEL_PATH: str = Field(
         default=str(Path(__file__).parent.parent / "ov-models"),
         env="EMBEDDING_MODEL_PATH",
     )
-    EMBEDDING_USE_OV: bool = Field(default=False, env="EMBEDDING_USE_OV")
+    EMBEDDING_USE_OV: bool = Field(default=False, env="EMBEDDING_USE_OV")  # Default to False for SDK usage
+    EMBEDDING_OV_MODELS_DIR: str = Field(
+        default=str(Path(__file__).parent.parent / "ov-models"),
+        env="EMBEDDING_OV_MODELS_DIR",
+    )
+
+    # Legacy support for backward compatibility
+    MODEL_NAME: str = Field(default="CLIP/clip-vit-b-16", env="MODEL_NAME")
+
+    http_proxy: str = Field(default="", env="http_proxy")
+    https_proxy: str = Field(default="", env="https_proxy")
+    no_proxy_env: str = Field(default="", env="no_proxy_env")
+
+    DEFAULT_START_OFFSET_SEC: int = Field(default=0, env="DEFAULT_START_OFFSET_SEC")
+    DEFAULT_CLIP_DURATION: int = Field(default=-1, env="DEFAULT_CLIP_DURATION")
+    DEFAULT_NUM_FRAMES: int = Field(default=64, env="DEFAULT_NUM_FRAMES")
 
     @field_validator("http_proxy", "https_proxy", mode="before")
+    @classmethod
     def validate_proxy_url(cls, v):
-        if v and not v.startswith(("http://", "https://")):
+        if v and v != "" and not v.startswith(("http://", "https://")):
             raise ValueError(f"Invalid proxy URL: {v}")
         return v
 
 
-settings = Settings()
-logger.debug(f"Settings: {settings.model_dump()}")
+# Create settings instance with error handling for SDK usage
+try:
+    settings = Settings()
+    logger.debug(f"Settings: {settings.model_dump()}")
+except Exception as e:
+    logger.warning(f"Failed to load settings completely: {e}")
+    # Fallback settings for SDK usage
+    settings = Settings(_env_file=None)
+    logger.info("Using fallback settings for SDK usage")
 
 
 class ErrorMessages:

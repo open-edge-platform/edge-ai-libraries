@@ -10,17 +10,26 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = ">=3.10,<3.13"
-fastapi = "^0.115.12"
-uvicorn = "^0.34.2"
+fastapi = "^0.115.14"
+uvicorn = "^0.35.0"
 gunicorn = "^23.0.0"
-pydantic = "^2.11.5"
-pydantic-settings = "^2.9.1"
+pydantic = "^2.11.7"
+pydantic-settings = "^2.10.1"
 opencv-python = "^4.11.0.86"
 einops = "^0.8.1"
 decord = "^0.6.0"
-transformers = "^4.51.3"
-openvino = "^2025.1.0"
+transformers = "^4.53.0"
+openvino = "^2025.2.0"
 httpx = "0.27.2"
+timm = "1.0.16"
+numpy = { version = "1.26.3", source = "pytorch-cpu" }
+torch = { version = ">=2.7.1", source = "pytorch-cpu" }
+torchvision = { version = ">=0.22.1", source = "pytorch-cpu" }
+
+[[tool.poetry.source]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+priority = "explicit"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

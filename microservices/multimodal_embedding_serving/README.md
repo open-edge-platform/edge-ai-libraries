@@ -22,4 +22,30 @@ The microservice is optimized for performance and scalability, supporting batch 
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
 
+## BLIP2 Implementation
+
+This microservice includes two BLIP2 implementations:
+
+### Original LAVIS-based Implementation
+- Model ID: `Blip2/blip2_feature_extractor`
+- May encounter vocabulary size mismatch issues
+
+### New Transformers-based Implementation (Recommended)
+- Model ID: `Blip2/blip2_transformers` or `Blip2/blip2_transformers_vitL`
+- Resolves vocabulary size mismatch issues
+- Uses the standardized Transformers library
+- Full OpenVINO support
+
+**For users experiencing vocabulary size mismatch errors with BLIP2, please use the new Transformers-based implementation.**
+
+See [BLIP2_TRANSFORMERS_SOLUTION.md](BLIP2_TRANSFORMERS_SOLUTION.md) for detailed information.
+
+## Quick Test
+
+Test the new BLIP2 implementation:
+```bash
+python compare_blip2_implementations.py
+python examples/blip2_transformers_example.py
+```
+
 

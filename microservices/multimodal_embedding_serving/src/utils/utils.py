@@ -14,7 +14,7 @@ import numpy as np
 from decord import VideoReader, cpu
 from PIL import Image
 from torchvision.transforms import ToPILImage
-from src.common import ErrorMessages, logger, settings
+from .common import ErrorMessages, logger, settings
 
 decord.bridge.set_bridge("torch")
 toPIL = ToPILImage()
@@ -213,11 +213,17 @@ def decode_base64_video(video_base64: str) -> str:
 
 def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
     """
-    Extracts frames from a video.
+    Extracts frames from a video with multiple extraction modes.
 
     Args:
         video_path (str): Path to the video file.
         segment_config (dict, optional): Configuration for video segmentation. Defaults to None.
+            Supported parameters:
+            - startOffsetSec: Starting offset in seconds
+            - clip_duration: Duration of clip to extract frames from (-1 for full video)
+            - frame_indexes: Array of specific frame indices to extract (highest priority)
+            - fps: Frames per second for uniform sampling (medium priority, can be float, including <1)
+            - num_frames: Number of frames to extract using uniform sampling (lowest priority)
 
     Returns:
         list: List of extracted video frames.
@@ -237,23 +243,73 @@ def extract_video_frames(video_path: str, segment_config: dict = None) -> list:
             "clip_duration", settings.DEFAULT_CLIP_DURATION
         )
         num_frames = segment_config.get("num_frames", settings.DEFAULT_NUM_FRAMES)
+        extraction_fps = segment_config.get("extraction_fps")
+        frame_indexes = segment_config.get("frame_indexes")
+        
         logger.debug(
-            f"video_path: {video_path} start_offset_sec: {start_offset_sec}, clip_duration: {clip_duration}, num_frames: {num_frames}"
+            f"video_path: {video_path} start_offset_sec: {start_offset_sec}, clip_duration: {clip_duration}, "
+            f"num_frames: {num_frames}, extraction_fps: {extraction_fps}, frame_indexes: {frame_indexes}"
         )
 
         vr = VideoReader(video_path, ctx=cpu(0))
         vlen = len(vr)
-        fps = vr.get_avg_fps()
-        start_idx = int(fps * start_offset_sec)
+        video_fps = vr.get_avg_fps()
+        start_idx = int(video_fps * start_offset_sec)
         end_idx = (
-            min(vlen, start_idx + int(fps * clip_duration))
+            min(vlen, start_idx + int(video_fps * clip_duration))
             if clip_duration != -1
             else vlen
         )
+        logger.debug(f"Video FPS: {video_fps}, Total frames: {vlen}")
+        # Priority 1: frame_indexes - specific frame indices (highest priority)
+        if frame_indexes is not None:
+            if not isinstance(frame_indexes, (list, tuple, np.ndarray)):
+                raise ValueError("frame_indexes must be a list, tuple, or numpy array")
+            
+            # Convert to numpy array and ensure valid indices
+            frame_indexes = np.array(frame_indexes, dtype=int)
+            
+            # Filter indices to be within the video segment bounds
+            valid_indices = frame_indexes[(frame_indexes >= start_idx) & (frame_indexes <= end_idx)]
+            
+            if len(valid_indices) == 0:
+                logger.warning(f"No valid frame indices found within segment bounds [{start_idx}, {end_idx})")
+                # Fall back to default uniform sampling
+                frame_idx = np.linspace(
+                    start_idx, end_idx, num=settings.DEFAULT_NUM_FRAMES, endpoint=False, dtype=int
+                )
+            else:
+                frame_idx = valid_indices
+            
+            logger.debug(f"Using frame_indexes with {len(frame_idx)} valid indices")
+        
+        # Priority 2: fps - uniform sampling at specified rate
+        elif extraction_fps is not None:
+            if not isinstance(extraction_fps, (int, float)) or extraction_fps <= 0:
+                raise ValueError("fps must be a positive number")
+            
+            # Calculate frame interval based on user fps (float to preserve precision)
+            frame_interval = float(video_fps) / float(extraction_fps)
+            
+            # Generate frame indices at the specified fps rate
+            frame_indices = []
+            current_frame = float(start_idx)
+            
+            while current_frame <= end_idx:
+                frame_indices.append(int(current_frame))
+                current_frame += frame_interval
+            
+            frame_idx = np.array(frame_indices, dtype=int)
+            logger.debug(f"Using fps={extraction_fps} for sampling, generated {len(frame_idx)} frames")
+        
+        # Priority 3: num_frames - use explicit value if provided, otherwise use default
+        # Default: use DEFAULT_NUM_FRAMES for uniform sampling (lowest priority)
+        else:
+            frame_idx = np.linspace(
+                start_idx, end_idx, num=num_frames, endpoint=False, dtype=int
+            )
+            logger.debug(f"Using default num_frames={num_frames} for uniform sampling")
 
-        frame_idx = np.linspace(
-            start_idx, end_idx, num=num_frames, endpoint=False, dtype=int
-        )  # Uniform sampling
         video_frames = []
 
         # read images

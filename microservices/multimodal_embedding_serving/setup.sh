@@ -37,14 +37,36 @@ fi
 
 export EMBEDDING_SERVER_PORT=9777
 
-# Check if VCLIP_MODEL is not defined or empty
-if [ -z "$VCLIP_MODEL" ]; then
-    echo -e "ERROR: VCLIP_MODEL is not set in your shell environment."
-    return
-elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-    echo -e "ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'."
-    return
-fi
+# Default model configuration
+export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-"CLIP/clip-vit-b-16"}
+
+# Model path configuration
+export EMBEDDING_MODEL_PATH=${EMBEDDING_MODEL_PATH:-"/app/ov-models"}
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-"/app/ov-models"}
+
+# Check if EMBEDDING_MODEL_NAME is supported
+case "$EMBEDDING_MODEL_NAME" in
+    "CLIP/clip-vit-b-16"|"CLIP/clip-vit-l-14"|"CLIP/clip-vit-b-32")
+        echo "Using CLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "SigLIP/siglip-so400m-patch14-384"|"SigLIP/siglip-base-patch16-224")
+        echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b")
+        echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "Blip2/blip2_feature_extractor"|"Blip2/blip2_transformers")
+        echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
+        ;;
+    *)
+        echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
+        echo -e "Supported models include:"
+        echo -e "  CLIP: CLIP/clip-vit-b-16, CLIP/clip-vit-l-14, CLIP/clip-vit-b-32"
+        echo -e "  SigLIP: SigLIP/siglip-so400m-patch14-384, SigLIP/siglip-base-patch16-224"
+        echo -e "  MobileCLIP: MobileCLIP/mobileclip_s0, MobileCLIP/mobileclip_s1, etc."
+        echo -e "  BLIP2: Blip2/blip2_feature_extractor, Blip2/blip2_transformers"
+        ;;
+esac
 
 # Fetch group IDs
 VIDEO_GROUP_ID=$(getent group video | awk -F: '{print $3}')
@@ -64,5 +86,6 @@ export RENDER_GROUP_ID=$RENDER_GROUP_ID
 
 echo "Environment variables set successfully."
 echo "REGISTRY set to: ${REGISTRY}"
-echo "VCLIP_MODEL set to: ${VCLIP_MODEL}"
+echo "EMBEDDING_MODEL_NAME set to: ${EMBEDDING_MODEL_NAME}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
+echo "EMBEDDING_USE_OV set to: ${EMBEDDING_USE_OV}"

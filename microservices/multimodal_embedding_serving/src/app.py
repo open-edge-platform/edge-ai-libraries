@@ -6,9 +6,9 @@ from typing import List, Union
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import BaseModel
-from src.common import ErrorMessages, logger, settings
-from src.models import VClipModel
-from src.utils import decode_base64_image, download_image
+from .utils import ErrorMessages, logger, settings, decode_base64_image, download_image
+from .models import ModelFactory, get_model_handler, list_available_models
+from .wrapper import EmbeddingModel
 
 app = FastAPI(title=settings.APP_DISPLAY_NAME, description=settings.APP_DESC)
 
@@ -21,19 +21,39 @@ app.add_middleware(
 )
 
 # Initialize the model once
-vclip_model = None
+embedding_model = None
 health_status = False
 
 
 @app.on_event("startup")
 async def startup_event():
-    global vclip_model, health_status
-    cfg = {"model_name": settings.MODEL_NAME}
-    vclip_model = VClipModel(cfg)
-    if settings.EMBEDDING_USE_OV:
-        await vclip_model.async_init()
-    health_status = vclip_model.check_health()
-    logger.info("Model loaded successfully")
+    global embedding_model, health_status
+    logger.info(f"Starting application with model: {settings.EMBEDDING_MODEL_NAME}")
+    
+    # Check if the model is supported
+    if not ModelFactory.is_model_supported(settings.EMBEDDING_MODEL_NAME):
+        logger.error(f"Model {settings.EMBEDDING_MODEL_NAME} is not supported")
+        available_models = list_available_models()
+        logger.error(f"Available models: {available_models}")
+        raise RuntimeError(f"Unsupported model: {settings.EMBEDDING_MODEL_NAME}")
+    
+    # Create model using the factory pattern
+    try:
+        model_handler = get_model_handler(settings.EMBEDDING_MODEL_NAME)
+        model_handler.load_model()
+        
+        # Note: OpenVINO conversion is handled within load_model() if use_openvino=True
+        # No need to call convert_to_openvino() separately
+        
+        # Wrap with application-level functionality
+        embedding_model = EmbeddingModel(model_handler)
+        
+        # Check model health
+        health_status = embedding_model.check_health()
+        logger.info(f"Model {settings.EMBEDDING_MODEL_NAME} loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to load model {settings.EMBEDDING_MODEL_NAME}: {e}")
+        raise RuntimeError(f"Failed to initialize model: {e}")
 
 
 class TextInput(BaseModel):
@@ -99,11 +119,48 @@ async def health_check() -> dict:
     global health_status
     if health_status:
         return {"status": "healthy"}
-    elif vclip_model.check_health():
+    elif embedding_model.check_health():
         health_status = True
         return {"status": "healthy"}
     else:
         raise HTTPException(status_code=500, detail="Model is not healthy")
+
+
+@app.get("/models")
+async def list_models() -> dict:
+    """
+    List all available models.
+
+    Returns:
+        dict: Dictionary containing available models and their configurations.
+    """
+    try:
+        available_models = list_available_models()
+        current_model = settings.EMBEDDING_MODEL_NAME
+        
+        return {
+            "current_model": current_model,
+            "available_models": available_models,
+            "total_models": sum(len(models) for models in available_models.values())
+        }
+    except Exception as e:
+        logger.error(f"Error listing models: {e}")
+        raise HTTPException(status_code=500, detail=f"Error listing models: {e}")
+
+
+@app.get("/model/current")
+async def get_current_model() -> dict:
+    """
+    Get the currently loaded model name and basic configuration.
+
+    Returns:
+        dict: Dictionary containing current model name and configuration.
+    """
+    return {
+        "model": settings.EMBEDDING_MODEL_NAME,
+        "device": settings.EMBEDDING_DEVICE,
+        "use_openvino": settings.EMBEDDING_USE_OV,
+    }
 
 
 @app.post("/embeddings")
@@ -121,19 +178,27 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
         HTTPException: If there is an error during the embedding process.
     """
     try:
+        # Check if requested model matches the currently loaded model
+        if request.model != settings.EMBEDDING_MODEL_NAME:
+            logger.warning(f"Model mismatch: requested '{request.model}', but server is running '{settings.EMBEDDING_MODEL_NAME}'")
+            raise HTTPException(
+                status_code=400, 
+                detail=f"Model mismatch: requested model '{request.model}' does not match the currently loaded model '{settings.EMBEDDING_MODEL_NAME}'. Please use the correct model name or restart the server with the desired model."
+            )
+        
         # logger.debug(f"Creating embedding for request: {request}")
         input_data = request.input
         if input_data.type == "text":
             if isinstance(input_data.text, list):
-                embedding = vclip_model.embed_documents(input_data.text)
+                embedding = embedding_model.embed_documents(input_data.text)
             else:
-                embedding = vclip_model.embed_query(input_data.text)
+                embedding = embedding_model.embed_query(input_data.text)
         elif input_data.type == "image_url":
-            embedding = await vclip_model.get_image_embedding_from_url(
+            embedding = await embedding_model.get_image_embedding_from_url(
                 input_data.image_url
             )
         elif input_data.type == "image_base64":
-            embedding = vclip_model.get_image_embedding_from_base64(
+            embedding = embedding_model.get_image_embedding_from_base64(
                 input_data.image_base64
             )
         elif input_data.type == "video_frames":
@@ -143,17 +208,17 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
                     frames.append(await download_image(frame.image_url))
                 elif frame.type == "image_base64":
                     frames.append(decode_base64_image(frame.image_base64))
-            embedding = vclip_model.get_video_embeddings([frames])
+            embedding = embedding_model.get_video_embeddings([frames])
         elif input_data.type == "video_url":
-            embedding = await vclip_model.get_video_embedding_from_url(
+            embedding = await embedding_model.get_video_embedding_from_url(
                 input_data.video_url, input_data.segment_config
             )
         elif input_data.type == "video_base64":
-            embedding = vclip_model.get_video_embedding_from_base64(
+            embedding = embedding_model.get_video_embedding_from_base64(
                 input_data.video_base64, input_data.segment_config
             )
         elif input_data.type == "video_file":
-            embedding = await vclip_model.get_video_embedding_from_file(
+            embedding = await embedding_model.get_video_embedding_from_file(
                 input_data.video_path, input_data.segment_config
             )
         else:

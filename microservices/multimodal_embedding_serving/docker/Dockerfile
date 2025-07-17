@@ -20,6 +20,8 @@ WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
 RUN poetry install --no-root
+# Install additional dependencies with no dependencies to avoid conflicts
+RUN poetry run pip install git+https://github.com/apple/ml-mobileclip.git salesforce-lavis==1.0.2 --no-deps
 
 RUN apt-get install -y --no-install-recommends curl ca-certificates libxml2 gnupg
 
@@ -52,4 +54,4 @@ USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--log-config", "/app/logging.conf"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--log-config", "/app/logging.conf"]
