@@ -7,11 +7,10 @@ Shared utilities for OpenVINO model conversion and loading for multimodal embedd
 from pathlib import Path
 import gc
 import openvino as ov
-
+from ...utils import logger
 
 def check_and_convert_openvino_models(
-    model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir, logger
-):
+    model_key, model_loader, tokenizer_loader, convert_func, ov_models_dir):
     """
     Check if OpenVINO IR models exist. If not, convert using the provided convert_func.
     Returns paths to image and text encoder IR models.

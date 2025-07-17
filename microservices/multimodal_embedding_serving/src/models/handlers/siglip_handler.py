@@ -73,8 +73,7 @@ class SigLIPHandler(BaseEmbeddingModel):
             model_loader=lambda: open_clip.create_model_and_transforms(self.model_name, pretrained=self.pretrained),
             tokenizer_loader=lambda: open_clip.get_tokenizer(self.model_name),
             convert_func=self.convert_to_openvino,
-            ov_models_dir=self.ov_models_dir,
-            logger=logger,
+            ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device

@@ -97,6 +97,29 @@ MODEL_CONFIGS = {
             "image_probs": default_image_probs,
         },
     },
+    "CN-CLIP": {
+        "cn-clip-vit-b-16": {
+            "model_name": "ViT-B-16",
+            "pretrained": "",
+            "image_size": 224,
+            "handler_class": "CNClipHandler",
+            "image_probs": default_image_probs,
+        },
+        "cn-clip-vit-l-14": {
+            "model_name": "ViT-L-14",
+            "pretrained": "",
+            "image_size": 224,
+            "handler_class": "CNClipHandler",
+            "image_probs": default_image_probs,
+        },
+        "cn-clip-vit-h-14": {
+            "model_name": "ViT-H-14",
+            "pretrained": "",
+            "image_size": 224,
+            "handler_class": "CNClipHandler",
+            "image_probs": default_image_probs,
+        },
+    },
     "SigLIP": {
         "siglip-vit-b-16": {
             "model_name": "ViT-B-16-SigLIP",

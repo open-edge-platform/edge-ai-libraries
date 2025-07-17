@@ -8,8 +8,7 @@ Implements the factory pattern for creating model handlers.
 
 from typing import Dict, Type
 from .base import BaseEmbeddingModel
-from .handlers import CLIPHandler, MobileCLIPHandler, SigLIPHandler, BLIP2Handler
-from .handlers.blip2_transformers_handler import BLIP2TransformersHandler
+from .handlers import CLIPHandler, CNClipHandler, MobileCLIPHandler, SigLIPHandler, BLIP2Handler, BLIP2TransformersHandler
 from .config import get_model_config, list_available_models, get_default_model
 from ..utils import logger
 
@@ -17,6 +16,7 @@ from ..utils import logger
 # Registry mapping handler class names to actual classes
 MODEL_HANDLER_REGISTRY: Dict[str, Type[BaseEmbeddingModel]] = {
     "CLIPHandler": CLIPHandler,
+    "CNClipHandler": CNClipHandler,
     "MobileCLIPHandler": MobileCLIPHandler,
     "SigLIPHandler": SigLIPHandler,
     "BLIP2Handler": BLIP2Handler,

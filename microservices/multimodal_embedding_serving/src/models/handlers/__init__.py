@@ -9,13 +9,17 @@ including CLIP, MobileCLIP, SigLIP, and BLIP2.
 """
 
 from .clip_handler import CLIPHandler
+from .cn_clip_handler import CNClipHandler
 from .mobileclip_handler import MobileCLIPHandler
 from .siglip_handler import SigLIPHandler
 from .blip2_handler import BLIP2Handler
+from .blip2_transformers_handler import BLIP2TransformersHandler
 
 __all__ = [
     "CLIPHandler",
+    "CNClipHandler",
     "MobileCLIPHandler", 
     "SigLIPHandler",
     "BLIP2Handler",
+    "BLIP2TransformersHandler",
 ]
