@@ -31,4 +31,4 @@ spec:
             - name: APP_BACKEND_URL
               value: "{{ .Values.global.app_backend_url }}"
           ports:
-            - containerPort: 80
+            - containerPort: 8102

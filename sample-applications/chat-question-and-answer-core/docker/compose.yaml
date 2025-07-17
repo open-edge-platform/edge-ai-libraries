@@ -1,10 +1,10 @@
 services:
   nginx-cpu:
-    image: nginx:latest
+    image: nginxinc/nginx-unprivileged:1.27.4
     profiles:
       - DEFAULT
     ports:
-      - "8102:80"
+      - "8102:8102"
     volumes:
       - ../nginx_config/nginx-cpu.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -12,11 +12,11 @@ services:
       - chatqna-core-ui
 
   nginx-gpu:
-    image: nginx:latest
+    image: nginxinc/nginx-unprivileged:1.27.4
     profiles:
       - GPU-DEVICE
     ports:
-      - "8102:80"
+      - "8102:8102"
     volumes:
       - ../nginx_config/nginx-gpu.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -90,7 +90,7 @@ services:
       no_proxy: ${no_proxy}
       APP_BACKEND_URL: ${APP_BACKEND_URL}
     ports:
-      - "5173:80"
+      - "5173:8102"
 
 networks:
   default:

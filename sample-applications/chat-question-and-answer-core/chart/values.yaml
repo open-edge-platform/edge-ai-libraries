@@ -49,4 +49,4 @@ gpu:
 uiService:
   name: chatqna-core-ui
   type: ClusterIP
-  port: 80
+  port: 8102
