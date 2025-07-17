@@ -72,6 +72,18 @@ jobs:
       run: |
         cosign sign ${deb_final_img}
 
+    # ======================================================== SCANNING PART ========================================================
+    - name: 🔍 Scan Docker image with Trivy
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
+      with:
+        scan_target: "deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
+        severity: "HIGH,CRITICAL"
+        scan_type: image
+        format: json
+        report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
+        scan-scope: all
+        timeout: 20m
+
     - name: Save Ubuntu 22 image info
       id: save-image-ubuntu22
       if: ${{ matrix.ubuntu_version == 'ubuntu22' }}
@@ -147,6 +159,18 @@ jobs:
         dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
       run: |
         cosign sign ${dev_debug_img}
+
+    # ======================================================== SCANNING PART ========================================================
+    - name: Scan Docker image with Trivy
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
+      with:
+        scan_target: "ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest"
+        severity: "HIGH,CRITICAL"
+        scan_type: image
+        format: json
+        report_suffix: ${{ matrix.ubuntu_version }}-dev-img
+        scan-scope: all
+        timeout: 20m
 
     - name: Clean up
       if: always()
