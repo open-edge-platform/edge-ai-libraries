@@ -48,22 +48,6 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
             command: server --console-address ":9090" /data
         ```
 
-    - Update `no_proxy` environment section of DL Streamer Pipeline Server service by adding `minio-server` container name to `no_proxy` parameter present under `environment` section of `dlstreamer-pipeline-server` service. Also include the S3 and MQTT environment variables.
-        ```yaml
-        services:
-          dlstreamer-pipeline-server:
-            environment:
-              - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},minio-server
-              - S3_STORAGE_HOST=${S3_STORAGE_HOST}
-              - S3_STORAGE_PORT=${S3_STORAGE_PORT}
-              - S3_STORAGE_USER=${S3_STORAGE_USER}
-              - S3_STORAGE_PASS=${S3_STORAGE_PASS}
-              - MQTT_HOST=${MQTT_HOST}
-              - MQTT_PORT=${MQTT_PORT}
-        ```
-        
-        > **Note** Ensure that the value added to `no_proxy` matches the `container_name` specified for the `minio` service in the docker-compose file (`[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`). In this example, it is `minio-server`.
-
 3. A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_s3write/config.json`. We need to volume mount the sample config file in `docker-compose.yml` file. Refer below snippets:
 
 ```sh
@@ -79,20 +63,11 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
 
     - The configuration above will allow DL Streamer Pipeline Server to load a pipeline that would run an object detection using dlstreamer element `gvadetect`. Although, the MQTT details are provided in the config.json, the S3 configuration related to the bucket and object path will be sent as part of pipeline launch request mentioned few steps below. To know more about mqtt publishing, refer [here](../user-guide/advanced-guide/detailed_usage/publisher/eis_mqtt_publish_doc.md).
 
-4. Allow DL Streamer Pipeline Server to read the above modified configuration. 
-    - We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](how-to-change-dlstreamer-pipeline.md).
-
-        ```yaml
-        services:
-          dlstreamer_pipeline_results:
-            volumes:
-              - "../configs/default/config.json:/home/pipeline-server/config.json"
-        ```
-5. Start DL Streamer Pipeline Server and MinIO.
+4. Start DL Streamer Pipeline Server and MinIO.
     ```sh
     docker compose up -d
     ```
-6. Create MinIO bucket.
+5. Create MinIO bucket.
     - DL Streamer Pipeline Server expects a bucket to be created before launching the pipeline. 
     Here's is a sample python script (requires `boto3` python package) that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
         ```python
@@ -115,7 +90,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
         ```sh
         python3 create_bucket.py
         ```
-7. Launch pipeline by sending the following curl request.
+6. Launch pipeline by sending the following curl request.
     ``` sh
     curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
     "source": {
@@ -144,10 +119,10 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
     The frame destination sub-config for `s3_write` indicates that the frame objects (referred by there respective image handles) will be stored in the bucket `dlstreamer-pipeline-results` at the object path prefixed as `camera1`. For example `camera1\<IMG_HANDLE>.jpg`. To learn more about the configuration details of S3 storage mentioned in `S3_write`, refer [here](./advanced-guide/detailed_usage/publisher/s3_frame_storage.md#s3_write-configuration)
     
     **Note**: DL Streamer pipeline server supports only writing of object data to S3 storage. It does not support creating, maintaining or deletion of buckets. It also does not support reading or deletion of objects from bucket. Also, as mentioned before DL Streamer pipeline server assumes that the user already has a S3 storage with buckets configured.
-8. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
+7. Once you start DL Streamer pipeline server with above changes, you should be able to see frames written to S3 storage and metadata over MQTT on topic `dlstreamer_pipeline_results` . Since we are using MinIO storage for our demonstration, you can see the frames being written to Minio by logging into MinIO console. You can access the console in your browser - `http://<S3_STORAGE_HOST>:9090`. Use the credentials specified above in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` to login into console. After logging into console, you can go to your desired buckets and check the frames stored.
     
     **Note**: Minio console runs at port 9090 by default.
-9. To stop DL Streamer pipeline server and other services, run the following. Since the data is stored inside the MinIO container for this demonstration, the frames will not persists after the containers are brought down.
+8. To stop DL Streamer pipeline server and other services, run the following. Since the data is stored inside the MinIO container for this demonstration, the frames will not persists after the containers are brought down.
     ```sh
     docker compose down
     ```

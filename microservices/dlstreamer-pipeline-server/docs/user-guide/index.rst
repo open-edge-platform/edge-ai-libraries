@@ -16,6 +16,7 @@
    how-to-use-gpu-for-inference
    how-to-autostart-pipelines
    how-to-launch-configurable-pipelines
+   how-to-perform-webrtc-frame-streaming
    how-to-start-evam-mqtt-publish
    how-to-store-s3-frame
    how-to-store-metadata-influxdb

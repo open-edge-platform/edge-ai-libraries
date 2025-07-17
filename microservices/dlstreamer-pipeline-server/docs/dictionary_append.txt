@@ -240,3 +240,4 @@ ntp
 bitrate
 kbps
 kb
+VA-API
