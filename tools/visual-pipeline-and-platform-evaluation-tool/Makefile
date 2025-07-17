@@ -5,7 +5,7 @@ SHELL := bash -eu -o pipefail
 
 # default goal to show help
 .DEFAULT_GOAL := help
-.PHONY: all lint docker-build mdlint ruff fix-linter format pyright run docker-build-dev run-dev \
+.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev \
 	test shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help
 
 # Project Variables
@@ -64,11 +64,11 @@ check-device-type:
 		exit 1; \
 	fi; \
 
-docker-build: check-device-type $(VENV_DIR) ## Build all images
+build: check-device-type $(VENV_DIR) ## Build all images
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose build
 
-docker-build-dev: check-device-type $(VENV_DIR) ## Build all dev images
+build-dev: check-device-type $(VENV_DIR) ## Build all dev images
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
 
