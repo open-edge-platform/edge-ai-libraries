@@ -42,7 +42,7 @@ def _get_client_key(
 
     # Video and text usecase use different fixed keys.
     is_video = video_metadata_path is not None and video_metadata_path.exists()
-    return f"vdms_client_video" if is_video else f"vdms_client_text"
+    return "vdms_client_video" if is_video else "vdms_client_text"
 
 
 def _setup_vdms_client(
