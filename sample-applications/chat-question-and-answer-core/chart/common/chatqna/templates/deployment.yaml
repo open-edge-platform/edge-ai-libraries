@@ -12,11 +12,6 @@ spec:
       labels:
         app: chatqna-core-ui
     spec:
-      securityContext:
-          runAsUser: 101
-          runAsGroup: 101
-          fsGroup: 101
-          allowPrivilegeEscalation: false
       containers:
         - name: chatqna-core-ui
           image: "{{ .Values.image.registry }}chatqna-ui:{{ .Values.image.uiTag }}"
