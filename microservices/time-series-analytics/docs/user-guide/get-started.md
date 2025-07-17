@@ -193,6 +193,9 @@ Please refer [API documentation](./how-to-access-api.md).
   docker exec -it ia-time-series-analytics-microservice bash
   $ cat /tmp/log/kapacitor/kapacitor.log | grep -i error
   ```
+## Other Deployment options
+
+- [How to Deploy with Helm](./how-to-deploy-with-helm.md): Guide for deploying the application on a k8s cluster using Helm.
 
 ## Supporting Resources
 
