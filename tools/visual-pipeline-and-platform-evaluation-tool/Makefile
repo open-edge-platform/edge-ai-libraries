@@ -53,7 +53,7 @@ format: $(VENV_DIR) ## Format code using ruff
 	set +u; . ./$</bin/activate; set -u ;\
 	ruff format
 
-pyright: $(VENV_DIR) ## Run mypy type checker
+pyright: $(VENV_DIR) ## Run pyright type checker
 	set +u; . ./$</bin/activate; set -u ;\
 	pyright --version ;\
 	pyright .
