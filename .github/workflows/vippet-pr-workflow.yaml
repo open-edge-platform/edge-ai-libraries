@@ -30,6 +30,7 @@ jobs:
       bootstrap_tools: 'nodejs'
       run_build: false
       run_lint: true
+      lint_makeflags: '-k'
       run_test: true
       run_docker_build: true
       run_version_check: false
