@@ -70,9 +70,9 @@ Navigate to the chart directory:
 cd <repository-url>/sample-applications/document-summarization/chart
 ```
 
-#### Step 3: Configure the `values*.yaml` File
+#### Step 3: Configure the `values.yaml` File
 
-Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
 
 #### Step 4: Build Helm Dependencies
@@ -86,7 +86,7 @@ helm dependency build
 
 ### Step 5: Deploy the Helm Chart
 
-Deploy the OVMS Helm chart:
+Deploy the Document Summarization Helm chart:
 
 ```bash
 helm install document-summarization . -n <your-namespace>
@@ -149,4 +149,3 @@ helm uninstall document-summarization -n <your-namespace>
 
 - [How to Build from Source](./build-from-source.md)
 - [How to Test Performance](./how-to-performance.md)
-- [How to Benchmark](./benchmarks.md)
