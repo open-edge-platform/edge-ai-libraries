@@ -22,7 +22,8 @@ jobs:
       contents: read
     strategy:
       fail-fast: false
-    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@628dd6e7fd94a3e765e389b5bb43d90fbe3de421  # 0.1.32
+    # TODO change to SHA
+    uses: open-edge-platform/orch-ci/.github/workflows/pre-merge.yml@tmatenko/lint-makeflags
     with:
       runs_on: ubuntu-24.04
       project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
