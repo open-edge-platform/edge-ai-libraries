@@ -307,12 +307,12 @@ def download_and_process_model(model: ModelRequest, model_path: str, hf_token: O
     finally:
         cleanup_model_directory(model_specific_path)
 
-def download_ollama_model(model: str, model_path: str) -> ModelResult:
+def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
     """
     Download a model from Ollama.
 
     Args:
-        model (str): The name of the Ollama model to download.
+        model (ModelRequest): The Ollama model request object to download.
         model_path: Base path for model downloads
 
     Returns:
