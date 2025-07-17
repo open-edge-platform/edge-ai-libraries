@@ -5,8 +5,8 @@ SHELL := bash -eu -o pipefail
 
 # default goal to show help
 .DEFAULT_GOAL := help
-.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev \
-	test shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help
+.PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
+	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help
 
 # Project Variables
 PROJECT_NAME := vippet
