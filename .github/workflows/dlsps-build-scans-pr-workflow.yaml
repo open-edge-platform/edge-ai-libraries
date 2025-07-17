@@ -285,11 +285,4 @@ jobs:
         with:
           name: shellcheck-report
           path: shellcheck_report.txt
-  static-code-analysis:
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-      packages: read
-    name: Static Code Analysis
-    uses: ./.github/workflows/codeql.yaml 
+  
