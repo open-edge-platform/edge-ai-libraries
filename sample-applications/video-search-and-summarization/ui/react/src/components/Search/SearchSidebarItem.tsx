@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, SyntheticEvent, useState } from 'react';
 import styled from 'styled-components';
 import { Checkbox, IconButton } from '@carbon/react';

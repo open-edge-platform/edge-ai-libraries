@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { createAsyncThunk, createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { SearchQuery, SearchQueryDTO, SearchQueryStatus, SearchQueryUI, SearchResult, SearchState } from './search';
 import { RootState } from '../store';

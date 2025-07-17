@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, useEffect, useRef } from 'react';
 import { useTranslation } from 'react-i18next';
 import { useAppSelector } from '../store';
