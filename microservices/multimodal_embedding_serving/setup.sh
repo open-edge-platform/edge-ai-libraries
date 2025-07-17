@@ -37,8 +37,17 @@ fi
 
 export EMBEDDING_SERVER_PORT=9777
 
-# Default model configuration
-export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-"CLIP/clip-vit-b-16"}
+# Model configuration - REQUIRED: User must set EMBEDDING_MODEL_NAME
+if [ -z "$EMBEDDING_MODEL_NAME" ]; then
+    echo "ERROR: EMBEDDING_MODEL_NAME environment variable is required."
+    echo ""
+    echo "Please set a model name before sourcing setup.sh:"
+    echo "  export EMBEDDING_MODEL_NAME=\"your-chosen-model\""
+    echo "  source setup.sh"
+    echo ""
+    echo "See docs/user-guide/supported-models.md for complete model specifications."
+    return 1
+fi
 
 # Model path configuration
 export EMBEDDING_MODEL_PATH=${EMBEDDING_MODEL_PATH:-"/app/ov-models"}
@@ -46,25 +55,24 @@ export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-"/app/ov-models"}
 
 # Check if EMBEDDING_MODEL_NAME is supported
 case "$EMBEDDING_MODEL_NAME" in
-    "CLIP/clip-vit-b-16"|"CLIP/clip-vit-l-14"|"CLIP/clip-vit-b-32")
+    "CLIP/clip-vit-b-16"|"CLIP/clip-vit-l-14"|"CLIP/clip-vit-b-32"|"CLIP/clip-vit-h-14")
         echo "Using CLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "SigLIP/siglip-so400m-patch14-384"|"SigLIP/siglip-base-patch16-224")
+    "CN-CLIP/cn-clip-vit-b-16"|"CN-CLIP/cn-clip-vit-l-14"|"CN-CLIP/cn-clip-vit-h-14")
+        echo "Using CN-CLIP model: $EMBEDDING_MODEL_NAME (Chinese + English support)"
+        ;;
+    "SigLIP/siglip-vit-b-16"|"SigLIP/siglip-vit-l-16")
         echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b")
+    "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_feature_extractor"|"Blip2/blip2_transformers")
+    "Blip2/blip2_feature_extractor"|"Blip2/blip2_transformers"|"Blip2/blip2_transformers_vitL")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
     *)
         echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
-        echo -e "Supported models include:"
-        echo -e "  CLIP: CLIP/clip-vit-b-16, CLIP/clip-vit-l-14, CLIP/clip-vit-b-32"
-        echo -e "  SigLIP: SigLIP/siglip-so400m-patch14-384, SigLIP/siglip-base-patch16-224"
-        echo -e "  MobileCLIP: MobileCLIP/mobileclip_s0, MobileCLIP/mobileclip_s1, etc."
-        echo -e "  BLIP2: Blip2/blip2_feature_extractor, Blip2/blip2_transformers"
+        echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."
         ;;
 esac
 

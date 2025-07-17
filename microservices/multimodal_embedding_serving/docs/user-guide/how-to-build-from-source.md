@@ -1,71 +1,146 @@
 # How to Build from Source
 
-Build the **Multimodal Embedding Serving microservice** from source to customize, debug, or extend its functionality. In this guide, you will:
-- Set up your development environment.
-- Compile the source code and resolve dependencies.
-- Generate a runnable build for local testing or deployment.
-
-This guide is ideal for developers who want to work directly with the source code.
+This guide covers building the **Multimodal Embedding Serving microservice** from source for customization, development, or debugging purposes.
 
 ## Prerequisites
 
-Before you begin, ensure the following:
-- **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
-- This guide assumes basic familiarity with Git commands, Python virtual environments, and terminal usage. If you are new to these concepts, see:
-  - [Git Documentation](https://git-scm.com/doc)
-  - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
+Before you begin, ensure:
 
+- **System Requirements**: Meet the [minimum requirements](./system-requirements.md)
+- **Git**: For cloning the repository
+- **Docker**: For building containers
 
-## Steps to Build
-This section provides a detailed note on how to build the Multimodal Embedding Serving microservice.
+## Build Steps
 
-**_(Optional)_** Docker Compose builds the _Multimodal Embedding Serving_ with a default image and tag name. If you want to use a different image and tag, export these variables:
+### 1. Clone Repository
 
 ```bash
-export REGISTRY_URL="your-container-registry-url"
-export PROJECT_NAME="your-project-name"
-export TAG="your-tag"
+git clone https://github.com/intel/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/multimodal_embedding_serving
 ```
 
-> **_NOTE:_** `PROJECT_NAME` will be suffixed to `REGISTRY_URL` to create a namespaced url. Final image name will be created/pulled by further suffixing the application name and tag with the namespaced url. 
+### 2. Configure Environment
 
-> **_EXAMPLE:_** If variables are set using above command, the final image names for _Multimodal Embedding Serving_ would be `<your-container-registry-url>/<your-project-name>/multimodal-embedding-serving:<your-tag>`. 
-
-If variables are not set, in that case, the `TAG` will have default value as _latest_. Hence, final image will be `multimodal-embedding-serving:latest`.
-
-1. **Clone the Repository**:
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-cd edge-ai-libraries/microservices/multimodal-embedding-service
+# Use setup script for default configuration
+source setup.sh
+
+# Or customize before building
+export EMBEDDING_MODEL_NAME="CN-CLIP/cn-clip-vit-b-16"
+export EMBEDDING_DEVICE="GPU"
+source setup.sh
 ```
 
-2. **Set up environment values**:
-    
-Follow all the instructions provided in the [get started](./get-started.md#set-environment-values) document to set up the environment variables.
-> **Note**: To build or run with GPU support, set EMBEDDING_DEVICE=GPU before sourcing setup.sh.
+### 3. Build Docker Image
 
-3. **Build the Docker image**:
-
-To build the Docker image, run the following command:
 ```bash
+# Build the image
 docker compose -f docker/compose.yaml build
 ```
 
-4. **Run the service**:
+### 4. Run Built Service
 
- ```bash
- docker compose -f docker/compose.yaml  up
- ```
+```bash
+# Start the service
+docker compose -f docker/compose.yaml up -d
 
-This will run the service in either CPU or GPU mode depending on your environment variable settings.
+# Verify build
+docker logs multimodal-embedding-serving
+```
 
-## Validation
+## Custom Build Configuration
 
-**Verify Build Success**:
-- Check the logs. Look for confirmation messages indicating the microservice started successfully.
+### Registry and Naming
 
+```bash
+export REGISTRY_URL="your-registry.com/"
+export PROJECT_NAME="your-project/"
+export TAG="v1.0.0"
+
+# Apply configuration and build
+source setup.sh
+docker compose -f docker/compose.yaml build
+```
+
+Final image name: `your-registry.com/your-project/multimodal-embedding-serving:v1.0.0`
+
+### Model Configuration
+
+```bash
+# Configure specific model for build
+export EMBEDDING_MODEL_NAME="Blip2/blip2_transformers"
+export EMBEDDING_DEVICE="GPU"
+export DEFAULT_NUM_FRAMES=32
+
+# Apply and build
+source setup.sh
+docker compose -f docker/compose.yaml build
+```
+
+## Development Workflow
+
+### Local Development
+
+For Python development without Docker:
+
+```bash
+# Create virtual environment
+python -m venv venv
+source venv/bin/activate
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Run locally (development mode)
+python src/main.py
+```
+
+### Rebuild After Changes
+
+```bash
+# Rebuild with latest changes
+docker compose -f docker/compose.yaml build --no-cache
+
+# Test changes
+docker compose -f docker/compose.yaml up -d
+```
+
+## Build Validation
+
+### Verify Build Success
+
+```bash
+# Check image was created
+docker images | grep multimodal-embedding-serving
+
+# Verify container starts successfully
+docker logs multimodal-embedding-serving
+
+# Test API functionality
+curl http://localhost:9777/health
+```
+
+## Common Build Issues
+
+**Docker build fails:**
+```bash
+# Clean build cache and retry
+docker system prune -a
+docker compose -f docker/compose.yaml build --no-cache
+```
+
+**Python dependency conflicts:**
+```bash
+# Update pip and rebuild
+pip install --upgrade pip setuptools wheel
+docker compose -f docker/compose.yaml build --no-cache
+```
 
 ## Supporting Resources
-* [Overview](Overview.md)
-* [System Requirements](system-requirements.md)
-* [API Reference](api-reference.md)
+
+- [Get Started Guide](get-started.md) - Basic deployment guide
+- [Quick Reference](quick-reference.md) - Essential commands and configurations
+- [Supported Models](supported-models.md) - Available models for development
+- [SDK Usage](sdk-usage.md) - Python SDK integration examples
+- [System Requirements](system-requirements.md) - Hardware requirements
+- [API Reference](api-reference.md) - API documentation
