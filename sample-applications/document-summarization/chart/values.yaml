@@ -1,17 +1,17 @@
 # Default configuration values for the document summarization Helm chart
 global:
   proxy:
-    noProxy: "<no-proxy>"
-    httpProxy: "<http-proxy>"
-    httpsProxy: "<https-proxy>"
+    noProxy:
+    httpProxy:
+    httpsProxy:
   huggingface:
-    token: "<huggingface-token>"
+    token:
   ui:
-    nodePort: <ui-node-port>
+    nodePort:
   otlp:
-    otlpEndPoint: "<otlp end point>"
+    otlpEndPoint:
   llm:
-    llmModelId: "Intel/neural-chat-7b-v3-3"
+    llmModelId: "microsoft/Phi-3.5-mini-instruct"
     llmEndpointUrl: "http://ovms-service:8300"
   backendApi:
     url: "http://docsum-api:8090/v1/docsum"
@@ -24,17 +24,12 @@ global:
     size: 20Gi
   keeppvc: false # true  to persist models across multiple deployments
 
-  DocSum:
+  docSum:
     name: document-summarization
     image:
-      ui:
-        repository: "intel/genai-docsum"
-        tag: "1.0.0"
-        pullPolicy: IfNotPresent
-      backend:
-        repository: "intel/genai-docsum"
-        tag: "1.0.0"
-        pullPolicy: IfNotPresent
+      repository: "intel/genai-docsum"
+      tag: "1.0.0"
+      pullPolicy: IfNotPresent
 nginx:
   image:
     repository: nginx
