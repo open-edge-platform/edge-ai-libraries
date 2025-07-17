@@ -68,16 +68,28 @@ jobs:
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
       with:
         scan_target: "ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
-        severity: "HIGH"
+        severity: "MEDIUM"
         scan_type: image
         format: table
         report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
         scan-scope: all
         timeout: 20m
 
-    - name: Show Trivy results
+    - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
-        cat security-results/trivy/trivy-results-*
+        file=$(ls security-results/trivy/trivy-results-* | head -n 1)
+        cat $file
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+
+        echo "Found vulnerability count: $vuln_count"
+
+        if [[ "$vuln_count" != "0" ]]; then
+          echo "❌ Vulnerabilities found: $vuln_count"
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
+      shell: bash
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
@@ -167,9 +179,21 @@ jobs:
         scan-scope: all
         timeout: 20m
 
-    - name: Show Trivy results
+    - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
-        cat security-results/trivy/trivy-results-*
+        file=$(ls security-results/trivy/trivy-results-* | head -n 1)
+        cat $file
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+
+        echo "Found vulnerability count: $vuln_count"
+
+        if [[ "$vuln_count" != "0" ]]; then
+          echo "❌ Vulnerabilities found: $vuln_count"
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
+      shell: bash
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
