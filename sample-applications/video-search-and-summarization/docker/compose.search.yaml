@@ -129,6 +129,7 @@ services:
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
       USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
+      DEBUG_MODE: ${DEBUG_MODE:-False}
     devices:
       - /dev/dri:/dev/dri
     group_add:
