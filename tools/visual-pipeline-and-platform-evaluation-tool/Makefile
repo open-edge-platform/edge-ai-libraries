@@ -35,7 +35,7 @@ lint: $(VENV_DIR) mdlint ruff pyright ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
-	# download tool from https://github.com/igorshubovych/markdownlint-cli
+# download tool from https://github.com/igorshubovych/markdownlint-cli
 	markdownlint --version
 	markdownlint $(MD_FILES)
 
