@@ -152,7 +152,7 @@ To access the vss-nginx service running in your Kubernetes cluster using NodePor
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":<ui-nodeport>
 ```
 
 Simply copy and paste the output into your browser to access the Video Summary application UI.

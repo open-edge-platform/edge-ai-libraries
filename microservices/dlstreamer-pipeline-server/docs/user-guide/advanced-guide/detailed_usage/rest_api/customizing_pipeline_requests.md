@@ -328,7 +328,7 @@ The following parameters can be optionally used to customize the stream:
 ### WebRTC
 
 #### Request WebRTC Frame Output
-1. To stream over WebRTC follow the pre-requisite steps for [WebRTC](../how-to-advanced/webrtc-frame-streaming.md) before sending the REST API request.
+1. To stream over WebRTC follow the pre-requisite steps for [WebRTC](../../../how-to-perform-webrtc-frame-streaming.md) before sending the REST API request.
 
 2. Start a pipeline to request frame destination type set as WebRTC and unique `peer-id` value set. For demonstration, peer-id is set as `pallet_defect_detection` in example request below.
 
@@ -386,7 +386,7 @@ For example, below is a the snippets from [WORKDIR]/edge-ai-libraries/microservi
     "name": "pallet_defect_detection",
     "source": "gstreamer",
     "queue_maxsize": 50,
-    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+    "pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
     "parameters": {
         "type": "object",
         "properties": {

@@ -35,14 +35,14 @@ jobs:
   check-license-headers:
     permissions:
       contents: read
-    name: Check license headers
+    name: SCAN check license headers
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-    
+
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
@@ -52,7 +52,7 @@ jobs:
       actions: read
       contents: read
       packages: read
-    name: Static Code Analysis
+    name: SCAN static code analysis
     uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
@@ -61,28 +61,28 @@ jobs:
       actions: read
       contents: read
       packages: read
-    name: DLS Static Code Analysis for C/C++
+    name: SCAN DLS static C/C++ code analysis
     uses: ./.github/workflows/dls-coverity.yaml
     secrets: inherit
 
-  build-dev-images:
+  build-dev-images-and-run-unit-tests:
     permissions:
       contents: read
       packages: read
-    name: Build dev imgs
-    uses: ./.github/workflows/dls-build-dev-docker-images.yaml
+    name: BUILD dev imgs & run unit tests
+    uses: ./.github/workflows/dls-build-dev-docker-images-and-run-unit.yaml
 
   build-and-test-deb-and-deb_img:
     permissions:
       contents: read
       packages: read
-    name: Build and test .deb pkgs & img
+    name: BUILD & TEST .deb pkgs & img
     uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
 
   filter-docker-related-changes:
     permissions:
       contents: read
-    name: Detect changes in docker directory
+    name: SCAN detect changes in docker dir
     runs-on: ubuntu-latest
     outputs:
       docker_changed: ${{ steps.check.outputs.docker_changed }}
@@ -116,7 +116,7 @@ jobs:
       contents: read
     needs: [filter-docker-related-changes]
     if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: Scan ${{ matrix.name }}
+    name: SCAN Trivy ${{ matrix.name }}
     strategy:
       fail-fast: false
       matrix:
@@ -128,11 +128,11 @@ jobs:
             path: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
             output: reports/dlstreamer_ubuntu24.json
           - name: dlstreamer_fedora41
-            path: libraries/dl-streamer/docker/fedora41/dlstreamer_fedora41.Dockerfile
+            path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
             output: reports/dlstreamer_fedora41.json
-          - name: dlstreamer_dev_fedora41
-            path: libraries/dl-streamer/docker/fedora41/dlstreamer_dev_fedora41.Dockerfile
-            output: reports/dlstreamer_dev_fedora41.json
+          - name: dlstreamer-testing-ubuntu
+            path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
+            output: reports/dlstreamer-testing-ubuntu.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
@@ -144,7 +144,7 @@ jobs:
   clamav:
     permissions:
       contents: read
-    name: ClamAV antivirus scan
+    name: SCAN ClamAV antivirus
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
@@ -167,7 +167,7 @@ jobs:
   bandit:
     permissions:
       contents: read
-    name: Bandit scan
+    name: SCAN Bandit
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
