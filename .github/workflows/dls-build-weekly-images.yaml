@@ -167,6 +167,10 @@ jobs:
         scan-scope: all
         timeout: 20m
 
+    - name: Show Trivy results
+      run: |
+        cat security-results/trivy/trivy-results-*
+
     - name: Install Cosign
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
 
