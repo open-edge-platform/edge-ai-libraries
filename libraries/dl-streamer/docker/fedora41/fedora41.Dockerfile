@@ -60,7 +60,7 @@ RUN \
     dnf install -y \
     "https://download1.rpmfusion.org/free/fedora/rpmfusion-free-release-$(rpm -E %fedora).noarch.rpm" \
     "https://download1.rpmfusion.org/nonfree/fedora/rpmfusion-nonfree-release-$(rpm -E %fedora).noarch.rpm" && \
-    dnf install -y wget libva-utils xz python3-pip python3-gobject gcc gcc-c++ glibc-devel glib2-devel \
+    dnf install -y libva-utils xz python3-pip python3-gobject gcc gcc-c++ glibc-devel glib2-devel \
     flex bison autoconf automake libtool libogg-devel make libva-devel yasm mesa-libGL-devel libdrm-devel \
     python3-gobject-devel python3-devel tbb gnupg2 unzip opencv-devel gflags-devel openssl-devel openssl-devel-engine \
     gobject-introspection-devel x265-devel x264-devel libde265-devel libgudev-devel libusb1 libusb1-devel nasm python3-virtualenv \
@@ -112,7 +112,7 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
 RUN \
     mkdir -p /src/ffmpeg && \
-    wget -q --no-check-certificate "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz" -O "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz" && \
+    curl -sSL --insecure "https://ffmpeg.org/releases/ffmpeg-${FFMPEG_VERSION}.tar.gz" -o "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz" && \
     tar -xf "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz" -C /src/ffmpeg && \
     rm "/src/ffmpeg/ffmpeg-${FFMPEG_VERSION}.tar.gz"
 
@@ -148,6 +148,10 @@ WORKDIR /home/dlstreamer
 
 RUN \
     git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+
+ENV PKG_CONFIG_PATH=/usr/lib64/pkgconfig/:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+RUN ldconfig
 
 WORKDIR /home/dlstreamer/gstreamer
 
@@ -243,7 +247,7 @@ RUN \
     shopt -s dotglob && \
     mv gst-plugins-rs/* . && \
     git checkout 207196a0334da74c4db9db7c565d882cb9ebc07d && \
-    wget -q --no-check-certificate -O- https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85.0 && \
+    curl -sSL --insecure https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0 && \
     source "$HOME"/.cargo/env && \
     cargo install cargo-c --version=0.10.11 --locked && \
     cargo update && \
@@ -316,7 +320,6 @@ COPY --from=opencv-builder /usr/local/lib64/cmake/opencv4 /usr/local/lib64/cmake
 COPY --from=kafka-builder /copy_libs/ /usr/local/lib/
 COPY --from=kafka-builder /usr/local/include/librdkafka /usr/local/include/librdkafka
 
-ENV PKG_CONFIG_PATH="${GSTREAMER_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig"
 # Intel® Distribution of OpenVINO™ Toolkit
 RUN \
     printf "[OpenVINO]\n\
@@ -343,7 +346,7 @@ WORKDIR $DLSTREAMER_DIR/build
 ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
 ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/bin
 ENV PATH=${GSTREAMER_DIR}/bin:${BINDIR}:${PATH}
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib64/pkgconfig:${PKG_CONFIG_PATH}
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib64/pkgconfig:${GSTREAMER_DIR}/lib/pkgconfig:/usr/local/lib/pkgconfig:${PKG_CONFIG_PATH}
 ENV LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:/usr/local/lib:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:/usr/local/lib:${LD_LIBRARY_PATH}
 ENV LIB_PATH=$LIBDIR
