@@ -6,7 +6,7 @@ services:
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
     ports:
-      - "32004:8000"  # Map container port 8000 to host port 8000
+      - "8200:8000"  # Map container port 8000 to host port 8000
     volumes:
       # Mount a volume for caching Hugging Face/Ollama models
       - ~/.cache/huggingface:/home/appuser/.cache/huggingface

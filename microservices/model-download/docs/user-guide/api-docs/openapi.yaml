@@ -2,14 +2,14 @@ openapi: 3.0.0
 info:
   title: Model Download Service API
   description: |
-    API for downloading and converting models from HuggingFace or Ollama to OVMS format.
+    API for downloading from HuggingFace or Ollama and converting models OV_IR format.
     This service provides endpoints to download models and optionally convert them to 
-    OpenVINO Model Server (OVMS) format (conversion of Ollama models to OVMS is not yet supported).
+    OpenVINO Model Server (OVMS) format (conversion of Ollama models to OV_IR is not yet supported).
   version: 1.0.0
   contact:
     name: Intel GenAI Team
 servers:
-  - url: http://Host:32004/api/v1
+  - url: http://Host:8200/api/v1
     description: Base API path
 
 components:
@@ -29,7 +29,7 @@ components:
         - GPU
       description: The target device type for model deployment
 
-    OVMSConfig:
+    Config:
       type: object
       properties:
         precision:
@@ -48,12 +48,14 @@ components:
       type: object
       required:
         - name
+        - hub
       properties:
         name:
           type: string
           description: The name/ID of the Hugging Face/Ollama model
         hub:
           type: string
+          enum: [huggingface, ollama]
           description: The model hub to download from (Options - huggingface or ollama)
         type:
           type: string
@@ -65,17 +67,8 @@ components:
         revision:
           type: string
           description: Specific model revision to download
-        model_family:
-          type: string
-          description: The family/category of the model
-        description:
-          type: string
-          description: Description of the model
-        cache_dir:
-          type: string
-          description: Custom cache directory for the model
         config:
-          $ref: '#/components/schemas/OVMSConfig'
+          $ref: '#/components/schemas/Config'
           description: OVMS-specific configuration
 
     ModelDownloadRequest:
@@ -108,12 +101,15 @@ components:
           description: The name of the model
         model_path:
           type: string
+          nullable: true
           description: Path where the model was downloaded/converted
         error:
           type: string
+          nullable: true
           description: Error message if status is error
         is_ovms:
           type: boolean
+          nullable: true
           description: Whether the model was converted to OVMS format
 
     DownloadResponse:
@@ -131,6 +127,14 @@ components:
           type: string
           description: Path to the downloaded model (for single model requests)
 
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Health status of the service
+
   securitySchemes:
     ApiKeyAuth:
       type: apiKey
@@ -139,6 +143,21 @@ components:
       description: Hugging Face API token for authentication (Not applicable for Ollama models)
 
 paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Verify the service is running
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        '200':
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HealthResponse'
+
   /models/download:
     post:
       summary: Download and optionally convert models
@@ -154,7 +173,7 @@ paths:
           name: download_path
           schema:
             type: string
-            default: None
+            default: null
           description: Base path for model downloads
       requestBody:
         required: true
@@ -218,3 +237,12 @@ paths:
                           type: string
                         type:
                           type: string
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
