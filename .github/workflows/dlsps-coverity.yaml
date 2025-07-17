@@ -54,7 +54,7 @@ jobs:
         docker compose build --no-cache --pull
     - name: Run Coverity Scans.
       run: |
-        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/test
+        edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests
         docker run --rm -e DLSPS_COVERITY_TOKEN=${{secrets.DLSPS_COVERITY_TOKEN}} -e DLSPS_COVERITY_EMAIL=${{secrets.DLSPS_COVERITY_EMAIL}} -e DLSPS_COVERITY_PROJECT=${{secrets.DLSPS_COVERITY_PROJECT}} -v  `pwd`:/app -v /tmp:/tmp intel/dlstreamer-pipeline-server:coverity-ubuntu22  /bin/bash /app/coverity.sh
     - name: Upload Coverity Reports to Github
       
