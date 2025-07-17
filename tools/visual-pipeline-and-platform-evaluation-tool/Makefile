@@ -34,7 +34,8 @@ all: lint build run test ## Run lint, build, run and test
 lint: $(VENV_DIR) mdlint ruff mypy ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
-mdlint: ## Lint all markdown files
+mdlint: ## Lint MD files
+	# download tool from https://github.com/igorshubovych/markdownlint-cli
 	markdownlint --version
 	markdownlint $(MD_FILES)
 
