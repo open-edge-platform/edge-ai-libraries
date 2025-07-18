@@ -68,7 +68,7 @@ jobs:
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
       with:
         scan_target: "ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
-        severity: "MEDIUM"
+        severity: "HIGH"
         scan_type: image
         format: table
         report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
