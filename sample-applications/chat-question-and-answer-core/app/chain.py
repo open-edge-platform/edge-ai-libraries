@@ -19,7 +19,7 @@ vectorstore = None
 # The RUN_TEST flag is used to bypass the model download and conversion steps during pytest unit testing.
 # If RUN_TEST is set to "True", the model download and conversion steps are skipped.
 # This flag is set in the conftest.py file before running the tests.
-if os.getenv("RUN_TEST") != "True":
+if os.getenv("RUN_TEST", "").lower() != "true":
     # login huggingface
     login_to_huggingface(config.HF_ACCESS_TOKEN)
 

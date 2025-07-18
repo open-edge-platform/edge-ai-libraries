@@ -68,7 +68,7 @@ class Settings(BaseSettings):
         # The RUN_TEST flag is used to bypass the model config loading during pytest unit testing.
         # If RUN_TEST is set to "True", the model config loading is skipped.
         # This flag is set in the conftest.py file before running the tests.
-        if os.getenv("RUN_TEST") == "True":
+        if os.getenv("RUN_TEST", "").lower() == "true":
             print("INFO - Skipping model config loading in test mode.")
             return
 
@@ -81,7 +81,6 @@ class Settings(BaseSettings):
             print("WARNING - User did not provide model configuration yaml file via MODEL_CONFIG_PATH.")
             print(f"INFO - Proceeding with default settings from {config_file}")
 
-
         with open(config_file, 'r') as f:
             config = yaml.safe_load(f)
 
@@ -90,9 +89,26 @@ class Settings(BaseSettings):
                 if hasattr(self, key):
                     setattr(self, key, value)
 
+        self._validate_model_ids()
+
+        self._check_and_validate_prompt_template()
+
+    def _validate_model_ids(self):
+        for model_name in ["EMBEDDING_MODEL_ID", "RERANKER_MODEL_ID", "LLM_MODEL_ID"]:
+            model_id = getattr(self, model_name)
+            if not model_id:
+                raise ValueError(f"{model_name} must not be an empty string.")
+
+    def _check_and_validate_prompt_template(self):
         if not self.PROMPT_TEMPLATE:
-            print("INFO - PROMPT_TEMPLATE is not set. Get prompt template based on LLM_MODEL_ID.")
+            print("INFO - PROMPT_TEMPLATE is not set. Getting default prompt_template.")
             self.PROMPT_TEMPLATE = get_prompt_template(self.LLM_MODEL_ID)
+
+        # Validate PROMPT_TEMPLATE
+        required_placeholders = ["{context}", "{question}"]
+        for placeholder in required_placeholders:
+            if placeholder not in self.PROMPT_TEMPLATE:
+                raise ValueError(f"PROMPT_TEMPLATE must include the placeholder {placeholder}.")
 
 
 config = Settings()
