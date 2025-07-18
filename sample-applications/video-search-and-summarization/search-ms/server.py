@@ -1,6 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+import datetime
 import asyncio
 import json
 from typing import Optional, List, Tuple, Any
@@ -15,30 +16,9 @@ from src.utils.directory_watcher import (
     get_last_updated,
     start_watcher,
 )
-from src.utils.minio_client import client as minio_client
 from src.vdms_retriever.retriever import get_vectordb
 from pydantic import BaseModel
 
-bucket_name = f"arn:aws:s3:::{settings.VDMS_BUCKET}/*"
-policy = {
-    "Version": "2012-10-17",
-    "Statement": [
-        {
-            "Effect": "Allow",
-            "Principal": "*",
-            "Action": ["s3:GetObject"],
-            "Resource": [bucket_name],
-        },
-    ],
-}
-if minio_client.bucket_exists(settings.VDMS_BUCKET):
-    logger.debug(f"{settings.VDMS_BUCKET} exists")
-else:
-    logger.debug(f"{settings.VDMS_BUCKET} does not exist")
-    minio_client.make_bucket(settings.VDMS_BUCKET)
-    logger.debug(f"created {settings.VDMS_BUCKET}")
-minio_client.set_bucket_policy(settings.VDMS_BUCKET, json.dumps(policy))
-logger.debug("set minio bucket policy to public")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
@@ -124,7 +104,7 @@ async def query_endpoint(request: list[QueryRequest]):
             raise HTTPException(status_code=404, detail=f"No entities were found.")
         else:
             logger.error(f"KeyError in query_endpoint: {str(e)}")
-            raise HTTPException(status_code=500, detail="Some error ocurred at the DataPrep Service.")
+            raise HTTPException(status_code=500, detail="Some error ocurred while running the search query.")
         
     except Exception as e:
         import traceback

@@ -86,7 +86,7 @@ Another way of queuing a image ingestor pipeline is in synchronous mode. The pip
 - Change `"pipeline"` section in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. 
 
     ```sh
-    "pipeline": "appsrc name=source  ! decodebin  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
+    "pipeline": "appsrc name=source  ! decodebin3  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
     ```
     
 - We need to volume mount the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json` config file in `docker-compose.yml` file. Refer below snippets:

@@ -9,6 +9,10 @@
 - OPCUA is now configurable in REST request
 - Improved logging by consuming log levels from .env instead of from config.json
 - WebRTC bitrate is now configurable
+- Logs can be queried and monitored in real time with Open Telemetry
+- ROS2 publisher for sending metadata (with or without encoded frames)
+- Migrated from decodebin to decodebin3 in all pipeline configurations
+- Enabled VA-API based pipelines for RTSP and WebRTC streaming
 
 ### Fixed
 - Cleanup: Remove confidential info such as email and gitlab links. Removed unused model downloader tool, gRPC interface

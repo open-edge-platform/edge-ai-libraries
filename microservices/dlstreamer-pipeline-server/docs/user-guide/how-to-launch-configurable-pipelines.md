@@ -11,7 +11,7 @@ For example, consider the below pipeline from default config:
         "name": "pallet_defect_detection",
         "source": "gstreamer",
         "queue_maxsize": 50,
-        "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+        "pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
         "parameters": {
             "type": "object",
             "properties": {

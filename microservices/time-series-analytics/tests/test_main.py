@@ -1,4 +1,3 @@
-
 #
 # Apache v2 license
 # Copyright (C) 2025 Intel Corporation
@@ -576,6 +575,8 @@ def test_post_config_invalid_json(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     # Patch Config to raise JSONDecodeError
     class DummyConfig:
+        def model_dump(self):
+            return {}
         model_registry = property(lambda self: (_ for _ in ()).throw(main.json.JSONDecodeError("msg", "doc", 1)))
         udfs = {}
         alerts = {}
@@ -588,6 +589,8 @@ def test_post_config_missing_key(monkeypatch):
     monkeypatch.setattr(main, "restart_kapacitor", lambda: None)
     # Patch Config to raise KeyError
     class DummyConfig:
+        def model_dump(self):
+            return {}
         @property
         def model_registry(self):
             raise KeyError("model_registry")

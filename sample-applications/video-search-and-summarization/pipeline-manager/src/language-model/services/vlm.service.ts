@@ -1,6 +1,3 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import { Injectable, Logger } from '@nestjs/common';
 import { OpenAI } from 'openai';
 import { ConfigService } from '@nestjs/config';
@@ -13,6 +10,7 @@ import { TemplateService } from './template.service';
 import { ModelInfo } from 'src/state-manager/models/state.model';
 import { OpenaiHelperService } from './openai-helper.service';
 import { FeaturesService } from 'src/features/features.service';
+import { InferenceCountService } from './inference-count.service';
 
 interface ImageCompletionParams extends CompletionQueryParams {
   user_query?: string;
@@ -37,6 +35,7 @@ export class VlmService {
     private $config: ConfigService,
     private $feature: FeaturesService,
     private $template: TemplateService,
+    private $inferenceCount: InferenceCountService,
   ) {
     if ($feature.hasFeature('summary')) {
       this.initialize().catch((error) => {
@@ -103,6 +102,10 @@ export class VlmService {
       // Fetch Models
       await this.getModelsFromOpenai();
       this.serviceReady = true;
+      this.$inferenceCount.setVlmConfig({
+        model: this.model,
+        ip: baseURL,
+      });
     } catch (error) {
       console.error('Failed to retrieve models:', error);
     }
@@ -122,9 +125,7 @@ export class VlmService {
     }
   }
 
-  private async encodeBase64ContentFromUrl(
-    fileNameOrUrl: string,
-  ): Promise<string> {
+  private encodeBase64ContentFromUrl(fileNameOrUrl: string): string {
     // TODO: will require fixing when required
 
     try {
@@ -174,6 +175,7 @@ export class VlmService {
     imageUri: string[],
   ): Promise<string | null> {
     try {
+      this.$inferenceCount.incrementVlmProcessCount();
       console.log(userQuery, imageUri);
 
       let content: any[];
@@ -216,8 +218,10 @@ export class VlmService {
         result = completions.choices[0].message.content;
       }
 
+      this.$inferenceCount.decrementVlmProcessCount();
       return result;
     } catch (error) {
+      this.$inferenceCount.decrementVlmProcessCount();
       console.log('ERROR Image Inference', error);
       throw error;
     }
@@ -231,7 +235,7 @@ export class VlmService {
       fileNameOrUrl,
     } = params;
 
-    const imageBase64 = await this.encodeBase64ContentFromUrl(fileNameOrUrl);
+    const imageBase64 = this.encodeBase64ContentFromUrl(fileNameOrUrl);
     const startTime = Date.now();
     const chatCompletionFromBase64 = await this.client.chat.completions.create({
       messages: [

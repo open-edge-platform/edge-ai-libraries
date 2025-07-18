@@ -64,6 +64,10 @@ services:
       VLM_SEED: ${VLM_SEED}
       WORKERS: ${WORKERS:-1}
       HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+      OV_CONFIG: ${OV_CONFIG}
+      VLM_LOG_LEVEL: ${VLM_LOG_LEVEL:-info}
+      OPENVINO_LOG_LEVEL: ${VLM_OPENVINO_LOG_LEVEL:-1}
+      VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
     restart: unless-stopped
     devices:
       - /dev/dri:/dev/dri
@@ -234,7 +238,7 @@ volumes:
   audio_analyzer_data:
     driver: local
   ov-models:
-    external: true
+    driver: local
   vol_evam_pipeline_root:
     driver: local
     driver_opts:

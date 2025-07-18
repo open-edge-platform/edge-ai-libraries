@@ -48,8 +48,8 @@ jobs:
 
     - name: Set BASE_IMAGE
       env:
-        BASE_IMAGE22: "intel/dlstreamer:2025.0.1.3-ubuntu22"
-        BASE_IMAGE24: "intel/dlstreamer:2025.0.1.3-ubuntu24"
+        BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407"
+        BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24:candidate1407"
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
           echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV

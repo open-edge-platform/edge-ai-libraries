@@ -150,7 +150,7 @@ export const StatusTag: FC<StatusTagProps> = ({ label, action, count, total }) =
 export const StatusIndicator: FC<StatusTagProps> = ({ label, action }) => {
   return (
     <>
-      <Tooltip label={label} align='right'>
+      <Tooltip label={label} autoAlign>
         <CicleStatusIndicator className={statusClassName[action ?? StateActionStatus.NA]}></CicleStatusIndicator>
       </Tooltip>
     </>

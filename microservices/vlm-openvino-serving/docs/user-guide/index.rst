@@ -16,6 +16,7 @@
 .. toctree::
    :caption: References
    
+   environment-variables
    api-reference
    
 .. toctree::

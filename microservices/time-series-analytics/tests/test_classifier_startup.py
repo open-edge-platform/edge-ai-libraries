@@ -61,12 +61,21 @@ def test_check_udf_package_missing_udf(kapacitor_classifier):
         assert any("Missing udf" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "warning")
 
 def test_install_udf_package_runs_pip(monkeypatch, kapacitor_classifier):
-    called = {}
-    monkeypatch.setattr(os, "system", lambda cmd: called.setdefault("cmd", cmd))
+    called = []
+    def fake_run(cmd, check=False, **kwargs):
+        called.append(cmd)
+        class Dummy:
+            pass
+        return Dummy()
+    monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr(os.path, "isfile", lambda p: True)
     kapacitor_classifier.install_udf_package("somedir")
     # Accept either pip3 install or mkdir -p, depending on implementation
-    assert any(cmd in called["cmd"] for cmd in ["pip3 install", "mkdir -p"])
+    assert any(
+        (isinstance(cmd, list) and (cmd[:2] == ["mkdir", "-p"] or ("pip3" in cmd and "install" in cmd)))
+        for cmd in called
+    )
+
 
 def test_start_kapacitor_success(monkeypatch, kapacitor_classifier):
     monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")

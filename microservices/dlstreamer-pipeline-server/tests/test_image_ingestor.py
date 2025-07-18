@@ -16,7 +16,7 @@ from src.subscriber.image_ingestor import ImageIngestor
 # Mock setup for publisher object creation
 @pytest.fixture
 def img_cfg(mocker):
-    src.common.log.configure_logging('DEBUG', False)
+    src.common.log.configure_logging('DEBUG')
 
     img_cfg = MagicMock()
     img_cfg.get_topics.return_value = ['sub_test']

@@ -1,6 +1,3 @@
-// Copyright (C) 2025 Intel Corporation
-// SPDX-License-Identifier: Apache-2.0
-
 import { Module } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { StateManagerModule } from 'src/state-manager/state-manager.module';
@@ -17,6 +14,10 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { VideoEntity } from './models/video.entity';
 import { DatastoreModule } from 'src/datastore/datastore.module';
 import { SearchModule } from 'src/search/search.module';
+import { TagsService } from './services/tags.service';
+import { TagsController } from './controllers/tags.controller';
+import { TagsDbService } from './services/tags-db.service';
+import { TagEntity } from './models/tags.entity';
 
 @Module({
   providers: [
@@ -25,9 +26,11 @@ import { SearchModule } from 'src/search/search.module';
     FeaturesService,
     VideoDbService,
     VideoService,
+    TagsService,
+    TagsDbService,
   ],
-  controllers: [VideoController],
-  exports: [AppConfigService, FeaturesService, VideoService],
+  controllers: [VideoController, TagsController],
+  exports: [AppConfigService, FeaturesService, VideoService, VideoDbService],
   imports: [
     StateManagerModule,
     LanguageModelModule,
@@ -35,7 +38,7 @@ import { SearchModule } from 'src/search/search.module';
     AudioModule,
     DatastoreModule,
     SearchModule,
-    TypeOrmModule.forFeature([VideoEntity]),
+    TypeOrmModule.forFeature([VideoEntity, TagEntity]),
     MulterModule.registerAsync({ useFactory: () => ({ dest: './data' }) }),
   ],
 })

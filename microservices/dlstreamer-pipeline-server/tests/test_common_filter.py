@@ -10,7 +10,7 @@ import src.common.log
 
 from src.publisher.common.filter import Filter
 
-src.common.log.configure_logging('DEBUG', False)
+src.common.log.configure_logging('DEBUG')
 
 class TestUtils:
 

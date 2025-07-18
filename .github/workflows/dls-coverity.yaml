@@ -2,6 +2,7 @@ name: "[DLS] Coverity (C/C++)"
 run-name: "[DLS] Coverity (C/C++)"
 on:
   workflow_call: 
+  workflow_dispatch:
 permissions: {}
 
 jobs:
@@ -67,30 +68,19 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y wget vainfo xz-utils python3-pip python3-gi gcc-multilib libglib2.0-dev \
           flex bison autoconf automake libtool libogg-dev make g++ libva-dev yasm libglx-dev libdrm-dev \
-          python-gi-dev python3-dev libtbb12 gpg unzip libopencv-dev libgflags-dev \
+          python-gi-dev python3-dev unzip libgflags-dev libcurl4-openssl-dev \
           libgirepository1.0-dev libx265-dev libx264-dev libde265-dev gudev-1.0 libusb-1.0 nasm python3-venv \
-          libcairo2-dev libxt-dev libgirepository1.0-dev libgles2-mesa-dev wayland-protocols libcurl4-openssl-dev \
+          libcairo2-dev libxt-dev libgirepository1.0-dev libgles2-mesa-dev wayland-protocols \
           libssh2-1-dev cmake git valgrind numactl libvpx-dev libopus-dev libsrtp2-dev libxv-dev \
-          linux-libc-dev libpmix2t64 libhwloc15 libhwloc-plugins libxcb1-dev libx11-xcb-dev gnupg
+          linux-libc-dev libpmix2t64 libhwloc15 libhwloc-plugins libxcb1-dev libx11-xcb-dev \
+          ffmpeg librdkafka-dev libpaho-mqtt-dev libopencv-dev libpostproc-dev libavfilter-dev libavdevice-dev \
+          libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev libtbb12
 
           echo "Setting up a Python environment"
           python3 -m venv python3venv
           source python3venv/bin/activate
           pip install --upgrade pip==24.0
           pip install meson==1.4.1 ninja==1.11.1.1
-
-          echo "Build ffmpeg"
-          mkdir -p ffmpeg
-          wget --no-check-certificate https://ffmpeg.org/releases/ffmpeg-6.1.1.tar.gz -O ffmpeg/ffmpeg-6.1.1.tar.gz
-          tar -xf ffmpeg/ffmpeg-6.1.1.tar.gz -C ffmpeg
-          rm ffmpeg/ffmpeg-6.1.1.tar.gz
-
-          cd ffmpeg/ffmpeg-6.1.1
-          ./configure --enable-pic --enable-shared --enable-static --enable-avfilter --enable-vaapi \
-              --extra-cflags="-I/include" --extra-ldflags="-L/lib" --extra-libs=-lpthread --extra-libs=-lm --bindir="/bin"
-          make -j "$(nproc)"
-          sudo make install
-          cd ../../
 
           echo "Build gstreamer"
           git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
@@ -102,28 +92,12 @@ jobs:
           sudo env PATH="$PWD/../python3venv/bin:$PATH" meson install -C build/
           cd ..
 
-          echo "Build OpenCV"
-          wget --no-check-certificate -O opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip
-          unzip opencv.zip -d .
-          rm opencv.zip
-          mv opencv-4.10.0 opencv
-          mkdir -p opencv/build
-          cd opencv/build
-          cmake -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_opencv_apps=OFF -GNinja ..
-          ninja -j "$(nproc)"
-          sudo env PATH="$PWD/../../python3venv/bin:$PATH" ninja install
-          cd ../../
-
-          echo "Install OpenVINO Toolkit"
-          wget https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-          sudo gpg --output /etc/apt/trusted.gpg.d/intel.gpg --dearmor GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
-          echo "deb https://apt.repos.intel.com/openvino ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino.list
-          sudo apt update
-          sudo apt install openvino-2025.1.0
-
-          echo "Install metapublish dependencies"
-          cd libraries/dl-streamer
-          sudo ./scripts/install_metapublish_dependencies.sh
+          echo "Install OpenVINO"
+          echo "deb https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list
+          curl -sSL -O https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo apt-key add GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB
+          sudo apt-get update && sudo apt-get install --no-install-recommends -y openvino-2025.2.0
+          sudo apt-get clean
 
       - name: Download Coverity Scan Tool
         run: |

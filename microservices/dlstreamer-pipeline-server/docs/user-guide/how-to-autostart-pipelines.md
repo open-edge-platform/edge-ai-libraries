@@ -15,7 +15,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
 - replace `"pipeline"` section with  
 
     ```sh
-    "pipeline": "multifilesrc location=/home/pipeline-server/resources/videos/warehouse.avi name=source  ! decodebin ! videoconvert ! gvadetect model=/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/tmp/results.jsonl name=destination ! appsink name=appsink",
+    "pipeline": "multifilesrc location=/home/pipeline-server/resources/videos/warehouse.avi name=source  ! decodebin3 ! videoconvert ! gvadetect model=/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish file-format=json-lines file-path=/tmp/results.jsonl name=destination ! appsink name=appsink",
     ```
 - set `"auto_start"`to `"true"`.
 
@@ -56,7 +56,7 @@ Replace the following sections in `[WORKDIR]/edge-ai-libraries/microservices/dls
                     "name": "pallet_defect_detection",
                     "source": "gstreamer",
                     "queue_maxsize": 50,
-                    "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                    "pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
                     "parameters": {
                         "type": "object",
                         "properties": {

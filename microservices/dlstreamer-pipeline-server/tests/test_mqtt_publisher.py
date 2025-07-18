@@ -16,7 +16,7 @@ from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 
 @pytest.fixture
 def setup(mocker):
-    src.common.log.configure_logging('DEBUG', False)
+    src.common.log.configure_logging('DEBUG')
 
     app_cfg = {
         'encoding': {

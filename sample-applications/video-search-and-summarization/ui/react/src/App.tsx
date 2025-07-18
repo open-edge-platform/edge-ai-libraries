@@ -16,8 +16,10 @@ import {
 } from './redux/summary/summary.ts';
 import { VideoFramesAction } from './redux/summary/videoFrameSlice.ts';
 import { VideoChunkActions } from './redux/summary/videoChunkSlice.ts';
-import { FEATURE_MUX } from './config.ts';
-import { FeatureMux } from './utils/constant.ts';
+import { FEATURE_MUX, FEATURE_SEARCH } from './config.ts';
+import { FEATURE_STATE, FeatureMux } from './utils/constant.ts';
+import { SearchActions } from './redux/search/searchSlice.ts';
+import { SearchQuery } from './redux/search/search.ts';
 
 const App: FC = () => {
   const { summaryIds } = useAppSelector(SummarySelector);
@@ -27,7 +29,7 @@ const App: FC = () => {
   const connectedSockets: Set<string> = new Set<string>();
 
   useEffect(() => {
-    if (!FeatureMux.hasOwnProperty(FEATURE_MUX)) {
+    if (!Object.keys(FeatureMux).includes(FEATURE_MUX)) {
       throw new Error(`Feature Mux ${FEATURE_MUX} is not supported`);
     }
   });
@@ -42,7 +44,7 @@ const App: FC = () => {
 
           socket.emit('join', summaryId);
 
-          const prefix = `sync/${summaryId}`;
+          const prefix = `summary:sync/${summaryId}`;
 
           socket.on(`${prefix}/status`, (statusData: UIStateStatus) => {
             dispatch(
@@ -94,7 +96,7 @@ const App: FC = () => {
           });
 
           // socket.on(
-          //   `sync/${summaryId}/summaryStream`,
+          //   `summary:sync/${summaryId}/summaryStream`,
           //   (data: SummaryStreamChunk) => {
           //     dispatch(SummaryActions.updateSummaryChunk(data));
           //   },
@@ -102,7 +104,12 @@ const App: FC = () => {
         }
       }
     }
-  }, [summaryIds]);
+    if (FEATURE_SEARCH === FEATURE_STATE.ON) {
+      socket.on('search:update', (data: SearchQuery) => {
+        dispatch(SearchActions.updateSearchQuery(data));
+      });
+    }
+  }, [connectedSockets, dispatch, summaryIds]);
 
   return (
     <>

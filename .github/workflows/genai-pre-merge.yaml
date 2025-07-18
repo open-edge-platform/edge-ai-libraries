@@ -14,10 +14,11 @@ concurrency:
 on:
   pull_request:
     branches:
-      - main
+      - jira-ITEP-70214
     paths:
       - 'sample-applications/chat-question-and-answer-core/**'
       - 'sample-applications/chat-question-and-answer/**'
+      - 'sample-applications/document-summarization/**'
       - 'microservices/document-ingestion/pgvector/**'
 
 jobs:
@@ -65,7 +66,7 @@ jobs:
         uses: ./.github/actions/discover-changed-subfolders
         with:
           project_folder: "."
-          include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,microservices/document-ingestion/pgvector"
+          include_folders: "sample-applications/chat-question-and-answer-core,sample-applications/chat-question-and-answer,sample-applications/document-summarization,microservices/document-ingestion/pgvector"
 
       - name: Debug Changed Projects
         shell: bash
@@ -121,22 +122,22 @@ jobs:
           deactivate
           rm -rf venv
           
-      - name: Upload Coverage Report
-        uses: actions/upload-artifact@v4
-        continue-on-error: true
-        with:
-          name: core-coverage-report
-          path: |
-            sample-applications/chat-question-and-answer-core/pytest-coverage.html
-            sample-applications/chat-question-and-answer-core/pytest-report.html
-            # sample-applications/chat-question-and-answer-core/htmlcov/index.html
-            # sample-applications/chat-question-and-answer-core/coverage-html/index.html
+      # - name: Upload Coverage Report
+      #   uses: actions/upload-artifact@v4
+      #   continue-on-error: true
+      #   with:
+      #     name: core-coverage-report
+      #     path: |
+      #       sample-applications/chat-question-and-answer-core/pytest-coverage.html
+      #       sample-applications/chat-question-and-answer-core/pytest-report.html
+      #       # sample-applications/chat-question-and-answer-core/htmlcov/index.html
+      #       # sample-applications/chat-question-and-answer-core/coverage-html/index.html
       
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
-        continue-on-error: true
-        with:
-          node-version: '22'
+      # - name: Setup Node.js
+      #   uses: actions/setup-node@v4
+      #   continue-on-error: true
+      #   with:
+      #     node-version: '22'
  
       - name: Install npm dependencies
         continue-on-error: true
@@ -314,16 +315,16 @@ jobs:
           deactivate
           rm -rf venv
           
-      - name: Upload Coverage Report
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: chatqna-coverage-report-qa
-          path: |
-            sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
-            sample-applications/chat-question-and-answer/pytest-report-chatqna.html
-            # sample-applications/chat-question-and-answer/htmlcov/index.html
-            # sample-applications/chat-question-and-answer/coverage-html/index.html
+      # - name: Upload Coverage Report
+      #   continue-on-error: true
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: chatqna-coverage-report-qa
+      #     path: |
+      #       sample-applications/chat-question-and-answer/pytest-coverage-chatqna.html
+      #       sample-applications/chat-question-and-answer/pytest-report-chatqna.html
+      #       # sample-applications/chat-question-and-answer/htmlcov/index.html
+      #       # sample-applications/chat-question-and-answer/coverage-html/index.html
       
       # - name: Setup Node.js
       #   uses: actions/setup-node@v4
@@ -455,6 +456,164 @@ jobs:
           path: |
             bandit_scan_report_summary_chatqna.txt
   
+  document-summarization-job:
+    needs: detect-changes
+    permissions:
+      contents: read    
+    if: contains(fromJson(needs.detect-changes.outputs.changed_projects), 'sample-applications/document-summarization')
+    runs-on: ubuntu-22.04-32core-128GB
+    env:
+      HUGGINGFACEHUB_API_TOKEN: ${{ secrets.HUGGINGFACE_API_TOKEN }}
+      LLM_MODEL: Intel/neural-chat-7b-v3-3
+      EMBEDDING_MODEL_NAME: BAAI/bge-small-en-v1.5
+      RERANKER_MODEL: BAAI/bge-reranker-base
+      VOLUME_OVMS: "$PWD"
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false   
+      
+      - name: Setup Tools
+        uses: ./.github/actions/setup-tools
+      
+      - name: Run Unit Tests for Document Summarization
+        continue-on-error: true
+        shell: bash
+        run: |
+          cd sample-applications/document-summarization
+          echo "Running unit test cases"
+          python3.12 -m venv venv
+          source venv/bin/activate
+          poetry install --with dev || true
+          poetry add pytest-html
+          source setup.sh
+          poetry run pytest tests/ --html=pytest-coverage-doc-summary.html
+          coverage run --source=. -m pytest
+          coverage report -m
+          # Install required packages
+          #poetry add pytest-cov pytest-html
+          
+          # Run tests with coverage and HTML report in one command
+          # poetry run pytest tests/ --cov=. --cov-report=html --html=pytest-report-doc-summary.html
+          
+          # For a combined coverage and test report
+          # poetry run pytest tests/ --cov=. --cov-report=term --cov-report=html:coverage-html --html=pytest-report-doc-summary.html
+          deactivate
+          rm -rf venv
+          
+      # - name: Upload Coverage Report
+      #   uses: actions/upload-artifact@v4
+      #   continue-on-error: true
+      #   with:
+      #     name: doc-summary-coverage-report
+      #     path: |
+      #       sample-applications/document-summarization/pytest-coverage-doc-summary.html
+      #       sample-applications/document-summarization/pytest-report-doc-summary.html
+      #       # sample-applications/document-summarization/htmlcov/index.html
+      #       # sample-applications/document-summarization/coverage-html/index.html
+      
+      # Note: Skipping npm/UI tests since document-summarization uses Gradio instead of React
+      
+      - name: trivy repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd sample-applications/document-summarization/
+          trivy --version
+          which trivy
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+    
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_code_scan_doc_summary.html"   
+      
+      - name: Upload trivy reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: trivy-code-scan-results-doc-summary
+          path: |
+              sample-applications/document-summarization/trivy_code_scan_doc_summary.html
+  
+
+      - name: ClamAV Antivirus Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Starting ClamAV scan on sample-applications/document-summarization/..."
+          
+          docker run --rm \
+            --mount type=bind,source=./sample-applications/document-summarization/,target=/scandir \
+            clamav/clamav:stable \
+            clamscan --recursive --log=/scandir/clamav-scan-report.log \
+            /scandir
+          
+          SCAN_EXIT_CODE=$?
+          sudo chown $USER:$USER sample-applications/document-summarization/clamav-scan-report.log 2>/dev/null || true
+          
+          if [ $SCAN_EXIT_CODE -ne 0 ]; then
+            echo "ClamAV scan failed or found issues"
+            exit 1
+          fi
+      
+      - name: Upload Antivirus Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: antivirus-report-doc-summary
+          path: sample-applications/document-summarization/clamav-scan-report.log
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+              echo "Building image doc-summary-backend and scanning"
+              docker build -f ./sample-applications/document-summarization/Dockerfile -t doc-summary-backend:latest ./sample-applications/document-summarization/
+              trivy image doc-summary-backend:latest --ignore-unfixed --format template --template "@trivy-html.tpl" -o sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
+              trivy image --quiet --format spdx-json --output sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json doc-summary-backend:latest
+              echo "completed doc-summary-backend scanning"
+              
+              # Note: document-summarization uses Gradio (not separate frontend), so only one image to scan
+              echo "print all the files"
+              pwd
+              ls -lrt
+              echo "**************************************************************"
+            
+            
+      - name: Upload Trivy Image Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report-doc-summary
+          path: |
+                sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.html
+                sample-applications/document-summarization/trivy_image_scan_doc_summary_backend.spdx.json
+      - name: Run Bandit Security Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          echo "Running Bandit security scan..."
+          
+          python -m bandit -r sample-applications/document-summarization/ -v --exit-zero > bandit_scan_report_summary_doc_summary.txt || echo "Bandit found security issues"
+          
+          echo "Bandit scan completed"
+      
+      - name: Upload Bandit Security Report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: bandit-security-report-doc-summary
+          path: |
+            bandit_scan_report_summary_doc_summary.txt  
+      
+      
   document-ingestion-job:
     needs: detect-changes
     permissions:
@@ -497,16 +656,16 @@ jobs:
           deactivate
           rm -rf venv
           
-      - name: Upload Coverage Report
-        continue-on-error: true
-        uses: actions/upload-artifact@v4
-        with:
-          name: doc_ing-coverage-report
-          path: |
-            microservices/document-ingestion/pgvector/pytest-coverage-doc_ing.html
-            microservices/document-ingestion/pgvector/pytest-report-doc_ing.html
-            # microservices/document-ingestion/pgvector/htmlcov/index.html
-            # microservices/document-ingestion/pgvector/coverage-html/index.html
+      # - name: Upload Coverage Report
+      #   continue-on-error: true
+      #   uses: actions/upload-artifact@v4
+      #   with:
+      #     name: doc_ing-coverage-report
+      #     path: |
+      #       microservices/document-ingestion/pgvector/pytest-coverage-doc_ing.html
+      #       microservices/document-ingestion/pgvector/pytest-report-doc_ing.html
+      #       # microservices/document-ingestion/pgvector/htmlcov/index.html
+      #       # microservices/document-ingestion/pgvector/coverage-html/index.html
       
      
       - name: trivy repo scan

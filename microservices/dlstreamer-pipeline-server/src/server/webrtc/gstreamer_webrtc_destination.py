@@ -75,7 +75,10 @@ class GStreamerWebRTCDestination(AppDestination):
                                        int(self._frame_size*self._cache_length))
         encoder = webrtc_pipeline.get_by_name("h264enc")
         if self.bitrate and encoder:
-            encoder.set_property("bitrate", self.bitrate)
+            # if encoder has the bitrate property, set it
+            if encoder.find_property("bitrate") is not None:
+                self._logger.debug("Setting bitrate to {} for WebRTC stream".format(self.bitrate))
+                encoder.set_property("bitrate", self.bitrate)
         self._app_src.connect('need-data', self._on_need_data)
         self._app_src.connect('enough-data', self._on_enough_data)
 

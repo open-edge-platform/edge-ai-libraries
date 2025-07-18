@@ -1,5 +1,5 @@
 # Time Series Analytics
-=======================
+========================
 
 .. toctree::
    :hidden:
@@ -7,7 +7,9 @@
    Overview
 
 .. toctree::
+   :caption: How it works
 
+   high-level-arch
    system-requirements
    get-started
 
@@ -16,6 +18,11 @@
    
    how-to-access-api
    how-to-deploy-with-helm
+
+.. toctree::
+   :caption: References
+   
+   api-reference
 
 .. toctree::
    :caption: Release Notes

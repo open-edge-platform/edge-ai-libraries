@@ -17,6 +17,17 @@ class GStreamerWebRTCManager:
                 " ! x264enc speed-preset=ultrafast name=h264enc " \
                 " ! video/x-h264,profile=baseline " \
                 " ! whipclientsink signaller::whip-endpoint="
+    
+    # GPU pipeline variants for hardware-accelerated buffers
+    _WebRTCVideoPipeline_VAMemory = " ! videoconvert ! gvawatermark " \
+                " ! vah264enc name=h264enc " \
+                " ! h264parse  " \
+                " ! whipclientsink signaller::whip-endpoint="
+                
+    _WebRTCVideoPipeline_jpeg_VAMemory = " ! vajpegdec ! videoconvert ! gvawatermark " \
+                " ! vah264enc name=h264enc " \
+                " ! h264parse  " \
+                " ! whipclientsink signaller::whip-endpoint="
 
     def __init__(self, whip_endpoint):
         self._logger = logging.get_logger('GStreamerWebRTCManager', is_static=True)
@@ -50,12 +61,34 @@ class GStreamerWebRTCManager:
                     new_caps.append(cap)
         return new_caps
 
+    def _is_gpu_buffer(self, caps):
+        """
+        Check if the caps indicate a GPU buffer type.
+        """
+        caps_string = ','.join(caps)
+        if "memory:VASurface" in caps_string:
+            return True, "VASurface"
+        elif "memory:DMABuf" in caps_string:
+            return True, "DMABuf"
+        elif "memory:VAMemory" in caps_string:
+            return True, "VAMemory"
+        return False, None
+
     def _get_launch_string(self, stream_caps, peer_id,overlay):
         s_src = "{} caps=\"{}\"".format(self._source_mediamtx, ','.join(stream_caps))
+        
+        is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
+        
         if "image/jpeg" in stream_caps:
-            video_pipeline = self._WebRTCVideoPipeline_jpeg
+            if is_gpu and buffer_type == "VAMemory":
+                video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory
+            else:
+                video_pipeline = self._WebRTCVideoPipeline_jpeg
         else:
-            video_pipeline = self._WebRTCVideoPipeline
+            if is_gpu and buffer_type == "VAMemory":
+                video_pipeline = self._WebRTCVideoPipeline_VAMemory
+            else:
+                video_pipeline = self._WebRTCVideoPipeline
         if overlay is False:
             video_pipeline = video_pipeline.replace("! gvawatermark ", "")
         elif overlay is True:
