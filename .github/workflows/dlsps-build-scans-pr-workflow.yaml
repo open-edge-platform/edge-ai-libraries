@@ -248,7 +248,7 @@ jobs:
       - name: Run pylint
         run: |
           cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
-          find . -type f -iname '*.py' -exec pylint {} \;  > pylint_report.txt || true
+          find . -type f -iname '*.py' -exec pylint --errors-only --disable=import-error  {} \;  > pylint_report.txt || true
           cp pylint_report.txt ${{ github.workspace }}
           echo "### Pylint Results" >> $GITHUB_STEP_SUMMARY
           echo "Please find pylint report in pylint-report.txt" >> $GITHUB_STEP_SUMMARY

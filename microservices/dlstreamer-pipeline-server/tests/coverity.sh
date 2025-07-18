@@ -7,7 +7,7 @@
 cd /home/pipeline-server/gst-udf-loader/
 apt update 
 apt install -y curl 
-wget --quiet https://scan.coverity.com/download/linux64 "token=$DLSPS_COVERITY_TOKEN&project=$DLSPS_COVERITY_PROJECT" -O coverity_tool.tgz 
+wget  https://scan.coverity.com/download/linux64 "token=$DLSPS_COVERITY_TOKEN&project=$DLSPS_COVERITY_PROJECT" -O coverity_tool.tgz 
 mkdir cov-analysis 
 tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
 /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
@@ -18,7 +18,7 @@ tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
 						          && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
 							            && ./home/pipeline-server/gst-udf-loader/cov-analysis/bin/cov-build --dir cov-int make"
 
-cd /home/pipeline-server/gst-udf-loader/ 
+cd /home/pipeline-server/gst-udf-loader/build
 echo "Create tarball for upload"
 tar czf coverity-output.tgz cov-int
 echo "Upload to Coverity Scan"
