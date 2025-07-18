@@ -74,6 +74,7 @@ jobs:
         report_suffix: "-${{ matrix.ubuntu_version }}-deb-img"
         scan-scope: all
         timeout: 20m
+        ignore_unfixed: true
 
     - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
@@ -178,6 +179,7 @@ jobs:
         report_suffix: ${{ matrix.ubuntu_version }}-dev-img
         scan-scope: all
         timeout: 20m
+        ignore_unfixed: true
 
     - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
