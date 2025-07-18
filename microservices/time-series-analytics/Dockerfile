@@ -26,6 +26,33 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSIO
     mv /tmp/kapacitor/udf/agent/py /app/kapacitor_python && \
     rm -rf /tmp/kapacitor
 
+RUN apt-get update && apt-get install -y intel-gpu-tools
+
+RUN export no_proxy= && \
+    apt-get update && \
+    . /etc/os-release && \
+    if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
+        echo "Ubuntu version ${VERSION_CODENAME} not supported"; \
+    else \
+        wget --no-check-certificate -qO- https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/gpu-intel-graphics.gpg && \
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gpu-intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
+        tee /etc/apt/sources.list.d/intel-gpu-"${VERSION_CODENAME}".list && \
+        apt-get update; \
+    fi && \
+    apt-get install -y --no-install-recommends \
+    intel-opencl-icd=\* ocl-icd-opencl-dev=\* intel-level-zero-gpu=\* level-zero=\* \
+    libmfx1=\* libmfxgen1=\* libvpl2=\* intel-media-va-driver-non-free=\* \
+    libgbm1=\* libigdgmm12=\* libxatracker2=\* libdrm-amdgpu1=\* \
+    va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN wget https://registrationcenter-download.intel.com/akdlm/IRC_NAS/cca951e1-31e7-485e-b300-fe7627cb8c08/intel-oneapi-base-toolkit-2025.1.0.651_offline.sh
+
+RUN sh ./intel-oneapi-base-toolkit-2025.1.0.651_offline.sh -a --silent --cli --eula accept
+
+RUN  apt update && apt install -y cmake pkg-config build-essential
+
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
 ARG PYTHON_VERSION
@@ -41,7 +68,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
-    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/app/idp/lib"
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/oneapi/2025.1/lib"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
@@ -97,4 +124,4 @@ USER $TIMESERIES_USER_NAME
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "./main.py"]
+ENTRYPOINT ["bash", "-c", "source /opt/intel/oneapi/setvars.sh && python3 main.py"]

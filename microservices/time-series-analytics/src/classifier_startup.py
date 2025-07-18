@@ -392,7 +392,9 @@ def classifier_startup(config):
     
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
-        'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:"
+        'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
+        "ONEAPI_DEVICE_SELECTOR": "level_zero:gpu",
+        "SYCL_DEVICE_FILTER": "level_zero:gpu"
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]

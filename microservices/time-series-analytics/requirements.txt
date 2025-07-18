@@ -1,5 +1,7 @@
-scikit-learn-intelex==2025.2.0
+scikit-learn-intelex==2025.7.0
 scikit-learn==1.6.1
+dpcpp-cpp-rt==2025.1.1
+dpctl==0.20.2
 protobuf==6.31.1
 modin==0.32.0
 tomlkit==0.13.2
