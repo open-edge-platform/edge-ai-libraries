@@ -16,6 +16,8 @@ import jsonschema
 from src.server.common.utils import logging
 from src.server.pipeline import Pipeline
 from src.server import schema
+import jinja2
+import copy
 
 class PipelineManager:
 
@@ -107,7 +109,7 @@ class PipelineManager:
                                         config['version'] = version
                                         # validate_config will throw warning of
                                         # missing elements but continue execution
-                                        self._validate_config(config)
+                                        # self._validate_config(config)
                                         self.logger.info("Loading Pipeline: {} version: "
                                                          "{} type: {} from {}".format(
                                                              pipeline,
@@ -272,7 +274,10 @@ class PipelineManager:
             return None, "Invalid Pipeline or Version"
 
         pipeline_type = self.pipelines[name][str(version)]['type']
-        pipeline_config = self.pipelines[name][str(version)]
+        pipeline_config = copy.deepcopy(self.pipelines[name][str(version)])
+
+        if 'template' in pipeline_config:
+            pipeline_config['template'] = jinja2.Environment(undefined=jinja2.StrictUndefined).from_string(pipeline_config['template']).render(request_original)
 
         request = request_original.copy()
 
