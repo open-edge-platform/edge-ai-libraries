@@ -16,8 +16,8 @@ spec:
     spec:        
       containers:
         - name: {{.Values.docSumUI.name}}
-          image: "{{ .Values.global.DocSum.image.ui.repository }}:{{ .Values.global.DocSum.image.ui.tag }}"
-          imagePullPolicy: "{{ .Values.global.DocSum.image.ui.pullPolicy }}"
+          image: "{{ .Values.global.docSum.image.repository }}:{{ .Values.global.docSum.image.tag }}"
+          imagePullPolicy: "{{ .Values.global.docSum.image.pullPolicy }}"
           ports:
             - containerPort: {{ .Values.docSumUI.service.port }}
           env:

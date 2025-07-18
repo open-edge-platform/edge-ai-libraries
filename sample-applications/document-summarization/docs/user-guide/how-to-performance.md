@@ -21,18 +21,18 @@ Before you begin, ensure that you have the following prerequisites:
       from locust import HttpUser, task, between
 
       class DocSumPerformanceTest(HttpUser):
-      wait_time = between(1, 5)
+          wait_time = between(1, 5)
 
-      @task
-      def summarize_document(self):
-        # Prepare a sample text file to upload
-        files = {
-            "file": ("test.txt", "This is a sample document content.", "text/plain")
-        }
-        data = {
-            "query": "Summarize the document"
-        }
-        self.client.post("/v1/docsum/summarize/", files=files, data=data)
+          @task
+          def summarize_document(self):
+              # Prepare a sample text file to upload
+              files = {
+                  "file": ("test.txt", "This is a sample document content.", "text/plain")
+              }
+              data = {
+                  "query": "Summarize the document"
+              }
+              self.client.post("/v1/docsum/summarize/", files=files, data=data)
       ```
 
 3. **Run the Performance Test**:
