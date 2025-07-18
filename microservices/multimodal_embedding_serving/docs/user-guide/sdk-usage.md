@@ -66,6 +66,7 @@ print(f"Batch embeddings shape: {len(embeddings)}x{len(embeddings[0])}")
 ### 3. Image Embeddings
 
 #### From URL
+
 ```python
 import asyncio
 
@@ -79,6 +80,7 @@ asyncio.run(process_image_url())
 ```
 
 #### From Base64
+
 ```python
 import base64
 from PIL import Image
@@ -97,7 +99,8 @@ print(f"Image embedding shape: {len(embedding)}")
 
 ### 4. Video Embeddings
 
-#### From URL
+#### From_URL
+
 ```python
 async def process_video_url():
     video_url = "https://example.com/video.mp4"
@@ -121,6 +124,7 @@ asyncio.run(process_video_url())
 ```
 
 #### From Local File
+
 ```python
 async def process_local_video():
     video_path = "/path/to/your/video.mp4"
@@ -141,6 +145,7 @@ asyncio.run(process_local_video())
 ```
 
 #### Using Specific Frame Indices
+
 ```python
 segment_config = {
     "frame_indexes": [0, 15, 30, 45, 60],  # Extract specific frames
@@ -325,6 +330,7 @@ except Exception as e:
 ## Configuration Options
 
 ### Model Selection
+
 See [Supported Models](supported-models.md) for all available models and their specifications.
 
 ```python
@@ -335,6 +341,7 @@ mobile_handler = ModelFactory.create_model("MobileCLIP/mobileclip_b")
 ```
 
 ### OpenVINO Optimization
+
 ```python
 # Enable OpenVINO for Intel hardware acceleration
 model_handler = ModelFactory.create_model(
@@ -344,12 +351,10 @@ model_handler = ModelFactory.create_model(
 ```
 
 ### Batch Processing
+
 ```python
 # Process multiple texts for better throughput
 embeddings = embedding_model.embed_documents(text_batch)
-```
-    "clip_duration": 60,  # Process first 60 seconds only
-}
 ```
 
 ## Integration Examples
@@ -414,6 +419,7 @@ async def embed_text(request: TextRequest):
 ### Common Issues
 
 1. **Model Loading Errors**
+
    ```python
    # Check available models
    from models.config import list_available_models
@@ -421,12 +427,14 @@ async def embed_text(request: TextRequest):
    ```
 
 2. **Memory Issues**
+
    ```python
    # Use smaller models for limited memory
    model_handler = ModelFactory.create_model("MobileCLIP/mobileclip_s0")
    ```
 
 3. **OpenVINO Issues**
+
    ```python
    # Disable OpenVINO if having issues
    model_handler = ModelFactory.create_model(

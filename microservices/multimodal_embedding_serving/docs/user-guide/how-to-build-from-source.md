@@ -123,6 +123,7 @@ curl http://localhost:9777/health
 ## Common Build Issues
 
 **Docker build fails:**
+
 ```bash
 # Clean build cache and retry
 docker system prune -a
@@ -130,6 +131,7 @@ docker compose -f docker/compose.yaml build --no-cache
 ```
 
 **Python dependency conflicts:**
+
 ```bash
 # Update pip and rebuild
 pip install --upgrade pip setuptools wheel

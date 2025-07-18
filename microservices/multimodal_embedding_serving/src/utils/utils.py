@@ -157,14 +157,16 @@ async def download_video(video_url: str) -> str:
         async with httpx.AsyncClient(proxies=proxies if proxies else None) as client:
             async with client.stream("GET", video_url) as response:
                 response.raise_for_status()
+                # Get filename from URL (without extension)
                 parsed_url = urlparse(video_url)
                 filename = os.path.basename(parsed_url.path)
-                # Remove the file extension if it exists
-                filename_without_ext = os.path.splitext(filename)[0]
-                unique_filename = f"{uuid.uuid4().hex}_{filename_without_ext}.mp4"
+                filename_without_ext = os.path.splitext(filename)[0] if filename else "video"
+                # Create unique filename without extension
+                unique_filename = f"{uuid.uuid4().hex}_{filename_without_ext}"
                 temp_dir = tempfile.gettempdir()
                 video_path = os.path.join(temp_dir, "videoQnA", unique_filename)
                 os.makedirs(os.path.dirname(video_path), exist_ok=True)
+                # Write video data to file
                 with open(video_path, "wb") as video_file:
                     async for chunk in response.aiter_bytes(chunk_size=8192):
                         video_file.write(chunk)
@@ -193,11 +195,13 @@ def decode_base64_video(video_base64: str) -> str:
     """
     try:
         logger.debug("Decoding base64 video")
+        # Decode the video data
         if "," in video_base64:
             video_data = base64.b64decode(video_base64.split(",")[1])
         else:
             video_data = base64.b64decode(video_base64)
-        unique_filename = f"base64DecodedVideo_{uuid.uuid4().hex}.mp4"
+        # Create filename without extension
+        unique_filename = f"base64DecodedVideo_{uuid.uuid4().hex}"
         # Get the default temporary directory based on the OS
         temp_dir = tempfile.gettempdir()
         video_path = os.path.join(temp_dir, "videoQnA", unique_filename)

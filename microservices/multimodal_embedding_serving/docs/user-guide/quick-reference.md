@@ -5,6 +5,7 @@ Essential commands and configurations for the Multimodal Embedding Serving micro
 ## 🚀 Quick Start
 
 ### Using setup.sh (Recommended)
+
 ```bash
 git clone https://github.com/intel/edge-ai-libraries.git
 cd edge-ai-libraries/microservices/multimodal_embedding_serving
@@ -17,6 +18,7 @@ docker compose -f docker/compose.yaml up -d
 ```
 
 ### Direct Docker
+
 ```bash
 docker run -d -p 9777:9777 -e EMBEDDING_MODEL_NAME="your-chosen-model" intel/multimodal-embedding-serving:latest
 ```
@@ -24,6 +26,7 @@ docker run -d -p 9777:9777 -e EMBEDDING_MODEL_NAME="your-chosen-model" intel/mul
 ## 🔧 Environment Variables
 
 ### Essential Configuration
+
 ```bash
 export EMBEDDING_MODEL_NAME="your-chosen-model"    # REQUIRED - See supported-models.md
 export EMBEDDING_DEVICE="CPU"                       # CPU or GPU
@@ -31,6 +34,7 @@ export EMBEDDING_USE_OV="true"                      # Enable OpenVINO
 ```
 
 ### Optional Configuration
+
 ```bash
 export EMBEDDING_OV_MODELS_DIR="./ov-models"       # OpenVINO cache directory
 export DEFAULT_NUM_FRAMES=32                        # Video frame extraction
@@ -40,11 +44,13 @@ export DEFAULT_CLIP_DURATION=60                     # Video segment length (seco
 ## 🌐 API Examples
 
 ### Health Check
+
 ```bash
 curl http://localhost:9777/health
 ```
 
 ### Text Embedding
+
 ```bash
 curl -X POST http://localhost:9777/embeddings \
   -H "Content-Type: application/json" \
@@ -55,6 +61,7 @@ curl -X POST http://localhost:9777/embeddings \
 ```
 
 ### Image Embedding
+
 ```bash
 curl -X POST http://localhost:9777/embeddings \
   -H "Content-Type: application/json" \
@@ -65,6 +72,7 @@ curl -X POST http://localhost:9777/embeddings \
 ```
 
 ### Video Embedding
+
 ```bash
 curl -X POST http://localhost:9777/embeddings \
   -H "Content-Type: application/json" \
@@ -77,7 +85,8 @@ curl -X POST http://localhost:9777/embeddings \
     "model": "'$EMBEDDING_MODEL_NAME'"
   }'
 ```
-##  Docker Compose
+
+## Docker Compose
 
 ```yaml
 version: '3.8'
@@ -97,6 +106,7 @@ services:
 ## 🔍 Troubleshooting
 
 ### Check Service Status
+
 ```bash
 curl http://localhost:9777/health                    # Health check
 curl http://localhost:9777/model/current            # Current model info
@@ -104,6 +114,7 @@ docker logs multimodal-embedding-serving            # Container logs
 ```
 
 ### Common Issues
+
 ```bash
 # Model loading failed - check available models
 curl http://localhost:9777/model/list

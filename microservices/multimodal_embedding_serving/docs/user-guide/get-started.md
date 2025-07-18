@@ -98,11 +98,13 @@ See [How to Build from Source](how-to-build-from-source.md) for detailed develop
 ## Troubleshooting
 
 **Service fails to start:**
+
 ```bash
 docker logs multimodal-embedding-serving
 ```
 
 **Model not found:**
+
 ```bash
 # Check if model is supported
 echo $EMBEDDING_MODEL_NAME
@@ -113,6 +115,7 @@ source setup.sh
 ```
 
 **GPU issues:**
+
 ```bash
 # Check Intel GPU availability
 ls -la /dev/dri

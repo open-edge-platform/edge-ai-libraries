@@ -76,12 +76,18 @@ export EMBEDDING_DEVICE=CPU  # or GPU
 ## Input Formats and API Compatibility
 
 ### Supported Input Formats
-- **Text**: UTF-8 strings (all models)
-- **Images**: JPEG, PNG, WebP, base64-encoded
-- **Videos**: MP4, AVI, MOV, base64-encoded
+
+- **Text**: UTF-8 strings
+- **Images**: JPEG, PNG, WebP, base64-encoded (and other formats supported by PIL)
+- **Videos**: Any format supported by FFmpeg (MP4, AVI, MOV, FLV, WMV, MKV, VOB, WebM, etc.), base64-encoded
 
 ### API Compatibility
+
 All models are compatible with the OpenAI embeddings API format, ensuring seamless integration with existing applications.
+
+### Video Format Handling
+
+The service automatically detects video formats using FFmpeg's content analysis, eliminating the need for file extensions. This provides maximum compatibility with various video container formats and codecs.
 
 ## Querying Model Information
 
