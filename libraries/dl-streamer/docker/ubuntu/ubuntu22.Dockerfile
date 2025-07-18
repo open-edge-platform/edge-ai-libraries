@@ -73,7 +73,7 @@ RUN \
 
 # Intel NPU drivers and prerequisites installation
 RUN \
-    mkdir -p ./npu_debs && cd /tmp/npu_debs && \
+    mkdir -p ./npu_debs && \
     curl -sSL -o ./npu_debs/level-zero_1.17.44+u22.04_amd64.deb https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb && \
     curl -sSL --insecure https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 | \
     grep -oP 'href="\K[^"]*'22.04'[^"]*\.deb' | \

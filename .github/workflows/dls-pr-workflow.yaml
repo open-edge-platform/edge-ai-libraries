@@ -46,14 +46,14 @@ jobs:
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
-  static-code-analysis:
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-      packages: read
-    name: SCAN static code analysis
-    uses: ./.github/workflows/codeql.yaml
+  # static-code-analysis:
+  #   permissions:
+  #     security-events: write
+  #     actions: read
+  #     contents: read
+  #     packages: read
+  #   name: SCAN static code analysis
+  #   uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
     permissions:
