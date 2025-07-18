@@ -65,7 +65,7 @@ jobs:
 
     # ======================================================== SCANNING PART ========================================================
     - name: 🔍 Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
         scan_target: "ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
         severity: "HIGH"
@@ -170,7 +170,7 @@ jobs:
 
     # ======================================================== SCANNING PART ========================================================
     - name: Scan Docker image with Trivy
-      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@5ea97eb41959d0922ab99956b4db23910f4fb4a2
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
         scan_target: "ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest"
         severity: "HIGH"
