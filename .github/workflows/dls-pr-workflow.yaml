@@ -174,14 +174,13 @@ jobs:
         run: |
           curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
           chmod +x hadolint
-          sudo mv hadolint /usr/local/bin/
+          mv hadolint /usr/local/bin/
 
       - name: Run Hadolint
         run: |
           hadolint ${{ matrix.dockerfile }} \
             --format tty \
             | tee ${{ matrix.output-file }}
-        continue-on-error: true
 
       - name: Upload Hadolint report as artifact
         if: always()
