@@ -9,7 +9,7 @@ DL Streamer Pipeline Server can execute multiple input streams in parallel. If s
 1. Update the default config present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`. Replace `pipeline` parameter in default config with below `pipeline`.
 
 ```sh
-"pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection model-instance-id=inst0 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 2. Allow DL Streamer Pipeline Server to read the above modified configuration by volume mounting the modified default config in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).

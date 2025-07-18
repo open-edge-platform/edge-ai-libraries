@@ -7,7 +7,7 @@ For multi stream pipelines using same pipeline configuration, it is recommended 
 Below is an example that demonstrates cross stream batching. 4 frames at a time.
 
 ```sh
-"pipeline": "{auto_source} name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection batch-size=4 model-instance-id=1 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection batch-size=4 model-instance-id=1 ! queue ! gvawatermark ! gvafpscounter ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
 Choosing the right batch size:
