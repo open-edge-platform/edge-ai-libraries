@@ -106,16 +106,16 @@ def download_file(url, local_filename):
     with requests.get(url, stream=True) as response:
         response.raise_for_status()  # Check if the request was successful
         # Open a local file with write-binary mode
-        with open(TEMP_DIR+local_filename, "wb") as file:
+        with open(os.path.join(TEMP_DIR, local_filename), "wb") as file:
             # Iterate over the response content in chunks
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
 
 # Set video path for the input video player
 def set_video_path(filename):
-    if not os.path.exists(TEMP_DIR + filename):
+    if not os.path.exists(os.path.join(TEMP_DIR, filename)):
         return gr.update(label="Error: Video file not found. Verify the recording URL or proxy settings.", value=None)
-    return gr.update(label="Input Video", value=TEMP_DIR + filename)
+    return gr.update(label="Input Video", value=os.path.join(TEMP_DIR, filename))
 
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
