@@ -99,7 +99,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
     ```bash
     # Install application dependencies packages using Poetry
     cd ~/<repository-url>/sample-applications/chat-question-and-answer-core
-    poetry install --with dev
+    poetry install --with dev --no-root
     ```
 
 6. **Setup the Environment Variables**
@@ -168,7 +168,7 @@ If you prefer not to use virtual environment, please follow these steps:
    ```bash
    # Install application dependencies packages
    cd ~/<repository-url>/sample-applications/chat-question-and-answer-core/
-   poetry install --with dev
+   poetry install --with dev --no-root
    ```
 
 3. **Setup the Environment Variables**

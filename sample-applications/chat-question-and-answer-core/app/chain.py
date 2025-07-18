@@ -1,4 +1,4 @@
-from .config import Settings
+from .config import config
 from .utils import login_to_huggingface, download_huggingface_model, convert_model
 from .document import load_file_document
 from .logger import logger
@@ -14,65 +14,47 @@ from langchain_core.prompts import ChatPromptTemplate
 import os
 import pandas as pd
 
-config = Settings()
 vectorstore = None
 
 # The RUN_TEST flag is used to bypass the model download and conversion steps during pytest unit testing.
-# By default, the flag is set to 'false', enabling the model download and conversion process in a normal run.
-# To skip these steps, set the flag to 'true'.
-# Check environment flag
-RUN_TEST = os.getenv('RUN_TEST', False)
-
-if not RUN_TEST:
+# If RUN_TEST is set to "True", the model download and conversion steps are skipped.
+# This flag is set in the conftest.py file before running the tests.
+if os.getenv("RUN_TEST", "").lower() != "true":
     # login huggingface
     login_to_huggingface(config.HF_ACCESS_TOKEN)
 
     # Download convert the model to openvino optimized
-    download_huggingface_model(config.EMBEDDING_MODEL_ID, config.CACHE_DIR)
-    download_huggingface_model(config.RERANKER_MODEL_ID, config.CACHE_DIR)
-    download_huggingface_model(config.LLM_MODEL_ID, config.CACHE_DIR)
+    download_huggingface_model(config.EMBEDDING_MODEL_ID, config._CACHE_DIR)
+    download_huggingface_model(config.RERANKER_MODEL_ID, config._CACHE_DIR)
+    download_huggingface_model(config.LLM_MODEL_ID, config._CACHE_DIR)
 
     # Convert to openvino IR
-    convert_model(config.EMBEDDING_MODEL_ID, config.CACHE_DIR, "embedding")
-    convert_model(config.RERANKER_MODEL_ID, config.CACHE_DIR, "reranker")
-    convert_model(config.LLM_MODEL_ID, config.CACHE_DIR, "llm")
+    convert_model(config.EMBEDDING_MODEL_ID, config._CACHE_DIR, "embedding")
+    convert_model(config.RERANKER_MODEL_ID, config._CACHE_DIR, "reranker")
+    convert_model(config.LLM_MODEL_ID, config._CACHE_DIR, "llm")
 
-    # Define RAG prompt
-    template = """
-    Use the following pieces of context from retrieved
-    dataset to answer the question. Do not make up an answer if there is no
-    context provided to help answer it.
 
-    Context:
-    ---------
-    {context}
-
-    ---------
-    Question: {question}
-    ---------
-
-    Answer:
-    """
+    template = config.PROMPT_TEMPLATE
 
     prompt = ChatPromptTemplate.from_template(template)
 
     # Initialize Embedding Model
     embedding = OpenVINOBgeEmbeddings(
-        model_name_or_path=f"{config.CACHE_DIR}/{config.EMBEDDING_MODEL_ID}",
+        model_name_or_path=f"{config._CACHE_DIR}/{config.EMBEDDING_MODEL_ID}",
         model_kwargs={"device": config.EMBEDDING_DEVICE, "compile": False},
     )
     embedding.ov_model.compile()
 
     # Initialize Reranker Model
     reranker = OpenVINOReranker(
-        model_name_or_path=f"{config.CACHE_DIR}/{config.RERANKER_MODEL_ID}",
+        model_name_or_path=f"{config._CACHE_DIR}/{config.RERANKER_MODEL_ID}",
         model_kwargs={"device": config.RERANKER_DEVICE},
         top_n=2,
     )
 
     # Initialize LLM
     llm = HuggingFacePipeline.from_model_id(
-        model_id=f"{config.CACHE_DIR}/{config.LLM_MODEL_ID}",
+        model_id=f"{config._CACHE_DIR}/{config.LLM_MODEL_ID}",
         task="text-generation",
         backend="openvino",
         model_kwargs={
@@ -80,7 +62,7 @@ if not RUN_TEST:
             "ov_config": {
                 "PERFORMANCE_HINT": "LATENCY",
                 "NUM_STREAMS": "1",
-                "CACHE_DIR": f"{config.CACHE_DIR}/{config.LLM_MODEL_ID}/model_cache",
+                "CACHE_DIR": f"{config._CACHE_DIR}/{config.LLM_MODEL_ID}/model_cache",
             },
             "trust_remote_code": True,
         },

@@ -11,4 +11,5 @@ global:
 
 uiService:
   type: ClusterIP
-  port: 80
+  port: 8102
+  targetPort: 8102

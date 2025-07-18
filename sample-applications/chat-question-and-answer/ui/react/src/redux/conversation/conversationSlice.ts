@@ -453,7 +453,7 @@ export const doConversation = (conversationRequest: ConversationRequest) => {
 
   const body = {
     input: userPrompt.content,
-    MAX_TOKENS: MAX_TOKENS,
+    max_tokens: MAX_TOKENS,
   };
 
   store.dispatch(setIsGenerating(true));

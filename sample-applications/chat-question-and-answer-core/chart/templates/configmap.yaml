@@ -1,0 +1,22 @@
+{{- if .Values.configmap.enabled }}
+{{- include "chatqna-core.validateGpuSettings" . }}
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: model-config
+data:
+  config.yaml: |
+    model_settings:
+      EMBEDDING_MODEL_ID: "{{ .Values.global.EMBEDDING_MODEL }}"
+      RERANKER_MODEL_ID: "{{ .Values.global.RERANKER_MODEL }}"
+      LLM_MODEL_ID: "{{ .Values.global.LLM_MODEL }}"
+      MAX_TOKENS: {{ .Values.global.MAX_TOKENS }}
+      {{- if .Values.global.PROMPT_TEMPLATE }}
+      PROMPT_TEMPLATE: |
+      {{ .Values.global.PROMPT_TEMPLATE | nindent 8 }}
+      {{- end }}
+    device_settings:
+      EMBEDDING_DEVICE: "{{ .Values.global.EMBEDDING_DEVICE }}"
+      RERANKER_DEVICE: "{{ .Values.global.RERANKER_DEVICE }}"
+      LLM_DEVICE: "{{ .Values.global.LLM_DEVICE }}"
+{{- end}}

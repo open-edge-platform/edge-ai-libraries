@@ -1,9 +1,8 @@
-from .config import Settings
+from .config import config
 from typing import Optional
 import logging
 import sys
 
-config = Settings()
 
 def initialize_logger(name: Optional[str] = None) -> logging.Logger:
     """

@@ -13,7 +13,7 @@ from .chain import process_chunks
 import httpx
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
-app = FastAPI(root_path="/v1/chatqna")
+app = FastAPI(title="Chat Question and Answer", root_path="/v1/chatqna")
 
 # Add CORS middleware
 app.add_middleware(
@@ -53,7 +53,7 @@ async def redirect_root_to_docs():
 
 class QuestionRequest(BaseModel):
     input: str
-    MAX_TOKENS: int
+    max_tokens: int
 
 
 @app.get("/health")
@@ -107,8 +107,8 @@ async def query_chain(payload: QuestionRequest):
 
     Args:
         payload (QuestionRequest): The request payload containing the input question text
-        MaX_TOKENS (int): The maximum number of tokens to process. Defaults to 512 if not provided.
-        or set to 4096 if provided.
+        max_tokens (int): The maximum number of tokens to process. Defaults to 512 if not provided.
+        or set to 1024 if provided.
 
     Returns:
         StreamingResponse: A streaming response with the processed chunks of the question text.
@@ -117,9 +117,9 @@ async def query_chain(payload: QuestionRequest):
         HTTPException: If the input question text is empty or not provided, a 422 status code is returned.
     """
     question_text = payload.input
-    max_tokens = payload.MAX_TOKENS if payload.MAX_TOKENS else 512
+    max_tokens = payload.max_tokens if payload.max_tokens else 512
     if max_tokens > 1024:
-        raise HTTPException(status_code=422, detail="MAX_TOKENS cannot be greater than 1024")
+        raise HTTPException(status_code=422, detail="max_tokens cannot be greater than 1024")
     if not question_text or question_text == "":
         raise HTTPException(status_code=422, detail="Question is required")
     return StreamingResponse(process_chunks(question_text,max_tokens), media_type="text/event-stream")

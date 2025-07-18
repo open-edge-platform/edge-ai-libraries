@@ -12,7 +12,7 @@ chatqnaui:
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 80
+    port: 8101
     targetPort: 8101
   env:
     APP_ENDPOINT_URL: "/v1/chatqna"
