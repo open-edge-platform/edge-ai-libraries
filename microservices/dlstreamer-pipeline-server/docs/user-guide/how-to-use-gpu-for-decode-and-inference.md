@@ -75,7 +75,7 @@ DLStreamer inference elements also provides property such as `pre-process-backen
         docker compose down
         docker compose up
     ```
-- We should see the metadata results in `/tmp/results.jsonl` file like in previous tutorial.
+- We should see the metadata results in `/tmp/results.jsonl` file.
 
 - To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://dlstreamer.github.io/dev_guide/performance_guide.html)
 

@@ -40,7 +40,7 @@
         docker compose down
         docker compose up
     ```
-- We should see the metadata results in `/tmp/results.jsonl` file like in previous tutorial.
+- We should see the metadata results in `/tmp/results.jsonl` file.
 
 - To perform decode and inference on GPU, please see [this document](./how-to-use-gpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://dlstreamer.github.io/dev_guide/performance_guide.html)
 
