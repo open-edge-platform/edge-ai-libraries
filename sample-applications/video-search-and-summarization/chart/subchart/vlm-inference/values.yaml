@@ -7,8 +7,8 @@ global:
 vlminference:
   name: vlm-inference-microservice
   image:
-    repository: "intel/vlm-openvino-serving"
-    tag: "1.2.0"
+    repository: amr-fm-registry.caas.intel.com/esh-user/egai/vlm-openvino-serving
+    tag: rc5
     pullPolicy: "IfNotPresent"
   service:
     type: ClusterIP

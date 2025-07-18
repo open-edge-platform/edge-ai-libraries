@@ -3,11 +3,11 @@
 replicaCount: 1
 
 image:
-  repository: intel/vdms-dataprep
+  repository: amr-fm-registry.caas.intel.com/esh-user/egai/vdms-dataprep
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "1.2.0"
+  tag: rc5
 
 imagePullSecrets: []
 # This is to override the chart name.

@@ -14,8 +14,8 @@ videoingestion:
   fullnameOverride: videoingestion
   fullname: videoingestion
   image:
-    repository: "intel/video-ingestion"
-    tag: "1.2.0"
+    repository: amr-fm-registry.caas.intel.com/esh-user/egai/video-ingestion
+    tag: rc5
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

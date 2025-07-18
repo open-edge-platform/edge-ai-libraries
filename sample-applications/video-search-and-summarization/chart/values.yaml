@@ -48,8 +48,8 @@ minioServer:
 videoSummaryManager:
   name: videosummarybackend
   image:
-    repository: amr-fm-registry.caas.intel.com/esh-user/egai/pipeline-manager:rc4.4
-    tag: 1.2.0
+    repository: amr-fm-registry.caas.intel.com/esh-user/egai/pipeline-manager
+    tag: rc5
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

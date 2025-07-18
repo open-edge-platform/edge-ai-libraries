@@ -2,12 +2,12 @@ replicaCount: 1
 
 image:
     cpu:
-        repository: intel/multimodal-embedding-serving
+        repository: amr-fm-registry.caas.intel.com/esh-user/egai/multimodal-embedding-serving
     gpu:
         repository: intel/multimodal-embedding-serving-arc-gpu
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.2.0"
+    tag: rc5
 
 imagePullSecrets: []
 nameOverride: ''

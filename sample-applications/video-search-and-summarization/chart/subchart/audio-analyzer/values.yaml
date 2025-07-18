@@ -13,8 +13,8 @@ global:
 audioanalyzer:
   name: audioanalyzer
   image:
-    repository: intel/audio-analyzer
-    tag: 1.2.0
+    repository: amr-fm-registry.caas.intel.com/esh-user/egai/audio-intelligence
+    tag: rc5
     pullPolicy: IfNotPresent
   env:
     DEBUG: "false"
