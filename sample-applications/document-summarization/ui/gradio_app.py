@@ -5,7 +5,6 @@ import os
 import sys
 import logging
 import traceback
-import tempfile
 import requests
 import gradio as gr
 from app.config import Settings
@@ -60,8 +59,8 @@ def summarize_document(file_obj, custom_query=None):
         
         logger.info(f"Sending request to {docsum_endpoint} with query: {query}")
         
-        # Send the request to the API
-        response = requests.post(docsum_endpoint, files=files, data=data)
+        # Send the request to the API with timeout
+        response = requests.post(docsum_endpoint, files=files, data=data, timeout=300)
         
         # Check if the request was successful
         if response.status_code == 200:
@@ -117,13 +116,14 @@ def create_ui():
     return demo
 
 if __name__ == "__main__":
-    # Get port from environment or use default
+    # Get port and host from environment or use defaults
     port = int(config.GRADIO_PORT)
+    host = config.GRADIO_HOST  # Uses 127.0.0.1 by default for security
     
     # Create and launch the UI
     demo = create_ui()
     demo.launch(
-        server_name="0.0.0.0",
+        server_name=host,
         server_port=port,
         share=False,
         inbrowser=False,

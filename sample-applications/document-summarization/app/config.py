@@ -27,4 +27,8 @@ class Settings(BaseSettings):
     API_URL: str
     CHUNK_SIZE: int
     
+    # Host binding configuration for security
+    API_HOST: str = "127.0.0.1"  # Default to localhost only
+    GRADIO_HOST: str = "127.0.0.1"  # Default to localhost only
+
     model_config = SettingsConfigDict(env_file=enviornment_file ,extra="ignore")
