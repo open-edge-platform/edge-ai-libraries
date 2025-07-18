@@ -83,7 +83,7 @@ def create_ui():
         gr.Markdown(f"Upload a {', '.join(config.SUPPORTED_FILE_TYPES)} and get a summary using advanced AI models.")
         
         with gr.Row():
-            with gr.Column(scale=1):
+            with gr.Column(scale=1) as input_col:
                 # Input components
                 file_input = gr.File(
                     label="Upload Document",
@@ -103,9 +103,17 @@ def create_ui():
                 
         # Set up the event handler
         submit_btn.click(
+            lambda: (gr.update(interactive=False), gr.update(interactive=False)),
+            None,
+            [file_input, submit_btn]
+        ).then(
             fn=summarize_document,
             inputs=[file_input],
             outputs=output
+        ).then(
+            lambda: (gr.update(interactive=True), gr.update(interactive=True)),
+            None,
+            [file_input, submit_btn]
         )
         
         gr.Markdown("### Notes")
