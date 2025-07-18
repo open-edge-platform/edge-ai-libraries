@@ -176,7 +176,7 @@ jobs:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
 
-      - name: Upload Trivy report as artifact
+      - name: Upload Hadolint report as artifact
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
           name: hadolint-report-${{ matrix.name }}
