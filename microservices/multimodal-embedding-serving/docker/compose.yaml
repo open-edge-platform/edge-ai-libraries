@@ -4,7 +4,7 @@
 services:
   multimodal-embedding-serving:
     image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
-    container_name: vclip-embedding
+    container_name: multimodal-embedding
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -23,6 +23,7 @@ services:
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
       USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+      DEBUG_MODE: ${DEBUG_MODE:-False}
     group_add:
       - ${USER_GROUP_ID-1000}
       - ${VIDEO_GROUP_ID}

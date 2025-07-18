@@ -90,24 +90,25 @@ class Qwen3Model(nn.Module):
         Process texts with the configured max sequence length.
         """
         logger.debug(f"Generating text embeddings for: {texts}")
-        text_inputs = self.tokenizer(
+        input_tokens = self.tokenizer(
             texts,
-            padding="max_length",
+            padding=True,
             truncation=True,
             max_length=self.max_length,
             return_tensors="pt",
         )
 
-        text_inputs.to(self.model.device)
-        output = self.model(**text_inputs)
+        input_tokens.to(self.model.device)
+        with torch.no_grad():
+            # Forward pass through the model
+            output = self.model(**input_tokens)
+            logger.debug(f"Input text shape: {input_tokens['input_ids'].shape}")
 
-        logger.debug(f"Input text shape: {text_inputs['input_ids'].shape}")
+            embeddings = self._last_token_pool(output.last_hidden_state, input_tokens["attention_mask"])
+            logger.debug(f"Embeddings shape: {embeddings.shape}")
 
-        embeddings = self._last_token_pool(output.last_hidden_state, text_inputs["attention_mask"])
-        logger.debug(f"Embeddings shape: {embeddings.shape}")
-
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-        logger.debug(f"Normalized embeddings: {embeddings}")
+            embeddings = F.normalize(embeddings, p=2, dim=1)
+            logger.debug(f"Normalized embeddings: {embeddings}")
 
         return embeddings
 

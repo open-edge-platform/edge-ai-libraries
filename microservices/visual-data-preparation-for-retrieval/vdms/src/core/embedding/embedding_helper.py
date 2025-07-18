@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import pathlib
-from typing import List
+from typing import Any, List
 
 from src.common import Strings, logger, settings
 from src.core.db import VDMSClient
@@ -11,6 +11,38 @@ from src.core.util import read_config, store_video_metadata
 from .embedding_api import QwenEmbeddings, vCLIPEmbeddings
 from .embedding_model import Qwen3, vCLIP
 from .embedding_service import vCLIPEmbeddingServiceWrapper
+
+# Cache to store a created vdms client and embedding model instances
+_client_cache: dict[str, VDMSClient] = {}
+_model_cache: dict[str, Any] = {}
+
+
+def _get_client_key(
+    video_metadata_path: pathlib.Path | None = None, endpoint: str | None = None
+) -> str:
+    """
+    Generate a unique key for the VDMS client based on video metadata path or endpoint. Different keys are used
+    to cache the VDMS Client Object based on use cases -
+    a. When an external endpoint is used as an embedder service
+    b. When a video metadata path is provided for local embedding generation
+    c. When text metadata is provided for local embedding generation
+
+    Args:
+        video_metadata_path: Path to the video metadata file
+        endpoint: Endpoint URL for the external embedding service
+
+    Returns:
+        A unique string key for the VDMS client
+    """
+
+    # Caching vdms client for each endpoint.
+    # Different endpoints can have different configs (eg. embedding dimensions, model names, etc.)
+    if endpoint:
+        return f"vdms_client_{endpoint}"
+
+    # Video and text usecase use different fixed keys.
+    is_video = video_metadata_path is not None and video_metadata_path.exists()
+    return "vdms_client_video" if is_video else "vdms_client_text"
 
 
 def _setup_vdms_client(
@@ -31,6 +63,14 @@ def _setup_vdms_client(
     if config is None:
         raise Exception(Strings.config_error)
 
+    client_key = _get_client_key(
+        video_metadata_path=video_metadata_path, endpoint=settings.MULTIMODAL_EMBEDDING_ENDPOINT
+    )
+
+    if client_key in _client_cache:
+        logger.debug(f"Using cached VDMS client for key: {client_key}")
+        return _client_cache[client_key]
+
     # Setup embedding APIs
     if settings.MULTIMODAL_EMBEDDING_ENDPOINT:
         # Access the embedding API from an external REST microservice
@@ -42,20 +82,37 @@ def _setup_vdms_client(
         vector_dimensions = embedding_service.get_embedding_length()
     else:
         # Set local embedder for creating text or video embeddings based on provided parameters
+        model: Any = None
         if video_metadata_path:
-            embedding_service = vCLIPEmbeddings(model=vCLIP(config["embeddings"]))
-            vector_dimensions = config["embeddings"]["clip_vector_dimensions"]
+            # Get the model from cache else update the cache with model instance
+            model_key = config["embeddings"]["vclip_model_name"]
+            if model_key in _model_cache:
+                model = _model_cache[model_key]
+                logger.debug(f"Using cached model for key: {model_key}")
+            else:
+                model = vCLIP(config["embeddings"])
+                _model_cache[model_key] = model
+
         elif text_metadata:
-            embedding_service = QwenEmbeddings(model=Qwen3(config["embeddings"]))
-            vector_dimensions = config["embeddings"]["qwen_vector_dimensions"]
+            model_key = config["embeddings"]["qwen_model_name"]
+            if model_key in _model_cache:
+                model = _model_cache[model_key]
+                logger.debug(f"Using cached model for key: {model_key}")
+            else:
+                model = Qwen3(config["embeddings"])
+                _model_cache[model_key] = model
+
         else:
             logger.error(
                 "Error: No video metadata or text metadata provided for embedding generation."
             )
             raise Exception(Strings.embedding_error)
 
-    # Initialize VDMS db client
-    vdms = VDMSClient(
+        embedding_service = vCLIPEmbeddings(model=model)
+        vector_dimensions = model.get_embedding_dimensions()
+
+    # Initialize VDMS DB client
+    client = VDMSClient(
         host=settings.VDMS_VDB_HOST,
         port=settings.VDMS_VDB_PORT,
         collection_name=settings.DB_COLLECTION,
@@ -65,7 +122,10 @@ def _setup_vdms_client(
         embedding_dimensions=vector_dimensions,
     )
 
-    return vdms
+    # Update the client cache with the created VDMS client
+    _client_cache[client_key] = client
+    logger.debug(f"VDMS client created and cached with key: {client_key}")
+    return client
 
 
 async def generate_video_embedding(
