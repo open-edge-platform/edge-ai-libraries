@@ -198,4 +198,5 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest || true
+
