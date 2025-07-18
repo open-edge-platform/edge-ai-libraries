@@ -165,11 +165,22 @@ jobs:
             dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
             output-file: reports/hadolint-dlstreamer-testing-ubuntu.json
     steps:
-      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      - uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf #3.1.0
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Run Hadolint 
+        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf #3.1.0
         with:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
+
+      - name: Upload Trivy report as artifact
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        with:
+          name: hadolint-report-${{ matrix.name }}
+          path: ${{ matrix.output-file }}
 
   clamav:
     permissions:
