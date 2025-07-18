@@ -31,11 +31,11 @@ $(VENV_DIR): requirements.txt ## Create Python venv
 
 all: lint build run test ## Run lint, build, run and test
 
-lint: $(VENV_DIR) mdlint ruff pyright ## Run all linters
+lint: $(VENV_DIR) mdlint pyright ruff ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
-	# download tool from https://github.com/igorshubovych/markdownlint-cli
+# download tool from https://github.com/igorshubovych/markdownlint-cli
 	markdownlint --version
 	markdownlint $(MD_FILES)
 
