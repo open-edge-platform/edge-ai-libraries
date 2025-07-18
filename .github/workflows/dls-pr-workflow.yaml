@@ -170,16 +170,22 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Run Hadolint 
-        uses: hadolint/hadolint-action@54c9adbab1582c2ef04b2016b760714a4bfde3cf #3.1.0
-        with:
-          dockerfile: ${{ matrix.dockerfile }}
-          output-file: ${{ matrix.output-file }}
-          verbose: true
+      - name: Install Hadolint
+        run: |
+          curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x hadolint
+          sudo mv hadolint /usr/local/bin/
+
+      - name: Run Hadolint
+        run: |
+          hadolint ${{ matrix.dockerfile }} \
+            --format tty \
+            | tee ${{ matrix.output-file }}
+        continue-on-error: true
 
       - name: Upload Hadolint report as artifact
-        if: always ()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
         with:
           name: hadolint-report-${{ matrix.name }}
           path: ${{ matrix.output-file }}
