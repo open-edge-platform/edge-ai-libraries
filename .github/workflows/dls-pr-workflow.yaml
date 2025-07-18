@@ -154,16 +154,16 @@ jobs:
         include:
           - name: dlstreamer_ubuntu22
             dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
-            output-file: reports/hadolint-dlstreamer_ubuntu22.json
+            output-file: hadolint-dlstreamer_ubuntu22.json
           - name: dlstreamer_ubuntu24
             dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
-            output-file: reports/hadolint-dlstreamer_ubuntu24.json
+            output-file: hadolint-dlstreamer_ubuntu24.json
           - name: dlstreamer_fedora41
             dockerfile: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
-            output-file: reports/hadolint-dlstreamer_fedora41.json
+            output-file: hadolint-dlstreamer_fedora41.json
           - name: dlstreamer-testing-ubuntu
             dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
-            output-file: reports/hadolint-dlstreamer-testing-ubuntu.json
+            output-file: hadolint-dlstreamer-testing-ubuntu.json
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -175,8 +175,10 @@ jobs:
         with:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
+          verbose: true
 
       - name: Upload Hadolint report as artifact
+        if: always ()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
           name: hadolint-report-${{ matrix.name }}
