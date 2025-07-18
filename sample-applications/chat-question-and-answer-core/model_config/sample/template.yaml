@@ -40,7 +40,7 @@ model_settings:
     Answer:
 
   # Optional: Maximum number of tokens in the model's response.
-  # Suggested value not to more than 1024 tokens.
+  # Maximum token 1024. Not exceeding this limit to avoid errors.
   MAX_TOKENS: 1024
 
 device_settings:
