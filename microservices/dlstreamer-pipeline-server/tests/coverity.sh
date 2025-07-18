@@ -16,7 +16,7 @@ tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
 			              && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
 				                && cd build \
 						          && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
-							            && ../cov-analysis/bin/cov-build --dir cov-int make"
+							            && ./home/pipeline-server/gst-udf-loader/cov-analysis/bin/cov-build --dir cov-int make"
 
 cd /home/pipeline-server/gst-udf-loader/ 
 echo "Create tarball for upload"
