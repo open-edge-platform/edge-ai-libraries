@@ -108,12 +108,32 @@ jobs:
         severity: "CRITICAL"
         # output-format: "json"
         output-file: "dlsps-${{ matrix.ubuntu_version }}-extended-trivy-image-report.txt"
-    - name: Upload Trivy report as artifact
+    - name: Upload Trivy image report as artifact
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: dlsps-${{ matrix.ubuntu_version }}-trivy-image-report
         path: dlsps-${{ matrix.ubuntu_version }}*-trivy-image-report.txt
+
+    - name: Run Trivy Filesystem Scan
+      run: |
+        
+        docker pull aquasec/trivy:0.63.0
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+        mkdir -p reports
+        trivy image --download-db-only
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+       
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true 
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --list-all-pkgs --format template --template "@/src/trivy-html.tpl" --output "/src/reports/trivy-fs-full-report.csv" /src/ || true
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --ignore-unfixed /src | tee ./reports/trivy-fs-full-report.txt
+        mv ./reports ${{ github.workspace }}
+    - name: Upload Trivy Filesystem Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-fs-reports
+        path: reports/*    
+    
     - name: Create summary
       if: always()
       run: |
@@ -173,54 +193,21 @@ jobs:
                docker rmi -f $(docker images -aq) || true
         fi
 
-  filter-docker-related-changes:
+  
+  trivy-config-dockerfile-scan:
     permissions:
       contents: read
-    name: Detect changes in docker directory
-    runs-on: ubuntu-latest
-    outputs:
-      docker_changed: ${{ steps.check.outputs.docker_changed }}
-    steps:
-      - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-        with:
-          persist-credentials: false
-          fetch-depth: 0
-
-      - name: Fetch main branch for comparison
-        run: git fetch origin main
-
-      - id: check
-        name: Detect changes in docker directory
-        run: |
-          echo "🔍 Checking for changes in 'microservices/dlstreamer-pipeline-server/docker'..."
-          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
-          echo "📄 Changed files:"
-          echo "$CHANGED_FILES"
-          if echo "$CHANGED_FILES" | grep -q '^microservices/dlstreamer-pipeline-server/docker'; then
-            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
-            echo "🟡 Docker-related changes detected."
-          else
-            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
-            echo "✅ No docker-related changes."
-          fi
-
-  trivy-config-scan:
-    permissions:
-      contents: read
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: Scan dlsps docker file
+    name: Scan Dockerfile
     strategy:
       fail-fast: false
-     
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
-      dockerfile-path: microservices/dlstreamer-pipeline-server/
+      dockerfile-path: microservices/dlstreamer-pipeline-server/Dockerfile
       trivy-report-format: 'json'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: reports/dlsps_trivy_report.json
       name: dlsps_trivy_report
+  
   pylint:
     runs-on: ubuntu-latest
 
