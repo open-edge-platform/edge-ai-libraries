@@ -296,10 +296,15 @@ jobs:
 
     - name: Push Docker img
       run: |
+        if [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
+          docker tag ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
+          docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
+        fi
         docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest || true
+
