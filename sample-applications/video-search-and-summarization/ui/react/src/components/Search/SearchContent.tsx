@@ -161,12 +161,10 @@ export const SearchContent: FC = () => {
     return (
       <>
         <div className='videos-container'>
-          {selectedResults.map((curr) => (
+          {selectedResults.map((_, index) => (
             <VideoTile
-              key={curr.metadata.id}
-              videoId={curr.metadata.video_id}
-              relevance={curr.metadata.relevance_score ?? null}
-              startTime={curr.metadata.timestamp}
+              key={`result-${index}`}
+              resultIndex={index}
             />
           ))}
         </div>

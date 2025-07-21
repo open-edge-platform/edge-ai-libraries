@@ -38,7 +38,9 @@ export const SearchSlice = createSlice({
     updateSearchQuery: (state: SearchState, action) => {
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       if (index !== -1) {
-        state.searchQueries[index] = { ...state.searchQueries[index], ...action.payload, topK: defaultTopk };
+        // Preserve existing topK when updating
+        const currentTopK = state.searchQueries[index].topK;
+        state.searchQueries[index] = { ...state.searchQueries[index], ...action.payload, topK: currentTopK };
       } else {
         state.searchQueries.push({ ...action.payload, topK: defaultTopk });
       }

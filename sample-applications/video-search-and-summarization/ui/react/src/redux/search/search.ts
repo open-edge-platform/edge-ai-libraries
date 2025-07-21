@@ -1,5 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
+import { Video } from '../video/video';
+
 export interface SearchQueryDTO {
   query: string;
   tags?: string;
@@ -49,6 +51,7 @@ export interface SearchResult {
   };
   page_content: string;
   type: string;
+  video: Video;
 }
 
 export enum SearchQueryStatus {
