@@ -11,7 +11,7 @@ on:
 
 jobs:
   codeql-job:
-    name: Scan Python
+    name: CodeQL Scan - Python
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     runs-on: ubuntu-24.04
     permissions:
@@ -97,6 +97,7 @@ jobs:
           name: Time Series CodeQL Reports
           path: codeql_reports.zip
   bandit-scans:
+    name: Bandit Scan
     permissions:
       contents: read
     name: Run Bandit Scan
@@ -134,7 +135,7 @@ jobs:
         fi
 
   virus-scans:
-    name: Run Virus Scan
+    name: Virus Scan
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -168,7 +169,7 @@ jobs:
               docker rmi -f $(docker images -aq) || true
         fi
   pylint-scans:
-    name: Run Pylint
+    name: Pylint Scan
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -177,7 +178,6 @@ jobs:
       matrix:
         include:
           - ubuntu_version: ubuntu24
-
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -202,6 +202,7 @@ jobs:
           name: pylint-report
           path: microservices/time-series-analytics/pylint-report.txt
   DBS_job:
+    name: Docker Bench Security Scan
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -268,6 +269,7 @@ jobs:
           name: DBS_time-series-analytics
           path: microservices/time-series-analytics/docker/dbs_scan_timeseries.txt
   trivy-scan-job:
+    name: Trivy File-System/Image Scan
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -379,6 +381,7 @@ jobs:
           path: microservices/time-series-analytics/helm/trivy_*
       
   trivy-config-dockerfile-scan:
+    name: Trivy Dockerfile Scan
     permissions:
       contents: read
     name: Scan Dockerfile
