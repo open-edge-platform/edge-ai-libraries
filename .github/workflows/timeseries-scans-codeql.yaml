@@ -383,7 +383,6 @@ jobs:
     name: Trivy Dockerfile Scan
     permissions:
       contents: read
-    name: Scan Dockerfile
     strategy:
       fail-fast: false
     uses: ./.github/workflows/trivy-config-mode.yaml
