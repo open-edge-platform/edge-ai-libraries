@@ -323,7 +323,7 @@ export_model_for_ovms() {
 
     # Download the OVMS model export script
     if [ ! -f export_model.py ]; then
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/1/demos/common/export_models/export_model.py -o export_model.py
+        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
     else
         echo -e  "${YELLOW}Model export script already exists, skipping download${NC}"
     fi
@@ -341,7 +341,7 @@ export_model_for_ovms() {
     source ovms_venv/bin/activate
     
     # Install requirements in the virtual environment
-    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/1/demos/common/export_models/requirements.txt
+    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/requirements.txt
     if [ "$GATED_MODEL" = true ]; then
         pip install --no-cache-dir huggingface-hub  # Install huggingface-hub for downloading gated models
         echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
@@ -350,14 +350,12 @@ export_model_for_ovms() {
     mkdir -p models
 
     python3 export_model.py text_generation \
-        --source_model $OVMS_LLM_MODEL_NAME \
-        --weight-format $LLM_COMPRESSION_WEIGHT_FORMAT \
+        --source_model microsoft/Phi-3.5-vision-instruct \
+        --target_device NPU \
         --config_file_path models/config.json \
         --model_repository_path models \
-        --target_device ${LLM_DEVICE} \
-        --cache $OVMS_CACHE_SIZE \
         --overwrite_models
-    
+
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to export the model for OVMS.${NC}"
         deactivate
