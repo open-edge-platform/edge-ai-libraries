@@ -116,12 +116,12 @@ jobs:
         path: dlsps-${{ matrix.ubuntu_version }}*-trivy-image-report.txt
 
     - name: Run Trivy Filesystem Scan
+      if: matrix.ubuntu_version == 'ubuntu22'
       run: |
         
         docker pull aquasec/trivy:0.63.0
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         mkdir -p reports
-        trivy image --download-db-only
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
        
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true 
