@@ -100,7 +100,6 @@ jobs:
     name: Bandit Scan
     permissions:
       contents: read
-    name: Run Bandit Scan
     runs-on: ubuntu-24.04
     strategy:
       fail-fast: false
