@@ -45,7 +45,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
-| `global.proxy.noProxy` | NOPROXY | `<your-no-proxy>, docker service names` |
+| `global.proxy.noProxy` | NOPROXY | `<your-no-proxy>` |
 | `global.proxy.httpProxy` | HTTP PROXY | `<your-http-proxy>` |
 | `global.proxy.httpsProxy` | HTTPS PROXY | `<your-https-proxy>` |
 | `global.huggingface.token` | Your Hugging Face API token | `<your-huggingface-token` |
