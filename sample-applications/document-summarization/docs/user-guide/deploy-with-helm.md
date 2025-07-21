@@ -41,7 +41,7 @@ cd document-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the selected `values*.yaml` file to set the necessary environment variables. Ensure you set the proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
