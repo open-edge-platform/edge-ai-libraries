@@ -27,7 +27,7 @@ spec:
               mountPath: /etc/ssl/certs
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.noProxy }}"
+              value: "{{ .Values.global.proxy.noProxy }},ovms-service"
             - name: http_proxy
               value: "{{ .Values.global.proxy.httpProxy }}"
             - name: https_proxy

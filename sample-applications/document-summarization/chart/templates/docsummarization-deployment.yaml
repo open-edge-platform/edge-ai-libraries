@@ -22,7 +22,7 @@ spec:
             - containerPort: {{ .Values.docSumUI.service.port }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.noProxy }},localhost"
+              value: "{{ .Values.global.proxy.noProxy }},localhost,docsum-api"
             - name: http_proxy
               value: {{ .Values.global.proxy.httpProxy }}
             - name: https_proxy
