@@ -9,7 +9,7 @@ on:
   workflow_dispatch:
     inputs:
       target:
-        description: 'Which Scans to build'
+        description: 'Which Scans to run'
         type: choice
         options:
         - all-scans
