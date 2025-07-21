@@ -41,8 +41,7 @@ jobs:
       run: |
        
        sudo apt-get update
-       sudo pip install --upgrade pip
-       sudo pip3 install robotframework
+       sudo pip install robotframework
        sudo apt install python3-nose xmllint
        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
        chmod a+x stream_rtsp.sh
