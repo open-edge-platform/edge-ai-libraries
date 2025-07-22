@@ -155,18 +155,18 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
         output_file += extension_map.get(encoding_lower, ".mp4")
 
     # Construct the GStreamer pipeline command
-    gst_command = f"""
-    gst-launch-1.0 -e \
-        multifilesrc location="{temp_dir}/frame_%05d.jpeg" index=0 caps="{caps}" ! \
-        {decoding} ! videoconvert ! \
-        {encoder_settings[encoding_lower]} ! {muxer} ! \
-        filesink location={output_file}
-    """
+    gst_command = [
+        "gst-launch-1.0", "-e",
+        "multifilesrc", f"location={temp_dir}/frame_%05d.jpeg", "index=0", f"caps={caps}", "!",
+        decoding, "!", "videoconvert", "!",
+        *encoder_settings[encoding_lower].split(), "!", muxer, "!",
+        "filesink", f"location={output_file}"
+    ]
 
     logging.debug(f"Running GStreamer Command:\n{gst_command}")
 
     try:
-        subprocess.run(gst_command, shell=True, check=True)
+        subprocess.run(gst_command, check=True)
         logging.info(f"✅ Video generated with {encoding}: {output_file}")
     except subprocess.CalledProcessError as e:
         logging.error(f"❌ Error generating video with {encoding}: {e}")
