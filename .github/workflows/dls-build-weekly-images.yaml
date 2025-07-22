@@ -4,9 +4,9 @@ on:
   workflow_dispatch:
     inputs:
       image-tag:
-      description: 'Image tag'
-      required: true
-      type: string
+        description: 'Image tag'
+        required: true
+        type: string
 permissions: {}
 env:
   dlstreamer-version: "2025.0.1.3"
