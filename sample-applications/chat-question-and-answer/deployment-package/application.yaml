@@ -80,7 +80,6 @@ profiles:
         displayName: "OTLP Endpoint Trace"
         type: string
         default: ""
-# TODO: Disabled for now due to bug in EMF where "false" is recognized as a string instead of a boolean.
       - name: global.ovmsEmbeddinggpuService.enabled
         displayName: "OVMS Embedding GPU Service"
         type: boolean
