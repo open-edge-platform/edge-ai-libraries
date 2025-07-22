@@ -4,7 +4,9 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-
+echo $DLSPS_COVERITY_TOKEN
+echo $DLSPS_COVERITY_EMAIL
+echo $DLSPS_COVERITY_PROJECT
 apt update 
 apt install -y curl 
 cd /home/pipeline-server/gst-udf-loader/
