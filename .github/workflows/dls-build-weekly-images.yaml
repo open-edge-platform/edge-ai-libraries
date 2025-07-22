@@ -50,7 +50,7 @@ jobs:
 
     - name: Build deb final img with cache from GHCR
       env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
+        deb_final_img: ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
@@ -68,7 +68,7 @@ jobs:
     - name: 🔍 Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
+        scan_target: "ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -98,25 +98,25 @@ jobs:
 
     - name: Sign Docker image using Cosign (keyless)
       env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
+        deb_final_img: ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest
       run: |
         cosign sign ${deb_final_img}
 
     - name: Save Ubuntu 22 image info
       id: save-image-ubuntu22
       if: ${{ matrix.ubuntu_version == 'ubuntu22' }}
-      run: echo "image=ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
+      run: echo "image=ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
 
     - name: Save Ubuntu 24 image info
       id: save-image-ubuntu24
       if: ${{ matrix.ubuntu_version == 'ubuntu24' }}
-      run: echo "image=ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
+      run: echo "image=ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/public-deb-final-img-${{ matrix.ubuntu_version }}:latest || true
 
   build-dls-dev-img:
     name: Build DLS ${{ matrix.ubuntu_version }} dev debug img
@@ -157,7 +157,7 @@ jobs:
 
     - name: Build dev debug img with cache from GHCR
       env:
-        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+        dev_debug_img: ghcr.io/${{ github.repository }}/public-dev-debug-img-${{ matrix.ubuntu_version }}:latest
         dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
@@ -174,7 +174,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest"
+        scan_target: "ghcr.io/${{ github.repository }}/public-dev-debug-img-${{ matrix.ubuntu_version }}:latest"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -204,7 +204,7 @@ jobs:
 
     - name: Sign Docker image using Cosign (keyless)
       env:
-        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+        dev_debug_img: ghcr.io/${{ github.repository }}/public-dev-debug-img-${{ matrix.ubuntu_version }}:latest
       run: |
         cosign sign ${dev_debug_img}
 
@@ -212,7 +212,7 @@ jobs:
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/public-dev-debug-img-${{ matrix.ubuntu_version }}:latest || true
 
   build-dls-pipeline-server-image:
     needs: build-dls-deb-img
