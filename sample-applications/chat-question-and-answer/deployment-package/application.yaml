@@ -8,8 +8,6 @@ $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 name: chatqna-app
 version: 1.2.1
 description: "Chat Q&A Sample Application"
-#helmRegistry: "harbor-helm-oci"
-#chartName: "chat-question-and-answer"
 helmRegistry: "docker-hub"
 chartName: "intel/chat-question-and-answer"
 
@@ -83,24 +81,24 @@ profiles:
         type: string
         default: ""
 # TODO: Disabled for now due to bug in EMF where "false" is recognized as a string instead of a boolean.
-#      - name: global.ovmsEmbeddinggpuService.enabled
-#        displayName: "OVMS Embedding GPU Service"
-#        type: boolean
-#        suggestedValues: ["false", "true"]
-#        mandatory: true
-#      - name: global.gpu.enabled
-#        displayName: Enable GPU Device
-#        type: boolean
-#        suggestedValues: ["false", "true"]
-#        mandatory: true
-#      - name: global.gpu.key
-#        displayName: GPU Node Label Key
-#        type: string
-#        default: ""
-#      - name: global.gpu.device
-#        displayName: GPU Device
-#        type: string
-#        default: ""
+      - name: global.ovmsEmbeddinggpuService.enabled
+        displayName: "OVMS Embedding GPU Service"
+        type: boolean
+        suggestedValues: ["false", "true"]
+        mandatory: true
+      - name: global.gpu.enabled
+        displayName: Enable GPU Device
+        type: boolean
+        suggestedValues: ["false", "true"]
+        mandatory: true
+      - name: global.gpu.key
+        displayName: GPU Node Label Key
+        type: string
+        default: ""
+      - name: global.gpu.device
+        displayName: GPU Device
+        type: string
+        default: ""
   - name: "vllm"
     valuesFileName: "chatqna-values-vllm.yaml"
     parameterTemplates:
