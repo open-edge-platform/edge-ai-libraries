@@ -50,14 +50,14 @@ jobs:
         export BUILD_TARGET=gstudfloader-builder
         docker compose build --no-cache --pull
     - name: Check if secret exists
-        run: |
-          if [ -z "${{secrets.DLSPS_COVERITY_TOKEN}}" ]; then
-            echo "❌ Secret is empty"
-            exit 1
-          else
-            echo "✅ Secret is set (will be masked as ***)"
-            echo "Value: ${{secrets.DLSPS_COVERITY_TOKEN}}"
-          fi
+      run: |
+        if [ -z "${{secrets.DLSPS_COVERITY_TOKEN}}" ]; then
+          echo "❌ Secret is empty"
+          exit 1
+        else
+          echo "✅ Secret is set (will be masked as ***)"
+          echo "Value: ${{secrets.DLSPS_COVERITY_TOKEN}}"
+        fi
     - name: Run Coverity Scans.
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests
