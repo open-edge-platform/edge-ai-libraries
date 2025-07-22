@@ -54,6 +54,7 @@ jobs:
         echo DLSPS_COVERITY_TOKEN=${{secrets.DLSPS_COVERITY_TOKEN}} >> .env
         echo DLSPS_COVERITY_EMAIL=${{secrets.DLSPS_COVERITY_EMAIL}} >> .env
         echo DLSPS_COVERITY_PROJECT=${{secrets.DLSPS_COVERITY_PROJECT}} >> .env
+        cat .env
         docker run --rm --env-file .env  -v  `pwd`:/app -v /tmp:/tmp intel/dlstreamer-pipeline-server:coverity-ubuntu22  /bin/bash /app/coverity.sh
     - name: Upload Coverity Reports to Github
       
