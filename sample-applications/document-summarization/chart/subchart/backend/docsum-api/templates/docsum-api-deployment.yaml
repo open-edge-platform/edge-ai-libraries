@@ -16,8 +16,8 @@ spec:
     spec:
       containers:
         - name: {{ .Values.docSumBackend.name}}
-          image: "{{ .Values.global.DocSum.image.backend.repository }}:{{ .Values.global.DocSum.image.backend.tag }}"
-          imagePullPolicy: "{{ .Values.global.DocSum.image.backend.pullPolicy }}"
+          image: "{{ .Values.global.docSum.image.repository }}:{{ .Values.global.docSum.image.tag }}"
+          imagePullPolicy: "{{ .Values.global.docSum.image.pullPolicy }}"
           ports:
             - containerPort: {{ .Values.docSumBackend.service.port }}
           volumeMounts:
@@ -27,7 +27,7 @@ spec:
               mountPath: /etc/ssl/certs
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.noProxy }}"
+              value: "{{ .Values.global.proxy.noProxy }},ovms-service"
             - name: http_proxy
               value: "{{ .Values.global.proxy.httpProxy }}"
             - name: https_proxy
