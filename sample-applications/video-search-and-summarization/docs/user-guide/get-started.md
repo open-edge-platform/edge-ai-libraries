@@ -277,7 +277,7 @@ For alternative ways to set up the sample application, see:
 
 ## 🔗 Related Links
 
-- [How to Test Performance](./how-to-performance.md)
+- [How to Test Performance](./how-to-performance.md) [Available soon]
 
 ## 📚 Supporting Resources
 
