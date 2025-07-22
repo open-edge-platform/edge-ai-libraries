@@ -19,9 +19,6 @@ The system architecture diagram shows the Video Summary pipeline and its constit
 
 ![System Architecture Diagram](./images/TEAI_VideoSumm.png)
 
-Further details on the system architecture and customizable options are available [here](./overview-architecture-summary.md).
-
-
 ## Detailed Architecture Overview
 <!--
 **User Stories Addressed**:
