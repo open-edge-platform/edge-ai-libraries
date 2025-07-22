@@ -1,0 +1,415 @@
+#
+# Apache v2 license
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+#
+name: "Time Series Analytics Microservice SDLe Scans"
+run-name: "Time Series Analytics Microservice SDLe Scans workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  workflow_dispatch:
+    inputs:
+      target:
+        description: 'Which Scans to run'
+        type: choice
+        options:
+        - all-scans
+        - codeql-scan
+        - bandit-scan
+        - virus-scan
+        - pylint-scan
+        - dbs-scan
+        - trivy-fs-image-scan
+        - trivy-dockerfile-scan
+
+
+jobs:
+  codeql-job:
+    name: CodeQL Scan - Python
+    if: ${{ (github.event.inputs.target == 'codeql-scan') || (github.event.inputs.target == 'all-scans') }}
+    # Consider using larger runners or machines with greater resources for possible analysis time improvements.
+    runs-on: ubuntu-24.04
+    permissions:
+      security-events: write
+      packages: read
+      actions: read
+      contents: read
+    
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false 
+
+      - name: Initialize CodeQL
+        uses: github/codeql-action/init@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        with:
+          languages: 'python'
+          source-root: microservices/time-series-analytics
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@ff0a06e83cb2de871e5a09832bc6a81e7276941f # v3.28.18
+        with:
+          category: "/language:python"
+          upload: "never"
+          output: results
+
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: '3.x'
+
+      - name: Install dependencies
+        run: |
+          pip install reportlab
+
+      - name: Convert SARIF to PDF
+        run: |
+          python - <<EOF
+          import json
+          from reportlab.lib.pagesizes import letter
+          from reportlab.pdfgen import canvas
+
+          def parse_sarif(sarif_file):
+              with open(sarif_file, 'r') as file:
+                  data = json.load(file)
+              return data
+
+          def generate_pdf(data, output_file):
+              c = canvas.Canvas(output_file, pagesize=letter)
+              width, height = letter
+
+              c.drawString(100, height - 100, "SARIF Report")
+              y_position = height - 150
+
+              for run in data.get('runs', []):
+                  for result in run.get('results', []):
+                      message = result.get('message', {}).get('text', 'No message')
+                      severity = result.get('level', 'Unknown')
+                      location = result.get('locations', [{}])[0].get('physicalLocation', {}).get('artifactLocation', {}).get('uri', 'Unknown location')
+
+                      c.drawString(100, y_position, f"Message: {message}")
+                      c.drawString(100, y_position - 20, f"Severity: {severity}")
+                      c.drawString(100, y_position - 40, f"Location: {location}")
+                      y_position -= 80
+
+                      if y_position < 100:
+                          c.showPage()
+                          y_position = height - 100
+
+              c.save()
+
+          sarif_data = parse_sarif('results/python.sarif')
+          generate_pdf(sarif_data, 'sarif_report.pdf')
+          EOF
+
+      - name: Create ZIP File
+        run: |
+          zip codeql_reports.zip results/python.sarif sarif_report.pdf
+
+      - name: Upload ZIP Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: Time Series CodeQL Reports
+          path: codeql_reports.zip
+  bandit-scans:
+    name: Bandit Scan
+    if: ${{ (github.event.inputs.target == 'bandit-scan') || (github.event.inputs.target == 'all-scans') }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@v4
+      with:
+        path: edge-ai-libraries-repo
+        persist-credentials: false
+
+    - name: Run Bandit Scan
+      run: |
+        mkdir -p reports
+        docker pull ghcr.io/pycqa/bandit/bandit
+        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/time-series-analytics -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
+        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: bandit-report
+        path: reports/bandit-report.txt
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+              docker rmi -f $(docker images -aq) || true
+        fi
+
+  virus-scans:
+    name: Virus Scan
+    runs-on: ubuntu-24.04
+    if: ${{ (github.event.inputs.target == 'virus-scan') || (github.event.inputs.target == 'all-scans') }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@v4
+      with:
+        persist-credentials: false
+    - name: Run Virus Scan
+      run: |
+        mkdir -p reports
+        docker pull clamav/clamav
+        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
+        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/microservices/time-series-analytics/ > ./reports/clamav-report.txt || true
+        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
+    - name: Upload Scan Reports
+      uses: actions/upload-artifact@v4
+      with:
+        name: virus-reports
+        path: reports/clamav-report.txt
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+              docker rmi -f $(docker images -aq) || true
+        fi
+  pylint-scans:
+    name: Pylint Scan
+    if: ${{ (github.event.inputs.target == 'pylint-scan') || (github.event.inputs.target == 'all-scans') }}
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu24
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'  # or any version you need
+
+      - name: Install dependencies
+        run: |
+          python -m pip install --upgrade pip
+          pip install pylint
+
+      - name: Run Pylint
+        run: |
+          pylint microservices/time-series-analytics/src/*.py > microservices/time-series-analytics/pylint-report.txt || true
+      
+      - name: Upload Pylint report
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: microservices/time-series-analytics/pylint-report.txt
+  DBS_job:
+    name: Docker Bench Security Scan
+    runs-on: ubuntu-24.04
+    if: ${{ (github.event.inputs.target == 'dbs-scan') || (github.event.inputs.target == 'all-scans') }}
+    permissions:
+      contents: read
+      packages: read          # needed for actions/checkout
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - name: check the system
+        run: |
+          docker ps &&
+          uname -a &&
+          docker version && 
+          git version && 
+          docker compose version
+
+      - name: Checkout docker/docker-bench-security (master)
+        uses: actions/checkout@v4
+        with:
+          repository: docker/docker-bench-security
+          ref: master
+          path: docker-bench-security
+          persist-credentials: false
+      
+      - name: Build Docker Bench Security
+        run: |
+          cd docker-bench-security
+          docker build --no-cache -t docker-bench-security .
+
+      - name: Build Time Series Analytics microservice
+        run: |
+          cd microservices/time-series-analytics/docker
+          sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
+          docker compose build
+
+      - name: Deploy Time Series Analytics microservice
+        run: |
+          cd microservices/time-series-analytics/docker
+          docker compose up -d
+
+      - name: DBS download and scan for Time Series Analytics microservice
+        run: |
+          cd microservices/time-series-analytics/docker
+          docker run --rm --net host --pid host --userns host --cap-add audit_control \
+          -e DOCKER_CONTENT_TRUST=$DOCKER_CONTENT_TRUST \
+          -v /etc:/etc:ro \
+          -v /usr/bin/containerd:/usr/bin/containerd:ro \
+          -v /usr/bin/runc:/usr/bin/runc:ro \
+          -v /usr/lib/systemd:/usr/lib/systemd:ro \
+          -v /var/lib:/var/lib:ro \
+          -v /var/run/docker.sock:/var/run/docker.sock:ro \
+          --label docker_bench_security \
+          docker-bench-security > dbs_scan_timeseries.txt
+
+      - name: Undeploy Time Series Analytics microservice
+        run: |
+          cd microservices/time-series-analytics/docker
+          docker compose down -v
+          
+      - name: Upload Scan artifact to Github
+        uses: actions/upload-artifact@v4
+        with:
+          name: DBS_time-series-analytics
+          path: microservices/time-series-analytics/docker/dbs_scan_timeseries.txt
+  trivy-scan-job:
+    name: Trivy File-System/Image Scan
+    if: ${{ (github.event.inputs.target == 'trivy-fs-image-scan') || (github.event.inputs.target == 'all-scans') }}
+    permissions:
+      contents: read
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout Code
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false  
+      - name: Install Trivy from Aqua Security APT repo
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gnupg lsb-release wget apt-transport-https curl jq
+          curl -fsSL https://aquasecurity.github.io/trivy-repo/deb/public.key | sudo gpg --dearmor -o /usr/share/keyrings/trivy.gpg
+          echo "deb [signed-by=/usr/share/keyrings/trivy.gpg] https://aquasecurity.github.io/trivy-repo/deb $(lsb_release -cs) main" | \
+          sudo tee /etc/apt/sources.list.d/trivy.list > /dev/null
+          sudo apt-get update
+          sudo apt-get install -y trivy
+      - name: Trivy filesystem/repo scan
+        continue-on-error: true
+        shell: bash
+        run: |
+          pwd
+          cd microservices/time-series-analytics/
+          trivy --version
+          which trivy
+          trivy image --download-db-only
+          curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+          # Use the downloaded template
+          trivy fs . --format template --template "@trivy-html.tpl" -o "trivy_fs_code_scan.html" 
+          trivy fs --list-all-pkgs --format template --template "@trivy-html.tpl" --output trivy-fs-full-report.csv .
+          trivy fs --ignore-unfixed . | tee trivy-fs-full-report.txt  
+      
+      - name: Upload trivy filesystem/repo scan reports
+        continue-on-error: true
+        uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: Trivy FileSystem scan report
+          path: |
+              microservices/time-series-analytics/trivy_fs_code_scan.html
+              microservices/time-series-analytics/trivy-fs-full-report.csv
+              microservices/time-series-analytics/trivy-fs-full-report.txt
+      
+      - name: Trivy Image Scan
+        continue-on-error: true
+        shell: bash
+        run: |
+              pwd
+              echo "Building Time Series Analytics scanning"
+              cd microservices/time-series-analytics/docker
+              sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
+              docker compose build
+              curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+
+              cat << 'EOF' > csv.tpl
+              {{ range . }}
+              Trivy Vulnerability Scan Results ({{- .Target -}})
+              VulnerabilityID,Severity,CVSS Score,Title,Library,Vulnerable Version,Fixed Version,Information URL,Triage Information
+              {{ range .Vulnerabilities }}
+                  {{- .VulnerabilityID }},
+                  {{- .Severity }},
+                  {{- range $key, $value := .CVSS }}
+                      {{- if (eq $key "nvd") }}
+                          {{- .V3Score -}}
+                      {{- end }}
+                  {{- end }},
+                  {{- quote .Title }},
+                  {{- quote .PkgName }},
+                  {{- quote .InstalledVersion }},
+                  {{- quote .FixedVersion }},
+                  {{- .PrimaryURL }}
+              {{ else -}}
+                  No vulnerabilities found at this time.
+              {{ end }}
+              Trivy Dependency Scan Results ({{ .Target }})
+              ID,Name,Version,Notes
+              {{ range .Packages -}}
+                  {{- quote .ID }},
+                  {{- quote .Name }},
+                  {{- quote .Version }}
+              {{ else -}}
+                  No dependencies found at this time.
+              {{ end }}
+              {{ end }}
+              EOF
+              trivy image ia-time-series-analytics-microservice:latest --list-all-pkgs --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
+              trivy image --quiet --list-all-pkgs --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
+              trivy image ia-time-series-analytics-microservice:latest --list-all-pkgs --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
+              echo "completed Time Series Analytics scanning"
+            
+      - name: Upload Trivy Image Scan Report
+        continue-on-error: true
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: Trivy image scan report
+          path: |
+                microservices/time-series-analytics/docker/trivy_*
+
+      - name: Trivy config scan for helm charts 
+        run: |
+          cd microservices/time-series-analytics/helm
+          trivy config . >> trivy_helm.txt
+          
+      - name: Upload Scan artifact to Github
+        uses: actions/upload-artifact@v4
+        with:
+          name: Trivy Config Scan for Helm
+          path: microservices/time-series-analytics/helm/trivy_*
+      
+  trivy-config-dockerfile-scan:
+    name: Trivy Dockerfile Scan
+    if: ${{ (github.event.inputs.target == 'trivy-dockerfile-scan') || (github.event.inputs.target == 'all-scans') }}
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: microservices/time-series-analytics/Dockerfile
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: trivy-dockerfile.json
+      name: Time Series Dockerfile
