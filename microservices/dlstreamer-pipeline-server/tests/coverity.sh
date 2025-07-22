@@ -7,9 +7,10 @@
 cd /home/pipeline-server/gst-udf-loader/
 apt update 
 apt install -y curl 
-wget --quiet https://scan.coverity.com/download/linux64 --post-data "token=$DLSPS_COVERITY_TOKEN&project=$DLSPS_COVERITY_PROJECT" -O coverity_tool.tgz 
-mkdir cov-analysis 
+wget  https://scan.coverity.com/download/linux64 --post-data "token=$DLSPS_COVERITY_TOKEN&project=$DLSPS_COVERITY_PROJECT" -O coverity_tool.tgz 
+mkdir cov-analysis
 tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
+ls -al ./cov-analysis
 /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
 	          && if [ -d \"build\" ] ; then rm -rf build ; fi \
 		            && mkdir build \
