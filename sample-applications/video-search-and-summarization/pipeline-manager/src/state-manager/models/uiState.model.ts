@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FrameMetadata } from 'src/evam/models/message-broker.model';
 import {
   FrameSummary,

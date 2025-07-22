@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Modal, ModalBody, TextArea } from '@carbon/react';
 import { FC, useEffect, useRef, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../redux/store';

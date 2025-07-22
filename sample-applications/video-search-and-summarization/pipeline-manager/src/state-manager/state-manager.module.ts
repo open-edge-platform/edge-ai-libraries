@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Module } from '@nestjs/common';
 import { StateService } from './services/state.service';
 import { StatesController } from './states.controller';
@@ -16,6 +18,7 @@ import { AudioQueueService } from './queues/audio-queue.service';
 import { AudioModule } from 'src/audio/audio.module';
 import { SearchModule } from 'src/search/search.module';
 import { FeaturesModule } from 'src/features/features.module';
+import { DataPrepModule } from 'src/data-prep/data-prep.module';
 
 @Module({
   providers: [
@@ -37,6 +40,7 @@ import { FeaturesModule } from 'src/features/features.module';
     SearchModule,
     FeaturesModule,
     TypeOrmModule.forFeature([StateEntity]),
+    DataPrepModule,
   ],
 })
 export class StateManagerModule {}

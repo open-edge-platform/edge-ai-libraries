@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import {
   Injectable,
   Logger,
@@ -10,10 +12,10 @@ import { DatastoreService } from 'src/datastore/services/datastore.service';
 import { v4 as uuidv4 } from 'uuid';
 import { unlink } from 'fs';
 import { VideoDbService } from './video-db.service';
-import { SearchDataPrepShimService } from 'src/search/services/search-data-prep-shim.service';
-import { DataPrepMinioDTO } from 'src/search/model/search.model';
 import { lastValueFrom } from 'rxjs';
 import { TagsService } from './tags.service';
+import { DataPrepShimService } from 'src/data-prep/services/data-prep-shim.service';
+import { DataPrepMinioDTO } from 'src/data-prep/models/data-prep.models';
 
 @Injectable()
 export class VideoService {
@@ -23,7 +25,7 @@ export class VideoService {
     private $validator: VideoValidatorService,
     private $datastore: DatastoreService,
     private $videoDb: VideoDbService,
-    private $dataprep: SearchDataPrepShimService,
+    private $dataprep: DataPrepShimService,
     private $tags: TagsService,
   ) {}
 

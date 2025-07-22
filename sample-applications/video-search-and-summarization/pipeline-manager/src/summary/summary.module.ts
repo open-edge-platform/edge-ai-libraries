@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Module } from '@nestjs/common';
 import { SummaryService } from './services/summary.service';
 import { VideoUploadModule } from 'src/video-upload/video-upload.module';

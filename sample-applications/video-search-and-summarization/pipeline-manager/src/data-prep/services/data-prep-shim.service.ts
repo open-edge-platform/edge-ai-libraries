@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
@@ -8,10 +10,10 @@ import {
   DataPrepMinioDTO,
   DataPrepMinioRO,
   DataPrepSummaryDTO,
-} from '../model/search.model';
+} from '../models/data-prep.models';
 
 @Injectable()
-export class SearchDataPrepShimService {
+export class DataPrepShimService {
   constructor(
     private $config: ConfigService,
     private $http: HttpService,

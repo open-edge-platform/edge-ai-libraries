@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { InlineNotification } from '@carbon/react';
 import { type FC, useState, useEffect } from 'react';
 import styled, { keyframes } from 'styled-components';

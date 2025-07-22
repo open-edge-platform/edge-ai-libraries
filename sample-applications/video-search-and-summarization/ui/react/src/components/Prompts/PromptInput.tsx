@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { IconButton, Toggletip, ToggletipButton, ToggletipContent } from '@carbon/react';
 import { FC, useEffect } from 'react';
 import styled from 'styled-components';

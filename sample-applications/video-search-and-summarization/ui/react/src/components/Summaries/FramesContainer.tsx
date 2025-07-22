@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC } from 'react';
 import { useAppSelector } from '../../redux/store';
 import { VideoFrameSelector } from '../../redux/summary/videoFrameSlice';

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Modal, ModalBody, MultiSelect, TextArea } from '@carbon/react';
 import { FC, useRef, useState } from 'react';
 import { useTranslation } from 'react-i18next';
