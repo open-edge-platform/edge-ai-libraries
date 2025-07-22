@@ -4,13 +4,11 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-echo $DLSPS_COVERITY_TOKEN
-echo $DLSPS_COVERITY_EMAIL
-echo $DLSPS_COVERITY_PROJECT
+
 apt update 
 apt install -y curl 
 cd /home/pipeline-server/gst-udf-loader/
-wget  https://scan.coverity.com/download/linux64 --post-data "token=k5GEQD0m9nkozelOHEJ5yQ&project=DLStreamerPipelineServer" -O coverity_tool.tgz 
+wget  https://scan.coverity.com/download/linux64 --post-data "token=$DLSPS_COVERITY_TOKEN&project=$DLSPS_COVERITY_PROJECT" -O coverity_tool.tgz 
 mkdir cov-analysis
 tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
 ls -al ./cov-analysis
