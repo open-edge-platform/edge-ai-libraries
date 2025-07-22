@@ -35,7 +35,9 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 COPY ./thirdparty/third_party_deb_apk_deps_ubuntu24.txt /thirdparty/
 
-RUN sed -Ei 's/^# deb-src /deb-src /' /etc/apt/sources.list && \
+RUN echo "deb-src http://archive.ubuntu.com/ubuntu noble main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://archive.ubuntu.com/ubuntu noble-updates main restricted universe multiverse" >> /etc/apt/sources.list && \
+    echo "deb-src http://archive.ubuntu.com/ubuntu noble-security main restricted universe multiverse" >> /etc/apt/sources.list && \
     apt-get update && \
     mkdir -p /sources/ubuntu24 && cd /sources/ubuntu24 && \
     for package in $(cat /thirdparty/third_party_deb_apk_deps_ubuntu24.txt  | xargs -n1); do \
