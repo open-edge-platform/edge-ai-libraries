@@ -20,7 +20,7 @@ global:
   OTLP_ENDPOINT_TRACE:
   ovmsEmbeddinggpuService:
     enabled: false
-  GPU:
+  gpu:
     enabled: false
     key:  #update as per the cluster node label key for GPU assigned by the device plugin
     device: "GPU" #If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0
