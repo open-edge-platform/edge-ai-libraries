@@ -1,5 +1,5 @@
-name: "[DLSPS] Coverity workflow"
-run-name: "[DLSPS] Coverity  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[DLSPS] Coverity workflow for C/C++"
+run-name: "[DLSPS] Coverity  scan (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
   push:
     branches:
@@ -16,8 +16,7 @@ permissions: {}
 
 
 jobs:
-  build-dls-pipeline-server-image:
-    name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
+  coverity-scan:
     runs-on: ubuntu-latest
     permissions:
       contents: read
@@ -49,15 +48,7 @@ jobs:
         export BASE_IMAGE="ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407"
         export BUILD_TARGET=gstudfloader-builder
         docker compose build --no-cache --pull
-    - name: Check if secret exists
-      run: |
-        if [ -z "${{secrets.DLSPS_COVERITY_TOKEN}}" ]; then
-          echo "❌ Secret is empty"
-          exit 1
-        else
-          echo "✅ Secret is set (will be masked as ***)"
-          echo "Value: ${{secrets.DLSPS_COVERITY_TOKEN}}"
-        fi
+   
     - name: Run Coverity Scans.
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests
