@@ -99,11 +99,14 @@ jobs:
     - name: Install Cosign
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
 
+    - name: Install skopeo
+      run: sudo apt update && sudo apt install -y skopeo jq
+
     - name: Get image digest
       id: digest
       run: |
         IMAGE=ghcr.io/${{ github.repository }}/edge-ai-dlstreamer-${{ matrix.ubuntu_version }}:${{ inputs.image-tag }}
-        DIGEST=$(crane digest "$IMAGE")
+        DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
         echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
 
     - name: Sign Docker image using Cosign (keyless)
