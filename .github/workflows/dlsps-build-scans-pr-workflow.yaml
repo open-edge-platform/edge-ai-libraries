@@ -124,6 +124,7 @@ jobs:
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --ignore-unfixed /src | tee ./reports/trivy-fs-full-report.txt
         mv ./reports ${{ github.workspace }}
     - name: Upload Trivy Filesystem Reports
+      if: matrix.ubuntu_version == 'ubuntu22'
       uses: actions/upload-artifact@v4
       with:
         name: trivy-fs-reports
