@@ -163,7 +163,7 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
         "filesink", f"location={output_file}"
     ]
 
-    logging.debug(f"Running GStreamer Command:\n{gst_command}")
+    logging.debug(f"Running GStreamer Command:\n{' '.join(gst_command)}")
 
     try:
         subprocess.run(gst_command, check=True)
