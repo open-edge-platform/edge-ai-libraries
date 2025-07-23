@@ -533,9 +533,9 @@ install_npu() {
     $SUDO_PREFIX rm -rf ./npu_debs
     mkdir -p ./npu_debs
     dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250131-13074932693_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250131-13074932693_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250131-13074932693_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
+    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
+    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
+    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
     wget https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u${ubuntu_version}_amd64.deb
     $SUDO_PREFIX apt update
     $SUDO_PREFIX apt install libtbb12
