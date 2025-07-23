@@ -113,7 +113,7 @@ jobs:
       env:
         deb_final_img: ghcr.io/${{ github.repository }}/edge-ai-dlstreamer-${{ matrix.ubuntu_version }}@${{ steps.digest.outputs.digest }}
       run: |
-        cosign sign ${deb_final_img}
+        cosign sign --yes ${deb_final_img}
 
     - name: Save Ubuntu 22 image info
       id: save-image-ubuntu22
