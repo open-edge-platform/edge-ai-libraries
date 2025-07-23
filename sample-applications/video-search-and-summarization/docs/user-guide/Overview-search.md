@@ -6,13 +6,7 @@ Video Search is a foundational retrieval-augmented generation (RAG) pipeline for
 
 ![Video Search web interface](./images/VideoSearch_Webpage.png)
 
-## Table of Contents
-1. [Overview and Architecture](#Overview-and-Architecture)
-2. [How to Use the Application](#How-to-Use-the-Application)
-
-## Overview and Architecture
-
-### Key Features
+## Key Features
 
 Key features include:
 
@@ -36,7 +30,7 @@ Key features include:
 
 - **Agentic Reasoning and Event Generation**: The application incorporates agentic reasoning to handle complex, multi-step, or open-ended queries. It can decompose user queries, plan and execute multi-stage retrievals, and generate or track events based on query results. The system is capable of running these queries in the background and raising notifications or events when a successful match is found, enabling proactive and context-aware video analytics.
 
-### Technical Architecture
+## High level Architecture
 The Video Search sample application includes the following components:
 
 - **Video Search UI**: Users can use the reference UI to interact with and use capabilities of the Video Search sample application. Queries are raised using the interface. Those queries that need to function in the background not just on current video corpus but all incoming videos can be marked as such in the UI. 
