@@ -23,7 +23,7 @@ def build_docker_image():
     """Build the Docker image for the Time Series Analytics service."""
     print("Building Docker image...")
     os.chdir(TS_DIR + "docker")
-    command = "docker compose build"
+    command = "docker compose build --no-cache"
     output = utils.run_command(command)
     print(output)
 
@@ -47,16 +47,6 @@ def docker_ps():
     """List the running Docker containers."""
     print("Listing running Docker containers...")
     command = "docker ps"
-    output = utils.run_command(command)
-    print(output)
-
-def start_temperature_simulator():
-    """Start the temperature simulator service."""
-    print("Starting temperature simulator...")
-    os.chdir(TS_DIR)
-    command = "pip3 install -r requirements.txt"
-    utils.run_command(command)
-    command = "python3 simulator/temperature_input.py"
     output = utils.run_command(command)
     print(output)
 
@@ -109,6 +99,8 @@ def test_temperature_input():
     Test to check if the temperature simulator script runs without error.
     """
     os.chdir(TS_DIR)
+    command = "pip3 install -r simulator/requirements.txt"
+    utils.run_command(command)
     command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_DOCKER_PORT) ]
     try:
         print("Starting temperature simulator...")
@@ -151,13 +143,6 @@ def test_input_endpoint_invalid_data():
     Test the input endpoint of the Time Series Analytics service.
     """
     utils.input_endpoint_invalid_data(TS_DOCKER_PORT)
-
-# Post no input data to the /input endpoint
-def test_input_endpoint_no_data():
-    """
-    Test the input endpoint of the Time Series Analytics service.
-    """
-    utils.input_endpoint_no_data(TS_DOCKER_PORT)
 
 # Post no input data to the /input endpoint
 def test_input_endpoint_no_data():

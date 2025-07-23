@@ -180,13 +180,6 @@ def test_input_endpoint_no_data():
     """
     utils.input_endpoint_no_data(TS_HELM_PORT)
 
-# Post no input data to the /input endpoint
-def test_input_endpoint_no_data():
-    """
-    Test the input endpoint of the Time Series Analytics service.
-    """
-    utils.input_endpoint_no_data(TS_HELM_PORT)
-
 # Get config data from the /config endpoint
 def test_get_config_endpoint():
     """

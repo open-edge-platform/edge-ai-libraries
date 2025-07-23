@@ -253,7 +253,7 @@ def post_invalid_config_endpoint(port, cmd):
         response = requests.post(url, json=config_data)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
-        time.sleep(10)  # Wait for the configuration to be applied
+        time.sleep(15)  # Wait for the configuration to be applied
         command = f"{cmd} 2>&1 | grep -i 'UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package.'"
         output = run_command(command)
         assert "UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output
