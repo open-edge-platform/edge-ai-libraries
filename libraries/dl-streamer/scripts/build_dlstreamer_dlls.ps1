@@ -16,23 +16,23 @@ if (-Not (Test-Path $DLSTREAMER_TMP)) {
 
 if (-Not (Get-Command winget -errorAction SilentlyContinue)) {
 	$progressPreference = 'silentlyContinue'
-	Write-Host "####################################### Installing WinGet PowerShell module from PSGallery #######################################"
+	Write-Host "######################### Installing WinGet PowerShell module from PSGallery ###########################"
 	Install-PackageProvider -Name NuGet -Force | Out-Null
 	Install-Module -Name Microsoft.WinGet.Client -Force -Repository PSGallery | Out-Null
 	Write-Host "Using Repair-WinGetPackageManager cmdlet to bootstrap WinGet..."
 	Repair-WinGetPackageManager -AllUsers
-	Write-Host "############################################################## Done ##############################################################"
+	Write-Host "############################################ Done ######################################################"
 } else {
-	Write-Host "############################################ WinGet PowerShell module already installed ##########################################"
+	Write-Host "############################ WinGet PowerShell module already installed ################################"
 }
 
 if (-Not (Test-Path "C:\\BuildTools")) {
 	Write-Host "####################################### Installing VS BuildTools #######################################"
 	Invoke-WebRequest -OutFile $DLSTREAMER_TMP\\vs_buildtools.exe -Uri https://aka.ms/vs/17/release/vs_buildtools.exe
 	Start-Process -Wait -FilePath $DLSTREAMER_TMP\vs_buildtools.exe -ArgumentList "--quiet", "--wait", "--norestart", "--nocache", "--installPath", "C:\\BuildTools", "--add", "Microsoft.VisualStudio.Component.VC.Tools.x86.x64", "--add", "Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core"
-	Write-Host "############################################# Done #####################################################"
+	rite-Host "####################################### Installing VS BuildTools #######################################"
 } else {
-	Write-Host "################################## VS BuildTools already installed #####################################"
+	Write-Host "################################# VS BuildTools already installed #####################################"
 }
 
 if (-Not (Test-Path "${env:ProgramFiles(x86)}\\Windows Kits")) {
@@ -62,7 +62,7 @@ $OPENVINO_VERSION = "2025.2"
 $OPENVINO_DEST_FOLDER = "C:\\openvino"
 
 if (-Not (Test-Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip")) {
-	Write-Host "####################################### Installing OpenVINO ${OPENVINO_FULL_VERSION} #######################################"
+	Write-Host "####################################### Installing OpenVINO ${OPENVINO_VERSION} #######################################"
 	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip -Uri "https://storage.openvinotoolkit.org/repositories/openvino/packages/${OPENVINO_VERSION}/windows/openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip"
 	Expand-Archive -Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64.zip" -DestinationPath "C:\"
 	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
@@ -71,7 +71,7 @@ if (-Not (Test-Path "${DLSTREAMER_TMP}\\openvino_toolkit_windows_${OPENVINO_FULL
 	Move-Item -Path "C:\\openvino_toolkit_windows_${OPENVINO_FULL_VERSION}_x86_64" -Destination "${OPENVINO_DEST_FOLDER}"
 	Write-Host "############################################ Done ########################################################"
 } else {
-	Write-Host "################################# OpenVINO ${OPENVINO_FULL_VERSION} already installed ##################################"
+	Write-Host "################################# OpenVINO ${OPENVINO_VERSION} already installed ##################################"
 }
 
 if (-Not (Test-Path "C:\\Program Files\\Git")) {
@@ -83,8 +83,8 @@ if (-Not (Test-Path "C:\\Program Files\\Git")) {
 	Write-Host "############################### Git already installed ########################################"
 }
 
+Write-Host "####################################### Configuring VCPK #######################################"
 ${env:VCPKG_ROOT} = "C:\\vcpkg"
-
 if (-Not ${env:PATH_SETUP_DONE}) {
 	echo "Setting PATH"
 	${env:PATH} = "C:\Program Files\Git\bin;${env:PATH}"
@@ -95,6 +95,7 @@ setx PKG_CONFIG_PATH "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig;C:\libva\Micros
 setx LIBVA_DRIVER_NAME "vaon12"
 setx LIBVA_DRIVERS_PATH "C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
 C:\BuildTools\Common7\Tools\Launch-VsDevShell.ps1
+Write-Host "############################################ DONE ###########################################"
 
 $DLSTREAMER_SRC_LOCATION = $PWD.Path
 
@@ -134,30 +135,32 @@ if (-Not (Test-Path "C:\\libva")) {
 	Write-Host "################################## LIBVA already installed #####################################"
 }
 
-Write-Host "####################################### Preparing build directory #######################################"
+Write-Host "#################################### Preparing build directory #####################################"
 if (Test-Path "${DLSTREAMER_TMP}\\build") {
 	Remove-Item -LiteralPath "${DLSTREAMER_TMP}\\build" -Recurse
 }
 mkdir "${DLSTREAMER_TMP}\\build"
-Write-Host "################################################ Done ####################################################"
+Write-Host "############################################# Done ##################################################"
 
+Write-Host "####################################### Configuring VCPKG ###########################################"
 Set-Location -Path "${DLSTREAMER_TMP}\\build"
 Start-Process -Wait -FilePath "vcpkg" -ArgumentList "integrate", "install", "--triplet=x64-windows" -NoNewWindow
 Start-Process -Wait -FilePath "vcpkg" -ArgumentList "install", "--triplet=x64-windows", "--vcpkg-root=${env:VCPKG_ROOT}", "--x-manifest-root=${DLSTREAMER_SRC_LOCATION}" -NoNewWindow
 Start-Process -Wait -FilePath "taskkill" -ArgumentList "/im", "msbuild.exe", "/f", "/t" -NoNewWindow
+Write-Host "########################################## Done #####################################################"
 
-Write-Host "############################################ Initializing OpenVINO ######################################################"
+Write-Host "################################## Initializing OpenVINO ############################################"
 C:\openvino\setupvars.ps1
-Write-Host "################################################### Done ################################################################"
+Write-Host "######################################### Done ######################################################"
 
-Write-Host "############################################################### Running CMAKE ################################################################"
+Write-Host "##################################### Running CMAKE #################################################"
 $exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}" -NoNewWindow
 if (-Not $exit_code.ExitCode) {
-	Write-Host "############################################################### Done ################################################################"
-	Write-Host "######################################################## Building DL Streamer #######################################################"
+	Write-Host "######################################## Done #######################################################"
+	Write-Host "################################# Building DL Streamer ##############################################"
 	cmake --build . -v --parallel 16 --target ALL_BUILD --config Release
-	Write-Host "############################################################### Done ################################################################"
+	Write-Host "######################################## Done #######################################################"
 } else {
-	Write-Host "########################################################## !CMAKE error! ############################################################"
+	Write-Host "##################################### !CMAKE error! #################################################"
 	exit $exit_code.ExitCode
 }
