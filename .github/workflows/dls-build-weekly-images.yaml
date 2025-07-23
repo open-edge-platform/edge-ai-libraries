@@ -350,10 +350,10 @@ jobs:
     - name: Push Docker img
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
-          docker tag ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
+          docker tag ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
           docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
         fi
-        docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
+        docker push ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
 
     - name: Install Cosign
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
