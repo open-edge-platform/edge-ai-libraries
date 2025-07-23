@@ -28,8 +28,9 @@ def execute_qmassa_command():
 
     try:
         subprocess.run(qmassa_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
-    except subprocess.CalledProcessError as e:
-        logging.error(f"Error running qmassa: {e}")
+    except Exception as e:
+        logging.error(f"Error running qmassa command: {''.join(qmassa_command)}. Exception: {e}")
+        sys.exit(1)
 
 def load_log_file():
     try:
