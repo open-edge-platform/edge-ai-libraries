@@ -41,14 +41,14 @@ def load_log_file():
         logging.error(f"Failed to decode JSON from log file: {e}")
     except Exception as e:
         logging.error(f"Unexpected error while loading log file: {e}")
-    sys.exit(0)
+    sys.exit(1)
 
 def process_states(data):
     try:
         states = data.get("states", [])
         if not states:
             logging.error("No states found in the log file")
-            sys.exit(0)
+            sys.exit(1)
 
         current_ts_ns = int(time.time() * 1e9)
 
@@ -132,8 +132,7 @@ def process_states(data):
                         print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
 
     except Exception as e:
-        with open(DEBUG_LOG, "a") as log:
-            logging.error(f"Error processing log file: {e}")
+        logging.error(f"Error processing log file: {e}")
 
 # === Lock to prevent multiple instances ===
 with open(LOCK_FILE, "w") as lock_fp:
@@ -141,7 +140,7 @@ with open(LOCK_FILE, "w") as lock_fp:
         fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
     except BlockingIOError:
         logging.error("Another instance is running")
-        sys.exit(0)
+        sys.exit(1)
 
     # Execute the qmassa command to generate the log file
     execute_qmassa_command()
