@@ -117,6 +117,7 @@ services:
       - "${VCLIP_HOST_PORT}:8000"
     ipc: host
     environment:
+      no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
       no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
       no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
       http_proxy: ${http_proxy}
