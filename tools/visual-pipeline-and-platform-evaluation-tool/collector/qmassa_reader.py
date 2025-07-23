@@ -1,62 +1,65 @@
 #!/usr/bin/env python3
 
 import json
+import logging
+import subprocess
 import time
-import shutil
 import fcntl
 import sys
 import os
 
 # === Constants ===
 LOG_FILE = "/app/qmassa_log.json"
-TEMP_COPY = "/tmp/qmassa_copy.json"
-INDEX_TRACKER = "/tmp/last_state_index.txt"
 DEBUG_LOG = "/tmp/qmassa_reader_trace.log"
 LOCK_FILE = "/tmp/qmassa_reader.lock"
 HOSTNAME = os.uname()[1]
 
-# === Helpers ===
-def load_last_state():
-    try:
-        with open(INDEX_TRACKER, "r") as f:
-            parts = f.read().strip().split()
-            return int(parts[0]), int(parts[1])
-    except:
-        return -1, int(time.time() * 1e9)
+# Configure logger
+logging.basicConfig(
+    filename=DEBUG_LOG,
+    level=logging.INFO,
+    format="%(asctime)s [%(levelname)s] %(message)s (line %(lineno)d)",
+)
 
-def save_last_state(index, timestamp):
-    with open(INDEX_TRACKER, "w") as f:
-        f.write(f"{index} {timestamp}")
-
-# === Lock to prevent multiple instances ===
-with open(LOCK_FILE, "w") as lock_fp:
-    try:
-        fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
-    except BlockingIOError:
-        # Another instance is running
-        sys.exit(0)
+def execute_qmassa_command():
+    qmassa_command = [
+        "qmassa", "--ms-interval", "500", "--no-tui", "--nr-iterations", "2", "--to-json", LOG_FILE
+    ]
 
     try:
-        shutil.copy(LOG_FILE, TEMP_COPY)
-        with open(TEMP_COPY, "r") as f:
-            data = json.load(f)
+        subprocess.run(qmassa_command, check=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
+    except subprocess.CalledProcessError as e:
+        logging.error(f"Error running qmassa: {e}")
 
+def load_log_file():
+    try:
+        with open(LOG_FILE, "r") as f:
+            return json.load(f)
+    except FileNotFoundError:
+        logging.error(f"Log file {LOG_FILE} not found.")
+    except json.JSONDecodeError as e:
+        logging.error(f"Failed to decode JSON from log file: {e}")
+    except Exception as e:
+        logging.error(f"Unexpected error while loading log file: {e}")
+    sys.exit(0)
+
+def process_states(data):
+    try:
         states = data.get("states", [])
         if not states:
-            exit(0)
+            logging.error("No states found in the log file")
+            sys.exit(0)
 
-        last_seen, last_ts_ns = load_last_state()
         current_ts_ns = int(time.time() * 1e9)
 
-        for i in range(last_seen + 1, len(states)):
-            state = states[i]
+        for state in states:
             devs_state = state.get("devs_state", [])
             if not devs_state:
                 continue
- 
+
             # --- For devs_state[-2] if it exists ---
             if len(devs_state) >= 2:
-                 # Use the last device state
+                # Use the last device state
                 dev = devs_state[-1]
                 dev_stats = dev.get("dev_stats", {})
                 eng_usage = dev_stats.get("eng_usage", {})
@@ -103,7 +106,7 @@ with open(LOCK_FILE, "w") as lock_fp:
                     for key, val in power2[-1].items():
                         print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
             else:
-                 # Use the last device state
+                # Use the last device state
                 dev = devs_state[-1]
                 dev_stats = dev.get("dev_stats", {})
                 eng_usage = dev_stats.get("eng_usage", {})
@@ -127,9 +130,24 @@ with open(LOCK_FILE, "w") as lock_fp:
                 if power:
                     for key, val in power[-1].items():
                         print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
-            # Update last seen
-            save_last_state(i, current_ts_ns)
 
     except Exception as e:
         with open(DEBUG_LOG, "a") as log:
-            log.write(f"[{time.ctime()}] ERROR: {e}\n")
+            logging.error(f"Error processing log file: {e}")
+
+# === Lock to prevent multiple instances ===
+with open(LOCK_FILE, "w") as lock_fp:
+    try:
+        fcntl.flock(lock_fp, fcntl.LOCK_EX | fcntl.LOCK_NB)
+    except BlockingIOError:
+        logging.error("Another instance is running")
+        sys.exit(0)
+
+    # Execute the qmassa command to generate the log file
+    execute_qmassa_command()
+
+    # Load the log file
+    data = load_log_file()
+
+    # Process the states from the log file
+    process_states(data)
