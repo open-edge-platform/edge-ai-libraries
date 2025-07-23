@@ -1,11 +1,16 @@
 # How to use GPU for decode and inference
 
+In order to benefit from hardware acceleration devices, pipelines can be constructed in a manner that different stages such as decoding, inference etc., can make use of them.
+
 ## Pre-requisites
-In order to benefit from hardware acceleration, pipelines can be constructed in a manner that different stages such as decoding, inference etc., can make use of these devices.
-For containerized application such as the DLStreamer Pipeline Server, first we need to provide GPU device(s) access to the container user.
+
+### Ensure you have a GPU
+
+To determine which graphics processor you have, please follow [this](https://dgpu-docs.intel.com/devices/hardware-table.html) document.
 
 ### Provide GPU access to the container
-This can be done by making the following changes to the docker compose file.
+
+For containerized application such as the DLStreamer Pipeline Server, first we need to provide GPU device(s) access to the container user. This can be done by making the following changes to the docker compose file.
 
 ```yaml
 services:
