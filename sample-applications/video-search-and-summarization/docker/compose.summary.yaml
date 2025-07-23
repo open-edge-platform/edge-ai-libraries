@@ -179,8 +179,8 @@ services:
     ports:
       - "${AUDIO_HOST_PORT}:8000"
     volumes:
-      - audio_analyzer_data:/models
-      - audio_analyzer_data:/data
+      - audio_analyzer_data:/home/appuser/models
+      - audio_analyzer_data:/home/appuser/data
       - /dev/dri:/dev/dri
     environment:
       - http_proxy

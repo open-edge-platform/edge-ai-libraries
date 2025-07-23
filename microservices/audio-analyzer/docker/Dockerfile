@@ -124,8 +124,6 @@ FROM python-base AS prod
 ENV FASTAPI_ENV=production
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-RUN mkdir -p /app && chown -R appuser:appuser /app
-
 WORKDIR /app
 # Copy the application code for production
 COPY . /app/
