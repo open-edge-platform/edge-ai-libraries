@@ -1509,7 +1509,6 @@ demo = create_interface()
 
 app = FastAPI()
 
-
 @app.get("/api/hls/{filename:path}")
 def serve_hls(filename: str):
     logging.info(f"Serving HLS file: {filename}")
