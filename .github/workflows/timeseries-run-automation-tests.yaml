@@ -37,9 +37,9 @@ jobs:
         cd "${{ github.workspace }}"
         cd ./microservices/time-series-analytics/automation_tests
         echo "Running automation tests"
-        pip3 install pytest-html
+        pip3 install -r functional/requirements.txt
         rm -rf /tmp/report.html
-        pytest -v --html /tmp/report.html test_docker.py
+        pytest -v --html=/tmp/report.html test_docker.py
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:
