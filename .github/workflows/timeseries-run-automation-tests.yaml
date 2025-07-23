@@ -38,12 +38,12 @@ jobs:
         cd ./microservices/time-series-analytics/automation_tests
         echo "Running automation tests"
         pip3 install -r functional/requirements.txt
-        rm -rf /tmp/report.html
-        pytest -v --html=/tmp/report.html test_docker.py
+        rm -rf /tmp/test_report/report.html
+        pytest -v --html=/tmp/test_report/report.html test_docker.py
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:
         name: automation-test-report
-        path: /tmp/report.html
+        path: /tmp/test_report
 
     

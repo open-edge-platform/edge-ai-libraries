@@ -121,30 +121,6 @@ def test_timeseries_microservice_started_successfully():
     except Exception as e:
         pytest.fail(f"Time Series Analytics Microservice did not start: {e}")
 
-def test_temperature_input():
-    """
-    Test to check if the temperature simulator script runs without error.
-    """
-    os.chdir(TS_DIR)
-    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_HELM_PORT)]
-    try:
-        print("Starting temperature simulator...")
-        # Run the simulator for 20 seconds, then terminate
-        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(10)
-        print("Temperature simulator started successfully.")
-        pod_names = get_pod_names(NAMESPACE)
-        print(f"Found pods in namespace '{NAMESPACE}': {pod_names}") 
-        if not pod_names:
-            pytest.fail("No pods found in the namespace.")
-        command = f"kubectl logs -n {NAMESPACE} {pod_names[0]} 2>&1 | grep -i 'is outside the range 20-25.'"
-        time.sleep(10)  # Wait for the simulator to produce output
-        print("Checking Time Series Analytics Microservice logs for temperature data...")
-        output = utils.run_command(command)
-        assert "is outside the range 20-25." in output
-    except RuntimeError as e:
-        pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")
-
 ## REST API Tests
 
 def test_health_check():
@@ -217,3 +193,27 @@ def test_post_invalid_config_endpoint():
         pytest.fail("No pods found in the namespace.")
     cmd = f"kubectl logs -n {NAMESPACE} {podnames[0]}"
     utils.post_invalid_config_endpoint(TS_HELM_PORT, cmd)
+
+def test_temperature_input():
+    """
+    Test to check if the temperature simulator script runs without error.
+    """
+    os.chdir(TS_DIR)
+    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_HELM_PORT)]
+    try:
+        print("Starting temperature simulator...")
+        # Run the simulator for 20 seconds, then terminate
+        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(10)
+        print("Temperature simulator started successfully.")
+        pod_names = get_pod_names(NAMESPACE)
+        print(f"Found pods in namespace '{NAMESPACE}': {pod_names}") 
+        if not pod_names:
+            pytest.fail("No pods found in the namespace.")
+        command = f"kubectl logs -n {NAMESPACE} {pod_names[0]} 2>&1 | grep -i 'is outside the range 20-25.'"
+        time.sleep(10)  # Wait for the simulator to produce output
+        print("Checking Time Series Analytics Microservice logs for temperature data...")
+        output = utils.run_command(command)
+        assert "is outside the range 20-25." in output
+    except RuntimeError as e:
+        pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")

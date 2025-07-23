@@ -67,6 +67,7 @@ def setup_docker_environment():
     # Stop docker containers
     print("Bringing down Docker container...")
     docker_compose_down()
+    time.sleep(5)
 
 def test_timeseries_microservice_started_successfully():
     """
@@ -93,28 +94,6 @@ def test_test_timeseries_microservice_start():
         assert "Kapacitor Initialized Successfully. Ready to Receive the Data..." in output
     except Exception as e:
         pytest.fail(f"Failed to check Time Series Analytics Microservice initialization: {e}")
-
-def test_temperature_input():
-    """
-    Test to check if the temperature simulator script runs without error.
-    """
-    os.chdir(TS_DIR)
-    command = "pip3 install -r simulator/requirements.txt"
-    utils.run_command(command)
-    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_DOCKER_PORT) ]
-    try:
-        print("Starting temperature simulator...")
-        # Run the simulator for 20 seconds, then terminate
-        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
-        time.sleep(10)
-        print("Temperature simulator started successfully.")
-        command = f"docker logs {CONTAINER_NAME} 2>&1 | grep -i 'is outside the range 20-25.'"
-        time.sleep(10)  # Wait for the simulator to produce output
-        print("Checking Time Series Analytics Microservice logs for temperature data...")
-        output = utils.run_command(command)
-        assert "is outside the range 20-25." in output
-    except RuntimeError as e:
-        pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")
 
 ## REST API Tests
 
@@ -180,3 +159,25 @@ def test_post_invalid_config_endpoint():
     """
     cmd = f"docker logs {CONTAINER_NAME}"
     utils.post_invalid_config_endpoint(TS_DOCKER_PORT, cmd)
+
+def test_temperature_input():
+    """
+    Test to check if the temperature simulator script runs without error.
+    """
+    os.chdir(TS_DIR)
+    command = "pip3 install -r simulator/requirements.txt"
+    utils.run_command(command)
+    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_DOCKER_PORT) ]
+    try:
+        print("Starting temperature simulator...")
+        # Run the simulator for 20 seconds, then terminate
+        subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
+        time.sleep(10)
+        print("Temperature simulator started successfully.")
+        command = f"docker logs {CONTAINER_NAME} 2>&1 | grep -i 'is outside the range 20-25.'"
+        time.sleep(10)  # Wait for the simulator to produce output
+        print("Checking Time Series Analytics Microservice logs for temperature data...")
+        output = utils.run_command(command)
+        assert "is outside the range 20-25." in output
+    except RuntimeError as e:
+        pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")

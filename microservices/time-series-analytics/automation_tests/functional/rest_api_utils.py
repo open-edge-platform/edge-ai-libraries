@@ -256,6 +256,7 @@ def post_invalid_config_endpoint(port, cmd):
         time.sleep(15)  # Wait for the configuration to be applied
         command = f"{cmd} 2>&1 | grep -i 'UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package.'"
         output = run_command(command)
+        print(output)
         assert "UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")
