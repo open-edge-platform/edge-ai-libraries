@@ -4,7 +4,7 @@
  * SPDX-License-Identifier: MIT
  ******************************************************************************/
 
-#include "async_with_va_api/image_inference_async/image_inference_async.h"
+#include "image_inference_async/image_inference_async.h"
 #include "openvino_image_inference.h"
 #include "utils.h"
 
