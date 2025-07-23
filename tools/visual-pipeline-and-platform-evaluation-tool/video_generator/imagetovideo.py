@@ -130,14 +130,14 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
 
     # Encoder settings with dynamic bitrate
     encoder_settings = {
-        "h264": f"x264enc bitrate={bitrate} speed-preset=fast tune=zerolatency",
-        "hevc": f"x265enc bitrate={bitrate} speed-preset=fast tune=zerolatency ! h265parse",
-        "vp8": f"vp8enc target-bitrate={bitrate} deadline=1000000",
-        "vp9": f"vp9enc target-bitrate={bitrate} deadline=1000000",
-        "av1": f"av1enc target-bitrate={bitrate}",
-        "mpeg4": f"avenc_mpeg4 bitrate={bitrate}",
-        "prores": f"avenc_prores bitrate={bitrate}",
-        "theora": f"theoraenc bitrate={bitrate}",
+        "h264": ["x264enc", f"bitrate={bitrate}", "speed-preset=fast", "tune=zerolatency"],
+        "hevc": ["x265enc", f"bitrate={bitrate}", "speed-preset=fast", "tune=zerolatency", "!", "h265parse"],
+        "vp8": ["vp8enc", f"target-bitrate={bitrate}", "deadline=1000000"],
+        "vp9": ["vp9enc", f"target-bitrate={bitrate}", "deadline=1000000"],
+        "av1": ["av1enc", f"target-bitrate={bitrate}"],
+        "mpeg4": ["avenc_mpeg4", f"bitrate={bitrate}"],
+        "prores": ["avenc_prores", f"bitrate={bitrate}"],
+        "theora": ["theoraenc", f"bitrate={bitrate}"],
     }
 
     # Automatically append the extension based on encoding if not provided
@@ -159,7 +159,7 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
         "gst-launch-1.0", "-e",
         "multifilesrc", f"location={temp_dir}/frame_%05d.jpeg", "index=0", f"caps={caps}", "!",
         decoding, "!", "videoconvert", "!",
-        *encoder_settings[encoding_lower].split(), "!", muxer, "!",
+        *encoder_settings[encoding_lower], "!", muxer, "!",
         "filesink", f"location={output_file}"
     ]
 
