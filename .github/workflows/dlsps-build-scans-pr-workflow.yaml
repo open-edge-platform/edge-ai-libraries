@@ -43,8 +43,8 @@ jobs:
 
     - name: Set BASE_IMAGE
       env:
-        BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22@sha256:865290076ab40d45dd15e18a58f6d8df31afd87f518706c4cc0786a3d3d26030"
-        BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24@sha256:01c3b47f588e7560a7f0ca2ae04d59b525c073b822596f2a7e349a3d25282547"
+        BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407"
+        BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24:candidate1407"
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
           echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
@@ -230,7 +230,7 @@ jobs:
 
       - name: Run pylint
         run: |
-          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
           find . -type f -iname '*.py' -exec pylint --errors-only --disable=import-error  {} \;  > pylint_report.txt || true
           cp pylint_report.txt ${{ github.workspace }}
           echo "### Pylint Results" >> $GITHUB_STEP_SUMMARY
