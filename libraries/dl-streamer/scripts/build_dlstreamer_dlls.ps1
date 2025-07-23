@@ -86,7 +86,6 @@ if (-Not (Test-Path "C:\\Program Files\\Git")) {
 Write-Host "###################################### Setting paths ########################################"
 ${env:VCPKG_ROOT} = "C:\\vcpkg"
 if (-Not ${env:PATH_SETUP_DONE}) {
-	echo "Setting PATH"
 	${env:PATH} = "C:\Program Files\Git\bin;${env:PATH}"
 	setx path "${env:VCPKG_ROOT};${env:VCPKG_ROOT}\downloads\tools\cmake-3.30.1-windows\cmake-3.30.1-windows-i386\bin;${env:VCPKG_ROOT}\downloads\tools\python\python-3.12.7-x64-1"
 	${env:PATH_SETUP_DONE} = 1
@@ -95,9 +94,8 @@ setx PKG_CONFIG_PATH "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig;C:\libva\Micros
 setx LIBVA_DRIVER_NAME "vaon12"
 setx LIBVA_DRIVERS_PATH "C:\libva\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin"
 C:\BuildTools\Common7\Tools\Launch-VsDevShell.ps1
-Write-Host "############################################ DONE ###########################################"
-
 $DLSTREAMER_SRC_LOCATION = $PWD.Path
+Write-Host "############################################ DONE ###########################################"
 
 if (-Not (Test-Path "${env:VCPKG_ROOT}")) {
 	Write-Host "####################################### Installing VCPKG #######################################"
