@@ -83,7 +83,7 @@ if (-Not (Test-Path "C:\\Program Files\\Git")) {
 	Write-Host "############################### Git already installed ########################################"
 }
 
-Write-Host "####################################### Configuring VCPK #######################################"
+Write-Host "###################################### Setting paths ########################################"
 ${env:VCPKG_ROOT} = "C:\\vcpkg"
 if (-Not ${env:PATH_SETUP_DONE}) {
 	echo "Setting PATH"
