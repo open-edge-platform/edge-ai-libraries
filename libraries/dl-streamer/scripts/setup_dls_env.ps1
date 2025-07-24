@@ -58,18 +58,16 @@ $env:GST_PLUGIN_SCANNER = [System.Environment]::GetEnvironmentVariable('GST_PLUG
 echo "User environment variables:"
 Get-ChildItem Env:
 
-# echo ""
-# echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
-# echo "Please wait for a moment... "
+echo ""
+echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
+echo "Please wait for a moment... "
 
-# $errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
+$errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
 
-# if ($errOutput[0].ToString().Contains("No such element or plugin")) {
-# 	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
-# 	$errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
-# 	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
-# }
+if ($errOutput[0].ToString().Contains("No such element or plugin")) {
+	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
+	$errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
+	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
+}
 
-# echo "DLStreamer is ready"
-
-echo "Environment is set"
+echo "DLStreamer is ready"
