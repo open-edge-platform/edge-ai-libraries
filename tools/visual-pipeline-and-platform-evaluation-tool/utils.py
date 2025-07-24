@@ -11,6 +11,10 @@ from itertools import product
 import logging
 from pipeline import GstPipeline
 import select
+import numpy as np
+import cv2
+import struct
+import mmap
 
 
 
@@ -183,6 +187,52 @@ def _iterate_param_grid(param_grid: Dict[str, List[str]]):
         yield dict(zip(keys, combination))
 
 
+def find_shm_file(shm_prefix, socket_path="/tmp/shared_memory/video_stream"):
+    try:
+        files = os.listdir("/dev/shm")
+        shm_files = [f for f in files if f.startswith("shmpipe.")]
+        if not shm_files:
+            return None
+        shm_files.sort(key=lambda x: os.path.getctime(os.path.join("/dev/shm", x)), reverse=True)
+        return shm_files[0]
+    except Exception:
+        return None
+
+def read_latest_meta(meta_path):
+    try:
+        with open(meta_path, "rb") as f:
+            meta = f.read(12)
+            if len(meta) != 12:
+                return None
+            height, width, dtype_size = struct.unpack("III", meta)
+            return height, width, dtype_size
+    except Exception:
+        return None
+
+def read_shared_memory_frame(meta_path="/tmp/shared_memory/video_stream.meta", shm_prefix="shmpipe.video_stream", socket_path="/tmp/shared_memory/video_stream"):
+    meta = read_latest_meta(meta_path)
+    if not meta:
+        return None
+    height, width, dtype_size = meta
+    shm_file = find_shm_file(shm_prefix, socket_path=socket_path)
+    if not shm_file:
+        return None
+    shm_path = os.path.join("/dev/shm", shm_file)
+    try:
+        frame_size = height * width * 3 * dtype_size
+        with open(shm_path, "rb") as f:
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            buf = mm[:frame_size]
+            mm.close()
+        if len(buf) != frame_size:
+            return None
+        frame_bgr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3))
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        frame_resized = cv2.resize(frame_rgb, (960, 540), interpolation=cv2.INTER_AREA)
+        return frame_resized
+    except Exception:
+        return None
+
 def run_pipeline_and_extract_metrics(
     pipeline_cmd: GstPipeline,
     constants: Dict[str, str],
@@ -190,7 +240,8 @@ def run_pipeline_and_extract_metrics(
     channels: int | tuple[int, int] = 1,
     elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
-) -> Tuple[Dict[str, float], str, str]:
+    live_preview: bool = False,
+):
     global cancelled
     """
 
@@ -214,6 +265,10 @@ def run_pipeline_and_extract_metrics(
     # Set the number of inference channels
     # If no tuple is provided, the number of inference channels is equal to the number of channels
     inference_channels = channels if isinstance(channels, int) else channels[1]
+
+    meta_path = "/tmp/shared_memory/video_stream.meta"
+    shm_prefix = "shmpipe.video_stream"
+    socket_path = "/tmp/shared_memory/video_stream"
 
     for params in _iterate_param_grid(parameters):
 
@@ -247,6 +302,15 @@ def run_pipeline_and_extract_metrics(
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
 
+            if live_preview:
+                wait_time = 0
+                max_wait = 10
+                while not os.path.exists(meta_path) and wait_time < max_wait:
+                    time.sleep(0.5)
+                    wait_time += 0.5
+
+            frame_count = 0
+            last_yield_time = time.time()
             # Poll the process to check if it is still running
             while process.poll() is None:
                 if cancelled:
@@ -275,7 +339,17 @@ def run_pipeline_and_extract_metrics(
                         # Write latest FPS to a file
                         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
                             f.write(f"{latest_fps}\n")
-
+                if live_preview:
+                    t0 = time.time()
+                    frame = read_shared_memory_frame(meta_path=meta_path, shm_prefix=shm_prefix, socket_path=socket_path)
+                    t1 = time.time()
+                    frame_count += 1
+                    read_frame_time = t1 - t0
+                    time_since_last_yield = t1 - last_yield_time
+                    last_yield_time = t1
+                    logging.info(f"[live_preview_stream] Frame {frame_count}: read_shared_memory_frame took {read_frame_time:.4f}s, time since last yield: {time_since_last_yield:.4f}s")
+                    yield frame
+                    time.sleep(1.0 / 30.0)
                 if ps.Process(process.pid).status() == "zombie":
                     exit_code = process.wait()
                     break
@@ -359,4 +433,5 @@ def run_pipeline_and_extract_metrics(
         except subprocess.CalledProcessError as e:
             logger.error(f"Error: {e}")
             continue
+
     return results

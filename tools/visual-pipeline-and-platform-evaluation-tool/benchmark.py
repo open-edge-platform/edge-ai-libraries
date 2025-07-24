@@ -46,13 +46,22 @@ class Benchmark:
         elements: List[tuple[str, str, str]],
     ) -> List[Dict[str, float]]:
         """Run the pipeline and extract metrics."""
-        return run_pipeline_and_extract_metrics(
+        result = run_pipeline_and_extract_metrics(
             pipeline_cls,
             constants=constants,
             parameters=parameters,
             channels=channels,
             elements=elements,
         )
+
+        # Handle both generator and direct return
+        try:
+            # Exhaust generator to get StopIteration value
+            while True:
+                next(result)
+        except StopIteration as e:
+            results = e.value
+        return results
 
     def run(self) -> Tuple[int, int, int, float]:
         """Run the benchmark and return the best configuration."""

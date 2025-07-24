@@ -53,24 +53,38 @@ class PipelineOptimizer:
         # Configure logging
         self.logger = logging.getLogger("PipelineOptimizer")
 
-    def optimize(self):
-
-        metrics_list = run_pipeline_and_extract_metrics(
+    def _run_and_collect_metrics(self, live_preview=False):
+        result = run_pipeline_and_extract_metrics(
             pipeline_cmd=self.pipeline,
             constants=self.constants,
             parameters=self.param_grid,
             channels=(self.regular_channels, self.inference_channels),
             elements=self.elements,
+            live_preview=live_preview,
         )
 
-        # Iterate over the list of metrics
+        metrics_list = None
+        if live_preview:
+            try:
+                while True:
+                    frame = next(result)
+                    yield frame
+            except StopIteration as e:
+                metrics_list = e.value
+            # After generator is exhausted, yield None to signal end
+            yield None
+        else:
+            try:
+                while True:
+                    next(result)
+            except StopIteration as e:
+                metrics_list = e.value
+
+        # Log all metrics and save results
         for metrics in metrics_list:
-            # Log the metrics
             self.logger.info("Exit code: {}".format(metrics["exit_code"]))
             self.logger.info("Total FPS is {}".format(metrics["total_fps"]))
             self.logger.info("Per Stream FPS is {}".format(metrics["per_stream_fps"]))
-
-            # Save results
             self.results.append(
                 OptimizationResult(
                     params=metrics["params"],
@@ -79,6 +93,15 @@ class PipelineOptimizer:
                     per_stream_fps=metrics["per_stream_fps"],
                 )
             )
+
+    def optimize(self):
+        # Call shared method without live_preview, don't yield frames
+        for _ in self._run_and_collect_metrics(live_preview=False):
+            pass
+
+    def run_with_live_preview(self):
+        # Yield frames from shared method, with live_preview enabled
+        yield from self._run_and_collect_metrics(live_preview=True)
 
     def evaluate(self) -> OptimizationResult:
         if not self.results:
