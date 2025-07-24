@@ -1,0 +1,61 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: docsum-api
+  labels:
+    app: docsum-api
+spec:
+  replicas: 1
+  selector:
+    matchLabels:
+      app: docsum-api
+  template:
+    metadata:
+      labels:
+        app: docsum-api
+    spec:
+      containers:
+        - name: {{ .Values.docSumBackend.name}}
+          image: "{{ .Values.global.docSum.image.repository }}:{{ .Values.global.docSum.image.tag }}"
+          imagePullPolicy: "{{ .Values.global.docSum.image.pullPolicy }}"
+          ports:
+            - containerPort: {{ .Values.docSumBackend.service.port }}
+          volumeMounts:
+            - name: ca-path
+              mountPath: /usr/local/share/ca-certificates
+            - name: ssl-path
+              mountPath: /etc/ssl/certs
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.noProxy }},ovms-service"
+            - name: http_proxy
+              value: "{{ .Values.global.proxy.httpProxy }}"
+            - name: https_proxy
+              value: "{{ .Values.global.proxy.httpsProxy }}"
+            - name: LLM_MODEL
+              value: "{{ .Values.global.llm.llmModelId }}"
+            - name: LLM_ENDPOINT_URL
+              value: "{{ .Values.global.llm.llmEndpointUrl }}"
+            - name: OTEL_SERVICE_NAME
+              value: document-summarization
+            - name: OTEL_SERVICE_ENV
+              value: development
+            - name: OTEL_SERVICE_VERSION
+              value: 1.0.0
+            - name: OTLP_ENDPOINT
+              value: "{{ .Values.global.otlp.otlpEndPoint }}"
+            - name: OTEL_EXPORTER_OTLP_ENDPOINT
+              value: "{{ .Values.global.otlp.otlpEndPoint }}"
+            - name: OTEL_EXPORTER_OTLP_TRACES_ENDPOINT
+              value: {{ .Values.global.otlp.otlpEndPoint }}/v1/traces
+            - name: REQUESTS_CA_BUNDLE
+              value: /etc/ssl/certs/ca-certificates.crt
+          command: ["python"]
+          args: ["app/server.py"]
+      volumes:
+            - name: ca-path
+              hostPath:
+                path:  "/usr/local/share/ca-certificates"
+            - name: ssl-path
+              hostPath:
+                path: "/etc/ssl/certs"

@@ -39,7 +39,7 @@ LABEL description="This is the development image of Intel® Deep Learning Stream
 LABEL vendor="Intel Corporation"
 
 ARG GST_VERSION=1.26.1
-ARG OPENVINO_VERSION=2025.1.0
+ARG OPENVINO_VERSION=2025.2.0
 
 ARG DLSTREAMER_VERSION=2025.0.1.3
 ARG DLSTREAMER_BUILD_NUMBER
@@ -62,7 +62,7 @@ RUN \
     curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
     gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
+    tee /etc/apt/sources.list.d/intel-gpu-jammy.list
 
 RUN \
     apt-get update && \
@@ -72,19 +72,16 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
-RUN \
-    mkdir -p ./npu_debs && \
-    curl -sSL -o ./npu_debs/level-zero_1.17.44+u22.04_amd64.deb https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb && \
-    curl -sSL --insecure https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 | \
-    grep -oP 'href="\K[^"]*'22.04'[^"]*\.deb' | \
-    while read -r url; do \
-        curl -sSL -O "https://github.com${url}" --output-dir ./npu_debs; \
-    done && \
-    rm ./npu_debs/intel-fw-npu* && \
-    apt-get install -y -q --no-install-recommends ./npu_debs/*.deb && \
-    rm -rf ./npu_debs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+WORKDIR /tmp/npu_deps
+    
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
+    rm -rf /var/lib/apt/lists/* /tmp/npu_deps
+
+WORKDIR /
 
 RUN \
     apt-get update && \
@@ -94,13 +91,9 @@ RUN \
     libgirepository1.0-dev=\* libx265-dev=\* libx264-dev=\* libde265-dev=\* gudev-1.0=\* libusb-1.0=\* nasm=\* python3-venv=\* \
     libcairo2-dev=\* libxt-dev=\* libgirepository1.0-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* libcurl4-openssl-dev=\* \
     libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
-    linux-libc-dev=\* libpmix2=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
-RUN \
-    apt-get update && \
-    apt-get install -y -q --no-install-recommends ffmpeg=\* libpaho-mqtt-dev=\* && \
+    linux-libc-dev=\* libpmix2=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* \
+    ffmpeg=\* libpaho-mqtt-dev=\* libpostproc-dev=\* libavfilter-dev=\* libavdevice-dev=\* \
+    libswscale-dev=\* libswresample-dev=\* libavutil-dev=\* libavformat-dev=\* libavcodec-dev=\* libxml2-dev=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -149,6 +142,10 @@ WORKDIR /home/dlstreamer
 
 RUN \
     git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
+
+ENV PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+
+RUN ldconfig
 
 WORKDIR /home/dlstreamer/gstreamer
 
@@ -244,7 +241,7 @@ RUN \
     shopt -s dotglob && \
     mv gst-plugins-rs/* . && \
     git checkout 207196a0334da74c4db9db7c565d882cb9ebc07d && \
-    curl -sSL --insecure https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.85.0 && \
+    curl -sSL --insecure https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0 && \
     source "$HOME"/.cargo/env && \
     cargo install cargo-c --version=0.10.11 --locked && \
     cargo update && \
@@ -263,10 +260,13 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 WORKDIR /
 
 RUN \
-    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip && \
+    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip && \
+    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.6.0.zip && \
     unzip opencv.zip && \
-    rm opencv.zip && \
-    mv opencv-4.10.0 opencv && \
+    unzip opencv_contrib.zip && \
+    rm opencv.zip opencv_contrib.zip && \
+    mv opencv-4.6.0 opencv && \
+    mv opencv_contrib-4.6.0 opencv_contrib && \
     mkdir -p opencv/build
 
 WORKDIR /opencv/build
@@ -277,6 +277,7 @@ RUN \
     -DBUILD_PERF_TESTS=OFF \
     -DBUILD_EXAMPLES=OFF \
     -DBUILD_opencv_apps=OFF \
+    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
     -GNinja .. && \
     ninja -j "$(nproc)" && \
     ninja install
@@ -322,8 +323,7 @@ RUN \
     apt-get update && apt-get install --no-install-recommends -y "openvino-${OPENVINO_VERSION}"=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
- 
-ENV PKG_CONFIG_PATH=$PKG_CONFIG_PATH:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig
+
 
 WORKDIR "$DLSTREAMER_DIR"
 
@@ -338,7 +338,7 @@ WORKDIR $DLSTREAMER_DIR/build
 ENV LIBDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/lib
 ENV BINDIR=${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}/bin
 ENV PATH=${GSTREAMER_DIR}/bin:${BINDIR}:${PATH}
-ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+ENV PKG_CONFIG_PATH=/usr/local/lib/pkgconfig:${LIBDIR}/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${GSTREAMER_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}
 ENV LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:/usr/local/lib:${LIBRARY_PATH}
 ENV LD_LIBRARY_PATH=${GSTREAMER_DIR}/lib:${LIBDIR}:/usr/lib:/usr/local/lib:${LD_LIBRARY_PATH}
 ENV LIB_PATH=$LIBDIR
@@ -382,9 +382,14 @@ RUN \
     mkdir -p /deb-pkg/opt/intel/ && \
     mkdir -p /deb-pkg/opt/opencv/include && \
     mkdir -p /deb-pkg/opt/rdkafka && \
-    cp -r "${DLSTREAMER_DIR}" /deb-pkg/opt/intel/dlstreamer && \
+    cp -r "${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}" /deb-pkg/opt/intel/dlstreamer && \
+    cp -r "${DLSTREAMER_DIR}/samples/" /deb-pkg/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/python/" /deb-pkg/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/scripts/" /deb-pkg/opt/intel/dlstreamer/ && \
+    cp -r "${DLSTREAMER_DIR}/include/" /deb-pkg/opt/intel/dlstreamer/ && \
+    cp "${DLSTREAMER_DIR}/README.md" /deb-pkg/opt/intel/dlstreamer && \
     cp -rT "${GSTREAMER_DIR}" /deb-pkg/opt/intel/dlstreamer/gstreamer && \
-    cp /usr/local/lib/libopencv*.so.410 /deb-pkg/opt/opencv/ && \
+    cp -a /usr/local/lib/libopencv*.so* /deb-pkg/opt/opencv/ && \
     cp -r /usr/local/include/opencv4/* /deb-pkg/opt/opencv/include && \
     cp /usr/local/lib/librdkafka++.so /deb-pkg/opt/rdkafka/librdkafka++.so.1 && \
     cp /usr/local/lib/librdkafka.so /deb-pkg/opt/rdkafka/librdkafka.so.1 && \
@@ -393,6 +398,8 @@ RUN \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docs && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/infrastructure && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/tests && \
+    find /deb-pkg/opt/intel/dlstreamer/bin -type f ! -name "liblibrarymock1.so" ! -name "liblibrarymock2.so" ! -name "draw_face_attributes" -exec rm -f {} + && \
+    find /deb-pkg/opt/intel/dlstreamer/bin -type d -empty -delete && \
     find /deb-pkg/opt/intel -name "*.a" -delete
 
 COPY docker/ubuntu/debian /deb-pkg/debian
@@ -409,7 +416,7 @@ RUN \
     rm ./debian/intel-dlstreamer.install && \
     mv ./debian/control-ubuntu22 ./debian/control && \
     mv ./debian/intel-dlstreamer.install-ubuntu22 ./debian/intel-dlstreamer.install
-    
+
 RUN \
     debuild -z1 -us -uc && \
     mv "/intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb" "/intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb"
@@ -445,19 +452,16 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
-RUN \
-    mkdir -p ./npu_debs && \
-    curl -sSL -o ./npu_debs/level-zero_1.17.44+u22.04_amd64.deb https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb && \
-    curl -sSL --insecure https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 | \
-    grep -oP 'href="\K[^"]*'22.04'[^"]*\.deb' | \
-    while read -r url; do \
-        curl -sSL -O "https://github.com${url}" --output-dir ./npu_debs; \
-    done && \
-    rm ./npu_debs/intel-fw-npu* && \
-    apt-get install -y -q --no-install-recommends ./npu_debs/*.deb && \
-    rm -rf ./npu_debs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+WORKDIR /tmp/npu_deps
+    
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
+    rm -rf /var/lib/apt/lists/* /tmp/npu_deps
+
+WORKDIR /
 
 RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
     gpg --dearmor -o /usr/share/keyrings/intel-sw-products.gpg && \
@@ -479,19 +483,14 @@ RUN \
     chown -R dlstreamer: /opt && \
     chmod -R u+rw /opt
 
-RUN \
-    mkdir /python3venv && \
-    chown -R dlstreamer: /python3venv && \
-    chmod -R u+w /python3venv
-
 # DL Streamer environment variables
 ENV LIBVA_DRIVER_NAME=iHD
-ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
-ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/opencv:/opt/rdkafka:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
+ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/opt/opencv:/opt/rdkafka:/usr/local/lib/gstreamer-1.0:/usr/local/lib
 ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 ENV GST_VA_ALL_DRIVERS=1
 ENV MODEL_PROC_PATH=/opt/intel/dlstreamer/samples/gstreamer/model_proc
-ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:$PATH
+ENV PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
 ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/home/dlstreamer/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:
 ENV TERM=xterm
 ENV GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
@@ -502,11 +501,6 @@ RUN \
 
 WORKDIR /home/dlstreamer
 USER dlstreamer
-
-RUN \
-    python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
 
 HEALTHCHECK --interval=30s --timeout=10s --start-period=5s --retries=3 \
     CMD [ "bash", "-c", "pgrep bash > /dev/null || exit 1" ]

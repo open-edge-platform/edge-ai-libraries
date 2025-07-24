@@ -1,0 +1,86 @@
+services:
+  nginx:
+    image: nginx:latest
+    environment:
+      - no_proxy=${no_proxy},docsum-ui,docsum-api
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+    ports:
+      - "8101:80"
+    volumes:
+      - ./nginx.conf:/etc/nginx/nginx.conf:ro
+    depends_on:
+      - docsum-api
+      - docsum-ui
+    networks:
+      - my_network
+
+  ovms-service:
+    image: openvino/model_server:2025.1
+    container_name: ovms-service
+    environment:
+      - no_proxy=${no_proxy}
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+    ports:
+      - "9300:9300"
+      - "8300:80"
+    volumes:
+      - "${VOLUME_OVMS}/models:/workspace:ro"
+    healthcheck:
+      test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    command: [ "--port", "9300", "--rest_port", "80", "--log_level", "DEBUG", "--config_path", "/workspace/config.json" ]
+    networks:
+      - my_network
+
+  docsum-api:
+    image: ${REGISTRY:-}document-summary:${TAG}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docsum-api
+    ports:
+      - "8090:8000"
+    environment:
+      - no_proxy=${no_proxy},ovms-service
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - LLM_MODEL=${LLM_MODEL}
+      - OTEL_EXPORTER_OTLP_ENDPOINT=${OTLP_ENDPOINT}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
+      - OTEL_SERVICE_NAME=${OTEL_SERVICE_NAME}
+      - OTEL_SERVICE_ENV=${OTEL_SERVICE_ENV}
+      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
+      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+    command: python app/server.py
+    networks:
+      - my_network
+    volumes:
+      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /etc/ssl/certs:/etc/ssl/certs
+
+  docsum-ui:
+    image: ${REGISTRY:-}document-summary:${TAG}
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: docsum-ui
+    ports:
+      - "9998:7860"
+    environment:
+      - no_proxy=${no_proxy},docsum-api,docsum-ui
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - LLM_MODEL=${LLM_MODEL}
+    command: python ui/gradio_app.py
+    networks:
+      - my_network
+    depends_on:
+      - docsum-api
+
+networks:
+  my_network:
+    driver: bridge

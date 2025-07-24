@@ -601,8 +601,10 @@ def on_run(data):
 
     video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
 
+    recording_channels = arguments.get('recording_channels', 0) or 0
+    inferencing_channels = arguments.get('inferencing_channels', 0) or 0
     # Validate channels
-    if arguments["recording_channels"] + arguments["inferencing_channels"] == 0:
+    if recording_channels + inferencing_channels == 0:
         raise gr.Error(
             "Please select at least one channel for recording or inferencing.",
             duration=10,
@@ -612,7 +614,7 @@ def on_run(data):
         pipeline=current_pipeline[0],
         constants=constants,
         param_grid=param_grid,
-        channels=(arguments["recording_channels"], arguments["inferencing_channels"]),
+        channels=(recording_channels, inferencing_channels),
         elements=gst_inspector.get_elements(),
     )
 
@@ -663,13 +665,29 @@ def on_benchmark(data):
     s, ai, non_ai, fps = bm.run()
 
     # Return results
-    return f"Best Config: {s} streams ({ai} AI, {non_ai} non-AI -> {fps:.2f} FPS)"
+    try:
+        result = current_pipeline[1]['parameters']['benchmark']['result_format']
+    except KeyError:
+        result = "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
+
+    return result.format(s=s, ai=ai, non_ai=non_ai, fps=fps)
 
 
 def on_stop():
     utils.cancelled = True
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
 
+
+def show_hide_component(component, config_key):
+    component.unrender()
+    try:
+        if config_key:
+            component.render()
+    except KeyError:
+        pass
+
+
+# Create the interface
 def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
     Components declarations starts here.
@@ -685,12 +703,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4",
             "/tmp/people.mp4",
         )
-
-# Removed commented-out `download_file` block for cleaner codebase.
         input_video_player = gr.Video(
             label="Input Video",
             interactive=True,
-#            value="/tmp/person-bicycle-car-detection.mp4",
             value="/tmp/people.mp4",
             sources="upload",
             elem_id="input_video_player",
@@ -837,7 +852,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object detection inference interval
     object_detection_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
+        maximum=6,
         value=3,
         step=1,
         label="Object Detection Inference Interval",
@@ -862,7 +877,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         label="Object Classification Model",
         choices=[
             "Disabled",
-            "EfficientNet B0 (INT8)" ,
+            "EfficientNet B0 (INT8)",
             "MobileNet V2 PyTorch (FP16)",
             "ResNet-50 TF (INT8)",
         ],
@@ -892,7 +907,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification inference interval
     object_classification_inference_interval = gr.Slider(
         minimum=1,
-        maximum=5,
+        maximum=6,
         value=3,
         step=1,
         label="Object Classification Inference Interval",
@@ -928,11 +943,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_watermark_enabled",
     )
 
-    pipeline_compose_enabled = gr.Checkbox(
-        label="Compose and encode video channels",
-        value=True,
-        elem_id="pipeline_compose_enabled",
-    )
 
     # Run button
     run_button = gr.Button("Run")
@@ -957,6 +967,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Timer for stream data
     timer = gr.Timer(1, active=False)
 
+    pipeline_information = gr.Markdown(
+        f"### {current_pipeline[1]['name']}\n"
+        f"{current_pipeline[1]['definition']}"
+    )
+
     # Components Set
     components = set()
     components.add(input_video_player)
@@ -980,7 +995,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
-    components.add(pipeline_compose_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -1222,9 +1236,29 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 None,
                                 None,
                             ).then(
+                                lambda: (f"### {current_pipeline[1]['name']}\n"
+                                         f"{current_pipeline[1]['definition']}"),
+                                None,
+                                pipeline_information,
+                            ).then(
                                 lambda: current_pipeline[0].diagram(),
                                 None,
                                 pipeline_image,
+                            ).then(
+                                lambda: [
+                                    gr.Dropdown(
+                                        choices=current_pipeline[1]["parameters"]["inference"]["detection_models"],
+                                        value=current_pipeline[1]["parameters"]["inference"]["detection_model_default"],
+                                    ),
+                                    gr.Dropdown(
+                                        choices=current_pipeline[1]["parameters"]["inference"]["classification_models"],
+                                        value=current_pipeline[1]["parameters"]["inference"]["classification_model_default"],
+                                    )
+                                ],
+                                outputs=[
+                                    object_detection_model,
+                                    object_classification_model,
+                                ]
                             ).then(
                                 # Clear output components here
                                 lambda: [
@@ -1280,7 +1314,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                 )
 
             # Run Tab
-            with gr.Tab("Run", id=1):
+            with gr.Tab("Run", id=1) as run_tab:
 
                 # Main content
                 with gr.Row():
@@ -1289,10 +1323,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                     with gr.Column(scale=2, min_width=300):
 
                         # Render the pipeline information
-                        gr.Markdown(
-                            f"### {current_pipeline[1]['name']}\n"
-                            f"{current_pipeline[1]['definition']}"
-                        )
+                        pipeline_information.render()
 
                         # Render pipeline image
                         pipeline_image.render()
@@ -1341,13 +1372,15 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             inferencing_channels.render()
 
                             # Recording Channels
-                            recording_channels.render()
+                            @gr.render(triggers=[run_tab.select])
+                            def _():
+                                show_hide_component(
+                                    recording_channels,
+                                    current_pipeline[1]["parameters"]["run"]["recording_channels"],
+                                )
 
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
-
-                            # Whether to compose output
-                            pipeline_compose_enabled.render()
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
@@ -1356,7 +1389,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             fps_floor.render()
 
                             # AI Stream Rate
-                            ai_stream_rate.render()
+                            @gr.render(triggers=[run_tab.select])
+                            def _():
+                                show_hide_component(
+                                    ai_stream_rate,
+                                    current_pipeline[1]["parameters"]["benchmark"]["ai_stream_rate"],
+                                )
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():

@@ -26,7 +26,7 @@ Key components of the **Edge AI Libraries**:
 | [Document Ingestion](microservices/document-ingestion) | Microservice | [Link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
 | [Model Registry](microservices/model-registry) | Microservice | [Link](microservices/model-registry/docs/user-guide/get-started.md) | [API Reference](microservices/model-registry/docs/user-guide/api-docs/openapi.yaml) |
 | [Multimodal Embedding Serving](microservices/multimodal-embedding-serving) | Microservice | [Link](microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) | [API Reference](microservices/multimodal-embedding-serving/docs/user-guide/api-docs/openapi.yaml) |
-| [Time Series Analytics Microservice](microservices/time-series-analytics) | Microservice |  [Link](microservices/time-series-analytics/docs/user-guide/Overview.md) | [Usage](microservices/time-series-analytics/docs/user-guide/get-started.md) |
+| [Time Series Analytics Microservice](microservices/time-series-analytics) | Microservice |  [Link](microservices/time-series-analytics/docs/user-guide/Overview.md) | [API Reference](microservices/time-series-analytics/docs/user-guide/api-reference.md), [Usage](microservices/time-series-analytics/docs/user-guide/get-started.md) |
 | [Vector Retriever (with Milvus)](microservices/vector-retriever/milvus/) | Microservice | [Link](microservices/vector-retriever/milvus/docs/user-guide/get-started.md) | [API Reference](microservices/vector-retriever/milvus/docs/user-guide/api-reference.md) |
 | [Visual-Data Preparation for Retrieval (with Milvus)](microservices/visual-data-preparation-for-retrieval/milvus/) | Microservice | [Link](microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) | [API Reference](microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/api-reference.md) |
 | [Visual-Data Preparation for Retrieval (with VDMS)](microservices/visual-data-preparation-for-retrieval/vdms/) | Microservice | [Link](microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/get-started.md) | [API Reference](microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/api-reference.md) |
@@ -36,15 +36,16 @@ Key components of the **Edge AI Libraries**:
 | [Visual Pipeline and Platform Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) | Tool | [Link](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/get-started.md) | [Build](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/how-to-build-source.md) instructions |
 | [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/user-guide/build-from-source.md) instructions |
 | [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/user-guide/build-from-source.md) instructions |
+| [Document Summarization](sample-applications/document-summarization) | Sample Application | [Link](sample-applications/document-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/document-summarization/docs/user-guide/build-from-source.md) instructions |
 | [Video Search and Summarization](sample-applications/video-search-and-summarization) | Sample Application | [Link](sample-applications/video-search-and-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/video-search-and-summarization/docs/user-guide/build-from-source.md) instructions |
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
-Please visit each library/microservice/tool/sample sub-directory for respective **Getting Started**, **Build** instructions and **Development** guides.
+Visit each library, microservice, tool, or sample sub-directory for the respective **Getting Started**, **Build** instructions and **Development** guides.
 
 ## More Sample Applications
 
-Please visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
+Visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
 
 ## Contribute
 

@@ -6,7 +6,6 @@ FROM node:20-slim AS vite-app
 WORKDIR /user/app
 
 COPY package*.json /user/app/
-COPY .npmrc /user/app/
 
 RUN ["npm", "ci"]
 

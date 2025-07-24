@@ -56,19 +56,12 @@ services:
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
       - WEBRTC_SIGNALING_SERVER=ws://localhost:8443
-      - no_proxy=$no_proxy,multimodal-data-visualization-streaming,${RTSP_CAMERA_IP},otel-collector
+      - no_proxy=$no_proxy,${RTSP_CAMERA_IP},otel-collector
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
-      - RUN_MODE=EVA
-      - GENICAM=Balluff
-      - GST_DEBUG=1,gencamsrc:2
+      - GST_DEBUG=1
       - LOG_LEVEL=${LOG_LEVEL}
-      # Default Detection and Classification Device
-      - DETECTION_DEVICE=CPU
-      - CLASSIFICATION_DEVICE=CPU
       - ADD_UTCTIME_TO_METADATA=true
-      - RUNTIME_LICENSE_CHECK_FREQ_SECS=${RUNTIME_LICENSE_CHECK_FREQ_SECS}
-      - APPLICATION_RESTART_FREQ_SECS=${APPLICATION_RESTART_FREQ_SECS}
       - HTTPS=false # Make it "true" to enable SSL/TLS secure mode, mount the generated certificates
       - MTLS_VERIFICATION=false # if HTTPS=true, enable/disable client certificate verification for mTLS
       # Model Registry Microservice
@@ -76,8 +69,6 @@ services:
       - MR_SAVED_MODELS_DIR=${MR_SAVED_MODELS_DIR}
       - MR_REQUEST_TIMEOUT=${MR_REQUEST_TIMEOUT}
       - MR_VERIFY_CERT=${MR_VERIFY_CERT}
-      # Append pipeline name to a publisher topic
-      - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
       - REST_SERVER_PORT=8080
       - SERVICE_NAME=dlstreamer-pipeline-server
       - OPCUA_SERVER_IP=$OPCUA_SERVER_IP
@@ -136,13 +127,44 @@ services:
     networks:
       - app_network
 
+  loki:
+    image: grafana/loki:latest
+    container_name: loki
+    environment:
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+      - NO_PROXY=$no_proxy,otel-collector,localhost,127.0.0.1
+    command: -config.file=/etc/loki/local-config.yaml
+    ports:
+      - "3100:3100"
+    networks:
+      - app_network
+    volumes:
+      - loki-data:/loki
+      
+  grafana:
+    image: grafana/grafana:latest
+    container_name: grafana
+    environment:
+      - GF_SECURITY_ADMIN_USER=${GRAFANA_USERNAME}
+      - GF_SECURITY_ADMIN_PASSWORD=${GRAFANA_PASSWORD}
+    ports:
+      - "${GRAFANA_PORT}:3000"
+    depends_on:
+      - prometheus
+      - loki
+    volumes:
+      - grafana-data:/var/lib/grafana
+    networks:
+      - app_network
+
   otel-collector:
     image: otel/opentelemetry-collector-contrib:0.94.0
     container_name: otel-collector
     environment:
       HTTP_PROXY: ${http_proxy}
       HTTPS_PROXY: ${https_proxy}
-      NO_PROXY: $no_proxy,prometheus,dlstreamer-pipeline-server,localhost,127.0.0.1
+      NO_PROXY: $no_proxy,prometheus,loki,dlstreamer-pipeline-server,localhost,127.0.0.1
     ports:
       - "4317:4317"  # OTLP gRPC receiver (default for metrics)
       - "4318:4318"  # Prometheus scrape target
@@ -162,3 +184,5 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+  grafana-data:
+  loki-data:

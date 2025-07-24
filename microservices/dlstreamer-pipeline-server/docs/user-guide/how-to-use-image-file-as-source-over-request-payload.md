@@ -86,7 +86,7 @@ Another way of queuing a image ingestor pipeline is in synchronous mode. The pip
 - Change `"pipeline"` section in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json`. 
 
     ```sh
-    "pipeline": "appsrc name=source  ! decodebin  ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
+    "pipeline": "appsrc name=source ! decodebin ! videoconvert ! videoscale ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! appsink name=destination",
     ```
     
 - We need to volume mount the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_image_ingestor/config.json` config file in `docker-compose.yml` file. Refer below snippets:
@@ -135,7 +135,7 @@ To get you started, sample docker compose file is available [here](get-started.m
 
 Since the pipeline is queued for sync requests, the inference results will be shown in response for post request. Here is a sample response
 
-```json
+```text
 {
   "metadata": {
     "height": 480,
@@ -143,9 +143,11 @@ Since the pipeline is queued for sync requests, the inference results will be sh
     "channels": 4,
     "source_path": "file:///root/image-examples/example.png",
     "caps": "video/x-raw, width=(int)820, height=(int)468",
-    "OTHER_METADATA": {
-      "other": "additional pipeline meta data"
-    }
+    ...
+        
+        <other pipeline metadata>
+        
+    ...
   },
   "blobs": "=8HJLhxhj77XHMHxilNKjbjhBbnkjkjBhbjLnjbKJ80n0090u9lmlnBJoiGjJKBK=76788GhjbhjK"
 }

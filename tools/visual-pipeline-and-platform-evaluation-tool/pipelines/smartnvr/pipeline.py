@@ -54,11 +54,6 @@ class SmartNVRPipeline(GstPipeline):
             "  location={VIDEO_OUTPUT_PATH} async=false "
         )
 
-        self._fake_sink = (
-            "fakesink "
-            "  sync=false "
-            "  async=false "
-        )
 
         self._recording_stream = (
             "filesrc "
@@ -129,7 +124,7 @@ class SmartNVRPipeline(GstPipeline):
 
         self._sink_to_compositor = (
             "queue2 "
-            "  max-size-buffers=0 "
+            "  max-size-buffers={max_size_buffers} "
             "  max-size-bytes=0 "
             "  max-size-time=0 ! "
             "{postprocessing} ! "
@@ -296,7 +291,7 @@ class SmartNVRPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" 
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
                     or parameters["object_classification_device"] == "Disabled") :
                 classification_model_config = (
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
@@ -318,7 +313,7 @@ class SmartNVRPipeline(GstPipeline):
             # Overlay inference results on the inferenced video if enabled
             if parameters["pipeline_watermark_enabled"]:
                 streams += "gvawatermark ! "
-            
+
             streams += self._inference_stream_metadata_processing.format(
                 **parameters,
                 **constants,
@@ -327,12 +322,12 @@ class SmartNVRPipeline(GstPipeline):
 
             # sink to compositor or fake sink depending on the compose flag
             streams += self._sink_to_compositor.format(
-                    **parameters,
-                    **constants,
-                    id=i,
-                    postprocessing=_postprocessing_element,
-                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
-
+                **parameters,
+                **constants,
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=0,
+            )
         # Handle regular channels
         for i in range(inference_channels, channels):
             streams += self._recording_stream.format(
@@ -344,45 +339,19 @@ class SmartNVRPipeline(GstPipeline):
             )
             # sink to compositor or fake sink depending on the compose flag
             streams += self._sink_to_compositor.format(
-                    **parameters,
-                    **constants,
-                    id=i,
-                    postprocessing=_postprocessing_element,
-                ) if parameters["pipeline_compose_enabled"] else self._fake_sink
-
-        # Prepend the compositor if enabled
-        if parameters["pipeline_compose_enabled"]:
-            # Always produce both file and live stream outputs
-            try:
-                os.makedirs("/tmp/shared_memory", exist_ok=True)
-                with open("/tmp/shared_memory/video_stream.meta", "wb") as f:
-                    # width=640, height=360, dtype_size=1 (uint8)
-                    f.write(struct.pack("III", 360, 640, 1))
-                logging.info("Wrote shared memory meta file for live streaming: /tmp/shared_memory/video_stream.meta")
-                logging.info("Live stream format: BGR, shape=(360,640,3), dtype=uint8, shm_path=/tmp/shared_memory/video_stream")
-            except Exception as e:
-                logging.warning(f"Could not write shared memory meta file: {e}")
-
-            # Compose pipeline with tee: file + live stream
-            logging.info("Pipeline will output both to file and shared memory (live stream)")
-            streams = self._compositor_with_tee.format(
+                **parameters,
                 **constants,
-                sinks=sinks,
-                encoder=_encoder_element,
-                compositor=_compositor_element,
-                shmsink=self._shmsink,
-            ) + streams
-        else:
-            # Fallback to regular compositor if live streaming is not enabled
-            streams = self._compositor.format(
-                **constants,
-                sinks=sinks,
-                encoder=_encoder_element,
-                compositor=_compositor_element,
-            ) + streams
-
-        # Log the final pipeline string for debugging
-        logging.info(f"Final GStreamer pipeline string: {streams}")
+                id=i,
+                postprocessing=_postprocessing_element,
+                max_size_buffers=1,
+            )
+        # Prepend the compositor
+        streams = self._compositor.format(
+            **constants,
+            sinks=sinks,
+            encoder=_encoder_element,
+            compositor=_compositor_element,
+        ) + streams
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams
