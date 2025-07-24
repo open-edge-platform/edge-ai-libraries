@@ -55,9 +55,10 @@ jobs:
        cp -r report.html log.html output.xml /tmp/test_results/
        ls -l /tmp/test_results/
 
-       passed=$(xmllint --xpath "//return/status[@status='PASS']" ./output.xml | wc -l) 
-       failed=$(xmllint --xpath "//return/status[@status='FAIL']" ./output.xml | wc -l)
-       total=$((passed + failed))
+       passed=$(xmllint --xpath "//return/status[@status='PASS']" ./output.xml | wc -l) || true
+       failed=$(xmllint --xpath "//return/status[@status='FAIL']" ./output.xml | wc -l) || true
+       not_run=$(xmllint --xpath "//return/status[@status='NOT RUN']" ./output.xml | wc -l) || true
+       total=$((passed + failed + not_run))
        echo "### Sanity Test Summary" >> $GITHUB_STEP_SUMMARY
        echo "- Total: $total" >> $GITHUB_STEP_SUMMARY
        echo "- ✅ Passed: $passed" >> $GITHUB_STEP_SUMMARY
