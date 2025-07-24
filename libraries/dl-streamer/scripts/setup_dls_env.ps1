@@ -79,11 +79,8 @@ echo "Generating GStreamer cache. It may take up to a few minutes for the first 
 echo "Please wait for a moment... "
 
 $errOutput = $(gst-inspect-1.0.exe gvadetect)
-
-if ($errOutput[0].ToString().Contains("No such element or plugin")) {
-	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
-	$errOutput = $(gst-inspect-1.0.exe gvadetect)
-	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
-}
+mv gstvideoanalytics.dll gstvideoanalytics.dll.old
+$errOutput = $(gst-inspect-1.0.exe gvadetect)
+mv gstvideoanalytics.dll.old gstvideoanalytics.dll
 
 echo "DLStreamer is ready"
