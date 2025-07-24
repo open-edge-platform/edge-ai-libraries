@@ -780,7 +780,7 @@ def live_preview_stream(meta_path="/tmp/shared_memory/video_stream.meta", shm_pr
             if wait_attempts > max_wait_attempts:
                 logger.warning("Giving up waiting for shared memory frame after max attempts.")
                 break
-        time.sleep(1.0 / 15.0)
+        time.sleep(1.0 / 30.0)
     logger.info("Exiting live_preview_stream generator")
 
 
@@ -789,21 +789,29 @@ def run_pipeline_and_stream(data):
     logger.info("Starting run_pipeline_and_stream")
 
     arguments = {}
+
     for component in data:
-        component_id = getattr(component, "elem_id", None)
+        component_id = component.elem_id
         if component_id:
             arguments[component_id] = data[component]
-    arguments = {str(k): v for k, v in arguments.items()}
 
     logger.info(f"Detection Model: {arguments.get('object_detection_model')}, Device: {arguments.get('object_detection_device')}")
     logger.info(f"Classification Model: {arguments.get('object_classification_model')}, Device: {arguments.get('object_classification_device')}")
 
     video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+
+    # Validate channels
+    if arguments["recording_channels"] + arguments["inferencing_channels"] == 0:
+        raise gr.Error(
+            "Please select at least one channel for recording or inferencing.",
+            duration=10,
+        )
+
     optimizer = PipelineOptimizer(
         pipeline=current_pipeline[0],
         constants=constants,
         param_grid=param_grid,
-        channels=(arguments.get("recording_channels", 0), arguments.get("inferencing_channels", 0)),
+        channels=(arguments["recording_channels"], arguments["inferencing_channels"]),
         elements=gst_inspector.get_elements(),
     )
 

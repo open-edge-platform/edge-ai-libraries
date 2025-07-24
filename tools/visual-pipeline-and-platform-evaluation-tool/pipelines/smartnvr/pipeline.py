@@ -27,9 +27,9 @@ class SmartNVRPipeline(GstPipeline):
         self._shmsink = (
             "shmsink socket-path=/tmp/shared_memory/video_stream "
             "wait-for-connection=false "
-            "sync=false "
-            "async=false "
-            "shm-size=67108864 "
+            "sync=true "
+            # "async=false "
+            # "shm-size=67108864 "
             "name=shmsink0 "
         )
 
