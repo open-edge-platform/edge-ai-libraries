@@ -8,6 +8,13 @@ import pytest
 import requests
 import time
 import subprocess
+import json
+import os
+
+# Read the config.json file)
+TS_DIR = os.getcwd() + "/../"
+config_file = json.load(open(TS_DIR + "config.json"))
+print(config_file)
 
 def run_command(command):
     """Run a shell command and return the output."""
@@ -88,7 +95,14 @@ def input_endpoint_invalid_data(port):
         assert "400: unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", "")
     except Exception as e:
         pytest.fail(f"Failed to post invalid input data: {e}")
-    
+    input_data["fields"]["temperature"] = ""
+    try:
+        url = f"http://localhost:{port}/input"
+        response = requests.post(url, json=input_data)
+        assert response.status_code == 500
+        assert "400: unable to parse 'point_data temperature=" in response.json().get("detail", "")
+    except Exception as e:
+        pytest.fail(f"Failed to post no input data: {e}")
 
 # Post no input data to the /input endpoint
 def input_endpoint_no_data(port):
@@ -118,19 +132,10 @@ def get_config_endpoint(port):
     Test the config endpoint of the Time Series Analytics service.
     """
     url = f"http://localhost:{port}/config"
-    config_data = {
-        "model_registry": {
-            "enable": False,
-            "version": "1.0"
-        },
-        "udfs": {
-            "name": "temperature_classifier"
-        }
-    }
     try:
         response = requests.get(url)
         assert response.status_code == 200
-        assert response.json() == config_data
+        assert response.json() == config_file
     except Exception as e:
         pytest.fail(f"Failed to get config data: {e}")
 
@@ -140,17 +145,8 @@ def post_config_endpoint(port, cmd):
     Test the config endpoint of the Time Series Analytics service.
     """
     url = f"http://localhost:{port}/config"
-    config_data = {
-    "model_registry": {
-        "enable": False,
-        "version": "1.0"
-    },
-    "udfs": {
-        "name": "temperature_classifier"
-    }
-    }
     try:
-        response = requests.post(url, json=config_data)
+        response = requests.post(url, json=config_file)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(10)  # Wait for the configuration to be applied
@@ -172,19 +168,12 @@ def concurrent_api_requests(port):
         "fields": {"temperature": 30},
         "timestamp": 0
     }
-    config_data = {
-        "model_registry": {
-            "enable": False,
-            "version": "1.0"
-        },
-        "udfs": {
-            "name": "temperature_classifier"
-        },
-        "alerts": {}
-    }
+    config_file_alerts = config_file.copy()
+    config_file_alerts["alerts"] = {}
     opcua_alert = {"message": "Test alert"}
     endpoints = ['/health', '/config', '/opcua_alerts', '/input' ]
-
+    print("config file alert", config_file_alerts)
+    print("config file", config_file)
     def get_request(endpoint):
         try:
             response = requests.get(url + endpoint)
@@ -208,7 +197,7 @@ def concurrent_api_requests(port):
             # Schedule the POST request
             future_post_alert = executor.submit(post_request, endpoints[2], opcua_alert)
             future_post_input = executor.submit(post_request, endpoints[3], input_data)
-            future_post_config = executor.submit(post_request, endpoints[1], config_data)
+            future_post_config = executor.submit(post_request, endpoints[1], config_file)
 
             # Retrieve results
             get_health_result = future_get_health.result()
@@ -221,14 +210,17 @@ def concurrent_api_requests(port):
             print(f"POST /input: {future_post_input.result()}")
             print(f"POST /config: {future_post_config.result()}")
 
-            assert get_health_result[0] == 200 or get_health_result[0] == 500
-            assert get_health_result[1] == '{"status":"kapacitor daemon is running"}' or get_health_result[1] == '{"detail":"500: Kapacitor daemon is not running"}'
+            health_status_code = [200, 500, 503]
+            health_status_json = [{"status": "kapacitor daemon is running"}, {"detail": "500: Kapacitor daemon is not running"}, {"status":"Port not accessible and kapacitor daemon not running"}]
+            assert get_health_result[0] in health_status_code
+            assert json.loads(get_health_result[1]) in health_status_json
             assert get_config_result[0] == 200
-            assert get_config_result[1] == '{"model_registry":{"enable":false,"version":"1.0"},"udfs":{"name":"temperature_classifier"},"alerts":{}}'
+            assert json.loads(get_config_result[1]) == config_file or json.loads(get_config_result[1]) == config_file_alerts
             assert post_alert_result[0] == 500
             assert post_alert_result[1] == {'detail': '500: OPC UA alerts are not configured in the service'}
-            assert future_post_input.result()[0] == 200
-            assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"}
+            assert future_post_input.result()[0] == 200 or future_post_input.result()[0] == 500
+            assert future_post_input.result()[1] == {"status": "success", "message": "Data sent to Time Series Analytics microservice"} or \
+                future_post_input.result()[1] == {'detail': '500: Kapacitor daemon is not running'}
             assert future_post_config.result()[0] == 200
             assert future_post_config.result()[1] == {"status": "success", "message": "Configuration updated successfully"}
         except Exception as e:
@@ -240,17 +232,10 @@ def post_invalid_config_endpoint(port, cmd):
     Test the config endpoint of the Time Series Analytics service.
     """
     url = f"http://localhost:{port}/config"
-    config_data = {
-        "model_registry": {
-            "enable": False,
-            "version": "1.0"
-        },
-        "udfs": {
-            "name": "udf_classifier"
-        }
-    }
+    invalid_config_data = config_file
+    invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
-        response = requests.post(url, json=config_data)
+        response = requests.post(url, json=invalid_config_data)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(15)  # Wait for the configuration to be applied

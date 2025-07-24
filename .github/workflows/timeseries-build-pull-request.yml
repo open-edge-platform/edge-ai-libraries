@@ -114,6 +114,19 @@ jobs:
       with:
         name: unit-test-report
         path: /tmp/report.txt
+    - name: Run time-series-analytics-microservices automation tests
+      run: |
+        cd "${{ github.workspace }}"
+        cd ./microservices/time-series-analytics/functional
+        echo "Running automation tests"
+        pip3 install -r requirements.txt
+        rm -rf /tmp/test_report/report.html
+        pytest -v --html=/tmp/test_report/report.html test_docker.py
+    - name: Upload HTML  test report to Github
+      uses: actions/upload-artifact@v4
+      with:
+        name: automation-test-report
+        path: /tmp/test_report
   
   timeseries-scans:
     uses: ./.github/workflows/timeseries-scans-virus-bandit-pylint.yaml

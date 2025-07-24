@@ -23,7 +23,7 @@ def build_docker_image():
     """Build the Docker image for the Time Series Analytics service."""
     print("Building Docker image...")
     os.chdir(TS_DIR + "docker")
-    command = "docker compose build --no-cache"
+    command = "docker compose build"
     output = utils.run_command(command)
     print(output)
 
@@ -50,7 +50,7 @@ def docker_ps():
     output = utils.run_command(command)
     print(output)
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def setup_docker_environment():
     """Setup Docker environment before running tests."""
     print("Setting up Docker environment...")
@@ -122,13 +122,14 @@ def test_input_endpoint_invalid_data():
     Test the input endpoint of the Time Series Analytics service.
     """
     utils.input_endpoint_invalid_data(TS_DOCKER_PORT)
-
-# Post no input data to the /input endpoint
-def test_input_endpoint_no_data():
-    """
-    Test the input endpoint of the Time Series Analytics service.
-    """
     utils.input_endpoint_no_data(TS_DOCKER_PORT)
+
+# # Post no input data to the /input endpoint
+# def test_input_endpoint_no_data():
+#     """
+#     Test the input endpoint of the Time Series Analytics service.
+#     """
+#     utils.input_endpoint_no_data(TS_DOCKER_PORT)
 
 # Get config data from the /config endpoint
 def test_get_config_endpoint():

@@ -77,9 +77,9 @@ def get_pod_names(namespace):
         print(f"Failed to fetch pod names: {e}")
         return []
 
-@pytest.fixture(scope="session", autouse=True)
+@pytest.fixture(scope="function", autouse=True)
 def helm_setup():
-    """Fixture to set up Helm environment."""
+    """Fixture to set up and tear down Helm environment for each test."""
 
     os.chdir(TS_DIR)
     shutil.copy("config.json", HELM_DIR + "config.json")
@@ -148,15 +148,8 @@ def test_input_endpoint_invalid_data():
     Test the input endpoint of the Time Series Analytics service.
     """
     utils.input_endpoint_invalid_data(TS_HELM_PORT)
-
-# Post no input data to the /input endpoint
-def test_input_endpoint_no_data():
-    """
-    Test the input endpoint of the Time Series Analytics service.
-    """
     utils.input_endpoint_no_data(TS_HELM_PORT)
 
-# Get config data from the /config endpoint
 def test_get_config_endpoint():
     """
     Test the config endpoint of the Time Series Analytics service.
