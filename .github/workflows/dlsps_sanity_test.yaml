@@ -47,8 +47,6 @@ jobs:
        chmod a+x stream_rtsp.sh
        ip_addr=`hostname -I | awk '{print $1}'`
        echo "starting rtsp servers"
-       cd ${{github.workspace}}
-       cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
        ./stream_rtsp.sh start 10 ${{github.workspace}}/edge-ai-libraries-repo/dlstreamer-pipeline-server/resources/videos/warehouse.avi $ip_addr
        cd ${{github.workspace}}
        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/robot_files
