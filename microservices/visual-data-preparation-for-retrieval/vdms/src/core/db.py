@@ -18,8 +18,6 @@ class VDMSClient:
         port: str,
         collection_name: str,
         embedder: Any,
-        video_metadata_path: pathlib.Path | None = None,
-        text_metadata: dict = {},
         embedding_dimensions: int = 512,
         video_search_type: str = "similarity",
     ):
@@ -32,8 +30,6 @@ class VDMSClient:
         self.video_collection = collection_name
         self.video_embedder = embedder
         self.embedding_dimensions = embedding_dimensions
-        self.video_metadata_path = video_metadata_path
-        self.text_metadata = text_metadata
 
         # initialize_db
         self.init_db()
@@ -61,21 +57,21 @@ class VDMSClient:
             logger.error(f"Error in init_db: {ex}")
             raise Exception(Strings.db_conn_error)
 
-    def store_embeddings(self) -> list[str]:
+    def store_embeddings(self, video_metadata_path: pathlib.Path) -> list[str]:
         """
         Reads the metadata json file. For each video in metdata file
         adds video metadata and its embeddings to the VDMS Vector DB.
 
         Args:
-            None
+            video_metadata_path (pathlib.Path): Path to the metadata file containing video information.
 
         Returns:
             ids (list) : List of string IDs for videos added to vector DB.
         """
 
         # Read metadata file containing all information about video files
-        metadata = read_config(self.video_metadata_path, type="json")
-        logger.info(f"store_embeddings Metadata: \n{metadata}")
+        metadata = read_config(video_metadata_path, type="json")
+        logger.debug(f"Metadata stored : \n{metadata}")
         if metadata is None:
             raise Exception(Strings.metadata_read_error)
 
@@ -101,12 +97,13 @@ class VDMSClient:
             logger.error(f"Error in store_embeddings: {ex}")
             raise Exception(Strings.embedding_error)
 
-    def store_text_embedding(self, text: str) -> list[str]:
+    def store_text_embedding(self, text: str, metadata: dict = {}) -> list[str]:
         """
         Embeds text and stores it in the VDMS Vector DB with associated metadata.
 
         Args:
             text (str): Text content to embed
+            metadata (dict): [Optional] Metadata associated with the text.
 
         Returns:
             ids (list): List of string IDs for documents added to vector DB
@@ -114,12 +111,14 @@ class VDMSClient:
 
         logger.info("Storing text embedding...")
         try:
+            text_metadata = [metadata] if metadata else []
+
             # Add text embedding to the vector DB
-            ids: list = self.video_db.add_texts(texts=[text], metadatas=[self.text_metadata])
+            ids: list = self.video_db.add_texts(texts=[text], metadatas=text_metadata)
 
             logger.debug(f"Text embedding stored with ids: {ids}")
             return ids
 
         except Exception as ex:
-            logger.error(f"Error in store_text_embedding: {ex}")
+            logger.error(f"Error in occurred while storing text embeddings in VectorDB: {ex}")
             raise Exception(Strings.embedding_error)

@@ -10,8 +10,8 @@ from pydantic import BaseModel
 from src.common import Strings, logger, settings
 
 
-class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
-    """Wrapper for vCLIP Embeddings that makes API calls to /embeddings endpoint."""
+class EmbeddingServiceWrapper(BaseModel, Embeddings):
+    """Wrapper for External Embedding Service that makes API calls to /embeddings endpoint."""
 
     api_url: str
     model_name: str

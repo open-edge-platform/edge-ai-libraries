@@ -12,14 +12,14 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missin
 RUN pip install --upgrade --no-cache pip setuptools && \
     pip install --no-cache torch~=2.7.1 torchvision~=0.22.1 --index-url https://download.pytorch.org/whl/cpu;
 
-RUN pip install poetry==1.8.5
+RUN pip install poetry==2.1.3
 
 RUN poetry config virtualenvs.create false
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN poetry lock --no-update && poetry install --no-root
+RUN poetry lock && poetry install --no-root
 
 RUN apt-get install -y --no-install-recommends curl ca-certificates libxml2 gnupg
 
@@ -44,7 +44,6 @@ RUN apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/l
 RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
 COPY . .
-RUN mkdir -p /tmp/dataprep/videos
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false

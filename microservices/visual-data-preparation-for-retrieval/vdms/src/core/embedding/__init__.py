@@ -4,12 +4,12 @@
 from .embedding_api import vCLIPEmbeddings
 from .embedding_helper import generate_text_embedding, generate_video_embedding
 from .embedding_model import Qwen3, vCLIP
-from .embedding_service import vCLIPEmbeddingServiceWrapper
+from .embedding_service import EmbeddingServiceWrapper
 
 __all__ = [
     "generate_text_embedding",
     "generate_video_embedding",
-    "vCLIPEmbeddingServiceWrapper",
+    "EmbeddingServiceWrapper",
     "vCLIPEmbeddings",
     "vCLIP",
     "Qwen3",

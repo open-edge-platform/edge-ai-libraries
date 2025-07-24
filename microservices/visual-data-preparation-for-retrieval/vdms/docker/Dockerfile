@@ -77,7 +77,9 @@ RUN chmod +x /entrypoint.sh
 
 # Source code will be mounted here
 WORKDIR /app
-RUN mkdir -p /tmp/dataprep/videos
+
+# Create temporary directory to store app artifacts. Ownership is changed to appuser later.
+RUN mkdir -p /tmp/dataprep
 
 # Set ownership of directories to appuser
 RUN chown -R appuser:appuser /app /tmp/dataprep /entrypoint.sh
@@ -161,10 +163,12 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
     fi
 
 WORKDIR /app
-RUN mkdir -p /tmp/dataprep/videos
+
+# Create temporary directory to store app artifacts. Ownership is changed to appuser later.
+RUN mkdir -p /tmp/dataprep
 
 # Set ownership of all necessary directories to appuser
-RUN chown -R appuser:appuser /app /entrypoint.sh
+RUN chown -R appuser:appuser /app  /tmp/dataprep /entrypoint.sh
 
 # Switch to non-root user
 USER appuser

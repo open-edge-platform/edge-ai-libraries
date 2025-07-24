@@ -58,8 +58,8 @@ echo "Using Registry : ${REGISTRY}"
 # -----------------------------------------------------------------------------------------
 
 # Check if MINIO credentials are set
-# Only check MinIO credentials if we're not just stopping containers 
-if [ "$1" != "--down" ]; then
+# Only check MinIO credentials if we're not just stopping containers or building images
+if [ "$1" != "--down" ] && [ "$1" != "--build" ] && [ "$1" != "--build-dev" ] && [ "$1" != "--build-test" ] && [ "$1" != "--build-lint" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in environment.${NC}"
         return
