@@ -78,8 +78,8 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
     
-RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-models && \
-    chown -R appuser:appuser /home/appuser/.cache /app/ov-models
+RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-models /tmp/dataprep && \
+    chown -R appuser:appuser /home/appuser/.cache /app/ov-models /tmp/dataprep
 
 USER appuser
 
