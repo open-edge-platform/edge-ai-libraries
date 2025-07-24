@@ -28,12 +28,25 @@ health_status = False
 @app.on_event("startup")
 async def startup_event():
     global vclip_model, health_status
-    cfg = {"model_name": settings.MODEL_NAME}
-    vclip_model = VClipModel(cfg)
-    if settings.EMBEDDING_USE_OV:
-        await vclip_model.async_init()
-    health_status = vclip_model.check_health()
-    logger.info("Model loaded successfully")
+    try:
+        cfg = {"model_name": settings.MODEL_NAME}
+        vclip_model = VClipModel(cfg)
+        if settings.EMBEDDING_USE_OV:
+            try:
+                await vclip_model.async_init()
+            except Exception as e:
+                logger.error(f"Error initializing OpenVINO models: {e}")
+                if "network" in str(e).lower() or "connection" in str(e).lower():
+                    logger.warning("Network error detected. Attempting to continue in offline mode.")
+                else:
+                    raise
+        health_status = vclip_model.check_health()
+        logger.info("Model loaded successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize model: {e}")
+        # Keep the application running, health check will return unhealthy
+        vclip_model = None
+        health_status = False
 
 
 class TextInput(BaseModel):
@@ -99,7 +112,7 @@ async def health_check() -> dict:
     global health_status
     if health_status:
         return {"status": "healthy"}
-    elif vclip_model.check_health():
+    elif vclip_model is not None and vclip_model.check_health():
         health_status = True
         return {"status": "healthy"}
     else:

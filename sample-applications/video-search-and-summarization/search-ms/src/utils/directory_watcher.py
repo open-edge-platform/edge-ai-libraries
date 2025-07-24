@@ -39,11 +39,11 @@ class DebouncedHandler(FileSystemEventHandler):
     def _debounce(self):
         if self.first_event_time is None:
             self.first_event_time = datetime.now()
-            self.timer = Timer(self.debounce_time * 60, self._process_files)
+            self.timer = Timer(self.debounce_time, self._process_files)
             self.timer.start()
         else:
             elapsed_time = (datetime.now() - self.first_event_time).total_seconds()
-            if elapsed_time >= self.debounce_time * 60:
+            if elapsed_time >= self.debounce_time:
                 self._process_files()
 
     def _process_files(self):
@@ -127,7 +127,7 @@ def start_watcher():
     observer.schedule(event_handler, path, recursive=False)
     observer.start()
     logger.info(
-        f"Started directory watcher on {path} with debounce time of {debounce_time} minutes."
+        f"Started directory watcher on {path} with debounce time of {debounce_time} seconds."
     )
 
     try:
