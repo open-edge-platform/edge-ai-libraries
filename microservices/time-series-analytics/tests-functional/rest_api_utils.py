@@ -232,7 +232,7 @@ def post_invalid_config_endpoint(port, cmd):
     Test the config endpoint of the Time Series Analytics service.
     """
     url = f"http://localhost:{port}/config"
-    invalid_config_data = config_file
+    invalid_config_data = config_file.copy()
     invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
         response = requests.post(url, json=invalid_config_data)

@@ -115,8 +115,8 @@ jobs:
         name: unit-test-report
         path: /tmp/report.txt
 
-  timeseries-automation-test:
-    name: Timeseries Automation Test
+  timeseries-function-tests:
+    name: Timeseries function Test
     permissions:
       contents: read
       packages: read          # needed for actions/checkout
@@ -126,18 +126,18 @@ jobs:
       with:
           path: timeseries
           persist-credentials: false
-    - name: Run time-series-analytics-microservices automation tests
+    - name: Run time-series-analytics-microservices function tests
       run: |
         cd "${{ github.workspace }}"
-        cd ./microservices/time-series-analytics/functional
-        echo "Running automation tests"
+        cd ./microservices/time-series-analytics/tests-function
+        echo "Running function tests"
         pip3 install -r requirements.txt
         rm -rf /tmp/test_report/report.html
         pytest -v --html=/tmp/test_report/report.html test_docker.py::test_input_endpoint test_docker.py::test_health_check
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:
-        name: automation-test-report
+        name: function-test-report
         path: /tmp/test_report
   
   timeseries-scans:

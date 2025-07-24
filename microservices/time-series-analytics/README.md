@@ -30,12 +30,12 @@ echo "Running unit tests"
 ./tests/run_tests.sh
 ```
 
-## Running Automation tests
+## Running Functional tests
 
 Follow the steps below to run the automation tests.
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries
-cd edge-ai-libraries/microservices/time-series-analytics/functional
+cd edge-ai-libraries/microservices/time-series-analytics/tests-functional
 echo "Running automation tests"
 pip3 install -r requirements.txt
 pytest -v --html=./test_report/report.html .
