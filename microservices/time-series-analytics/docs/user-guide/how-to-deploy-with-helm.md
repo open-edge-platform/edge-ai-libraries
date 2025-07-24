@@ -21,7 +21,7 @@
 
     1. Download helm chart with the following command
 
-        `helm pull oci://<path-to-internal-harbor-registry-OR-intel-docker-hub-registry-path>/time-series-analytics-microservice --version 1.0.0`
+        `helm pull oci://registry-1.docker.io/intel/time-series-analytics-microservice --version 1.0.0`
 
     2. unzip the package using the following command
 
@@ -29,9 +29,9 @@
 
     - Get into the helm directory
 
-        `cd time-series-analytics-microservice-1.0.0`
+        `cd time-series-analytics-microservice`
 
-## Install helm charts - use only one of the options below:
+## Install helm charts
 
 > **Note:**
 > -  Uninstall the helm charts if already installed.
@@ -67,7 +67,8 @@ Run following commands to see the filtered temperature results:
 
 
 ``` bash
-kubectl logs -f deployment-time-series-analytics-microservice -n apps
+POD_NAME=$(kubectl get pods -n apps -o jsonpath='{.items[*].metadata.name}' | tr ' ' '\n' | grep deployment-time-series-analytics-microservice | head -n 1)
+kubectl logs -f $POD_NAME -n apps
 ```
 
 ## Uninstall helm charts

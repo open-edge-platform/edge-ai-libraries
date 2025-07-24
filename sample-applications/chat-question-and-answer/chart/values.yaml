@@ -93,3 +93,7 @@ chatqnaui:
   nameOverride: "ui"
   service:
     port: 8101
+
+nginxService:
+  annotations: {}
+
