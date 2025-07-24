@@ -31,7 +31,7 @@ Step 2: Install build dependencies
                 libssh2-1-dev cmake git valgrind numactl libvpx-dev libopus-dev libsrtp2-dev libxv-dev \
                 linux-libc-dev libpmix2t64 libhwloc15 libhwloc-plugins libxcb1-dev libx11-xcb-dev \
                 ffmpeg librdkafka-dev libpaho-mqtt-dev libopencv-dev libpostproc-dev libavfilter-dev libavdevice-dev \
-                libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev libtbb12
+                libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev libtbb12 libxml2-dev
 
     .. tab:: Ubuntu 22
 
@@ -46,7 +46,7 @@ Step 2: Install build dependencies
                 libssh2-1-dev cmake git valgrind numactl libvpx-dev libopus-dev libsrtp2-dev libxv-dev \
                 linux-libc-dev libpmix2 libhwloc15 libhwloc-plugins libxcb1-dev libx11-xcb-dev \
                 ffmpeg libpaho-mqtt-dev libpostproc-dev libavfilter-dev libavdevice-dev \
-                libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev
+                libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev libxml2-dev
 
     .. tab:: Fedora 41
 
@@ -98,6 +98,11 @@ Download and build FFmpeg:
 Step 5: Build GStreamer
 ^^^^^^^^^^^^^^^^^^^^^^^
 
+Make sure that previous GStreamer installation is removed:
+
+.. code:: sh
+    sudo rm -rf /opt/intel/dlstreamer/gstreamer
+
 Clone and build GStreamer:
 
 .. code:: sh
@@ -107,20 +112,43 @@ Clone and build GStreamer:
 
     cd ~/gstreamer
     git switch -c "1.26.1" "tags/1.26.1"
-    export PKG_CONFIG_PATH=/usr/local/lib/pkgconfig
+    export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
+    sudo ldconfig
     meson setup -Dexamples=disabled -Dtests=disabled -Dvaapi=enabled -Dgst-examples=disabled --buildtype=release --prefix=/opt/intel/dlstreamer/gstreamer --libdir=lib/ --libexecdir=bin/ build/
     ninja -C build
     sudo env PATH=~/python3venv/bin:$PATH meson install -C build/
 
-Step 6: Build OpenCV (ubuntu 22/fedora)
-^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+Step 6: Build OpenCV
+^^^^^^^^^^^^^^^^^^^^
 
-Download and build OpenCV:
+NOTE: If you have built and installed a different version of OpenCV locally, it can cause build errors. It is recommended to uninstall it first.
+You can uninstall it with the following command (if installed from source):
 
+.. code:: sh
+
+    cd ${HOME}/opencv/build # Change to the directory where OpenCV was built
+    sudo ninja uninstall
+        
 .. tabs::
 
-    .. tab:: Ubuntu 22
+    .. tab:: Ubuntu 24
 
+        After uninstalling OpenCV, reinstall it with the following command:
+        
+        .. code:: sh
+
+            sudo apt-get install --reinstall libopencv-dev
+
+    .. tab:: Ubuntu 22
+        
+        NOTE: If you have installed different version of OpenCV using apt-get, you can uninstall it with the command below instead:
+        
+        .. code:: sh
+
+            sudo apt-get remove --purge libopencv*
+
+        Download and build OpenCV:
+        
         .. code:: sh
 
             wget --no-check-certificate -O ~/opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip
@@ -138,6 +166,14 @@ Download and build OpenCV:
             sudo env PATH=~/python3venv/bin:$PATH ninja install
 
     .. tab:: Fedora 41
+         
+         NOTE: If you have installed different version of OpenCV using dnf, it is recommended to uninstall it first.
+         You can uninstall it with the command below:
+        
+        .. code:: sh
+            sudo dnf remove --allmatches opencv*
+        
+        Download and build OpenCV:
 
         .. code:: sh
 

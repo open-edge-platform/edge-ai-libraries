@@ -38,7 +38,7 @@ data:
     fi
     curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
     mkdir models
-    python export_model.py text_generation --source_model "${model}" --weight-format int4 --config_file_path models/config.json --model_repository_path models --target_device CPU
+    python export_model.py text_generation --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json --model_repository_path models --target_device CPU
     
     cp -r models /opt/data
 

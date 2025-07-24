@@ -23,7 +23,7 @@ Deep Learning Streamer Pipeline Server (DL Streamer Pipeline Server) is a Python
 Video analytics involves the conversion of video streams into valuable insights through the application of video processing, inference, and analytics operations. It finds applications in various business sectors including healthcare, retail, entertainment, and industrial domains. The algorithms utilized in video analytics are responsible for performing tasks such as object detection, classification, identification, counting, and tracking on the input video stream.
 
 
-Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
+Note - The detailed documentation of Deep Learning Streamer Pipeline Server can be found [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/Overview.html)
 
 ## Architecture
 
@@ -42,7 +42,7 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 - Pull the image with the latest tag from registry
 
    ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.0.0
+     docker pull intel/dlstreamer-pipeline-server:3.1.0
    ```
 
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
@@ -120,7 +120,7 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 ---
 ## Build from source 
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK and the OpenVINO Model API on top of the optimized image.
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
@@ -131,11 +131,11 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
-Update the following lines for choosing the right base image and also for naming the image that gets built.
+Update the following lines in [.env file](./docker/.env) for choosing the right base image and also for naming the image that gets built.
 
   ``` sh
-  # For Ubuntu 22.04: intel/dlstreamer:2025.0.1.3-ubuntu22
-  # For Ubuntu 24.04: intel/dlstreamer:2025.0.1.3-ubuntu24
+  # For Ubuntu 22.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407
+  # For Ubuntu 24.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24:candidate1407
   BASE_IMAGE=
 
   # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
@@ -148,6 +148,8 @@ Update the following lines for choosing the right base image and also for naming
   # For extended image: dlstreamer-pipeline-server-extended
   BUILD_TARGET=
   ```
+
+  Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer#build-the-dlstreamer-docker-image-with) and use it as `BASE_IMAGE` in the above mentioned `.env` file
 
 ### Build Deep Learning Streamer Pipeline Server image and start container <a name="build-image-and-start-container"></a>
 
@@ -167,7 +169,7 @@ Run the following commands:
 
 ---
 ### Run default sample
-Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
+Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started.html) to run default sample upon bringing up Intel® Deep Learning Streamer Pipeline Server container.
 
 ---
 ## Legal compliance: Build a docker image containing sources for GPL/LGPL/AGPL binary distributed components
@@ -175,10 +177,15 @@ Refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.
   ```sh
     docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
   ```
+
+  Run the following command to view the directory structure of source code for distributed GPL/LGPL/AGPL components:
+  ```sh
+    docker run intel/dlstreamer-pipeline-server:3.1.0-sources
+  ```
 ---
 
 ## Learn More
 
--   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/Overview.html)
--   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/advanced-guide/Overview.html). 
--   For more tutorials refer [here](https://docs.edgeplatform.intel.com/dlstreamer-pipeline-server/3.0.0/user-guide/get-started.html)
+-   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/Overview.html)
+-   For more details on advanced configuration, usage of features refer to [Advanced User Guide](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/advanced-guide/Overview.html). 
+-   For more tutorials refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/get-started.html)
