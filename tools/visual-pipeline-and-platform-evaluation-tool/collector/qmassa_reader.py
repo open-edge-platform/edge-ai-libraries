@@ -23,7 +23,8 @@ logging.basicConfig(
 
 def execute_qmassa_command():
     qmassa_command = [
-        "qmassa", "--ms-interval", "500", "--no-tui", "--nr-iterations", "2", "--to-json", LOG_FILE
+        # Run qmassa with a 100ms interval and 2 iterations to calculate power as the delta between iterations
+        "qmassa", "--ms-interval", "100", "--no-tui", "--nr-iterations", "2", "--to-json", LOG_FILE
     ]
 
     try:
@@ -44,6 +45,22 @@ def load_log_file():
         logging.error(f"Unexpected error while loading log file: {e}")
     sys.exit(1)
 
+def emit_engine_usage(eng_usage, gpu_id, ts):
+    for eng, vals in eng_usage.items():
+        if vals:
+            print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id} usage={vals[-1]} {ts}")
+
+def emit_frequency(freqs, gpu_id, ts):
+    if freqs and isinstance(freqs[-1], list):
+        freq_entry = freqs[-1][0]
+        if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
+            print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id={gpu_id} value={freq_entry['cur_freq']} {ts}")
+
+def emit_power(power, gpu_id, ts):
+    if power:
+        for key, val in power[-1].items():
+            print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}")
+
 def process_states(data):
     try:
         states = data.get("states", [])
@@ -53,84 +70,34 @@ def process_states(data):
 
         current_ts_ns = int(time.time() * 1e9)
 
-        for state in states:
-            devs_state = state.get("devs_state", [])
-            if not devs_state:
-                continue
+        # Use the last state from 2 iterations, where power is calculated as the delta between iterations
+        devs_state = states[-1].get("devs_state", [])
+        if not devs_state:
+            logging.warning("No devs_state found in the log file")
+            return
 
-            # --- For devs_state[-2] if it exists ---
-            if len(devs_state) >= 2:
-                # Use the last device state
-                dev = devs_state[-1]
+        # If there are multiple devices, process the last two
+        if len(devs_state) >= 2:
+            for gpu_id, dev in enumerate(devs_state[-2:]):
                 dev_stats = dev.get("dev_stats", {})
                 eng_usage = dev_stats.get("eng_usage", {})
                 freqs = dev_stats.get("freqs", [])
                 power = dev_stats.get("power", [])
 
-                ts = current_ts_ns  # Same timestamp for simplicity
+                emit_engine_usage(eng_usage, gpu_id, current_ts_ns)
+                emit_frequency(freqs, gpu_id, current_ts_ns)
+                emit_power(power, gpu_id, current_ts_ns)
+        else:
+            # If only one device, process it
+            dev = devs_state[-1]
+            dev_stats = dev.get("dev_stats", {})
+            eng_usage = dev_stats.get("eng_usage", {})
+            freqs = dev_stats.get("freqs", [])
+            power = dev_stats.get("power", [])
 
-                # === Emit engine usage
-                for eng, vals in eng_usage.items():
-                    if vals:
-                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=1 usage={vals[-1]} {ts}")
-
-                # === Emit frequency
-                if freqs and isinstance(freqs[-1], list):
-                    freq_entry = freqs[-1][0]
-                    if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
-                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=1 value={freq_entry['cur_freq']} {ts}")
-
-                # === Emit power values
-                if power:
-                    for key, val in power[-1].items():
-                        print(f"power,type={key},host={HOSTNAME},gpu_id=1 value={val} {ts}")
-
-                dev2 = devs_state[-2]
-                dev_stats2 = dev2.get("dev_stats", {})
-                eng_usage2 = dev_stats2.get("eng_usage", {})
-                freqs2 = dev_stats2.get("freqs", [])
-                power2 = dev_stats2.get("power", [])
-
-                # === Emit engine usage
-                for eng, vals in eng_usage2.items():
-                    if vals:
-                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=0 usage={vals[-1]} {ts}")
-
-                # === Emit frequency
-                if freqs2 and isinstance(freqs2[-1], list):
-                    freq_entry2 = freqs2[-1][0]
-                    if isinstance(freq_entry2, dict) and "cur_freq" in freq_entry2:
-                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=0 value={freq_entry2['cur_freq']} {ts}")
-
-                # === Emit power values
-                if power2:
-                    for key, val in power2[-1].items():
-                        print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
-            else:
-                # Use the last device state
-                dev = devs_state[-1]
-                dev_stats = dev.get("dev_stats", {})
-                eng_usage = dev_stats.get("eng_usage", {})
-                freqs = dev_stats.get("freqs", [])
-                power = dev_stats.get("power", [])
-
-                ts = current_ts_ns  # Same timestamp for simplicity
-
-                # === Emit engine usage
-                for eng, vals in eng_usage.items():
-                    if vals:
-                        print(f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id=0 usage={vals[-1]} {ts}")
-
-                # === Emit frequency
-                if freqs and isinstance(freqs[-1], list):
-                    freq_entry = freqs[-1][0]
-                    if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
-                        print(f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id=0 value={freq_entry['cur_freq']} {ts}")
-
-                # === Emit power values
-                if power:
-                    for key, val in power[-1].items():
-                        print(f"power,type={key},host={HOSTNAME},gpu_id=0 value={val} {ts}")
+            emit_engine_usage(eng_usage, 0, current_ts_ns)
+            emit_frequency(freqs, 0, current_ts_ns)
+            emit_power(power, 0, current_ts_ns)
 
     except Exception as e:
         logging.error(f"Error processing log file: {e}")
