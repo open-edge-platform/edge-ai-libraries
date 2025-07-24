@@ -28,10 +28,12 @@ echo 'Setting variables: GST_PLUGIN_SCANNER'
 $GSTREAMER_PLUGIN_SCANNER_PATH = (Get-ChildItem -Filter gst-plugin-scanner.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-plugin-scanner.exe' -ErrorAction SilentlyContinue) | Select-Object -First 1
 [Environment]::SetEnvironmentVariable('GST_PLUGIN_SCANNER', $GSTREAMER_PLUGIN_SCANNER_PATH, [System.EnvironmentVariableTarget]::User)
 
-echo 'Setting variables: Path (for gst-launch-1.0)'
-$GSTREAMER_DIR = (Get-ChildItem -Filter gst-launch-1.0.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-launch-1.0.exe' -ErrorAction SilentlyContinue).DirectoryName | Select-Object -First 1
-$USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
-[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $GSTREAMER_DIR, [System.EnvironmentVariableTarget]::User)
+if (-Not [Environment]::GetEnvironmentVariable('Path', 'User').Contains('gstreamer')) {
+	echo 'Setting variables: Path (for gst-launch-1.0)'
+	$GSTREAMER_DIR = (Get-ChildItem -Filter gst-launch-1.0.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-launch-1.0.exe' -ErrorAction SilentlyContinue).DirectoryName | Select-Object -First 1
+	$USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
+	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $GSTREAMER_DIR, [System.EnvironmentVariableTarget]::User)
+}
 
 echo 'Searching for OpenVINO'
 if (-Not [System.IO.File]::Exists('C:\openvino\setupvars.ps1')) {
@@ -51,12 +53,17 @@ $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
 [Environment]::SetEnvironmentVariable('Path', $USER_PATH + ";C:\openvino\runtime\3rdparty\tbb\bin;C:\openvino\runtime\bin\intel64\Release", [System.EnvironmentVariableTarget]::User)
 
 $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
-
 $env:GST_PLUGIN_PATH = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_PATH','User')
 $env:GST_PLUGIN_SCANNER = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_SCANNER','User')
 
 echo "User environment variables:"
-Get-ChildItem Env:
+$env:Path
+$env:GST_PLUGIN_PATH
+$env:GST_PLUGIN_SCANNER
+$env:OpenVINO_DIR
+$env:OPENVINO_LIB_PATHS
+$env:LIBVA_DRIVER_NAME
+$env:LIBVA_DRIVERS_PATH
 
 echo ""
 echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
