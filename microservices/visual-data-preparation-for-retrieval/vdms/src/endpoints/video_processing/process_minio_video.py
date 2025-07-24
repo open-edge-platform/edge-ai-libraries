@@ -99,6 +99,7 @@ async def process_minio_video(
        - **video_name (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the directory will be used automatically)
        - **chunk_duration (int) :** Interval of time in seconds for video chunking (default: 30)
        - **clip_duration (int) :** Length of clip in seconds for embedding selection (default: 10)
+       - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.

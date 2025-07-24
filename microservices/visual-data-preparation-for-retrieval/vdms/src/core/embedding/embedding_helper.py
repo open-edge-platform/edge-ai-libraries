@@ -10,7 +10,7 @@ from src.core.util import read_config, store_video_metadata
 
 from .embedding_api import QwenEmbeddings, vCLIPEmbeddings
 from .embedding_model import Qwen3, vCLIP
-from .embedding_service import vCLIPEmbeddingServiceWrapper
+from .embedding_service import EmbeddingServiceWrapper
 
 # Cache to store a created vdms client and embedding model instances
 _client_cache: dict[str, VDMSClient] = {}
@@ -74,7 +74,7 @@ def _setup_vdms_client(
     # Setup embedding APIs
     if settings.MULTIMODAL_EMBEDDING_ENDPOINT:
         # Access the embedding API from an external REST microservice
-        embedding_service = vCLIPEmbeddingServiceWrapper(
+        embedding_service = EmbeddingServiceWrapper(
             api_url=settings.MULTIMODAL_EMBEDDING_ENDPOINT,
             model_name=settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
             num_frames=settings.MULTIMODAL_EMBEDDING_NUM_FRAMES,
@@ -93,6 +93,9 @@ def _setup_vdms_client(
                 model = vCLIP(config["embeddings"])
                 _model_cache[model_key] = model
 
+            # Setup the embedding service corresponding to the model
+            embedding_service = vCLIPEmbeddings(model=model)
+
         elif text_metadata:
             model_key = config["embeddings"]["qwen_model_name"]
             if model_key in _model_cache:
@@ -102,13 +105,14 @@ def _setup_vdms_client(
                 model = Qwen3(config["embeddings"])
                 _model_cache[model_key] = model
 
+            # Setup the embedding service corresponding to the model    
+            embedding_service = QwenEmbeddings(model=model)
         else:
             logger.error(
                 "Error: No video metadata or text metadata provided for embedding generation."
             )
             raise Exception(Strings.embedding_error)
 
-        embedding_service = vCLIPEmbeddings(model=model)
         vector_dimensions = model.get_embedding_dimensions()
 
     # Initialize VDMS DB client
@@ -117,8 +121,6 @@ def _setup_vdms_client(
         port=settings.VDMS_VDB_PORT,
         collection_name=settings.DB_COLLECTION,
         embedder=embedding_service,
-        video_metadata_path=video_metadata_path,
-        text_metadata=text_metadata,
         embedding_dimensions=vector_dimensions,
     )
 
@@ -158,7 +160,7 @@ async def generate_video_embedding(
     """
 
     # Generate metadata for the video
-    metadata_file = store_video_metadata(
+    metadata_path: pathlib.Path = store_video_metadata(
         bucket_name=bucket_name,
         video_id=video_id,
         video_filename=filename,
@@ -169,15 +171,15 @@ async def generate_video_embedding(
         tags=tags,
     )
 
-    logger.debug(f"Metadata generated and saved to {metadata_file}")
+    logger.debug(f"Metadata generated and saved to {metadata_path}")
 
     # Get vdms client
-    vdms = _setup_vdms_client(video_metadata_path=metadata_file)
+    vdms = _setup_vdms_client(video_metadata_path=metadata_path)
     if not vdms:
         raise Exception(Strings.vdms_client_error)
 
     # Store the video embeddings in VDMS vector DB
-    ids = vdms.store_embeddings()
+    ids = vdms.store_embeddings(video_metadata_path=metadata_path)
     logger.info(f"Embeddings created for videos: {ids}")
 
     return ids
@@ -203,7 +205,7 @@ async def generate_text_embedding(text: str, text_metadata: dict = {}) -> List[s
         raise Exception(Strings.vdms_client_error)
 
     # Store the text embedding in VDMS vector DB
-    ids = vdms.store_text_embedding(text)
+    ids = vdms.store_text_embedding(text, metadata=text_metadata)
     logger.debug(f"Embeddings for video summary created with ids: {ids}")
 
     return ids

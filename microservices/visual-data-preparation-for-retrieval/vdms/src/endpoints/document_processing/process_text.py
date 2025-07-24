@@ -85,6 +85,8 @@ async def process_video_summary(
        - **video_summary (str) :** The text summary for the video to be embedded
        - **video_start_time (float) :** The start timestamp in seconds for the video or video chunk
        - **video_end_time (float) :** The end timestamp in seconds for the video or video chunk
+       - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
+       
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
     - **404 Not Found :** If the specified video cannot be found in Minio.

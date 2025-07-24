@@ -70,6 +70,7 @@ async def upload_and_process_video(
     - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default bucket will be used.
     - **chunk_duration (int, optional) :** Interval of time in seconds for video chunking (default: 30)
     - **clip_duration (int, optional) :** Length of clip in seconds for embedding selection (default: 10)
+    - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
     - **400 Bad Request :** If the video file is not an MP4 or fails validation.
