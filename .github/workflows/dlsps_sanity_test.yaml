@@ -52,7 +52,7 @@ jobs:
        chmod a+x stream_rtsp.sh
        ip_addr=`hostname -I | awk '{print $1}'`
        echo "starting rtsp servers"
-       echo `pwd`/../../../resources/videos/warehouse.avi
+       ls -l `pwd`/../../../resources/videos/warehouse.avi
        echo $ip_addr
        ./stream_rtsp.sh start 10 `pwd`/../../../resources/videos/warehouse.avi $ip_addr
        cd ${{github.workspace}}
