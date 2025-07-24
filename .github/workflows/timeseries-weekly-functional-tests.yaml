@@ -25,7 +25,7 @@ jobs:
     - name: Run time-series-analytics-microservices function tests
       run: |
         cd "${{ github.workspace }}"
-        cd ./microservices/time-series-analytics/tests-function
+        cd ./microservices/time-series-analytics/tests-functional
         echo "Running function tests"
         pip3 install -r tests-function/requirements.txt
         rm -rf /tmp/test_report/report.html

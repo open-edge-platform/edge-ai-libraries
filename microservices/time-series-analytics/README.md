@@ -36,7 +36,7 @@ Follow the steps below to run the functional tests.
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries
 cd edge-ai-libraries/microservices/time-series-analytics/tests-functional
-echo "Running functionaal tests"
+echo "Running functional tests"
 pip3 install -r requirements.txt
 pytest -v --html=./test_report/report.html .
 ```
