@@ -47,33 +47,42 @@ if (-Not [System.IO.File]::Exists('C:\openvino\setupvars.ps1')) {
 }
 
 echo 'Setting variables:, OpenVINO_DIR, OPENVINO_LIB_PATHS, Path (for OpenVINO)'
-$USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
 [Environment]::SetEnvironmentVariable('OpenVINO_DIR', "C:\openvino\runtime\cmake", [System.EnvironmentVariableTarget]::User)
 [Environment]::SetEnvironmentVariable('OPENVINO_LIB_PATHS', "C:\openvino\runtime\3rdparty\tbb\bin;C:\openvino\runtime\bin\intel64\Release", [System.EnvironmentVariableTarget]::User)
-[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ";C:\openvino\runtime\3rdparty\tbb\bin;C:\openvino\runtime\bin\intel64\Release", [System.EnvironmentVariableTarget]::User)
+if (-Not [Environment]::GetEnvironmentVariable('Path', 'User').Contains('openvino')) {
+	$USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
+	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ";C:\openvino\runtime\3rdparty\tbb\bin;C:\openvino\runtime\bin\intel64\Release", [System.EnvironmentVariableTarget]::User)
+}
 
 $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
 $env:GST_PLUGIN_PATH = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_PATH','User')
 $env:GST_PLUGIN_SCANNER = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_SCANNER','User')
 
-echo "User environment variables:"
+echo "USER ENVIRONMENT VARIABLES"
+echo "Path:"
 $env:Path
+echo "GST_PLUGIN_PATH:"
 $env:GST_PLUGIN_PATH
+echo "GST_PLUGIN_SCANNER:"
 $env:GST_PLUGIN_SCANNER
+echo "OpenVINO_DIR:"
 $env:OpenVINO_DIR
+echo "OPENVINO_LIB_PATHS:"
 $env:OPENVINO_LIB_PATHS
+echo "LIBVA_DRIVER_NAME:"
 $env:LIBVA_DRIVER_NAME
+echo "LIBVA_DRIVERS_PATH:"
 $env:LIBVA_DRIVERS_PATH
 
 echo ""
 echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
 echo "Please wait for a moment... "
 
-$errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
+$errOutput = $(gst-inspect-1.0.exe gvadetect)
 
 if ($errOutput[0].ToString().Contains("No such element or plugin")) {
 	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
-	$errOutput = $( $output = & gst-inspect-1.0.exe gvadetect ) 2>&1
+	$errOutput = $(gst-inspect-1.0.exe gvadetect)
 	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
 }
 
