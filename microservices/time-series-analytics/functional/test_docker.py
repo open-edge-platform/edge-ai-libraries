@@ -124,14 +124,6 @@ def test_input_endpoint_invalid_data():
     utils.input_endpoint_invalid_data(TS_DOCKER_PORT)
     utils.input_endpoint_no_data(TS_DOCKER_PORT)
 
-# # Post no input data to the /input endpoint
-# def test_input_endpoint_no_data():
-#     """
-#     Test the input endpoint of the Time Series Analytics service.
-#     """
-#     utils.input_endpoint_no_data(TS_DOCKER_PORT)
-
-# Get config data from the /config endpoint
 def test_get_config_endpoint():
     """
     Test the config endpoint of the Time Series Analytics service.
