@@ -63,6 +63,7 @@ jobs:
        echo "- Total: $total" >> $GITHUB_STEP_SUMMARY
        echo "- ✅ Passed: $passed" >> $GITHUB_STEP_SUMMARY
        echo "- ❌ Failed: $failed" >> $GITHUB_STEP_SUMMARY
+       echo "- ⏭️ Not Run: $not_run" >> $GITHUB_STEP_SUMMARY
        echo "- 📄 [Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
        echo "stopping rtsp servers"
        cd ${{github.workspace}}
