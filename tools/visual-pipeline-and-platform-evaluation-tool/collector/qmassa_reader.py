@@ -66,11 +66,11 @@ def process_states(data):
         states = data.get("states", [])
         if not states:
             logging.error("No states found in the log file")
-            sys.exit(1)
+            return
 
         current_ts_ns = int(time.time() * 1e9)
 
-        # Use the last state from 2 iterations, where power is calculated as the delta between iterations
+        # Use the last state from 2 iterations, to get the non-zero power values
         devs_state = states[-1].get("devs_state", [])
         if not devs_state:
             logging.warning("No devs_state found in the log file")
@@ -101,6 +101,7 @@ def process_states(data):
 
     except Exception as e:
         logging.error(f"Error processing log file: {e}")
+
 
 # === Lock to prevent multiple instances ===
 with open(LOCK_FILE, "w") as lock_fp:
