@@ -141,4 +141,4 @@ jobs:
         path: /tmp/test_report
   
   timeseries-scans:
-    uses: ./.github/workflows/timeseries-scans-virus-bandit-pylint.yaml
+    uses: ./.github/workflows/timeseries-scans.yaml
