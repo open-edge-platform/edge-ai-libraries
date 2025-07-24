@@ -18,7 +18,7 @@ export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 if [ "$#" -eq 0 ] ||  ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     # If no valid argument is passed, print usage information
     echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE}]"
     echo -e  "${YELLOW}"
     echo -e  "  --setenv:     Set environment variables without starting any containers"
     echo -e  "  --summary:    Configure and bring up Video Summarization application"
@@ -86,26 +86,34 @@ export TAG=${TAG:-latest}
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using registry: ${YELLOW}$REGISTRY ${NC}"
 
-# env for vlm-openvino-serving
-export VLM_HOST_PORT=9766
-export VLM_MODEL_NAME=${VLM_MODEL_NAME}
-export VLM_COMPRESSION_WEIGHT_FORMAT=int8
+# env for pipeline-manager
+export PM_HOST_PORT=3001
+export PM_HOST=pipeline-manager
+export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
+export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
+export PM_LLM_CONCURRENT=2
+export PM_VLM_CONCURRENT=4
+export PM_MULTI_FRAME_COUNT=12
+export PM_MINIO_BUCKET=video-summary
+
+#  env for ovms-service
+export OVMS_HTTP_HOST_PORT=80
+export OVMS_GRPC_HOST_PORT=81
+export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
+export OVMS_LLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
 export VLM_DEVICE=CPU
+export OVMS_HOST=ovms-service
 export VLM_SEED=42
-export VLM_HOST=vlm-openvino-serving
-export VLM_ENDPOINT=http://${VLM_HOST}:8000/v1
-export USER_ID=$(id -u)
+export WORKERS=${WORKERS:-6}
+export VLM_LOG_LEVEL=${VLM_LOG_LEVEL:-info}
+export VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS}
+export VLM_ACCESS_LOG_FILE=${VLM_ACCESS_LOG_FILE:-/dev/null}
+export VLM_HOST=ovms-service
+export VLM_ENDPOINT=http://$OVMS_HOST/v3
 export USER_GROUP_ID=$(id -g)
 export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
 export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 
-# env for ovms-service
-export LLM_DEVICE=CPU
-export LLM_MODEL_API="v1/models"
-export OVMS_LLM_MODEL_NAME=${OVMS_LLM_MODEL_NAME}
-export OVMS_HTTP_HOST_PORT=8300
-export OVMS_GRPC_HOST_PORT=9300
-export OVMS_HOST=ovms-service
 
 # env for video-ingestion-service
 export EVAM_HOST=video-ingestion
@@ -150,7 +158,7 @@ export VDMS_VDB_HOST=vdms-vector-db
 export VDMS_DATAPREP_HOST_PORT=6016
 export VDMS_DATAPREP_HOST=vdms-dataprep
 export VDMS_DATAPREP_ENDPOINT=http://$VDMS_DATAPREP_HOST:8000
-export VDMS_DATAPREP_UPLOAD=$VDMS_DATAPREP_ENDPOINT/videos/upload
+export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
@@ -173,22 +181,12 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 export VS_HOST_PORT=7890
 export VS_INDEX_NAME=videosearch
 export VS_WATCHER_DIR=$PWD/data
-export VS_WATCHER_DEBOUNCE_TIME=2
 export VS_DELETE_PROCESSED_FILES=false
 export VS_INITIAL_DUMP=false
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=2
+export VS_DEBOUNCE_TIME=1
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
-
-# env for pipeline-manager
-export PM_HOST_PORT=3001
-export PM_SUMMARIZATION_MAX_COMPLETION_TOKENS=4000
-export PM_CAPTIONING_MAX_COMPLETION_TOKENS=1024
-export PM_LLM_CONCURRENT=2
-export PM_VLM_CONCURRENT=4
-export PM_MULTI_FRAME_COUNT=12
-export PM_MINIO_BUCKET=video-summary
 
 # env for vss-ui
 export UI_HOST_PORT=9998
@@ -351,11 +349,11 @@ export_model_for_ovms() {
 
     python3 export_model.py text_generation \
         --source_model microsoft/Phi-3.5-vision-instruct \
-        --target_device NPU \
         --config_file_path models/config.json \
         --model_repository_path models \
+        --target_device ${VLM_DEVICE} \
         --overwrite_models
-
+    
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to export the model for OVMS.${NC}"
         deactivate
@@ -471,7 +469,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
     else
         export USE_OVMS_CONFIG=CONFIG_OFF
-        export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
+        export LLM_SUMMARIZATION_API=http://$OVMS_HOST:8300/v1
 
         if [ "$ENABLE_VLM_GPU" = true ]; then
             export VLM_DEVICE=GPU
@@ -479,10 +477,11 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
             export PM_LLM_CONCURRENT=1
             export VLM_COMPRESSION_WEIGHT_FORMAT=int4
             export PM_MULTI_FRAME_COUNT=6
-            echo -e  "Using VLM for summarization on GPU"
+            export WORKERS=1
+            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
         else
             export VLM_DEVICE=CPU
-            echo -e  "Using VLM for summarization"
+            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
         fi
 
         # if config is passed, set the command to only generate the config
@@ -495,6 +494,7 @@ elif [ "$1" = "--search" ]; then
     echo -e  "${BLUE}Creating Docker volumes for Video Search services: ${NC}"
     docker volume create ov-models
     docker volume create data-prep
+    mkdir -p ${VS_WATCHER_DIR}
 
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"

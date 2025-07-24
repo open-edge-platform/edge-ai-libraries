@@ -4,6 +4,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { OpenAI } from 'openai';
 import { ConfigService } from '@nestjs/config';
+import { HttpsProxyAgent } from 'https-proxy-agent';
 import {
   ChatCompletionContentPartImage,
   ChatCompletionMessageParam,
@@ -14,6 +15,18 @@ import { ModelInfo } from 'src/state-manager/models/state.model';
 import { OpenaiHelperService } from './openai-helper.service';
 import { FeaturesService } from 'src/features/features.service';
 
+interface ModelConfigResponse {
+  [key: string]: {
+    model_version_status: {
+      version: string;
+      state: string;
+      status: {
+        error_code: string;
+        error_message: string;
+      };
+    }[];
+  };
+}
 interface ImageCompletionParams extends CompletionQueryParams {
   user_query?: string;
   fileNameOrUrl: string;
@@ -83,6 +96,8 @@ export class VlmService {
   }
 
   private async initialize() {
+    let configUrl: string | null = null;
+    const fetchOptions: { agent?: HttpsProxyAgent<string> } = {};
     const apiKey: string = this.$config.get<string>(
       'openai.vlmCaptioning.apiKey',
     )!;
@@ -92,21 +107,65 @@ export class VlmService {
 
     try {
       // Initialize OpenAI Client
-      const { client } = this.$openAiHelper.initializeClient(apiKey, baseURL);
+      const { client, openAiConfig, proxyAgent } = this.$openAiHelper.initializeClient(apiKey, baseURL);
       this.client = client;
+
+      if (proxyAgent) {
+        fetchOptions.agent = proxyAgent;
+      }
+
+      const modelsApi = this.$config.get<string>(
+        'openai.vlmCaptioning.modelsAPI',
+      )!;
+
+      // configUrl = this.$openAiHelper.getConfigUrl(openAiConfig, modelsApi);
+      configUrl = "http://ovms-service/v1/config";
+
     } catch (error) {
       console.error('Failed to initialize OpenAI client:', error);
       throw error;
     }
 
     try {
-      // Fetch Models
-      await this.getModelsFromOpenai();
-      this.serviceReady = true;
+
+      if (configUrl) {
+        await this.fetchModelsFromConfig(configUrl, fetchOptions);
+        this.serviceReady = true;
+      } else {
+        throw new Error('Config URL is not available');
+      }
     } catch (error) {
-      console.error('Failed to retrieve models:', error);
+      Logger.error(error);
+      try {
+        // Fetch Models
+        await this.getModelsFromOpenai();
+        this.serviceReady = true;
+      } catch (error) {
+        console.error('Failed to retrieve models:', error);
+      }
     }
   }
+
+    private async fetchModelsFromConfig(url: string, fetchOptions) {
+    const response = await fetch(url, fetchOptions as RequestInit);
+    if (response.ok) {
+      const data: ModelConfigResponse =
+        (await response.json()) as ModelConfigResponse;
+      const modelKey = Object.keys(data)[0];
+      if (data[modelKey].model_version_status[0].state === 'AVAILABLE') {
+        this.model = modelKey;
+        console.log(`Using VLM model: ${this.model}`);
+      } else {
+        console.warn(
+          `model: ${modelKey} is in ${data[modelKey].model_version_status[0].state} state`,
+        );
+        this.model = modelKey;
+      }
+    } else {
+      throw new Error(`Failed to retrieve model from endpoint: ${url}`);
+    }
+  }
+
 
   private async getModelsFromOpenai() {
     if (this.client) {
@@ -169,43 +228,30 @@ export class VlmService {
     return { device, model: this.model };
   }
 
-  public async imageInference(
+   public async imageInference(
     userQuery: string,
     imageUri: string[],
   ): Promise<string | null> {
     try {
       console.log(userQuery, imageUri);
 
-      let content: any[];
-
-      if (imageUri.length === 1) {
-        // Single image case
-        content = [
-          {
+      const images: OpenAI.Chat.Completions.ChatCompletionContentPart[] =
+        imageUri.map((url) => {
+          const message: OpenAI.Chat.Completions.ChatCompletionContentPart = {
             type: 'image_url',
-            image_url: { url: imageUri[0] },
-          },
-        ];
-      } else {
-        content = [
-          {
-            type: 'video',
-            video: imageUri.map((url) => url),
-          },
-        ];
-      }
+            image_url: { url },
+          };
 
-      const messages: any[] = [
-        {
-          role: 'user',
-          // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-          content: [{ type: 'text', text: userQuery }, ...content],
-        },
-      ];
+          return message;
+        });
 
       const completions = await this.client.chat.completions.create({
-        // eslint-disable-next-line @typescript-eslint/no-unsafe-assignment
-        messages,
+        messages: [
+          {
+            role: 'user',
+            content: [{ type: 'text', text: userQuery }, ...images],
+          },
+        ],
         model: this.model,
         ...this.defaultParams(),
       });
