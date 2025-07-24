@@ -60,7 +60,6 @@ class PipelineOptimizer:
             parameters=self.param_grid,
             channels=(self.regular_channels, self.inference_channels),
             elements=self.elements,
-            live_preview=live_preview,
         )
 
         metrics_list = None
@@ -80,11 +79,14 @@ class PipelineOptimizer:
             except StopIteration as e:
                 metrics_list = e.value
 
-        # Log all metrics and save results
+        # Iterate over the list of metrics
         for metrics in metrics_list:
+            # Log the metrics
             self.logger.info("Exit code: {}".format(metrics["exit_code"]))
             self.logger.info("Total FPS is {}".format(metrics["total_fps"]))
             self.logger.info("Per Stream FPS is {}".format(metrics["per_stream_fps"]))
+
+            # Save results
             self.results.append(
                 OptimizationResult(
                     params=metrics["params"],

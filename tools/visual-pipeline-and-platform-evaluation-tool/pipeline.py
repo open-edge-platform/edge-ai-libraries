@@ -69,8 +69,9 @@ class PipelineLoader:
             raise ValueError(
                 f"Pipeline {pipeline_name} does not have a classname defined in config.yaml"
             )
-        
+
         # NOTE: This code always imports from the pipelines directory.
         module = importlib.import_module(f"pipelines.{pipeline_name}.pipeline")
         pipeline_cls = getattr(module, classname)
         return pipeline_cls(), config
+

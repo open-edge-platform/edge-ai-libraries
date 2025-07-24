@@ -139,6 +139,7 @@ class SmartNVRPipeline(GstPipeline):
         regular_channels: int,
         inference_channels: int,
         elements: List[tuple[str, str, str]] = [],
+        live_preview_enabled: bool = False,
     ) -> str:
 
         # Set pre process backed for object detection
@@ -345,13 +346,36 @@ class SmartNVRPipeline(GstPipeline):
                 postprocessing=_postprocessing_element,
                 max_size_buffers=1,
             )
-        # Prepend the compositor
-        streams = self._compositor.format(
-            **constants,
-            sinks=sinks,
-            encoder=_encoder_element,
-            compositor=_compositor_element,
-        ) + streams
+        # Compose pipeline depending on live_preview_enabled
+        if live_preview_enabled:
+            # Always produce both file and live stream outputs
+            try:
+                os.makedirs("/tmp/shared_memory", exist_ok=True)
+                with open("/tmp/shared_memory/video_stream.meta", "wb") as f:
+                    # width=640, height=360, dtype_size=1 (uint8)
+                    f.write(struct.pack("III", 360, 640, 1))
+                logging.info("Wrote shared memory meta file for live streaming: /tmp/shared_memory/video_stream.meta")
+                logging.info("Live stream format: BGR, shape=(360,640,3), dtype=uint8, shm_path=/tmp/shared_memory/video_stream")
+            except Exception as e:
+                logging.warning(f"Could not write shared memory meta file: {e}")
+
+            # Compose pipeline with tee: file + live stream
+            logging.info("Pipeline will output both to file and shared memory (live stream)")
+            streams = self._compositor_with_tee.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+                shmsink=self._shmsink,
+            ) + streams
+        else:
+            # Prepend the compositor
+            streams = self._compositor.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+            ) + streams
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams

@@ -603,6 +603,7 @@ def on_run(data):
 
     recording_channels = arguments.get('recording_channels', 0) or 0
     inferencing_channels = arguments.get('inferencing_channels', 0) or 0
+    live_preview_enabled = arguments.get('live_preview_enabled', False)
     # Validate channels
     if recording_channels + inferencing_channels == 0:
         raise gr.Error(
@@ -618,26 +619,38 @@ def on_run(data):
         elements=gst_inspector.get_elements(),
     )
 
-    # Stream live preview frames and log time between yields
     last_yield_time = time.time()
-    for live_frame in optimizer.run_with_live_preview():
-        current_time = time.time()
-        time_since_last_yield = current_time - last_yield_time
-        last_yield_time = current_time
-        logging.info(f"[on_run] Time since last yield: {time_since_last_yield:.4f}s")
-        yield [gr.update(value=live_frame, visible=True), gr.update(visible=False), None]
-
-    # After streaming, evaluate and yield best_result_message
-    best_result = optimizer.evaluate()
-    if best_result is None:
-        best_result_message = "No valid result was returned by the optimizer."
+    if live_preview_enabled:
+        # Show live preview, hide video player while streaming frames
+        for live_frame in optimizer.run_with_live_preview():
+            current_time = time.time()
+            time_since_last_yield = current_time - last_yield_time
+            last_yield_time = current_time
+            logging.info(f"[on_run] Time since last yield: {time_since_last_yield:.4f}s")
+            yield [gr.update(value=live_frame, visible=True), gr.update(visible=False), None]
+        # After streaming, hide live preview and show video player
+        best_result = optimizer.evaluate()
+        if best_result is None:
+            best_result_message = "No valid result was returned by the optimizer."
+        else:
+            best_result_message = (
+                f"Total FPS: {best_result.total_fps:.2f}, "
+                f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+            )
+        yield [gr.update(visible=False), gr.update(value=video_output_path, visible=True), best_result_message]
     else:
-        best_result_message = (
-            f"Total FPS: {best_result.total_fps:.2f}, "
-            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
-        )
+        # Only show video player, never show live preview
+        optimizer.optimize()
+        best_result = optimizer.evaluate()
+        if best_result is None:
+            best_result_message = "No valid result was returned by the optimizer."
+        else:
+            best_result_message = (
+                f"Total FPS: {best_result.total_fps:.2f}, "
+                f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
+            )
+        yield [gr.update(visible=False), gr.update(value=video_output_path, visible=True), best_result_message]
 
-    yield [gr.update(visible=False), gr.update(value=video_output_path, visible=True), best_result_message]
 
 def on_benchmark(data):
 
@@ -727,7 +740,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         interactive=False,
         show_download_button=True,
         elem_id="output_video_player",
-        visible=False,
+        visible=True,
     )
 
     # Output Live Image (for live preview)
@@ -735,7 +748,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         label="Output Video (Live Preview)",
         interactive=False,
         elem_id="output_live_image",
-        visible=True,
+        visible=False,
         type="numpy",
     )
 
@@ -943,6 +956,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_watermark_enabled",
     )
 
+    # Add live_preview_enabled checkbox
+    live_preview_enabled = gr.Checkbox(
+        label="Enable Live Preview",
+        value=False,
+        elem_id="live_preview_enabled",
+    )
 
     # Run button
     run_button = gr.Button("Run")
@@ -995,6 +1014,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_nireq)
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
+    components.add(live_preview_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
@@ -1381,6 +1401,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
+                            # Render live_preview_enabled checkbox
+                            live_preview_enabled.render()
 
                         # Benchmark Parameters Accordion
                         with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):

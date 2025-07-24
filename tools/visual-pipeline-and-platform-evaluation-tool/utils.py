@@ -56,6 +56,7 @@ def prepare_video_and_constants(
     )
     object_classification_nireq = kwargs.get("object_classification_nireq", 1)
     pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
+    live_preview_enabled = kwargs.get("live_preview_enabled", False)
 
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
@@ -82,6 +83,7 @@ def prepare_video_and_constants(
         "object_classification_reclassify_interval": [object_classification_reclassify_interval],
         "object_classification_nireq": [object_classification_nireq],
         "pipeline_watermark_enabled": [pipeline_watermark_enabled],
+        "live_preview_enabled": [live_preview_enabled],
     }
 
     constants = {
@@ -238,7 +240,6 @@ def run_pipeline_and_extract_metrics(
     channels: int | tuple[int, int] = 1,
     elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
-    live_preview: bool = False,
 ):
     global cancelled
     """
@@ -270,9 +271,12 @@ def run_pipeline_and_extract_metrics(
 
     for params in _iterate_param_grid(parameters):
 
+        # Get live_preview_enabled from params
+        live_preview_enabled = params.get("live_preview_enabled", False)
+
         # Evaluate the pipeline with the given parameters, constants, and channels
         _pipeline = pipeline_cmd.evaluate(
-            constants, params, regular_channels, inference_channels, elements
+            constants, params, regular_channels, inference_channels, elements, live_preview_enabled=live_preview_enabled
         )
 
         # Log the command
@@ -300,7 +304,7 @@ def run_pipeline_and_extract_metrics(
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
 
-            if live_preview:
+            if live_preview_enabled:
                 wait_time = 0
                 max_wait = 10
                 while not os.path.exists(meta_path) and wait_time < max_wait:
@@ -345,7 +349,7 @@ def run_pipeline_and_extract_metrics(
                         # Write latest FPS to a file
                         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
                             f.write(f"{latest_fps}\n")
-                if live_preview:
+                if live_preview_enabled:
                     t0 = time.time()
                     frame = read_shared_memory_frame(meta_path=meta_path, shm_prefix=shm_prefix, socket_path=socket_path)
                     t1 = time.time()
@@ -439,5 +443,4 @@ def run_pipeline_and_extract_metrics(
         except subprocess.CalledProcessError as e:
             logger.error(f"Error: {e}")
             continue
-
     return results
