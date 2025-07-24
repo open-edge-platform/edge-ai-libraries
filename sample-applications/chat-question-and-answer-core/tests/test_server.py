@@ -5,7 +5,7 @@ from http import HTTPStatus
 def test_chain_response(test_client, mocker):
     """
     Tests the chain response functionality of the server by simulating a POST
-    request to the `/stream_log` endpoint and verifying the streamed response.
+    request to the `/chat` endpoint and verifying the streamed response.
     Args:
         test_client: A test client instance used to simulate HTTP requests.
         mocker: A mocking library instance used to patch dependencies.
@@ -23,7 +23,7 @@ def test_chain_response(test_client, mocker):
     mocker.patch("app.server.build_chain", return_value=True)
     mocker.patch("app.server.process_query", return_value=iter(["one", "two"]))
 
-    response = test_client.post("/stream_log", json=payload)
+    response = test_client.post("/chat", json=payload)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
