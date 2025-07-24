@@ -82,7 +82,7 @@ jobs:
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries-repo
+        sudo rm -rf edge-ai-libraries-repo
         if [ -n "$(docker images -aq)" ]; then
                docker rmi -f $(docker images -aq) || true
         fi
