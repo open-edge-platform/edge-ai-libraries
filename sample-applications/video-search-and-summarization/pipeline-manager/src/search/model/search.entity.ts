@@ -22,7 +22,7 @@ export class SearchEntity {
     default: SearchQueryStatus.IDLE,
     enum: SearchQueryStatus,
   })
-  queryStatus: SearchQueryStatus; // This can be 'idle' or 'running'
+  queryStatus: SearchQueryStatus; // This can be 'idle', 'running', or 'error'
 
   @Column({ type: 'text', array: true, default: [] })
   tags: string[];
@@ -35,4 +35,7 @@ export class SearchEntity {
 
   @Column({ type: 'text' })
   updatedAt: string;
+
+  @Column({ type: 'text', nullable: true })
+  errorMessage?: string;
 }

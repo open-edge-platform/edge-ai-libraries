@@ -10,6 +10,7 @@ export interface SearchQueryDTO {
 export enum SearchQueryStatus {
   IDLE = 'idle',
   RUNNING = 'running',
+  ERROR = 'error',
 }
 
 export interface SearchShimQuery {
@@ -69,4 +70,5 @@ export interface SearchQuery {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  errorMessage?: string;
 }

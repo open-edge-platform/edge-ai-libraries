@@ -96,8 +96,48 @@ const TagsContainer = styled.div`
   }
 `;
 
+const ErrorMessageWrapper = styled.div`
+  padding: 1.5rem;
+  background-color: #fdf2f2;
+  border: 1px solid #da1e28;
+  border-radius: 0.5rem;
+  margin: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  
+  .error-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+  
+  .error-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .error-title {
+    font-weight: 600;
+    color: #da1e28;
+    font-size: 1.1rem;
+  }
+  
+  .error-text {
+    color: #525252;
+    line-height: 1.4;
+  }
+  
+  .error-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+`;
+
 export const SearchContent: FC = () => {
-  const { selectedQuery, selectedResults, isSelectedInProgress } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
@@ -136,6 +176,11 @@ export const SearchContent: FC = () => {
             {t('searchInProgress')}
           </Tag>
         )}
+        {isSelectedHasError && (
+          <Tag size='sm' type='red'>
+            {t('searchError')}
+          </Tag>
+        )}
         {selectedQuery && (
           <>
             <SliderLabel>{t('topK')}</SliderLabel>
@@ -158,6 +203,20 @@ export const SearchContent: FC = () => {
   };
 
   const VideosContainer = () => {
+    if (selectedResults.length === 0 && selectedQuery && !isSelectedInProgress && !isSelectedHasError) {
+      return (
+        <div style={{ 
+          padding: '2rem', 
+          textAlign: 'center', 
+          color: '#525252',
+          fontStyle: 'italic'
+        }}>
+          <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
+          <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        </div>
+      );
+    }
+
     return (
       <>
         <div className='videos-container'>
@@ -172,6 +231,30 @@ export const SearchContent: FC = () => {
     );
   };
 
+  const ErrorMessage = () => {
+    if (!selectedQuery?.errorMessage) return null;
+    
+    return (
+      <ErrorMessageWrapper>
+        <div className='error-icon'>⚠️</div>
+        <div className='error-content'>
+          <div className='error-title'>{t('searchErrorTitle', 'Search Failed')}</div>
+          <div className='error-text'>{selectedQuery.errorMessage}</div>
+          <div className='error-actions'>
+            <IconButton 
+              label={t('SearchRerun', 'Retry Search')} 
+              onClick={refetchQuery} 
+              kind='primary'
+              size='sm'
+            >
+              <Trigger />
+            </IconButton>
+          </div>
+        </div>
+      </ErrorMessageWrapper>
+    );
+  };
+
   return (
     <>
       <QueryContentWrapper>
@@ -180,7 +263,7 @@ export const SearchContent: FC = () => {
         {selectedQuery && (
           <>
             <QueryHeading />
-            <VideosContainer />
+            {isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
           </>
         )}
       </QueryContentWrapper>

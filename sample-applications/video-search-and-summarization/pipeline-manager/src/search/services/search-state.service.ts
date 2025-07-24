@@ -131,12 +131,16 @@ export class SearchStateService {
       }
     } catch (error) {
       Logger.error(`Error running search for query ID ${queryId}`, error);
-      const updatedQuery = await this.$searchDB.updateQueryStatus(
+      const errorMessage =
+        'No videos found in search database. Please upload videos and create search embeddings before running queries.';
+      const updatedQuery = await this.$searchDB.updateQueryStatusWithError(
         queryId,
-        SearchQueryStatus.IDLE,
+        SearchQueryStatus.ERROR,
+        errorMessage,
       );
       const enrichedQuery = await this.enrichQueryWithVideos(updatedQuery);
       this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
+      return null;
     }
   }
 
