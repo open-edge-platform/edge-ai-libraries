@@ -26,6 +26,10 @@ ENV PYTHONUNBUFFERED=1 \
 # Add poetry and venv to path
 ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
 
+# Create non-root user
+RUN groupadd --gid 1000 appuser && \
+    useradd --uid 1000 --gid appuser --shell /bin/bash --create-home appuser
+
 # upgrade pip to the latest version
 RUN pip install --upgrade pip
 
@@ -51,6 +55,9 @@ RUN if [ "${ARCH}" = "cpu" ]; \
     then poetry install --with cpu; \
     else poetry install --only main; fi
 
+# Set ownership of poetry and setup directories to appuser
+RUN chown -R appuser:appuser $POETRY_HOME $SETUP_PATH
+
 
 # `dev` image is used during development / testing
 FROM python-base AS dev
@@ -71,6 +78,13 @@ RUN chmod +x /entrypoint.sh
 # Source code will be mounted here
 WORKDIR /app
 RUN mkdir -p /tmp/dataprep/videos
+
+# Set ownership of directories to appuser
+RUN chown -R appuser:appuser /app /tmp/dataprep /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ] 
@@ -78,7 +92,11 @@ CMD [ "poetry", "run", "uvicorn", "--host", "0.0.0.0", "--port", "8000", "--relo
 
 # Linter stage to lint code in dev image
 FROM dev AS lint
-COPY . .
+
+USER root
+COPY --chown=appuser:appuser . .
+USER appuser
+
 RUN black --config ./pyproject.toml --check tests src
 RUN isort --settings-path ./pyproject.toml --check-only .
 
@@ -90,8 +108,12 @@ RUN coverage report -m --fail-under $COVERAGE_REQ
 
 # Generate test coverage report on lint stage and serve it using python http server.
 FROM lint AS report
-COPY ./scripts/reporter.sh /reporter.sh
+# Copy script with proper ownership from the start
+USER root
+COPY --chown=appuser:appuser ./scripts/reporter.sh /reporter.sh
 RUN chmod +x /reporter.sh
+USER appuser
+
 CMD [ "/reporter.sh" ]
 
 # `prod` image used for runtime
@@ -140,6 +162,13 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
 
 WORKDIR /app
 RUN mkdir -p /tmp/dataprep/videos
+
+# Set ownership of all necessary directories to appuser
+RUN chown -R appuser:appuser /app /entrypoint.sh
+
+# Switch to non-root user
+USER appuser
+
 EXPOSE 8000
 
 ENTRYPOINT [ "/entrypoint.sh" ]
