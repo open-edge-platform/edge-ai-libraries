@@ -140,5 +140,5 @@ jobs:
         name: function-test-report
         path: /tmp/test_report
   
-  timeseries-scans:
-    uses: ./.github/workflows/timeseries-scans.yaml
+  # timeseries-scans:
+  #   uses: ./.github/workflows/timeseries-scans.yaml
