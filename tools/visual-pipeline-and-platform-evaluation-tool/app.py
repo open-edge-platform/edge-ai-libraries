@@ -1,11 +1,19 @@
 import logging
 import os
 from datetime import datetime
+import time
+import threading
 
 import gradio as gr
+import numpy as np
 import pandas as pd
 import plotly.graph_objects as go
 import requests
+import struct
+import mmap
+import cv2
+import subprocess
+import shlex
 
 import utils
 from benchmark import Benchmark
@@ -654,6 +662,234 @@ def on_stop():
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
 
 
+def find_shm_file(shm_prefix, socket_path="/tmp/shared_memory/video_stream"):
+    """
+    Find the actual shared memory file in /dev/shm that matches the shmsink pattern.
+    Returns the filename or None.
+    """
+    logger = logging.getLogger("live_stream_reader")
+    try:
+        files = os.listdir("/dev/shm")
+        logger.info(f"Files in /dev/shm: {files}")
+        # Accept any file that starts with 'shmpipe.'
+        shm_files = [f for f in files if f.startswith("shmpipe.")]
+        logger.info(f"Candidate shared memory files (shmpipe.*): {shm_files}")
+        if not shm_files:
+            logger.info("No shared memory files found with shmpipe.* prefix.")
+            return None
+        # Log all candidates for debugging
+        for f in shm_files:
+            logger.info(f"shmpipe candidate: {f}")
+        # If multiple, pick the most recently created
+        shm_files.sort(key=lambda x: os.path.getctime(os.path.join("/dev/shm", x)), reverse=True)
+        logger.info(f"Sorted shared memory files: {shm_files}")
+        return shm_files[0]
+    except Exception as e:
+        logger.warning(f"Error while searching for shared memory file: {e}")
+        return None
+
+def read_latest_meta(meta_path):
+    """
+    Read meta file and return (height, width, dtype_size) or None.
+    """
+    logger = logging.getLogger("live_stream_reader")
+    try:
+        with open(meta_path, "rb") as f:
+            meta = f.read(12)
+            if len(meta) != 12:
+                logger.error("Shared memory meta file too short")
+                return None
+            height, width, dtype_size = struct.unpack("III", meta)
+            logger.info(f"Read meta: height={height}, width={width}, dtype_size={dtype_size}")
+            return height, width, dtype_size
+    except Exception as e:
+        logger.warning(f"Could not read shared memory meta: {e}")
+        return None
+
+def read_shared_memory_frame(meta_path="/tmp/shared_memory/video_stream.meta", shm_prefix="shmpipe.video_stream", socket_path="/tmp/shared_memory/video_stream"):
+    """
+    Reads a single frame from GStreamer shared memory sink.
+    Returns a numpy array (RGB) or None if not available.
+    """
+    logger = logging.getLogger("live_stream_reader")
+    logger.info(f"Trying to read shared memory frame: meta_path={meta_path}, shm_prefix={shm_prefix}, socket_path={socket_path}")
+
+    meta = read_latest_meta(meta_path)
+    if not meta:
+        logger.info("Meta file not ready yet.")
+        return None
+    height, width, dtype_size = meta
+
+    shm_file = find_shm_file(shm_prefix, socket_path=socket_path)
+    if not shm_file:
+        logger.info("No shared memory file found for live stream")
+        return None
+    shm_path = os.path.join("/dev/shm", shm_file)
+    logger.info(f"Found shared memory file: {shm_path}")
+
+    try:
+        frame_size = height * width * 3 * dtype_size
+        logger.info(f"Expecting frame_size={frame_size} (BGR, {height}x{width}, dtype_size={dtype_size})")
+        with open(shm_path, "rb") as f:
+            mm = mmap.mmap(f.fileno(), 0, access=mmap.ACCESS_READ)
+            buf = mm[:frame_size]
+            mm.close()
+        if len(buf) != frame_size:
+            logger.warning(f"Frame buffer size mismatch: got {len(buf)}, expected {frame_size}")
+            return None
+        frame_bgr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3))
+        logger.info("Successfully read frame from shared memory (BGR)")
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        frame_resized = cv2.resize(frame_rgb, (960, 540), interpolation=cv2.INTER_AREA)
+        logger.info("Successfully resized frame for Gradio display (RGB)")
+        return frame_resized
+    except Exception as e:
+        logger.warning(f"Could not read frame from shared memory: {e}")
+        return None
+
+def live_preview_stream(meta_path="/tmp/shared_memory/video_stream.meta", shm_prefix="shmpipe.video_stream", stop_event=None, socket_path="/tmp/shared_memory/video_stream"):
+    """
+    Generator for Gradio live stream from shared memory.
+    Yields frames as numpy arrays for output_video_player.
+    """
+    logger = logging.getLogger("live_stream_reader")
+    frame_count = 0
+    logger.info(f"Starting live_preview_stream generator with shm_prefix={shm_prefix}, socket_path={socket_path}")
+    wait_attempts = 0
+    max_wait_attempts = 60  # Wait up to 60*0.5 = 30 seconds for meta/shm file
+    while stop_event is None or not stop_event.is_set():
+        frame = read_shared_memory_frame(meta_path=meta_path, shm_prefix=shm_prefix, socket_path=socket_path)
+        if frame is not None:
+            frame_count += 1
+            cv2.putText(
+                frame,
+                f"Live Frame: {frame_count}",
+                (10, 30),
+                cv2.FONT_HERSHEY_SIMPLEX,
+                1,
+                (255, 255, 255),
+                2,
+            )
+            logger.info(f"Yielding live frame {frame_count}")
+            yield frame
+            wait_attempts = 0  # Reset wait counter after a successful frame
+        else:
+            logger.info("No shared memory frame available for live preview")
+            yield None
+            wait_attempts += 1
+            if wait_attempts > max_wait_attempts:
+                logger.warning("Giving up waiting for shared memory frame after max attempts.")
+                break
+        time.sleep(1.0 / 15.0)
+    logger.info("Exiting live_preview_stream generator")
+
+
+def run_pipeline_and_stream(data):
+    logger = logging.getLogger("run_pipeline_and_stream")
+    logger.info("Starting run_pipeline_and_stream")
+
+    arguments = {}
+    for component in data:
+        component_id = getattr(component, "elem_id", None)
+        if component_id:
+            arguments[component_id] = data[component]
+    arguments = {str(k): v for k, v in arguments.items()}
+
+    logger.info(f"Detection Model: {arguments.get('object_detection_model')}, Device: {arguments.get('object_detection_device')}")
+    logger.info(f"Classification Model: {arguments.get('object_classification_model')}, Device: {arguments.get('object_classification_device')}")
+
+    video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+    optimizer = PipelineOptimizer(
+        pipeline=current_pipeline[0],
+        constants=constants,
+        param_grid=param_grid,
+        channels=(arguments.get("recording_channels", 0), arguments.get("inferencing_channels", 0)),
+        elements=gst_inspector.get_elements(),
+    )
+
+    param_keys = list(param_grid.keys())
+    param_values = [v[0] if isinstance(v, list) and v else v for v in param_grid.values()]
+    pipeline_parameters = dict(zip(param_keys, param_values))
+    logger.info(f"Pipeline parameters for evaluate: {pipeline_parameters}")
+
+    pipeline_cmd = optimizer.pipeline.evaluate(
+        optimizer.constants,
+        pipeline_parameters,
+        optimizer.regular_channels,
+        optimizer.inference_channels,
+        optimizer.elements,
+    )
+    logger.info(f"Pipeline command: {pipeline_cmd}")
+
+    meta_path = "/tmp/shared_memory/video_stream.meta"
+    shm_prefix = "shmpipe.video_stream"
+    socket_path = "/tmp/shared_memory/video_stream"
+    stop_event = threading.Event()
+
+    logger.info("Waiting for meta file and shmsink to be ready before starting pipeline...")
+    wait_time = 0
+    max_wait = 10  # seconds
+    while not os.path.exists(meta_path) and wait_time < max_wait:
+        logger.info(f"Waiting for meta file: {meta_path} (waited {wait_time}s)")
+        time.sleep(0.5)
+        wait_time += 0.5
+    if not os.path.exists(meta_path):
+        logger.warning(f"Meta file {meta_path} not found after waiting {max_wait}s. Proceeding anyway.")
+
+    # Start pipeline process
+    try:
+        logger.info("Running pipeline process synchronously...")
+
+        env = os.environ.copy()
+        env["GST_VA_ALL_DRIVERS"] = "1"
+
+        process = subprocess.Popen(
+            shlex.split(pipeline_cmd),
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            env=env,
+        )
+        logger.info("Pipeline process started, entering live preview loop")
+        live_preview_gen = live_preview_stream(meta_path=meta_path, shm_prefix=shm_prefix, stop_event=stop_event, socket_path=socket_path)
+        def get_next_live_frame():
+            try:
+                return next(live_preview_gen)
+            except StopIteration:
+                return None
+        # Output: show live preview (Image) while pipeline is running, hide Video
+        while process.poll() is None:
+            frame = get_next_live_frame()
+            logger.info(f"Live preview frame type: {type(frame)} shape: {getattr(frame, 'shape', None)}")
+            if frame is not None:
+                logger.info("Yielding live frame to output_image (Image)")
+                yield [gr.update(value=frame, visible=True), gr.update(visible=False)]
+            else:
+                logger.debug("No live frame available, yielding None")
+                yield [gr.update(value=None, visible=True), gr.update(visible=False)]
+        stdout, stderr = process.communicate()
+        logger.info(f"Pipeline process exited with code {process.returncode}")
+        logger.info(f"Pipeline stdout:\n{stdout.decode(errors='ignore')}")
+        logger.info(f"Pipeline stderr:\n{stderr.decode(errors='ignore')}")
+        if process.returncode != 0:
+            logger.warning("Pipeline exited with non-zero code. Live preview may not have worked.")
+    except Exception as e:
+        logger.error(f"Exception while running pipeline: {e}")
+        stop_event.set()
+        yield [gr.update(value=None, visible=True), gr.update(value=None, visible=True)]
+        return
+
+    stop_event.set()
+
+    # After pipeline ends, show output file if exists (Video), hide Image
+    if os.path.exists(video_output_path):
+        logger.info(f"Output video file created: {video_output_path}")
+        logger.info("Switching output_video_player to file playback")
+        yield [gr.update(visible=False), gr.update(value=video_output_path, visible=True)]
+    else:
+        logger.error(f"Output video file NOT found: {video_output_path}")
+        yield [gr.update(value=None, visible=True), gr.update(value=None, visible=True)]
+
+
 # Create the interface
 def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
     """
@@ -693,7 +929,20 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         )
 
     output_video_player = gr.Video(
-        label="Output Video", interactive=False, show_download_button=True
+        label="Output Video (File)",
+        interactive=False,
+        show_download_button=True,
+        elem_id="output_video_player",
+        visible=False,
+    )
+
+    # Output Live Image (for live preview)
+    output_live_image = gr.Image(
+        label="Output Video (Live Preview)",
+        interactive=False,
+        elem_id="output_live_image",
+        visible=True,
+        type="numpy",
     )
 
     # Pipeline diagram image
@@ -933,6 +1182,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components = set()
     components.add(input_video_player)
     components.add(output_video_player)
+    components.add(output_live_image)
     components.add(pipeline_image)
     components.add(best_config_textbox)
     components.add(inferencing_channels)
@@ -1021,10 +1271,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             inputs=None,
             outputs=timer,
         ).then(
-            # Execute the pipeline
-            on_run,
+            # Execute the pipeline and stream live preview
+            run_pipeline_and_stream,
             inputs=components,
-            outputs=[output_video_player, best_config_textbox],
+            outputs=[output_live_image, output_video_player], # TODO best_config_textbox
         ).then(
             # Stop the telemetry timer
             lambda: gr.update(active=False),
@@ -1299,8 +1549,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             # Input Video Player
                             input_video_player.render()
 
-                            # Output Video Player
+                            # Output Video Player (file)
                             output_video_player.render()
+
+                            # Output Live Image (for live preview)
+                            output_live_image.render()
 
                         # Pipeline Parameters Accordion
                         with gr.Accordion("Pipeline Parameters", open=True):

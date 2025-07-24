@@ -5,6 +5,9 @@ from typing import List
 
 from pipeline import GstPipeline
 
+import logging
+import struct
+
 
 class SmartNVRPipeline(GstPipeline):
     def __init__(self):
@@ -18,6 +21,26 @@ class SmartNVRPipeline(GstPipeline):
 
         self._sink = (
             "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
+        )
+
+        # Add shmsink for live streaming (shared memory)
+        self._shmsink = (
+            "shmsink socket-path=/tmp/shared_memory/video_stream "
+            "wait-for-connection=false "
+            "sync=false "
+            "async=false "
+            "shm-size=67108864 "
+            "name=shmsink0 "
+        )
+
+        # Use tee to split output to both file and live stream
+        self._compositor_with_tee = (
+            "{compositor} "
+            "  name=comp "
+            "  {sinks} ! tee name=livetee "
+            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            # Wymuś format BGR (zgodny z domyślnym shmsink i OpenCV)
+            "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width=640,height=360 ! {shmsink} "
         )
 
         self._compositor = (
@@ -329,12 +352,37 @@ class SmartNVRPipeline(GstPipeline):
 
         # Prepend the compositor if enabled
         if parameters["pipeline_compose_enabled"]:
+            # Always produce both file and live stream outputs
+            try:
+                os.makedirs("/tmp/shared_memory", exist_ok=True)
+                with open("/tmp/shared_memory/video_stream.meta", "wb") as f:
+                    # width=640, height=360, dtype_size=1 (uint8)
+                    f.write(struct.pack("III", 360, 640, 1))
+                logging.info("Wrote shared memory meta file for live streaming: /tmp/shared_memory/video_stream.meta")
+                logging.info("Live stream format: BGR, shape=(360,640,3), dtype=uint8, shm_path=/tmp/shared_memory/video_stream")
+            except Exception as e:
+                logging.warning(f"Could not write shared memory meta file: {e}")
+
+            # Compose pipeline with tee: file + live stream
+            logging.info("Pipeline will output both to file and shared memory (live stream)")
+            streams = self._compositor_with_tee.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+                shmsink=self._shmsink,
+            ) + streams
+        else:
+            # Fallback to regular compositor if live streaming is not enabled
             streams = self._compositor.format(
                 **constants,
                 sinks=sinks,
                 encoder=_encoder_element,
                 compositor=_compositor_element,
             ) + streams
+
+        # Log the final pipeline string for debugging
+        logging.info(f"Final GStreamer pipeline string: {streams}")
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams
