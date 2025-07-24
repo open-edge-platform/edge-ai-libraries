@@ -21,11 +21,13 @@ pipeline_zoo_models=(
 # Copy the specified models to the output directory, cloning the repo only if needed
 for model in "${pipeline_zoo_models[@]}"; do
     if [ ! -d "/output/pipeline-zoo-models/$model" ]; then
-        if [ ! -d pipeline-zoo-models ]; then
-            git clone --depth 1 --single-branch --branch main \
-                https://github.com/dlstreamer/pipeline-zoo-models.git
+        if [ ! -d pipeline-zoo-models-main ]; then
+            curl -L https://github.com/dlstreamer/pipeline-zoo-models/archive/refs/heads/main.tar.gz -o pipeline-zoo-models.tar.gz
+            tar -xvzf pipeline-zoo-models.tar.gz
         fi
-        cp -r "pipeline-zoo-models/storage/$model" /output/pipeline-zoo-models/
+        cp -r "pipeline-zoo-models-main/storage/$model" /output/pipeline-zoo-models/
+    else
+        echo "Model $model already exists. Skipping download."
     fi
 done
 
