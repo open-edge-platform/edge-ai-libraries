@@ -1,0 +1,36 @@
+name: Simple Video Structurization (D-T-C)
+definition: >
+  The Simple Video Structurization (D-T-C) pipeline is a versatile, use case-agnostic solution that supports
+  license plate recognition, vehicle detection with attribute classification, and other object detection and
+  classification tasks, adaptable based on the selected model.
+metadata:
+  classname: SimpleVideoStructurizationPipeline
+  enabled: true
+recording:
+  url: "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4"
+  filename: license-plate-detection.mp4
+parameters:
+  run:
+    recording_channels: false
+    video_output_checkbox: true
+  benchmark:
+    ai_stream_rate: false
+    result_format: "Best Config: {ai} AI streams -> {fps:.2f} FPS"
+  inference:
+    detection_models:
+      - "SSDLite MobileNet V2 (INT8)"
+      - "YOLO v5m 416x416 (INT8)"
+      - "YOLO v5s 416x416 (INT8)"
+      - "YOLO v5m 640x640 (INT8)"
+      - "YOLO v10s 640x640 (FP16)"
+      - "YOLO v10m 640x640 (FP16)"
+      - "YOLO v8 License Plate Detector (FP16)"
+    detection_model_default: "YOLO v8 License Plate Detector (FP16)"
+    classification_models:
+      - "Disabled"
+      - "EfficientNet B0 (INT8)"
+      - "MobileNet V2 PyTorch (FP16)"
+      - "ResNet-50 TF (INT8)"
+      - "PaddleOCR (FP16)"
+      - "Vehicle Attributes Recognition Barrier 0039 (FP16)"
+    classification_model_default: "PaddleOCR (FP16)"

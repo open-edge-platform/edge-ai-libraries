@@ -63,6 +63,10 @@ The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video 
 
 **Visualization & Analysis**: View real-time performance metrics on the dashboard to compare configurations and optimize settings.
 
+## Coming Soon
+
+**Simple Video Structurization (D-T-C) Pipeline**: A new versatile pipeline supporting various object detection and classification tasks, adaptable to the selected model. Stay tuned for updates!
+
 ## Learn More
 - [System Requirements](docs/user-guide/system-requirements.md)
 - [Get Started](docs/user-guide/get-started.md)

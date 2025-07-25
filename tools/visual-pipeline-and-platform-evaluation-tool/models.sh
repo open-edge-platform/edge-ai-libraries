@@ -8,6 +8,9 @@ rm -f healthcheck.txt
 # Create output directory
 mkdir -p /output/pipeline-zoo-models
 
+# Log start
+echo "Starting model setup at $(date)"
+
 # Define the pipeline zoo models to copy
 pipeline_zoo_models=(
     efficientnet-b0_INT8
@@ -21,11 +24,13 @@ pipeline_zoo_models=(
 # Copy the specified models to the output directory, cloning the repo only if needed
 for model in "${pipeline_zoo_models[@]}"; do
     if [ ! -d "/output/pipeline-zoo-models/$model" ]; then
-        if [ ! -d pipeline-zoo-models ]; then
-            git clone --depth 1 --single-branch --branch main \
-                https://github.com/dlstreamer/pipeline-zoo-models.git
+        if [ ! -d pipeline-zoo-models-main ]; then
+            wget https://github.com/dlstreamer/pipeline-zoo-models/archive/refs/heads/main.tar.gz -O pipeline-zoo-models.tar.gz
+            tar -xvzf pipeline-zoo-models.tar.gz
         fi
-        cp -r "pipeline-zoo-models/storage/$model" /output/pipeline-zoo-models/
+        cp -r "pipeline-zoo-models-main/storage/$model" /output/pipeline-zoo-models/
+    else
+        echo "Model $model already exists. Skipping download."
     fi
 done
 
@@ -38,12 +43,16 @@ sed -i \
 download_public_models=(
     yolov10s
     yolov10m
+    yolov8_license_plate_detector
+    ch_PP-OCRv4_rec_infer
 )
 
 # Download the specified models using the modified script
 for model in "${download_public_models[@]}"; do
     if [ ! -d "/output/public/$model" ]; then
         bash /opt/intel/dlstreamer/samples/download_public_models.sh "$model"
+    else
+        echo "Model $model already exists. Skipping download."
     fi
 done
 
@@ -54,8 +63,9 @@ if [ ! -d /output/public/mobilenet-v2-pytorch ]; then
     omz_downloader --name mobilenet-v2-pytorch
     omz_converter --name mobilenet-v2-pytorch
     cp -r ./public/mobilenet-v2-pytorch /output/public/
-    cp /opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json \
-       /output/public/mobilenet-v2-pytorch/mobilenet-v2.json
+    cp \
+        /opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json \
+        /output/public/mobilenet-v2-pytorch/mobilenet-v2.json
     python3 -c "
 import json
 labels_path = '/opt/intel/dlstreamer/samples/labels/imagenet_2012.txt'
@@ -75,7 +85,26 @@ if 'output_postproc' in data and isinstance(data['output_postproc'], list) and d
 with open(json_path, 'w') as f:
     json.dump(data, f, indent=4)
 "
+else
+    echo "Model mobilenet-v2-pytorch already exists. Skipping download."
+fi
+
+# TEMPORARY: download vehicle-attributes-recognition-barrier-0039 until the download script supports it
+if [ ! -d /output/public/vehicle-attributes-recognition-barrier-0039 ]; then
+    python3 -m pip install openvino-dev[onnx] torch torchvision \
+        --extra-index-url https://download.pytorch.org/whl/cpu
+    omz_downloader --name vehicle-attributes-recognition-barrier-0039
+    omz_converter --name vehicle-attributes-recognition-barrier-0039
+    cp -r ./intel/vehicle-attributes-recognition-barrier-0039 /output/public/
+    cp \
+        /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json \
+        /output/public/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
+else
+    echo "Model vehicle-attributes-recognition-barrier-0039 already exists. Skipping download."
 fi
 
 # Create the healthcheck file
 touch healthcheck.txt
+
+# Log completion
+echo "Model setup completed at $(date)"
