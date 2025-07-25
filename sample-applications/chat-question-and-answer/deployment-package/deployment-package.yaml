@@ -8,11 +8,11 @@ $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 name: "chatqna"
 displayName: "chatqna"
 description: "Chat Q&A Sample Application"
-version: "1.2.1"
+version: "1.2.2"
 
 applications:
   - name: chatqna-app
-    version: 1.2.1
+    version: 1.2.2
 
 defaultNamespaces:
   chatqna-app: chatqna

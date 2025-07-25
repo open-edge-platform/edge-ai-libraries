@@ -87,4 +87,5 @@ chatqnaui:
     port: 80
 
 nginxService:
-  annotations: {}
+  annotations:
+    service-proxy.app.orchestrator.io/ports: "80"      
