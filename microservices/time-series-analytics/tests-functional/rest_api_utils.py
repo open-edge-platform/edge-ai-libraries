@@ -34,7 +34,7 @@ def health_check(port):
     """
     url = f"http://localhost:{port}/health"
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         assert response.status_code == 200
         assert response.json() == {"status": "kapacitor daemon is running"}
     except Exception as e:
@@ -48,7 +48,7 @@ def opcua_alerts(port):
     alert_message = {"message": "Test alert"}
     try:
         url = f"http://localhost:{port}/opcua_alerts"
-        response = requests.post(url, json=alert_message)
+        response = requests.post(url, json=alert_message, timeout=10)
         assert response.status_code == 500
         assert response.json() == {'detail': '500: OPC UA alerts are not configured in the service'}
     except Exception as e:
@@ -70,7 +70,7 @@ def input_endpoint(port):
     }
     try:
         url = f"http://localhost:{port}/input"
-        response = requests.post(url, json=input_data)
+        response = requests.post(url, json=input_data, timeout=10)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Data sent to Time Series Analytics microservice"}
     except Exception as e:
@@ -92,7 +92,7 @@ def input_endpoint_invalid_data(port):
     }
     try:
         url = f"http://localhost:{port}/input"
-        response = requests.post(url, json=input_data)
+        response = requests.post(url, json=input_data, timeout=10)
         assert response.status_code == 500
         assert "400: unable to parse 'point_data temperature=invalid_value" in response.json().get("detail", "")
     except Exception as e:
@@ -122,7 +122,7 @@ def input_endpoint_no_data(port):
     }
     try:
         url = f"http://localhost:{port}/input"
-        response = requests.post(url, json=input_data)
+        response = requests.post(url, json=input_data, timeout=10)
         assert response.status_code == 500
         assert "400: unable to parse 'point_data temperature=" in response.json().get("detail", "")
     except Exception as e:
@@ -135,7 +135,7 @@ def get_config_endpoint(port):
     """
     url = f"http://localhost:{port}/config"
     try:
-        response = requests.get(url)
+        response = requests.get(url, timeout=10)
         assert response.status_code == 200
         print("get config =", response.json())
         assert response.json() == config_file
@@ -149,7 +149,7 @@ def post_config_endpoint(port, command):
     """
     url = f"http://localhost:{port}/config"
     try:
-        response = requests.post(url, json=config_file)
+        response = requests.post(url, json=config_file, timeout=10)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(10)  # Wait for the configuration to be applied
@@ -179,14 +179,14 @@ def concurrent_api_requests(port):
     print("config file", config_file)
     def get_request(endpoint):
         try:
-            response = requests.get(url + endpoint)
+            response = requests.get(url + endpoint, timeout=10)
             return response.status_code, response.text
         except Exception as e:
             return None, str(e)
     
     def post_request(endpoint, data):
         try:
-            response = requests.post(url + endpoint, json=data)
+            response = requests.post(url + endpoint, json=data, timeout=10)
             return response.status_code, response.json()
         except Exception as e:
             return None, str(e)
@@ -238,7 +238,7 @@ def post_invalid_config_endpoint(port, command):
     invalid_config_data = copy.deepcopy(config_file)
     invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
-        response = requests.post(url, json=invalid_config_data)
+        response = requests.post(url, json=invalid_config_data, timeout=10)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(15)  # Wait for the configuration to be applied
