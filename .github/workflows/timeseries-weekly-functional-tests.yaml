@@ -1,0 +1,39 @@
+name: "[Time Series Analytics] Run weekly functional tests"
+run-name: "[Time Series Analytics] Run weekly functional tests"
+on:
+  schedule:
+    - cron: '0 14 * * 5' # 14:00 UTC
+  workflow_dispatch:
+permissions: {}
+
+jobs:
+  timeseries-weekly-functional-tests.yaml:
+    name: Weekly-Run TimeSeries Analytics Microservice tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@v1
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Run time-series-analytics-microservices function tests
+      run: |
+        cd "${{ github.workspace }}"
+        cd ./microservices/time-series-analytics/tests-function
+        echo "Running function tests"
+        pip3 install -r tests-function/requirements.txt
+        rm -rf /tmp/test_report/report.html
+        pytest -v --html=/tmp/test_report/report.html test_docker.py
+    - name: Upload HTML  test report to Github
+      uses: actions/upload-artifact@v4
+      with:
+        name: function-test-report
+        path: /tmp/test_report
+
+    
