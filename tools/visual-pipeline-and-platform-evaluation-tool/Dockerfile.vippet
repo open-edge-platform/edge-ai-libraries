@@ -14,11 +14,20 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
+FROM ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:v1.2.0-20250722-ubuntu24
 
 USER root
 
-RUN apt-get update && apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly
+RUN apt-get update && apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly git python3-full python3-pip
+
+RUN \
+    mkdir /python3venv && \
+    chown -R dlstreamer: /python3venv && \
+    chmod -R u+w /python3venv
+
+RUN \
+    usermod -a -G video dlstreamer && \
+    ln -s /opt/intel/dlstreamer /home/dlstreamer/dlstreamer
 
 USER dlstreamer
 
@@ -28,7 +37,9 @@ WORKDIR /home/dlstreamer/vippet
 
 ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
 
-RUN pip install -r requirements.txt
+RUN \
+    python3 -m venv /python3venv && \
+    pip install -r requirements.txt
 
 ADD app.py \
     app.css \
