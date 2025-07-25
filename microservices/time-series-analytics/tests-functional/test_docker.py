@@ -14,7 +14,7 @@ CONTAINER_NAME = "ia-time-series-analytics-microservice"
 TS_DOCKER_PORT = 5000
 
 cwd = os.getcwd()
-TS_DIR = cwd + "/../"
+TS_DIR = os.path.join(cwd, "..")
 print(f"Current working directory: {cwd}")
 if not os.path.exists(TS_DIR):
     pytest.skip("Time Series Analytics directory not found. Skipping tests.")
@@ -22,15 +22,15 @@ if not os.path.exists(TS_DIR):
 def build_docker_image():
     """Build the Docker image for the Time Series Analytics service."""
     print("Building Docker image...")
-    os.chdir(TS_DIR + "docker")
-    command = ["docker", "compose", "build", "--no-cache"]
+    os.chdir(os.path.join(TS_DIR, "docker"))
+    command = ["docker", "compose", "build"]
     output = utils.run_command(command)
     print(output.stdout.strip())
 
 def docker_compose_up():
     """Start the Docker containers using docker-compose."""
     print("Starting Docker containers...")
-    os.chdir(TS_DIR + "docker")
+    os.chdir(os.path.join(TS_DIR, "docker"))
     command = ["docker", "compose", "up", "-d"]
     output = utils.run_command(command)
     print(output.stdout.strip())
@@ -38,7 +38,7 @@ def docker_compose_up():
 def docker_compose_down():
     """Stop and remove the Docker containers."""
     print("Stopping Docker containers...")
-    os.chdir(TS_DIR + "docker")
+    os.chdir(os.path.join(TS_DIR, "docker"))
     command = ["docker", "compose", "down", "-v"]
     output = utils.run_command(command)
     print(output.stdout.strip())

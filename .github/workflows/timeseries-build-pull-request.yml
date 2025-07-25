@@ -136,7 +136,9 @@ jobs:
         echo "Running function tests"
         pip3 install -r requirements.txt
         rm -rf /tmp/test_report/report.html
-        pytest -v --html=/tmp/test_report/report.html test_docker.py::test_input_endpoint test_docker.py::test_health_check test_helm.py::test_input_endpoint test_helm.py::test_health_check
+        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html \
+            test_docker.py::test_input_endpoint test_docker.py::test_health_check \
+            test_helm.py::test_input_endpoint test_helm.py::test_health_check
     - name: Upload HTML  test report to Github
       uses: actions/upload-artifact@v4
       with:

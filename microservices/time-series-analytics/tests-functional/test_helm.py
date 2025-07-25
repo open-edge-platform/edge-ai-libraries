@@ -17,8 +17,8 @@ TS_HELM_PORT = 30002
 
 cwd = os.getcwd()
 print(f"Current working directory: {cwd}")
-TS_DIR = cwd + "/../"
-HELM_DIR = TS_DIR + "helm/"
+TS_DIR = os.path.join(cwd, "..")
+HELM_DIR = os.path.join(TS_DIR, "helm")
 if not os.path.exists(TS_DIR):
     pytest.skip("Time Series Analytics directory not found. Skipping tests.")
 
@@ -81,7 +81,7 @@ def helm_setup():
     """Fixture to set up and tear down Helm environment for each test."""
 
     os.chdir(TS_DIR)
-    shutil.copy("config.json", HELM_DIR + "config.json")
+    shutil.copy("config.json", os.path.join(HELM_DIR, "config.json"))
 
     # Install the Helm chart
     if not helm_install(RELEASE_NAME, HELM_DIR, NAMESPACE):

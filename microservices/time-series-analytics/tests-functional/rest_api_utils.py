@@ -13,8 +13,9 @@ import os
 import copy
 
 # Read the config.json file
-TS_DIR = os.getcwd() + "/../"
-config_file = json.load(open(TS_DIR + "config.json"))
+TS_DIR = os.path.join(os.getcwd(), "..")
+with open(os.path.join(TS_DIR, "config.json")) as f:
+    config_file = json.load(f)
 print(config_file)
 
 def run_command(command):
