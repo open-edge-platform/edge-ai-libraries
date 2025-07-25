@@ -1,0 +1,90 @@
+name: "[DLSPS] PR Sanity workflow"
+run-name: "[DLSPS] PR  Sanity workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+on:
+  push:
+    branches:
+      - 'main'
+    paths:
+      - 'microservices/dlstreamer-pipeline-server/**'
+      
+  pull_request:
+    paths:
+      - 'microservices/dlstreamer-pipeline-server/**'
+      
+  workflow_call:
+permissions: {}
+jobs:
+  sanity:
+     
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - ubuntu_version: ubuntu22
+          
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+    - name: Set up Python
+      uses: actions/setup-python@v5
+      with:
+        python-version: '3.10'
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }} 
+    - name: Sanity Test
+      
+      run: | 
+       sudo apt-get update
+       sudo pip install robotframework
+       sudo apt install -y python3-nose libxml2-utils vlc
+       cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
+       chmod a+x stream_rtsp.sh
+       ip_addr=`hostname -I | awk '{print $1}'`
+       echo "starting rtsp servers"
+       echo $ip_addr
+       ./stream_rtsp.sh start 10 `pwd`/../../../resources/videos/warehouse.avi $ip_addr
+       sleep 10
+       cd ${{github.workspace}}
+       cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/robot_files
+       robot test_main_sanity.robot || true 
+       mkdir -p /tmp/test_results
+       cp -r report.html log.html output.xml /tmp/test_results/
+       passed=$(xmllint --xpath "//return/status[@status='PASS']" ./output.xml | wc -l) || true
+       failed=$(xmllint --xpath "//return/status[@status='FAIL']" ./output.xml | wc -l) || true
+       not_run=$(xmllint --xpath "//return/status[@status='NOT RUN']" ./output.xml | wc -l) || true
+       total=$((passed + failed + not_run))
+       echo "### Sanity Test Summary" >> $GITHUB_STEP_SUMMARY
+       echo "- Total: $total" >> $GITHUB_STEP_SUMMARY
+       echo "- ✅ Passed: $passed" >> $GITHUB_STEP_SUMMARY
+       echo "- ❌ Failed: $failed" >> $GITHUB_STEP_SUMMARY
+       echo "- ⏭️ Not Run: $not_run" >> $GITHUB_STEP_SUMMARY
+       echo "- 📄 [Full Report](https://github.com/${{ github.repository }}/actions/runs/${{ github.run_id }})" >> $GITHUB_STEP_SUMMARY
+       echo "stopping rtsp servers"
+       cd ${{github.workspace}}
+       cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
+       cp -r cvlc_* /tmp/test_results/
+       ./stream_rtsp.sh stop
+    - name: Upload Scan artifact to Github
+      uses: actions/upload-artifact@v4
+      with:
+        name: Sanity_Reports
+        path: /tmp/test_results/*
+    - name: Clean up
+      if: always()
+      run: |
+        sudo rm -rf edge-ai-libraries-repo
+        if [ -n "$(docker images -aq)" ]; then
+               docker rmi -f $(docker images -aq) || true
+        fi
+        sudo rm -rf /tmp/test_results/*
