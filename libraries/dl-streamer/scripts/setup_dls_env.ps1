@@ -20,9 +20,11 @@ if (-Not $USER_PATH.Contains('VideoAccelerationCompatibilityPack')) {
 	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + [Environment]::GetEnvironmentVariable('LIBVA_DRIVERS_PATH', 'User'), [System.EnvironmentVariableTarget]::User)
 }
 
-echo 'Setting variables: GST_PLUGIN_PATH'
+echo 'Setting variables: GST_PLUGIN_PATH, Path (for DLLs)'
 $CURRENT_DIR = (Get-Item .).FullName
 [Environment]::SetEnvironmentVariable('GST_PLUGIN_PATH', "C:\gstreamer\1.0\msvc_x86_64\bin;C:\gstreamer\1.0\msvc_x86_64\lib\gstreamer-1.0;$CURRENT_DIR", [System.EnvironmentVariableTarget]::User)
+$USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
+[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $CURRENT_DIR, [System.EnvironmentVariableTarget]::User)
 
 echo 'Setting variables: GST_PLUGIN_SCANNER'
 $GSTREAMER_PLUGIN_SCANNER_PATH = (Get-ChildItem -Filter gst-plugin-scanner.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-plugin-scanner.exe' -ErrorAction SilentlyContinue) | Select-Object -First 1
