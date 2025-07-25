@@ -65,16 +65,21 @@ jobs:
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "MODEL_PATH=$MODEL_PATH"
         echo "MODEL_NAME=$MODEL_NAME"
-        if [[ "$MODEL_PATH" == "public" ]]; then
-          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
-        elif [[ "$MODEL_PATH" == "omz" ]]; then
-          mkdir -p .virtualenvs/dlstreamer
-          python3 -m venv .virtualenvs/dlstreamer
-          source .virtualenvs/dlstreamer/bin/activate
-          pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
-          export MODELS_PATH=${{ env.MODELS_PATH }}
-          ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
-          deactivate
+        if [ -d "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME" ]; then
+          echo "Removing $MODEL_NAME directory"
+          rm -rf "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME"
+
+          if [[ "$MODEL_PATH" == "public" ]]; then
+            ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
+          elif [[ "$MODEL_PATH" == "omz" ]]; then
+            mkdir -p .virtualenvs/dlstreamer
+            python3 -m venv .virtualenvs/dlstreamer
+            source .virtualenvs/dlstreamer/bin/activate
+            pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx] torch
+            export MODELS_PATH=${{ env.MODELS_PATH }}
+            ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
+            deactivate
+          fi
         fi
 
     - name: Prepare directory for public models

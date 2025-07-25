@@ -72,7 +72,7 @@ This section shows how to build the Video Search and Summary sample application 
 
 5. 🌐 Accessing the Application
 
-    After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
+    After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
 ## Verification
 

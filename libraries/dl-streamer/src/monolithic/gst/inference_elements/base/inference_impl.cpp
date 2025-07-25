@@ -118,6 +118,7 @@ InferenceConfig CreateNestedInferenceConfig(GvaBaseInference *gva_base_inference
     InferenceConfig config;
     std::map<std::string, std::string> base;
     std::map<std::string, std::string> inference = Utils::stringToMap(gva_base_inference->ie_config);
+    std::map<std::string, std::string> preproc;
 
     base[KEY_MODEL] = model_file;
     base[KEY_CUSTOM_PREPROC_LIB] = custom_preproc_lib;
@@ -184,9 +185,16 @@ InferenceConfig CreateNestedInferenceConfig(GvaBaseInference *gva_base_inference
     }
     base[KEY_CAPS_FEATURE] = std::to_string(static_cast<int>(gva_base_inference->caps_feature));
 
+    // add KEY_VAAPI_THREAD_POOL_SIZE, KEY_VAAPI_FAST_SCALE_LOAD_FACTOR elements to preprocessor config
+    // other elements from pre_processor info are consumed by model proc info
+    for (const auto &element : Utils::stringToMap(gva_base_inference->pre_proc_config)) {
+        if (element.first == KEY_VAAPI_THREAD_POOL_SIZE || element.first == KEY_VAAPI_FAST_SCALE_LOAD_FACTOR)
+            preproc[element.first] = element.second;
+    }
+
     config[KEY_BASE] = base;
     config[KEY_INFERENCE] = inference;
-    config[KEY_PRE_PROCESSOR] = Utils::stringToMap(gva_base_inference->pre_proc_config);
+    config[KEY_PRE_PROCESSOR] = preproc;
 
     return config;
 }
@@ -235,15 +243,13 @@ bool IsModelProcSupportedForVaapi(const std::vector<ModelInputProcessorInfo::Ptr
 
 bool IsModelProcSupportedForVaapiSurfaceSharing(
     const std::vector<ModelInputProcessorInfo::Ptr> &model_input_processor_info, GstVideoInfo *input_video_info) {
-    auto format = dlstreamer::gst_format_to_video_format(GST_VIDEO_INFO_FORMAT(input_video_info));
+    UNUSED(input_video_info);
     for (const auto &it : model_input_processor_info) {
         if (!it || it->format != "image")
             continue;
-        auto input_desc = PreProcParamsParser(it->params).parse();
-        if (input_desc && ((input_desc->getTargetColorSpace() != PreProcColorSpace::BGR &&
-                            input_desc->doNeedColorSpaceConversion(static_cast<int>(format)))))
-            return false;
     }
+    // VaapiSurfaceSharing converter always generates NV12 image,
+    // which can be further converted to model color space using OpenVINO™ model pre-processing stage.
     return true;
 }
 
@@ -430,6 +436,16 @@ void UpdateConfigWithLayerInfo(const std::vector<ModelInputProcessorInfo::Ptr> &
         int reverse_channels = 0; // TODO: verify that channel reversal works correctly with mean and std!
         if (gst_structure_get_int(it->params, "reverse_input_channels", &reverse_channels)) {
             config[KEY_BASE][KEY_MODEL_FORMAT] = reverse_channels ? "RGB" : "BGR";
+        }
+        
+        const auto color_space = gst_structure_get_string(it->params, "color_space");
+        if (color_space) {
+            // Ensure that reverse_input_channels and color_space are not both defined
+            if (reverse_channels != 0 && color_space != nullptr) {
+                throw std::invalid_argument(
+                    "ERROR: Cannot specify both 'reverse_input_channels' and 'color_space' parameters simultaneously");
+            }
+            config[KEY_BASE][KEY_MODEL_FORMAT] = color_space;
         }
     }
 }
@@ -654,9 +670,12 @@ InferenceImpl::Model InferenceImpl::CreateModel(GvaBaseInference *gva_base_infer
         model.input_processor_info = model_proc_provider.parseInputPreproc();
         model.output_processor_info = model_proc_provider.parseOutputPostproc();
     } else {
-        // use model metadata file to construct preprocessing info
-        model.input_processor_info =
-            ModelProcProvider::parseInputPreproc(ImageInference::GetModelInfoPreproc(model_file));
+        // combine runtime section of model metadata file and command line pre-process parameters
+        std::map<std::string, GstStructure *> model_config =
+            ImageInference::GetModelInfoPreproc(model_file, gva_base_inference->pre_proc_config);
+
+        // to construct preprocessor info
+        model.input_processor_info = ModelProcProvider::parseInputPreproc(model_config);
     }
 
     if (Utils::symLink(labels_str))
