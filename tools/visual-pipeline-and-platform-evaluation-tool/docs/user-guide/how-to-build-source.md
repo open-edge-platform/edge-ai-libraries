@@ -45,7 +45,7 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 3. **Build and Start the Tool**:
    - Run:
      ```bash
-     docker pull docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
+     docker pull ger-is-registry.caas.intel.com/dlstreamer/dlstreamer_images/ci/ubuntu24-dlstreamer:68b12d51040550b279261ca5b54cb7a59afbea61
      docker pull docker.io/library/rust:1.87
      docker pull docker.io/library/telegraf:1.32
      docker compose build
