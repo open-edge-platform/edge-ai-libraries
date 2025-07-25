@@ -14,11 +14,11 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:v1.2.0-20250722-ubuntu24
+FROM ger-is-registry.caas.intel.com/dlstreamer/dlstreamer_images/ci/ubuntu24-dlstreamer:68b12d51040550b279261ca5b54cb7a59afbea61
 
 USER root
 
-RUN apt-get update && apt-get install --yes --no-install-recommends python3-venv gstreamer1.0-plugins-ugly
+RUN apt-get update && apt-get install --yes --no-install-recommends gstreamer1.0-plugins-ugly
 
 RUN \
     mkdir /python3venv && \

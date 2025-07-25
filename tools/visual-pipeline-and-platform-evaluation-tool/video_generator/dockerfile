@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:v1.2.0-20250722-ubuntu24
+FROM ger-is-registry.caas.intel.com/dlstreamer/dlstreamer_images/ci/ubuntu24-dlstreamer:68b12d51040550b279261ca5b54cb7a59afbea61
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive
@@ -25,7 +25,6 @@ USER root
 # Install necessary dependencies
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-    python3-venv \
     gstreamer1.0-plugins-bad    \
     gstreamer1.0-plugins-ugly && \
     rm -rf /var/lib/apt/lists/*
