@@ -36,7 +36,7 @@ ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
 RUN \
     python3 -m venv /python3venv && \
     /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies -r requirements.txt
+    /python3venv/bin/pip3 install --no-cache-dir -r requirements.txt
 
 ADD app.py \
     app.css \
