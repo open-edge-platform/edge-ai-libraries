@@ -49,9 +49,33 @@ for model in "${download_public_models[@]}"; do
     fi
 done
 
+create_virtual_env() {
+  # Set the name of the virtual environment directory
+  VENV_DIR="$HOME/.virtualenvs/dlstreamer"
+
+  # Create a Python virtual environment if it doesn't exist
+  if [ ! -d "$VENV_DIR" ]; then
+    echo "Creating virtual environment in $VENV_DIR..."
+    python3 -m venv "$VENV_DIR"
+  fi
+
+  # Activate the virtual environment
+  echo "Activating virtual environment in $VENV_DIR..."
+  source "$VENV_DIR/bin/activate"
+}
+
+delete_virtual_env() {
+  # Deactivate and remove venvs
+  echo "Removing Python virtual environment..."
+  deactivate
+  rm -r $VENV_DIR
+  echo "Removed"
+}
+
 # TEMPORARY: download mobilenet-v2-pytorch until the download script supports it
 if [ ! -d /output/public/mobilenet-v2-pytorch ]; then
-    python3 -m pip install openvino-dev[onnx] torch torchvision \
+    create_virtual_env
+    pip install openvino-dev[onnx] torch torchvision \
         --extra-index-url https://download.pytorch.org/whl/cpu
     omz_downloader --name mobilenet-v2-pytorch
     omz_converter --name mobilenet-v2-pytorch
@@ -77,6 +101,7 @@ if 'output_postproc' in data and isinstance(data['output_postproc'], list) and d
 with open(json_path, 'w') as f:
     json.dump(data, f, indent=4)
 "
+    delete_virtual_env
 fi
 
 # Create the healthcheck file
