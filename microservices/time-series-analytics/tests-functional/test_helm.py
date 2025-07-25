@@ -34,7 +34,7 @@ def helm_install(release_name, chart_path, namespace):
 
         # Execute the Helm install command and capture output
         print(f"Installing Helm chart...")
-        result = subprocess.run(helm_command, capture_output=True, text=True, check=True)
+        result = utils.run_command(helm_command)
 
         # Print the output for debugging purposes
         print(result.stdout)
@@ -54,7 +54,7 @@ def helm_uninstall(release_name, namespace):
 
         # Execute the Helm uninstall command and capture output
         print(f"Uninstalling Helm release '{release_name}' from namespace '{namespace}'...")
-        result = subprocess.run(helm_command, capture_output=True, text=True, check=True)
+        result = utils.run_command(helm_command)
 
         # Print the output for debugging purposes
         print(result.stdout)
@@ -66,10 +66,9 @@ def helm_uninstall(release_name, namespace):
 def get_pod_names(namespace):
     """Fetch pod names in the given namespace."""
     try:
-        result = subprocess.run(
-            ["kubectl", "get", "pods", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}"],
-            capture_output=True, text=True, check=True
-        )
+        command = ["kubectl", "get", "pods", "-n", namespace, "-o", "jsonpath={.items[*].metadata.name}"]
+        print(f"Fetching pod names in namespace '{namespace}'...")
+        result = utils.run_command(command)
 
         pod_names = result.stdout.strip().split()
         return pod_names
@@ -114,8 +113,9 @@ def test_timeseries_microservice_started_successfully():
         pytest.fail("No pods found in the namespace.")
 
     try:
-        command = f"kubectl logs -n {NAMESPACE} {pod_names[0]} 2>&1 | grep -i 'Kapacitor Initialized Successfully'"
+        command = ["kubectl", "logs", "-n", NAMESPACE, pod_names[0]]
         output = utils.run_command(command)
+        output = output.stdout + output.stderr
         print(output)
         assert "Kapacitor Initialized Successfully. Ready to Receive the Data..." in output
     except Exception as e:
@@ -165,7 +165,7 @@ def test_post_config_endpoint():
     print(f"Found pods in namespace '{NAMESPACE}': {podnames}")
     if not podnames:
         pytest.fail("No pods found in the namespace.")
-    cmd = f"kubectl logs -n {NAMESPACE} {podnames[0]}"
+    cmd = ["kubectl", "logs", "-n", NAMESPACE, podnames[0]]
     utils.post_config_endpoint(TS_HELM_PORT, cmd)
 
 # Test concurrent API requests
@@ -184,7 +184,7 @@ def test_post_invalid_config_endpoint():
     print(f"Found pods in namespace '{NAMESPACE}': {podnames}")
     if not podnames:
         pytest.fail("No pods found in the namespace.")
-    cmd = f"kubectl logs -n {NAMESPACE} {podnames[0]}"
+    cmd = ["kubectl", "logs", "-n", NAMESPACE, podnames[0]]
     utils.post_invalid_config_endpoint(TS_HELM_PORT, cmd)
 
 def test_temperature_input():
@@ -203,10 +203,11 @@ def test_temperature_input():
         print(f"Found pods in namespace '{NAMESPACE}': {pod_names}") 
         if not pod_names:
             pytest.fail("No pods found in the namespace.")
-        command = f"kubectl logs -n {NAMESPACE} {pod_names[0]} 2>&1 | grep -i 'is outside the range 20-25.'"
+        command = ["kubectl", "logs", "-n", NAMESPACE, pod_names[0]]
         time.sleep(10)  # Wait for the simulator to produce output
         print("Checking Time Series Analytics Microservice logs for temperature data...")
         output = utils.run_command(command)
+        output = output.stdout + output.stderr
         assert "is outside the range 20-25." in output
     except RuntimeError as e:
         pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")

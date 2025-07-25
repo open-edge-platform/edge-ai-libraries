@@ -23,32 +23,32 @@ def build_docker_image():
     """Build the Docker image for the Time Series Analytics service."""
     print("Building Docker image...")
     os.chdir(TS_DIR + "docker")
-    command = "docker compose build --no-cache"
+    command = ["docker", "compose", "build"]
     output = utils.run_command(command)
-    print(output)
+    print(output.stdout.strip())
 
 def docker_compose_up():
     """Start the Docker containers using docker-compose."""
     print("Starting Docker containers...")
     os.chdir(TS_DIR + "docker")
-    command = "docker compose up -d"
+    command = ["docker", "compose", "up", "-d"]
     output = utils.run_command(command)
-    print(output)
+    print(output.stdout.strip())
 
 def docker_compose_down():
     """Stop and remove the Docker containers."""
     print("Stopping Docker containers...")
     os.chdir(TS_DIR + "docker")
-    command = "docker compose down -v"
+    command = ["docker", "compose", "down", "-v"]
     output = utils.run_command(command)
-    print(output)
+    print(output.stdout.strip())
 
 def docker_ps():
     """List the running Docker containers."""
     print("Listing running Docker containers...")
-    command = "docker ps"
+    command = ["docker", "ps"]
     output = utils.run_command(command)
-    print(output)
+    print(output.stdout.strip())
 
 @pytest.fixture(scope="function", autouse=True)
 def setup_docker_environment():
@@ -73,10 +73,10 @@ def test_timeseries_microservice_started_successfully():
     """
     Test to check if the required Docker container is running.
     """
-    command = f"docker ps --filter 'name={CONTAINER_NAME}' --format '{{{{.Names}}}}'"
+    command = ["docker", "ps", "--filter", f"name={CONTAINER_NAME}", "--format", "{{.Names}}"]
     try:
         output = utils.run_command(command)
-        assert CONTAINER_NAME in output
+        assert CONTAINER_NAME in output.stdout.strip()
     except Exception as e:
         pytest.fail(f"Failed to check if Time Series Analytics Microservice is running: {e}")
 
@@ -87,10 +87,11 @@ def test_test_timeseries_microservice_start():
     is present in the Time Series Analytics Microservice container logs.
     """
     try:
-        command = f"docker logs {CONTAINER_NAME} 2>&1 | grep -i 'Kapacitor Initialized Successfully'"
+        command = ["docker", "logs", CONTAINER_NAME]
         time.sleep(45)  # Wait for the container to initialize
-        output = utils.run_command(command)
-        print(output)
+        output = subprocess.run(command, check=False, capture_output=True, text=True)
+        print(output.stdout)
+        output = output.stdout + output.stderr
         assert "Kapacitor Initialized Successfully. Ready to Receive the Data..." in output
     except Exception as e:
         pytest.fail(f"Failed to check Time Series Analytics Microservice initialization: {e}")
@@ -135,7 +136,7 @@ def test_post_config_endpoint():
     """
     Test the config endpoint of the Time Series Analytics service.
     """
-    cmd = f"docker logs {CONTAINER_NAME}"
+    cmd = ["docker", "logs", CONTAINER_NAME]
     utils.post_config_endpoint(TS_DOCKER_PORT, cmd)
 
 # Test concurrent API requests
@@ -150,7 +151,7 @@ def test_post_invalid_config_endpoint():
     """
     Test the config endpoint of the Time Series Analytics service.
     """
-    cmd = f"docker logs {CONTAINER_NAME}"
+    cmd = ["docker", "logs", CONTAINER_NAME]
     utils.post_invalid_config_endpoint(TS_DOCKER_PORT, cmd)
 
 def test_temperature_input():
@@ -158,19 +159,20 @@ def test_temperature_input():
     Test to check if the temperature simulator script runs without error.
     """
     os.chdir(TS_DIR)
-    command = "pip3 install -r simulator/requirements.txt"
+    command = ["pip3", "install", "-r", "simulator/requirements.txt"]
     utils.run_command(command)
-    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_DOCKER_PORT) ]
+    command = ["timeout", "20", "python3", "simulator/temperature_input.py", "--port", str(TS_DOCKER_PORT)]
     try:
         print("Starting temperature simulator...")
         # Run the simulator for 20 seconds, then terminate
         subprocess.Popen(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE)
         time.sleep(10)
         print("Temperature simulator started successfully.")
-        command = f"docker logs {CONTAINER_NAME} 2>&1 | grep -i 'is outside the range 20-25.'"
+        command = ["docker", "logs", CONTAINER_NAME]
         time.sleep(10)  # Wait for the simulator to produce output
         print("Checking Time Series Analytics Microservice logs for temperature data...")
-        output = utils.run_command(command)
+        output = subprocess.run(command, check=False, capture_output=True, text=True)
+        output = output.stdout + output.stderr
         assert "is outside the range 20-25." in output
     except RuntimeError as e:
         pytest.fail(f"Time Series Analytics Microservice failed for the temperature input data: {e}")

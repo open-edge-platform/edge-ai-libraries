@@ -10,18 +10,19 @@ import time
 import subprocess
 import json
 import os
+import copy
 
-# Read the config.json file)
+# Read the config.json file
 TS_DIR = os.getcwd() + "/../"
 config_file = json.load(open(TS_DIR + "config.json"))
 print(config_file)
 
 def run_command(command):
     """Run a shell command and return the output."""
-    result = subprocess.run(command, shell=True, capture_output=True, text=True)
+    result = subprocess.run(command, capture_output=True, text=True)
     if result.returncode != 0:
         raise RuntimeError(f"Command failed: {command}\n{result.stderr}")
-    return result.stdout.strip()
+    return result
 
 ## REST API Tests
 
@@ -135,12 +136,13 @@ def get_config_endpoint(port):
     try:
         response = requests.get(url)
         assert response.status_code == 200
+        print("get config =", response.json())
         assert response.json() == config_file
     except Exception as e:
         pytest.fail(f"Failed to get config data: {e}")
 
 # Post config data to the /config endpoint
-def post_config_endpoint(port, cmd):
+def post_config_endpoint(port, command):
     """
     Test the config endpoint of the Time Series Analytics service.
     """
@@ -150,8 +152,8 @@ def post_config_endpoint(port, cmd):
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(10)  # Wait for the configuration to be applied
-        command = f"{cmd} 2>&1 | grep -i 'Kapacitor daemon process has exited and was reaped.'"
         output = run_command(command)
+        output = output.stdout + output.stderr
         assert "Kapacitor daemon process has exited and was reaped." in output
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")
@@ -168,7 +170,7 @@ def concurrent_api_requests(port):
         "fields": {"temperature": 30},
         "timestamp": 0
     }
-    config_file_alerts = config_file.copy()
+    config_file_alerts = copy.deepcopy(config_file)
     config_file_alerts["alerts"] = {}
     opcua_alert = {"message": "Test alert"}
     endpoints = ['/health', '/config', '/opcua_alerts', '/input' ]
@@ -227,21 +229,20 @@ def concurrent_api_requests(port):
             pytest.fail(f"Concurrent API requests failed: {e}")
 
 # Post invalid config data to the /config endpoint
-def post_invalid_config_endpoint(port, cmd):
+def post_invalid_config_endpoint(port, command):
     """
     Test the config endpoint of the Time Series Analytics service.
     """
     url = f"http://localhost:{port}/config"
-    invalid_config_data = config_file.copy()
+    invalid_config_data = copy.deepcopy(config_file)
     invalid_config_data["udfs"]["name"] = "udf_classifier"
     try:
         response = requests.post(url, json=invalid_config_data)
         assert response.status_code == 200
         assert response.json() == {"status": "success", "message": "Configuration updated successfully"}
         time.sleep(15)  # Wait for the configuration to be applied
-        command = f"{cmd} 2>&1 | grep -i 'UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package.'"
         output = run_command(command)
-        print(output)
+        output = output.stdout + output.stderr
         assert "UDF deployment package directory udf_classifier does not exist. Please check and upload/copy the UDF deployment package." in output
     except Exception as e:
         pytest.fail(f"Failed to post config data: {e}")
