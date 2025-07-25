@@ -6,12 +6,12 @@ schemaVersion: "0.1"
 $schema: "https://schema.intel.com/catalog.orchestrator/0.1/schema"
 
 name: chatqna-app
-version: 1.2.1
+version: 1.2.2
 description: "Chat Q&A Sample Application"
 helmRegistry: "docker-hub"
 chartName: "intel/chat-question-and-answer"
 
-chartVersion: "1.2.1"
+chartVersion: "1.2.2"
 defaultProfile: "ovms"
 
 profiles:
