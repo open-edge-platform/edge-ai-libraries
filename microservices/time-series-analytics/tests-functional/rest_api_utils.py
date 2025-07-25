@@ -100,7 +100,7 @@ def input_endpoint_invalid_data(port):
     input_data["fields"]["temperature"] = ""
     try:
         url = f"http://localhost:{port}/input"
-        response = requests.post(url, json=input_data)
+        response = requests.post(url, json=input_data, timeout=10)
         assert response.status_code == 500
         assert "400: unable to parse 'point_data temperature=" in response.json().get("detail", "")
     except Exception as e:
