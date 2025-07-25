@@ -18,6 +18,13 @@ spec:
           imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
           ports:
             - containerPort: 80
+          env:
+            - name: no_proxy
+              value: "{{ .Values.global.proxy.noProxy }},localhost,docsum-api,docsum-ui"
+            - name: http_proxy
+              value: {{ .Values.global.proxy.httpProxy }}
+            - name: https_proxy
+              value: {{ .Values.global.proxy.httpsProxy }}
           volumeMounts:
             - name: nginx-config
               mountPath: /etc/nginx/conf.d
