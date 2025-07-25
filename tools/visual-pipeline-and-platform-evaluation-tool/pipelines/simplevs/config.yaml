@@ -5,7 +5,7 @@ definition: >
   classification tasks, adaptable based on the selected model.
 metadata:
   classname: SimpleVideoStructurizationPipeline
-  enabled: false
+  enabled: true
 recording:
   url: "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4"
   filename: license-plate-detection.mp4
