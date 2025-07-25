@@ -99,9 +99,9 @@ export PM_MINIO_BUCKET=video-summary
 #  env for ovms-service
 export OVMS_HTTP_HOST_PORT=80
 export OVMS_GRPC_HOST_PORT=81
-export VLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
-export OVMS_LLM_MODEL_NAME=microsoft/Phi-3.5-vision-instruct
-export VLM_DEVICE=CPU
+export VLM_MODEL_NAME=${VLM_MODEL_NAME}
+export OVMS_LLM_MODEL_NAME=${OVMS_LLM_MODEL_NAME}
+export VLM_DEVICE=${VLM_DEVICE}
 export OVMS_HOST=ovms-service
 export VLM_SEED=42
 export WORKERS=${WORKERS:-6}
@@ -348,11 +348,14 @@ export_model_for_ovms() {
     mkdir -p models
 
     python3 export_model.py text_generation \
-        --source_model microsoft/Phi-3.5-vision-instruct \
+        --source_model ${VLM_MODEL_NAME} \
+        --weight-format int4 \
+        --pipeline_type VLM \
+        --model_name ${VLM_MODEL_NAME} \
         --config_file_path models/config.json \
         --model_repository_path models \
-        --target_device ${VLM_DEVICE} \
-        --overwrite_models
+        --overwrite_models \
+        --target_device ${VLM_DEVICE}
     
     if [ $? -ne 0 ]; then
         echo -e "${RED}ERROR: Failed to export the model for OVMS.${NC}"

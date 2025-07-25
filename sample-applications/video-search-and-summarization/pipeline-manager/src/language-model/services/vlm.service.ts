@@ -356,3 +356,5 @@ export class VlmService {
     console.log('Chat completion output for run_multi_image:', result);
   }
 }
+
+
