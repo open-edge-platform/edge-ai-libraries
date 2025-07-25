@@ -2,4 +2,4 @@ misconfigurations:
   - id: AVD-DS-0002
     paths:
       - "collector/Dockerfile"
-    statement: The image needs root privileges
+    statement: The image needs root privileges to read GPU metrics.
