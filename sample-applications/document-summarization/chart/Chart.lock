@@ -1,9 +1,0 @@
-dependencies:
-- name: ovms-service
-  repository: file://subchart/ovms/ovms-service
-  version: 0.1.0
-- name: docsum-api
-  repository: file://subchart/backend/docsum-api
-  version: 0.1.0
-digest: sha256:882d217f93823d1f198b66ff94f13c96388bfbf1a7dd09147abd4846fa2f26a8
-generated: "2025-07-23T17:23:07.168188641+05:30"
