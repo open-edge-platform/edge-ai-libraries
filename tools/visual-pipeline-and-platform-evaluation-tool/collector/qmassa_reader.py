@@ -61,6 +61,16 @@ def emit_power(power, gpu_id, ts):
         for key, val in power[-1].items():
             print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}")
 
+def process_device_metrics(dev, gpu_id, current_ts_ns):
+    dev_stats = dev.get("dev_stats", {})
+    eng_usage = dev_stats.get("eng_usage", {})
+    freqs = dev_stats.get("freqs", [])
+    power = dev_stats.get("power", [])
+
+    emit_engine_usage(eng_usage, gpu_id, current_ts_ns)
+    emit_frequency(freqs, gpu_id, current_ts_ns)
+    emit_power(power, gpu_id, current_ts_ns)
+
 def process_states(data):
     try:
         states = data.get("states", [])
@@ -79,26 +89,11 @@ def process_states(data):
         # If there are multiple devices, process the last two
         if len(devs_state) >= 2:
             for gpu_id, dev in enumerate(devs_state[-2:]):
-                dev_stats = dev.get("dev_stats", {})
-                eng_usage = dev_stats.get("eng_usage", {})
-                freqs = dev_stats.get("freqs", [])
-                power = dev_stats.get("power", [])
-
-                emit_engine_usage(eng_usage, gpu_id, current_ts_ns)
-                emit_frequency(freqs, gpu_id, current_ts_ns)
-                emit_power(power, gpu_id, current_ts_ns)
+                process_device_metrics(dev, gpu_id, current_ts_ns)
         else:
             # If only one device, process it
             dev = devs_state[-1]
-            dev_stats = dev.get("dev_stats", {})
-            eng_usage = dev_stats.get("eng_usage", {})
-            freqs = dev_stats.get("freqs", [])
-            power = dev_stats.get("power", [])
-
-            emit_engine_usage(eng_usage, 0, current_ts_ns)
-            emit_frequency(freqs, 0, current_ts_ns)
-            emit_power(power, 0, current_ts_ns)
-
+            process_device_metrics(dev, 0, current_ts_ns)
     except Exception as e:
         logging.error(f"Error processing log file: {e}")
 
