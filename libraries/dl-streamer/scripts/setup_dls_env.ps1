@@ -78,9 +78,14 @@ echo ""
 echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
 echo "Please wait for a moment... "
 
-$output = & gst-inspect-1.0.exe gvadetect 2>&1
-mv gstvideoanalytics.dll gstvideoanalytics.dll.old
-$output = & gst-inspect-1.0.exe gvadetect 2>&1
-mv gstvideoanalytics.dll.old gstvideoanalytics.dll
+try {
+	$(gst-inspect-1.0.exe gvadetect)
+} catch {
+	echo "Error caught - clearing a cache and retrying..."
+	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
+	$(gst-inspect-1.0.exe gvadetect)
+	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
+	$(gst-inspect-1.0.exe gvadetect)
+}
 
 echo "DLStreamer is ready"
