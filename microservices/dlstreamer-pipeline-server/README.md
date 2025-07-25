@@ -177,6 +177,11 @@ Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreame
   ```sh
     docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
   ```
+
+  Run the following command to view the directory structure of source code for distributed GPL/LGPL/AGPL components:
+  ```sh
+    docker run intel/dlstreamer-pipeline-server:3.1.0-sources
+  ```
 ---
 
 ## Learn More
