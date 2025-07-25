@@ -94,7 +94,7 @@ spec:
           {{- if .Values.global.OTLP_ENDPOINT }}
           volumeMounts:
             - name: ca-certificates
-              mountPath: /usr/local/share/ca-certificates
+              mountPath: /opt/share/ca-certificates
             - name: ssl-certs
               mountPath: /etc/ssl/certs
           {{ end}}
@@ -102,7 +102,7 @@ spec:
       volumes:
         - name: ca-certificates
           hostPath:
-            path: /usr/local/share/ca-certificates
+            path: /opt/share/ca-certificates
             type: Directory
         - name: ssl-certs
           hostPath:
