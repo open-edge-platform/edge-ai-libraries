@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:latest
+    image: nginxinc/nginx-unprivileged:1.27.4
     ports:
       - "8101:8101"
     volumes:

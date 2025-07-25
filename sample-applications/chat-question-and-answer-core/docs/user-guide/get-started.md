@@ -70,39 +70,57 @@ By following this guide, you will learn how to:
        # For GPU setup
        source scripts/setup_env.sh -d gpu
       ```
-    - Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#running-the-application-using-docker-compose).
-    - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can configure it by exporting the following:
-    ```bash
+
+5. **Model Configuration Setup**:
+    - Model settings can be specified using a YAML configuration file. A sample template is available at [template.yaml](../../model_config/sample/template.yaml) to help you get started. After creating and customizing your YAML file, set the `MODEL_CONFIG_PATH` environment variable to point to its location. You can specify the path to your YAML configuration file using either an absolute path or a relative path. If you are not familiar with Docker volume mount logic, it is recommended to use a full path to avoid any potential issues.
+      ```bash
+      # Recommended: Using a full path to your YAML file
+      export MODEL_CONFIG_PATH=<path-to-your-yaml-file>
+      ```
+
+      If `MODEL_CONFIG_PATH` is not set, the application will automatically fall back to its built-in default configuration, which uses the same [template YAML](../../model_config/sample/template.yaml) file.
+
+    - A collection of ready-to-use YAML configuration files featuring validated combinations of LLMs, Embedding models, and Rerankers is available in the [model_config folder](../../model_config/). Feel free to explore these examples and use them as a starting point.
+
+    - If you wish to assign the inference workload to other dedicated device such as CPU/GPU device independently, you can assign each model's inference workload to a specific device(e.g., CPU or GPU) independently by configuring the `device_settings` section in the YAML as below:
+      ```bash
       # EMBEDDING_DEVICE: Specifies the device for embedding model inference.
       # RERANKER_DEVICE: Specifies the device for reranker model inference.
       # LLM_DEVICE: Specifies the device for LLM model inference.
       # Make sure that you are using the correct backend image if you wish to use GPU inferencing.
-      export EMBEDDING_DEVICE=<CPU/GPU>
-      export RERANKER_DEVICE=<CPU/GPU>
-      export LLM_DEVICE=<CPU/GPU>
-    ```
-    - __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __GPU_DEVICE__
+      device_settings:
+        EMBEDDING_DEVICE: "GPU"
+        RERANKER_DEVICE: "GPU"
+        LLM_DEVICE: "GPU"
+      ```
 
-    ```bash
-      export GPU_DEVICE="GPU.1"
-    ```
+    - __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.0, GPU.1
 
-5. **Start the Application**:
+      ```bash
+        device_settings:
+          EMBEDDING_DEVICE: "<GPU.0/GPU.1>"
+          RERANKER_DEVICE: "<GPU.0/GPU.1>"
+          LLM_DEVICE: "<GPU.0/GPU.1>"
+      ```
+
+    - Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+
+6. **Start the Application**:
     Start the application using docker compose:
     ```bash
     docker compose -f docker/compose.yaml up
     ```
 
-6. **Verify the Application**:
+7. **Verify the Application**:
     Following log should be printed on the console to confirm that the application is ready for use.
       ```bash
       # chatqna-core    | INFO:     Application startup complete.
       # chatqna-core    | INFO:     Uvicorn running on http://0.0.0.0:8888
       ```
 
-7. **Access the Application**:
+8. **Access the Application**:
     Open a browser and go to `http://<host-ip>:8102` to access the application dashboard. The application dashboard allows the user to,
-    - Create and manage context by adding documents (pdf, docx, etc. Note: Web links are not supported for the Core version of the sample application. Note: There are restrictions on the max size of the document allowed.
+    - Create and manage context by adding documents (pdf, docx, etc. Note: Web links are not supported for the Core version of the sample application. Note: There are restrictions on the max size of the document allowed.)
     - Start Q&A session with the created context.
 
 
