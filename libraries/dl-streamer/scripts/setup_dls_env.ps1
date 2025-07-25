@@ -6,7 +6,6 @@
 
 if (-Not (Test-Path 'C:\gstreamer')) {
 	echo 'Please install GStreamer to folder C:\gstreamer and then run the script again.'
-	echo 'Link: https://gstreamer.freedesktop.org/data/pkg/windows/1.26.2/msvc/gstreamer-1.0-msvc-x86_64-1.26.2.msi'
 	exit
 } else {
 	echo 'GStreamer found in folder C:\gstreamer'
@@ -24,7 +23,9 @@ echo 'Setting variables: GST_PLUGIN_PATH, Path (for DLLs)'
 $CURRENT_DIR = (Get-Item .).FullName
 [Environment]::SetEnvironmentVariable('GST_PLUGIN_PATH', "C:\gstreamer\1.0\msvc_x86_64\bin;C:\gstreamer\1.0\msvc_x86_64\lib\gstreamer-1.0;$CURRENT_DIR", [System.EnvironmentVariableTarget]::User)
 $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
-[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $CURRENT_DIR, [System.EnvironmentVariableTarget]::User)
+if (-Not [Environment]::GetEnvironmentVariable('Path', 'User').Contains($CURRENT_DIR)) {
+	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $CURRENT_DIR, [System.EnvironmentVariableTarget]::User)
+}
 
 echo 'Setting variables: GST_PLUGIN_SCANNER'
 $GSTREAMER_PLUGIN_SCANNER_PATH = (Get-ChildItem -Filter gst-plugin-scanner.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-plugin-scanner.exe' -ErrorAction SilentlyContinue) | Select-Object -First 1
@@ -39,11 +40,8 @@ if (-Not [Environment]::GetEnvironmentVariable('Path', 'User').Contains('gstream
 
 echo 'Searching for OpenVINO'
 if (-Not [System.IO.File]::Exists('C:\openvino\setupvars.ps1')) {
-	echo 'Installing OpenVINO'
-    curl -Uri https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/windows/openvino_toolkit_windows_2025.2.0.19140.c01cd93e24d_x86_64.zip -OutFile openvino.zip
-	Expand-Archive -LiteralPath 'openvino.zip' -DestinationPath 'C:\'
-	mv C:\openvino_toolkit_windows_2025.2.0.19140.c01cd93e24d_x86_64 C:\openvino
-	rm openvino.zip
+	echo 'OpenVINO C:\openvino\setupvars.ps1 not found - please install OpenVINO!'
+
 } else {
 	echo 'OpenVINO found'
 }
@@ -59,6 +57,10 @@ if (-Not [Environment]::GetEnvironmentVariable('Path', 'User').Contains('openvin
 $env:Path = [System.Environment]::GetEnvironmentVariable('Path','Machine') + ';' + [System.Environment]::GetEnvironmentVariable('Path','User')
 $env:GST_PLUGIN_PATH = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_PATH','User')
 $env:GST_PLUGIN_SCANNER = [System.Environment]::GetEnvironmentVariable('GST_PLUGIN_SCANNER','User')
+$env:LIBVA_DRIVER_NAME = [System.Environment]::GetEnvironmentVariable('LIBVA_DRIVER_NAME','User')
+$env:LIBVA_DRIVERS_PATH = [System.Environment]::GetEnvironmentVariable('LIBVA_DRIVERS_PATH','User')
+$env:OpenVINO_DIR = [System.Environment]::GetEnvironmentVariable('OpenVINO_DIR','User')
+$env:OPENVINO_LIB_PATHS = [System.Environment]::GetEnvironmentVariable('OPENVINO_LIB_PATHS','User')
 
 echo "USER ENVIRONMENT VARIABLES"
 echo "Path:"
@@ -67,14 +69,14 @@ echo "GST_PLUGIN_PATH:"
 $env:GST_PLUGIN_PATH
 echo "GST_PLUGIN_SCANNER:"
 $env:GST_PLUGIN_SCANNER
-echo "OpenVINO_DIR:"
-$env:OpenVINO_DIR
-echo "OPENVINO_LIB_PATHS:"
-$env:OPENVINO_LIB_PATHS
 echo "LIBVA_DRIVER_NAME:"
 $env:LIBVA_DRIVER_NAME
 echo "LIBVA_DRIVERS_PATH:"
 $env:LIBVA_DRIVERS_PATH
+echo "OpenVINO_DIR:"
+$env:OpenVINO_DIR
+echo "OPENVINO_LIB_PATHS:"
+$env:OPENVINO_LIB_PATHS
 
 echo ""
 echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
