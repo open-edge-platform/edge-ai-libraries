@@ -47,21 +47,19 @@ jobs:
       run: | 
        sudo apt-get update
        sudo pip install robotframework
-       sudo apt install -y python3-nose libxml2-utils
+       sudo apt install -y python3-nose libxml2-utils vlc
        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/utils/
        chmod a+x stream_rtsp.sh
        ip_addr=`hostname -I | awk '{print $1}'`
        echo "starting rtsp servers"
-       ls -l `pwd`/../../../resources/videos/warehouse.avi
        echo $ip_addr
        ./stream_rtsp.sh start 10 `pwd`/../../../resources/videos/warehouse.avi $ip_addr
+       sleep 10
        cd ${{github.workspace}}
        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests/scripts/robot_files
        robot test_main_sanity.robot || true 
        mkdir -p /tmp/test_results
        cp -r report.html log.html output.xml /tmp/test_results/
-       ls -l /tmp/test_results/
-
        passed=$(xmllint --xpath "//return/status[@status='PASS']" ./output.xml | wc -l) || true
        failed=$(xmllint --xpath "//return/status[@status='FAIL']" ./output.xml | wc -l) || true
        not_run=$(xmllint --xpath "//return/status[@status='NOT RUN']" ./output.xml | wc -l) || true
