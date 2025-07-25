@@ -23,7 +23,7 @@ def build_docker_image():
     """Build the Docker image for the Time Series Analytics service."""
     print("Building Docker image...")
     os.chdir(TS_DIR + "docker")
-    command = ["docker", "compose", "build"]
+    command = ["docker", "compose", "build", "--no-cache"]
     output = utils.run_command(command)
     print(output.stdout.strip())
 
