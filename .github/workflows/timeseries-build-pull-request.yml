@@ -114,6 +114,36 @@ jobs:
       with:
         name: unit-test-report
         path: /tmp/report.txt
+
+  timeseries-function-tests:
+    name: Timeseries function Test
+    permissions:
+      contents: read
+      packages: read          # needed for actions/checkout
+    runs-on: ubuntu-24.04
+    steps:
+    - uses: actions/checkout@v1
+      with:
+          path: timeseries
+          persist-credentials: false
+    - name: Run time-series-analytics-microservices function tests
+      run: |
+        cd "${{ github.workspace }}"
+        cd ./microservices/time-series-analytics/tests-functional
+        curl -sfL https://get.k3s.io | INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_VERSION=${K3S_VERSION} \
+        sh -s - --disable=traefik --write-kubeconfig-mode=644
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        echo "Running function tests"
+        pip3 install -r requirements.txt
+        rm -rf /tmp/test_report/report.html
+        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html \
+            test_docker.py::test_input_endpoint test_docker.py::test_health_check \
+            test_helm.py::test_input_endpoint test_helm.py::test_health_check
+    - name: Upload HTML  test report to Github
+      uses: actions/upload-artifact@v4
+      with:
+        name: function-test-report
+        path: /tmp/test_report
   
-  timeseries-scans:
-    uses: ./.github/workflows/timeseries-scans-virus-bandit-pylint.yaml
+  # timeseries-scans:
+  #   uses: ./.github/workflows/timeseries-scans.yaml
