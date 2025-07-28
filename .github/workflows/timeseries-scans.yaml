@@ -24,7 +24,6 @@ on:
     inputs:
       target:
         required: true
-        type: string
 
 
 jobs:
