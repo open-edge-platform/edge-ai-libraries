@@ -23,7 +23,18 @@ on:
   workflow_call: 
     inputs:
       target:
-        required: true
+        description: 'Which Scans to run'
+        type: choice
+        options:
+        - all-scans
+        - codeql-scan
+        - bandit-scan
+        - virus-scan
+        - pylint-scan
+        - dbs-scan
+        - trivy-fs-image-scan
+        - trivy-dockerfile-scan
+
 
 
 jobs:
