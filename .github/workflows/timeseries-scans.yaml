@@ -24,7 +24,8 @@ on:
     inputs:
       target:
         description: 'Which Scans to run'
-        type: choice
+        required: false
+        type: string
 
 
 
