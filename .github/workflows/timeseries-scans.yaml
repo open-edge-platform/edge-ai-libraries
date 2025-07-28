@@ -20,6 +20,11 @@ on:
         - dbs-scan
         - trivy-fs-image-scan
         - trivy-dockerfile-scan
+  workflow_call: 
+    inputs:
+      target:
+        required: true
+        type: string
 
 
 jobs:
