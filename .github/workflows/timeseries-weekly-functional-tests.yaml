@@ -14,12 +14,12 @@ on:
 permissions: {}
 
 jobs:
-  timeseries-weekly-functional-tests.yaml:
+  timeseries-weekly-functional-tests:
     name: Weekly-Run TimeSeries Analytics Microservice tests
     runs-on: ubuntu-24.04
     permissions:
       contents: read
-      packages: write
+      packages: read
     strategy:
       fail-fast: false
     steps:
