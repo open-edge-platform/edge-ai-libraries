@@ -249,7 +249,7 @@ quantize_yolo_model() {
     mkdir -p "$MODELS_PATH/datasets"
     local DATASET_MANIFEST="$MODELS_PATH/datasets/$QUANTIZE.yaml"
 
-    wget ${SUPPORTED_QUANTIZATION_DATASETS[$QUANTIZE]} -O "$DATASET_MANIFEST"
+    curl -L -o "$DATASET_MANIFEST" ${SUPPORTED_QUANTIZATION_DATASETS[$QUANTIZE]}
     echo "Quantizing: ${MODEL_DIR}"
     mkdir -p "$MODEL_DIR"
 
@@ -377,7 +377,7 @@ if [ "$MODEL" == "yolox_s" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all
     mkdir -p "$MODEL_DIR/FP16"
     mkdir -p "$MODEL_DIR/FP32"
     cd "$MODEL_DIR"
-    wget https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx
+    curl -O -L https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx
     ovc yolox_s.onnx --compress_to_fp16=True
     mv yolox_s.xml "$MODEL_DIR/FP16"
     mv yolox_s.bin "$MODEL_DIR/FP16"
@@ -488,7 +488,7 @@ for MODEL_NAME in "${YOLOv5_MODELS[@]}"; do
       cd "$MODEL_DIR"
       cp -r "$REPO_DIR" yolov5
       cd yolov5
-      wget "https://github.com/ultralytics/yolov5/releases/download/v7.0/${MODEL_NAME}.pt"
+      curl -L -O "https://github.com/ultralytics/yolov5/releases/download/v7.0/${MODEL_NAME}.pt"
 
       python3 export.py --weights "${MODEL_NAME}.pt" --include openvino --img-size 640 --dynamic
       python3 - <<EOF "${MODEL_NAME}"
@@ -698,7 +698,7 @@ if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]];
     mkdir -p "$MODEL_DIR"
     cd "$MODEL_DIR"
 
-    wget --no-check-certificate 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw' -O ${MODEL_NAME}.pt
+    curl -L -k -o ${MODEL_NAME}.pt 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw'
 
     python3 - <<EOF "$MODEL_NAME"
 from ultralytics import YOLO
@@ -787,10 +787,29 @@ if [ "$MODEL" == "hsemotion" ] || [ "$MODEL" == "all" ]; then
 
     ovc enet_b0_8_va_mtl.onnx --input "[16,3,224,224]"
     mkdir "$MODEL_DIR/FP16/"
-    mv enet_b0_8_va_mtl.xml "$MODEL_DIR/FP16/$MODEL_NAME.xml"
-    mv enet_b0_8_va_mtl.bin "$MODEL_DIR/FP16/$MODEL_NAME.bin"
+    mv enet_b0_8_va_mtl.xml "$MODEL_DIR/$MODEL_NAME.xml"
+    mv enet_b0_8_va_mtl.bin "$MODEL_DIR/$MODEL_NAME.bin"
     cd ../../../..
     rm -rf face-emotion-recognition
+    python3 - <<EOF
+import openvino
+import sys, os
+
+core = openvino.Core()
+ov_model = core.read_model(model='hsemotion.xml')
+
+ov_model.set_rt_info("anger contempt disgust fear happiness neutral sadness surprise", ['model_info', 'labels'])
+ov_model.set_rt_info("label", ['model_info', 'model_type'])
+ov_model.set_rt_info("True", ['model_info', 'output_raw_scores'])
+ov_model.set_rt_info("fit_to_window_letterbox", ['model_info', 'resize_type'])
+ov_model.set_rt_info("255", ['model_info', 'scale_values'])
+
+print(ov_model)
+
+openvino.save_model(ov_model, './FP16/' + 'hsemotion.xml')
+os.remove('hsemotion.xml')
+os.remove('hsemotion.bin')
+EOF
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
@@ -808,7 +827,7 @@ for MODEL_NAME in "${CLIP_MODELS[@]}"; do
       cd "$MODEL_DIR/FP32"
       IMAGE_URL="https://storage.openvinotoolkit.org/data/test_data/images/car.png"
       IMAGE_PATH=car.png
-      wget -O $IMAGE_PATH $IMAGE_URL
+      curl -L -o $IMAGE_PATH $IMAGE_URL
       echo "Image downloaded to $IMAGE_PATH"
       python3 - <<EOF "$MODEL_NAME" "$IMAGE_PATH"
 from transformers import CLIPProcessor, CLIPVisionModel
@@ -903,7 +922,7 @@ if [[ "$MODEL" == "ch_PP-OCRv4_rec_infer" ]] || [[ "$MODEL" == "all" ]]; then
     mkdir -p "$MODEL_DIR"
     echo "Downloading and converting: ${MODEL_DIR}"
     cd "$MODEL_DIR"
-    wget "https://paddleocr.bj.bcebos.com/PP-OCRv4/chinese/$MODEL_NAME.tar"
+    curl -L -O "https://paddleocr.bj.bcebos.com/PP-OCRv4/chinese/$MODEL_NAME.tar"
     python3 - <<EOF "$MODEL_NAME" "$MODEL_DIR" "$DST_FILE1"
 import tarfile
 import openvino as ov

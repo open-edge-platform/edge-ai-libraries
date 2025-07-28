@@ -34,11 +34,6 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - name: Init submodules
-      run: |
-        cd edge-ai-libraries-repo
-        git submodule update --init libraries/dl-streamer/thirdparty/spdlog
-
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
       with:
@@ -93,7 +88,7 @@ jobs:
       uses: actions/upload-artifact@v4
       with:
         name: Coverage-reports
-        path: /tmp/htmlcov
+        path: /tmp/htmlcov  
     - name: Scan Docker image with Trivy
       uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
@@ -108,12 +103,33 @@ jobs:
         severity: "CRITICAL"
         # output-format: "json"
         output-file: "dlsps-${{ matrix.ubuntu_version }}-extended-trivy-image-report.txt"
-    - name: Upload Trivy report as artifact
+    - name: Upload Trivy image report as artifact
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: dlsps-${{ matrix.ubuntu_version }}-trivy-image-report
         path: dlsps-${{ matrix.ubuntu_version }}*-trivy-image-report.txt
+
+    - name: Run Trivy Filesystem Scan
+      if: matrix.ubuntu_version == 'ubuntu22'
+      run: |
+        
+        docker pull aquasec/trivy:0.63.0
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+        mkdir -p reports
+        curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
+       
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true 
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --list-all-pkgs --format template --template "@/src/trivy-html.tpl" --output "/src/reports/trivy-fs-full-report.csv" /src/ || true
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --ignore-unfixed /src | tee ./reports/trivy-fs-full-report.txt
+        mv ./reports ${{ github.workspace }}
+    - name: Upload Trivy Filesystem Reports
+      if: matrix.ubuntu_version == 'ubuntu22'
+      uses: actions/upload-artifact@v4
+      with:
+        name: trivy-fs-reports
+        path: reports/*    
+    
     - name: Create summary
       if: always()
       run: |
@@ -173,52 +189,83 @@ jobs:
                docker rmi -f $(docker images -aq) || true
         fi
 
-  filter-docker-related-changes:
+  
+  trivy-config-dockerfile-scan:
     permissions:
       contents: read
-    name: Detect changes in docker directory
+    name: Scan Dockerfile
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: microservices/dlstreamer-pipeline-server/Dockerfile
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: reports/dlsps_trivy_report.json
+      name: dlsps_trivy_report
+  
+  pylint:
     runs-on: ubuntu-latest
-    outputs:
-      docker_changed: ${{ steps.check.outputs.docker_changed }}
+
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
           persist-credentials: false
-          fetch-depth: 0
+          path: edge-ai-libraries-repo
 
-      - name: Fetch main branch for comparison
-        run: git fetch origin main
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.10'  
 
-      - id: check
-        name: Detect changes in docker directory
+      - name: Install dependencies from all requirements.txt files
         run: |
-          echo "🔍 Checking for changes in 'microservices/dlstreamer-pipeline-server/docker'..."
-          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
-          echo "📄 Changed files:"
-          echo "$CHANGED_FILES"
-          if echo "$CHANGED_FILES" | grep -q '^microservices/dlstreamer-pipeline-server/docker'; then
-            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
-            echo "🟡 Docker-related changes detected."
-          else
-            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
-            echo "✅ No docker-related changes."
-          fi
+          python -m pip install --upgrade pip
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+          find . -type f -iname 'requirements.txt' -exec pip install -r {} \;
 
-  trivy-config-scan:
-    permissions:
-      contents: read
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: Scan dlsps docker file
-    strategy:
-      fail-fast: false
-     
-    uses: ./.github/workflows/trivy-config-mode.yaml
-    with:
-      dockerfile-path: microservices/dlstreamer-pipeline-server/
-      trivy-report-format: 'json'
-      severity-levels: 'HIGH,CRITICAL'
-      output-report-path: reports/dlsps_trivy_report.json
-      name: dlsps_trivy_report
-   
+      - name: Install pylint
+        run: pip install pylint
+
+      - name: Run pylint
+        run: |
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          find . -type f -iname '*.py' -exec pylint --errors-only --disable=import-error  {} \;  > pylint_report.txt || true
+          cp pylint_report.txt ${{ github.workspace }}
+          echo "### Pylint Results" >> $GITHUB_STEP_SUMMARY
+          echo "Please find pylint report in pylint-report.txt" >> $GITHUB_STEP_SUMMARY
+
+      - name: Upload pylint report as artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: pylint-report
+          path: pylint_report.txt
+  shellcheck:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          path: edge-ai-libraries-repo
+
+      - name: Install ShellCheck
+        run:  sudo apt-get update &&  sudo apt-get install -y shellcheck
+
+      - name: Run ShellCheck
+        run: |
+          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
+          echo "Scanning for .sh files and running ShellCheck..."
+          find . -type f -name "*.sh" | tee shell_files.txt | xargs -r shellcheck -f gcc > shellcheck_report.txt || true
+          echo "### ShellCheck Results" >> $GITHUB_STEP_SUMMARY
+          echo "Please find ShellCheck report in shellcheck_report.txt" >> $GITHUB_STEP_SUMMARY
+          cp shellcheck_report.txt ${{ github.workspace }}
+
+      - name: Upload ShellCheck report
+        uses: actions/upload-artifact@v4
+        with:
+          name: shellcheck-report
+          path: shellcheck_report.txt
+  

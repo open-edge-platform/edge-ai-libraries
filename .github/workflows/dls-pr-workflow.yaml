@@ -46,14 +46,14 @@ jobs:
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
-  static-code-analysis:
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-      packages: read
-    name: SCAN static code analysis
-    uses: ./.github/workflows/codeql.yaml
+  # static-code-analysis:
+  #   permissions:
+  #     security-events: write
+  #     actions: read
+  #     contents: read
+  #     packages: read
+  #   name: SCAN static code analysis
+  #   uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
     permissions:
@@ -123,16 +123,16 @@ jobs:
         include:
           - name: dlstreamer_ubuntu22
             path: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
-            output: reports/dlstreamer_ubuntu22.json
+            output: reports/trivy-dlstreamer_ubuntu22.json
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
-            output: reports/dlstreamer_ubuntu24.json
+            output: reports/trivy-dlstreamer_ubuntu24.json
           - name: dlstreamer_fedora41
             path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
-            output: reports/dlstreamer_fedora41.json
+            output: reports/trivy-dlstreamer_fedora41.json
           - name: dlstreamer-testing-ubuntu
             path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
-            output: reports/dlstreamer-testing-ubuntu.json
+            output: reports/trivy-dlstreamer-testing-ubuntu.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
@@ -140,6 +140,54 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
       name: ${{ matrix.name }}
+
+  hadolint:
+    permissions:
+      contents: read
+    needs: [filter-docker-related-changes]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: Run Hadolint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: dlstreamer_ubuntu22
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
+            output-file: hadolint-dlstreamer_ubuntu22.json
+          - name: dlstreamer_ubuntu24
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
+            output-file: hadolint-dlstreamer_ubuntu24.json
+          - name: dlstreamer_fedora41
+            dockerfile: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
+            output-file: hadolint-dlstreamer_fedora41.json
+          - name: dlstreamer-testing-ubuntu
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
+            output-file: hadolint-dlstreamer-testing-ubuntu.json
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Install Hadolint
+        run: |
+          curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+          chmod +x hadolint
+          mv hadolint /usr/local/bin/
+
+      - name: Run Hadolint
+        run: |
+          hadolint ${{ matrix.dockerfile }} \
+            --format tty \
+            | tee ${{ matrix.output-file }}
+
+      - name: Upload Hadolint report as artifact
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: hadolint-report-${{ matrix.name }}
+          path: ${{ matrix.output-file }}
 
   clamav:
     permissions:

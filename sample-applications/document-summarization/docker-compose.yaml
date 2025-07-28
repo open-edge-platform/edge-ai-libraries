@@ -37,7 +37,7 @@ services:
       - my_network
 
   docsum-api:
-    image: ${REGISTRY:-}genai-docsum:${TAG}
+    image: ${REGISTRY:-}document-summary:${TAG}
     build:
       context: .
       dockerfile: Dockerfile
@@ -63,7 +63,7 @@ services:
       - /etc/ssl/certs:/etc/ssl/certs
 
   docsum-ui:
-    image: ${REGISTRY:-}genai-docsum:${TAG}
+    image: ${REGISTRY:-}document-summary:${TAG}
     build:
       context: .
       dockerfile: Dockerfile

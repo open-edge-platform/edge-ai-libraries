@@ -13,7 +13,8 @@
    :caption: How to
 
    how-to-change-dlstreamer-pipeline
-   how-to-use-gpu-for-inference
+   how-to-use-gpu-for-decode-and-inference
+   how-to-use-cpu-for-decode-and-inference
    how-to-autostart-pipelines
    how-to-launch-configurable-pipelines
    how-to-perform-webrtc-frame-streaming

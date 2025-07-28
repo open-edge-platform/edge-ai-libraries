@@ -9,12 +9,12 @@
 - Update to Run ChatQnA-UI and Nginx Container with Non-Root Access Privileges.
 - Security Vulnerabilities Fix for Dependency Packages.
 - Max Token Parameter Added to /stream_log API.
+- EMF deployment is supported.
 - Bug fixes.
 
 ### Known Issues/Behavior:
-- UI and NGINX container running as root Privillage in Helm Deployment
-- Not validated with EMF deployment package
-- Not validated on EMT edge node
+- UI and NGINX container running as root Privilege in Helm Deployment
+- Application running into Model Type issue on EMT.
 
 ## Previous Release
 
