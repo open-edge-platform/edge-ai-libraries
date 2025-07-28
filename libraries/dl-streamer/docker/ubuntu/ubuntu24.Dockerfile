@@ -76,10 +76,10 @@ RUN \
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
     
-RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
     apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/npu_deps
 
@@ -375,7 +375,7 @@ RUN userdel -r ubuntu
 # install prerequisites - gcc and cmake are needed to run .cpp samples
 RUN \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends curl=\* gpg=\* ca-certificates=\* libtbb12=\* && \
+    apt-get install -y -q --no-install-recommends curl=\* gpg=\* ca-certificates=\* libtbb12=\* git=\* python3-venv=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -397,10 +397,10 @@ RUN \
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
     
-RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.18.5/level-zero_1.18.5+u24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-driver-compiler-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-fw-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
-    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.13.0/intel-level-zero-npu_1.13.0.20250131-13074932693_ubuntu24.04_amd64.deb && \
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
     apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/npu_deps
 
