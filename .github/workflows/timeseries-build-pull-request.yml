@@ -117,3 +117,5 @@ jobs:
   
   timeseries-scans:
     uses: ./.github/workflows/timeseries-scans.yaml
+    with:
+      target: all-scans
