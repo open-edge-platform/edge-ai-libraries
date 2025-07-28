@@ -33,6 +33,7 @@ permissions:
   contents: read
   packages: read
   pull-requests: read
+  security-events: write
 
 jobs:
   timeseries-pre-merge-build:
