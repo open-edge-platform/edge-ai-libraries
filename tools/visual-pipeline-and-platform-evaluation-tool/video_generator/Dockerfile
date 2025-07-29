@@ -51,4 +51,4 @@ ARG UID=1000
 USER ${UID}
 
 # Set the entrypoint for the container to run the main Python script
-CMD ["tail", "-f", "/dev/null"]
+CMD ["python3", "imagetovideo.py"]

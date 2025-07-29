@@ -11,7 +11,7 @@ This guide is ideal for developers who want to work directly with the source cod
 mkdir videos
 chmod o+w videos
 docker compose build videogenerator
-docker compose run --rm videogenerator python3 imagetovideo.py
+docker compose run --rm videogenerator
 ```
 
 **Make Changes**

@@ -93,7 +93,7 @@ The program uses a config.json file to customize the video generation process. B
 mkdir videos
 chmod o+w videos
 docker compose build videogenerator
-docker compose run --rm videogenerator python3 imagetovideo.py
+docker compose run --rm videogenerator
 ```
 
 The video will be generated in the `videos` directory with the specified file name.
