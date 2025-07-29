@@ -255,6 +255,20 @@ FROM dlstreamer-pipeline-server AS dlstreamer-pipeline-server-extended
 
 USER root
 
+# Patch and install OpenVINO model api
+COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
+RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+
+# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    cd $MODEL_API_PATH && \
+    git apply /home/pipeline-server/model_api.patch && \
+    apt-get remove -y git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
 # Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
 # Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
 # Detect Ubuntu version and install Rust only on Ubuntu 24
@@ -265,11 +279,11 @@ RUN . /etc/os-release && \
         curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
         echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
         export PATH="/root/.cargo/bin:$PATH" && \
-        pip3 install --no-cache-dir geti-sdk==2.11.0 && \
+        pip3 install --no-cache-dir geti-sdk==2.7.1 && \
         # clean up Rust installation files
         rm -rf /root/.cargo /root/.rustup; \
     else \
-        pip3 install --no-cache-dir geti-sdk==2.11.0; \
+        pip3 install --no-cache-dir geti-sdk==2.7.1; \
     fi && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
@@ -302,8 +316,10 @@ RUN apt update && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN pip3 install --no-cache-dir torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cpu && \
-    pip3 install --no-cache-dir argon2-cffi==25.1.0 onnxruntime==1.22.1 && \
-    pip3 install --no-cache-dir --upgrade openvino-telemetry==2025.2.0
+
+# RUN pip3 install --no-cache-dir torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cpu && \
+#     pip3 install --no-cache-dir argon2-cffi==25.1.0 onnxruntime==1.22.1
+    
+RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
 
 USER ${USER}
