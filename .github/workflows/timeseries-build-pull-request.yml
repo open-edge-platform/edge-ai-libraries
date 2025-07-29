@@ -75,7 +75,7 @@ jobs:
         cd ./microservices/time-series-analytics/docker
         docker compose down -v
 
-  timeseries-scans:
+  timeseries-unit-test:
     uses: ./.github/workflows/timeseries-unit-test.yaml
 
   timeseries-function-tests:
