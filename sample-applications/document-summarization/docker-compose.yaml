@@ -22,6 +22,10 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
     ports:
       - "9300:9300"
       - "8300:80"
@@ -59,7 +63,7 @@ services:
     networks:
       - my_network
     volumes:
-      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /opt/share/ca-certificates:/opt/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
 
   docsum-ui:

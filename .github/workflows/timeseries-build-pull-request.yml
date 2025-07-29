@@ -116,6 +116,12 @@ jobs:
       with:
         name: unit-test-report
         path: /tmp/report.txt
+
+  timeseries-function-tests:
+    name: Timeseries function Test
+    uses: ./.github/workflows/timeseries-weekly-functional-tests.yaml
+    with:
+      test_pattern: 'test_docker.py::test_input_endpoint test_docker.py::test_health_check test_helm.py::test_input_endpoint test_helm.py::test_health_check'
   
   timeseries-scans:
     uses: ./.github/workflows/timeseries-scans.yaml
