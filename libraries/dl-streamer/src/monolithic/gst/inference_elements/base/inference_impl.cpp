@@ -50,7 +50,8 @@ using namespace InferenceBackend;
 
 namespace {
 
-const int DEFAULT_GPU_DRM_ID = 128; // -> /dev/dri/renderD128
+const int DEFAULT_GPU_DRM_ID = 128;          // -> /dev/dri/renderD128
+const int MAX_STREAMS_SHARING_VADISPLAY = 4; // Maximum number of streams sharing the same VADisplay context
 
 inline std::shared_ptr<Allocator> CreateAllocator(const char *const allocator_name) {
     std::shared_ptr<Allocator> allocator;
@@ -243,15 +244,13 @@ bool IsModelProcSupportedForVaapi(const std::vector<ModelInputProcessorInfo::Ptr
 
 bool IsModelProcSupportedForVaapiSurfaceSharing(
     const std::vector<ModelInputProcessorInfo::Ptr> &model_input_processor_info, GstVideoInfo *input_video_info) {
-    auto format = dlstreamer::gst_format_to_video_format(GST_VIDEO_INFO_FORMAT(input_video_info));
+    UNUSED(input_video_info);
     for (const auto &it : model_input_processor_info) {
         if (!it || it->format != "image")
             continue;
-        auto input_desc = PreProcParamsParser(it->params).parse();
-        if (input_desc && ((input_desc->getTargetColorSpace() != PreProcColorSpace::BGR &&
-                            input_desc->doNeedColorSpaceConversion(static_cast<int>(format)))))
-            return false;
     }
+    // VaapiSurfaceSharing converter always generates NV12 image,
+    // which can be further converted to model color space using OpenVINO™ model pre-processing stage.
     return true;
 }
 
@@ -286,6 +285,14 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
     case VA_SURFACE_CAPS_FEATURE:
     case VA_MEMORY_CAPS_FEATURE:
         result = ImagePreprocessorType::VAAPI_SYSTEM;
+
+        // VA context may come from other pipeline elements ensure using correct preprocessor type
+        if (device.find("CPU") != std::string::npos) {
+            GVA_WARNING(
+                "Using VAAPI preprocessor with CPU device is not recommended, forcing using OpenCV preprocessor");
+            result = ImagePreprocessorType::OPENCV;
+        }
+
         break;
     case DMA_BUF_CAPS_FEATURE:
 #ifdef ENABLE_VPUX
@@ -439,6 +446,16 @@ void UpdateConfigWithLayerInfo(const std::vector<ModelInputProcessorInfo::Ptr> &
         if (gst_structure_get_int(it->params, "reverse_input_channels", &reverse_channels)) {
             config[KEY_BASE][KEY_MODEL_FORMAT] = reverse_channels ? "RGB" : "BGR";
         }
+
+        const auto color_space = gst_structure_get_string(it->params, "color_space");
+        if (color_space) {
+            // Ensure that reverse_input_channels and color_space are not both defined
+            if (reverse_channels != 0 && color_space != nullptr) {
+                throw std::invalid_argument(
+                    "ERROR: Cannot specify both 'reverse_input_channels' and 'color_space' parameters simultaneously");
+            }
+            config[KEY_BASE][KEY_MODEL_FORMAT] = color_space;
+        }
     }
 }
 
@@ -577,8 +594,23 @@ int getGPURenderDevId(GvaBaseInference *gva_base_inference) {
     return gpuRenderDevId;
 }
 
-bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference) {
+bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference, size_t max_streams) {
+
     const std::string device(gva_base_inference->device);
+
+    // Check reference count if display is set
+    if (gva_base_inference->priv->va_display) {
+        if (device.find("CPU") != device.npos) {
+            return true; // if the pipeline uses CPU device we don't touch VADisplay at all
+        }
+        // This counts all shared_ptr references, not just streams, but is the best available heuristic
+        auto use_count = gva_base_inference->priv->va_display.use_count();
+        if (use_count > static_cast<long>(max_streams)) {
+            GVA_INFO("VADisplay is used by more than %zu streams (use_count=%ld), not reusing.", max_streams,
+                     use_count);
+            return false;
+        }
+    }
 
     if (device.find("GPU.") == device.npos && device.find("GPU") != device.npos) {
         // GPU only i.e. all available accelerators
@@ -597,27 +629,33 @@ bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference) {
     return false;
 }
 
+// Returns a dlstreamer::ContextPtr representing a VA display context.
+// The returned shared pointer may either reference a shared VA display (if reuse is possible) or a newly created one.
+// The caller is responsible for holding the returned pointer for as long as the VA display context is needed.
+// If a shared VA display is reused, its lifetime is managed by all holders of the shared pointer.
 dlstreamer::ContextPtr createVaDisplay(GvaBaseInference *gva_base_inference) {
     assert(gva_base_inference);
 
-    auto display = gva_base_inference->priv->va_display;
     const std::string device(gva_base_inference->device);
+    dlstreamer::ContextPtr display = nullptr;
 
-    // Create a new VADisplay context only if the existing one i.e priv->va_display does not match
-    if (!canReuseSharedVADispCtx(gva_base_inference)) {
-        if (device.find("GPU.") != device.npos) {
-            uint32_t rel_dev_index = 0;
-            rel_dev_index = Utils::getRelativeGpuDeviceIndex(device);
-            display = vaApiCreateVaDisplay(rel_dev_index);
-
-            GVA_INFO("Using new VADisplay (%p) ", static_cast<void *>(display.get()));
-            return display;
-        }
-    }
-
-    if (display) {
+    if ((gva_base_inference->priv->va_display) &&
+        (canReuseSharedVADispCtx(gva_base_inference, MAX_STREAMS_SHARING_VADISPLAY))) {
+        // Reuse existing VADisplay context (i.e. priv->va_display) if it fits
+        display = gva_base_inference->priv->va_display;
         GVA_INFO("Using shared VADisplay (%p) from element %s", static_cast<void *>(display.get()),
                  GST_ELEMENT_NAME(gva_base_inference));
+    } else {
+        // Create a new VADisplay context
+        uint32_t rel_dev_index = Utils::getRelativeGpuDeviceIndex(device);
+        display = vaApiCreateVaDisplay(rel_dev_index);
+        GVA_INFO("Using new VADisplay (%p) ", static_cast<void *>(display.get()));
+    }
+
+    if (!display) {
+        GST_ERROR_OBJECT(GST_ELEMENT(gva_base_inference),
+                         "No shared VADisplay found for device '%s', failed to create or retrieve a VADisplay context.",
+                         device.c_str());
     }
 
     return display;
