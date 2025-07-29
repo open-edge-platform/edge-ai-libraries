@@ -601,7 +601,7 @@ bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference, size_t max_st
     // Check reference count if display is set
     if (gva_base_inference->priv->va_display) {
         if (device.find("CPU") != device.npos) {
-            return true; // if the pipeline uses CPU device we don't touch VADisplay at all
+            return true; // For CPU device fallback to default control flow and do not create a new/separate VADisplay context
         }
         // This counts all shared_ptr references, not just streams, but is the best available heuristic
         auto use_count = gva_base_inference->priv->va_display.use_count();
