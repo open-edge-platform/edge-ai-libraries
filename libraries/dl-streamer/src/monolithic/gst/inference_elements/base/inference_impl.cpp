@@ -103,14 +103,6 @@ ImagePreprocessorType ImagePreprocessorTypeFromString(const std::string &image_p
                              ". Check element's description for supported property values.");
 }
 
-uint32_t GetOptimalBatchSize(const char *device) {
-    uint32_t batch_size = 1;
-    // if the device has the format GPU.x we assume that these are discrete graphics and choose larger batch
-    if (device and std::string(device).find("GPU.") != std::string::npos)
-        batch_size = 8;
-    return batch_size;
-}
-
 InferenceConfig CreateNestedInferenceConfig(GvaBaseInference *gva_base_inference, const std::string &model_file,
                                             const std::string &custom_preproc_lib) {
     assert(gva_base_inference && "Expected valid GvaBaseInference");
@@ -243,15 +235,13 @@ bool IsModelProcSupportedForVaapi(const std::vector<ModelInputProcessorInfo::Ptr
 
 bool IsModelProcSupportedForVaapiSurfaceSharing(
     const std::vector<ModelInputProcessorInfo::Ptr> &model_input_processor_info, GstVideoInfo *input_video_info) {
-    auto format = dlstreamer::gst_format_to_video_format(GST_VIDEO_INFO_FORMAT(input_video_info));
+    UNUSED(input_video_info);
     for (const auto &it : model_input_processor_info) {
         if (!it || it->format != "image")
             continue;
-        auto input_desc = PreProcParamsParser(it->params).parse();
-        if (input_desc && ((input_desc->getTargetColorSpace() != PreProcColorSpace::BGR &&
-                            input_desc->doNeedColorSpaceConversion(static_cast<int>(format)))))
-            return false;
     }
+    // VaapiSurfaceSharing converter always generates NV12 image,
+    // which can be further converted to model color space using OpenVINO™ model pre-processing stage.
     return true;
 }
 
@@ -438,6 +428,16 @@ void UpdateConfigWithLayerInfo(const std::vector<ModelInputProcessorInfo::Ptr> &
         int reverse_channels = 0; // TODO: verify that channel reversal works correctly with mean and std!
         if (gst_structure_get_int(it->params, "reverse_input_channels", &reverse_channels)) {
             config[KEY_BASE][KEY_MODEL_FORMAT] = reverse_channels ? "RGB" : "BGR";
+        }
+        
+        const auto color_space = gst_structure_get_string(it->params, "color_space");
+        if (color_space) {
+            // Ensure that reverse_input_channels and color_space are not both defined
+            if (reverse_channels != 0 && color_space != nullptr) {
+                throw std::invalid_argument(
+                    "ERROR: Cannot specify both 'reverse_input_channels' and 'color_space' parameters simultaneously");
+            }
+            config[KEY_BASE][KEY_MODEL_FORMAT] = color_space;
         }
     }
 }
@@ -676,9 +676,6 @@ InferenceImpl::Model InferenceImpl::CreateModel(GvaBaseInference *gva_base_infer
     // It will be parsed in PostProcessor
     model.labels = labels_str;
 
-    if (gva_base_inference->batch_size == 0)
-        gva_base_inference->batch_size = GetOptimalBatchSize(gva_base_inference->device);
-
     UpdateModelReshapeInfo(gva_base_inference);
     InferenceConfig ie_config = CreateNestedInferenceConfig(gva_base_inference, model_file, custom_preproc_lib);
     UpdateConfigWithLayerInfo(model.input_processor_info, ie_config);
@@ -721,6 +718,10 @@ InferenceImpl::Model InferenceImpl::CreateModel(GvaBaseInference *gva_base_infer
         throw std::runtime_error("Failed to create inference instance");
     model.inference = image_inference;
     model.name = image_inference->GetModelName();
+
+    // if auto batch size was requested, use the actual batch size determined by inference instance
+    if (gva_base_inference->batch_size == 0)
+        gva_base_inference->batch_size = model.inference->GetBatchSize();
 
     return model;
 }
