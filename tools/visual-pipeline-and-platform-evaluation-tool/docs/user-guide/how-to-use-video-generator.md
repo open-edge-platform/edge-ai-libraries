@@ -118,12 +118,6 @@ docker compose run --rm videogenerator
          | **ProRes**    | .mov             |
          | **Theora**    | .ogg             |
 
-3. **Save Changes and Restart**:
-   - Save the file and restart the application:
-     ```bash
-     docker compose restart
-     ```
-
 ## Validation
 
 1. **Verify Build Success**:
