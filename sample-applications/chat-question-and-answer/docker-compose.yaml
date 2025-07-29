@@ -36,12 +36,12 @@ services:
       - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
       - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
       - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
-      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
       - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
     networks:
       - my_network
     volumes:
-      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /opt/share/ca-certificates:/opt/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
   pgvector:
     image: pgvector/pgvector:pg16
@@ -149,7 +149,7 @@ services:
       - "8080:80"
     volumes:
       - "~/.cache/huggingface:/root/.cache/huggingface"
-      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /opt/share/ca-certificates:/opt/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
     environment:
       - no_proxy=${no_proxy}
@@ -216,6 +216,10 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
     ports:
       - "9300:9300"
       - "8300:80"
@@ -258,6 +262,10 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
     ports:
       - "9000:9000"
       - "8300:80"

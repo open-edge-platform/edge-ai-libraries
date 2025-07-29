@@ -29,3 +29,14 @@ cd edge-ai-libraries/microservices/time-series-analytics
 echo "Running unit tests"
 ./tests/run_tests.sh
 ```
+
+## Running Functional tests
+
+Follow the steps below to run the functional tests.
+```bash
+git clone https://github.com/open-edge-platform/edge-ai-libraries
+cd edge-ai-libraries/microservices/time-series-analytics/tests-functional
+echo "Running functional tests"
+pip3 install -r requirements.txt
+pytest -q -vv --self-contained-html --html=./test_report/report.html .
+```
