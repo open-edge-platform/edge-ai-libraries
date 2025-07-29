@@ -127,7 +127,7 @@ class VClipModel:
         """
 
         query = "just a sample text"
-        image_path = Path(__file__).parent / "sample" / "sample_image.jpg"
+        image_path = Path(__file__).parent.parent / "sample" / "sample_image.jpg"
         image = Image.open(image_path)
         im_tensor = np.array(image)
         inputs = self.processor(text=[query], images=[im_tensor], return_tensors="pt")

@@ -13,7 +13,7 @@ COPY . .
 
 RUN ["npm", "run", "build"]
 
-FROM nginxinc/nginx-unprivileged:1.27.4
+FROM nginxinc/nginx-unprivileged:1.28.0
 USER root
 ARG DOCROOT=/user/share/nginx/html
 
