@@ -315,10 +315,6 @@ RUN apt update && \
     fi && \
     apt clean && \
     rm -rf /var/lib/apt/lists/*
-
-
-# RUN pip3 install --no-cache-dir torch==2.7.1 torchvision==0.22.1 --index-url https://download.pytorch.org/whl/cpu && \
-#     pip3 install --no-cache-dir argon2-cffi==25.1.0 onnxruntime==1.22.1
     
 RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
 
