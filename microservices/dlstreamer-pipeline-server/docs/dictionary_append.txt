@@ -52,8 +52,6 @@ esh
 Etcd
 etcdroot
 etcdroot_password
-evam
-EVAM
 FFmpeg
 ffplay
 folloing

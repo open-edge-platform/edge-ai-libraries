@@ -86,7 +86,8 @@ services:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
-    image: docker.io/intel/vippet-videogenerator:v1.0.0
+    profiles: [do-not-start]
+    image: docker.io/intel/vippet-videogenerator:v1.0.1
     build:
       context: video_generator
       dockerfile: Dockerfile
@@ -96,7 +97,6 @@ services:
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
-    restart: on-failure:5
 
 volumes:
   collector-signals:

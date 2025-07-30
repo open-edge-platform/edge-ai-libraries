@@ -7,11 +7,12 @@ This guide is ideal for developers who want to work directly with the source cod
 
 
 **Build and Start the Tool**:
-   - Follow the steps in [How to Build from Source](./how-to-build-source.md)
-   - Run:
-     ```bash
-      docker compose exec videogenerator python3 imagetovideo.py
-     ```
+```bash
+mkdir videos
+chmod o+w videos
+docker compose build videogenerator
+docker compose run --rm videogenerator
+```
 
 **Make Changes**
 
@@ -116,12 +117,6 @@ This guide is ideal for developers who want to work directly with the source cod
          | **MPEG4**     | .avi             |
          | **ProRes**    | .mov             |
          | **Theora**    | .ogg             |
-
-3. **Save Changes and Restart**:
-   - Save the file and restart the application:
-     ```bash
-     docker compose restart
-     ```
 
 ## Validation
 
