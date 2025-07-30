@@ -1,5 +1,5 @@
 x-vippet: &vippet
-  image: docker.io/intel/vippet-app:v1.0.0
+  image: docker.io/intel/vippet-app:v1.0.1
   build:
     context: .
     dockerfile: Dockerfile.vippet
@@ -25,7 +25,7 @@ x-vippet: &vippet
 
 services:
   models:
-    image: ger-is-registry.caas.intel.com/dlstreamer/dlstreamer_images/ci/ubuntu24-dlstreamer:68b12d51040550b279261ca5b54cb7a59afbea61
+    image: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
@@ -87,7 +87,7 @@ services:
     restart: on-failure:5
   videogenerator:
     profiles: [do-not-start]
-    image: docker.io/intel/vippet-videogenerator:v1.0.1
+    image: docker.io/intel/vippet-videogenerator:v1.0.2
     build:
       context: video_generator
       dockerfile: Dockerfile
