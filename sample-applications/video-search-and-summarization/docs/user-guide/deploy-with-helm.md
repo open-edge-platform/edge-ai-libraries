@@ -193,11 +193,6 @@ helm uninstall vss -n <your-namespace>
   - Database connection problems: Verify the PostgreSQL pod is running correctly
   - Storage issues: Check the MinIO server status and connectivity
 
-- The Persistent Volume Claims (PVCs) created during helm chart deployment will remain present until explicitly deleted:
-  ```bash
-  kubectl delete pvc <pvc-name> -n <your-namespace>
-  ```
-
 - If you're experiencing issues with the Hugging Face API, ensure your API token is valid and properly set in the values.yaml file.
 
 ## Related links
