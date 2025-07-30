@@ -29,24 +29,22 @@ RUN apt-get update && \
     gstreamer1.0-plugins-ugly && \
     rm -rf /var/lib/apt/lists/*
 
-RUN \
-    mkdir /python3venv && \
-    chown -R dlstreamer: /python3venv && \
-    chmod -R u+w /python3venv
-
 ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 
 # Set the working directory inside the container
 WORKDIR /usr/src/app/
+
+ENV VIRTUAL_ENV=/usr/src/app/.venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
 # Copy the requirements file into the container
 COPY requirements.txt /usr/src/app
 
 # Install necessary Python dependencies
 RUN \
-    python3 -m venv /python3venv && \
-    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
-    /python3venv/bin/pip3 install --no-cache-dir -r requirements.txt
+    pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 # Copy the Python scripts and configuration files into the container
 COPY background.gif config.json imagetovideo.py composite_generator.py /usr/src/app/
