@@ -80,6 +80,7 @@ class GStreamerRtspDestination(AppDestination):
             encoder.set_property("quality", self._encode_quality)
 
     def _push_buffer(self, buffer):
+        buffer.make_writable()
         timestamp = self._clock.get_time()
         delta = timestamp - self._last_timestamp
         buffer.pts = buffer.dts = self._pts
