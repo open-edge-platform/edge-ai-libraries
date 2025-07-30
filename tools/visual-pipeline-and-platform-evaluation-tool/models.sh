@@ -49,10 +49,10 @@ for model in "${download_public_models[@]}"; do
     fi
 done
 
-create_virtual_env() {
-  # Set the name of the virtual environment directory
-  VENV_DIR="$HOME/.virtualenvs/dlstreamer"
+# Set the name of the virtual environment directory
+VENV_DIR="$HOME/.venv"
 
+create_virtual_env() {
   # Create a Python virtual environment if it doesn't exist
   if [ ! -d "$VENV_DIR" ]; then
     echo "Creating virtual environment in $VENV_DIR..."
