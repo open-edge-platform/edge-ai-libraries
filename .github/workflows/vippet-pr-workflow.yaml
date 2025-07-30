@@ -1,5 +1,5 @@
 name: "[ViPPET] PR workflow"
-run-name: "[ViPPET] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+run-name: "[ViPPET] PR workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
 on:
   pull_request:
