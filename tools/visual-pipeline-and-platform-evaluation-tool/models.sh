@@ -31,18 +31,11 @@ for model in "${pipeline_zoo_models[@]}"; do
     fi
 done
 
-# TEMPORARY: modify the download script to use CPU wheels for ultralytics
-sed -i \
-    's|pip install ultralytics --upgrade|pip install ultralytics --upgrade --extra-index-url https://download.pytorch.org/whl/cpu|' \
-    /opt/intel/dlstreamer/samples/download_public_models.sh
-
-# Define the models to download using the modified script
 download_public_models=(
     yolov10s
     yolov10m
 )
 
-# Download the specified models using the modified script
 for model in "${download_public_models[@]}"; do
     if [ ! -d "/output/public/$model" ]; then
         bash /opt/intel/dlstreamer/samples/download_public_models.sh "$model"
