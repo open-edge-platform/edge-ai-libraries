@@ -24,6 +24,7 @@ for model in "${pipeline_zoo_models[@]}"; do
         if [ ! -d pipeline-zoo-models-main ]; then
             curl -L https://github.com/dlstreamer/pipeline-zoo-models/archive/refs/heads/main.tar.gz -o pipeline-zoo-models.tar.gz
             tar -xvzf pipeline-zoo-models.tar.gz
+            rm pipeline-zoo-models.tar.gz
         fi
         cp -r "pipeline-zoo-models-main/storage/$model" /output/pipeline-zoo-models/
     else
@@ -46,23 +47,25 @@ done
 VENV_DIR="$HOME/.venv"
 
 create_virtual_env() {
-  # Create a Python virtual environment if it doesn't exist
-  if [ ! -d "$VENV_DIR" ]; then
-    echo "Creating virtual environment in $VENV_DIR..."
-    python3 -m venv "$VENV_DIR"
-  fi
+    # Create a Python virtual environment if it doesn't exist
+    if [ ! -d "$VENV_DIR" ]; then
+        echo "Creating virtual environment in $VENV_DIR..."
+        python3 -m venv "$VENV_DIR"
+    fi
 
-  # Activate the virtual environment
-  echo "Activating virtual environment in $VENV_DIR..."
-  source "$VENV_DIR/bin/activate"
+    # Activate the virtual environment
+    echo "Activating virtual environment in $VENV_DIR..."
+    source "$VENV_DIR/bin/activate"
 }
 
 delete_virtual_env() {
-  # Deactivate and remove venvs
-  echo "Removing Python virtual environment..."
-  deactivate
-  rm -r $VENV_DIR
-  echo "Removed"
+    # Deactivate and remove venvs
+    echo "Removing Python virtual environment..."
+    if [ -n "$VIRTUAL_ENV" ]; then
+        deactivate
+    fi
+    rm -rf $VENV_DIR
+    echo "Removed"
 }
 
 # TEMPORARY: download mobilenet-v2-pytorch until the download script supports it
