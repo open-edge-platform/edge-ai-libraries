@@ -59,7 +59,6 @@ const Navbar: FC = () => {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
-    dispatch(videosLoad());
   }, []);
 
   const getBrandName = () => {
