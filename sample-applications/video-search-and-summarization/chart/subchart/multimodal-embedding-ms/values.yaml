@@ -2,9 +2,9 @@ replicaCount: 1
 
 image:
     cpu:
-        repository: intel/multimodal-embedding-serving-cpu
+        repository: intel/multimodal-embedding-serving
     gpu:
-        repository: intel/multimodal-embedding-serving-arc-gpu
+        repository: intel/multimodal-embedding-serving
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
     tag: "1.2.0"
@@ -98,7 +98,7 @@ gpu:
     group_add: []  # Add additional groups if required
 
 global:
-    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart insatllation).
+    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
     volumeHostPath: "/mnt/embeddingms"
 
     # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
