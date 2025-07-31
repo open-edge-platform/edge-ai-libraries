@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { AudioModel } from 'src/audio/models/audio.model';
 import { EvamPipelineOption, EVAMPipelines } from 'src/evam/models/evam.model';
 

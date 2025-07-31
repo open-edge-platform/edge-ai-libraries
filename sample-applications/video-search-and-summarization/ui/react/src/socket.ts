@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { io } from 'socket.io-client';
 import { APP_URL, SOCKET_APPEND } from './config';
 import { CONFIG_STATE } from './utils/constant';

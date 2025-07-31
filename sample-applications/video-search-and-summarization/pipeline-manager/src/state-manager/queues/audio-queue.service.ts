@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import { AudioService } from 'src/audio/services/audio.service';
 import { StateService } from '../services/state.service';
@@ -8,7 +7,7 @@ import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { PipelineEvents } from 'src/events/Pipeline.events';
 import { AudioDevice, AudioTranscriptDTO } from 'src/audio/models/audio.model';
 import { ConfigService } from '@nestjs/config';
-import { Span } from 'nestjs-otel';
+import { AppEvents } from 'src/events/app.events';
 
 export interface AudioQueueItem {
   stateId: string;
@@ -47,6 +46,11 @@ export class AudioQueueService {
     }
   }
 
+  @OnEvent(AppEvents.SUMMARY_REMOVED)
+  removeAudioProcessing(stateId: string) {
+    this.audioProcessing.delete(stateId);
+  }
+
   @OnEvent(PipelineEvents.AUDIO_TRIGGERED)
   startAudioProcessing(stateId: string) {
     this.audioProcessing.add(stateId);
@@ -54,12 +58,8 @@ export class AudioQueueService {
     const state = this.$state.fetch(stateId);
 
     if (state && state.systemConfig.audioModel && state.video.dataStore) {
-      const device: AudioDevice = this.$config.get<string>(
-        'audio.device',
-      )! as AudioDevice;
-      const minio_bucket: string = this.$config.get<string>(
-        'datastore.bucketName',
-      )!;
+      const device = this.$config.get<AudioDevice>('audio.device')!;
+      const minio_bucket = this.$config.get<string>('datastore.bucketName')!;
 
       const model_name = state.systemConfig.audioModel;
 

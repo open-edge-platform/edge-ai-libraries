@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import {
   Body,
   Controller,
@@ -60,7 +59,9 @@ export class VideoController {
     const parsedObject: VideoDTO = { name: file.filename, tagsArray: [] };
 
     if (reqBody.tags) {
-      parsedObject.tagsArray = reqBody.tags.split(',');
+      parsedObject.tagsArray = reqBody.tags
+        .split(',')
+        .map((curr) => curr.trim());
     }
 
     const videoId = await this.$video.uploadVideo(

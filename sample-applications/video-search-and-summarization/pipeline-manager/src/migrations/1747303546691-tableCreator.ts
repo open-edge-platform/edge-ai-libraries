@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { MigrationInterface, QueryRunner, Table } from 'typeorm';
 
 export class TableCreator1747303546691 implements MigrationInterface {

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { SyntheticEvent, useState, type FC } from 'react';
 import styled from 'styled-components';
 
@@ -8,7 +10,7 @@ import { useTranslation } from 'react-i18next';
 import PopupModal from '../PopupModal/PopupModal.tsx';
 import { NotificationSeverity, notify } from '../Notification/notify.ts';
 import { useAppDispatch } from '../../redux/store.ts';
-import { SummaryActions } from '../../redux/summary/summarySlice.ts';
+import { SummaryRemove } from '../../redux/summary/summarySlice.ts';
 
 const SidebarWrapper = styled.div`
   display: flex;
@@ -61,7 +63,7 @@ export const SummarySideBarItem: FC<SummarySideBarItemProps> = ({ item, onClick 
   const handleDeleteConfirm = async () => {
     setShowDeleteModal(false);
     try {
-      dispatch(SummaryActions.deleteSummary(item.stateId));
+      dispatch(SummaryRemove(item.stateId));
       notify(t('summaryDeleteSuccess'), NotificationSeverity.SUCCESS);
     } catch {
       notify(t('summaryDeleteFailed'), NotificationSeverity.ERROR);

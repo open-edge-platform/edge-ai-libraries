@@ -70,8 +70,12 @@
           display: flex;
           flex-flow: row nowrap;
           align-items: center;
+          padding: 0.5rem 0;
           width: 100%;
           justify-content: flex-start;
+          & > *:not(:last-child) {
+            margin-right: 0.5rem;
+          }
         }
         .chunk-duration {
           display: flex;

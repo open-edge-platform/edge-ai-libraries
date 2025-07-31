@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { VlmController, FrameData, VLMPostDTO } from './vlm.controller';
 import { VlmService } from '../services/vlm.service';

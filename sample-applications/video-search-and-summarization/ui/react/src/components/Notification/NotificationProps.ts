@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { NotificationSeverity } from './notify.ts';
 
 export interface NotificationProps {

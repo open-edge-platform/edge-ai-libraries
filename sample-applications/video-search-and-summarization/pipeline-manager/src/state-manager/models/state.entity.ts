@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { SystemConfig } from 'src/video-upload/models/upload.model';
 import {
   Entity,
@@ -12,11 +11,12 @@ import {
 import {
   FrameSummary,
   InferenceConfig,
+  StateActionStatus,
   StateAudio,
   StateChunk,
   StateChunkFrame,
 } from './state.model';
-import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
+import { SummaryPipelineSampling } from 'src/summary/models/summary-pipeline.model';
 
 @Entity('state')
 export class StateEntity {
@@ -31,6 +31,9 @@ export class StateEntity {
 
   @UpdateDateColumn()
   updatedAt: string;
+
+  @Column({ nullable: true, default: '' })
+  title: string;
 
   @Column('jsonb')
   userInputs: SummaryPipelineSampling;
@@ -64,8 +67,8 @@ export class StateEntity {
 
   @Column('jsonb')
   status: {
-    dataStoreUpload: string;
-    summarizing: string;
-    chunking: string;
+    dataStoreUpload: StateActionStatus;
+    summarizing: StateActionStatus;
+    chunking: StateActionStatus;
   };
 }

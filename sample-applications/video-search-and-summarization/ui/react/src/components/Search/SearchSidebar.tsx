@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { IconButton } from '@carbon/react';
 import { Renew } from '@carbon/react/icons';
 import { FC } from 'react';
@@ -42,7 +44,7 @@ export const StyledIconButton = styled(IconButton)`
 `;
 
 export const SearchSidebar: FC = () => {
-  const { queries, selectedQueryId, unreads } = useAppSelector(SearchSelector);
+  const { queries, selectedQueryId, unreads, queriesInProgress } = useAppSelector(SearchSelector);
 
   const { t } = useTranslation();
 
@@ -70,10 +72,16 @@ export const SearchSidebar: FC = () => {
         <Navigation>
           {t('Queries')}
           <span className='spacer'></span>
-          <IconButton kind='ghost' label={t('Refetch')} onClick={() => dispatch(SearchLoad())} size='sm'>
+          <IconButton kind='ghost' label={t('Refetch')} autoAlign onClick={() => dispatch(SearchLoad())} size='sm'>
             <Renew />
           </IconButton>
         </Navigation>
+        {queriesInProgress.length > 0 && (
+          <Navigation>
+            <span className='spacer'></span>
+            <span>{t('AddingSearches', { count: queriesInProgress.length })}</span>
+          </Navigation>
+        )}
         <ScrollableContainer>{sidebarList}</ScrollableContainer>
       </SidebarContainer>
     </>

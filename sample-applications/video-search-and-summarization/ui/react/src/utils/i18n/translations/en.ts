@@ -1,20 +1,33 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 export const enTranslations = {
   VideoSummary: 'Video Summary',
-  VSSBrand: 'Video Search & Sumary',
+  VSSBrand: 'Video Summary & Search',
   VSearchBrand: 'Video Search',
   VSummBrand: 'Video Summary',
+  videoTags: 'Video tags (separated by commas)',
 
   SearchVideo: 'Search Videos',
+  SearchRerun: 'Re-run search',
   videoSearchStart: 'Video Search Query',
   SearchingForPlaceholder: 'Red bus or white plane...',
   search: 'Search',
   Queries: 'Search Queries',
   queryDeleteLabel: 'Delete Query',
+  queryDeleteSuccess: 'Query successfully deleted',
   searchNothingSelected: 'Create a search query',
   CreatingEmbeddings: 'Creating Embeddings',
+  EmbeddingsCreated: 'Embeddings Created',
+  selectASummaryFromSidebar: 'Select a Summary from the sidebar',
+  noSummariesAvailable: 'Please create a summary',
+  tagsLabel: 'Filter Tags',
+  tagsHelperText: 'Select tags to filter the results',
+  AddingSearches: '({{count}}) search in progress',
+  topK: 'Search Output Count',
+  searchInProgress: 'searching',
+  customVideoTags: 'Custom Tags',
+  videoTagsHelperText: 'Add custom tags to the video, separated by commas',
+  availableVideoTags: 'Available Video Tags',
 
   uploadingVideo: 'Uploading Video',
   CreatingEmbedding: 'Creating Embedding',

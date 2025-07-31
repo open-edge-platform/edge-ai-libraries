@@ -4,49 +4,27 @@
 import logging
 import os
 from pathlib import Path
+from typing import Optional
 
 from dotenv import load_dotenv
-from pydantic import Field, field_validator
+from pydantic import Field, field_validator, BaseModel
 from pydantic_settings import BaseSettings
-
-# Configure logger
-logging.basicConfig(
-    level=logging.DEBUG, format="%(asctime)s - %(levelname)s - %(message)s"
-)
-logger = logging.getLogger(__name__)
-
-# Load environment variables from .env file if it exists
-env_path = os.path.join(os.path.dirname(__file__), "..", ".env")
-if os.path.exists(env_path):
-    load_dotenv(env_path)
-    logger.info(f"Loaded environment variables from {env_path}")
-else:
-    logger.info(
-        f".env file not found at {env_path}. Using environment variables from docker-compose."
-    )
-
 
 class Settings(BaseSettings):
     """
     Configuration settings for the application.
-
-    Attributes:
-        APP_NAME (str): Name of the application.
-        APP_DISPLAY_NAME (str): Display name of the application.
-        APP_DESC (str): Description of the application.
-        MODEL_NAME (str): Name of the pre-trained model.
-        http_proxy (str): HTTP proxy setting.
-        https_proxy (str): HTTPS proxy setting.
-        no_proxy_env (str): No proxy setting.
     """
 
-    APP_NAME: str = "VClip-Embedding"
-    APP_DISPLAY_NAME: str = "VClip Embedding serving"
+    APP_NAME: str = "multimodal-embedding"
+    APP_DISPLAY_NAME: str = "Multi-Modal Embedding Serving"
+    DEBUG_MODE: bool = False
     APP_DESC: str = (
-        "The VClip Embedding serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings."
+        "The Multi-Modal Embedding Serving is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos."
     )
 
-    MODEL_NAME: str = "openai/clip-vit-base-patch32"
+    TEXT_EMBEDDING_MODEL_NAME: Optional[str] = None
+    IMAGE_EMBEDDING_MODEL_NAME: Optional[str] = None
+    USE_ONLY_TEXT_EMBEDDINGS: bool = False
     http_proxy: str = Field(default=None, env="http_proxy")
     https_proxy: str = Field(default=None, env="https_proxy")
     no_proxy_env: str = Field(default=None, env="no_proxy_env")
@@ -67,10 +45,41 @@ class Settings(BaseSettings):
             raise ValueError(f"Invalid proxy URL: {v}")
         return v
 
-
 settings = Settings()
-logger.debug(f"Settings: {settings.model_dump()}")
 
+# Logger configuration
+class Logger(BaseModel):
+    """Logger configuration model."""
+
+    LOGGER_NAME: str = settings.APP_NAME
+    LOG_LEVEL: str = "DEBUG" if settings.DEBUG_MODE else "INFO"
+    LOG_FORMAT: str = (
+        "%(levelprefix)s | %(asctime)s | %(funcName)s | {%(pathname)s:%(lineno)d} | %(message)s"
+    )
+    version: int = 1
+    disable_existing_loggers: bool = False
+    formatters: dict = {
+        "default": {
+            "()": "uvicorn.logging.DefaultFormatter",
+            "fmt": LOG_FORMAT,
+            "datefmt": "%Y-%m-%d %H:%M:%S",
+        },
+    }
+    handlers: dict = {
+        "default": {
+            "formatter": "default",
+            "class": "logging.StreamHandler",
+            "stream": "ext://sys.stderr",
+        },
+    }
+    loggers: dict = {
+        LOGGER_NAME: {"handlers": ["default"], "level": LOG_LEVEL},
+    }
+
+logging.config.dictConfig(Logger().model_dump())
+logger = logging.getLogger(settings.APP_NAME)
+
+logger.debug(f"Settings: {settings.model_dump()}")
 
 class ErrorMessages:
     """

@@ -7,7 +7,7 @@ services:
       target: ${DEV_BUILD_TARGET:-final-dev}
       args:
         - COVERAGE_REQ
-    image: ${REGISTRY}vdms-dataprep:latest-final-dev
+    image: egaidev/vdms-dataprep:latest-dev
     environment:
       - DEFAULT_BUCKET_NAME=vdms-bucket-test
       - DB_COLLECTION=video-rag-dev

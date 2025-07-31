@@ -45,8 +45,8 @@ black = "^24.10.0"
 isort = "^5.13.2"
 
 [tool.poetry.group.cpu.dependencies]
-torch = { version = "^2.7.0", source = "pytorch-cpu" }
-torchvision = { version = "^0.22.0", source = "pytorch-cpu" }
+torch = { version = "^2.7.1", source = "pytorch-cpu" }
+torchvision = { version = "^0.22.1", source = "pytorch-cpu" }
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"

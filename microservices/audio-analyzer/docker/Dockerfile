@@ -23,6 +23,11 @@ ENV PYTHONUNBUFFERED=1 \
     # Location where virtual env is created
     VENV_PATH="/opt/projsetup/.venv"
 
+ARG USER_ID=1000
+ARG USER_GROUP_ID=1000
+
+RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+
 # Add poetry and venv to path
 ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
 
@@ -62,11 +67,11 @@ RUN pip install --upgrade pip
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
 ENV LD_LIBRARY_PATH=/opt/intel/openvino/runtime/lib/intel64:/opt/intel/openvino/runtime/3rdparty/tbb/lib:/opt/intel/openvino/runtime/3rdparty/hddl/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/opt/intel/openvino/python:$PYTHONPATH
-ENV OUTPUT_DIR=/data
-ENV UPLOAD_DIR=/data/uploads
-ENV AUDIO_DIR=/data/audio
-ENV GGML_MODEL_DIR=/models/ggml
-ENV OPENVINO_MODEL_DIR=/models/openvino
+ENV OUTPUT_DIR=/home/appuser/data
+ENV UPLOAD_DIR=/home/appuser/data/uploads
+ENV AUDIO_DIR=/home/appuser/data/audio
+ENV GGML_MODEL_DIR=/home/appuser/models/ggml
+ENV OPENVINO_MODEL_DIR=/home/appuser/models/openvino
 
 
 FROM python-base AS builder-base
@@ -92,6 +97,10 @@ RUN poetry lock --no-update && poetry install --no-dev --no-interaction --no-ans
 FROM python-base AS dev
 
 ENV FASTAPI_ENV=development
+
+# Create directories and set ownership
+RUN mkdir -p $SETUP_PATH /app && chown -R appuser:appuser $SETUP_PATH /app
+
 WORKDIR $SETUP_PATH
 
 # Copy the poetry installation and the virtual env to current image
@@ -99,6 +108,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install remaining dev dependencies
+USER appuser
 RUN poetry install --no-interaction --no-ansi
 
 # In dev mode, the application code will be mounted to /app from host to allow hot-reloads
@@ -118,6 +128,41 @@ WORKDIR /app
 # Copy the application code for production
 COPY . /app/
 
+# Optionally download copyleft sources if requested
+ARG COPYLEFT_SOURCES=false
+RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
+        apt-get update && \
+        # Get list of installed deb packages with copyleft licenses \
+        sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
+        apt-get update && \
+        mkdir -p /copyleft_sources/deb && cd /copyleft_sources/deb && \
+        echo -n $null > copyleft_package_list.txt && \
+        for package in $(dpkg -l | awk '/^ii/ {print $2}' | cut -d: -f1); do \
+            grep -l 'Copyleft\|GPL\|LGPL\|EPL\|MPL\|CDDL' /usr/share/doc/${package}/copyright; \
+            exit_status=$?; \
+            if [ $exit_status -eq 0 ]; then \
+                echo $package >> copyleft_package_list.txt; \
+                apt-get source -q --download-only $package; \
+            fi; \
+        done; \
+        # Get source code for installed Python packages with copyleft licenses \
+        mkdir -p /copyleft_sources/python && \
+        cd /copyleft_sources/python && \
+        apt-get update && apt-get install -y gcc build-essential libffi-dev python3-dev && \
+        # Download python package sources with relevant licenses \
+        pip3 freeze | cut -d= -f1 | while read pkg; do \
+            meta=$(pip3 show $pkg 2>/dev/null); \
+            lic=$(echo "$meta" | grep -i '^License:' | grep -E 'MPL|GPL|General Public License|EPL|Eclipse Public License|CDDL|LGPL'); \
+            if [ ! -z "$lic" ]; then \
+                echo "Downloading source for $pkg with license: $lic"; \
+                pip3 download --no-binary :all: $pkg || true; \
+            fi; \
+        done; \
+        apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
+    fi
+
+RUN chown -R appuser:appuser /app 
+    
 EXPOSE 8000
 # Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
 RUN echo '#!/bin/bash\n\
@@ -131,6 +176,8 @@ exec gunicorn audio_analyzer.main:app \
 --forwarded-allow-ips="*" \
 --access-logfile=- \
 --error-logfile=-\n' > /app/gunicorn_start.sh && chmod +x /app/gunicorn_start.sh
+
+USER appuser
 
 # Run Gunicorn with Uvicorn workers for production
 CMD ["/app/gunicorn_start.sh"]

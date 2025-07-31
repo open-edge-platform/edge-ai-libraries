@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import {
   AudioModelRO,
@@ -13,7 +12,6 @@ import { ConfigService } from '@nestjs/config';
 import { readFileSync, unlinkSync } from 'fs';
 import * as srtParserLib from 'srt-parser-2';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
-import { Span } from 'nestjs-otel';
 
 @Injectable()
 export class AudioService {

@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { HttpService } from '@nestjs/axios';
 import { Injectable } from '@nestjs/common';
 import {
@@ -10,7 +9,6 @@ import {
   EVAMPipelines,
 } from '../models/evam.model';
 import { ConfigService } from '@nestjs/config';
-import { DatastoreService } from 'src/datastore/services/datastore.service';
 
 import { DateTime } from 'luxon';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
@@ -19,7 +17,7 @@ import { lastValueFrom } from 'rxjs';
 import { AxiosResponse } from 'axios';
 import { PipelineEvents } from 'src/events/Pipeline.events';
 import { ModelInfo } from 'src/state-manager/models/state.model';
-import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
+import { SummaryPipelineSampling } from 'src/summary/models/summary-pipeline.model';
 
 export interface ChunkingProgress {
   stateId: string;
@@ -47,10 +45,6 @@ export class EvamService {
     private $emitter: EventEmitter2,
   ) {}
 
-  startChunking(videoPath: string): string {
-    return 'processId';
-  }
-
   getVideoTimeStamp(): string {
     const format: string = this.$config.get('evam.datetimeFormat')!;
     return DateTime.now().toFormat(format);
@@ -71,7 +65,8 @@ export class EvamService {
       if (!this.checkingStatus) {
         this.checkingStatus = true;
 
-        let statusPromises: Promise<AxiosResponse<EVAMPipelineRO, any>>[] = [];
+        const statusPromises: Promise<AxiosResponse<EVAMPipelineRO, any>>[] =
+          [];
 
         this.inProgress.forEach((value, key) => {
           statusPromises.push(this.getPipelineStatus(key));
@@ -103,6 +98,11 @@ export class EvamService {
       console.log(error);
       this.checkingStatus = false;
     }
+  }
+
+  @OnEvent(AppEvents.SUMMARY_REMOVED)
+  summaryRemoved(stateId: string) {
+    this.inProgress.delete(stateId);
   }
 
   isChunkingInProgress(stateId: string): boolean {
@@ -178,9 +178,5 @@ export class EvamService {
     return this.$http.post<string>(evamApi, data, {
       headers: { 'Content-Type': 'application/json' },
     });
-  }
-
-  chunkingStatus(processId: string) {
-    return 'inprogress';
   }
 }

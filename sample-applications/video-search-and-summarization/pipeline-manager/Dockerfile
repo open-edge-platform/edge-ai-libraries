@@ -3,15 +3,25 @@
 
 FROM node:22-alpine
 
+RUN addgroup --system appgroup && adduser --system --ingroup appgroup appuser
+
 WORKDIR /usr/src/app
 
+RUN chown appuser:appgroup /usr/src/app
+
+RUN apk add --no-cache curl
+
 COPY package*.json ./
+
+USER appuser
 
 RUN npm ci
 
 COPY . .
 
 RUN npm run build
+
+USER appuser
 
 EXPOSE 3000
 

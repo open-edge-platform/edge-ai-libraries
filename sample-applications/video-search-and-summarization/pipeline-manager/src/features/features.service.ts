@@ -1,15 +1,19 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import { FEATURE_STATE, Features } from './features.model';
 import { ConfigService } from '@nestjs/config';
 
+export enum FeaturesEnum {
+  SUMMARY = 'summary',
+  SEARCH = 'search',
+}
+
 @Injectable()
 export class FeaturesService {
   features: Features = {
-    summary: FEATURE_STATE.OFF,
-    search: FEATURE_STATE.OFF,
+    [FeaturesEnum.SUMMARY]: FEATURE_STATE.OFF,
+    [FeaturesEnum.SEARCH]: FEATURE_STATE.OFF,
   };
 
   constructor(private $config: ConfigService) {

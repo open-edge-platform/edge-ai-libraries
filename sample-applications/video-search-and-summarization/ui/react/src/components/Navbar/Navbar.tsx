@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { useEffect, useState, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
@@ -14,6 +16,7 @@ import { useAppDispatch } from '../../redux/store.ts';
 import { videosLoad } from '../../redux/video/videoSlice.ts';
 import { SearchModal } from '../PopupModal/SearchModal.tsx';
 import { FEATURE_STATE } from '../../utils/constant.ts';
+import { LoadTags } from '../../redux/search/searchSlice.ts';
 
 const StyledDiv = styled.div`
   display: flex;
@@ -79,7 +82,7 @@ const Navbar: FC = () => {
     const hasSearch = FEATURE_SEARCH == FEATURE_STATE.ON;
     const hasSummary = FEATURE_SUMMARY == FEATURE_STATE.ON;
     if (hasSearch && hasSummary) {
-      return t('CreateVideoEmbedding');
+      return t('SummarizeVideo');
     } else if (hasSearch) {
       return t('CreateVideoEmbedding');
     } else {
@@ -90,6 +93,7 @@ const Navbar: FC = () => {
   const getVideoUploadDrawer = () => {
     const hasSearch = FEATURE_SEARCH == FEATURE_STATE.ON;
     const hasSummary = FEATURE_SUMMARY == FEATURE_STATE.ON;
+    dispatch(LoadTags());
     if (hasSearch && hasSummary) {
       return <VideoUpload closeDrawer={closeDrawer} isOpen={isDrawerOpen} />;
     } else if (hasSearch) {
@@ -121,6 +125,7 @@ const Navbar: FC = () => {
             kind='primary'
             disabled={false}
             onClick={() => {
+              dispatch(LoadTags());
               setShowSearchModal(true);
             }}
           >

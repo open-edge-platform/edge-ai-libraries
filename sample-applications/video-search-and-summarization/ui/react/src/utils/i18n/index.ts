@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import i18n, { InitOptions, Resource } from 'i18next';
 import { initReactI18next } from 'react-i18next';
 import { enTranslations } from './translations/en.ts';

@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Module } from '@nestjs/common';
 import { AppController } from './app.controller';
 import { AppService } from './app.service';
@@ -17,10 +16,13 @@ import { TypeOrmModule } from '@nestjs/typeorm';
 import { StateEntity } from './state-manager/models/state.entity';
 import { AudioModule } from './audio/audio.module';
 import { OpenTelemetryModule } from 'nestjs-otel';
-import { PipelineModule } from './pipeline/pipeline.module';
 import { VideoEntity } from './video-upload/models/video.entity';
 import { SearchModule } from './search/search.module';
 import { SearchEntity } from './search/model/search.entity';
+import { TagEntity } from './video-upload/models/tags.entity';
+import { SummaryModule } from './summary/summary.module';
+import { HealthModule } from './health/health.module';
+import { DataPrepModule } from './data-prep/data-prep.module';
 
 const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
   metrics: {
@@ -42,7 +44,6 @@ const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
   imports: [
     OpenTelemetryModuleConfig,
     StateManagerModule,
-    StateManagerModule,
     VideoUploadModule,
     DatastoreModule,
     LanguageModelModule,
@@ -57,14 +58,16 @@ const OpenTelemetryModuleConfig = OpenTelemetryModule.forRoot({
       username: process.env.DB_USER,
       password: process.env.DB_PASSWORD,
       database: process.env.DB_NAME,
-      entities: [StateEntity, VideoEntity, SearchEntity],
+      entities: [StateEntity, VideoEntity, SearchEntity, TagEntity],
       migrations: ['./migrations/*.ts'],
       migrationsRun: true,
       synchronize: true,
     }),
     AudioModule,
-    PipelineModule,
     SearchModule,
+    SummaryModule,
+    HealthModule,
+    DataPrepModule,
   ],
   controllers: [AppController],
   providers: [AppService],

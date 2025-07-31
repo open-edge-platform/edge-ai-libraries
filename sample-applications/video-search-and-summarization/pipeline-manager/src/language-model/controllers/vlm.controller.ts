@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Body, Controller, Post } from '@nestjs/common';
 import { VlmService } from '../services/vlm.service';
 import { DatastoreService } from 'src/datastore/services/datastore.service';

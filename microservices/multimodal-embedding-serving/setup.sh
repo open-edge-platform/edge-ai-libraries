@@ -17,10 +17,6 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 # Set default tag if not already set
 export TAG=${TAG:-latest}
 
-export APP_NAME="multimodal-embedding-serving"
-export APP_DISPLAY_NAME="Multimodal Embedding serving"
-export APP_DESC="Generates embeddings for text, images, and videos using pretrained models"
-
 # Video processing defaults
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
@@ -36,13 +32,16 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
 fi
 
 export EMBEDDING_SERVER_PORT=9777
+export USE_ONLY_TEXT_EMBEDDINGS=${USE_ONLY_TEXT_EMBEDDINGS}  # Setup multimodal embedding models, not just text models.
 
 # Check if VCLIP_MODEL is not defined or empty
-if [ -z "$VCLIP_MODEL" ]; then
-    echo -e "ERROR: VCLIP_MODEL is not set in your shell environment."
+if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
+    echo -e "ERROR: VCLIP_MODEL is either not set or is set to an invalid value in your shell environment."
     return
-elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-    echo -e "ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'."
+fi
+
+if [ -z "$QWEN_MODEL" ] || [ "$QWEN_MODEL" != "Qwen/Qwen3-Embedding-0.6B" ]; then
+    echo -e "ERROR: QWEN_MODEL is either not set or is set to an invalid value in your shell environment."
     return
 fi
 
@@ -65,4 +64,6 @@ export RENDER_GROUP_ID=$RENDER_GROUP_ID
 echo "Environment variables set successfully."
 echo "REGISTRY set to: ${REGISTRY}"
 echo "VCLIP_MODEL set to: ${VCLIP_MODEL}"
+echo "QWEN_MODEL set to: ${QWEN_MODEL}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
+echo "Using only text embedding model: ${USE_ONLY_TEXT_EMBEDDINGS:-False}"

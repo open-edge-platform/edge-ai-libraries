@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { CONFIG_STATE } from 'src/features/features.model';
 
 export default () => ({

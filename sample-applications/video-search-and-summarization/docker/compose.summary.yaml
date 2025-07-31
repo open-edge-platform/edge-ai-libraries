@@ -72,9 +72,9 @@ services:
     devices:
       - /dev/dri:/dev/dri
     group_add:
-      - ${USER_GROUP_ID-1000} 
-      - ${VIDEO_GROUP_ID-44}    
-      - ${RENDER_GROUP_ID-1002}
+      - ${USER_GROUP_ID:-1000} 
+      - ${VIDEO_GROUP_ID:-44}    
+      - ${RENDER_GROUP_ID:-1002}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s
@@ -179,8 +179,8 @@ services:
     ports:
       - "${AUDIO_HOST_PORT}:8000"
     volumes:
-      - audio_analyzer_data:/models
-      - audio_analyzer_data:/data
+      - audio_analyzer_data:/home/appuser/models
+      - audio_analyzer_data:/home/appuser/data
       - /dev/dri:/dev/dri
     environment:
       - http_proxy
@@ -238,7 +238,7 @@ volumes:
   audio_analyzer_data:
     driver: local
   ov-models:
-    external: true
+    driver: local
   vol_evam_pipeline_root:
     driver: local
     driver_opts:

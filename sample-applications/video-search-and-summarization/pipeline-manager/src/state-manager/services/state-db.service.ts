@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import { InjectRepository } from '@nestjs/typeorm';
 import { StateEntity } from '../models/state.entity';
@@ -12,6 +11,10 @@ export class StateDbService {
     @InjectRepository(StateEntity) private stateRepo: Repository<StateEntity>,
   ) {}
 
+  async getAllStates(): Promise<StateEntity[]> {
+    return this.stateRepo.find();
+  }
+
   async addState(state: StateEntity): Promise<StateEntity> {
     const newState = this.stateRepo.create(state);
     return this.stateRepo.save(newState);
@@ -22,6 +25,11 @@ export class StateDbService {
       where: { stateId },
     });
     return state ?? null;
+  }
+
+  async removeState(stateId: string): Promise<boolean> {
+    const result = await this.stateRepo.delete({ stateId });
+    return result.affected !== 0;
   }
 
   async updateState(

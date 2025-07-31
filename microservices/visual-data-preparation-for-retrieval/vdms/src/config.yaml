@@ -8,10 +8,13 @@ generate_frames: True
 
 # Config for generating feature embeddings
 embeddings:
+  qwen_model_name: "Qwen/Qwen3-Embedding-0.6B"
   vclip_model_name: "openai/clip-vit-base-patch32"
   vclip_num_frame: 64
-  vector_dimensions: 512
-  # path: "data/uploaded_files/embeddings"
+  clip_vector_dimensions: 512
+  qwen_vector_dimensions: 1024
+  clip_sequence_length: 77
+  qwen_sequence_length: 8192
 
 # Chunk duration defines the interval of time that each embedding will occur
 chunk_duration: 30

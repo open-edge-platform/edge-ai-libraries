@@ -1,8 +1,11 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import {
   Accordion,
   AccordionItem,
   Button,
   Checkbox,
+  MultiSelect,
   NumberInput,
   ProgressBar,
   Select,
@@ -24,7 +27,9 @@ import { NotificationSeverity, notify } from '../Notification/notify';
 import { VideoDTO, VideoRO } from '../../redux/video/video';
 import { SummaryPipelineDTO, SummaryPipelinRO } from '../../redux/summary/summaryPipeline';
 import { videosLoad } from '../../redux/video/videoSlice';
-import { useAppDispatch } from '../../redux/store';
+import { useAppDispatch, useAppSelector } from '../../redux/store';
+import { MuxFeatures } from '../../redux/ui/ui.model';
+import { SearchSelector } from '../../redux/search/searchSlice';
 
 export interface VideoUploadProps {
   closeDrawer: () => void;
@@ -106,13 +111,17 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const minDuration: number = 2;
   const minFrames: number = 2;
   const defaultSampleFrames: number = 8;
-  const defaultChunkDuration: number = 3;
+  const defaultChunkDuration: number = 8;
   const defaultOverlap: number = 4;
 
   const dispatch = useAppDispatch();
   const summaryApi = `${APP_URL}/summary`;
   const videoUploadAPi = `${APP_URL}/videos`;
   const stateApi = `${APP_URL}/states`;
+
+  const { suggestedTags } = useAppSelector(SearchSelector);
+  // const [multiselectValue, setMultiSelectValue] = useState<string[]>([]);
+  const [selectedTags, setSelectedTags] = useState<string[]>([]);
 
   const [uploading, setUploading] = useState<boolean>(false);
   const [uploadProgress, setUploadProgress] = useState<number>(0);
@@ -122,7 +131,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
 
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const [summaryName, setSummaryName] = useState<string | null>('');
-  const [videoTags] = useState<string | null>('');
+  const [videoTags, SetVideoTags] = useState<string | null>('');
   const [chunkDuration, setChunkDuration] = useState<number>(() => defaultChunkDuration);
   const [sampleFrame, setSampleFrame] = useState<number>(() => defaultSampleFrames);
 
@@ -177,6 +186,8 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
     setUploadProgress(0);
     setUploading(false);
     setProcessing(false);
+    setSelectedTags([]);
+    // setMultiSelectValue([]);
     if (videoFileRef.current) {
       videoFileRef.current.value = '';
     }
@@ -259,7 +270,7 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   const getSummaryPipelineDTO = (videoId: string): SummaryPipelineDTO => {
     const title = summaryName ?? '';
 
-    let res: SummaryPipelineDTO = {
+    const res: SummaryPipelineDTO = {
       evam: { evamPipeline: (selectorRef?.current?.value as EVAMPipelines) ?? EVAMPipelines.OBJECT_DETECTION },
       sampling: {
         chunkDuration: chunkDuration,
@@ -302,8 +313,18 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
 
       const videoData: VideoDTO = {};
 
+      const tags = [];
+
       if (videoTags) {
-        videoData.tags = videoTags;
+        tags.push(...videoTags.split(',').map((tag) => tag.trim()));
+      }
+
+      if (selectedTags && selectedTags.length > 0) {
+        tags.push(...selectedTags.map((tag) => tag.trim()));
+      }
+
+      if (tags.length > 0) {
+        videoData.tags = tags.join(',');
       }
 
       const videoRes = await uploadVideo(videoData);
@@ -327,15 +348,28 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
             dispatch(SummaryActions.selectSummary(piplineRes.summaryPipelineId));
             dispatch(VideoChunkActions.setSelectedSummary(piplineRes.summaryPipelineId));
             dispatch(VideoFramesAction.selectSummary(piplineRes.summaryPipelineId));
+            dispatch(UIActions.setMux(MuxFeatures.SUMMARY));
             closeDrawer();
           }
         }
       }
     } catch (error: any) {
       console.log('ERROR', error);
-      if (error.reponse && error.response.data) {
+
+      if (error.response && error.response.data && error.response.data.message) {
         notify(error.response.data.message, NotificationSeverity.ERROR);
       }
+
+      // if (error.reponse && error.response.data) {
+      //   notify(error.response.data.message, NotificationSeverity.ERROR);
+      // } else if (error.request) {
+      //   notify(error.request, NotificationSeverity.ERROR);
+      // } else if (error instanceof AxiosError && error.message) {
+      //   notify(error.message, NotificationSeverity.ERROR);
+      // } else {
+      //   notify(t('error'), NotificationSeverity.ERROR);
+      // }
+
       setUploading(false);
       setProgressText(t('error'));
       setProcessing(false);
@@ -360,6 +394,29 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
             <FullWidthButton onClick={videoFileInputClick} kind='danger--tertiary'>
               {t('changeVideo')}
             </FullWidthButton>
+            {suggestedTags && suggestedTags.length > 0 && (
+              <MultiSelect
+                items={suggestedTags}
+                itemToString={(item) => (item ? item : '')}
+                // selectedItems={multiselectValue}
+                onChange={(data) => {
+                  if (data.selectedItems) {
+                    setSelectedTags(data.selectedItems);
+                    // setMultiSelectValue(data.selectedItems);
+                  }
+                }}
+                id='availabel-tags-selector'
+                label={t('availableVideoTags')}
+              />
+            )}
+            <TextInputStyled
+              labelText={t('customVideoTags')}
+              helperText={t('videoTagsHelperText')}
+              onChange={(ev) => {
+                SetVideoTags(ev.currentTarget.value);
+              }}
+              id='videoTags'
+            />
             <TextInputStyled
               ref={videoLabelRef}
               onChange={(ev) => {

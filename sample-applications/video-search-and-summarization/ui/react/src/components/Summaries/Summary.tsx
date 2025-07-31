@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SummaryActions, SummarySelector } from '../../redux/summary/summarySlice';
@@ -94,10 +96,8 @@ const SummaryTitle = styled.div`
 `;
 
 const NothingSelected = styled.div`
-  display: flex;
-  flex-flow: row nowrap;
-  align-items: center;
-  justify-content: center;
+  opacity: 0.6;
+  padding: 0 2rem;
 `;
 
 const Spacer = styled.span`
@@ -119,7 +119,7 @@ export const Summary: FC = () => {
   const { t } = useTranslation();
 
   const dispatch = useAppDispatch();
-  const { selectedSummary } = useAppSelector(SummarySelector);
+  const { selectedSummary, sidebarSummaries } = useAppSelector(SummarySelector);
   const { getVideoUrl } = useAppSelector(videosSelector);
 
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
@@ -130,9 +130,7 @@ export const Summary: FC = () => {
       getConfig();
       socket.emit('join', selectedSummary.stateId);
 
-      socket.on(`sync/${selectedSummary.stateId}`, (data: UIState) => {
-        console.log(data);
-
+      socket.on(`summary:sync/${selectedSummary.stateId}`, (data: UIState) => {
         const uiState: UIState = data;
         handleSummaryData(uiState);
       });
@@ -147,7 +145,12 @@ export const Summary: FC = () => {
   };
 
   const NoItemsSelected = () => {
-    return <NothingSelected>{t('selectASummary')}</NothingSelected>;
+    return (
+      <NothingSelected>
+        {sidebarSummaries.length > 0 && <h3>{t('selectASummaryFromSidebar')}</h3>}
+        {sidebarSummaries.length === 0 && <h3>{t('noSummariesAvailable')}</h3>}
+      </NothingSelected>
+    );
   };
 
   const handleSummaryData = (data: UIState) => {

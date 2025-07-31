@@ -1,13 +1,9 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { AudioDevice, srtText } from 'src/audio/models/audio.model';
 import { FrameMetadata } from 'src/evam/models/message-broker.model';
-import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
-import {
-  SystemConfig,
-  VideoUploadUserInputs,
-} from 'src/video-upload/models/upload.model';
+import { SummaryPipelineSampling } from 'src/summary/models/summary-pipeline.model';
+import { SystemConfig } from 'src/video-upload/models/upload.model';
 import { Video } from 'src/video-upload/models/video.model';
 
 export enum StateStatus {
@@ -64,6 +60,7 @@ export interface FrameSummary {
   startFrame: string;
   endFrame: string;
   status: StateActionStatus;
+  embeddingsCreated?: boolean;
 }
 
 export interface StateAudio {

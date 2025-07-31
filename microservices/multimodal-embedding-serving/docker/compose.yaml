@@ -4,7 +4,7 @@
 services:
   multimodal-embedding-serving:
     image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
-    container_name: vclip-embedding
+    container_name: multimodal-embedding
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -15,16 +15,19 @@ services:
       no_proxy_env: ${no_proxy_env},vdms-dataprep-ms
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      MODEL_NAME: ${VCLIP_MODEL}
+      TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}
+      IMAGE_EMBEDDING_MODEL_NAME: ${VCLIP_MODEL}
       DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION}
       DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
       EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
+      USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
       EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+      DEBUG_MODE: ${DEBUG_MODE:-False}
     group_add:
-      - ${USER_GROUP_ID-1000}
-      - ${VIDEO_GROUP_ID}
-      - ${RENDER_GROUP_ID}
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]

@@ -82,6 +82,16 @@ This section shows how to build the Video Search and Summary sample application 
   ```
 - Access the application dashboard and verify that it is functioning as expected.
 
+## Building with Copyleft Sources
+
+If you need to include copyleft sources in your build, you can set the following environment variable:
+
+```bash
+export ADD_COPYLEFT_SOURCES=true
+```
+
+When this environment variable is set to `true`, it allows the Dockerfiles to conditionally include copyleft sources when needed.
+
 ## Troubleshooting
 
 - If you encounter any issues during the build or run process, check the Docker logs for errors:

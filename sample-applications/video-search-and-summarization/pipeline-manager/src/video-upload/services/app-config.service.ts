@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import { ConfigService } from '@nestjs/config';
 import { TemplateService } from 'src/language-model/services/template.service';
@@ -10,7 +9,6 @@ import { EvamService } from 'src/evam/services/evam.service';
 import { AudioService } from 'src/audio/services/audio.service';
 import { lastValueFrom } from 'rxjs';
 import { AudioModelRO } from 'src/audio/models/audio.model';
-import { Span } from 'nestjs-otel';
 
 @Injectable()
 export class AppConfigService {
