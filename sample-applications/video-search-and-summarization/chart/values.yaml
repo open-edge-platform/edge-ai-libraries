@@ -19,6 +19,7 @@ global:
     OVMS_LLM_MODEL_NAME:
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
+    keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
 videosummaryui:
   name: videosummaryui

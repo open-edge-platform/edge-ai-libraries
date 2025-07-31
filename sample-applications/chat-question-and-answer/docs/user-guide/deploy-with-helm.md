@@ -47,7 +47,7 @@ Choose the appropriate `values*.yaml` file based on the model server you want to
 - **For vLLM**: Use `values_vllm.yaml`.
 - **For TGI**: Use `values_tgi.yaml`.
 
-Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
+Edit only the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
@@ -68,7 +68,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `1.1.2`   |
+| `Chatqna.image.tag` | latest image tag                                  | `1.2.1`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |

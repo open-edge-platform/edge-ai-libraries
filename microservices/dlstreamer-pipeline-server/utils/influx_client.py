@@ -10,6 +10,7 @@ from influxdb_client import InfluxDBClient, Point
 from influxdb_client.client.write_api import SYNCHRONOUS
 from src.publisher.influx.influx_schema import DataSchema
 from src.common.log import get_logger
+import urllib3
 
 class InfluxClient():
     """Influx Client.
@@ -43,6 +44,8 @@ class InfluxClient():
         try:
             self.write_api.write(bucket=influx_bucket_name, org=self.influx_org, record=point)
             self.log.debug(f"Successfully wrote data in influx for image handle: {img_handle}")
+        except urllib3.exceptions.NameResolutionError as e:
+            self.log.exception("Unable to resolve InfluxDB hostname. Please verify that InfluxDB is running.")
         except Exception as e:
             self.log.exception(f"Error writing data to InfluxDB for image handle: {img_handle}", e)
 
@@ -88,3 +91,11 @@ class InfluxClient():
         # for compatibility with other publisher.
         # TODO: Implement safe disconnect. 
         pass
+
+    def bucket_exists(self, bucket_name):
+        try:
+            buckets_api = self.client.buckets_api()
+            buckets = buckets_api.find_buckets().buckets
+            return any(bucket.name == bucket_name for bucket in buckets)
+        except:
+            return False

@@ -45,7 +45,7 @@ jobs:
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:coverity-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
-        export BASE_IMAGE="ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407"
+        export BASE_IMAGE="ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu22"
         export BUILD_TARGET=gstudfloader-builder
         docker compose build --no-cache --pull
    
