@@ -60,6 +60,7 @@ Edit the `values.yaml` file to set the necessary environment variables. At minim
 | `global.env.OVMS_LLM_MODEL_NAME` | OVMS LLM model (when using OVMS) | `Intel/neural-chat-7b-v3-3` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
+| `global.env.keeppvc` | Set true to persists the storage. Default is false | false |
 
 ### Option 2: Install from Source
 
@@ -192,11 +193,6 @@ helm uninstall vss -n <your-namespace>
   - VLM inference issues: Check the logs of the vlm-inference-microservice pod
   - Database connection problems: Verify the PostgreSQL pod is running correctly
   - Storage issues: Check the MinIO server status and connectivity
-
-- The Persistent Volume Claims (PVCs) created during helm chart deployment will remain present until explicitly deleted:
-  ```bash
-  kubectl delete pvc <pvc-name> -n <your-namespace>
-  ```
 
 - If you're experiencing issues with the Hugging Face API, ensure your API token is valid and properly set in the values.yaml file.
 

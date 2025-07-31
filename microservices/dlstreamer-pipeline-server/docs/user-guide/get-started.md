@@ -211,7 +211,7 @@ For alternative ways to set up the microservice, see:
 
 ## Contact Us
 
-Please contact us at evam_support[at]intel[dot]com for more details or any support.
+Please contact us at dlsps_support[at]intel[dot]com for more details or any support.
 
 ## Supporting Resources
 

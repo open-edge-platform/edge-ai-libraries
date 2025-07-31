@@ -1,9 +1,19 @@
 name: "[DLS] [U22/U24] Build weekly imgs"
 run-name: "[DLS] [U22/U24] Build weekly imgs"
 on:
-  schedule:
-    - cron: '0 14 * * 2' # 14:00 UTC
   workflow_dispatch:
+    inputs:
+      image-tag:
+        description: 'Image tag'
+        required: true
+        type: string
+      action-type:
+        description: 'Choose if this run is weekly build or cache update'
+        required: true
+        type: choice
+        options:
+          - 'weekly'
+          - 'cache'
 permissions: {}
 env:
   dlstreamer-version: "2025.0.1.3"
@@ -50,11 +60,11 @@ jobs:
 
     - name: Build deb final img with cache from GHCR
       env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
+        deb_final_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-          --push \
+          --load \
           --target dlstreamer \
           --tag "${deb_final_img}" \
           --cache-to=type=registry,ref=${deb_final_img_cached},mode=max \
@@ -68,7 +78,7 @@ jobs:
     - name: 🔍 Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -93,30 +103,51 @@ jobs:
         fi
       shell: bash
 
+    - name: Push deb final img to GHCR
+      if: ${{ inputs.action-type == 'weekly' }}
+      env:
+        deb_final_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
+      run: |
+        docker push "${deb_final_img}"
+
     - name: Install Cosign
+      if: ${{ inputs.action-type == 'weekly' }}
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
 
-    - name: Sign Docker image using Cosign (keyless)
-      env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest
+    - name: Install skopeo
+      if: ${{ inputs.action-type == 'weekly' }}
+      run: sudo apt update && sudo apt install -y skopeo jq
+
+    - name: Get image digest
+      if: ${{ inputs.action-type == 'weekly' }}
+      id: digest
       run: |
-        cosign sign ${deb_final_img}
+        IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
+        DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
+        echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+
+    - name: Sign Docker image using Cosign (keyless)
+      if: ${{ inputs.action-type == 'weekly' }}
+      env:
+        deb_final_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer@${{ steps.digest.outputs.digest }}
+      run: |
+        cosign sign --yes ${deb_final_img}
 
     - name: Save Ubuntu 22 image info
       id: save-image-ubuntu22
       if: ${{ matrix.ubuntu_version == 'ubuntu22' }}
-      run: echo "image=ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
+      run: echo "image=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}" >> "$GITHUB_OUTPUT"
 
     - name: Save Ubuntu 24 image info
       id: save-image-ubuntu24
       if: ${{ matrix.ubuntu_version == 'ubuntu24' }}
-      run: echo "image=ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest" >> "$GITHUB_OUTPUT"
+      run: echo "image=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}" >> "$GITHUB_OUTPUT"
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }} || true
 
   build-dls-dev-img:
     name: Build DLS ${{ matrix.ubuntu_version }} dev debug img
@@ -157,11 +188,11 @@ jobs:
 
     - name: Build dev debug img with cache from GHCR
       env:
-        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+        dev_debug_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }}
         dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
-          --push \
+          --load \
           --target dlstreamer-dev \
           --tag "${dev_debug_img}" \
           --cache-from=type=registry,ref=${dev_debug_img_cached} \
@@ -174,7 +205,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -199,22 +230,44 @@ jobs:
         fi
       shell: bash
 
+    - name: Push dev-debug final img to GHCR
+      if: ${{ inputs.action-type == 'weekly' }}
+      env:
+        dev_debug_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }}
+      run: |
+        docker push "${dev_debug_img}"
+
     - name: Install Cosign
+      if: ${{ inputs.action-type == 'weekly' }}
       uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
 
-    - name: Sign Docker image using Cosign (keyless)
-      env:
-        dev_debug_img: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest
+    - name: Install skopeo
+      if: ${{ inputs.action-type == 'weekly' }}
+      run: sudo apt update && sudo apt install -y skopeo jq
+
+    - name: Get image digest
+      if: ${{ inputs.action-type == 'weekly' }}
+      id: digest
       run: |
-        cosign sign ${dev_debug_img}
+        IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }}
+        DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
+        echo "digest=${DIGEST}" >> $GITHUB_OUTPUT
+
+    - name: Sign Docker image using Cosign (keyless)
+      if: ${{ inputs.action-type == 'weekly' }}
+      env:
+        dev_debug_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer@${{ steps.digest.outputs.digest }}
+      run: |
+        cosign sign --yes ${dev_debug_img}
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }} || true
 
   build-dls-pipeline-server-image:
+    if: ${{ inputs.action-type == 'weekly' }}
     needs: build-dls-deb-img
     name: Build DLS Pipeline Server ${{ matrix.ubuntu_version }} img
     runs-on: ubuntu-latest
@@ -261,7 +314,7 @@ jobs:
     - name: Build dls-pipeline-server-img
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
-        export DLSTREAMER_PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
+        export DLSTREAMER_PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         docker compose build --no-cache --pull
 
@@ -269,7 +322,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -297,14 +350,45 @@ jobs:
     - name: Push Docker img
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
-          docker tag ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
+          docker tag ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
           docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest
         fi
-        docker push ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }}
+        docker push ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
+
+    - name: Install Cosign
+      uses: sigstore/cosign-installer@398d4b0eeef1380460a10c8013a76f728fb906ac # v3.9.1
+
+    - name: Install skopeo
+      run: sudo apt update && sudo apt install -y skopeo jq
+
+    - name: Get image digest
+      id: digest
+      run: |
+        IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}
+        DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
+        echo "digest=$DIGEST" >> $GITHUB_OUTPUT
+
+        if [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
+          DIGEST_LATEST=$(skopeo inspect docker://ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:latest | jq -r '.Digest')
+          echo "digest_latest=$DIGEST_LATEST" >> $GITHUB_OUTPUT
+        fi
+
+    - name: Sign Docker image using Cosign (keyless)
+      env:
+        dlsps_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server@${{ steps.digest.outputs.digest }}
+      run: |
+        cosign sign --yes ${dlsps_img}
+
+    - name: Sign Docker image using Cosign (keyless) (latest)
+      if: ${{ matrix.ubuntu_version == 'ubuntu24' }}
+      env:
+        dlsps_img: ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server@${{ steps.digest.outputs.digest_latest }}
+      run: |
+        cosign sign --yes ${dlsps_img}
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest || true
+        docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/dlstreamer-pipeline-server:latest || true
 
