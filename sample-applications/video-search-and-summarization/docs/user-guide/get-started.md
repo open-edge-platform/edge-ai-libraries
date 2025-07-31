@@ -307,6 +307,17 @@ For alternative ways to set up the sample application, see:
 
 ## Troubleshooting
 
+### Containers started but Application not working
+
+- You can try resetting the volume storage, by deleting the previously created volumes using following commands:
+
+  ```bash
+  source setup.sh --down
+  docker volume rm docker_vdms-db docker_data-prep
+  ```
+  
+  > **_NOTE :_** This step does not apply when you are setting up the application for the first time.   
+
 ### VLM Microservice Model Loading Issues
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
