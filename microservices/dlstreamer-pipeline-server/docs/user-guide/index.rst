@@ -8,6 +8,7 @@
    overview-architecture
    system-requirements
    get-started
+   troubleshooting-guide
 
 .. toctree::
    :caption: How to

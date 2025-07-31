@@ -96,7 +96,9 @@ USER root
 RUN useradd -ms /bin/bash sourceuser
 
 # Install tools and adjust permissions
-RUN apt-get update && apt-get install -y tree && \
+RUN apt-get update && apt-get install --no-install-recommends -y tree && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/* && \
     mkdir -p /opt && chown -R sourceuser:sourceuser /opt
 
 # Copy sources

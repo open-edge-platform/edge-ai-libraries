@@ -198,10 +198,10 @@ jobs:
       fail-fast: false
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
-      dockerfile-path: microservices/dlstreamer-pipeline-server/Dockerfile
-      trivy-report-format: 'json'
+      dockerfile-path: microservices/dlstreamer-pipeline-server/
+      trivy-report-format: 'table'
       severity-levels: 'HIGH,CRITICAL'
-      output-report-path: reports/dlsps_trivy_report.json
+      output-report-path: reports/dlsps_trivy_config_report.txt
       name: dlsps_trivy_report
   
   pylint:
