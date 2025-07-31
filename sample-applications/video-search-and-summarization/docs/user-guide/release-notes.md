@@ -1,7 +1,40 @@
 # Release Notes
 
-
 ## Current Release
+**Version**: RC5.1 \
+**Release Date**: 31 July 2025  
+
+**Features**:
+- Unified Search and Summary functionality for streamlined user experience.
+- New UI for new combined use case.
+- Enhanced video management with support for tags on upload and search.
+- Improved text embedding capabilities within the MME service.
+- Introducing Search Alerts for proactive monitoring on search use-case.
+- TopK search results now available in the UI for faster result filtering
+- Helm Chart for the combined application.
+- All application containers now run in non-root mode.
+- Fix for high RAM consumption when the application is running in combined mode.
+- Bug Fixes: Resolved multiple issues from previous builds to ensure stability and performance.
+
+
+**HW used for validation**:
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+**Known Issues/Limitations**:
+- EMF and EMT are not supported yet.
+- Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals).
+- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
+- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing.
+- VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
+- The Helm chart presently supports only CPU deployments.
+- Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
+- In standalone search only mode, the tags feature on query is not working.
+- Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
+
+## Previous releases
+
 **Version**: RC4 \
 **Release Date**: 18 June 2025  
 
@@ -16,23 +49,4 @@
 - Nginx Support: Added compatibility for both Helm and Docker Compose-based deployments.
 - Streamlined Build, Deployment and Documentation: Introduction of a setup script to simplify service build and deployment processes.
 
-**HW used for validation**:
-- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
-- Vanilla Kubernetes Cluster
-
-**Known Issues/Limitations**:
-- EMF and EMT are not supported yet.
-- Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals).
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct.
-- The Helm chart presently supports only CPU deployments.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-
-## Previous releases
-
-**Version**:  \
-**Release Date**:  
-
-- <Previous release notes>
+<Previous release notes>
