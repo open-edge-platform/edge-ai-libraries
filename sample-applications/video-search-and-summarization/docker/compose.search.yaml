@@ -57,6 +57,7 @@ services:
       VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
       VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
       CHUNK_DURATION: ${VS_DEFAULT_CLIP_DURATION}
+      WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
     restart: unless-stopped
     volumes:
       - "${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir"
