@@ -6,7 +6,7 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      target: prod 
+      target: prod
     image: ${REGISTRY:-}audio-analyzer:${TAG:-latest}
     ports:
       - "8000:8000"

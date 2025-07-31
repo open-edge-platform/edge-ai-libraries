@@ -452,7 +452,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-        echo -e "${BLUE}Using OVMS for LLM summarization${NC}"
+        echo -e "${BLUE}Using OVMS for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_ON
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
         export LLM_MODEL_API="v1/config"
@@ -516,6 +516,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
+        echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
 
