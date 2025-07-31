@@ -36,6 +36,7 @@ export const SearchSlice = createSlice({
       state.searchQueries = state.searchQueries.filter((query) => query.queryId !== action.payload.queryId);
     },
     updateSearchQuery: (state: SearchState, action) => {
+      console.log('searchState action.payload', action.payload);
       const index = state.searchQueries.findIndex((query) => query.queryId === action.payload.queryId);
       if (index !== -1) {
         // Preserve existing topK when updating
@@ -162,10 +163,17 @@ export const SearchSelector = createSelector([selectSearchState], (state) => ({
   selectedQuery: state.searchQueries.find((el) => el.queryId == state.selectedQuery),
   suggestedTags: state.suggestedTags,
   queriesInProgress: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.RUNNING),
+  queriesWithErrors: state.searchQueries.filter((query) => query.queryStatus === SearchQueryStatus.ERROR),
   isSelectedInProgress:
     state.selectedQuery &&
     state.searchQueries
       .filter((query) => query.queryStatus === SearchQueryStatus.RUNNING)
+      .map((curr) => curr.queryId)
+      .includes(state.selectedQuery),
+  isSelectedHasError:
+    state.selectedQuery &&
+    state.searchQueries
+      .filter((query) => query.queryStatus === SearchQueryStatus.ERROR)
       .map((curr) => curr.queryId)
       .includes(state.selectedQuery),
   selectedResults: state.searchQueries.reduce((acc: SearchResult[], curr: SearchQueryUI) => {

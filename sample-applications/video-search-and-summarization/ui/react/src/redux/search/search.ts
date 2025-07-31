@@ -57,6 +57,7 @@ export interface SearchResult {
 export enum SearchQueryStatus {
   IDLE = 'idle',
   RUNNING = 'running',
+  ERROR = 'error',
 }
 
 export interface SearchQuery {
@@ -69,6 +70,7 @@ export interface SearchQuery {
   tags: string[];
   createdAt: string;
   updatedAt: string;
+  errorMessage?: string;
 }
 
 export interface SearchQueryUI extends SearchQuery {
