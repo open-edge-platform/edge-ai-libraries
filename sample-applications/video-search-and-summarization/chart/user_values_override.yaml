@@ -38,9 +38,14 @@ videoSummaryManager:
   # Update this port in case of port conflict or other reasons. This is the port where we access the entire application.
   appNodePort: 31998
 
+videoingestion:
+  # odModelName defines the name of Object Detection Model
+  odModelName: ""
+  # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
+  odModelType: ""
+
 multimodalembeddingms:
   # Update textEmbeddingModel for unified video search and summary setup. Keep imageEmbeddingModel empty. See docs for sample value.
   textEmbeddingModel: ""
   # Update imageEmbeddingModel for standalone video search application setup. Keep textEmbeddingModel empty. See docs for sample value.
   imageEmbeddingModel: ""
-  

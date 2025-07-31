@@ -14,6 +14,11 @@ global:
     MINIO_ROOT_USER: 
     MINIO_ROOT_PASSWORD: 
 
+# odModelName defines the name of Object Detection Model
+odModelName: ""
+# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
+odModelType: ""
+
 videoingestion:
   name: videoingestion
   fullnameOverride: videoingestion

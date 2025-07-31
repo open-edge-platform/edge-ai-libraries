@@ -88,6 +88,8 @@ Update or edit the values in YAML file as follows:
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
 | `videoSummaryManager.appNodePort` | port at which we access the application | `31998` |
+| `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
+| `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `multimodalembeddingms.textEmbeddingModel` | Embedding model name used in unified video search and summary | `Qwen/Qwen3-Embedding-0.6B` |
 | `multimodalembeddingms.imageEmbeddingModel` | Embedding model name used in standalone video search application | `openai/clip-vit-base-patch32` |
 
