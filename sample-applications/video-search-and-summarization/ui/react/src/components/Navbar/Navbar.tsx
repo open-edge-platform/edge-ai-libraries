@@ -59,6 +59,7 @@ const Navbar: FC = () => {
   const dispatch = useAppDispatch();
 
   useEffect(() => {
+    dispatch(videosLoad());
   }, []);
 
   const getBrandName = () => {
@@ -120,7 +121,6 @@ const Navbar: FC = () => {
             kind='primary'
             disabled={false}
             onClick={() => {
-              dispatch(videosLoad());
               setShowSearchModal(true);
             }}
           >
