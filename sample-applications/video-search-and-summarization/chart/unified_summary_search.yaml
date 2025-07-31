@@ -1,27 +1,24 @@
 multimodalembeddingms:
   enabled: true
   useOnlyTextEmbeddings: true
-
 vdmsdataprep:
   enabled: true
-
 vdmsvectordb:
   enabled: true
-
 videosearch:
   enabled: true
-
 rabbitmq:
   enabled: true
-
 vlminference:
   enabled: true
-
 videoingestion:
   enabled: true 
-
 audioanalyzer:
   enabled: true
+
+global:
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: "video_summary_embeddings"
 
 videoSummaryManager:
   env:

@@ -1,5 +1,3 @@
-rabbitmq:
-  enabled: false
 multimodalembeddingms:
   enabled: true
 vdmsdataprep:
@@ -8,6 +6,10 @@ vdmsvectordb:
   enabled: true
 videosearch:
   enabled: true
+
+global:
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: "video_frame_embeddings"
 
 videoSummaryManager:
   env:
