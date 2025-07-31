@@ -19,6 +19,11 @@ spec:
         runAsGroup: 1999
         fsGroup: 1999
         supplementalGroups: [109,110]
+      {{- with .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       initContainers:
         - name: model-converter
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
@@ -36,6 +41,10 @@ spec:
           env:
             - name: OD_MODEL_OUTPUT_DIR
               value: "/models/yoloworld"
+            - name: OD_MODEL_NAME
+              value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
+            - name: OD_MODEL_TYPE
+              value: {{ required "Value for odModelType is required!" .Values.odModelType | quote }}
             - name: no_proxy
               value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
             - name: http_proxy
@@ -47,6 +56,7 @@ spec:
               mountPath: /scripts
             - name: models-volume
               mountPath: /models
+              subPath: ov-models/videoingestion
           securityContext:
             privileged: true
       containers:
@@ -54,7 +64,8 @@ spec:
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
           imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.videoingestion.service.port }}
+            - containerPort: {{ .Values.videoingestion.containerPort }}
+              name: {{ .Values.videoingestion.containerPortName }}
           env:
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
@@ -107,6 +118,7 @@ spec:
             mountPath: /run/udev
           - name: models-volume
             mountPath: /home/pipeline-server/models
+            subPath: ov-models/videoingestion
           securityContext:
             readOnlyRootFilesystem: false
             privileged: true
@@ -132,6 +144,14 @@ spec:
           name: {{ include "videoingestion.fullname" . }}-model-converter
           defaultMode: 0755
       - name: models-volume
+        {{- if .Values.global.pvcName }}
         persistentVolumeClaim:
-          claimName: video-summary-ingestion-models-pvc
+          claimName: {{ .Values.global.pvcName }}
+        {{- else if .Values.global.volumeHostPath }}
+        hostPath:
+          path: {{ .Values.global.volumeHostPath }}
+          type: DirectoryOrCreate
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       restartPolicy: Always

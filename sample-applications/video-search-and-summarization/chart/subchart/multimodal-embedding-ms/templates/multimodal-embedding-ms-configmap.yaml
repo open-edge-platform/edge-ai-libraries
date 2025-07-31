@@ -5,7 +5,12 @@ metadata:
   labels:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
-  MODEL_NAME: {{ .Values.modelName | quote }}
+  {{- if eq .Values.useOnlyTextEmbeddings true }}
+  TEXT_EMBEDDING_MODEL_NAME: {{ required "textEmbeddingModel is required and cannot be empty" .Values.textEmbeddingModel | quote }}
+  {{- else }}
+  IMAGE_EMBEDDING_MODEL_NAME: {{ required "imageEmbeddingModel is required and cannot be empty" .Values.imageEmbeddingModel | quote }}
+  {{- end }}
+  USE_ONLY_TEXT_EMBEDDINGS: {{ .Values.useOnlyTextEmbeddings | quote }}
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
   DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
@@ -13,5 +18,5 @@ data:
   EMBEDDING_DEVICE: {{ .Values.embeddingDevice | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
-  no_proxy: {{ .Values.global.proxy.no_proxy | quote }}
+  no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"
   no_proxy_env: {{ .Values.global.proxy.no_proxy | quote }}

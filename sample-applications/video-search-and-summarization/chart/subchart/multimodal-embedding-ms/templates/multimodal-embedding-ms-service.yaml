@@ -8,8 +8,8 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.targetPort }} # Updated to shortened name
+      targetPort: {{ .Values.containerPortName }}
       protocol: TCP
-      name: {{ .Values.service.name }} # Updated to shortened name
+      name: {{ .Values.service.portName }}
   selector:
     {{ include "multimodal-embedding-ms.selectorLabels" . | nindent 4 }}

@@ -8,6 +8,8 @@ spec:
   type: {{ .Values.ovms.service.type }}
   ports:
     - port: {{ .Values.ovms.service.port }}
-      targetPort: {{ .Values.ovms.service.targetPort }}
+      targetPort: {{ .Values.ovms.containerPortName }}
+      name: {{ .Values.ovms.service.portName }}
+      protocol: TCP
   selector:
     app: {{ .Values.ovms.name }}

@@ -11,9 +11,8 @@ data:
   VDMS_VDB_HOST: "vdms-vectordb"
   {{- end }}
   VDMS_VDB_PORT: {{ .Values.vdmsVectorDbPort | quote }}
-  DB_COLLECTION: {{ .Values.indexName | quote }}
+  DB_COLLECTION: {{ .Values.global.vdmsIndexName | quote }}
   APP_HOST: "vdms-dataprep"
-  DATASTORE_BUCKET: {{ .Values.bucketName | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
   MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"

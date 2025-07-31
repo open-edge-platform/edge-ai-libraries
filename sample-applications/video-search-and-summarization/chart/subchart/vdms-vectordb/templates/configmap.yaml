@@ -5,7 +5,7 @@ metadata:
   labels:
     {{- include "vdms-vectordb.labels" . | nindent 4 }}
 data:
-  OVERRIDE_port: {{ .Values.service.containerPort | quote }}
+  OVERRIDE_port: {{ .Values.containerPort | quote }}
   OVERRIDE_images_path: db/images
   OVERRIDE_descriptors_path: db/descriptors
   OVERRIDE_blobs_path: db/blobs
