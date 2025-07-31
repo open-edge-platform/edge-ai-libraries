@@ -27,18 +27,29 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
         - name: {{ .Release.Name }}
           image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.gpu.enabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: {{ .Values.service.name }}
-              containerPort: 8000
+            - name: {{ .Values.containerPortName }}
+              containerPort: {{ .Values.containerPort }}
               protocol: TCP
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            {{- if eq .Values.useOnlyTextEmbeddings true }}
+            {{- toYaml .Values.startupProbeWithTextEmbeddingModel | nindent 12 }}
+            {{- else }}
+            {{- toYaml .Values.startupProbe | nindent 12 }}
+            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -68,7 +79,8 @@ spec:
               mountPath: /home/appuser/.cache/huggingface
               subPath: huggingface
             - name: volume-data
-              mountPath: /app/ov-model
+              mountPath: /app/ov-models
+              subPath: ov-models/embeddingms
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: dataprep
@@ -80,13 +92,13 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: volume-data
-          {{- if .Values.global.volumeHostPath }}
+          {{- if .Values.global.pvcName }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}
             type: DirectoryOrCreate
-          {{- else if .Values.global.pvcName }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
           {{- else }}
           emptyDir: {}
           {{- end }}

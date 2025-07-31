@@ -19,6 +19,11 @@ spec:
         runAsGroup: 1999
         fsGroup: 1999
         supplementalGroups: [109,110]
+      {{- with .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       initContainers:
         - name: model-converter
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
@@ -47,6 +52,7 @@ spec:
               mountPath: /scripts
             - name: models-volume
               mountPath: /models
+              subPath: ov-models/videoingestion
           securityContext:
             privileged: true
       containers:
@@ -54,7 +60,8 @@ spec:
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
           imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.videoingestion.service.port }}
+            - containerPort: {{ .Values.videoingestion.containerPort }}
+              name: {{ .Values.videoingestion.containerPortName }}
           env:
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
@@ -107,6 +114,7 @@ spec:
             mountPath: /run/udev
           - name: models-volume
             mountPath: /home/pipeline-server/models
+            subPath: ov-models/videoingestion
           securityContext:
             readOnlyRootFilesystem: false
             privileged: true
@@ -132,6 +140,14 @@ spec:
           name: {{ include "videoingestion.fullname" . }}-model-converter
           defaultMode: 0755
       - name: models-volume
+        {{- if .Values.global.pvcName }}
         persistentVolumeClaim:
-          claimName: video-summary-ingestion-models-pvc
+          claimName: {{ .Values.global.pvcName }}
+        {{- else if .Values.global.volumeHostPath }}
+        hostPath:
+          path: {{ .Values.global.volumeHostPath }}
+          type: DirectoryOrCreate
+        {{- else }}
+        emptyDir: {}
+        {{- end }}
       restartPolicy: Always
