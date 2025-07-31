@@ -242,4 +242,3 @@ helm uninstall vss -n $my_namespace
 
 ## Related links
 - [How to Build from Source](./build-from-source.md)
-- [How to Test Performance](./how-to-performance.md)

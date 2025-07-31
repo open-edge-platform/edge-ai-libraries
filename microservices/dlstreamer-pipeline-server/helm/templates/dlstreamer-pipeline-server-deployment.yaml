@@ -23,13 +23,60 @@ spec:
       imagePullSecrets:
       - name: registryauth
       {{- end }}
+
+      initContainers:
+      - name: fetch-pipeline-resources
+        image: bitnami/git:latest
+        command:
+          - /bin/bash
+          - -c
+          - |
+            git clone --depth 1 https://github.com/open-edge-platform/edge-ai-libraries /repo
+            mkdir -p /resources/models/geti /resources/videos
+            cp -r /repo/microservices/dlstreamer-pipeline-server/resources/models/geti/ /resources/models/
+            curl -L https://github.com/open-edge-platform/edge-ai-libraries/raw/main/microservices/dlstreamer-pipeline-server/resources/videos/warehouse.avi -o /resources/videos/warehouse.avi
+        volumeMounts:
+          - name: pipeline-resources
+            mountPath: /resources
+          - name: repo
+            mountPath: /repo
+        env:
+        - name: http_proxy
+          value: {{ $.Values.env.http_proxy }}
+        - name: https_proxy
+          value: {{ $.Values.env.https_proxy }}
+        - name: no_proxy
+          value: {{ $.Values.env.no_proxy }}
+        securityContext:
+          runAsNonRoot: true
+          runAsUser: 1000
+          allowPrivilegeEscalation: false
+          readOnlyRootFilesystem: true
+          capabilities:
+            drop:
+              - ALL
+
       containers:
       - name: dlstreamer-pipeline-server
-        image: {{ $.Values.DOCKER_REGISTRY }}intel/dlstreamer-pipeline-server:3.1.0
+        image: {{ $.Values.DOCKER_REGISTRY }}{{ $.Values.images.dlstreamer_pipeline_server }}
         imagePullPolicy: {{ $.Values.imagePullPolicy }}
         {{- if $.Values.privileged_access_required }}
         securityContext:
-          privileged: true  # Required for direct access to /dev
+          privileged: true # Required for direct access to /dev
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: true
+          capabilities:
+            drop:
+              - ALL
+        {{- else }}
+        securityContext:
+          runAsNonRoot: true
+          readOnlyRootFilesystem: true
+          allowPrivilegeEscalation: false
+          runAsUser: 1999
+          capabilities:
+            drop:
+              - ALL
         {{- end }}
         {{- if $.Values.gpu.enabled }}
         resources:
@@ -47,14 +94,6 @@ spec:
           value: "{{ $.Values.env.HTTPS }}"
         - name: RTSP_PORT
           value: "{{ $.Values.env.RTSP_PORT }}"
-        - name: MR_URL
-          value: {{ $.Values.env.MR_URL }}
-        - name: MR_SAVED_MODELS_DIR
-          value: {{ $.Values.env.MR_SAVED_MODELS_DIR }}
-        - name: MR_REQUEST_TIMEOUT
-          value: {{ $.Values.env.MR_REQUEST_TIMEOUT }}
-        - name: MR_VERIFY_CERT
-          value: {{ $.Values.env.MR_VERIFY_CERT }}
         - name: http_proxy
           value: {{ $.Values.env.http_proxy }}
         - name: https_proxy
@@ -71,6 +110,7 @@ spec:
           name: vol-pipeline-root-tmpfs0
         - name: dev
           mountPath: /dev
+          readOnly: true # Reduce risk while preserving access to GPU/NPU devices
         - name: dev-shm
           mountPath: /dev/shm
         - name: tmp
@@ -79,6 +119,11 @@ spec:
           mountPath: /var/tmp
         - name: run-udev
           mountPath: /run/udev
+        - name: pipeline-resources
+          mountPath: /home/pipeline-server/resources
+        - name: repo
+          mountPath: /repo
+
       volumes:
       - name: dlstreamer-pipeline-server-input
         configMap:
@@ -100,3 +145,7 @@ spec:
       - name: run-udev
         hostPath:
           path: /run/udev
+      - name: pipeline-resources
+        emptyDir: {}
+      - name: repo
+        emptyDir: {}

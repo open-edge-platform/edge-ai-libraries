@@ -53,7 +53,7 @@ Ensure to build/pull the DL Streamer Pipeline Server extended image i.e., `intel
 
 Below is an example that shows how to subscribe to the published data.
 
-- Install ROS2 Humble on Ubuntu22 and source it. Install pythyon and related dependencies too.
+- Install ROS2 Humble on Ubuntu22 and source it. Install python and related dependencies too.
     ```sh
         # Install ROS2 Humble
         sudo apt update && sudo apt install -y curl gnupg lsb-release
@@ -91,73 +91,73 @@ Below is an example that shows how to subscribe to the published data.
 
 - Save the below sample subscriber script as `ros_subscriber.py`
     ```python
-        #!/usr/bin/env python3
-        import sys
-        import rclpy
-        from rclpy.node import Node
-        from std_msgs.msg import String
-        import json
-        import base64
-        import cv2
-        import numpy as np
-        import re
+    #!/usr/bin/env python3
+    import sys
+    import rclpy
+    from rclpy.node import Node
+    from std_msgs.msg import String
+    import json
+    import base64
+    import cv2
+    import numpy as np
+    import re
 
-        class SimpleSubscriber(Node):
-            def __init__(self, topic_name):
-                super().__init__('simple_subscriber')
-                self.topic_name = topic_name
-                self.subscription = self.create_subscription(
-                    String,
-                    topic_name,
-                    self.listener_callback,
-                    10
-                )
-                self.counter = 0
-                # clean topic name for filename (remove /)
-                self.topic_safe = re.sub(r'[^a-zA-Z0-9_]', '_', topic_name)
-                print(f"Subscribed to topic: {topic_name}")
+    class SimpleSubscriber(Node):
+        def __init__(self, topic_name):
+            super().__init__('simple_subscriber')
+            self.topic_name = topic_name
+            self.subscription = self.create_subscription(
+                String,
+                topic_name,
+                self.listener_callback,
+                10
+            )
+            self.counter = 0
+            # clean topic name for filename (remove /)
+            self.topic_safe = re.sub(r'[^a-zA-Z0-9_]', '_', topic_name)
+            print(f"Subscribed to topic: {topic_name}")
 
-            def listener_callback(self, msg):
-                try:
-                    data = json.loads(msg.data)
+        def listener_callback(self, msg):
+            try:
+                data = json.loads(msg.data)
 
-                    metadata = data.get("metadata", {})
-                    print(f"Metadata on topic {self.topic_name}: {metadata}")
+                metadata = data.get("metadata", {})
+                print(f"Metadata on topic {self.topic_name}: {metadata}")
 
-                    image_b64 = data.get("blob", "")
-                    if image_b64:
-                        img_bytes = base64.b64decode(image_b64)
-                        np_arr = np.frombuffer(img_bytes, np.uint8)
-                        img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
-                        
-                        if img is not None:
-                            filename = f"{self.topic_safe}_{self.counter}.jpg"
-                            cv2.imwrite(filename, img)
-                            print(f"Image from topic {self.topic_name} saved to {filename}")
-                            self.counter += 1
-                        else:
-                            print("Failed to decode image.")
+                image_b64 = data.get("blob", "")
+                if image_b64:
+                    img_bytes = base64.b64decode(image_b64)
+                    np_arr = np.frombuffer(img_bytes, np.uint8)
+                    img = cv2.imdecode(np_arr, cv2.IMREAD_COLOR)
+                    
+                    if img is not None:
+                        filename = f"{self.topic_safe}_{self.counter}.jpg"
+                        cv2.imwrite(filename, img)
+                        print(f"Image from topic {self.topic_name} saved to {filename}")
+                        self.counter += 1
                     else:
-                        print("No image data in message.")
+                        print("Failed to decode image.")
+                else:
+                    print("No image data in message.")
 
-                except Exception as e:
-                    print(f"Error on topic {self.topic_name}: {e}")
+            except Exception as e:
+                print(f"Error on topic {self.topic_name}: {e}")
 
-        def main(args=None):
-            rclpy.init(args=args)
+    def main(args=None):
+        rclpy.init(args=args)
 
-            # get topic from command line
-            topic_name = '/dlstreamer_pipeline_results'  # default
-            if len(sys.argv) > 1:
-                topic_name = sys.argv[1]
+        # get topic from command line
+        topic_name = '/dlstreamer_pipeline_results'  # default
+        if len(sys.argv) > 1:
+            topic_name = sys.argv[1]
 
-            node = SimpleSubscriber(topic_name)
-            rclpy.spin(node)
-            node.destroy_node()
-            rclpy.shutdown()
+        node = SimpleSubscriber(topic_name)
+        rclpy.spin(node)
+        node.destroy_node()
+        rclpy.shutdown()
 
-        if __name__ == '__main__':
-            main()
+    if __name__ == '__main__':
+        main()
     ```
 
 - Run the sample subscriber script as follows and view the metadata being printed and frames being saved.

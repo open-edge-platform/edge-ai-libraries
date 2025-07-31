@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Controller, Delete, Get } from '@nestjs/common';
 import { TagsService } from '../services/tags.service';
 import { TagsDbService } from '../services/tags-db.service';

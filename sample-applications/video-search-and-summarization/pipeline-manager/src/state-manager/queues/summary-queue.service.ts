@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Injectable } from '@nestjs/common';
 import { SummaryQueueItem } from 'src/evam/models/message-broker.model';
 import { LlmService } from 'src/language-model/services/llm.service';

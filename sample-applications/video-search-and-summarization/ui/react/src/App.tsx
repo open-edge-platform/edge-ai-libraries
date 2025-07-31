@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { useEffect, type FC } from 'react';
 
 import NotificationList from './components/Notification/NotificationList.tsx';

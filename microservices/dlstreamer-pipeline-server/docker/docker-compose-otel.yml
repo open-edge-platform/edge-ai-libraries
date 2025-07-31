@@ -79,6 +79,8 @@ services:
       - OTEL_COLLECTOR_HOST=${OTEL_COLLECTOR_HOST}
       - OTEL_COLLECTOR_PORT=${OTEL_COLLECTOR_PORT}
       - OTEL_EXPORT_INTERVAL_MILLIS=${OTEL_EXPORT_INTERVAL_MILLIS}
+      # NPU related environment variables
+      - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
     depends_on:
       - otel-collector
     volumes:
@@ -109,6 +111,7 @@ services:
     devices:
       # Following devices under /dev filesystem will be needed based on usecase
       # dri - GPU
+      # accel - NPU
       # USB camera devices
       # Selective mount can be done for deployment as mounting whole /dev is not recommended
       - "/dev:/dev"

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { MigrationInterface, QueryRunner, TableColumn } from 'typeorm';
 
 export class VssMigrations1750138985555 implements MigrationInterface {

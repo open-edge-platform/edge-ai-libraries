@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { IconButton } from '@carbon/react';
 import { Renew } from '@carbon/react/icons';
 import { FC } from 'react';

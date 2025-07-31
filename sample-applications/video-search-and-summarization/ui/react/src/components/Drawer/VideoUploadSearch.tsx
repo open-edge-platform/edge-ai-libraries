@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Button, MultiSelect, ProgressBar, TextInput } from '@carbon/react';
 import axios, { AxiosProgressEvent, AxiosResponse } from 'axios';
 import { FC, useEffect, useRef, useState } from 'react';

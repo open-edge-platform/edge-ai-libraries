@@ -52,8 +52,6 @@ esh
 Etcd
 etcdroot
 etcdroot_password
-evam
-EVAM
 FFmpeg
 ffplay
 folloing
@@ -210,7 +208,6 @@ latencies
 dlstreamer
 dev
 decodebin
-decodebin3
 MRaaS
 Insourced
 FlipVertical
@@ -242,3 +239,4 @@ bitrate
 kbps
 kb
 VA-API
+Troubleshooting

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { Injectable, Logger } from '@nestjs/common';
 import {
   SearchQuery,
@@ -5,6 +7,7 @@ import {
   SearchResultBody,
   SearchShimQuery,
 } from '../model/search.model';
+import { SearchEntity } from '../model/search.entity';
 import { SearchDbService } from './search-db.service';
 import { EventEmitter2, OnEvent } from '@nestjs/event-emitter';
 import { SocketEvent } from 'src/events/socket.events';
@@ -12,15 +15,28 @@ import { SearchEvents } from 'src/events/Pipeline.events';
 import { SearchShimService } from './search-shim.service';
 import { lastValueFrom } from 'rxjs';
 import { v4 as uuidV4 } from 'uuid';
-import { SearchEntity } from '../model/search.entity';
+import { VideoService } from 'src/video-upload/services/video.service';
+import { VideoEntity } from 'src/video-upload/models/video.entity';
 
 @Injectable()
 export class SearchStateService {
   constructor(
     private $searchDB: SearchDbService,
+    private $video: VideoService,
     private $emitter: EventEmitter2,
     private $searchShim: SearchShimService,
   ) {}
+
+  async getQueries() {
+    const queries = await this.$searchDB.readAll();
+
+    // Enrich each query with video information
+    const enrichedQueries = await Promise.all(
+      queries.map((query) => this.enrichQueryWithVideos(query)),
+    );
+
+    return enrichedQueries.filter((query) => query !== null);
+  }
 
   async newQuery(query: string, tags: string[] = []) {
     const searchQuery: SearchQuery = {
@@ -43,6 +59,35 @@ export class SearchStateService {
     return res;
   }
 
+  private async enrichQueryWithVideos(
+    query: SearchEntity | null,
+  ): Promise<SearchQuery | null> {
+    if (!query) {
+      return null;
+    }
+
+    const videos = await this.$video.getVideos();
+    const videosKeyedById = videos.reduce(
+      (acc, video) => {
+        acc[video.videoId] = video;
+        return acc;
+      },
+      {} as Record<string, VideoEntity>,
+    );
+
+    if (query.results && query.results.length > 0) {
+      query.results = query.results.map((result) => {
+        const video = videosKeyedById[result.metadata.video_id];
+        if (video) {
+          result.video = video;
+        }
+        return result;
+      });
+    }
+
+    return query as SearchQuery;
+  }
+
   async addToWatch(queryId: string) {
     await this.$searchDB.updateWatch(queryId, true);
   }
@@ -62,7 +107,8 @@ export class SearchStateService {
       queryId,
       SearchQueryStatus.RUNNING,
     );
-    this.$emitter.emit(SocketEvent.SEARCH_UPDATE, updatedQuery);
+    const enrichedQuery = await this.enrichQueryWithVideos(updatedQuery);
+    this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
 
     try {
       const results = await this.runSearch(queryId, query.query, query.tags);
@@ -89,7 +135,8 @@ export class SearchStateService {
         queryId,
         SearchQueryStatus.IDLE,
       );
-      this.$emitter.emit(SocketEvent.SEARCH_UPDATE, updatedQuery);
+      const enrichedQuery = await this.enrichQueryWithVideos(updatedQuery);
+      this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
     }
   }
 
@@ -113,7 +160,8 @@ export class SearchStateService {
         SearchQueryStatus.IDLE,
       );
 
-      this.$emitter.emit(SocketEvent.SEARCH_UPDATE, query);
+      const enrichedQuery = await this.enrichQueryWithVideos(query);
+      this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
     }
     return query;
   }

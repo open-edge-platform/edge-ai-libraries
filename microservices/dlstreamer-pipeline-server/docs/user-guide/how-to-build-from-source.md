@@ -24,18 +24,13 @@ You can build either an optimized or an extended DL Streamer Pipeline Server ima
 3. Update the following lines in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` for choosing the right base image and also for naming the image that gets built.
 
     ``` sh
-    # For Ubuntu 22.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407
-    # For Ubuntu 24.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24:candidate1407
+    # See .env file for example values
     BASE_IMAGE=
 
-    # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
-    # For Ubuntu 24.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
-    # For Ubuntu 22.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22
-    # For Ubuntu 24.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24
+    # See .env file for example values
     DLSTREAMER_PIPELINE_SERVER_IMAGE=
 
-    # For optimized image: dlstreamer-pipeline-server
-    # For extended image: dlstreamer-pipeline-server-extended
+    # See .env file for example values
     BUILD_TARGET=
     ```
 

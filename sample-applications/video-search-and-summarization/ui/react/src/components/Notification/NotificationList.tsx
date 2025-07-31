@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { useEffect, type FC } from 'react';
 import { useDispatch, useSelector } from 'react-redux';
 import styled from 'styled-components';

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, useEffect, useState } from 'react';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SummaryActions, SummarySelector } from '../../redux/summary/summarySlice';

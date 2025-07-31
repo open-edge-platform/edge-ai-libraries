@@ -32,6 +32,7 @@ show_usage() {
   echo -e "  --help, -h\t\t Show this help message"
   echo -e "  --push\t Push all built Docker images to the registry"
   echo -e "  <no option>\t Build sample application services (video-ingestion, pipeline-manager, search-ms, and UI)"
+  echo -e ""
 }
 
 # Logging functions
@@ -55,6 +56,11 @@ docker_build() {
   
   if [ -n "$no_proxy" ]; then
     build_args="$build_args --build-arg no_proxy=$no_proxy"
+  fi
+  
+  # Add copyleft sources build arg if environment variable is set
+  if [ "$ADD_COPYLEFT_SOURCES" = "true" ]; then
+    build_args="$build_args --build-arg COPYLEFT_SOURCES=true"
   fi
   
   # Execute docker build with all arguments

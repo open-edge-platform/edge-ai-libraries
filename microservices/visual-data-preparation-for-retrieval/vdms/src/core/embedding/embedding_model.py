@@ -22,12 +22,18 @@ class Qwen3(nn.Module):
 
         self.model_name = cfg.get("qwen_model_name", "Qwen/Qwen3-Embedding-0.6B")
         self.max_length = cfg.get("qwen_sequence_length", 8192)
+        self._dimensions = cfg.get("qwen_vector_dimensions", 1024)
 
         self.model = AutoModel.from_pretrained(self.model_name)
+
         logger.debug(f"Model: {self.model}")
         self.processor = AutoProcessor.from_pretrained(self.model_name, use_fast=True)
         logger.debug(f"Processor: {self.processor}")
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name, padding_side="left")
+
+    def get_embedding_dimensions(self) -> int:
+        """Returns the dimensions of the embeddings."""
+        return self._dimensions
 
     def _last_token_pool(self, last_hidden_states: Tensor, attention_mask: Tensor) -> Tensor:
         left_padding = attention_mask[:, -1].sum() == attention_mask.shape[0]
@@ -49,30 +55,28 @@ class Qwen3(nn.Module):
         Process texts with the configured max sequence length.
         """
         logger.debug(f"Generating text embeddings for: {texts}")
-        text_inputs = self.tokenizer(
+        input_tokens = self.tokenizer(
             texts,
-            padding="max_length",
+            padding=True,
             truncation=True,
             max_length=self.max_length,
             return_tensors="pt",
         )
 
-        text_inputs.to(self.model.device)
-        output = self.model(**text_inputs)
+        input_tokens.to(self.model.device)
+        with torch.no_grad():
+            output = self.model(**input_tokens)
+            logger.debug(f"Output: {output}")
+            logger.debug(f"Input text shape: {input_tokens['input_ids'].shape}")
+            logger.debug(f"Output shape: {output.last_hidden_state.shape}")
 
-        logger.debug(f"Input IDs: {text_inputs['input_ids']}")
-        logger.debug(f"Input text shape: {text_inputs['input_ids'].shape}")
-        logger.debug(f"Output: {output}")
-        logger.debug(f"Output shape: {output.last_hidden_state.shape}")
+            embeddings = self._last_token_pool(output.last_hidden_state, input_tokens["attention_mask"])
+            logger.debug(f"Embeddings shape: {embeddings.shape}")
+            logger.debug(f"Embeddings: {embeddings}")
 
-        embeddings = self._last_token_pool(output.last_hidden_state, text_inputs["attention_mask"])
+            embeddings = F.normalize(embeddings, p=2, dim=1)
+            logger.debug(f"Normalized embeddings: {embeddings}")
 
-        logger.debug(f"Embeddings shape: {embeddings.shape}")
-        logger.debug(f"Embeddings: {embeddings}")
-
-        embeddings = F.normalize(embeddings, p=2, dim=1)
-
-        logger.debug(f"Normalized embeddings: {embeddings}")
         return embeddings
 
 
@@ -84,24 +88,29 @@ class vCLIP(nn.Module):
         self.model_name = cfg.get("vclip_model_name", "openai/clip-vit-base-patch32")
         self.num_frm = cfg.get("vclip_num_frame", 64)
         self.max_length = cfg.get("clip_sequence_length", 77)
+        self._dimensions = cfg.get("clip_vector_dimensions", 512)
 
         self.clip = AutoModel.from_pretrained(self.model_name)
         self.processor = AutoProcessor.from_pretrained(self.model_name, use_fast=True)
         self.tokenizer = AutoTokenizer.from_pretrained(self.model_name)
+
+    def get_embedding_dimensions(self) -> int:
+        """Returns the dimensions of the embeddings."""
+        return self._dimensions
 
     def get_text_embeddings(self, texts):
         """
         Input is list of texts.
         Process texts with the configured max sequence length.
         """
-        text_inputs = self.tokenizer(
+        input_tokens = self.tokenizer(
             texts,
             padding="max_length",
             truncation=True,
             max_length=self.max_length,
             return_tensors="pt",
         )
-        text_features = self.clip.get_text_features(**text_inputs)
+        text_features = self.clip.get_text_features(**input_tokens)
         text_features = F.normalize(text_features, p=2, dim=1)
         return text_features
 

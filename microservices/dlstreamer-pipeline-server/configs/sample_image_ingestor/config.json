@@ -5,7 +5,7 @@
                 "name": "pallet_defect_detection",
                 "source": "image_ingestor",
                 "queue_maxsize": 50,
-                "pipeline": "appsrc name=source  ! decodebin3 ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
+                "pipeline": "appsrc name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! appsink name=appsink",
                 "parameters": {
                     "type": "object",
                     "properties": {

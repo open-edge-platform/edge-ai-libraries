@@ -80,7 +80,7 @@ _Document how to get prebuilt docker image_
 To run the server using Docker Compose, use the following command:
 
 ```bash
-docker compose up -d
+docker compose -f docker/compose.yaml up -d
 ```
 
 ## Running the Server with GPU
@@ -111,7 +111,7 @@ source setup.sh
 ### 3. Start the Service
 
 ```bash
-docker compose up -d
+docker compose -f docker/compose.yaml up -d
 ```
 
 ### 4. Verify GPU Configuration
