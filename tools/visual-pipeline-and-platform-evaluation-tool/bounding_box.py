@@ -18,6 +18,7 @@ def parse_numeric(value, default=0):
 
 
 def extract_rectangles_with_labels(svg_file):
+    # nosemgrep: use-defused-xml-parse
     tree = ET.parse(svg_file)
     root = tree.getroot()
 

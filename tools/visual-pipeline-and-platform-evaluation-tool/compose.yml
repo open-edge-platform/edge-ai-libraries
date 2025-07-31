@@ -1,5 +1,5 @@
 x-vippet: &vippet
-  image: docker.io/intel/vippet-app:v1.0.0
+  image: docker.io/intel/vippet-app:v1.0.1
   build:
     context: .
     dockerfile: Dockerfile.vippet
@@ -7,7 +7,7 @@ x-vippet: &vippet
     - "7860:7860"
   command: python app.py
   healthcheck:
-    test: ["CMD", "wget", "-qO-", "http://localhost:7860/"]
+    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/"]
     interval: 30s
     timeout: 10s
     retries: 5
@@ -25,7 +25,7 @@ x-vippet: &vippet
 
 services:
   models:
-    image: docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
+    image: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
@@ -86,7 +86,8 @@ services:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
-    image: docker.io/intel/vippet-videogenerator:v1.0.0
+    profiles: [do-not-start]
+    image: docker.io/intel/vippet-videogenerator:v1.0.2
     build:
       context: video_generator
       dockerfile: Dockerfile
@@ -96,7 +97,6 @@ services:
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
-    restart: on-failure:5
 
 volumes:
   collector-signals:

@@ -48,6 +48,9 @@ export RERANKER_ENDPOINT=http://reranker/rerank
 export OTLP_SERVICE_NAME=chatqna
 export OTLP_SERVICE_ENV=chatqna
 export OTEL_SERVICE_VERSION=1.0.0
+if [[ -n "$OTLP_ENDPOINT" ]]; then
+  export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+fi
 
 # VLLM
 export TENSOR_PARALLEL_SIZE=1

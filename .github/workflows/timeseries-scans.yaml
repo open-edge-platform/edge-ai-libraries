@@ -20,12 +20,19 @@ on:
         - dbs-scan
         - trivy-fs-image-scan
         - trivy-dockerfile-scan
+  workflow_call: 
+    inputs:
+      target:
+        description: 'Which Scans to run'
+        required: false
+        type: string
+
 
 
 jobs:
   codeql-job:
     name: CodeQL Scan - Python
-    if: ${{ (github.event.inputs.target == 'codeql-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'codeql-scan') || (inputs.target == 'all-scans') }}
     # Consider using larger runners or machines with greater resources for possible analysis time improvements.
     runs-on: ubuntu-24.04
     permissions:
@@ -113,7 +120,7 @@ jobs:
           path: codeql_reports.zip
   bandit-scans:
     name: Bandit Scan
-    if: ${{ (github.event.inputs.target == 'bandit-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'bandit-scan') || (inputs.target == 'all-scans') }}
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -152,7 +159,7 @@ jobs:
   virus-scans:
     name: Virus Scan
     runs-on: ubuntu-24.04
-    if: ${{ (github.event.inputs.target == 'virus-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'virus-scan') || (inputs.target == 'all-scans') }}
     permissions:
       contents: read
     strategy:
@@ -186,7 +193,7 @@ jobs:
         fi
   pylint-scans:
     name: Pylint Scan
-    if: ${{ (github.event.inputs.target == 'pylint-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'pylint-scan') || (inputs.target == 'all-scans') }}
     runs-on: ubuntu-24.04
     permissions:
       contents: read
@@ -221,7 +228,7 @@ jobs:
   DBS_job:
     name: Docker Bench Security Scan
     runs-on: ubuntu-24.04
-    if: ${{ (github.event.inputs.target == 'dbs-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'dbs-scan') || (inputs.target == 'all-scans') }}
     permissions:
       contents: read
       packages: read          # needed for actions/checkout
@@ -288,7 +295,7 @@ jobs:
           path: microservices/time-series-analytics/docker/dbs_scan_timeseries.txt
   trivy-scan-job:
     name: Trivy File-System/Image Scan
-    if: ${{ (github.event.inputs.target == 'trivy-fs-image-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'trivy-fs-image-scan') || (inputs.target == 'all-scans') }}
     permissions:
       contents: read
     runs-on: ubuntu-24.04
@@ -401,7 +408,7 @@ jobs:
       
   trivy-config-dockerfile-scan:
     name: Trivy Dockerfile Scan
-    if: ${{ (github.event.inputs.target == 'trivy-dockerfile-scan') || (github.event.inputs.target == 'all-scans') }}
+    if: ${{ (inputs.target == 'trivy-dockerfile-scan') || (inputs.target == 'all-scans') }}
     permissions:
       contents: read
     strategy:

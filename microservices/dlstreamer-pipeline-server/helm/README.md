@@ -3,7 +3,7 @@
 ## Steps to deploy the helm chart:
 
 - Note: Incase you do not have a k8s cluster, then please follow the steps mentioned in 'Setup k8s cluster' below before deploying the helm chart.
-- Get into the helm directory
+- Get into the helm directory (where this README.md exists)
     `cd helm`
 - Update the below fields in `values.yaml` file in the helm chart
     ``` sh
@@ -14,6 +14,7 @@
     `helm install dlsps . -n apps --create-namespace`
 - Check if Deep Learning Streamer Pipeline Server is running fine
     `kubectl get pods --namespace apps`and monitor its logs using `kubectl logs -f <pod_name> -n apps`
+- The resources such as video and model are copied into `dlstreamer-pipeline-server` pod by `initContainers`.
 - Send the curl command to start the pallet defect detection pipeline
     ``` sh
         curl http://localhost:30007/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
@@ -42,6 +43,8 @@
     ```
 - Open VLC media player on your windows system. Cick on Media -> Open Network Stream -> Enter `rtsp://<Host_IP_where_Deep_Learning_Streamer_Pipeline_Server_is_running>:30025/pallet-defect-detection` in network URL tab and hit Play to see the visualization.
 
+## Troubleshooting
+- [Troubleshooting Guide](../docs/user-guide/troubleshooting-guide.md)
 
 ## Setup k8s cluster
 

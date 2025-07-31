@@ -22,7 +22,7 @@ spec:
             - containerPort: {{ .Values.docSumBackend.service.port }}
           volumeMounts:
             - name: ca-path
-              mountPath: /usr/local/share/ca-certificates
+              mountPath: /opt/share/ca-certificates
             - name: ssl-path
               mountPath: /etc/ssl/certs
           env:
@@ -55,7 +55,7 @@ spec:
       volumes:
             - name: ca-path
               hostPath:
-                path:  "/usr/local/share/ca-certificates"
+                path:  "/opt/share/ca-certificates"
             - name: ssl-path
               hostPath:
                 path: "/etc/ssl/certs"

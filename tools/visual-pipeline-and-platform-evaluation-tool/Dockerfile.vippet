@@ -14,7 +14,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
+FROM ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
 
 USER root
 
@@ -26,9 +26,15 @@ ENV GST_PLUGIN_PATH=$GST_PLUGIN_PATH/usr/lib/x86_64-linux-gnu/gstreamer-1.0/
 
 WORKDIR /home/dlstreamer/vippet
 
+ENV VIRTUAL_ENV=/home/dlstreamer/vippet/.venv
+RUN python3 -m venv $VIRTUAL_ENV
+ENV PATH="$VIRTUAL_ENV/bin:$PATH"
+
 ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
 
-RUN pip install -r requirements.txt
+RUN \
+    pip3 install --no-cache-dir --upgrade pip && \
+    pip3 install --no-cache-dir -r requirements.txt
 
 ADD app.py \
     app.css \

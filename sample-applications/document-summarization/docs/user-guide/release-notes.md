@@ -3,7 +3,7 @@
 
 ## Current Release
 **Version**: 1.0.0
-**Release Date**: 14 July 2025
+**Release Date**: 25 July 2025
 
 **Key Features and Improvements:**
 
@@ -16,6 +16,4 @@
 **Known Issues:**
 
 - EMF Deployment package is not supported yet
-- EMT validation is not done yet
 - Summary time depends on the size and complexity (image, tables, cross references) of the document
-- Helm Chart/Docker images are not available in DockerHub

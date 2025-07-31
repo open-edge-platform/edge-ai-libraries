@@ -83,6 +83,7 @@ class GStreamerWebRTCDestination(AppDestination):
         self._app_src.connect('enough-data', self._on_enough_data)
 
     def _push_buffer(self, buffer):
+        buffer.make_writable()
         timestamp = self._clock.get_time()
         delta = timestamp - self._last_timestamp
         buffer.pts = buffer.dts = self._pts

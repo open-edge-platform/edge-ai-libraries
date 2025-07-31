@@ -52,8 +52,6 @@ esh
 Etcd
 etcdroot
 etcdroot_password
-evam
-EVAM
 FFmpeg
 ffplay
 folloing
@@ -241,3 +239,4 @@ bitrate
 kbps
 kb
 VA-API
+Troubleshooting
