@@ -13,5 +13,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.global.claimSize | default "100Gi" }}
+      storage: {{ .Values.global.claimSize | default "50Gi" }}
 {{- end }}
