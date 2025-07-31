@@ -7,7 +7,7 @@ x-vippet: &vippet
     - "7860:7860"
   command: python app.py
   healthcheck:
-    test: ["CMD", "curl", "-s", "http://localhost:7860/"]
+    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/"]
     interval: 30s
     timeout: 10s
     retries: 5
