@@ -1,0 +1,17 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "multimodal-embedding-ms.fullname" . }}-config
+  labels:
+    {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
+data:
+  MODEL_NAME: {{ .Values.modelName | quote }}
+  DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
+  DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
+  DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
+  EMBEDDING_USE_OV: {{ .Values.embeddingUseOV | quote }}
+  EMBEDDING_DEVICE: {{ .Values.embeddingDevice | quote }}
+  http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
+  https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
+  no_proxy: {{ .Values.global.proxy.no_proxy | quote }}
+  no_proxy_env: {{ .Values.global.proxy.no_proxy | quote }}

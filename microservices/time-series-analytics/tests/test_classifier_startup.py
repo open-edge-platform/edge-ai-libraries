@@ -3,536 +3,430 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+import os
+import time
 import pytest
-from unittest.mock import patch, MagicMock, mock_open, Mock
-import sys
-import socket
-import subprocess
+import threading
+from unittest import mock
 
-from classifier_startup import KapacitorClassifier, SUCCESS, FAILURE, KAPACITOR_NAME
-from classifier_startup import ConfigFileEventHandler, KapacitorDaemonLogs
-from classifier_startup import main
-import classifier_startup
+import classifier_startup as cs
+
+class DummyLogger:
+    def __init__(self):
+        self.messages = []
+    def info(self, msg): self.messages.append(('info', msg))
+    def error(self, msg): self.messages.append(('error', msg))
+    def warning(self, msg): self.messages.append(('warning', msg))
+    def debug(self, msg): self.messages.append(('debug', msg))
+    def exception(self, msg): self.messages.append(('exception', msg))
 
 @pytest.fixture
-def fake_logger():
-    class Logger:
-        def __init__(self):
-            self.errors = []
-            self.infos = []
-        def error(self, msg):
-            self.errors.append(msg)
-        def info(self, msg):
-            self.infos.append(msg)
-        def debug(self, msg):
+def kapacitor_classifier():
+    logger = DummyLogger()
+    return cs.KapacitorClassifier(logger)
+
+def test_write_cert_creates_file_and_sets_permissions(tmp_path, kapacitor_classifier):
+    src_file = tmp_path / "src_cert"
+    dst_file = tmp_path / "dst_cert"
+    src_file.write_text("CERTDATA")
+    kapacitor_classifier.write_cert(str(dst_file), str(src_file))
+    assert dst_file.exists()
+    assert oct(dst_file.stat().st_mode)[-3:] == "400"
+
+def test_write_cert_logs_on_failure(kapacitor_classifier):
+    kapacitor_classifier.write_cert("/nonexistent/path/file", "/nonexistent/cert")
+    assert any("Failed creating file" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "debug")
+
+def test_check_udf_package_all_present(tmp_path, kapacitor_classifier):
+    dir_name = "testudf"
+    base = tmp_path / dir_name
+    (base / "udfs").mkdir(parents=True)
+    (base / "tick_scripts").mkdir()
+    (base / "models").mkdir()
+    (base / "udfs" / "myudf.py").write_text("print('hi')")
+    (base / "tick_scripts" / "myudf.tick").write_text("tick")
+    (base / "models" / "myudf_model").write_text("model")
+    config = {"udfs": {"name": "myudf", "models": True}}
+    with mock.patch("os.path.isdir", side_effect=lambda p: True), \
+         mock.patch("os.path.isfile", side_effect=lambda p: True), \
+         mock.patch("os.listdir", return_value=["myudf_model"]):
+        assert kapacitor_classifier.check_udf_package(config, dir_name="testudf") is True
+
+def test_check_udf_package_missing_udf(kapacitor_classifier):
+    config = {"udfs": {"name": "missingudf"}}
+    with mock.patch("os.path.isdir", return_value=True), \
+         mock.patch("os.path.isfile", side_effect=lambda p: False), \
+         mock.patch("os.listdir", return_value=[]):
+        assert kapacitor_classifier.check_udf_package(config, dir_name="missingudf") is False
+        assert any("Missing udf" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "warning")
+
+def test_install_udf_package_runs_pip(monkeypatch, kapacitor_classifier):
+    called = []
+    def fake_run(cmd, check=False, **kwargs):
+        called.append(cmd)
+        class Dummy:
             pass
-    return Logger()
+        return Dummy()
+    monkeypatch.setattr("subprocess.run", fake_run)
+    monkeypatch.setattr(os.path, "isfile", lambda p: True)
+    kapacitor_classifier.install_udf_package("somedir")
+    # Accept either pip3 install or mkdir -p, depending on implementation
+    assert any(
+        (isinstance(cmd, list) and (cmd[:2] == ["mkdir", "-p"] or ("pip3" in cmd and "install" in cmd)))
+        for cmd in called
+    )
 
-def test_write_cert_success(tmp_path, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    src = tmp_path / "src.crt"
-    dst = tmp_path / "dst.crt"
-    src.write_text("CERTDATA")
-    handler.write_cert(str(dst), str(src))
-    assert dst.exists()
 
-def test_write_cert_failure(fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    with patch("shutil.copy", side_effect=OSError("fail")):
-        handler.write_cert("dst", "src")
-        assert "Failed creating file" in fake_logger.infos or fake_logger.debug
+def test_start_kapacitor_success(monkeypatch, kapacitor_classifier):
+    monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setitem(os.environ, "KAPACITOR_INFLUXDB_0_URLS_0", "")
+    monkeypatch.setattr(cs.subprocess, "Popen", lambda *a, **k: mock.Mock(wait=lambda: None))
+    monkeypatch.setattr(threading, "Thread", lambda *a, **k: mock.Mock(start=lambda: None))
+    assert kapacitor_classifier.start_kapacitor("localhost", False) is True
 
-def test_install_udf_package(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setattr("os.system", lambda x: 0)
-    monkeypatch.setattr("os.path.isfile", lambda x: True)
-    handler.install_udf_package()  # Should not raise
+def test_start_kapacitor_failure(monkeypatch, kapacitor_classifier):
+    monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setitem(os.environ, "KAPACITOR_INFLUXDB_0_URLS_0", "")
+    def raise_err(*a, **k): raise cs.subprocess.CalledProcessError(1, "kapacitord")
+    monkeypatch.setattr(cs.subprocess, "Popen", raise_err)
+    assert kapacitor_classifier.start_kapacitor("localhost", False) is False
 
-def test_start_kapacitor_success(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setenv("KAPACITOR_URL", "http://localhost:9092")
-    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_URLS_0", "http://localhost:8086")
-    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: None)
-    result = handler.start_kapacitor({}, "localhost", False, "app")
-    assert result is True
+# def test_process_zombie_true(monkeypatch, kapacitor_classifier):
+#     monkeypatch.setattr(cs.subprocess, "run", lambda *a, **k: mock.Mock(stdout=b'1\n'))
+#     assert kapacitor_classifier.process_zombie("kapacitord") is True
 
-def test_start_kapacitor_failure(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setenv("KAPACITOR_URL", "http://localhost:9092")
-    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_URLS_0", "http://localhost:8086")
-    def raise_called_process_error(*args, **kwargs):
-        raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
-    monkeypatch.setattr(subprocess, "Popen", raise_called_process_error)
-    result = handler.start_kapacitor({}, "localhost", True, "app")
-    assert result is False
+def test_process_zombie_false(monkeypatch, kapacitor_classifier):
+    monkeypatch.setattr(cs.subprocess, "run", lambda *a, **k: mock.Mock(stdout=b'0\n'))
+    assert kapacitor_classifier.process_zombie("kapacitord") is False
 
-def test_process_zombie_false(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    class FakeRun:
-        def __init__(self, out):
-            self.stdout = out
-    monkeypatch.setattr("subprocess.run", lambda *a, **k: FakeRun(b'0'))
-    assert handler.process_zombie(KAPACITOR_NAME) is False
-
-def test_process_zombie_exception(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    def raise_called_process_error(*args, **kwargs):
-        raise subprocess.CalledProcessError(returncode=1, cmd=args[0])
-    monkeypatch.setattr(subprocess, "Popen", raise_called_process_error)
-    assert handler.process_zombie("kapacitord") is None or handler.process_zombie("kapacitord") is False
-
-def test_kapacitor_port_open_success(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setattr(handler, "process_zombie", lambda x: False)
-    # Patch socket.socket.connect_ex to return SUCCESS
-    class FakeSocket:
-        def connect_ex(self, addr):
-            return SUCCESS
+def test_kapacitor_port_open_success(monkeypatch, kapacitor_classifier):
+    monkeypatch.setattr(kapacitor_classifier, "process_zombie", lambda n: False)
+    class DummySock:
+        def connect_ex(self, addr): return cs.SUCCESS
         def close(self): pass
-    monkeypatch.setattr(socket, "socket", lambda *a, **k: FakeSocket())
-    assert handler.kapacitor_port_open("localhost") is True
+    monkeypatch.setattr(cs.socket, "socket", lambda *a, **k: DummySock())
+    assert kapacitor_classifier.kapacitor_port_open("localhost") is True
 
-def test_kapacitor_port_open_failure(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setattr(handler, "process_zombie", lambda x: False)
-    class FakeSocket:
-        def connect_ex(self, addr):
-            return 1
+def test_kapacitor_port_open_failure(monkeypatch, kapacitor_classifier):
+    monkeypatch.setattr(kapacitor_classifier, "process_zombie", lambda n: False)
+    class DummySock:
+        def connect_ex(self, addr): return cs.FAILURE
         def close(self): pass
-    monkeypatch.setattr(socket, "socket", lambda *a, **k: FakeSocket())
-    assert handler.kapacitor_port_open("localhost") is False
+    monkeypatch.setattr(cs.socket, "socket", lambda *a, **k: DummySock())
+    assert kapacitor_classifier.kapacitor_port_open("localhost") is False
 
-def test_exit_with_failure_message(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
+def test_exit_with_failure_message_logs_and_exits(monkeypatch, kapacitor_classifier):
     with pytest.raises(SystemExit):
-        handler.exit_with_failure_message("fail message")
-    assert "fail message" in fake_logger.errors
+        kapacitor_classifier.exit_with_failure_message("failmsg")
+    assert any("failmsg" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "error")
 
-def test_check_config_missing_task(fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    msg, status = handler.check_config({})
-    assert status == FAILURE
-    assert "task key is missing" in msg
+def test_check_config_missing_udfs(kapacitor_classifier):
+    config = {}
+    msg, status = kapacitor_classifier.check_config(config)
+    assert status == cs.FAILURE
+    assert "udfs key is missing" in msg
 
-def test_check_config_success(fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    msg, status = handler.check_config({"task": {}})
-    assert status == SUCCESS
+def test_check_config_success(kapacitor_classifier):
+    config = {"udfs": {"name": "abc"}}
+    msg, status = kapacitor_classifier.check_config(config)
+    assert status == cs.SUCCESS
     assert msg is None
 
-def test_config_file_event_handler_on_modified_triggers_exit(monkeypatch):
-    handler = ConfigFileEventHandler()
-    class FakeEvent:
-        src_path = "/app/config.json"
-    # Patch os._exit and logger.info
-    exit_called = {}
-    monkeypatch.setattr("os._exit", lambda code: exit_called.setdefault("called", code))
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    handler.on_modified(FakeEvent())
-    assert exit_called["called"] == 1
+def test_enable_tasks_missing_name(kapacitor_classifier):
+    config = {"udfs": {}}
+    msg, status = kapacitor_classifier.enable_tasks(config, True, "localhost", "dir")
+    assert status == cs.FAILURE
+    assert "UDF name key is missing" in msg
 
-def test_config_file_event_handler_on_modified_no_action(monkeypatch):
-    class FakeEvent:
-        src_path = "/app/config.json"
-    # Patch os._exit and logger.info to ensure not called
-    monkeypatch.setattr("os._exit", lambda *_: (_ for _ in ()).throw(Exception("Should not exit")))
-    logger_mock = MagicMock()
-    monkeypatch.setattr("classifier_startup.logger", logger_mock)
-    # Should not raise or call exit
-    event = FakeEvent()
-    with pytest.raises(Exception, match="Should not exit"):
-        ConfigFileEventHandler.on_modified(event, logger_mock)
+def test_enable_tasks_calls_enable_classifier_task(monkeypatch, kapacitor_classifier):
+    config = {"udfs": {"name": "abc"}}
+    called = {}
+    monkeypatch.setattr(kapacitor_classifier, "enable_classifier_task", lambda *a, **k: called.setdefault("called", True))
+    def fake_sleep(x): raise Exception("break")
+    monkeypatch.setattr(cs.time, "sleep", fake_sleep)
+    with pytest.raises(Exception):
+        kapacitor_classifier.enable_tasks(config, True, "localhost", "dir")
+    assert called["called"]
 
-def test_kapacitor_daemon_logs_reads_lines(monkeypatch, fake_logger):
-    # Simulate the log file exists immediately
-    monkeypatch.setattr("os.path.isfile", lambda x: True)
-    # Simulate subprocess.Popen returning a fake process with a fake stdout
-    class FakeStdout:
-        def __init__(self):
-            self.lines = [b"log1\n", b"log2\n"]
-            self.index = 0
+def test_delete_old_subscription(monkeypatch):
+    called = {}
+    class DummyClient:
+        def __init__(self, **kwargs): called["init"] = kwargs
+        def query(self, q):
+            if q == "SHOW SUBSCRIPTIONS":
+                class DummyResult:
+                    def get_points(self):
+                        return [{"name": "kapacitor-foo", "retention_policy": "autogen", "mode": "all", "destinations": ["dest"]}]
+                return DummyResult()
+            called["drop"] = q
+        def close(self): called["closed"] = True
+    monkeypatch.setattr(cs, "InfluxDBClient", DummyClient)
+    monkeypatch.setattr(cs, "logger", DummyLogger())
+    monkeypatch.setenv("INFLUX_SERVER", "host")
+    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_USERNAME", "user")
+    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_PASSWORD", "pass")
+    monkeypatch.setenv("INFLUXDB_DBNAME", "db")
+    cs.delete_old_subscription(secure_mode=False)
+    assert "init" in called
+    assert "closed" in called
+
+def test_classifier_startup(monkeypatch):
+    config = {"udfs": {"name": "temperature_classifier"}, "alerts": {"mqtt": {"name": "mqtt", "mqtt_broker_host": "host", "mqtt_broker_port": 1883}}}
+    monkeypatch.setenv("SECURE_MODE", "false")
+    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_URLS_0", "http://localhost:8086")
+    monkeypatch.setenv("KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setattr(cs, "MRHandler", lambda config, logger: type("MRHandler", (), {"fetch_from_model_registry": False, "config": config, "unique_id": None})())
+    monkeypatch.setattr(cs, "delete_old_subscription", lambda secure_mode: None)
+    monkeypatch.setattr(cs.shutil, "copy", lambda src, dst: None)
+    class DummyTomlKit:
+        @staticmethod
+        def parse(x):
+            return {"udf": {"functions": {}}, "mqtt": [{"url": "mqtt://MQTT_BROKER_HOST:MQTT_BROKER_PORT"}], "influxdb": [{}]}
+        @staticmethod
+        def dumps(d, sort_keys):
+            return ""
+        @staticmethod
+        def table():
+            return {}
+    monkeypatch.setattr(cs, "tomlkit", DummyTomlKit)
+    monkeypatch.setattr(cs, "logger", DummyLogger())
+    monkeypatch.setattr(cs.os.path, "exists", lambda p: False)
+    monkeypatch.setattr(cs.shutil, "copytree", lambda src, dst: None)
+    monkeypatch.setattr(cs.kapacitor_classifier, "check_config", lambda config: (None, cs.SUCCESS))
+    monkeypatch.setattr(cs.kapacitor_classifier, "check_udf_package", lambda config, dir_name: True)
+    monkeypatch.setattr(cs.kapacitor_classifier, "install_udf_package", lambda dir_name: None)
+    monkeypatch.setattr(cs.kapacitor_classifier, "start_kapacitor", lambda host, secure: True)
+    monkeypatch.setattr(cs.kapacitor_classifier, "enable_tasks", lambda config, started, host, dir_name: (None, cs.SUCCESS))
+    monkeypatch.setattr("builtins.open", mock.mock_open(read_data=""))
+    cs.classifier_startup(config)
+
+def test_enable_classifier_task_success(monkeypatch, kapacitor_classifier):
+    # Simulate kapacitor_port_open returns True immediately
+    monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
+    # Simulate subprocess.check_call returns SUCCESS for both define and enable
+    calls = []
+    def fake_check_call(cmd):
+        calls.append(list(cmd))
+        return cs.SUCCESS
+    monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
+    # Patch time.sleep to avoid delays
+    monkeypatch.setattr(cs.time, "sleep", lambda x: None)
+    kapacitor_classifier.enable_classifier_task(
+        host_name="localhost",
+        tick_script="myudf.tick",
+        dir_name="myudf",
+        task_name="myudf"
+    )
+    # Should call define and enable
+    assert any("define" in c for c in calls)
+    assert any("enable" in c for c in calls)
+    assert any("Kapacitor Tasks Enabled Successfully" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+
+def test_enable_classifier_task_define_fails(monkeypatch, kapacitor_classifier):
+    monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
+    # Simulate subprocess.check_call returns FAILURE for define
+    calls = []
+    def fake_check_call(cmd):
+        calls.append(list(cmd))
+        return cs.FAILURE
+    monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(cs.time, "sleep", lambda x: None)
+    kapacitor_classifier.enable_classifier_task(
+        host_name="localhost",
+        tick_script="fail.tick",
+        dir_name="faildir",
+        task_name="failtask"
+    )
+    # Should retry 5 times
+    assert sum("define" in c for c in calls) == 5
+    assert any("ERROR:Cannot Communicate to Kapacitor." in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+    assert any("Retrying Kapacitor Connection" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+
+def test_enable_classifier_task_enable_fails(monkeypatch, kapacitor_classifier):
+    monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: True)
+    # Simulate subprocess.check_call returns SUCCESS for define, FAILURE for enable
+    calls = []
+    def fake_check_call(cmd):
+        calls.append(list(cmd))
+        if "define" in cmd:
+            return cs.SUCCESS
+        if "enable" in cmd:
+            return cs.FAILURE
+        return cs.FAILURE
+    monkeypatch.setattr(cs.subprocess, "check_call", fake_check_call)
+    monkeypatch.setattr(cs.time, "sleep", lambda x: None)
+    kapacitor_classifier.enable_classifier_task(
+        host_name="localhost",
+        tick_script="failenable.tick",
+        dir_name="failenable",
+        task_name="failenable"
+    )
+    # Should retry 5 times
+    assert sum("define" in c for c in calls) == 5
+    assert sum("enable" in c for c in calls) == 5
+    assert any("ERROR:Cannot Communicate to Kapacitor." in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+    assert any("Retrying Kapacitor Connection" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+
+def test_enable_classifier_task_port_never_opens(monkeypatch, kapacitor_classifier):
+    # Simulate kapacitor_port_open returns False always
+    monkeypatch.setattr(kapacitor_classifier, "kapacitor_port_open", lambda host: False)
+    # Patch time.sleep to avoid delays
+    monkeypatch.setattr(cs.time, "sleep", lambda x: None)
+    # Patch os._exit to raise SystemExit so we can catch it
+    monkeypatch.setattr(cs.os, "_exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
+    with pytest.raises(SystemExit):
+        kapacitor_classifier.enable_classifier_task(
+            host_name="localhost",
+            tick_script="neveropen.tick",
+            dir_name="neveropen",
+            task_name="neveropen"
+        )
+    assert any("Error connecting to Kapacitor Daemon" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "error")
+
+def test_start_kapacitor_sets_env_and_starts_proc(monkeypatch, kapacitor_classifier):
+    # Setup environment variables
+    monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setitem(os.environ, "KAPACITOR_INFLUXDB_0_URLS_0", "")
+    called = {}
+
+    def fake_popen(cmd):
+        called["cmd"] = cmd
+        m = mock.Mock()
+        m.wait = lambda: None
+        return m
+
+    def fake_thread(*args, **kwargs):
+        called["thread"] = True
+        class DummyThread:
+            def start(self): called["thread_started"] = True
+        return DummyThread()
+
+    monkeypatch.setattr(cs.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cs.threading, "Thread", fake_thread)
+    result = kapacitor_classifier.start_kapacitor("localhost", secure_mode=False)
+    assert result is True
+    assert "cmd" in called
+    assert "thread" in called
+    assert "thread_started" in called
+    assert any("Started kapacitor Successfully" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+    # Check KAPACITOR_URL env is set to http
+    assert os.environ["KAPACITOR_URL"].startswith("http://")
+    assert os.environ["KAPACITOR_UNSAFE_SSL"] == "true"
+
+def test_start_kapacitor_secure_mode(monkeypatch, kapacitor_classifier):
+    monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setitem(os.environ, "KAPACITOR_INFLUXDB_0_URLS_0", "https://influxhost:8086")
+    called = {}
+
+    def fake_popen(cmd):
+        called["cmd"] = cmd
+        m = mock.Mock()
+        m.wait = lambda: None
+        return m
+
+    def fake_thread(*args, **kwargs):
+        class DummyThread:
+            def start(self): called["thread_started"] = True
+        return DummyThread()
+
+    monkeypatch.setattr(cs.subprocess, "Popen", fake_popen)
+    monkeypatch.setattr(cs.threading, "Thread", fake_thread)
+    result = kapacitor_classifier.start_kapacitor("localhost", secure_mode=True)
+    assert result is True
+    assert os.environ["KAPACITOR_URL"].startswith("https://")
+    assert os.environ["KAPACITOR_UNSAFE_SSL"] == "false"
+    assert os.environ["KAPACITOR_INFLUXDB_0_URLS_0"].startswith("https://")
+    assert "thread_started" in called
+
+def test_start_kapacitor_handles_subprocess_error(monkeypatch, kapacitor_classifier):
+    monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
+    monkeypatch.setitem(os.environ, "KAPACITOR_INFLUXDB_0_URLS_0", "")
+    def raise_err(*a, **k): raise cs.subprocess.CalledProcessError(1, "kapacitord")
+    monkeypatch.setattr(cs.subprocess, "Popen", raise_err)
+    result = kapacitor_classifier.start_kapacitor("localhost", secure_mode=False)
+    assert result is False
+    assert any("Exception Occured in Starting the Kapacitor" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "info")
+
+def test_KapacitorDaemonLogs_waits_for_file_and_reads_lines(monkeypatch):
+    # Setup: simulate file appears after 2 checks, then poll returns True once, then break
+    calls = {"sleep": 0, "poll": 0, "readline": 0}
+    logger = DummyLogger()
+    kapacitor_log_file = "/tmp/log/kapacitor/kapacitor.log"
+    file_exists = [False, False, True]  # File appears on 3rd check
+
+    def fake_isfile(path):
+        assert path == kapacitor_log_file
+        return file_exists.pop(0) if file_exists else True
+
+    def fake_sleep(secs):
+        calls["sleep"] += 1
+        if calls["sleep"] > 10:
+            raise Exception("Infinite loop detected in sleep")
+
+    class DummyStdout:
         def readline(self):
-            if self.index < len(self.lines):
-                line = self.lines[self.index]
-                self.index += 1
-                return line
-            return b""
-    class FakePopen:
+            calls["readline"] += 1
+            return b"log line\n"
+
+    class DummyPopen:
         def __init__(self, *a, **k):
-            self.stdout = FakeStdout()
+            self.stdout = DummyStdout()
             self.stderr = None
-    monkeypatch.setattr("subprocess.Popen", lambda *a, **k: FakePopen())
-    # Simulate select.poll
-    class FakePoll:
+
+    class DummyPoll:
         def __init__(self):
-            self.called = 0
+            self._calls = 0
         def register(self, fd): pass
         def poll(self, timeout):
-            self.called += 1
-            # Only return True for the first two calls, then False to break
-            return self.called <= 2
-    monkeypatch.setattr("select.poll", lambda: FakePoll())
-    # Patch time.sleep to break infinite loop after a few iterations
+            calls["poll"] += 1
+            # Return True only on first call, then always False to break after one log
+            return calls["poll"] == 1
+
+    monkeypatch.setattr(os.path, "isfile", fake_isfile)
+    monkeypatch.setattr(time, "sleep", fake_sleep)
+    monkeypatch.setattr(cs.subprocess, "Popen", lambda *a, **k: DummyPopen())
+    monkeypatch.setattr(cs.select, "poll", DummyPoll)
+
+    # Patch logger.info to break after first log line
+    orig_info = logger.info
+    def info_patch(msg):
+        orig_info(msg)
+        if calls["poll"] == 1:
+            raise Exception("break")  # Stop after first log line
+
+    logger.info = info_patch
+
+    with pytest.raises(Exception) as excinfo:
+        cs.KapacitorDaemonLogs(logger)
+    assert "break" in str(excinfo.value)
+    # Should have waited for file, polled, and read a line
+    assert calls["sleep"] >= 2
+    assert calls["poll"] == 1
+    assert calls["readline"] == 1
+    # Should have logged the line
+    assert any(b"log line" in m[1] if isinstance(m[1], bytes) else b"log line" in m[1].encode() for m in logger.messages if m[0] == "info")
+
+def test_KapacitorDaemonLogs_handles_no_file(monkeypatch):
+    # Simulate file never appears, ensure it keeps sleeping
+    logger = DummyLogger()
+    kapacitor_log_file = "/tmp/log/kapacitor/kapacitor.log"
     sleep_calls = {"count": 0}
-    def fake_sleep(x):
+
+    def fake_isfile(path):
+        assert path == kapacitor_log_file
+        return False
+
+    def fake_sleep(secs):
         sleep_calls["count"] += 1
-        if sleep_calls["count"] > 2:
-            raise Exception("break")
-    monkeypatch.setattr("time.sleep", fake_sleep)
-    # Run and catch the forced break
-    try:
-        KapacitorDaemonLogs(fake_logger)
-    except Exception as e:
-        assert str(e) == "break"
-    # Check that logger.info was called with log lines
-    assert any(b"log1" in info or b"log2" in info for info in fake_logger.infos)
+        if sleep_calls["count"] > 3:
+            raise Exception("break")  # Stop after a few sleeps
 
-def test_main_config_file_missing(monkeypatch):
-    # Patch open to raise FileNotFoundError
-    monkeypatch.setattr("builtins.open", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    monkeypatch.setattr("os._exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
-    with pytest.raises(SystemExit):
-        main()
+    monkeypatch.setattr(os.path, "isfile", fake_isfile)
+    monkeypatch.setattr(time, "sleep", fake_sleep)
 
-def test_enable_classifier_task_success(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    # Patch kapacitor_port_open to return True immediately
-    monkeypatch.setattr(handler, "kapacitor_port_open", lambda host: True)
-    # Patch subprocess.check_call to always return SUCCESS
-    monkeypatch.setattr(subprocess, "check_call", lambda cmd: SUCCESS)
-    # Patch time.sleep to avoid delays
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    # Patch global mrHandlerObj to None
-    classifier_startup.mrHandlerObj = None
-    handler.enable_classifier_task("localhost", "myscript.tick", "mytask")
-    assert "Kapacitor Tasks Enabled Successfully" in fake_logger.infos
-    assert "Kapacitor Initialized Successfully. Ready to Receive the Data...." in fake_logger.infos
+    with pytest.raises(Exception) as excinfo:
+        cs.KapacitorDaemonLogs(logger)
+    assert "break" in str(excinfo.value)
+    assert sleep_calls["count"] > 0
 
-def test_enable_classifier_task_with_mrHandlerObj(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setattr(handler, "kapacitor_port_open", lambda host: True)
-    monkeypatch.setattr(subprocess, "check_call", lambda cmd: SUCCESS)
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    # Set up a fake mrHandlerObj with fetch_from_model_registry True
-    class FakeMR:
-        fetch_from_model_registry = True
-        tasks = {"task_name": "foo"}
-    classifier_startup.mrHandlerObj = FakeMR()
-    handler.enable_classifier_task("localhost", "myscript.tick", "mytask")
-    assert any("Kapacitor Tasks Enabled Successfully" in msg for msg in fake_logger.infos)
 
-def test_enable_classifier_task_retry_on_failure(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    monkeypatch.setattr(handler, "kapacitor_port_open", lambda host: True)
-    # Fail the first call, succeed the second
-    calls = {"count": 0}
-    def fake_check_call(cmd):
-        if calls["count"] == 0:
-            calls["count"] += 1
-            return FAILURE
-        return SUCCESS
-    monkeypatch.setattr(subprocess, "check_call", fake_check_call)
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    classifier_startup.mrHandlerObj = None
-    handler.enable_classifier_task("localhost", "myscript.tick", "mytask")
-    assert "ERROR:Cannot Communicate to Kapacitor. " in fake_logger.infos
-    assert "Kapacitor Tasks Enabled Successfully" in fake_logger.infos
-
-def test_enable_classifier_task_port_never_opens(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    # kapacitor_port_open always returns False
-    monkeypatch.setattr(handler, "kapacitor_port_open", lambda host: False)
-    # Patch time.sleep to avoid delay
-    monkeypatch.setattr("time.sleep", lambda x: None)
-    # Patch os._exit to raise SystemExit so we can catch it
-    monkeypatch.setattr("os._exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
-    classifier_startup.mrHandlerObj = None
-    with pytest.raises(SystemExit):
-        handler.enable_classifier_task("localhost", "myscript.tick", "mytask")
-    assert "Error connecting to Kapacitor Daemon... Restarting Kapacitor..." in fake_logger.errors
-    def test_enable_tasks_missing_tick_script(fake_logger):
-        handler = KapacitorClassifier(fake_logger)
-        config = {"task": {"task_name": "foo"}}
-        msg, status = handler.enable_tasks(config, True, "localhost", False)
-        assert status == FAILURE
-        assert "tick_script key is missing" in msg
-
-def test_enable_tasks_missing_task_name(fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    config = {"task": {"tick_script": "myscript.tick"}}
-    msg, status = handler.enable_tasks(config, True, "localhost", False)
-    assert status == FAILURE
-    assert "task_name key is missing" in msg
-
-def test_enable_tasks_calls_enable_classifier_task(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    config = {"task": {"tick_script": "myscript.tick", "task_name": "foo"}}
-    called = {}
-    def fake_enable_classifier_task(host, tick, name):
-        called["called"] = (host, tick, name)
-        # Raise to break infinite loop
-        raise Exception("break")
-    monkeypatch.setattr(handler, "enable_classifier_task", fake_enable_classifier_task)
-    monkeypatch.setattr("time.sleep", lambda x: (_ for _ in ()).throw(Exception("break")))
-    try:
-        handler.enable_tasks(config, True, "localhost", False)
-    except Exception as e:
-        assert str(e) == "break"
-    assert called["called"] == ("localhost", "myscript.tick", "foo")
-    assert "Enabling myscript.tick" in fake_logger.infos
-
-def test_enable_tasks_no_kapacitor_started(monkeypatch, fake_logger):
-    handler = KapacitorClassifier(fake_logger)
-    config = {"task": {"tick_script": "myscript.tick", "task_name": "foo"}}
-    # Patch time.sleep to break infinite loop
-    monkeypatch.setattr("time.sleep", lambda x: (_ for _ in ()).throw(Exception("break")))
-    try:
-        handler.enable_tasks(config, False, "localhost", False)
-    except Exception as e:
-        assert str(e) == "break"
-    # Should not call enable_classifier_task, so nothing in infos
-    assert not any("Enabling" in msg for msg in fake_logger.infos)
-
-def test_config_file_watch_keyboard_interrupt(monkeypatch):
-    # Prepare a fake observer with stop and join methods
-    class FakeObserver:
-        def __init__(self):
-            self.stopped = False
-            self.joined = False
-        def stop(self):
-            self.stopped = True
-        def join(self):
-            self.joined = True
-
-    observer = FakeObserver()
-    # Patch time.sleep to raise KeyboardInterrupt on first call
-    def fake_sleep(x):
-        raise KeyboardInterrupt()
-    monkeypatch.setattr("time.sleep", fake_sleep)
-    # Patch logger.info to a MagicMock to avoid side effects
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    # Should not raise, should call observer.stop and observer.join
-    classifier_startup.config_file_watch(observer, "/app/config.json")
-    assert observer.stopped is True
-    assert observer.joined is True
-
-def test_config_file_watch_runs_loop(monkeypatch):
-    # Prepare a fake observer with stop and join methods
-    class FakeObserver:
-        def stop(self): pass
-        def join(self): pass
-    observer = FakeObserver()
-    # Patch time.sleep to break after a few iterations
-    call_count = {"count": 0}
-    def fake_sleep(x):
-        call_count["count"] += 1
-        if call_count["count"] > 2:
-            raise Exception("break")
-    monkeypatch.setattr("time.sleep", fake_sleep)
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    try:
-        classifier_startup.config_file_watch(observer, "/app/config.json")
-    except Exception as e:
-        assert str(e) == "break"
-    assert call_count["count"] > 0
-
-def test_delete_old_subscription_secure_mode(monkeypatch):
-    # Patch environment variables
-    monkeypatch.setenv('INFLUX_SERVER', 'localhost')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_USERNAME', 'user')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_PASSWORD', 'pass')
-    monkeypatch.setenv('INFLUXDB_DBNAME', 'testdb')
-
-    # Patch InfluxDBClient and its methods
-    class FakeClient:
-        def __init__(self, **kwargs):
-            self.closed = False
-            self.queries = []
-        def query(self, q):
-            if q == 'SHOW SUBSCRIPTIONS':
-                class FakeResults:
-                    def get_points(self):
-                        return [
-                            {'name': 'kapacitor-foo', 'retention_policy': 'autogen', 'mode': 'ALL', 'destinations': ['dest']}
-                        ]
-                return FakeResults()
-            self.queries.append(q)
-            return None
-        def close(self):
-            self.closed = True
-
-    monkeypatch.setattr("classifier_startup.InfluxDBClient", lambda **kwargs: FakeClient())
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-
-    # Should not raise
-    classifier_startup.delete_old_subscription(secure_mode=True)
-
-def test_delete_old_subscription_non_secure(monkeypatch):
-    monkeypatch.setenv('INFLUX_SERVER', 'localhost')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_USERNAME', 'user')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_PASSWORD', 'pass')
-    monkeypatch.setenv('INFLUXDB_DBNAME', 'testdb')
-
-    class FakeClient:
-        def __init__(self, **kwargs):
-            self.closed = False
-        def query(self, q):
-            class FakeResults:
-                def get_points(self):
-                    return []
-            return FakeResults()
-        def close(self):
-            self.closed = True
-
-    monkeypatch.setattr("classifier_startup.InfluxDBClient", lambda **kwargs: FakeClient())
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    classifier_startup.delete_old_subscription(secure_mode=False)
-
-def test_delete_old_subscription_query_exception(monkeypatch):
-    monkeypatch.setenv('INFLUX_SERVER', 'localhost')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_USERNAME', 'user')
-    monkeypatch.setenv('KAPACITOR_INFLUXDB_0_PASSWORD', 'pass')
-    monkeypatch.setenv('INFLUXDB_DBNAME', 'testdb')
-
-    class FakeClient:
-        def __init__(self, **kwargs): pass
-        def query(self, q):
-            raise Exception("query failed")
-        def close(self): pass
-
-    monkeypatch.setattr("classifier_startup.InfluxDBClient", lambda **kwargs: FakeClient())
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    # Patch print to capture output
-    printed = {}
-    monkeypatch.setattr("builtins.print", lambda msg: printed.setdefault("msg", msg))
-    classifier_startup.delete_old_subscription(secure_mode=False)
-    assert "Failed to list subscriptions" in printed["msg"]
-
-def test_delete_old_subscription_outer_exception(monkeypatch):
-    # Patch InfluxDBClient to raise on init
-    monkeypatch.setattr("classifier_startup.InfluxDBClient", lambda **kwargs: (_ for _ in ()).throw(Exception("init failed")))
-    logger_mock = MagicMock()
-    monkeypatch.setattr("classifier_startup.logger", logger_mock)
-    classifier_startup.delete_old_subscription(secure_mode=False)
-    assert logger_mock.exception.called
-
-def make_minimal_config():
-    # Minimal config structure for main()
-    return {
-        "config": {
-            "task": {
-                "udfs": {"name": "myudf"},
-                "tick_script": "myscript.tick",
-                "task_name": "mytask"
-            },
-            "alerts": {
-                "mqtt": {
-                    "name": "mqtt_name",
-                    "mqtt_broker_host": "localhost",
-                    "mqtt_broker_port": 1883
-                }
-            }
-        }
-    }
-
-@pytest.fixture
-def patch_env(monkeypatch):
-    monkeypatch.setenv("KAPACITOR_URL", "http://localhost:9092")
-    monkeypatch.setenv("KAPACITOR_INFLUXDB_0_URLS_0", "http://localhost:8086")
-    monkeypatch.setenv("SECURE_MODE", "false")
-    monkeypatch.setenv("Appname", "Kapacitor")
-
-def test_main_success(monkeypatch, patch_env):
-    # Patch open for config.json and toml file
-    minimal_config = make_minimal_config()
-    m = mock_open(read_data='{}')
-    # Patch json.load to return our config
-    monkeypatch.setattr("builtins.open", m)
-    monkeypatch.setattr("json.load", lambda f: minimal_config)
-    # Patch tomlkit.parse and tomlkit.dumps
-    monkeypatch.setattr("tomlkit.parse", lambda s: {
-        "udf": {"functions": {}},
-        "mqtt": [{"name": "", "url": "mqtt://MQTT_BROKER_HOST:MQTT_BROKER_PORT"}]
-    })
-    monkeypatch.setattr("tomlkit.table", lambda: {})
-    monkeypatch.setattr("tomlkit.dumps", lambda d, sort_keys=False: "tomlcontent")
-    # Patch shutil.copy
-    monkeypatch.setattr("shutil.copy", lambda src, dst: None)
-    # Patch file write
-    monkeypatch.setattr("builtins.open", mock_open())
-    # Patch Observer and Thread
-    fake_observer = MagicMock()
-    monkeypatch.setattr("classifier_startup.Observer", lambda: fake_observer)
-    monkeypatch.setattr("classifier_startup.Thread", lambda target, args: MagicMock(start=lambda: None))
-    # Patch MRHandler
-    monkeypatch.setattr("classifier_startup.MRHandler", lambda config, logger: MagicMock(fetch_from_model_registry=False))
-    # Patch KapacitorClassifier and its methods
-    fake_classifier = MagicMock()
-    fake_classifier.check_config.return_value = (None, classifier_startup.SUCCESS)
-    fake_classifier.install_udf_package.return_value = None
-    fake_classifier.start_kapacitor.return_value = True
-    fake_classifier.enable_tasks.return_value = (None, classifier_startup.SUCCESS)
-    monkeypatch.setattr("classifier_startup.KapacitorClassifier", lambda logger: fake_classifier)
-    # Patch KapacitorDaemonLogs thread
-    monkeypatch.setattr("threading.Thread", lambda target, args: MagicMock(start=lambda: None))
-    # Patch delete_old_subscription
-    monkeypatch.setattr("classifier_startup.delete_old_subscription", lambda secure_mode: None)
-    # Patch logger
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    # Patch os.environ
-    monkeypatch.setattr("os.environ", {
-        "KAPACITOR_URL": "http://localhost:9092",
-        "KAPACITOR_INFLUXDB_0_URLS_0": "http://localhost:8086"
-    })
-    # Run main, should not raise
-    classifier_startup.main()
-    assert fake_classifier.check_config.called
-    assert fake_classifier.install_udf_package.called
-    assert fake_classifier.start_kapacitor.called
-    assert fake_classifier.enable_tasks.called
-
-    def test_main_config_missing(monkeypatch):
-        # Patch open to raise FileNotFoundError
-        monkeypatch.setattr("builtins.open", lambda *a, **k: (_ for _ in ()).throw(FileNotFoundError()))
-        monkeypatch.setattr("classifier_startup.logger", MagicMock())
-        monkeypatch.setattr("os._exit", lambda code: (_ for _ in ()).throw(SystemExit(code)))
-        with pytest.raises(SystemExit):
-            classifier_startup.main()
-
-def test_main_with_opcua(monkeypatch, patch_env):
-    # Like test_main_success but with "opcua" in alerts
-    minimal_config = make_minimal_config()
-    minimal_config["config"]["alerts"]["opcua"] = {"foo": "bar"}
-    m = mock_open(read_data='{}')
-    monkeypatch.setattr("builtins.open", m)
-    monkeypatch.setattr("json.load", lambda f: minimal_config)
-    monkeypatch.setattr("tomlkit.parse", lambda s: {
-        "udf": {"functions": {}},
-        "mqtt": [{"name": "", "url": "mqtt://MQTT_BROKER_HOST:MQTT_BROKER_PORT"}]
-    })
-    monkeypatch.setattr("tomlkit.table", lambda: {})
-    monkeypatch.setattr("tomlkit.dumps", lambda d, sort_keys=False: "tomlcontent")
-    monkeypatch.setattr("shutil.copy", lambda src, dst: None)
-    monkeypatch.setattr("builtins.open", mock_open())
-    monkeypatch.setattr("classifier_startup.Observer", lambda: MagicMock())
-    monkeypatch.setattr("classifier_startup.Thread", lambda target, args: MagicMock(start=lambda: None))
-    monkeypatch.setattr("classifier_startup.MRHandler", lambda config, logger: MagicMock(fetch_from_model_registry=False))
-    fake_classifier = MagicMock()
-    fake_classifier.check_config.return_value = (None, classifier_startup.SUCCESS)
-    fake_classifier.install_udf_package.return_value = None
-    fake_classifier.start_kapacitor.return_value = True
-    fake_classifier.enable_tasks.return_value = (None, classifier_startup.SUCCESS)
-    monkeypatch.setattr("classifier_startup.KapacitorClassifier", lambda logger: fake_classifier)
-    monkeypatch.setattr("threading.Thread", lambda target, args: MagicMock(start=lambda: None))
-    monkeypatch.setattr("classifier_startup.delete_old_subscription", lambda secure_mode: None)
-    monkeypatch.setattr("classifier_startup.logger", MagicMock())
-    monkeypatch.setattr("os.environ", {
-        "KAPACITOR_URL": "http://localhost:9092",
-        "KAPACITOR_INFLUXDB_0_URLS_0": "http://localhost:8086"
-    })
-    classifier_startup.main()
-    assert fake_classifier.check_config.called
-    assert fake_classifier.install_udf_package.called
-    assert fake_classifier.start_kapacitor.called
-    assert fake_classifier.enable_tasks.called

@@ -1,0 +1,15 @@
+apiVersion: v1
+kind: Service
+metadata:
+  name: {{ .Values.videoSummaryManager.name }}
+  labels:
+    app: {{ .Values.videoSummaryManager.name }}
+spec:
+  type: {{ .Values.videoSummaryManager.service.type }}
+  ports:
+    - port: {{ .Values.videoSummaryManager.service.port }}
+      targetPort: {{ .Values.videoSummaryManager.service.targetPort }}
+      protocol: TCP
+      name: http
+  selector:
+    app: {{ .Values.videoSummaryManager.name }}

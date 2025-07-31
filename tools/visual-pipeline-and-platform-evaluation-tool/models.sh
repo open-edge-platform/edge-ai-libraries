@@ -1,6 +1,6 @@
 #/bin/bash
 
-set -euxo pipefail
+set -euo pipefail
 
 # Remove healthcheck.txt if it exists
 rm -f healthcheck.txt

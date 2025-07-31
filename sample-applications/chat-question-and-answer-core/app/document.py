@@ -4,10 +4,10 @@ from .logger import logger
 from pathlib import Path
 from fastapi import UploadFile
 from langchain_community.document_loaders import (
-    UnstructuredFileLoader,
     PyPDFLoader,
+    Docx2txtLoader,
+    TextLoader
 )
-
 
 config = Settings()
 
@@ -76,9 +76,11 @@ def load_file_document(file_path):
 
     if file_path.suffix.lower() == ".pdf":
         loader = PyPDFLoader(file_path)
+    elif file_path.suffix.lower() == ".docx":
+        loader = Docx2txtLoader(file_path)
     else:
-        loader = UnstructuredFileLoader(
-            file_path=file_path, mode="paged", strategy="fast"
+        loader = TextLoader(
+            file_path=file_path
         )
 
     docs = loader.load()

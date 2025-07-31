@@ -1,0 +1,88 @@
+name: "[SCANS] CodeQL"
+run-name: "[SCANS] CodeQL"
+on:
+  workflow_call: 
+permissions: {}
+
+jobs:
+  detect-languages:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    outputs:
+      langs: ${{ steps.detect-langs.outputs.langs }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Detect changed languages
+        id: detect-langs
+        run: |
+          cd edge-ai-libraries-repo
+          if [ "$(git rev-parse --abbrev-ref HEAD)" != "main" ]; then
+            git fetch origin main:main
+            echo "Fetched main branch"
+          fi
+          changed_files=$(git diff --name-only main...$GITHUB_SHA -- '*.yml' '.*yaml' '*.sh' '*.py' '*.java' '*.js' '*.ts' || true)          
+          echo "Performed git diff"
+
+          if [ -z "$changed_files" ]; then
+            echo "No relevant changed files detected."
+            echo "langs=[]" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          declare -A langmap=( ["yaml"]=actions ["yml"]=actions ["py"]=python ["java"]=java-kotlin ["js"]=javascript-typescript ["ts"]=javascript-typescript )
+          declare -A langs
+
+          for file in $changed_files; do
+            ext="${file##*.}"
+            [[ ${langmap[$ext]} ]] && langs[${langmap[$ext]}]=1
+          done
+
+          langs_json=$(printf '%s\n' "${!langs[@]}" | sort | jq -R . | jq -s -c .)
+          echo "Changed files:"
+          echo "$changed_files"
+          echo "Detected langs:"
+          echo "$langs_json"
+          echo "langs=$langs_json" >> $GITHUB_OUTPUT
+
+  analyze:
+    needs: detect-languages
+    if: needs.detect-languages.outputs.langs != '[]'
+    runs-on: ubuntu-24.04-16core-64GB
+    strategy:
+      fail-fast: false
+      matrix:
+        language: ${{ fromJson(needs.detect-languages.outputs.langs) }}
+    permissions:
+      security-events: write
+      actions: read
+      contents: read
+      packages: read
+
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Init submodules
+        run: |
+          git submodule update --init libraries/dl-streamer/thirdparty/spdlog
+
+
+      - name: Initialize CodeQL build mode
+        uses: github/codeql-action/init@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
+        with:
+          languages: ${{ matrix.language }}
+          build-mode: none
+          source-root: .
+
+      - name: Perform CodeQL analysis
+        uses: github/codeql-action/analyze@ce28f5bb42b7a9f2c824e633a3f6ee835bab6858 # v3.29.0
+        with:
+          category: "/language:${{matrix.language}}"

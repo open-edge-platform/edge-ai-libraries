@@ -44,7 +44,7 @@ services:
     volumes:
       - "${MODEL_CACHE_PATH}:/tmp/model_cache"
     group_add:
-      - ${GID}
+      - ${USER_GROUP_ID-1000}
 
   chatqna-core-gpu:
     image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
@@ -72,7 +72,7 @@ services:
       - /dev/dri:/dev/dri
     group_add:
       - ${RENDER_DEVICE_GID}
-      - ${GID}
+      - ${USER_GROUP_ID-1000}
     ports:
       - "8888:8888"
     volumes:

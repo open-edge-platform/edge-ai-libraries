@@ -123,6 +123,7 @@ cmake_dependent_option(TREAT_WARNING_AS_ERROR "Treat build warnings as errors" O
 cmake_dependent_option(ENABLE_ITT "Enable ITT for tracing" ON "UNIX AND NOT ${CMAKE_SYSTEM_PROCESSOR} STREQUAL aarch64" OFF)
 cmake_dependent_option(ENABLE_VAAPI "Parameter to enable VAAPI for image pre-processing" ON "UNIX" ON)
 cmake_dependent_option(ENABLE_PAHO_INSTALLATION "Enables paho-mqtt3c installation" OFF "UNIX" OFF)
+cmake_dependent_option(ENABLE_TESTS "Parameter to enable tests building" ON "UNIX" OFF)
 cmake_dependent_option(ENABLE_RDKAFKA_INSTALLATION "Enables rdkafka installation" OFF "UNIX" OFF)
 option(ENABLE_AUDIO_INFERENCE_ELEMENTS "Enables audio inference elements" ON)
 option(ENABLE_VPUX "Enables VPUX specific features" OFF)
@@ -133,7 +134,8 @@ message("ENABLE_RDKAFKA_INSTALLATION=${ENABLE_RDKAFKA_INSTALLATION}")
 
 if(WIN32)
     set(CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} /permissive-")
-    set(CMAKE_CXX_FLAGS_RELEASE "/O2")
+    # disabled some warnings to reduce log size
+    set(CMAKE_CXX_FLAGS_RELEASE "/O2 -wd4005 -wd4267 -wd4297 -wd4244 -wd4273 -wd4141 -wd4805")
 
     set (CMAKE_C_STANDARD 11)
     set (CMAKE_CXX_STANDARD 23)
@@ -209,3 +211,7 @@ if(${ENABLE_SAMPLES})
     #add_subdirectory(samples/ffmpeg_dpcpp/rgb_to_grayscale)
 endif()
 
+if(${ENABLE_TESTS} AND NOT(WIN32))
+    enable_testing()
+    add_subdirectory(tests/unit_tests)
+endif()

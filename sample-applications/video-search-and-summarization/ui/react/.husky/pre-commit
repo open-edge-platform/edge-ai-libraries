@@ -1,0 +1,2 @@
+if [ "$NO_VERIFY_YOLO" ]; then exit 0; fi
+npx lint-staged

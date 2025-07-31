@@ -60,6 +60,7 @@ class ImageInference {
                              const std::map<std::string, std::shared_ptr<InputLayerDesc>> &input_preprocessors) = 0;
 
     virtual const std::string &GetModelName() const = 0;
+    virtual size_t GetBatchSize() const = 0;
     virtual size_t GetNireq() const = 0;
     virtual void GetModelImageInputInfo(size_t &width, size_t &height, size_t &batch_size, int &format,
                                         int &memory_type) const = 0;
@@ -69,7 +70,8 @@ class ImageInference {
     // TODO: return map<OutputLayerDesc>
     virtual std::map<std::string, std::vector<size_t>> GetModelOutputsInfo() const = 0;
     virtual std::map<std::string, GstStructure *> GetModelInfoPostproc() const = 0;
-    static std::map<std::string, GstStructure *> GetModelInfoPreproc(const std::string model_file);
+    static std::map<std::string, GstStructure *> GetModelInfoPreproc(const std::string model_file,
+                                                                     const gchar *pre_proc_config);
 
     virtual bool IsQueueFull() = 0;
     virtual void Flush() = 0;

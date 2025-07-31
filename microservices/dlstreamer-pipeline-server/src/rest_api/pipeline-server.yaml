@@ -617,6 +617,49 @@ components:
         - bucket
         - folder_prefix
       type: object
+    InfluxWrite:
+      properties:
+        type:
+          enum:
+          - influx_write
+          type: string
+        bucket:
+          type: string
+        org:
+          type: string
+        measurement:
+          type: string
+      required:
+        - type
+        - bucket
+        - org
+      type: object
+    ROS2Destination:
+      anyOf:
+        - type: object
+          properties:
+            topic:
+              type: string
+            type:
+              enum:
+              - ros2
+              type: string
+          required:
+            - topic
+            - type
+        - type: object
+          properties:
+            publish_frame:
+              type: boolean
+            topic:
+              type: string
+            type:
+              enum:
+              - ros2
+              type: string
+          required:
+            - topic
+            - type
     FrameDestination:
       anyOf:
         - type: object
@@ -644,6 +687,8 @@ components:
             - $ref: '#/components/schemas/MQTTDestination'
             - $ref: '#/components/schemas/FileDestination'
             - $ref: '#/components/schemas/OPCUADestination'
+            - $ref: '#/components/schemas/InfluxWrite'
+            - $ref: '#/components/schemas/ROS2Destination'
         - type: array
           items:
             discriminator:
@@ -653,6 +698,8 @@ components:
               - $ref: '#/components/schemas/MQTTDestination'
               - $ref: '#/components/schemas/FileDestination'
               - $ref: '#/components/schemas/OPCUADestination'
+              - $ref: '#/components/schemas/InfluxWrite'
+              - $ref: '#/components/schemas/ROS2Destination'
     FrameAndMetadataDestination:
       type: object
       properties:

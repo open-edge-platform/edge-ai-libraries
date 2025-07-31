@@ -15,7 +15,7 @@
 # - Arrowlake iGPU
 
 # Default values
-MODEL_CACHE_PATH="/tmp/model_cache/"
+MODEL_CACHE_PATH="/home/${USER}/model_cache/"
 DEVICE="CPU"
 PROFILES="DEFAULT"
 
@@ -60,12 +60,12 @@ if [ -e "$MODEL_CACHE_PATH" ]; then
         # If owned by root:root, delete and recreate it
         echo "$MODEL_CACHE_PATH exists and is owned by root:root. Deleting it and recreate..."
         sudo rm -rf "$MODEL_CACHE_PATH"
-        mkdir "$MODEL_CACHE_PATH"
+        mkdir -p "$MODEL_CACHE_PATH"
     fi
 else
     # If it doesn't exist, create it
     echo "$MODEL_CACHE_PATH does not exist. Creating it..."
-    mkdir "$MODEL_CACHE_PATH"
+    mkdir -p "$MODEL_CACHE_PATH"
 fi
 
 
@@ -88,7 +88,7 @@ if [ "$DEVICE" == "GPU" ]; then
     fi
 fi
 
-export GID=$(id -g ${USER})
+export USER_GROUP_ID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
 export LLM_MODEL_ID="microsoft/Phi-3.5-mini-instruct"

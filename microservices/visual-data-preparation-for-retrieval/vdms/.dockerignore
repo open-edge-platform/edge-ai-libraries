@@ -1,0 +1,9 @@
+.venv/
+.pytest_cache/
+docker/
+.coverage
+__pycache__/
+.vscode
+.dockerignore
+setup.sh
+data/

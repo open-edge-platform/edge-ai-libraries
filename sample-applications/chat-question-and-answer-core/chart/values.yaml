@@ -1,7 +1,7 @@
 image:
   registry: "intel/"
-  backendTag: "core_1.2.0"
-  backendGpuTag: "core_gpu_1.2.0"
+  backendTag: "core_1.2.1"
+  backendGpuTag: "core_gpu_1.2.1"
   pullPolicy: IfNotPresent
 
 global:

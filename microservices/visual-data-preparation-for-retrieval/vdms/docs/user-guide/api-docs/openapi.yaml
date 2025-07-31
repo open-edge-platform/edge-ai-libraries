@@ -1,0 +1,823 @@
+openapi: 3.1.0
+info:
+  title: GenAI Multimodal DataPrep Microservice (VDMS Based)
+  description: 'A microservice for data preparation from text, video and image sources'
+  version: 0.1.0
+servers:
+  - url: /v1/dataprep
+paths:
+  /health:
+    get:
+      tags:
+        - Status APIs
+      summary: Check the health of the API service
+      description: >-
+        Health API endpoint to check whether API Server is reachable and
+        responding.
+      operationId: check_health_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema: {}
+  /videos:
+    post:
+      tags:
+        - Data Preparation APIs
+      summary: (Legacy Endpoint) Process video parameters for DataPrep service.
+      description: >-
+        ### Legacy Endpoint: Please use /videos/upload to create embeddings by
+        uploading videos or /videos/minio to create embeddings by getting videos
+        from MINIO storage.
+
+
+        ## Processes videos stored in Minio using the provided parameters or
+        directly from an uploaded file. (DEPRECATED)
+
+
+        You can either upload a video file directly or provide Minio parameters
+        to process an existing video.
+
+        If both are provided, the uploaded file takes precedence.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional) :** The bucket name where the video is
+        stored (If not provided, a default bucket name will be used based on
+        application config.)
+
+        - **video_id (str, optional) :** The video ID (directory) containing the
+        video (required if no file is uploaded)
+
+        - **video_name (str, optional) :** The video filename within the
+        video_id directory (if omitted, first video found is used)
+
+        - **chunk_duration (int, optional) :** Interval of time in seconds for
+        video chunking (default: 30)
+
+        - **clip_duration (int, optional) :** Length of clip in seconds for
+        embedding selection (default: 10)
+
+
+        #### File Upload:
+
+        - **file (UploadFile, optional) :** Video file to upload (MP4 format
+        only, max size 500MB)
+          When a file is uploaded, Minio parameters (bucket_name, video_id) are optional. Uploaded files are
+          processed and then stored in Minio with an object name format of `{request_id}/{filename}` for future reference.
+
+        #### Raises:
+
+        - **400 Bad Request :** If video files are not .mp4 or fail any
+        validation error.
+
+        - **413 Request Entity Too Large :** If uploaded file exceeds the 500MB
+        limit.
+
+        - **502 Bad Gateway :** When Something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: prep_data_videos_post
+      deprecated: true
+      parameters:
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: The bucket name where the video is stored
+            title: Bucket Name
+          description: The bucket name where the video is stored
+        - name: video_id
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: The video ID (directory) containing the video
+            title: Video Id
+          description: The video ID (directory) containing the video
+        - name: video_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The video filename within the video_id directory (if omitted,
+              first video found is used)
+            title: Video Name
+          description: >-
+            The video filename within the video_id directory (if omitted, first
+            video found is used)
+        - name: chunk_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Interval of time in seconds for video chunking
+            title: Chunk Duration
+          description: Interval of time in seconds for video chunking
+        - name: clip_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Length of clip in seconds for embedding selection
+            title: Clip Duration
+          description: Length of clip in seconds for embedding selection
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_prep_data_videos_post'
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: Get list of videos from Minio storage.
+      description: >-
+        ### Get list of available videos from Minio storage.
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional):** The bucket name to list videos from.
+        If not provided, default bucket will be used.
+
+
+        #### Raises:
+
+        - **502 Bad Gateway:** When something goes wrong with Minio storage
+        access.
+
+        - **500 Internal Server Error:** When some internal error occurs at the
+        API server.
+
+
+        #### Returns:
+
+        - **response (json):** A JSON response containing list of videos with
+        details like video_id, video_name, video_path, and creation timestamp.
+      operationId: get_video_files_list_videos_get
+      parameters:
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            type: string
+            description: >-
+              The bucket name to list videos from. If not provided, default
+              bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name to list videos from. If not provided, default bucket
+            will be used.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BucketVideoListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/minio:
+    post:
+      tags:
+        - Data Preparation APIs
+      summary: Process video from Minio storage for embedding generation.
+      description: >-
+        ### Processes videos stored in Minio using the provided parameters.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        ***For example:** Given a video of 30s in total length, with
+        chunk_duration = 10 and clip_duration = 5,
+
+        embeddings will be created for uniformly sampled frames from first 5 sec
+        clip (defined by clip_duration)
+
+        in each of the three chunks. Three chunks would be created because total
+        length of video is 30s and duration
+
+        of every chunk is 10s (defined by chunk_duration). **Number of chunks =
+        int(total length of video in sec / chunk_duration)***
+
+
+        #### Body Params:
+
+        - **video_request (VideoRequest) :** Contains processing parameters:
+           - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
+           - **video_id (str) :** The video ID (directory) containing the video (required)
+           - **video_name (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the directory will be used automatically)
+           - **chunk_duration (int) :** Interval of time in seconds for video chunking (default: 30)
+           - **clip_duration (int) :** Length of clip in seconds for embedding selection (default: 10)
+
+        #### Raises:
+
+        - **400 Bad Request :** If required parameters are missing or invalid.
+
+        - **404 Not Found :** If the specified video cannot be found in Minio or
+        no videos exist in the specified directory.
+
+        - **502 Bad Gateway :** When something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: process_minio_video_videos_minio_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoRequest'
+              description: Video processing parameters
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/upload:
+    post:
+      tags:
+        - Data Preparation APIs
+      summary: Upload and process a video file for embedding generation.
+      description: >-
+        ### Upload and process a video file for embedding generation.
+
+
+        This endpoint accepts an MP4 video file upload, stores it in Minio, and
+        generates embeddings.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        ***For example:** Given a video of 30s in total length, with
+        chunk_duration = 10 and clip_duration = 5,
+
+        embeddings will be created for uniformly sampled frames from first 5 sec
+        clip (defined by clip_duration)
+
+        in each of the three chunks. Three chunks would be created because total
+        length of video is 30s and duration
+
+        of every chunk is 10s (defined by chunk_duration). **Number of chunks =
+        int(total length of video in sec / chunk_duration)***
+
+
+        #### File Upload:
+
+        - **file (UploadFile, required) :** Video file to upload (MP4 format
+        only, max size 500MB)
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional) :** The bucket name to store the video
+        in. If not provided, default bucket will be used.
+
+        - **chunk_duration (int, optional) :** Interval of time in seconds for
+        video chunking (default: 30)
+
+        - **clip_duration (int, optional) :** Length of clip in seconds for
+        embedding selection (default: 10)
+
+
+        #### Raises:
+
+        - **400 Bad Request :** If the video file is not an MP4 or fails
+        validation.
+
+        - **413 Request Entity Too Large :** If the uploaded file exceeds the
+        500MB limit.
+
+        - **502 Bad Gateway :** When something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: upload_and_process_video_videos_upload_post
+      parameters:
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name to store the video in. If not provided, default
+              bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name to store the video in. If not provided, default
+            bucket will be used.
+        - name: chunk_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Interval of time in seconds for video chunking
+            title: Chunk Duration
+          description: Interval of time in seconds for video chunking
+        - name: clip_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Length of clip in seconds for embedding selection
+            title: Clip Duration
+          description: Length of clip in seconds for embedding selection
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              $ref: >-
+                #/components/schemas/Body_upload_and_process_video_videos_upload_post
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/download:
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: (Legacy Endpoint) Download a video from Minio storage
+      description: >-
+        ### Legacy Endpoint: Please use /{video_id}/{video_name} endpoint
+        instead.
+
+        ## Download a video file from Minio storage (DEPRECATED).
+
+
+        #### Query Params:
+
+        - **video_id (str):** Directory/collection ID containing the video
+
+        - **video_name (str, optional):** Specific video filename to download.
+        If not provided, first video found is used.
+
+        - **bucket_name (str, optional):** The bucket name where the video is
+        stored. If not provided, default bucket will be used.
+
+
+        #### Headers:
+
+        - **Range (str, optional):** HTTP Range header for partial content
+        download
+
+
+        #### Returns:
+
+        - **File (binary):** Returns the video file as a streaming response.
+      operationId: download_video_file_legacy_videos_download_get
+      deprecated: true
+      parameters:
+        - name: video_id
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            description: Directory on MINIO Server containing the video
+            title: Video Id
+          description: Directory on MINIO Server containing the video
+        - name: video_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              Specific video filename to download. If not provided, first video
+              found is used.
+            title: Video Name
+          description: >-
+            Specific video filename to download. If not provided, first video
+            found is used.
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name where the video is stored. If not provided,
+              default bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name where the video is stored. If not provided, default
+            bucket will be used.
+        - name: range
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Range
+      responses:
+        '200':
+          description: A downloadable video file.
+          content:
+            application/octet-stream: {}
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  '/{video_id}/{video_name}':
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: Download a video from Minio storage
+      description: >-
+        ### Download a video file from Minio storage.
+
+
+        #### Path Params:
+
+        - **video_id (str):** Directory/collection ID containing the video
+
+        - **video_name (str):** Specific video filename to download
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional):** The bucket name where the video is
+        stored. If not provided, default bucket will be used.
+
+
+        #### Headers:
+
+        - **Range (str, optional):** HTTP Range header for partial content
+        download
+
+
+        #### Raises:
+
+        - **400 Bad Request:** When video_id or video_name are invalid according
+        to Minio naming rules.
+
+        - **404 Not Found:** When the requested video cannot be found.
+
+        - **502 Bad Gateway:** When something goes wrong with Minio storage
+        access.
+
+        - **500 Internal Server Error:** When some internal error occurs at the
+        API server.
+
+
+        #### Returns:
+
+        - **File (binary):** Returns the video file as a streaming response.
+      operationId: download_video_by_path__video_id___video_name__get
+      parameters:
+        - name: video_id
+          in: path
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            description: Directory/collection ID containing the video
+            title: Video Id
+          description: Directory/collection ID containing the video
+        - name: video_name
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Specific video filename to download
+            title: Video Name
+          description: Specific video filename to download
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name where the video is stored. If not provided,
+              default bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name where the video is stored. If not provided, default
+            bucket will be used.
+        - name: range
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Range
+      responses:
+        '200':
+          description: A downloadable video file.
+          content:
+            application/octet-stream: {}
+        '400':
+          description: Invalid parameters
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+        '502':
+          description: Minio storage error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
+components:
+  schemas:
+    Body_prep_data_videos_post:
+      properties:
+        file:
+          anyOf:
+            - type: string
+              format: binary
+            - type: string
+            - type: 'null'
+          title: File
+          description: Video file to upload (MP4 format only)
+      type: object
+      title: Body_prep_data_videos_post
+    Body_upload_and_process_video_videos_upload_post:
+      properties:
+        file:
+          type: string
+          format: binary
+          title: File
+          description: Video file to upload (MP4 format only)
+      type: object
+      required:
+        - file
+      title: Body_upload_and_process_video_videos_upload_post
+    BucketVideoListResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Message
+        bucket_name:
+          type: string
+          title: Bucket Name
+        videos:
+          items:
+            $ref: '#/components/schemas/VideoInfo'
+          type: array
+          title: Videos
+          description: List of video information objects containing video details
+      type: object
+      required:
+        - bucket_name
+      title: BucketVideoListResponse
+      description: Response model for list of videos in a bucket
+    DataPrepErrorResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: error
+        message:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Message
+      type: object
+      title: DataPrepErrorResponse
+      description: Response model for API Error Responses from DataStore service
+    DataPrepResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Message
+      type: object
+      title: DataPrepResponse
+      description: Response model for API Responses from DataStore service
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    StatusEnum:
+      type: string
+      enum:
+        - success
+        - error
+      title: StatusEnum
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    VideoInfo:
+      properties:
+        video_id:
+          type: string
+          title: Video Id
+        video_name:
+          type: string
+          title: Video Name
+        video_path:
+          type: string
+          title: Video Path
+        creation_ts:
+          type: string
+          title: Creation Ts
+      type: object
+      required:
+        - video_id
+        - video_name
+        - video_path
+        - creation_ts
+      title: VideoInfo
+      description: Information about a video file in Minio storage
+    VideoRequest:
+      properties:
+        bucket_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Bucket Name
+          description: The bucket name where the video is stored
+        video_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Video Id
+          description: The video ID (directory) containing the video
+        video_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Video Name
+          description: >-
+            The video filename within the video_id directory (if omitted, first
+            video found is used)
+        chunk_duration:
+          anyOf:
+            - type: integer
+              minimum: 3
+            - type: 'null'
+          title: Chunk Duration
+          description: >-
+            Interval of time in seconds to create different chunks of video.
+            Helps in frame sampling.
+        clip_duration:
+          anyOf:
+            - type: integer
+              minimum: 3
+            - type: 'null'
+          title: Clip Duration
+          description: >-
+            Length of clip in seconds, inside each of the video chunks. Frames
+            for embedding are selected from this interval.
+      type: object
+      title: VideoRequest
+      description: Request model for video processing from Minio storage

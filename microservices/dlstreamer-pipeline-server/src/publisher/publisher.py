@@ -4,14 +4,11 @@
 # SPDX-License-Identifier: Apache-2.0
 #
 
-"""EII Pipeline Server results publisher.
-"""
 import gi
 
 gi.require_version('Gst', '1.0')
 # pylint: disable=wrong-import-position
 import os
-import json
 import queue
 import string
 import random
@@ -25,27 +22,28 @@ from time import time_ns
 from gi.repository import Gst
 from distutils.util import strtobool
 from gstgva.util import gst_buffer_data
-from typing import Dict, List
+from typing import Dict
 
-from src.server.gstreamer_app_source import GvaFrameData
 from src.common.log import get_logger
 
 from utils import publisher_utils as utils
 from src.publisher.mqtt.mqtt_publisher import MQTTPublisher
 from src.publisher.opcua.opcua_publisher import OPCUAPublisher
 from src.publisher.s3.s3_writer import S3Writer
+from src.publisher.influx.influx_writer import InfluxdbWriter
+try:
+    from src.publisher.ros2.ros2_publisher import ROS2Publisher
+except Exception as e:
+    # ROS2 is available only in extended image of DL Streamer Pipeline Server
+    pass
 
 
 class Publisher:
-    """EII Pipeline Server publisher thread.
-    """
-
+   
     def __init__(self, app_cfg, 
-                 pub_cfg, 
                  queue,
                  request:str=None,
-                 add_timestamp:bool=True, 
-                 append_pipeline_name_to_topic=strtobool(os.getenv("APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC","false"))):
+                 add_timestamp:bool=True):
         """Constructor
 
         .. note:: This method immediately starts the publishing thread.
@@ -55,9 +53,7 @@ class Publisher:
         :param queue.Queue queue: Python queue of data to publish
         """
         self.app_cfg = app_cfg
-        self.pub_cfg = pub_cfg
         self.add_timestamp = add_timestamp
-        self.append_pipeline_name_to_topic = append_pipeline_name_to_topic
         self.queue = queue
         self.request=request
         self.stop_ev = th.Event()
@@ -104,11 +100,6 @@ class Publisher:
         self.stop_ev.set()
         self.th.join()
         self.th = None
-        if os.getenv('RUN_MODE') == "EII":  #todo: check if this is needed
-            for p in self.publishers:
-                if isinstance(p, EdgeGrpcPublisher):
-                    #Close eis publisher on thread exit.
-                    p.close()
         self.log.info("Stopped publisher thread")
 
     def error_handler(self, msg):
@@ -132,21 +123,25 @@ class Publisher:
             elif "type" in meta_destination and meta_destination["type"] == "opcua":
                 self.opcua_config = meta_destination
                 self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
+            elif "type" in meta_destination and meta_destination["type"] == "influx_write":
+                self.influx_config = meta_destination
+                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
+            elif "type" in meta_destination and meta_destination["type"] == "ros2":
+                self.ros2_config = meta_destination
+                self.request["destination"].pop("metadata") # Remove metadata from destination if no more metadata publishers
         elif isinstance(meta_destination, list):
             for dest in meta_destination:
                 if "type" in dest and dest["type"] == "mqtt":
                     self.mqtt_config = dest
                 elif "type" in dest and dest["type"] == "opcua":
                     self.opcua_config = dest
+                elif "type" in dest and dest["type"] == "influx_write":
+                    self.influx_config = dest
+                elif "type" in dest and dest["type"] == "ros2":
+                    self.ros2_config = dest
                 self.request["destination"]["metadata"].remove(dest)
             if len(self.request["destination"]["metadata"]) == 0: # Remove the metadata from destination if list is empty
                 self.request["destination"].pop("metadata")
-
-        # if no mqtt config in REST request, check if mqtt config is in app_cfg
-        if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
-            self.mqtt_config = self.app_cfg.get("mqtt_publisher")
-        if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
-            self.opcua_config = self.app_cfg.get("opcua_publisher")
 
     def _get_frame_publisher_config(self,frame_destination):
         """Get config for frame publishers
@@ -164,11 +159,22 @@ class Publisher:
                     self.request["destination"]["frame"].remove(dest)
             if len(self.request["destination"]["frame"]) == 0: # Remove the frame from destination if list is empty
                 self.request["destination"].pop("frame")
-
-        # if no s3 config in REST request, check if s3 config is in app_cfg
+    
+    def _get_publisher_config_from_config_file(self):
+        """Get publisher config from config file
+        """
+        # Get the config only if it is not already set in the REST request
+        if not self.mqtt_config and self.app_cfg.get("mqtt_publisher"):
+            self.mqtt_config = self.app_cfg.get("mqtt_publisher")
+        if not self.opcua_config and self.app_cfg.get("opcua_publisher"):
+            self.opcua_config = self.app_cfg.get("opcua_publisher")
         if not self.s3_config and self.app_cfg.get("S3_write"):
             self.s3_config = self.app_cfg["S3_write"]
-        
+        if not self.influx_config and self.app_cfg.get("influx_write"):
+            self.influx_config = self.app_cfg["influx_write"]
+        if not self.ros2_config and self.app_cfg.get("ros2_publisher"):
+            self.ros2_config = self.app_cfg["ros2_publisher"]
+
     def _get_publishers(self):
         """Get publishers based on config.
 
@@ -178,10 +184,12 @@ class Publisher:
         publishers = []
         self.mqtt_publish_frame = False
         self.opcua_publish_frame = False
-        self.grpc_publish = False
+        self.ros2_publish_frame = False
         self.s3_config = None
         self.mqtt_config = None
         self.opcua_config = None
+        self.influx_config = None
+        self.ros2_config = None
 
         try:
             launch_string = self.app_cfg.get("pipeline")
@@ -196,6 +204,7 @@ class Publisher:
                     self._get_meta_publisher_config(meta_destination)
                     if not self.request["destination"]:
                         self.request.pop("destination")
+                self._get_publisher_config_from_config_file()
                                 
                 # NOTE: always add S3_write first in the list of publishers, essential for blocking case
                 if self.s3_config:
@@ -207,20 +216,14 @@ class Publisher:
                 if self.opcua_config:
                     opcua_pub = OPCUAPublisher(self.opcua_config)
                     self.opcua_publish_frame = opcua_pub.publish_frame
-                    publishers.append(opcua_pub)            
-                        
-            if os.getenv('RUN_MODE') == "EII":
-                dev_mode = os.getenv("DEV_MODE", "False")
-            else:
-                dev_mode = "True"   # for grpc clients in standalone mode
-            if self.pub_cfg:
-                for pub in self.pub_cfg:
-                    pub_topic = pub.get_topics()[0]
-                    if self.append_pipeline_name_to_topic:
-                        pub_topic += "_"+self.app_cfg.get('name')
-                    publishers.append(EdgeGrpcPublisher(pub, pub_topic, dev_mode))
-                    self.grpc_publish = True
-                    self.log.info("Edge gRPC publisher initialized")
+                    publishers.append(opcua_pub)
+                if self.influx_config:
+                    influx_pub = InfluxdbWriter(self.influx_config)
+                    publishers.append(influx_pub)          
+                if self.ros2_config:
+                    ros2_pub = ROS2Publisher(self.ros2_config)
+                    self.ros2_publish_frame = ros2_pub.publish_frame
+                    publishers.append(ros2_pub)
         except Exception as e:
             self.log.exception(f'Error in initializing publisher')
             self.error_handler(e)
@@ -548,7 +551,7 @@ class Publisher:
                     #    - Update metadata (encoding type/level)
                     if meta_data['caps'].split(',')[0] == "video/x-raw":
                         self.log.debug("Processing raw frame")
-                        if self.mqtt_publish_frame or self.grpc_publish or self.opcua_publish_frame or self.s3_config:
+                        if self.mqtt_publish_frame or self.opcua_publish_frame or self.s3_config or self.ros2_publish_frame:
                             if (self.encoding == True) or (not self.publish_raw_frame):
                                 self.log.debug("Encoding frame of format {}".format(meta_data["img_format"]))
                                 try:

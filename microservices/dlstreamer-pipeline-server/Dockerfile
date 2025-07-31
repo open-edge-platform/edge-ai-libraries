@@ -1,19 +1,19 @@
-ARG BASE_IMAGE
-FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
-ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
-ENV GSTREAMER_DIR=$DLSTREAMER_DIR/gstreamer
+ARG BASE_IMAGE=ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407
+FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root
 
-ENV VIRTUAL_ENV=/python3venv
-ENV PATH=$VIRTUAL_ENV/bin:$PATH
-ENV PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:/opt/intel/dlstreamer/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages
+ENV DEBIAN_FRONTEND=noninteractive
 
-WORKDIR /home/pipeline-server
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
+
+ARG WORKDIR=/home/pipeline-server
+WORKDIR ${WORKDIR}
 
 RUN export no_proxy= && \
     apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends git autoconf  \
     automake \
+    libgirepository1.0-dev \
     libglib2.0-dev \
     libusb-1.0-0-dev \
     libtool \
@@ -22,9 +22,26 @@ RUN export no_proxy= && \
     zip \
     unzip \
     libopencv-dev \
-    libcjson-dev && \
+    libcjson-dev \
+    python3-pip \
+    python3-full \
+    python-gi-dev \
+    python3-dev \
+    libcairo2-dev && \
     rm -rf /var/lib/apt/lists/*
 
+RUN \
+    mkdir /python3venv && \
+    chmod -R u+w /python3venv
+
+RUN \
+    python3 -m venv /python3venv && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip && \
+    /python3venv/bin/pip3 install --no-cache-dir --no-dependencies PyGObject==3.50.0 setuptools==78.1.1 numpy==2.2.0 tqdm==4.67.1 opencv-python==4.11.0.86
+
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
 
 RUN apt-get update && apt-get install -y --no-install-recommends wget && \
     wget -qO- https://cmake.org/files/v3.15/cmake-3.15.0-Linux-x86_64.tar.gz | \
@@ -57,8 +74,8 @@ RUN apt-get install -y --no-install-recommends python3-dev
 
 # Build UDF loader lib
 RUN /bin/bash -c "echo $PATH && \
-                  pip3 install numpy==1.26.4 && \
-                  pip3 install Cython==0.29.34 && \
+                  pip3 install --no-cache-dir numpy==1.26.4 && \
+                  pip3 install --no-cache-dir Cython==0.29.34 && \
                   cd /home/pipeline-server/UDFLoader && \
                   rm -rf build && \
                   mkdir build && \
@@ -76,12 +93,12 @@ RUN /bin/bash -c "echo $PATH && \
                   make install"
 
 ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
-    LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib/:${LIBRARY_PATH} \
-    CPLUS_INCLUDE_PATH=${CPLUS_INCLUDE_PATH}:${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
-    C_INCLUDE_PATH=${C_INCLUDE_PATH}:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    LIBRARY_PATH=${DLSTREAMER_DIR}/gstreamer/lib/ \
+    CPLUS_INCLUDE_PATH=${DLSTREAMER_DIR}/include/dlstreamer/gst/videoanalytics:${DLSTREAMER_DIR}/include/dlstreamer/gst/metadata:/root/.local/bin:${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
+    C_INCLUDE_PATH=${DLSTREAMER_DIR}/gstreamer/include/gstreamer-1.0/ \
     PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin \
     PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin \
-    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:/opt/intel/dlstreamer/build/intel64/Release/lib/pkgconfig:
+    PKG_CONFIG_PATH=/usr/share/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/usr/lib/pkgconfig:${DLSTREAMER_DIR}/gstreamer/lib/pkgconfig:${DLSTREAMER_DIR}/build/intel64/Release/lib/pkgconfig:
 
 RUN export no_proxy= && \
     apt-get update && \
@@ -93,16 +110,77 @@ RUN export no_proxy= && \
 RUN /bin/bash -c "cd /home/pipeline-server/gst-udf-loader/ \
     && if [ -d \"build\" ] ; then rm -rf build ; fi \
     && mkdir build \
-    && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/build/intel64/Release/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
+    && cd gst_plugin && sed -i '/dlstreamer_gst_meta/c\\\t/opt/intel/dlstreamer/lib/libdlstreamer_gst_meta.so' CMakeLists.txt && cd .. \
     && cd build \
     && cmake -DCMAKE_BUILD_TYPE=${CMAKE_BUILD_TYPE} -DCMAKE_INSTALL_INCLUDEDIR=${CMAKE_INSTALL_PREFIX}/include -DCMAKE_INSTALL_PREFIX=${CMAKE_INSTALL_PREFIX} .. \
     && make"
 
 ############################# DL Streamer Pipeline Server runtime ################################
 
+FROM ${BASE_IMAGE} AS dlstreamer-pipeline-server
+
 USER root
 
-WORKDIR /home/pipeline-server
+ARG WORKDIR=/home/pipeline-server
+WORKDIR ${WORKDIR}
+
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        python3-venv \
+        libglib2.0-0 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        libopencv-core406 \
+        libopencv-imgcodecs406 \
+        libcjson1 \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.12.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.12.so; \
+    else \
+        export no_proxy= && \
+        apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        python3-venv \
+        libglib2.0-0 \
+        libusb-1.0-0 \
+        libtool \
+        zlib1g \
+        libopencv-core4.5d \
+        libopencv-imgcodecs4.5d \
+        libcjson1 \
+        libxtst6 && \
+        ln -sf /usr/lib/x86_64-linux-gnu/libpython3.10.so.1.0 /usr/lib/x86_64-linux-gnu/libpython3.10.so; \
+    fi && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN \
+    mkdir /python3venv && \
+    chmod -R u+w /python3venv
+
+RUN \
+    python3 -m venv --system-site-packages /python3venv && \
+    /python3venv/bin/pip3 install --no-cache-dir --upgrade pip
+
+ENV DLSTREAMER_DIR=/opt/intel/dlstreamer
+ENV VIRTUAL_ENV=/python3venv
+ENV PATH=$VIRTUAL_ENV/bin:$PATH
+ENV PYTHONPATH=${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${DLSTREAMER_DIR}/gstreamer/lib/python3/dist-packages
+
+ARG CMAKE_INSTALL_PREFIX
+
+# Needed for UDFLoader runtime
+COPY --from=gstudfloader-builder /usr/lib/libeii*.so /usr/lib/libsafestring.so /usr/lib/
+COPY --from=gstudfloader-builder /home/pipeline-server/util/*.py /home/pipeline-server/util/
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/udf.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
+COPY --from=gstudfloader-builder ${CMAKE_INSTALL_PREFIX} ${CMAKE_INSTALL_PREFIX}
+
+ENV LD_LIBRARY_PATH=${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs:${DLSTREAMER_DIR}/lib:${DLSTREAMER_DIR}/lib/gstreamer-1.0:${LD_LIBRARY_PATH}:/root/.local/bin \
+    PYTHONPATH=$PYTHONPATH:/usr/local/lib/:/root/.local/bin:/opt/intel/eii/lib:/home/pipeline-server/:/home/pipeline-server/udfs \
+    PATH=$PATH:${DLSTREAMER_DIR}/gstreamer/bin:${DLSTREAMER_DIR}/gstreamer/bin/gstreamer-1.0:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/root/.local/bin:/home/pipeline-server/.local/bin
 
 ENV DEBIAN_FRONTEND=noninteractive
 ENV LD_RUN_PATH="/usr/lib"
@@ -111,11 +189,6 @@ ENV LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$LIBVA_DRIVERS_PATH:"usr/local/lib"
 ENV PKG_CONFIG_PATH="/usr/lib/x86_64-linux-gnu/pkgconfig"
 ENV TERM="xterm"
 ENV GST_DEBUG="1"
-
-ARG CMAKE_INSTALL_PREFIX
-
-RUN cp ${CMAKE_INSTALL_PREFIX}/lib/libeiiudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
-RUN cp /home/pipeline-server/gst-udf-loader/build/gst_plugin/libgstudfloader.so ${DLSTREAMER_DIR}/gstreamer/lib
 
 ARG USER
 ARG UID
@@ -127,140 +200,10 @@ RUN mkdir -p /home/${USER}/ && chown -R ${USER}:${USER} /home/${USER}
 
 ENV cl_cache_dir=/home/.cl_cache \
     XDG_RUNTIME_DIR=/home/.xdg_runtime_dir \
-    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:/usr/local/lib/udfs \
-    PYTHONPATH=$PYTHONPATH:/opt/intel/eii/lib:/home/pipeline-server/:/home/pipeline-server/udfs:/home/pipeline-server/server:/usr/local/lib/
+    LD_LIBRARY_PATH=${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:/usr/local/lib/udfs
 
 RUN mkdir -p $cl_cache_dir && chmod -R g+s $cl_cache_dir && chown ${USER}:users $cl_cache_dir
-ENV XDG_RUNTIME_DIR=/home/.xdg_runtime_dir
 RUN mkdir -p $XDG_RUNTIME_DIR && chmod -R g+s $XDG_RUNTIME_DIR && chown ${USER}:users $XDG_RUNTIME_DIR
-
-ENV LD_LIBRARY_PATH ${LD_LIBRARY_PATH}:/usr/local/lib:/home/pipeline-server:${CMAKE_INSTALL_PREFIX}/lib:${CMAKE_INSTALL_PREFIX}/lib/udfs
-
-### To install other/newer Genicam camera SDKs add the installation steps here
-
-RUN apt-get update && apt-get install -y --no-install-recommends git
-
-ENV PATH=$PATH:/home/pipeline-server/.local/bin
-
-COPY ./tests/requirements.txt /home/pipeline-server/tests/requirements.txt
-RUN pip3 install -r /home/pipeline-server/tests/requirements.txt
-
-# Install for ntp timestamping
-RUN pip3 install ntplib==0.4.0
-
-#Patch and install OpenVINO model api
-COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
-RUN pip3 install openvino-model-api==0.2.5
-
-# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
-RUN MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
-    cd $MODEL_API_PATH && \
-    git apply /home/pipeline-server/model_api.patch
-
-# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
-# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
-# Detect Ubuntu version and install Rust only on Ubuntu 24
-RUN . /etc/os-release && \
-    if [ "$VERSION_ID" = "24.04" ]; then \
-        apt-get update && \
-        apt-get install -y --no-install-recommends curl build-essential && \
-        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
-        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
-        export PATH="/root/.cargo/bin:$PATH" && \
-        pip install --upgrade pip && \
-        pip install geti-sdk==2.7.1 && \
-        # clean up Rust installation files
-        rm -rf /root/.cargo /root/.rustup; \
-    else \
-        pip install --upgrade pip && \
-        pip install geti-sdk==2.7.1; \
-    fi && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
-
-
-
-# Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
-RUN pip3 uninstall -y cuda-python aiohappyeyeballs
-
-# Install schedule for python job scheduling
-RUN pip3 install schedule==1.2.1
-
-# Install opcua
-RUN pip3 install asyncua==1.1.5
-
-# Downgrading Flask due to an atttribute error(JSONEncoder)
-RUN pip3 uninstall -y Flask && \
-    pip3 install Flask==2.2.5
-
-# Visualizer webtrc requirements
-RUN apt-get update && apt-get install libnice10 libnice-dev -y --no-install-recommends
-#RUN cp /usr/lib/x86_64-linux-gnu/gstreamer-1.0/libgstnice.so /opt/intel/dlstreamer/lib/gstreamer-1.0
-
-WORKDIR /thirdparty
-
-USER root
-RUN pip3 install pydantic==2.8.2
-
-RUN apt-get update && apt-get install libxtst6 -y --no-install-recommends
-RUN pip3 install deep_sort_realtime
-
-ARG DOWNLOAD_GPL_SOURCES
-
-ARG UBUNTU_COPYLEFT_DEPS=""
-
-ARG PYTHON_COPYLEFT_DEPS="https://git.launchpad.net/launchpadlib \
-                          https://github.com/GNOME/pygobject \
-                          https://github.com/FreeOpcUa/opcua-asyncio \
-                          https://github.com/Lucretiel/autocommand \
-                          https://github.com/certifi/python-certifi \
-                          https://git.launchpad.net/wadllib \
-                          https://git.launchpad.net/ubuntu/+source/python-apt \
-                          https://git.launchpad.net/lazr.restfulclient \
-                          https://git.launchpad.net/lazr.uri"
-
-ARG PYTHON_NO_REPO_SOURCE="https://files.pythonhosted.org/packages/32/12/0409b3992c9a023d1521d9352d4c41bb1d43684ccb82899e716103e2bd88/bubblewrap-1.2.0.zip"
-
-COPY ./thirdparty/third_party_deb_apk_deps.txt /thirdparty/
-COPY ./thirdparty/third_party_programs.txt /thirdparty/
-
-RUN if [ "$DOWNLOAD_GPL_SOURCES" = "yes" ]; then \
-        sed -Ei 's/# deb-src /deb-src /' /etc/apt/sources.list && \
-        apt-get update && \
-        root_dir=$PWD && \
-        mkdir -p ./apt-sources/dlstreamer-pipeline-server && cd ./apt-sources/dlstreamer-pipeline-server && \
-        cp ../../third_party_deb_apk_deps.txt . && \
-        for line in $(cat third_party_deb_apk_deps.txt | xargs -n1); \
-        do \
-        package=$(echo $line); \
-        grep -l GPL /usr/share/doc/${package}/copyright; \
-        exit_status=$?; \
-        if [ $exit_status -eq 0 ]; then \
-            apt-get source -q --download-only $package;  \
-        fi \
-        done && \
-        cd $root_dir && \
-        echo "Cloning Debian and Ubuntu github deps..." && \
-        mkdir -p ./github-sources/Ubuntu_Deb && cd ./github-sources/Ubuntu_Deb && \
-        for f in `echo $UBUNTU_COPYLEFT_DEPS | xargs -n1`; do git clone $f && \
-        cd "$(basename "$f")" && \
-        rm -rf .git && \
-        cd ..; done && \
-        cd ../ && \
-        mkdir -p Python && cd Python && \
-        echo "Cloning Python github dependency" && \
-        for f in `echo $PYTHON_COPYLEFT_DEPS | xargs -n1`; do git clone $f && \
-        wget $PYTHON_NO_REPO_SOURCE && \
-        cd "$(basename "$f")" && \
-        rm -rf .git && \
-        cd ..; done && \
-        cd $root_dir && \
-        echo "Download source for $(ls | wc -l) third-party packages: $(du -sh)"; \
-        rm -rf /var/lib/apt/lists/*;\
-    fi
-
-
-WORKDIR /home/pipeline-server
 
 USER $USER
 
@@ -269,19 +212,17 @@ COPY ./docker/run.sh .
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
-# Install server requirements
 USER root
-RUN pip3 install PyYAML==5.4.1 --no-build-isolation && \
-    pip3 install -r  /home/pipeline-server/src/server/requirements.service.txt \
-                 -r /home/pipeline-server/src/server/requirements.webrtc.txt \
-                 -r /home/pipeline-server/src/server/requirements.txt && \
-    python3 -m pip install --upgrade Werkzeug==3.1.3 orjson==3.10.12 packaging==24.2 boto3==1.36.17
-USER ${USER}
 
-# OpenTelemetry
-USER root
-RUN pip3 install --no-cache -r  /home/pipeline-server/src/opentelemetry/requirements.txt
-RUN pip3 install --upgrade opentelemetry-exporter-otlp
+RUN pip3 install --no-cache-dir wheel==0.45.1 setuptools==80.9.0 packaging==25.0 && \
+    pip3 uninstall --no-cache-dir -y Flask && \
+    # Downgrading Flask due to an atttribute error(JSONEncoder)
+    pip3 install --no-cache-dir Flask==2.2.5 && \
+    pip3 install --no-cache-dir PyYAML==5.4.1 --no-build-isolation && \
+    pip3 install --no-cache-dir -r /home/pipeline-server/src/requirements.txt && \
+    pip3 install --no-cache-dir --upgrade Werkzeug==3.1.3 && \
+    pip3 install --upgrade --no-cache-dir opentelemetry-exporter-otlp
+
 USER ${USER}
 
 # Disable OpenVINO Telemetry
@@ -290,31 +231,91 @@ RUN opt_in_out --opt_out
 # Create Models directory
 RUN mkdir -p /home/pipeline-server/models
 
+# Create resources directories for k8s runtime uploads
+RUN mkdir -p /home/pipeline-server/resources/videos
+RUN mkdir -p /home/pipeline-server/resources/models
+RUN mkdir -p /home/pipeline-server/resources/images
+
 # Copy python UDFs for user_defined_pipelines/udfloader_sample pipeline
-COPY ./user_scripts/udfs/python/dummy.py /home/pipeline-server/udfs/python/dummy.py
-COPY ./user_scripts/udfs/python/add_label.py /home/pipeline-server/udfs/python/add_label.py
-COPY ./user_scripts/udfs/python/dummy_publisher.py /home/pipeline-server/udfs/python/dummy_publisher.py
-COPY ./user_scripts/udfs/python/geti_udf/ /home/pipeline-server/udfs/python/geti_udf/
-
-# Copy unit tests
-COPY ./tests /home/pipeline-server/tests
-
-# Copy geti pallet defect detection sample
-COPY ./resources/models/geti /home/pipeline-server/resources/models/geti
-COPY ./resources/videos/classroom.avi /home/pipeline-server/resources/videos/classroom.avi
-COPY ./resources/videos/warehouse.avi /home/pipeline-server/resources/videos/warehouse.avi
-COPY ./resources/videos/person-bicycle-car-detection.mp4 /home/pipeline-server/resources/videos/person-bicycle-car-detection.mp4
-#COPY ./pipelines/user_defined_pipelines/person_detection /home/pipeline-server/pipelines/user_defined_pipelines/person_detection
+COPY ./user_scripts/udfs/python/ /home/pipeline-server/udfs/python/
+ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
 
 # Copy GVAPYTHON samples
-COPY ./user_scripts/gvapython/geti/ /home/pipeline-server/gvapython/geti
-COPY ./user_scripts/gvapython/mqtt_publisher/ /home/pipeline-server/gvapython/mqtt_publisher
-COPY ./user_scripts/gvapython/timestamp/ /home/pipeline-server/gvapython/timestamp
-COPY ./user_scripts/gvapython/gva_event_meta /home/pipeline-server/gvapython/gva_event_meta
+COPY ./user_scripts/gvapython/ /home/pipeline-server/gvapython/
 
 # Copy default config
 COPY ./configs/default/config.json /home/pipeline-server/config.json
 
-ENV PYTHONPATH=$PYTHONPATH:/home/pipeline-server/udfs/python/geti_udf
-
 ENTRYPOINT ["./run.sh"]
+
+
+############################# DL Streamer Pipeline Server extended runtime ################################
+
+FROM dlstreamer-pipeline-server AS dlstreamer-pipeline-server-extended
+
+USER root
+
+# Patch and install OpenVINO model api
+COPY ./docker/model_api.patch /home/pipeline-server/model_api.patch
+RUN pip3 install --no-cache-dir openvino-model-api==0.2.5
+
+# site packages path independent of Python version (Python 3.10 for Ubuntu 22.04 and Python 3.12 for Ubuntu 24.04)
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends git && \
+    MODEL_API_PATH=$(python3 -c "import site; print(site.getsitepackages()[0])")/model_api && \
+    cd $MODEL_API_PATH && \
+    git apply /home/pipeline-server/model_api.patch && \
+    apt-get remove -y git && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Ubuntu 22: Python 3.10 still often gets pre-built datumaro wheels, so Rust might be unused.
+# Ubuntu 24: Python 3.12 rarely has wheels for datumaro, so it falls back to source — Rust is required here (for building datumaro - needed for geti-sdk installation).
+# Detect Ubuntu version and install Rust only on Ubuntu 24
+RUN . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt-get update && \
+        apt-get install -y --no-install-recommends python3-dev curl build-essential && \
+        curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain 1.87.0 && \
+        echo 'source $HOME/.cargo/env' >> ~/.bashrc && \
+        export PATH="/root/.cargo/bin:$PATH" && \
+        pip3 install --no-cache-dir geti-sdk==2.7.1 && \
+        # clean up Rust installation files
+        rm -rf /root/.cargo /root/.rustup; \
+    else \
+        pip3 install --no-cache-dir geti-sdk==2.7.1; \
+    fi && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /root/.cache
+
+# Uninstall cuda-python installed by Geti SDK because of proprietary license causing OSPDT issue
+RUN pip3 uninstall --no-cache-dir -y cuda-python aiohappyeyeballs
+
+# Set environment variables up front to ensure locales work properly
+ENV LANG=en_US.UTF-8 \
+    LC_ALL=en_US.UTF-8
+
+# ROS2 installation
+RUN apt update && \
+    apt install -y locales software-properties-common && \
+    locale-gen en_US en_US.UTF-8 && \
+    update-locale LC_ALL=${LC_ALL} LANG=${LANG} && \
+    add-apt-repository universe && \
+    apt update && \
+    curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key -o /usr/share/keyrings/ros-archive-keyring.gpg && \
+    echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] \
+        http://packages.ros.org/ros2/ubuntu $(. /etc/os-release && echo $UBUNTU_CODENAME) main" \
+        | tee /etc/apt/sources.list.d/ros2.list > /dev/null && \
+    apt update && \
+    . /etc/os-release && \
+    if [ "$VERSION_ID" = "24.04" ]; then \
+        apt install -y ros-jazzy-ros-base python3-colcon-common-extensions; \
+    else \
+        apt install -y ros-humble-ros-base python3-colcon-common-extensions; \
+    fi && \
+    apt clean && \
+    rm -rf /var/lib/apt/lists/*
+    
+RUN pip3 install --no-cache-dir --upgrade openvino==2025.2.0 openvino-telemetry==2025.2.0
+
+USER ${USER}

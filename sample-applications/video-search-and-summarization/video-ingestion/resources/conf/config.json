@@ -1,0 +1,130 @@
+{
+    "config": {
+        "logging": {
+            "C_LOG_LEVEL": "INFO",
+            "PY_LOG_LEVEL": "INFO"
+        },
+        "pipelines": [
+            {
+                "name": "object_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! gvadetect name=detection pre-process-backend=ie ! queue ! gvametaconvert ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! gvametapublish name=destination ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "frame": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 64, 
+                            "default": 2
+                        },
+                        "chunk_duration" : {
+                            "type": "integer",
+                            "minimum": 2,
+                            "maximum": 60,
+                            "default": 10
+                        },
+                        "frame_width": {
+                            "type": "integer",
+                            "minimum": 160,
+                            "maximum": 800,
+                            "default": 480
+                        },
+                        "publish": {
+                            "element": {
+                                "name": "publish",
+                                "property": "kwarg",
+                                "format": "json"
+                            },
+                            "type": "object",
+                            "properties": {
+                                "minio_bucket": {
+                                    "type": "string"
+                                },
+                                "video_identifier": {
+                                    "type": "string"
+                                },
+                                "topic": {
+                                    "type": "string"
+                                }
+                            },
+                            "default": {
+                                "minio_bucket": "videosummtest",
+                                "video_identifier": "video_id_test",
+                                "topic": "topic/video_stream"
+                            }
+                        },
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            },
+            {
+                "name": "video_ingestion",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} ! decodebin ! videorate ! videoconvertscale ! video/x-raw,framerate={parameters[frame]}/{parameters[chunk_duration]},format=BGR,width=[1,{parameters[frame_width]}],pixel-aspect-ratio=1/1 ! queue ! gvametaconvert ! gvapython arg=[{parameters[frame]},{parameters[chunk_duration]}] class=Publisher function=process module=/home/pipeline-server/gvapython/publisher/publish.py name=publish ! gvametapublish name=destination ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "frame": {
+                            "type": "integer",
+                            "minimum": 1,
+                            "maximum": 64, 
+                            "default": 2
+                        },
+                        "chunk_duration" : {
+                            "type": "integer",
+                            "minimum": 2,
+                            "maximum": 60,
+                            "default": 10
+                        },
+                        "frame_width": {
+                            "type": "integer",
+                            "minimum": 160,
+                            "maximum": 800,
+                            "default": 480
+                        },
+                        "publish": {
+                            "element": {
+                                "name": "publish",
+                                "property": "kwarg",
+                                "format": "json"
+                            },
+                            "type": "object",
+                            "properties": {
+                                "minio_bucket": {
+                                    "type": "string"
+                                },
+                                "video_identifier": {
+                                    "type": "string"
+                                },
+                                "topic": {
+                                    "type": "string"
+                                }
+                            },
+                            "default": {
+                                "minio_bucket": "videosummtest",
+                                "video_identifier": "video_id_test",
+                                "topic": "topic/video_stream"
+                            }
+                        },
+                        "detection-properties": {
+                            "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                            }
+                        }
+                    }
+                },
+                "auto_start": false
+            }
+        ]
+    }
+}

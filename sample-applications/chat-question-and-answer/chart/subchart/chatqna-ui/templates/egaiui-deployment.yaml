@@ -28,3 +28,5 @@ spec:
               value: {{ .Values.global.proxy.https_proxy }}
             - name: NO_PROXY
               value: {{ .Values.global.proxy.no_proxy }}
+            - name: APP_MAX_TOKENS
+              value: "{{ .Values.chatqnaui.env.APP_MAX_TOKENS }}"

@@ -1,0 +1,28 @@
+global:
+  proxy:
+    no_proxy:
+    http_proxy:
+    https_proxy: 
+  env:
+    RABBITMQ_DEFAULT_USER: 
+    RABBITMQ_DEFAULT_PASS: 
+
+rabbitmq:
+  name: rabbitmq
+  fullname: rabbitmq  
+  image:
+    repository: rabbitmq
+    tag: "3-management-alpine"
+    pullPolicy: IfNotPresent
+
+  service:
+    name: rabbitmq
+    type: ClusterIP
+    amqpPort: 5672
+    managementPort: 15672
+    mqttPort: 1883
+    
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}

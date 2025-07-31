@@ -6,6 +6,8 @@ FROM python:3.11-slim AS python-base
 ARG USE_GPU=false
 ARG GPU_TYPE="none"  # Options: none, igpu, dgpu
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG UID=1000
+ARG GID=1000
 
 RUN echo "USE_GPU is set to $USE_GPU"; \
     echo "GPU_TYPE is set to $GPU_TYPE"
@@ -27,14 +29,13 @@ RUN if [ "$USE_GPU" = "true" ]; then \
     echo "Installing dGPU drivers version $INSTALL_DRIVER_VERSION"; \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates libxml2; \
     /tmp/drivers/install_dgpu_drivers.sh; \
-    fi && \
-    apt-get clean && \
-    rm -rf /tmp/drivers && \
-    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
+    fi; \
     else \
     if [ "$GPU_TYPE" != "none" ]; then \
     echo "USE_GPU is set to false. No GPU drivers will be installed. Only CPU is supported."; \
     fi; \
+    apt-get clean && \
+    rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*; \
     fi
 
 # Setting env vars for python, pip and poetry
@@ -59,12 +60,12 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip setuptools
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
 
 # Create a non-root user
-RUN groupadd -g 1001 intelgai && \
-    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
-    chown -R intelgai:intelgai $HOME
+RUN groupadd -g ${GID} appuser && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser && \
+    chown -R appuser:appuser $HOME
 
 
 FROM python-base AS builder-base
@@ -86,7 +87,9 @@ ENV FASTAPI_ENV=development
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR $SETUP_PATH
 
@@ -112,8 +115,11 @@ ENV FASTAPI_ENV=production
 
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    libmagic-dev \
     libgl1-mesa-glx \
-    libglib2.0-0
+    libglib2.0-0 && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
@@ -124,10 +130,10 @@ COPY . /app/
 
 WORKDIR /app
 
-RUN mkdir /tmp/model_cache && \
-    chown intelgai:intelgai /tmp/model_cache
+RUN mkdir -p /tmp/model_cache && \
+    chown -R appuser:appuser /tmp/model_cache
 
-USER intelgai
+USER appuser
 
 EXPOSE 8888
 

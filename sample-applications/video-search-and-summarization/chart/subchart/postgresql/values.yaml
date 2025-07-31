@@ -1,0 +1,34 @@
+replicaCount: 1
+
+global:
+  proxy:
+    no_proxy:
+    http_proxy:
+    https_proxy: 
+  env:
+    POSTGRES_USER:
+    POSTGRES_PASSWORD:
+    POSTGRES_DB:
+
+
+postgresql:
+  name: postgresql
+  fulllname: postgresql
+  image:
+    repository: postgres
+    tag: "17.4"
+    pullPolicy: IfNotPresent
+
+  service:
+    type: ClusterIP
+    port: 5432
+  volumeMounts:
+    pvcName: postgresql-pvc
+    egai_postgresql_pvc:
+      size: 20Gi
+      accessMode: ReadWriteOnce
+
+  resources: {}
+  nodeSelector: {}
+  tolerations: []
+  affinity: {}

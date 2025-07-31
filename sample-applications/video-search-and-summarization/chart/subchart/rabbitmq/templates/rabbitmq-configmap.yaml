@@ -1,0 +1,9 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: rabbitmq-config
+data:
+  rabbitmq.conf: |
+    mqtt.allow_anonymous = true
+    mqtt.vhost = /
+    mqtt.exchange = amq.topic

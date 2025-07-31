@@ -28,8 +28,21 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
      cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
      ```
+     
+2. **Set Up Environment Variables**:
+   - Execute the setup script with the desired device profile:
+      ```bash
+       # For default CPU setup
+       source setup_env.sh
 
-2. **Build and Start the Tool**:
+       # For GPU setup
+       source setup_env.sh -d gpu
+     
+       # For NPU setup
+       source setup_env.sh -d npu
+      ```
+
+3. **Build and Start the Tool**:
    - Run:
      ```bash
      docker pull docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24

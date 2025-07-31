@@ -1,9 +1,15 @@
 """
 This file contains test cases for functions defined in the app_utils.py file.
 """
+# import os
 import re
 import pytest
-from utils.app_utils import get_version_info, get_bool
+from fastapi import HTTPException, status
+from fastapi.responses import Response
+from utils.app_utils import (
+    get_version_info, get_bool, check_required_env_vars,
+    validate_id, ResourceType, validate_resource_id, get_exception_response
+)
 
 @pytest.mark.parametrize("is_file", [True, False, True],
                          ids=["success", "file_not_found", "invalid_file_contents"])
@@ -56,3 +62,100 @@ def test_get_bool(gb_params):
     else:
         val = get_bool(gb_params["string"])
         assert gb_params["expected_result"] == val
+
+
+def test_check_required_env_vars_all_present(monkeypatch):
+    """Test check_required_env_vars when all required env vars are present."""
+    required_vars = [
+        "MLFLOW_S3_ENDPOINT_URL", "MINIO_HOSTNAME", "MINIO_SERVER_PORT",
+        "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_BUCKET_NAME", "SERVER_PORT"
+    ]
+    for var in required_vars:
+        monkeypatch.setenv(var, "dummy")
+    monkeypatch.setenv("ENABLE_HTTPS_MODE", "False")
+    is_set, missing = check_required_env_vars()
+    assert is_set is True
+    assert missing == []
+
+def test_check_required_env_vars_missing(monkeypatch):
+    """Test check_required_env_vars when some env vars are missing."""
+    monkeypatch.delenv("MLFLOW_S3_ENDPOINT_URL", raising=False)
+    monkeypatch.setenv("ENABLE_HTTPS_MODE", "False")
+    is_set, missing = check_required_env_vars()
+    assert is_set is False
+    assert "MLFLOW_S3_ENDPOINT_URL" in missing
+
+def test_check_required_env_vars_https(monkeypatch):
+    """Test check_required_env_vars with HTTPS mode enabled."""
+    required_vars = [
+        "MLFLOW_S3_ENDPOINT_URL", "MINIO_HOSTNAME", "MINIO_SERVER_PORT",
+        "MINIO_ACCESS_KEY", "MINIO_SECRET_KEY", "MINIO_BUCKET_NAME", "SERVER_PORT",
+        "SERVER_CERT", "CA_CERT", "SERVER_PRIVATE_KEY"
+    ]
+    for var in required_vars:
+        monkeypatch.setenv(var, "dummy")
+    monkeypatch.setenv("ENABLE_HTTPS_MODE", "True")
+    is_set, missing = check_required_env_vars()
+    assert is_set is True
+    assert missing == []
+
+def test_validate_id_valid():
+    """Test validate_id with valid id."""
+    valid_id = "abcDEF1234567890"
+    assert validate_id(valid_id, ResourceType.MODEL) == valid_id
+
+def test_validate_id_invalid():
+    """Test validate_id with invalid id."""
+    invalid_id = "short"
+    with pytest.raises(HTTPException) as exc:
+        validate_id(invalid_id, ResourceType.PROJECT)
+    assert exc.value.status_code == 400
+
+def test_validate_resource_id_model():
+    """Test validate_resource_id for model."""
+    dep = validate_resource_id(ResourceType.MODEL)
+    valid_id = "abcDEF1234567890"
+    assert dep(valid_id) == valid_id
+
+def test_validate_resource_id_project():
+    """Test validate_resource_id for project."""
+    dep = validate_resource_id(ResourceType.PROJECT)
+    valid_id = "abcDEF1234567890"
+    assert dep(valid_id) == valid_id
+
+def test_get_exception_response_http_exception():
+    """Test get_exception_response with HTTPException."""
+    exc = HTTPException(status_code=400, detail="Bad request")
+    resp = get_exception_response("GET /test", exc)
+    assert isinstance(resp, Response)
+    assert resp.status_code == status.HTTP_400_BAD_REQUEST
+    assert "Bad request" in resp.body.decode()
+
+def test_get_exception_response_other_exception():
+    """Test get_exception_response with generic Exception."""
+    exc = ValueError("Some error")
+    resp = get_exception_response("POST /test", exc)
+    assert isinstance(resp, Response)
+    assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert "ValueError" in resp.body.decode()
+    assert "Some error" in resp.body.decode()
+
+def test_get_exception_response_unbound_local_error():
+    """Test get_exception_response with UnboundLocalError."""
+    exc = UnboundLocalError("Unbound error")
+    resp = get_exception_response("PUT /test", exc)
+    assert isinstance(resp, Response)
+    assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert "ConnectionError" in resp.body.decode()
+    assert "Unbound error" in resp.body.decode()
+
+def test_get_exception_response_component_error():
+    """Test get_exception_response with error class containing component name."""
+    class MinioError(Exception):
+        """Custom exception to simulate a Minio error."""
+        # pass
+    exc = MinioError("minio failed")
+    resp = get_exception_response("GET /minio", exc)
+    assert isinstance(resp, Response)
+    assert resp.status_code == status.HTTP_500_INTERNAL_SERVER_ERROR
+    assert "minio failed" in resp.body.decode()

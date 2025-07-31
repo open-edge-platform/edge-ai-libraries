@@ -20,7 +20,7 @@ By following this guide, you will learn how to:
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
 - Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
-- Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
+- Install Docker Compose : `Required v2.33.1` [Installation Guide](https://docs.docker.com/compose/install/).
 - Install `Python 3.11`.
 
 <!--
@@ -124,7 +124,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
    ```bash
    export REGISTRY="intel/"
-   export TAG=1.1.2
+   export TAG=1.2.1
    source setup.sh llm=<model-server> embed=<embedding>
    # Below are the options
    # model-server: VLLM , OVMS, TGI

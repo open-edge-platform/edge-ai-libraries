@@ -5,7 +5,7 @@
 #
 
 apiVersion: v2
-name: Time Series Analytics Microservice
+name: time-series-analytics-microservice
 description: Helm chart for deploying Time Series Analytics Microservice
 
 # A chart can be either an 'application' or a 'library' chart.

@@ -15,7 +15,24 @@ By following this guide, you will learn how to:
 
 ## Set up and First Use
 
-1. **Download the Compose File**:
+1. **Set Up Environment Variables**:
+    - Download the setup script:
+      ```bash
+      curl -L -o setup_env.sh "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
+      ```
+    - Execute the setup script with the desired device profile:
+      ```bash
+       # For default CPU setup
+       source setup_env.sh
+
+       # For GPU setup
+       source setup_env.sh -d gpu
+     
+       # For NPU setup
+       source setup_env.sh -d npu
+      ```
+      
+2. **Download the Compose File**:
     - Create and navigate to directory:
       ```bash
         mkdir visual-pipeline-and-platform-evaluation-tool
@@ -26,7 +43,7 @@ By following this guide, you will learn how to:
         curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose/compose-linux-v1.0.0/compose.yml"
       ```
 
-2. **Download the Artifacts**:
+3. **Download the Artifacts**:
     - Download the artifacts:
       ```bash
         mkdir -p video_generator
@@ -42,19 +59,19 @@ By following this guide, you will learn how to:
         curl -L -o video_generator/images/persons/3.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/3.png"
       ```
 
-3. **Start the Application**:
+4. **Start the Application**:
     - Run the application using Docker Compose:
       ```bash
       docker compose up -d
       ```
 
-4. **Verify the Application**:
+5. **Verify the Application**:
     - Check that the application is running:
       ```bash
       docker compose ps
       ```
 
-5. **Access the Application**:
+6. **Access the Application**:
     - Open a browser and go to `http://localhost:7860/?__theme=light` to access the application UI.
 
     - **Expected Results**:

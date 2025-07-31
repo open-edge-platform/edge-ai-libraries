@@ -28,7 +28,13 @@ on:
       - 'microservices/time-series-analytics/udfs/**'
   workflow_call:
   workflow_dispatch:
-permissions: {}
+  
+permissions:
+  contents: read
+  packages: read
+  pull-requests: read
+  security-events: write
+  actions: read
 
 jobs:
   timeseries-pre-merge-build:
@@ -70,112 +76,15 @@ jobs:
         docker compose down -v
 
   timeseries-unit-test:
-    name: Timeseries Unit Test
-    permissions:
-      contents: read
-      packages: read          # needed for actions/checkout
-    runs-on: ubuntu-24.04
-    steps:
-    - uses: actions/checkout@v1
-      with:
-          path: timeseries
-          persist-credentials: false
-    - name: Run unit tests
-      run: |
-        cd "${{ github.workspace }}"
-        cd ./microservices/time-series-analytics
-        echo "Running unit tests"
-        ./tests/run_tests.sh
-        coverage=$(grep 'TOTAL' /tmp/unit-test-results.txt | awk '{print $4}')
-        # Extract test summary
-        summary=$(grep -Eo '[0-9]+ (passed|failed|skipped)' /tmp/unit-test-results.txt)
-        # Calculate total number of test cases
-        total_tests=$(echo "$summary" | awk '{sum += $1} END {print sum}')
-        # Extract number of passed tests
-        passed_tests=$(echo "$summary" | grep 'passed' | awk '{print $1}')
-        # Extract number of failed tests
-        failed_tests=$(echo "$summary" | grep 'failed' | awk '{print $1}')
-        # Print results
-        echo "Coverage: $coverage" >> $GITHUB_STEP_SUMMARY
-        echo "Total tests: $total_tests" >> $GITHUB_STEP_SUMMARY
-        echo "Passed tests: $passed_tests" >> $GITHUB_STEP_SUMMARY
-        echo "Failed tests: $failed_tests" >> $GITHUB_STEP_SUMMARY
-    - name: Upload HTML unit test coverage to Github
-      uses: actions/upload-artifact@v4
-      with:
-        name: unit-test-coverage
-        path: /tmp/htmlcov
-    - name: Upload XML unit test coverage to Github
-      uses: actions/upload-artifact@v4
-      with:
-        name: unit-test-report
-        path: /tmp/report.txt
+    uses: ./.github/workflows/timeseries-unit-test.yaml
+
+  timeseries-function-tests:
+    name: Timeseries function Test
+    uses: ./.github/workflows/timeseries-weekly-functional-tests.yaml
+    with:
+      test_pattern: 'test_docker.py::test_input_endpoint test_docker.py::test_health_check test_helm.py::test_input_endpoint test_helm.py::test_health_check'
   
-  bandit-scans:
-    name: Run Bandit Scan
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ubuntu_version: ubuntu24
-    steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      with:
-        path: edge-ai-libraries-repo
-        persist-credentials: false
-
-    - name: Run Bandit Scan
-      run: |
-        mkdir -p reports
-        docker pull ghcr.io/pycqa/bandit/bandit
-        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/time-series-analytics -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
-        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
-    - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: bandit-report
-        path: reports/bandit-report.txt
-    - name: Clean up
-      if: always()
-      run: |
-        rm -rf edge-ai-libraries-repo
-        if [ -n "$(docker images -aq)" ]; then
-              docker rmi -f $(docker images -aq) || true
-        fi
-
-  virus-scans:
-    name: Run Virus Scan
-    runs-on: ubuntu-24.04
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ubuntu_version: ubuntu24
-    steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-      with:
-        path: edge-ai-libraries-repo
-        persist-credentials: false
-    - name: Run Virus Scan
-      run: |
-        mkdir -p reports
-        docker pull clamav/clamav
-        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/time-series-analytics/ > ./reports/clamav-report.txt || true
-        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
-    - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
-      with:
-        name: virus-reports
-        path: reports/clamav-report.txt
-    - name: Clean up
-      if: always()
-      run: |
-        rm -rf edge-ai-libraries-repo
-        if [ -n "$(docker images -aq)" ]; then
-              docker rmi -f $(docker images -aq) || true
-        fi
+  timeseries-scans:
+    uses: ./.github/workflows/timeseries-scans.yaml
+    with:
+      target: all-scans

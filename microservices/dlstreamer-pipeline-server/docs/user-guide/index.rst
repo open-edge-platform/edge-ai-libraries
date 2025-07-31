@@ -13,11 +13,15 @@
    :caption: How to
 
    how-to-change-dlstreamer-pipeline
-   how-to-use-gpu-for-inference
+   how-to-use-gpu-for-decode-and-inference
+   how-to-use-cpu-for-decode-and-inference
    how-to-autostart-pipelines
    how-to-launch-configurable-pipelines
-   how-to-start-evam-mqtt-publish
+   how-to-perform-webrtc-frame-streaming
+   how-to-start-dlsps-mqtt-publish
    how-to-store-s3-frame
+   how-to-store-metadata-influxdb
+   how-to-publish-metadata-over-ros2
    how-to-launch-and-manage-pipeline
    how-to-use-rtsp-camera-as-video-source
    how-to-run-udf-pipelines
@@ -25,6 +29,7 @@
    how-to-use-image-file-as-source-over-request-payload
    how-to-download-and-run-yolo-models
    how-to-build-from-source
+   how-to-add-system-timestamps-to-metadata
    
 .. toctree::
    :caption: References

@@ -1,0 +1,234 @@
+openapi: 3.1.0
+info:
+  title: MultiModal Embedding serving
+  description: >-
+    The MultiModal Embedding serving is designed to generate embeddings for text,
+    image URLs, base64 encoded images, video URLs, and base64 encoded videos. It
+    leverages the CLIP (Contrastive Language-Image Pretraining) model to create
+    these embeddings.
+  version: 0.1.0
+paths:
+  /health:
+    get:
+      summary: Health Check
+      description: |-
+        Health check endpoint.
+
+        Returns:
+            dict: Dictionary containing the health status.
+      operationId: health_check_health_get
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Health Check Health Get
+  /embeddings:
+    post:
+      summary: Create Embedding
+      description: |-
+        Creates an embedding based on the input data.
+
+        Args:
+            request (EmbeddingRequest): Request object containing model and input data.
+
+        Returns:
+            dict: Dictionary containing the embedding.
+
+        Raises:
+            HTTPException: If there is an error during the embedding process.
+      operationId: create_embedding_embeddings_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmbeddingRequest'
+        required: true
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                additionalProperties: true
+                type: object
+                title: Response Create Embedding Embeddings Post
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+components:
+  schemas:
+    EmbeddingRequest:
+      properties:
+        model:
+          type: string
+          title: Model
+        input:
+          anyOf:
+            - $ref: '#/components/schemas/TextInput'
+            - $ref: '#/components/schemas/ImageUrlInput'
+            - $ref: '#/components/schemas/ImageBase64Input'
+            - $ref: '#/components/schemas/VideoFramesInput'
+            - $ref: '#/components/schemas/VideoUrlInput'
+            - $ref: '#/components/schemas/VideoBase64Input'
+            - $ref: '#/components/schemas/VideoFileInput'
+          title: Input
+        encoding_format:
+          type: string
+          title: Encoding Format
+      type: object
+      required:
+        - model
+        - input
+        - encoding_format
+      title: EmbeddingRequest
+    HTTPValidationError:
+      properties:
+        detail:
+          items:
+            $ref: '#/components/schemas/ValidationError'
+          type: array
+          title: Detail
+      type: object
+      title: HTTPValidationError
+    ImageBase64Input:
+      properties:
+        type:
+          type: string
+          title: Type
+        image_base64:
+          type: string
+          title: Image Base64
+      type: object
+      required:
+        - type
+        - image_base64
+      title: ImageBase64Input
+    ImageUrlInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        image_url:
+          type: string
+          title: Image Url
+      type: object
+      required:
+        - type
+        - image_url
+      title: ImageUrlInput
+    TextInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        text:
+          anyOf:
+            - type: string
+            - items:
+                type: string
+              type: array
+          title: Text
+      type: object
+      required:
+        - type
+        - text
+      title: TextInput
+    ValidationError:
+      properties:
+        loc:
+          items:
+            anyOf:
+              - type: string
+              - type: integer
+          type: array
+          title: Location
+        msg:
+          type: string
+          title: Message
+        type:
+          type: string
+          title: Error Type
+      type: object
+      required:
+        - loc
+        - msg
+        - type
+      title: ValidationError
+    VideoBase64Input:
+      properties:
+        type:
+          type: string
+          title: Type
+        video_base64:
+          type: string
+          title: Video Base64
+        segment_config:
+          additionalProperties: true
+          type: object
+          title: Segment Config
+      type: object
+      required:
+        - type
+        - video_base64
+        - segment_config
+      title: VideoBase64Input
+    VideoFileInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        video_path:
+          type: string
+          title: Video Path
+        segment_config:
+          additionalProperties: true
+          type: object
+          title: Segment Config
+      type: object
+      required:
+        - type
+        - video_path
+        - segment_config
+      title: VideoFileInput
+    VideoFramesInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        video_frames:
+          items:
+            anyOf:
+              - $ref: '#/components/schemas/ImageUrlInput'
+              - $ref: '#/components/schemas/ImageBase64Input'
+          type: array
+          title: Video Frames
+      type: object
+      required:
+        - type
+        - video_frames
+      title: VideoFramesInput
+    VideoUrlInput:
+      properties:
+        type:
+          type: string
+          title: Type
+        video_url:
+          type: string
+          title: Video Url
+        segment_config:
+          additionalProperties: true
+          type: object
+          title: Segment Config
+      type: object
+      required:
+        - type
+        - video_url
+        - segment_config
+      title: VideoUrlInput

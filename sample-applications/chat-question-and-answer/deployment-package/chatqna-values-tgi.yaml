@@ -3,7 +3,7 @@
 ---
 global:
   huggingface:
-    apiToken: <HUGGINGFACEHUB_API_TOKEN># Set this during installation
+    apiToken: <HUGGINGFACEHUB_API_TOKEN>  # Set this during installation
   proxy:
     no_proxy: ""
     http_proxy: ""
@@ -16,8 +16,8 @@ global:
   LLM_MODEL: <LLM_MODEL>
   EMBEDDING_MODEL_NAME: <EMBEDDING_MODEL_NAME>
   RERANKER_MODEL: <RERANKER_MODEL>
-  OTLP_ENDPOINT: <otlp-endpoint>
-  OTLP_ENDPOINT_TRACE: <otlp-endpoint-trace>
+  OTLP_ENDPOINT:
+  OTLP_ENDPOINT_TRACE:
   teiEmbeddingService:
     enabled: false
   ovmsEmbeddingService:
@@ -36,7 +36,7 @@ Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.1.2"
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -85,3 +85,6 @@ reranker:
 chatqnaui:
   service:
     port: 80
+
+nginxService:
+  annotations: {}

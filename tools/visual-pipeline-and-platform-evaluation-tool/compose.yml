@@ -33,10 +33,10 @@ services:
     environment:
       - MODELS_PATH=/output/
     user: root
-    command: bash -xc '
+    command: bash -c '
         cp /tmp/models.sh . &&
         chmod +x models.sh &&
-        bash -cx ./models.sh &&
+        bash -c ./models.sh &&
         tail -f /dev/null
       '
     restart: on-failure:5
@@ -53,7 +53,7 @@ services:
     <<: *vippet
     container_name: vippet-gpu
     group_add:
-     - "110"
+     - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
     profiles: [gpu]
@@ -61,7 +61,7 @@ services:
     <<: *vippet
     container_name: vippet-npu
     group_add:
-     - "110"
+     - ${RENDER_GROUP_ID}
     devices:
       - "/dev/dri:/dev/dri"
       - "/dev/accel:/dev/accel"
@@ -86,7 +86,8 @@ services:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
-    image: docker.io/intel/vippet-videogenerator:v1.0.0
+    profiles: [do-not-start]
+    image: docker.io/intel/vippet-videogenerator:v1.0.1
     build:
       context: video_generator
       dockerfile: Dockerfile
@@ -96,7 +97,6 @@ services:
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
-    restart: on-failure:5
 
 volumes:
   collector-signals:
