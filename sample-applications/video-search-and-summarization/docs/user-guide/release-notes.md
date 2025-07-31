@@ -9,7 +9,7 @@
 - New UI for new combined use case.
 - Enhanced video management with support for tags on upload and search.
 - Improved text embedding capabilities within the MME service.
-- Introducing Search Alerts for proactive monitoring on search use-case.
+- Introducing Search Alerts and Directory Watcher for proactive monitoring on search use-case.
 - TopK search results now available in the UI for faster result filtering
 - Helm Chart for the combined application.
 - All application containers now run in non-root mode.
@@ -32,6 +32,7 @@
 - `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
 - In standalone search only mode, the tags feature on query is not working.
 - Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
+- Directory Watcher service only supported in Search only mode.
 
 ## Previous releases
 
