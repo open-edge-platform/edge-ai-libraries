@@ -112,7 +112,8 @@ fi
 
 # TEMPORARY: download vehicle-attributes-recognition-barrier-0039 until the download script supports it
 if [ ! -d /output/public/vehicle-attributes-recognition-barrier-0039 ]; then
-    python3 -m pip install openvino-dev[onnx] torch torchvision \
+    create_virtual_env
+    pip install openvino-dev[onnx] torch torchvision \
         --extra-index-url https://download.pytorch.org/whl/cpu
     omz_downloader --name vehicle-attributes-recognition-barrier-0039
     omz_converter --name vehicle-attributes-recognition-barrier-0039
@@ -120,6 +121,7 @@ if [ ! -d /output/public/vehicle-attributes-recognition-barrier-0039 ]; then
     cp \
         /opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json \
         /output/public/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json
+    delete_virtual_env
 else
     echo "Model vehicle-attributes-recognition-barrier-0039 already exists. Skipping download."
 fi
