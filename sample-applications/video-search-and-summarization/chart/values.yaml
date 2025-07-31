@@ -1,22 +1,31 @@
 global:
-  huggingface:
-    apiToken: <huggingface-api-token> # Set this during installation
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  # claimSize is the size of the PVC to be created.
+  claimSize: "50Gi"  
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
+
+  # huggingfaceToken should be set during installation if gated models need to be accessed.
+  huggingfaceToken: ""
+
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: ""
+
   proxy:
-    http_proxy: 
-    https_proxy:
+    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8"
+    http_proxy: ""
+    https_proxy: ""
   env:
-    UI_NODEPORT: 31998
-    POSTGRES_USER: 
-    POSTGRES_PASSWORD: 
-    POSTGRES_DB: 
-    MINIO_ROOT_USER: 
-    MINIO_PROTOCOL: "http:"
-    MINIO_BUCKET: 
-    MINIO_ROOT_PASSWORD: 
-    RABBITMQ_DEFAULT_USER:
-    RABBITMQ_DEFAULT_PASS: 
-    VLM_MODEL_NAME: 
-    OVMS_LLM_MODEL_NAME:
+    POSTGRES_DB: video_summary_db
+    POSTGRES_USER: ""
+    POSTGRES_PASSWORD: ""
+    MINIO_ROOT_USER: ""
+    MINIO_ROOT_PASSWORD: ""
+    RABBITMQ_DEFAULT_USER: ""
+    RABBITMQ_DEFAULT_PASS: ""
+    VLM_MODEL_NAME: ""
+    OVMS_LLM_MODEL_NAME: ""
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
 
@@ -39,22 +48,26 @@ rabbitmq:
     mqttPort: 1883
     
 minioServer:
-  name: minio-server
   service:
-    type: ClusterIP
     port: 9000
-    targetPort: 9000
 
 videoSummaryManager:
   name: videosummarybackend
   image:
-    repository: amr-fm-registry.caas.intel.com/esh-user/egai/pipeline-manager
-    tag: rc5
+    repository: intel/pipeline-manager
+    tag: "1.2.0"
     pullPolicy: IfNotPresent
+
+  containerPort: 3000  # Port on which container application listens internally
+  containerPortName: videosumm-port # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 3000
-    targetPort: 3000
+    port: 3000    # Port on which service listens for incoming connection, if exposed externally
+    portName: http  # Service port name. Useful when service exposes multiple ports.
+
+  minioProtocol: "http:"
+  minioBucket: "video-search-summary"
+  appNodePort: 31998
   env:
     LLM_SUMMARIZATION_KEY: ""
     LLM_SUMMARIZATION_DEVICE: "CPU"
@@ -132,6 +145,8 @@ postgresql:
 multimodalembeddingms:
   enabled: false
   name: multimodal-embedding-ms
+  textEmbeddingModel: ""
+  imageEmbeddingModel: ""
   service:
     type: ClusterIP
     port: 8000
