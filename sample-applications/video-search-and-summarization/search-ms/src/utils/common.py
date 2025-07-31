@@ -62,6 +62,7 @@ class Settings(BaseSettings):
     VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
+    WATCH_DIRECTORY_RECURSIVE: bool = Field(default=False, env="WATCH_DIRECTORY_RECURSIVE")
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
     EMBEDDING_LENGTH: int = 0
 

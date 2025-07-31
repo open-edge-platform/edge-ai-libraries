@@ -110,7 +110,18 @@ Before running the application, you need to set several environment variables:
     export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
     ```
 
-4. **Advanced VLM Configuration Options**:
+5. **Directory Watcher Configuration (Video Search Mode Only)**:
+
+    For automated video ingestion in search mode, you can use the directory watcher service:
+
+    ```bash
+    # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
+    export VS_WATCHER_DIR="/path/to/your/video/directory"
+    ```
+
+    > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` mode.
+
+6. **Advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
 
@@ -150,6 +161,8 @@ The Video Summary application offers multiple stacks and deployment options:
 | Video Summary | Video frame captioning and Summary | `--summary` |
 | Video Search | Video indexing and semantic search | `--search` |
 | Video Search + Summary | Both summary and search capabilities | `--all` |
+
+> **📁 Automated Video Ingestion**: The Video Search stack includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details on setting up automatic video monitoring and ingestion.
 
 ### 🧩 Deployment Options for Video Summary
 
@@ -194,6 +207,8 @@ Follow these steps to run the application:
     ```bash
     source setup.sh --search
     ```
+
+    > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
 
 - **To run Unified Video Search and Summary :**
 
