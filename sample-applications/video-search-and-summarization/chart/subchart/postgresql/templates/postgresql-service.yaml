@@ -8,8 +8,7 @@ spec:
   type: {{ .Values.postgresql.service.type }}
   ports:
     - port: {{ .Values.postgresql.service.port }}
-      targetPort: {{ .Values.postgresql.service.port }}
+      targetPort: {{ .Values.postgresql.containerPortName }}
       protocol: TCP
-      name: postgres
   selector:
     app: {{ include "postgresql.name" . }}

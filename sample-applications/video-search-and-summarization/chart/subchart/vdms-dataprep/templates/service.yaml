@@ -8,8 +8,9 @@ spec:
   type: {{ .Values.service.type }}
   ports:
     - port: {{ .Values.service.port }}
-      targetPort: {{ .Values.service.name }}
+      targetPort: {{ .Values.containerPortName }}
       protocol: TCP
-      name: {{ .Values.service.name }}
+      name: {{ .Values.service.portName }}
+  
   selector:
     {{- include "vdms-dataprep.selectorLabels" . | nindent 4 }}

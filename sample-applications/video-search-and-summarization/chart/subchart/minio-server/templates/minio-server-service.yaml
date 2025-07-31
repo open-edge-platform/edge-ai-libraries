@@ -7,11 +7,11 @@ metadata:
 spec:
   type: {{ .Values.minioServer.service.type }}
   ports:
-    - name: api
-      port: {{ .Values.minioServer.service.port }}
-      targetPort: {{ .Values.minioServer.service.targetPort }}
-    - name: console
-      port: {{ .Values.minioServer.service.consolePort }}
-      targetPort: {{ .Values.minioServer.service.consoleTargetPort }}
+    - name: {{ .Values.minioServer.service.console.portName }}
+      port: {{ .Values.minioServer.service.console.port }}
+      targetPort: {{ .Values.minioServer.consolePortName }}
+    - name: {{ .Values.minioServer.service.api.portName }}
+      port: {{ .Values.minioServer.service.api.port }}
+      targetPort: {{ .Values.minioServer.apiPortName }}
   selector:
     app: {{ .Values.minioServer.name }}
