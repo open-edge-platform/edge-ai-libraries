@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { FC, SyntheticEvent, useState } from 'react';
 import styled from 'styled-components';
-import { Checkbox, IconButton, Tooltip } from '@carbon/react';
+import { Checkbox, IconButton } from '@carbon/react';
 import { TrashCan } from '@carbon/icons-react';
 import { useTranslation } from 'react-i18next';
 import { useAppDispatch } from '../../redux/store';
@@ -130,13 +130,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
         />
 
         <span className='text-container'>
-          {hasError ? (
-            <Tooltip label={item.errorMessage || 'Search failed'}>
-              <span>{item.query}</span>
-            </Tooltip>
-          ) : (
-            item.query
-          )}
+          {item.query}
         </span>
 
         <IconButton kind='ghost' label={t('queryDeleteLabel')} autoAlign onClick={handleDeleteClick}>

@@ -132,7 +132,7 @@ export class SearchStateService {
     } catch (error) {
       Logger.error(`Error running search for query ID ${queryId}`, error);
       const errorMessage =
-        'No videos found in search database. Please upload videos and create search embeddings before running queries.';
+        'No videos found in search database. Please upload relevant videos before running queries.';
       const updatedQuery = await this.$searchDB.updateQueryStatusWithError(
         queryId,
         SearchQueryStatus.ERROR,

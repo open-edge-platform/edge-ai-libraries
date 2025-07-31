@@ -240,16 +240,6 @@ export const SearchContent: FC = () => {
         <div className='error-content'>
           <div className='error-title'>{t('searchErrorTitle', 'Search Failed')}</div>
           <div className='error-text'>{selectedQuery.errorMessage}</div>
-          <div className='error-actions'>
-            <IconButton 
-              label={t('SearchRerun', 'Retry Search')} 
-              onClick={refetchQuery} 
-              kind='primary'
-              size='sm'
-            >
-              <Trigger />
-            </IconButton>
-          </div>
         </div>
       </ErrorMessageWrapper>
     );
