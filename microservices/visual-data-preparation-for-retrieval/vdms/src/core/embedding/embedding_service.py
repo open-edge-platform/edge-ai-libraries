@@ -81,7 +81,6 @@ class vCLIPEmbeddingServiceWrapper(BaseModel, Embeddings):
                 logger.debug(f"Response status code: {response.status_code}")
                 response.raise_for_status()
                 embedding = response.json()["embedding"]
-                # logger.debug(f"Received embedding for {path}: {embedding}")
                 video_features.append(embedding)
             return video_features
         except requests.RequestException as ex:

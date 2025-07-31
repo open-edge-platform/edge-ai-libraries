@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-import datetime
+from datetime import datetime
 import asyncio
 import json
 from typing import Optional, List, Tuple, Any
