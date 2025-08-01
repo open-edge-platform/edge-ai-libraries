@@ -13,7 +13,7 @@ image:
   tag: "1.2.0"
   pullPolicy: IfNotPresent
 
-containerPort: 80  # Port on which container application listens internally
+containerPort: 8080  # Port on which container application listens internally
 containerPortName: vs-ui-port  # Optional name to refer containerPort
 service:
   type: ClusterIP

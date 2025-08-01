@@ -220,12 +220,24 @@ helm uninstall vss -n $my_namespace
 ## Troubleshooting
 
 - **Pods not coming in Ready or Running state for a long time.**
-  There could be several possible reasons for this. Most likely reasons are storage unavailability, node unavailability, network slow-down or faulty network etc. Please check with your cluster admin or try fresh installation of charts after a while (after un-installing the current one).
+
+  There could be several possible reasons for this. Most likely reasons are storage unavailability, node unavailability, network slow-down or faulty network etc. Please check with your cluster admin or try fresh installation of charts, **after deleting the PVC _(see next issue)_ and un-installing the current chart**.
+
+- **All containers Ready, all Pods in Running state, application UI is accessible but search or summary is failing.**
+
+  If PVC has been configured to be retained, most common reason for application to fail to work is a stale PVC. This problem most likely occurs when helm charts are re-installed after some updates to helm chart or the application image. To fix this, delete the PVC before re-installing the helm chart by following command:
+
+    ```bash
+    kubectl delete pvc vss-shared-pvc -n <your_namespace>
+    ```
+
+  If you have updated the `global.pvcName` in the values file, use the updated name instead of default PVC name `vss-shared-pvc` in above command.
 
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
-  ```bash
-  kubectl logs <pod-name> -n $my_namespace
-  ```
+
+    ```bash
+    kubectl logs <pod-name> -n $my_namespace
+    ```
 
 - For component-specific issues:
   - Video ingestion problems: Check the logs of the videoingestion pod
@@ -234,9 +246,10 @@ helm uninstall vss -n $my_namespace
   - Storage issues: Check the MinIO server status and connectivity
 
 - Some issues might be fixed by freshly setting up storage. This is helpful in cases where deletion of PVC is prohibited by configuration on charts un-installation (when `global.keepPvc` is set to true):
-  ```bash
-  kubectl delete pvc <pvc-name> -n $my_namespace
-  ```
+
+    ```bash
+    kubectl delete pvc <pvc-name> -n $my_namespace
+    ```
 
 - If you're experiencing issues with the Hugging Face API, ensure your API token `global.huggingfaceToken` is valid and properly set in the `user_values_override.yaml` file.
 

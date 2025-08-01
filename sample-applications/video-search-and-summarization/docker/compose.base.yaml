@@ -10,7 +10,7 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy},${MINIO_HOST},vss-ui,${PM_HOST}
-      APP_UI: vss-ui
+      APP_UI: vss-ui:8080
       APP_MANAGER: ${PM_HOST}:3000
       APP_ASSETS: minio-service
       NGINX_ENVSUBST_TEMPLATE_DIR: /etc/nginx/templates
