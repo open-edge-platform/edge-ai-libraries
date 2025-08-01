@@ -8,11 +8,6 @@ videosearch:
   env:
     VDMS_VDB_HOST: "vdms-vectordb"
     VDMS_VDB_PORT: "55555"
-    VCLIP_START_OFFSET_SEC: "0"
-    VCLIP_CLIP_DURATION: "10"
-    VCLIP_USE_OV: "CONFIG_OFF"
-    VCLIP_DEVICE: "cpu"
-    VCLIP_HOST: "multimodal-embedding-ms"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
     VS_DEBOUNCE_TIME: "1"
     VS_DELETE_PROCESSED_FILES: "false"

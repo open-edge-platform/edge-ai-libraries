@@ -35,7 +35,7 @@ videosummaryui:
   service:
     type: ClusterIP
     port: 8100
-    targetPort: 80
+    targetPort: 8080
 
 rabbitmq:
   enabled: false
