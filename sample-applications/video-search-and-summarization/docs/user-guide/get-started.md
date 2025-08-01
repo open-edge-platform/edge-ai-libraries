@@ -313,10 +313,10 @@ For alternative ways to set up the sample application, see:
 
   ```bash
   source setup.sh --down
-  docker volume rm docker_vdms-db docker_data-prep
+  docker volume rm docker_vdms-db docker_data-prep docker_audio_analyzer_data docker_data-prep docker_pg_data docker_vdms-db
   ```
   
-  > **_NOTE :_** This step does not apply when you are setting up the application for the first time.   
+  > **_NOTE :_** This step does not apply when you are setting up the application for the first time.
 
 ### VLM Microservice Model Loading Issues
 
@@ -336,9 +336,9 @@ For alternative ways to set up the sample application, see:
    source setup.sh --down
    ```
 
-2. Remove the existing `ov-models` Docker volume:
+2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
    ```bash
-   docker volume rm ov-models
+   docker volume rm ov-models docker_ov-models
    ```
 
 3. Restart the application (the volume will be recreated with correct permissions):
@@ -350,6 +350,6 @@ For alternative ways to set up the sample application, see:
    source setup.sh --search
    ```
 
-**Note**: Removing the `ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+**Note**: Removing the `ov-models`/`docker_ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
