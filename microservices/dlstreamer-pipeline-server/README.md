@@ -39,18 +39,19 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 
 ### Pull the image and start container
 
-- Pull the image with the latest tag from registry
-
-   ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.1.0
-   ```
-
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
 
   ```sh
     git clone <link-to-repository>
     cd <path/to/dlstreamer-pipeline-server/docker>
   ```
+
+- Pull the image with the latest tag from registry
+
+   ```sh
+     # Update DLSTREAMER_PIPELINE_SERVER_IMAGE in <path/to/dlstreamer-pipeline-server/docker/.env> if necessary
+     docker pull "$(grep ^DLSTREAMER_PIPELINE_SERVER_IMAGE= .env | cut -d= -f2-)"
+   ```
 
 - Run the image with the [compose file](./docker/docker-compose.yml) provided in this repo.
 

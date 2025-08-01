@@ -12,7 +12,7 @@ This guide will help you add environment variables to enable `GST TRACER` logs a
     ```yaml
     services:
       dlstreamer-pipeline-server:
-        image: intel/dlstreamer-pipeline-server:3.1.0
+        image: ${DLSTREAMER_PIPELINE_SERVER_IMAGE}
         environment:
           ...
           - GST_DEBUG=GST_TRACER:7

@@ -40,7 +40,7 @@ By following this guide, you will learn how to:
       ```
     - Download the Docker Compose file:
       ```bash
-        curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose/compose-linux-v1.0.0/compose.yml"
+        curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
       ```
 
 3. **Download the Artifacts**:
