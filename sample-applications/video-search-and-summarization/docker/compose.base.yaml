@@ -99,6 +99,7 @@ services:
       POSTGRES_USER: ${POSTGRES_USER}
       POSTGRES_PASSWORD: ${POSTGRES_PASSWORD}
       POSTGRES_DB: ${POSTGRES_DB}
+      PGDATA: /var/lib/postgresql/data/pgdata
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER} -d ${POSTGRES_DB}"]
       interval: 30s
@@ -142,9 +143,6 @@ volumes:
     driver: local
   pg_data:
     driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs
 networks:
   vs_network:
     driver: bridge
