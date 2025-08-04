@@ -42,7 +42,7 @@ Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.2.1"
+    tag: "1.2.2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -92,7 +92,7 @@ chatqnaui:
   name: chatqna-ui
   nameOverride: "ui"
   service:
-    port: 80
+    port: 8101
 
 nginxService:
   annotations: {}

@@ -72,7 +72,7 @@ Below is an example that shows how to subscribe to the published data.
         sudo apt install -y python3 python3-pip python3-opencv
     ```
 
-- Install ROS2 Jazzy on Ubuntu24 and source it. Install pythyon and related dependencies too.
+- Install ROS2 Jazzy on Ubuntu24 and source it. Install python and related dependencies too.
     ```sh
         # Install ROS2 Jazzy
         sudo apt update && sudo apt install -y curl gnupg lsb-release

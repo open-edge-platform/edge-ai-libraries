@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginx:latest
+    image: nginxinc/nginx-unprivileged:1.27.4
     ports:
       - "8101:8101"
     volumes:
@@ -32,17 +32,17 @@ services:
       - LLM_MODEL=${LLM_MODEL}
       - SEED=${SEED}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT}/v1/traces
-      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
-      - OTEL_SERVICE_VERSION=${OTEL_SERVICE_VERSION}
+      - OTEL_EXPORTER_OTLP_TRACES_ENDPOINT=${OTLP_ENDPOINT:+${OTLP_ENDPOINT}/v1/traces}
+      - OTEL_SERVICE_NAME=${OTLP_ENDPOINT:+${OTLP_SERVICE_NAME}}
+      - OTEL_SERVICE_ENV=${OTLP_ENDPOINT:+${OTLP_SERVICE_ENV}}
+      - OTEL_SERVICE_VERSION=${OTLP_ENDPOINT:+${OTEL_SERVICE_VERSION}}
       - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
       - RERANKER_ENDPOINT=${RERANKER_ENDPOINT}
     networks:
       - my_network
     volumes:
-      - /opt/share/ca-certificates:/opt/share/ca-certificates
-      - /etc/ssl/certs:/etc/ssl/certs
+      - "${CA_CERTIFICATES_PATH:-/opt/share/ca-certificates}:/opt/share/ca-certificates"
+      - "${SSL_CERTIFICATES_PATH:-/etc/ssl/certs}:/etc/ssl/certs"
   pgvector:
     image: pgvector/pgvector:pg16
     container_name: pgvector_db
@@ -69,7 +69,7 @@ services:
     ports:
       - "8090:80"
     volumes:
-      - "~/.cache/huggingface:/root/.cache/huggingface"
+      - "${model_cache_path:-~/.cache/huggingface}:/root/.cache/huggingface"
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -131,7 +131,7 @@ services:
       - "${MINIO_API_HOST_PORT:-9000}:${MINIO_API_PORT:-9000}"
       - "${MINIO_CONSOLE_HOST_PORT:-9001}:${MINIO_CONSOLE_PORT:-9001}"
     volumes:
-      - "${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data"
+      - "${MINIO_MOUNT_PATH:-/opt/share/mnt/miniodata}:/data"
     networks:
       - my_network
     command: |
@@ -148,9 +148,9 @@ services:
     ports:
       - "8080:80"
     volumes:
-      - "~/.cache/huggingface:/root/.cache/huggingface"
-      - /opt/share/ca-certificates:/opt/share/ca-certificates
-      - /etc/ssl/certs:/etc/ssl/certs
+      - "${model_cache_path:-~/.cache/huggingface}:/root/.cache/huggingface"
+      - "${CA_CERTIFICATES_PATH:-/opt/share/ca-certificates}:/opt/share/ca-certificates"
+      - "${SSL_CERTIFICATES_PATH:-/etc/ssl/certs}:/etc/ssl/certs"
     environment:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
@@ -165,11 +165,11 @@ services:
       - OTEL_EXPORTER_OTLP_TRACES_PROTOCOL=http/protobuf
       - OTEL_METRICS_EXPORTER=otlp
       - OTEL_TRACES_EXPORTER=otlp
-      - OTEL_SERVICE_NAME=${OTLP_SERVICE_NAME}
-      - OTEL_SERVICE_ENV=${OTLP_SERVICE_ENV}
+      - OTEL_SERVICE_NAME=${OTLP_ENDPOINT:+${OTLP_SERVICE_NAME}}
+      - OTEL_SERVICE_ENV=${OTLP_ENDPOINT:+${OTLP_SERVICE_ENV}}
       - OTLP_ENDPOINT=${OTLP_ENDPOINT}
-      - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT_TRACE}
-      - REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
+      - OTLP_ENDPOINT_TRACE=${OTLP_ENDPOINT:+${OTLP_ENDPOINT_TRACE}}
+      - REQUESTS_CA_BUNDLE=${REQUESTS_CA_BUNDLE:-}
     cap_add:
       - SYS_NICE
     healthcheck:
@@ -179,7 +179,16 @@ services:
       retries: 3
     networks:
       - my_network
-    command: /bin/bash -c "echo $OTLP_ENDPOINT && echo $OTLP_ENDPOINT_TRACE && pip install 'opentelemetry-sdk>=1.26.0,<1.27.0' 'opentelemetry-api>=1.26.0,<1.27.0' 'opentelemetry-exporter-otlp>=1.26.0,<1.27.0' 'opentelemetry-semantic-conventions-ai>=0.4.1,<0.5.0' opentelemetry-instrumentation-fastapi &&  opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server --enforce-eager --otlp-traces-endpoint=$OTLP_ENDPOINT_TRACE --model $LLM_MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE --host 0.0.0.0 --port 80"
+    entrypoint:
+      - /bin/bash
+      - -c
+      - |
+        if [ -n "$OTLP_ENDPOINT" ]; then
+          pip install "opentelemetry-sdk>=1.26.0,<1.27.0" "opentelemetry-api>=1.26.0,<1.27.0" "opentelemetry-exporter-otlp>=1.26.0,<1.27.0" "opentelemetry-semantic-conventions-ai>=0.4.1,<0.5.0" opentelemetry-instrumentation-fastapi && \
+          opentelemetry-instrument python3 -m vllm.entrypoints.openai.api_server --enforce-eager --model $LLM_MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE --host 0.0.0.0 --port 80;
+        else
+          python3 -m vllm.entrypoints.openai.api_server --enforce-eager --model $LLM_MODEL --tensor-parallel-size $TENSOR_PARALLEL_SIZE --host 0.0.0.0 --port 80;
+        fi
 
   text-generation:
     image: ghcr.io/huggingface/text-generation-inference:3.0.1-intel-xpu
@@ -193,11 +202,11 @@ services:
       - https_proxy=${https_proxy}
       - HUGGINGFACEHUB_API_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
-      - HUGGINGFACE_HUB_CACHE='/root/.cache/huggingface/hub'
+      - HUGGINGFACE_HUB_CACHE=/root/.cache/huggingface/hub
     ports:
       - "8080:80"
     volumes:
-      - "~/.cache/huggingface:/root/.cache/huggingface"
+      - "${model_cache_path:-~/.cache/huggingface}:/root/.cache/huggingface"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/health" ]
       interval: 120s
@@ -224,7 +233,7 @@ services:
       - "9300:9300"
       - "8300:80"
     volumes:
-      - "${VOLUME_OVMS}:/workspace:ro"
+      - "${VOLUME_OVMS:-./ovms_config}:/workspace:ro"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
       interval: 30s
@@ -243,7 +252,7 @@ services:
     ports:
       - "6006:80"
     volumes:
-      - "~/.cache/huggingface:/root/.cache/huggingface"
+      - "${model_cache_path:-~/.cache/huggingface}:/root/.cache/huggingface"
     shm_size: 1g
     networks:
       - my_network
@@ -270,7 +279,7 @@ services:
       - "9000:9000"
       - "8300:80"
     volumes:
-      - "${VOLUME_OVMS}:/workspace:ro"
+      - "${VOLUME_OVMS:-./ovms_config}:/workspace:ro"
     devices:
       - /dev/dri:/dev/dri
     group_add:

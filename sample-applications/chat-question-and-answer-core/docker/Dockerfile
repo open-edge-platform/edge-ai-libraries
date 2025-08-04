@@ -113,6 +113,8 @@ CMD uvicorn app.server:app --host 0.0.0.0 --port 8888 --reload
 FROM python-base AS prod
 ENV FASTAPI_ENV=production
 
+WORKDIR /my-app
+
 # Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libmagic-dev \
@@ -121,17 +123,21 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# Copy the poetry installation and the virtual env
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_token_id = tokenizer.eos_token_id/' \
     /opt/projsetup/.venv/lib/python3.11/site-packages/langchain_huggingface/llms/huggingface_pipeline.py
 
-COPY . /app/
+# Prepare directories for model cache and config
+RUN mkdir -p /tmp/model_cache /tmp/model_config
 
-WORKDIR /app
+# Copy application code and model config
+COPY app ./app
+COPY model_config/sample/template.yaml /tmp/model_config/default_model.yaml
 
-RUN mkdir -p /tmp/model_cache && \
-    chown -R appuser:appuser /tmp/model_cache
+# Set ownership to appuser
+RUN chown -R appuser:appuser /my-app /tmp/model_cache /tmp/model_config/
 
 USER appuser
 

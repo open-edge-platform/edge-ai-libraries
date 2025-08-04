@@ -3,12 +3,15 @@ kind: ConfigMap
 metadata:
   name: {{ include "nginx.fullname" . }}-config
 data:
-  default.conf: |+
-    # Config for nginx mounted to /etc/nginx/conf.d in the pod
+  nginx.conf: |+
+    pid /tmp/nginx.pid;
 
-    server {
-        listen       80;
-        listen  [::]:80;
+    events{}
+
+    http {
+      server {
+        listen  8101;
+        listen [::]:8101;
 
         client_max_body_size 500M;
         proxy_read_timeout 300;
@@ -50,7 +53,7 @@ data:
             proxy_set_header X-Forwarded-Proto $scheme;
             proxy_cache_bypass $http_upgrade;
         }
-
+      }
     }
 ---
 apiVersion: apps/v1
@@ -70,16 +73,17 @@ spec:
         app: {{ include "nginx.fullname" . }}
     spec:
       containers:
-      - image: nginx:1.27.1
+      - image: nginxinc/nginx-unprivileged:1.27.4
         imagePullPolicy: {{ .Values.Chatqna.image.pullPolicy }}
         name: nginx
         volumeMounts:
-        - mountPath: /etc/nginx/conf.d
+        - mountPath: /etc/nginx/nginx.conf
           name: nginx-config-volume
-      securityContext: {}
+          subPath: nginx.conf
+      securityContext:
+        allowPrivilegeEscalation: false
       volumes:
       - configMap:
-          defaultMode: 420
           name: {{ include "nginx.fullname" . }}-config
         name: nginx-config-volume
       {{- with .Values.nodeSelector }}
@@ -104,9 +108,9 @@ metadata:
   {{- end }}  
 spec:
   ports:
-  - port: 80
+  - port: 8101
     protocol: TCP
-    targetPort: 80
+    targetPort: 8101
     nodePort: {{ .Values.global.UI_NODEPORT }}
   selector:
     app: {{ include "nginx.fullname" . }}
