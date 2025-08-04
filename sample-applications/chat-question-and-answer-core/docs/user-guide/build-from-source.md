@@ -8,6 +8,9 @@ If you want to build the images via `docker compose`, please refer to the sectio
 
 Once all the images are built, go back to `chat-question-and-answer-core` directory by using `cd ..` command. Then, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
+> **Note:** 
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+
 ## Building the Backend Image
 To build the Docker image for the `Chat Question-and-Answer Core` application, follow these steps:
 

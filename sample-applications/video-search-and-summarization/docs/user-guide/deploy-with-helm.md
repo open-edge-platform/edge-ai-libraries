@@ -8,6 +8,7 @@ Before you begin, ensure that you have the following:
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
 - Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
+- Video Search and Summary requires PVC storage class to support `RWMany` mode. In case the default storage class used does not support it, consider using storage solution like [LongHorn](https://longhorn.io/docs/) that provides this support. Video Search and Summary intends to remove this prerequisite in future release and use only `RWOnce` mode. 
 
 ## Steps to deploy with Helm
 Do the following to deploy VSS using Helm chart. 

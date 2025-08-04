@@ -123,6 +123,8 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 
 You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
+Note: Ensure to set the right values in the [.env file](./docker/.env) for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
+
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
 
@@ -132,7 +134,7 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
-Update the following lines in [.env file](./docker/.env) for choosing the right base image and also for naming the image that gets built.
+Update the following lines in [.env file](./docker/.env) for choosing the right base and target images and also for naming the image that gets built.
 
   ``` sh
   # See .env file for example values
@@ -157,7 +159,7 @@ Run the following commands:
      docker compose build
    ```
    
-   The docker image `intel/dlstreamer-pipeline-server:3.1.0-ubuntu22`, `intel/dlstreamer-pipeline-server:3.1.0-ubuntu24`, `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22` or `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24` is now built (based on the .env changes done above) and available for you to run.
+   The docker image of DL Streamer Pipeline Server is now built (based on the .env changes done above) and available for you to run.
    
    ```sh
      docker compose up
