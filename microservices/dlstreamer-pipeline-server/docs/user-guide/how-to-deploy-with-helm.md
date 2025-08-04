@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 3.1.0-helm`
+    `helm pull oci://ghcr.io/open-edge-platform/edge-ai-libraries/dlstreamer-pipeline-server --version 20250804-EAL1.2-DLSPS-RC4`
 - unzip the package using the following command
 
-    `tar xvf dlstreamer-pipeline-server-3.1.0-helm.tgz`
+    `tar -xvf dlstreamer-pipeline-server-20250804-EAL1.2-DLSPS-RC4.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
