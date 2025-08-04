@@ -26,7 +26,6 @@ class Settings(BaseSettings):
     GRADIO_PORT: str
     API_URL: str
     CHUNK_SIZE: int
-    API_TIMEOUT: int
 
 
     model_config = SettingsConfigDict(env_file=enviornment_file ,extra="ignore")

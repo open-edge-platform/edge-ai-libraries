@@ -5,6 +5,7 @@ import os
 import sys
 import logging
 import traceback
+import tempfile
 import requests
 import gradio as gr
 from app.config import Settings
@@ -59,8 +60,8 @@ def summarize_document(file_obj, custom_query=None):
         
         logger.info(f"Sending request to {docsum_endpoint} with query: {query}")
         
-        # Send the request to the API with timeout
-        response = requests.post(docsum_endpoint, files=files, data=data, timeout=config.API_TIMEOUT or 1200)
+        # Send the request to the API
+        response = requests.post(docsum_endpoint, files=files, data=data)
         
         # Check if the request was successful
         if response.status_code == 200:
@@ -103,17 +104,9 @@ def create_ui():
                 
         # Set up the event handler
         submit_btn.click(
-            lambda: (gr.update(interactive=False), gr.update(interactive=False)),
-            None,
-            [file_input, submit_btn]
-        ).then(
             fn=summarize_document,
             inputs=[file_input],
             outputs=output
-        ).then(
-            lambda: (gr.update(interactive=True), gr.update(interactive=True)),
-            None,
-            [file_input, submit_btn]
         )
         
         gr.Markdown("### Notes")
