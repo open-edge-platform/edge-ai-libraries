@@ -27,5 +27,4 @@ class Settings(BaseSettings):
     API_URL: str
     CHUNK_SIZE: int
 
-
     model_config = SettingsConfigDict(env_file=enviornment_file ,extra="ignore")
