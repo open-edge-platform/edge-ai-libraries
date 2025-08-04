@@ -60,7 +60,7 @@ def summarize_document(file_obj, custom_query=None):
         logger.info(f"Sending request to {docsum_endpoint} with query: {query}")
         
         # Send the request to the API with timeout
-        response = requests.post(docsum_endpoint, files=files, data=data, timeout=300)
+        response = requests.post(docsum_endpoint, files=files, data=data, timeout=config.API_TIMEOUT or 1200)
         
         # Check if the request was successful
         if response.status_code == 200:
