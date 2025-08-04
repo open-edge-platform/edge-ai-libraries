@@ -28,7 +28,7 @@ By following this guide, you will learn how to:
 -->
 
 ## Supported Models
-All models - embedding, reranker, and LLM - which are supported by the chosen model serving can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models. 
+All models - embedding, reranker, and LLM - which are supported by the chosen model serving can be used with this sample application. The models can be downloaded from popular model hubs like Hugging Face. Refer to respective model hub documentation for details on how to access and download models.
 
 The sample application has been validated with a few models just to validate the functionality. This list is only illustrative and the user is not limited to only these models.
 
@@ -45,9 +45,9 @@ The sample application has been validated with a few models just to validate the
    | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
    | `TGI` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
-Note: Limited validation was done on DeepSeek model. 
+Note: Limited validation was done on DeepSeek model.
 
-### Reranker Models validated 
+### Reranker Models validated
    | Model Server | Models Validated |
    |--------------|-------------------|
    | `TEI` | `BAAI/bge-reranker-base` |
@@ -95,7 +95,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    export LLM_MODEL=Intel/neural-chat-7b-v3-3
    export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
    export RERANKER_MODEL=BAAI/bge-reranker-base
-   export DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) . 
+   export DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    ```
@@ -110,7 +110,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
     # Install required Python packages for model preparation
     pip install -r ovms_config/requirements.txt
     ```
-    
+
    To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
 
     _Go to https://huggingface.co/settings/tokens to get your token._
@@ -124,7 +124,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
    ```bash
    export REGISTRY="intel/"
-   export TAG=1.2.1
+   export TAG=1.2.2
    source setup.sh llm=<model-server> embed=<embedding>
    # Below are the options
    # model-server: VLLM , OVMS, TGI
@@ -150,7 +150,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    Open a browser and go to `http://<host-ip>:8101` to access the application dashboard. The application dashboard allows the user to,
     - Create and manage context by adding documents (pdf, docx, etc.) and web links. Note: There are restrictions on the max size of the document allowed.
     - Start Q&A session with the created context.
-    
+
 
 ## Running in Kubernetes
 

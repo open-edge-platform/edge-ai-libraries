@@ -98,7 +98,7 @@ This guide explains how to build the images using the `compose.yaml` file via th
      source scripts/setup_env.sh -d gpu
      ```
 
-   ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile and sets additional environment variables required for GPU-based execution.
+   ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
 
 3. Build the Docker images defined in the `compose.yaml` file:
 
@@ -134,7 +134,10 @@ After building the images for the `Chat Question-and-Answer Core` application, y
      source scripts/setup_env.sh -d gpu
      ```
 
-   Configure the models to be used (LLM, Embeddings, Rerankers) in the `scripts/setup_env.sh` as needed. Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+   Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
+
+   Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+
 
 2. Start the Docker containers with the previously built images:
 

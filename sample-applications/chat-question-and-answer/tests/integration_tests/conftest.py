@@ -39,7 +39,7 @@ def check_vllm_model_status():
 def check_ovms_model_status():        
     model_started = False
     ip = get_ip_address()
-    completion_url = f"http://{ip}:8300/v3/chat/completions"
+    completion_url = f"http://{ip}:8300/v3/chat"
     #message = [{"role": "system", "content": "You are a helpful assistant."}, {"role": "user", "content": "test"} ]
     message = [{"role": "user", "content": "test"}]
     body = {"model": os.getenv('LLM_MODEL'), "messages": message, "stream": True}
@@ -91,7 +91,7 @@ def check_chatqna_core_status():
 def check_chatqna_helm_status():        
     model_started = False
     ip = get_ip_address()
-    completion_url = f"http://{ip}:8080/stream_log"
+    completion_url = f"http://{ip}:8080/chat"
     body = {"input":"test"}
     must_end = time.time() + 50000
     print("Checking helm server status..")

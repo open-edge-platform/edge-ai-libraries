@@ -2,6 +2,15 @@
 
 ## Current Release
 
+**Version**: 1.2.2 \
+**Release Date**: WW32 2025
+
+- Replaced environment variable-based configuration with YAML file loading for model-related settings, improving flexibility and maintainability.
+- Enhanced container security by updating UI and NGINX containers to run as non-root users, aligning with industry best practices.
+- Renamed stream_log/ endpoint to chat/, reflecting its current functionality more accurately.
+
+## Previous Release
+
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
 
@@ -13,8 +22,6 @@
 ### Known Issues/Behavior:
 - Not validated with the EMF deployment package
 - Not validated on EMT edge node
-
-## Previous Release
 
 **Version**: 1.2.0 \
 **Release Date**: WW20 2025

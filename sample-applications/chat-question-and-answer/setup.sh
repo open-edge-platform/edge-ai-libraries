@@ -1,5 +1,11 @@
 #!/bin/bash
 
+#Volume mount paths
+export model_cache_path=~/.cache/huggingface
+export SSL_CERTIFICATES_PATH=/etc/ssl/certs
+export CA_CERTIFICATES_PATH=/opt/share/ca-certificates
+export VOLUME_OVMS=${PWD}/ovms_config
+
 # Setup the PG Vector DB Connection configuration
 export PGVECTOR_HOST=pgvector_db
 export PGVECTOR_PORT=5432
@@ -34,7 +40,7 @@ export MINIO_API_PORT=9000
 export MINIO_API_HOST_PORT=9999
 export MINIO_CONSOLE_PORT=9001
 export MINIO_CONSOLE_HOST_PORT=9990
-export MINIO_MOUNT_PATH=/mnt/miniodata
+export MINIO_MOUNT_PATH=/opt/share/mnt/miniodata
 export MINIO_ROOT_USER=${MINIO_USER:-dummy_user}
 export MINIO_ROOT_PASSWORD=${MINIO_PASSWD:-dummy_321}
 
@@ -52,6 +58,7 @@ if [[ -n "$OTLP_ENDPOINT" ]]; then
   export REQUESTS_CA_BUNDLE=/etc/ssl/certs/ca-certificates.crt
 fi
 
+
 # VLLM
 export TENSOR_PARALLEL_SIZE=1
 export KVCACHE_SPACE=50
@@ -60,7 +67,6 @@ export KVCACHE_SPACE=50
 # OVMS
 export MODEL_DIRECTORY_NAME=$(basename $LLM_MODEL)
 export WEIGHT_FORMAT=int8
-export VOLUME_OVMS=${PWD}/ovms_config
 
 #TGI
 #export VOLUME=$PWD/data
