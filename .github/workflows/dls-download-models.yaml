@@ -31,7 +31,7 @@ on:
 permissions: {}
 env:
   MODELS_PATH: "$HOME/models"
-  DEFAULT_LABELS: '[["self-hosted","DLS-ARL-01"],["self-hosted","DLS-ARL-02"],["self-hosted","DLS-ARL-03"],["self-hosted","DLS-TGL-01"],["self-hosted","DLS-TGL-02"],["self-hosted","DLS-TGL-03"],["self-hosted","DLS-TGL-04"],["self-hosted","DLS-TGL-05"]]'
+  DEFAULT_LABELS: [[self-hosted,DLS-ARL-01],[self-hosted,DLS-ARL-02],[self-hosted,DLS-ARL-03],[self-hosted,DLS-TGL-01],[self-hosted,DLS-TGL-02],[self-hosted,DLS-TGL-03],[self-hosted,DLS-TGL-04],[self-hosted,DLS-TGL-05]]
 
 jobs:
   setup-runners:
