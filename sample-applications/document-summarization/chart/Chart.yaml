@@ -2,12 +2,12 @@ apiVersion: v2
 name: document-summarization
 description: A Helm chart for deploying the Document Summarization application
 type: application
-version: 0.1.0
+version: 1.0.0
 appVersion: "1.0.0"
 dependencies:
   - name: ovms-service
-    version: 0.1.0
+    version: 1.0.0
     repository: "file://subchart/ovms/ovms-service"
   - name: docsum-api
-    version: 0.1.0
+    version: 1.0.0
     repository: "file://subchart/backend/docsum-api"
