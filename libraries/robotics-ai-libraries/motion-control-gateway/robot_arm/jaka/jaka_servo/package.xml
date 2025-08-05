@@ -1,0 +1,49 @@
+<?xml version="1.0"?>
+<package format="3">
+  <name>jaka_servo</name>
+  <version>0.1.0</version>
+  <description>The JAKA robot realtime servoing package</description>
+  <license>BSD</license>
+
+  <author email="yu.yan@intel.com">Yan Yu</author>
+  <maintainer email="yu.yan@intel.com">Yan Yu</maintainer>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <depend>control_msgs</depend>
+  <depend>interactive_markers</depend>
+  <depend>moveit_core</depend>
+  <depend>moveit_ros_perception</depend>
+  <depend>moveit_ros_planning_interface</depend>
+  <depend>moveit_servo</depend>
+  <depend>pluginlib</depend>
+  <depend>rviz_visual_tools</depend>
+  <depend>tf2_eigen</depend>
+  <depend>tf2_geometry_msgs</depend>
+  <depend>tf2_ros</depend>
+
+  <build_depend>eigen</build_depend>
+  <build_depend>geometric_shapes</build_depend>
+  <build_depend>moveit_common</build_depend>
+  <build_depend>moveit_ros_planning</build_depend>
+
+  <exec_depend>controller_manager</exec_depend>
+  <exec_depend>gripper_controllers</exec_depend>
+  <exec_depend>joint_state_broadcaster</exec_depend>
+  <exec_depend>joint_state_publisher</exec_depend>
+  <exec_depend>joint_trajectory_controller</exec_depend>
+  <exec_depend>joy</exec_depend>
+  <exec_depend>moveit</exec_depend>
+  <exec_depend>moveit_resources_panda_moveit_config</exec_depend>
+  <exec_depend>robot_state_publisher</exec_depend>
+  <exec_depend>rviz2</exec_depend>
+  <exec_depend>warehouse_ros_mongo</exec_depend>
+  <exec_depend>xacro</exec_depend>
+
+  <test_depend>ament_cmake_gtest</test_depend>
+
+  <export>
+    <build_type>ament_cmake</build_type>
+  </export>
+
+</package>

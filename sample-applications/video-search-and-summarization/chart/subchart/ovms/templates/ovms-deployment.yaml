@@ -23,17 +23,17 @@ spec:
               - |
                 if [ -f /opt/data/models/config.json ]; then
                   echo "Config file found, checking for model conversion."
-                  if grep '"name": "{{ .Values.global.LLM_MODEL }}"' /opt/data/models/config.json; then
+                  if grep '"name": "{{ .Values.global.llmName }}"' /opt/data/models/config.json; then
                     echo "Model already converted, skipping conversion."
                   else
-                    echo "Model not converted, running init script. /config/init-script.sh "{{ .Values.global.LLM_MODEL }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
+                    echo "Model not converted, running init script. /config/init-script.sh "{{ .Values.global.llmName }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
                     . /config/init-script.sh
                   fi
                 else
-                  echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.LLM_MODEL }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
+                  echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.llmName }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingface.apiToken }}""
                   . /config/init-script.sh
                 fi
-          args: ["{{ .Values.global.LLM_MODEL}}","{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}"]
+          args: [{{ required "Value for `global.llmName` is required!" .Values.global.llmName | quote }},"{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingface.apiToken }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}

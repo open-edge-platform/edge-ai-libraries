@@ -1,0 +1,42 @@
+#!/bin/bash
+# inspired by http://www.fifi.org/doc/debconf-doc/tutorial.html
+
+# Exit on error
+set -e
+# Source debconf library.
+. /usr/share/debconf/confmodule
+db_version 2.0
+
+# This conf script is capable of backing up
+#db_capb backup
+
+ZEBINDIR=@zebindir@
+declare -A FEATURES=@kernellist@
+STATE="march"
+
+while [ "$STATE" != "quit" -a "$STATE" != "done" ]; do
+    case "$STATE" in
+            march)
+		# query march
+		db_input critical liborb-lze/march || true
+	        if db_go; then
+		   STATE="feature"
+		else
+		   STATE="quit"
+		fi
+		;;
+            feature)
+		# query march
+		#db_get critical liborb-lze/march
+		#db_get critical liborb-lze/feature
+		#db_subst liborb-lze/feature featurelist ${FEATURES}_${RET}
+		#db_clear
+		#db_input critical liborb-lze/feature || true
+	        if db_go; then
+		   STATE="done"
+		else
+		   STATE="march"
+		fi
+        ;;
+    esac
+done

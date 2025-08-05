@@ -1,0 +1,22 @@
+# Config file for the Level-zero GPU Orb library.
+#
+# It defines the following variables:
+#   orblze_LIBS    - libraries to link against
+
+@PACKAGE_INIT@
+
+set_and_check(orblze_TARGETS "@PACKAGE_CONFIG_DIR_CONFIG@/orblzeTargets.cmake")
+
+if(NOT orblze_TARGETS_IMPORTED)
+  set(orblze_TARGETS_IMPORTED 1)
+  include(${orblze_TARGETS})
+endif()
+
+set(orblze_LIBS gpu_orb)
+set(orblzeocvfree_LIBS gpu_orb_ocvfree)
+set(ORBLZE_INCLUDE_DIR  "@PACKAGE_INCLUDE_DIR_CONFIG@")
+set(ORBLZE_LIB_DIR      "@PACKAGE_LIB_DIR_CONFIG@")
+set(ORBLZE_KERNEL_DIR   "@PACKAGE_ORBLZE_KERNEL_PATH_STRING@")
+set(ORBLZE_VERSION_STRING   "@PACKAGE_ORBLZE_VERSION_STRING@")
+
+

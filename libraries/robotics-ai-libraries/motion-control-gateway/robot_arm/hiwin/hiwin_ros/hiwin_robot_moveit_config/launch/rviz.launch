@@ -1,0 +1,7 @@
+<launch>
+  <arg name="command_args" value="-d $(find hiwin_robot_moveit_config)/launch/rviz_configs.rviz" />
+
+  <node name="$(anon rviz)" pkg="rviz" type="rviz" respawn="false" args="$(arg command_args)" output="screen"/>
+
+</launch>
+

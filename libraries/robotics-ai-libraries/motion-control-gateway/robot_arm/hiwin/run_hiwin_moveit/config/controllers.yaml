@@ -1,0 +1,16 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+controller_names:
+  - arm_controller
+
+arm_controller:
+  action_ns: follow_joint_trajectory
+  default: True
+  type: FollowJointTrajectory
+  joints:
+    - manipulator/joint_1
+    - manipulator/joint_2
+    - manipulator/joint_3
+    - manipulator/joint_4
+    - manipulator/joint_5
+    - manipulator/joint_6
