@@ -6,13 +6,13 @@ global:
   
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
+  # llmName is the Large Language Model used by OVMS
+  llmName: ""
 
   proxy:
     no_proxy: 
     http_proxy: 
     https_proxy:
-    
-  LLM_MODEL: Intel/neural-chat-7b-v3-3
     
 ovms:
   name: ovms
