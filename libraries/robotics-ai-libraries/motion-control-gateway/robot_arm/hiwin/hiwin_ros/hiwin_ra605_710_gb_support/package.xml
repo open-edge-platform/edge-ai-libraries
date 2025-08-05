@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package>
+  <name>hiwin_ra605_710_gb_support</name>
+  <version>1.0.1</version>
+  <description>The hiwin_ra605_710_gb_support package</description>
+  
+  <author email="giovanniventilii@hiwin.tw">Giovanni Ventilii</author>
+  <maintainer email="giovanniventilii@hiwin.tw">Giovanni Ventilii</maintainer>
+  
+  <license>BSD-3-Clause</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <run_depend>urdf</run_depend>
+  <run_depend>xacro</run_depend>
+
+  <export>
+      <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -16,6 +16,7 @@ on:
         - visual-pipeline-platform-tool
         - chat-question-and-answer-core
         - time-series-analytics
+        - plcopen-motion-control
 
 permissions: {}
 
@@ -125,3 +126,18 @@ jobs:
     with:
       docs_directory: microservices/time-series-analytics
       branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
+  build_plcopen-motion-control:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
+    if: ${{ (github.event.inputs.target == 'plcopen-motion-control') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    secrets:
+      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
+      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+    with:
+      docs_directory: libraries/edge-control-libraries/plcopen-motion-control
+      simple_mode: false
+      branch_pattern: '^main$'  # PLCopen Motion Control only exists on 'main' branch

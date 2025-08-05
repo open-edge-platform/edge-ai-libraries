@@ -1,0 +1,16 @@
+<launch>
+	<arg name="robot_ip" default="127.0.0.1"/>
+
+  <rosparam command="load" file="$(find hiwin_robot_moveit_config)/config/joint_names.yaml" />
+
+	<include file="$(find hiwin_driver)/launch/hiwin_robot_interface.launch">
+		<arg name="manipulator_ip" value="$(arg robot_ip)"/>
+	</include>
+
+	<node name="robot_state_publisher" pkg="robot_state_publisher"
+		type="robot_state_publisher" />
+
+	<include file="$(find hiwin_ra620_1621_support)/launch/load_ra620_1621.launch"/>
+
+	<node name="rviz" pkg="rviz" type="rviz" args="-d $(find industrial_robot_client)/config/robot_state_visualize.rviz" required="true" />
+</launch>

@@ -27,6 +27,7 @@ jobs:
       visual-pipeline-platform-tool_changed: ${{ steps.filter.outputs.visual-pipeline-platform-tool }}
       chat-question-and-answer-core_changed: ${{ steps.filter.outputs.chat-question-and-answer-core }}
       time-series-analytics-docs_changed: ${{ steps.filter.outputs.time-series-analytics-docs }}
+      plcopen-motion-control_changed: ${{ steps.filter.outputs.plcopen-motion-control }}
     steps:
       - uses: actions/checkout@v4
         with:
@@ -52,6 +53,8 @@ jobs:
               - 'sample-applications/chat-question-and-answer-core/docs/**'
             time-series-analytics-docs:
               - 'microservices/time-series-analytics/docs/**'
+            plcopen-motion-control:
+              - 'libraries/edge-control-libraries/plcopen-motion-control/docs/**'
   build_dlstreamer-pipeline-server:
     permissions:
       contents: read          # needed for actions/checkout
@@ -149,4 +152,16 @@ jobs:
     with:
       docs_directory: microservices/time-series-analytics
       branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
-
+  build_plcopen-motion-control:
+    permissions:
+      contents: read          # needed for actions/checkout
+    needs: filter
+    if: ${{ needs.filter.outputs.plcopen-motion-control_changed == 'true' }}
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    secrets:
+      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
+      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+    with:
+      docs_directory: libraries/edge-control-libraries/plcopen-motion-control
+      branch_pattern: '^main$'  # PLCopen Motion Control only exists on 'main' branch
