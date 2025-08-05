@@ -1,0 +1,11 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+# Default initial positions for the panda arm's ros2_control fake system
+# 0, -50, -75, 65, -90, 0
+initial_positions:
+  joint_1: 0.0
+  joint_2: -0.873
+  joint_3: -1.309
+  joint_4: 1.134
+  joint_5: -1.5708
+  joint_6: 0.0

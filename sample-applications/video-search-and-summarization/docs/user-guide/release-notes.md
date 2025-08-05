@@ -2,6 +2,18 @@
 
 
 ## Current Release
+**Version**: 1.2.0 \
+**Release Date**: 04 August 2025  
+
+**Features**:
+- This is an incremental release on top of RC4.1 providing fixes for issues found on RC4.1 The notes provided under RC4.1 apply for this incremental release too.
+- Issues fixed are listed below:
+    - Updated docker and helm to public registry.
+    - Updated tags for the helm and docker images. 
+
+
+## Previous releases
+
 **Version**: RC4.1 \
 **Release Date**: 29 July 2025  
 
@@ -17,9 +29,6 @@
     - Issues around tag handling for videos has been fixed.
     - Trouble shooting section updated with observed useful information.
     - Enabled a minimum configuration of video summary to work on older Xeon configurations. Note that there is no official support for versions of Xeon earlier than Xeon 4.
-
-
-## Previous releases
 
 **Version**: RC4 \
 **Release Date**: 18 June 2025  

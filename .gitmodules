@@ -22,3 +22,15 @@
 [submodule "libraries/dl-streamer/thirdparty/googletest"]
 	path = libraries/dl-streamer/thirdparty/googletest
 	url = https://github.com/google/googletest.git
+[submodule "libraries/robotics-ai-libraries/flann/flann"]
+	path = libraries/robotics-ai-libraries/flann/flann
+	url = https://github.com/flann-lib/flann.git
+[submodule "libraries/robotics-ai-libraries/pcl/pcl"]
+	path = libraries/robotics-ai-libraries/pcl/pcl
+	url = https://github.com/PointCloudLibrary/pcl.git
+[submodule "libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat"]
+	path = libraries/edge-control-libraries/fieldbus/ethercat-masterstack/ighethercat
+	url = https://gitlab.com/etherlab.org/ethercat.git
+[submodule "libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk"]
+	path = libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk
+	url = https://github.com/YDLIDAR/sdk.git

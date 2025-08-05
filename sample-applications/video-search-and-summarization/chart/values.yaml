@@ -2,21 +2,26 @@ global:
   huggingface:
     apiToken: <huggingface-api-token> # Set this during installation
   proxy:
-    http_proxy: 
+    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
+    http_proxy:
     https_proxy:
+
+  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  vlmName: ""
+  # llmName is Large Language Model Name used by OVMS service
+  llmName: ""
+
   env:
     UI_NODEPORT: 31998
-    POSTGRES_USER: 
-    POSTGRES_PASSWORD: 
-    POSTGRES_DB: 
-    MINIO_ROOT_USER: 
+    POSTGRES_USER:
+    POSTGRES_PASSWORD:
+    POSTGRES_DB:
+    MINIO_ROOT_USER:
     MINIO_PROTOCOL: "http:"
-    MINIO_BUCKET: 
-    MINIO_ROOT_PASSWORD: 
+    MINIO_BUCKET:
+    MINIO_ROOT_PASSWORD:
     RABBITMQ_DEFAULT_USER:
-    RABBITMQ_DEFAULT_PASS: 
-    VLM_MODEL_NAME: 
-    OVMS_LLM_MODEL_NAME:
+    RABBITMQ_DEFAULT_PASS:
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
@@ -30,14 +35,14 @@ videosummaryui:
 
 rabbitmq:
   name: rabbitmq
-  fullname: rabbitmq  
+  fullname: rabbitmq
   service:
     name: rabbitmq
     type: ClusterIP
     amqpPort: 5672
     managementPort: 15672
     mqttPort: 1883
-    
+
 minioServer:
   name: minio-server
   service:
