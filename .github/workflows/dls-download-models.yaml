@@ -49,8 +49,9 @@ jobs:
           if [ -z "$LABELS" ]; then
             LABELS="${{ env.DEFAULT_LABELS }}" # Use default configuration if user didn't set any input labels
           fi
-          echo "Runners lables: $LABELS"
-          echo "runners=$LABELS_LABELSARRAY" >> $GITHUB_OUTPUT
+          LABELS_ARRAY=$(echo "$LABELS" | jq -Rc 'split(",")')
+          echo "Runners lables array: $LABELS_ARRAY"
+          echo "runners=$LABELS_ARRAY" >> $GITHUB_OUTPUT
 
   update_linux_hosts:
     name: Update on Linux runners
@@ -60,7 +61,7 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        runner: ${{ needs.setup-runners.outputs.runners }}
+        runner: ${{ fromJson(needs.setup-runners.outputs.runners) }}
     runs-on:
       - ${{ matrix.runner }}
     steps:
