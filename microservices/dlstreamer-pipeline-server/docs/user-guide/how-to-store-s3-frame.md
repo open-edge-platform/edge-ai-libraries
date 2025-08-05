@@ -88,7 +88,7 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
         pip3 install boto3==1.36.17
         ```
 
-        Here's is a sample python script that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
+        Here is a sample python script that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
 
         ```python
         import boto3
