@@ -14,3 +14,29 @@ A: Summaries are not stored by default; they are returned in the response.
 
 ### Q: How do I update environment variables?
 A: Edit the `.env` file in the project root and restart the services.
+
+### Q: What is the ideal time for services or pods to become ready when deployed via Helm?
+A: The typical initialization time for services and pods deployed using Helm is approximately 6 to 8 minutes, depending on the system resources and network conditions.
+
+### Q: What should be done if the OVMS service deployed via Helm remains stuck in the init phase for more than 10 minutes?
+A: If the OVMS pod does not proceed beyond the init phase within 10 minutes, consider the following debugging steps:
+
+- #### Check Init Script Logs:
+  Identify the exact command where the init container is stuck by inspecting its logs:
+
+  `kubectl logs -n <your-namespace> <pod-name> -c init-script`
+
+- #### Clean Up Persistent Volume Claims (PVCs):
+  A stale or conflicting PVC might block initialization. Perform the following:
+
+  `kubectl get pvc -n <your-namespace>`
+
+  `kubectl delete pvc <pvc-name> -n <your-namespace>`
+
+  After deleting the PVCs, uninstall the Helm release and redeploy the service.
+
+- #### Verify Network Stability:
+  Ensure there are no underlying hardware issues such as a faulty network cable or unstable network connectivity, which might cause timeouts during initialization.
+
+
+
