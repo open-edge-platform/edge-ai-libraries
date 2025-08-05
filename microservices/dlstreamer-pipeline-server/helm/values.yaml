@@ -29,4 +29,4 @@ config:
       rest_api_port: "30007"
       rtsp_output_port: "30025"
 images:
-  dlstreamer_pipeline_server: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer-pipeline-server:20250731_EAL1.2_DLSPS_RC4-ubuntu22
+  dlstreamer_pipeline_server: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer-pipeline-server:20250805_EAL1.2-ubuntu22
