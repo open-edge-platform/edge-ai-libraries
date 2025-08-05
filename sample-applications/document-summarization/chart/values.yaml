@@ -32,8 +32,8 @@ global:
       pullPolicy: IfNotPresent
 nginx:
   image:
-    repository: nginx
-    tag: 1.27.1
+    repository: nginxinc/nginx-unprivileged
+    tag: 1.27.4
     pullPolicy: IfNotPresent
 docSumUI:
   name: docsum-ui
