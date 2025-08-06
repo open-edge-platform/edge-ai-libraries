@@ -52,7 +52,7 @@ services:
     restart: on-failure:5
     healthcheck:
       test: ["CMD", "test", "-f", "healthcheck.txt"]
-      interval: 300s
+      interval: 30s
       timeout: 1200s
       retries: 5
   vippet-cpu:
