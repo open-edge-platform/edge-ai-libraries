@@ -17,7 +17,6 @@ if [ -n "$EXCLUDE_DIRS" ]; then
   echo "Excluding directories: $EXCLUDE_DIRS" | tee -a "$REPORT_FILE"
 fi
 
-# Budowanie argumentów do find
 FIND_ARGS=("$TARGET_DIR")
 if [ -n "$EXCLUDE_DIRS" ]; then
   IFS=',' read -ra DIRS <<< "$EXCLUDE_DIRS"
@@ -27,7 +26,6 @@ if [ -n "$EXCLUDE_DIRS" ]; then
 fi
 FIND_ARGS+=(-type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print)
 
-# Znalezienie plików
 FILES=($(find "${FIND_ARGS[@]}"))
 
 if [ ${#FILES[@]} -eq 0 ]; then
@@ -43,7 +41,7 @@ for file in "${FILES[@]}"; do
   if [ -n "$CHANGES" ]; then
     ISSUES_FOUND=1
     echo "<h3>$file</h3>" >> "$REPORT_FILE"
-    clang-format "$file" | diff -u "$file" - | diff2html -i stdin >> "$REPORT_FILE" || true
+    diff -u "$file" <(clang-format "$file") | diff2html -i stdin -s line >> "$REPORT_FILE" || true
   fi
 done
 
@@ -54,6 +52,7 @@ fi
 echo "</body></html>" >> "$REPORT_FILE"
 
 if [ $ISSUES_FOUND -eq 1 ]; then
+  echo "Code-style found issues"
   exit 1
 fi
 
