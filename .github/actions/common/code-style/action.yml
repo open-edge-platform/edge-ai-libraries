@@ -17,7 +17,7 @@ runs:
         target_dir: ${{ inputs.target_dir }}
       run: |
         chmod +x .github/actions/common/code-style/entrypoint.sh 
-        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}"
+        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}" "${{ inputs.exclude_dirs }}"
       shell: bash
 
     - name: Upload clang-format report on failure
@@ -25,9 +25,14 @@ runs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: clang-format-report
-        path: clang-format-report.txt
+        path: clang-format-report.html
 inputs:
   target_dir:
     description: "Directory to check for C/C++ files"
     required: false
     default: "."
+  exclude_dirs:
+    description: "Comma-separated list of directories to exclude from scanning"
+    required: false
+    default: ""
+

@@ -42,6 +42,7 @@ jobs:
         uses: ./.github/actions/common/code-style
         with:
           target_dir: "libraries/dl-streamer"
+          exclude_dirs: "include,thirdparty"
 
   check-license-headers:
     permissions:
