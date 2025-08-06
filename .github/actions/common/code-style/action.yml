@@ -16,8 +16,8 @@ runs:
       env:
         target_dir: ${{ inputs.target_dir }}
       run: |
-        chmod +x .github/actions/code-style/entrypoint.sh 
-        ./.github/actions/code-style/entrypoint.sh "${target_dir}"
+        chmod +x .github/actions/common/code-style/entrypoint.sh 
+        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}"
       shell: bash
 
     - name: Upload clang-format report on failure
