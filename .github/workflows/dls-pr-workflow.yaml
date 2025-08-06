@@ -33,9 +33,15 @@ permissions: {}
 
 jobs:
   code-style:
-    uses: ./.github/actions/common/code-style
-    with:
-      target_dir: "libraries/dl-streamer"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+
+      - name: Code-style action
+        uses: ./.github/actions/common/code-style
+        with:
+          target_dir: "libraries/dl-streamer"
 
   check-license-headers:
     permissions:

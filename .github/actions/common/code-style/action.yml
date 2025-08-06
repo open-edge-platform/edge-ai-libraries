@@ -3,9 +3,6 @@ description: "Reusable action to check C/C++ code style with clang-format"
 runs:
   using: "composite"
   steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
-
     - name: Install dependencies
       run: |
         sudo apt-get update
