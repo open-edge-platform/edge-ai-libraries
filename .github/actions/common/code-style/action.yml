@@ -10,6 +10,7 @@ runs:
         curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
         sudo apt-get install -y nodejs
         npm install -g diff2html-cli
+      shell: bash
 
     - name: Run code style check
       env:
@@ -17,6 +18,7 @@ runs:
       run: |
         chmod +x .github/actions/code-style/entrypoint.sh 
         ./.github/actions/code-style/entrypoint.sh "${target_dir}"
+      shell: bash
 
     - name: Upload clang-format report on failure
       if: failure()
