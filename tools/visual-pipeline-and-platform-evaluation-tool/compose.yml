@@ -3,6 +3,10 @@ x-vippet: &vippet
   build:
     context: .
     dockerfile: Dockerfile.vippet
+    args:
+      http_proxy: "${http_proxy}"
+      https_proxy: "${https_proxy}"
+      no_proxy: "${no_proxy}"
   ports:
     - "7860:7860"
   command: python app.py
@@ -19,6 +23,9 @@ x-vippet: &vippet
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
     PIPELINE: smartnvr
+    http_proxy: "${http_proxy}"
+    https_proxy: "${https_proxy}"
+    no_proxy: "${no_proxy}"
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
@@ -32,6 +39,9 @@ services:
       - ./models.sh:/tmp/models.sh
     environment:
       - MODELS_PATH=/output/
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy}
     user: root
     command: bash -c '
         cp /tmp/models.sh . &&
@@ -42,8 +52,8 @@ services:
     restart: on-failure:5
     healthcheck:
       test: ["CMD", "test", "-f", "healthcheck.txt"]
-      interval: 30s
-      timeout: 10s
+      interval: 300s
+      timeout: 1200s
       retries: 5
   vippet-cpu:
     <<: *vippet
@@ -71,6 +81,10 @@ services:
     build:
       context: ./collector
       dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
     container_name: collector
     privileged: true
     devices:
@@ -85,18 +99,30 @@ services:
       - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
+    environment:
+      http_proxy: "${http_proxy}"
+      https_proxy: "${https_proxy}"
+      no_proxy: "${no_proxy}"
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:v1.0.2
     build:
       context: video_generator
       dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
     container_name: videogenerator
     volumes:
       - "./videos:/usr/src/app/output"
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
+    environment:
+      http_proxy: "${http_proxy}"
+      https_proxy: "${https_proxy}"
+      no_proxy: "${no_proxy}"
 
 volumes:
   collector-signals:
