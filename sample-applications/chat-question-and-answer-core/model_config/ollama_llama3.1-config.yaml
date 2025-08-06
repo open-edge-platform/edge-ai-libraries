@@ -1,8 +1,7 @@
 model_settings:
-  MODEL_BACKEND: "openvino"
-  EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
-  RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
-  LLM_MODEL_ID: "meta-llama/Llama-3.1-8B-Instruct"
+  MODEL_BACKEND: "ollama"
+  EMBEDDING_MODEL_ID: "mxbai-embed-large"
+  LLM_MODEL_ID: "llama3.1"
   PROMPT_TEMPLATE: >
     <|start_header_id|>system<|end_header_id|>
     Use the following pieces of context from retrieved
@@ -23,3 +22,4 @@ device_settings:
   EMBEDDING_DEVICE: "CPU"
   RERANKER_DEVICE: "CPU"
   LLM_DEVICE: "CPU"
+
