@@ -4,42 +4,56 @@
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
+#!/bin/bash
 set -e
 
 TARGET_DIR="${1:-.}"
 EXCLUDE_DIRS="${2:-}"
-REPORT_FILE="clang-format-report.html
+REPORT_FILE="clang-format-report.html"
 
-echo "Checking code style in: $TARGET_DIR"
+echo "<html><body>" > "$REPORT_FILE"
+echo "Checking code style in: $TARGET_DIR" | tee -a "$REPORT_FILE"
 if [ -n "$EXCLUDE_DIRS" ]; then
-  echo "Excluding directories: $EXCLUDE_DIRS"
+  echo "Excluding directories: $EXCLUDE_DIRS" | tee -a "$REPORT_FILE"
 fi
 
-PRUNE_EXPR=""
+# Budowanie argumentów do find
+FIND_ARGS=("$TARGET_DIR")
 if [ -n "$EXCLUDE_DIRS" ]; then
   IFS=',' read -ra DIRS <<< "$EXCLUDE_DIRS"
   for d in "${DIRS[@]}"; do
-    PRUNE_EXPR="$PRUNE_EXPR -path $TARGET_DIR/$d -prune -o"
+    FIND_ARGS+=(-path "$TARGET_DIR/$d" -prune -o)
   done
 fi
+FIND_ARGS+=(-type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print)
 
-eval "FILES=\$(find $TARGET_DIR $PRUNE_EXPR -type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print)"
+# Znalezienie plików
+FILES=($(find "${FIND_ARGS[@]}"))
 
-if [ -z "$FILES" ]; then
-  echo "<p>No C/C++ files found in $TARGET_DIR</p>" >> "$REPORT_FILE"
+if [ ${#FILES[@]} -eq 0 ]; then
+  echo "<p>No C/C++ files found.</p>" >> "$REPORT_FILE"
+  echo "</body></html>" >> "$REPORT_FILE"
   exit 0
 fi
 
-echo "Checking files..." | tee -a "$REPORT_FILE"
-FORMAT_DIFF=$(clang-format -output-replacements-xml $FILES | grep "<replacement " || true)
+ISSUES_FOUND=0
 
-if [ -n "$FORMAT_DIFF" ]; then
-  echo "<h2>Code style issues found</h2>" >> "$REPORT_FILE"
-  for file in $FILES; do
+for file in "${FILES[@]}"; do
+  CHANGES=$(clang-format -output-replacements-xml "$file" | grep "<replacement " || true)
+  if [ -n "$CHANGES" ]; then
+    ISSUES_FOUND=1
     echo "<h3>$file</h3>" >> "$REPORT_FILE"
     clang-format "$file" | diff -u "$file" - | diff2html -i stdin >> "$REPORT_FILE" || true
-  done
-  exit 1
-else
+  fi
+done
+
+if [ $ISSUES_FOUND -eq 0 ]; then
   echo "<p>All files are properly formatted.</p>" >> "$REPORT_FILE"
 fi
+
+echo "</body></html>" >> "$REPORT_FILE"
+
+if [ $ISSUES_FOUND -eq 1 ]; then
+  exit 1
+fi
+
