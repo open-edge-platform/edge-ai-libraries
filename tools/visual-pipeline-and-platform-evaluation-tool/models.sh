@@ -51,7 +51,7 @@ download_public_models() {
         yolov10m
     )
 
-    if [[ "${DOWNLOAD_PUBLIC_MODELS:-false,,}" == "true" ]]; then
+    if [[ "${DOWNLOAD_PUBLIC_MODELS:-false}" == "true" ]]; then
         models+=("${public_models[@]}")
     else
         echo "DOWNLOAD_PUBLIC_MODELS is not true. Skipping download of: ${public_models[*]}"

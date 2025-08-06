@@ -7,7 +7,7 @@ models=(
     'YOLO v10m 640x640 (FP16)'
 )
 
-if [[ "${DOWNLOAD_PUBLIC_MODELS:-false,,}" == "true" ]]; then
+if [[ "${DOWNLOAD_PUBLIC_MODELS:-false}" == "true" ]]; then
     echo "DOWNLOAD_PUBLIC_MODELS is true, no need for cleanup. Exiting."
     exit 0
 fi
