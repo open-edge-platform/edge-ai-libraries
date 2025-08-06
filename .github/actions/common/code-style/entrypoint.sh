@@ -41,11 +41,13 @@ for file in "${FILES[@]}"; do
   if [ -n "$CHANGES" ]; then
     ISSUES_FOUND=1
     echo "<h3>$file</h3>" >> "$REPORT_FILE"
-    diff -u "$file" <(clang-format "$file") | diff2html -i stdin -s line >> "$REPORT_FILE" || true
+    diff -u "$file" <(clang-format "$file") >> "$TEMP_DIFF"
   fi
 done
 
-if [ $ISSUES_FOUND -eq 0 ]; then
+if [ $ISSUES_FOUND -eq 1 ]; then
+  diff2html -i file -s line -F "$REPORT_FILE" "$TEMP_DIFF"
+else
   echo "<p>All files are properly formatted.</p>" >> "$REPORT_FILE"
 fi
 
