@@ -7,7 +7,7 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help \
-	public_models_choice
+	public_models_choice reset_public_models_choice
 
 # Project Variables
 PROJECT_NAME := vippet
