@@ -32,6 +32,11 @@ on:
 permissions: {}
 
 jobs:
+  code-style:
+    uses: ./.github/actions/code-style
+    with:
+      target_dir: "libraries/dl-streamer"
+
   check-license-headers:
     permissions:
       contents: read
