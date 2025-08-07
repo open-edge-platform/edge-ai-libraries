@@ -3,8 +3,10 @@
 set -euo pipefail
 
 models=(
+    'YOLO v5m 640x640 (INT8)'
     'YOLO v10s 640x640 (FP16)'
     'YOLO v10m 640x640 (FP16)'
+    'MobileNet V2 PyTorch (FP16)'
 )
 
 if [[ "${DOWNLOAD_PUBLIC_MODELS:-false}" == "true" ]]; then

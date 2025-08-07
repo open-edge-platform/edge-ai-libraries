@@ -2,11 +2,13 @@
 
 set -euo pipefail
 
+DOWNLOAD_PUBLIC_MODELS=${DOWNLOAD_PUBLIC_MODELS:-false}
+
 main() {
     echo "Starting model setup at $(date)"
 
-    download_public_models
     download_pipeline_zoo_models
+    download_public_models
     download_open_model_zoo
 
     echo "Model setup completed at $(date)"
@@ -23,8 +25,17 @@ download_pipeline_zoo_models() {
         resnet-50-tf_INT8
         yolov5m-416_INT8
         yolov5s-416_INT8
+    )
+
+    extra_models=(
         yolov5m-640_INT8
     )
+
+    if [[ "${DOWNLOAD_PUBLIC_MODELS}" == "true" ]]; then
+        pipeline_zoo_models+=("${extra_models[@]}")
+    else
+        echo "DOWNLOAD_PUBLIC_MODELS is not true. Skipping download of: ${extra_models[*]}"
+    fi
 
     # Copy the specified models to the output directory, cloning the repo only if needed
     for model in "${pipeline_zoo_models[@]}"; do
@@ -46,15 +57,15 @@ download_public_models() {
         yolov8_license_plate_detector
         ch_PP-OCRv4_rec_infer
     )
-    public_models=(
+    extra_models=(
         yolov10s
         yolov10m
     )
 
-    if [[ "${DOWNLOAD_PUBLIC_MODELS:-false}" == "true" ]]; then
-        models+=("${public_models[@]}")
+    if [[ "${DOWNLOAD_PUBLIC_MODELS}" == "true" ]]; then
+        models+=("${extra_models[@]}")
     else
-        echo "DOWNLOAD_PUBLIC_MODELS is not true. Skipping download of: ${public_models[*]}"
+        echo "DOWNLOAD_PUBLIC_MODELS is not true. Skipping download of: ${extra_models[*]}"
     fi
 
     for model in "${models[@]}"; do
@@ -78,7 +89,7 @@ download_open_model_zoo() {
     fi
 
     # TEMPORARY: download mobilenet-v2-pytorch until the download script supports it
-    if [ ! -d /output/public/mobilenet-v2-pytorch ]; then
+    if [[ ! -d /output/public/mobilenet-v2-pytorch && "${DOWNLOAD_PUBLIC_MODELS}" == "true" ]]; then
         omz_downloader --name mobilenet-v2-pytorch --output_dir /output
         omz_converter --name mobilenet-v2-pytorch --output_dir /output --download_dir /output
         cp \
@@ -103,6 +114,8 @@ if 'output_postproc' in data and isinstance(data['output_postproc'], list) and d
 with open(json_path, 'w') as f:
     json.dump(data, f, indent=4)
         "
+    elif [[ "${DOWNLOAD_PUBLIC_MODELS}" != "true" ]]; then
+        echo "DOWNLOAD_PUBLIC_MODELS is not true. Skipping download of: mobilenet-v2-pytorch"
     else
         echo "Model mobilenet-v2-pytorch already exists. Skipping download."
     fi
