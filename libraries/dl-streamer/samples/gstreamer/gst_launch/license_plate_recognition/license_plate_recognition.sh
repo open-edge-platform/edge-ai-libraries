@@ -35,13 +35,13 @@ OCR_CLASSIFICATION_MODEL=${MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-
 
 # Check if model exists in local directory
 if [ ! -f "$DETECTION_MODEL" ]; then
-    echo "ERROR - model not found: $MODEL_PATH" >&2
+    echo "ERROR - model not found: $DETECTION_MODEL" >&2
     exit 1
 fi
 
 # Check if model exists in local directory
-if [ ! -f "$DETECTION_MODEL" ]; then
-    echo "ERROR - model not found: $MODEL_PATH" >&2
+if [ ! -f "$OCR_CLASSIFICATION_MODEL" ]; then
+    echo "ERROR - model not found: $OCR_CLASSIFICATION_MODEL" >&2
     exit 1
 fi
 
