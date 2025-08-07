@@ -6,7 +6,7 @@ If you want to build the microservices image locally, you can optionally refer t
 
 If you want to build the images via `docker compose`, please refer to the section [Build the Images via Docker Compose](#build-the-images-via-docker-compose).
 
-Once all the images are built, go back to `chat-question-and-answer-core` directory by using `cd ..` command. Then, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
+Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
 > **Note:** 
 > - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
@@ -70,6 +70,12 @@ To build the Docker image for the `chatqna-ui` application, follow these steps:
    ```
 
    You should see an entry for `chatqna-ui` with the `latest` tag.
+
+4. Once you have verified that the image has been built successfully, navigate back to the `chat-question-and-answer-core` directory:
+
+   ```bash
+   cd ..
+   ```
 
 ## Build the Images via Docker Compose
 This guide explains how to build the images using the `compose.yaml` file via the `docker compose` command. It also outlines how to enable GPU support during the build process.
