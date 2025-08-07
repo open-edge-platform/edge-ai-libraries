@@ -7,7 +7,7 @@ README.md           @xwu2intel
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
 
 /libraries/dl-streamer/    @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
-/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @pmalatyn
+/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12
 
