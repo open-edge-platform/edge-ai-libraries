@@ -17,7 +17,7 @@ runs:
         target_dir: ${{ inputs.target_dir }}
       run: |
         chmod +x .github/actions/common/code-style/entrypoint.sh 
-        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}" "${{ inputs.exclude_dirs }}"
+        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}"
       shell: bash
 
     - name: Upload clang-format report on failure
@@ -31,8 +31,4 @@ inputs:
     description: "Directory to check for C/C++ files"
     required: false
     default: "."
-  exclude_dirs:
-    description: "Comma-separated list of directories to exclude from scanning"
-    required: false
-    default: ""
 

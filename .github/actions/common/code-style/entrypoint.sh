@@ -7,54 +7,33 @@
 #!/bin/bash
 set -e
 
-TARGET_DIR="${1:-.}"
-EXCLUDE_DIRS="${2:-}"
-REPORT_FILE="clang-format-report.html"
+SOURCE="${1:-/sources}"
 
-echo "<html><body>" > "$REPORT_FILE"
-echo "Checking code style in: $TARGET_DIR" | tee -a "$REPORT_FILE"
-if [ -n "$EXCLUDE_DIRS" ]; then
-  echo "Excluding directories: $EXCLUDE_DIRS" | tee -a "$REPORT_FILE"
-fi
+SOURCE=$(realpath --relative-to=. "$SOURCE" | sed 's:/*$::')
 
-FIND_ARGS=("$TARGET_DIR")
-if [ -n "$EXCLUDE_DIRS" ]; then
-  IFS=',' read -ra DIRS <<< "$EXCLUDE_DIRS"
-  for d in "${DIRS[@]}"; do
-    FIND_ARGS+=(-path "$TARGET_DIR/$d" -prune -o)
-  done
-fi
-FIND_ARGS+=(-type f \( -name '*.c' -o -name '*.cc' -o -name '*.cpp' -o -name '*.h' -o -name '*.hh' -o -name '*.hpp' \) -print)
+mkdir -p /styled
+mkdir -p "/styled/$(dirname "$SOURCE")"
+cp -R "$SOURCE" "/styled/$SOURCE"
 
-FILES=($(find "${FIND_ARGS[@]}"))
+find "/styled/$SOURCE" \
+  \( -name '*.c' \
+  -o -name '*.cc' \
+  -o -name '*.cpp' \
+  -o -name '*.h' \
+  -o -name '*.hh' \
+  -o -name '*.hpp' \) \
+  -exec sh -c "clang-format style=file -i '{}' 2>&1 | sed '/No such file or directory/d'" \;
 
-if [ ${#FILES[@]} -eq 0 ]; then
-  echo "<p>No C/C++ files found.</p>" >> "$REPORT_FILE"
-  echo "</body></html>" >> "$REPORT_FILE"
-  exit 0
-fi
+output=$(diff -u --recursive "$SOURCE" "/styled/$SOURCE" || true)
 
-ISSUES_FOUND=0
-
-for file in "${FILES[@]}"; do
-  CHANGES=$(clang-format -output-replacements-xml "$file" | grep "<replacement " || true)
-  if [ -n "$CHANGES" ]; then
-    ISSUES_FOUND=1
-    echo "<h3>$file</h3>" >> "$REPORT_FILE"
-    diff -u "$file" <(clang-format "$file") >> "$TEMP_DIFF"
-  fi
-done
-
-if [ $ISSUES_FOUND -eq 1 ]; then
-  diff2html -i file -s line -F "$REPORT_FILE" "$TEMP_DIFF"
+if [[ -n "$output" ]]; then
+    mkdir -p /output
+    diff2html -F /output/diff.html -d word -s "side" -i stdin <<< "$output"
+    sed -i '37d;38i<h1>Code style diff</h1>' /output/diff.html
+    echo "❌ There are problems with code styles"
+    exit 1
 else
-  echo "<p>All files are properly formatted.</p>" >> "$REPORT_FILE"
-fi
-
-echo "</body></html>" >> "$REPORT_FILE"
-
-if [ $ISSUES_FOUND -eq 1 ]; then
-  echo "Code-style found issues"
-  exit 1
+    echo "✅ Code styles are fine"
+    exit 0
 fi
 
