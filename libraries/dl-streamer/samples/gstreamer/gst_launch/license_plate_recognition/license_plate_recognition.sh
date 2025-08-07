@@ -19,7 +19,7 @@ fi
 
 # Command-line parameters
 INPUT=${1:-https://github.com/open-edge-platform/edge-ai-resources/raw/main/videos/ParkingVideo.mp4}
-DEVICE=${2:-GPU}              # Device for decode and inference in OpenVINO(TM) format, examples: AUTO, CPU, GPU, GPU.0
+DEVICE=${2:-GPU}     # Device for decode and inference in OpenVINO(TM) format, examples: AUTO, CPU, GPU, GPU.0
 OUTPUT=${3:-fps}     # Output type, valid values: display, fps, json, display-and-json, file
 
 
