@@ -27,13 +27,21 @@ A: If the OVMS pod does not proceed beyond the init phase within 10 minutes, con
   `kubectl logs -n <your-namespace> <pod-name> -c init-script`
 
 - #### Clean Up Persistent Volume Claims (PVCs):
-  A stale or conflicting PVC might block initialization. Perform the following:
+  When `Values.global.keeppvc` in **values.yaml** is set to false, the PVC is expected to be deleted automatically when the Helm release is uninstalled. However, in some cases — especially when a deployment gets stuck or fails — the PVC might not be removed. Stale PVCs can cause issues during future deployments.
 
-  `kubectl get pvc -n <your-namespace>`
+  Follow the steps below to clean up PVCs:
 
-  `kubectl delete pvc <pvc-name> -n <your-namespace>`
+  - Uninstall the Helm release to allow Helm to delete any associated PVCs:
 
-  After deleting the PVCs, uninstall the Helm release and redeploy the service.
+    `helm uninstall <release-name> -n <your-namespace>`
+
+  - Then delete any leftover PVCs (if not auto-deleted):
+
+    `kubectl get pvc -n <your-namespace>`
+
+    `kubectl delete pvc <pvc-name> -n <your-namespace>`
+
+  After PVC cleanup, try redeploying the service.
 
 - #### Verify Network Stability:
   Ensure there are no underlying hardware issues such as a faulty network cable or unstable network connectivity, which might cause timeouts during initialization.
