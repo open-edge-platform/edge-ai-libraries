@@ -698,30 +698,16 @@ if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]];
     mkdir -p "$MODEL_DIR"
     cd "$MODEL_DIR"
 
-    curl -L -k -o ${MODEL_NAME}.pt 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw'
+    curl -L -k -o ${MODEL_NAME}.zip 'https://github.com/open-edge-platform/edge-ai-resources/raw/main/models/license-plate-reader.zip'
+    unzip -o ${MODEL_NAME}.zip
+    rm -f ${MODEL_NAME}.zip
 
-    python3 - <<EOF "$MODEL_NAME"
-from ultralytics import YOLO
-import openvino, sys, shutil, os
-
-model_name = sys.argv[1]
-weights = model_name + '.pt'
-
-model = YOLO(weights)
-model.info()
-converted_path = model.export(format='openvino')
-converted_model = converted_path + '/' + model_name + '.xml'
-core = openvino.Core()
-ov_model = core.read_model(model=converted_model)
-
-ov_model.set_rt_info('YOLOv8', ['model_info', 'model_type'])
-
-openvino.save_model(ov_model, './FP32/' + model_name + '.xml', compress_to_fp16=False)
-openvino.save_model(ov_model, './FP16/' + model_name + '.xml', compress_to_fp16=True)
-shutil.rmtree(converted_path)
-os.remove(f"{model_name}.pt")
-EOF
-
+    mkdir -p FP32 
+    cp license-plate-reader/models/yolov8n/yolov8n_retrained.bin FP32/${MODEL_NAME}.bin
+    cp license-plate-reader/models/yolov8n/yolov8n_retrained.xml FP32/${MODEL_NAME}.xml
+    chmod -R u+w license-plate-reader
+    rm -rf license-plate-reader
+    cd ..
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
