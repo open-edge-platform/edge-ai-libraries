@@ -1,5 +1,11 @@
 name: "Code Style Check"
 description: "Reusable action to check C/C++ code style with clang-format"
+inputs:
+  target_dir:
+    description: "Directory to check for C/C++ files"
+    required: false
+    default: "."
+
 runs:
   using: "composite"
   steps:
@@ -26,10 +32,3 @@ runs:
       with:
         name: code-style-report
         path: _output/diff.html
-
-inputs:
-  target_dir:
-    description: "Directory to check for C/C++ files"
-    required: false
-    default: "."
-
