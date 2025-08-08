@@ -150,14 +150,14 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
-        case "YOLO v8 License Plate Detector (FP16)":
+        case "YOLO v8 License Plate Detector (FP32)":
             if object_detection_device == "NPU":
                 raise ValueError(
                     "YOLO v8 License Plate Detector model is not supported on NPU device. Please select another model."
                 )
 
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/yolov8_license_plate_detector/FP16/yolov8_license_plate_detector.xml"
+                f"{MODELS_PATH}/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
@@ -200,10 +200,10 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = None
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
+                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/public/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
+                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
             )
         case _:
             raise ValueError("Unrecognized Object Classification Model")

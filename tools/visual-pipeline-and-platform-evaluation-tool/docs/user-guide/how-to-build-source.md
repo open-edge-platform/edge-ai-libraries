@@ -45,11 +45,8 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 3. **Build and Start the Tool**:
    - Run:
      ```bash
-     docker pull intel/dlstreamer:EAL1.2.RC2_2025.1.RC2-ubuntu24
-     docker pull docker.io/library/rust:1.87
-     docker pull docker.io/library/telegraf:1.32
-     docker compose build
-     docker compose up -d
+     make build
+     make run
      ```
 
 

@@ -5,7 +5,6 @@ x-vippet: &vippet
     dockerfile: Dockerfile.vippet
   ports:
     - "7860:7860"
-  command: python app.py
   healthcheck:
     test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/"]
     interval: 30s
@@ -13,12 +12,15 @@ x-vippet: &vippet
     retries: 5
   depends_on:
     models:
-      condition: service_healthy
+      condition: service_completed_successfully
   restart: on-failure:5
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
     PIPELINE: smartnvr
+  env_file:
+    - path: '.public_models_env'
+      required: false
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
@@ -29,22 +31,14 @@ services:
     container_name: models
     volumes:
       - ./models/:/output
-      - ./models.sh:/tmp/models.sh
+      - ./models.sh:/home/dlstreamer/models.sh
     environment:
       - MODELS_PATH=/output/
-    user: root
-    command: bash -c '
-        cp /tmp/models.sh . &&
-        chmod +x models.sh &&
-        bash -c ./models.sh &&
-        tail -f /dev/null
-      '
+    env_file:
+      - path: '.public_models_env'
+        required: false
+    command: './models.sh'
     restart: on-failure:5
-    healthcheck:
-      test: ["CMD", "test", "-f", "healthcheck.txt"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu
