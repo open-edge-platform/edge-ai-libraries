@@ -63,8 +63,10 @@ class TestUtils(unittest.TestCase):
         process_mock.poll.side_effect = [None, 0]
         # Avoid StopIteration by returning empty bytes forever after the real line
         process_mock.stdout.readline.side_effect = itertools.chain(
-            [b"FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n"],
-            itertools.repeat(b"")
+            [
+                b"FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n"
+            ],
+            itertools.repeat(b""),
         )
         process_mock.pid = 1234
         # Ensure fileno returns an int to avoid TypeError in select and bad fd errors
@@ -75,7 +77,10 @@ class TestUtils(unittest.TestCase):
         mock_ps.Process.return_value.status.return_value = "zombie"
 
         constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
-        parameters = {"object_detection_device": ["CPU"], "object_classification_device": ["CPU"]}
+        parameters = {
+            "object_detection_device": ["CPU"],
+            "object_classification_device": ["CPU"],
+        }
         gen = run_pipeline_and_extract_metrics(
             DummyPipeline(),
             constants,

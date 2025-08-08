@@ -111,11 +111,16 @@ def download_file(url, local_filename):
             for chunk in response.iter_content(chunk_size=8192):
                 file.write(chunk)  # Write each chunk to the local file
 
+
 # Set video path for the input video player
 def set_video_path(filename):
     if not os.path.exists(os.path.join(TEMP_DIR, filename)):
-        return gr.update(label="Error: Video file not found. Verify the recording URL or proxy settings.", value=None)
+        return gr.update(
+            label="Error: Video file not found. Verify the recording URL or proxy settings.",
+            value=None,
+        )
     return gr.update(label="Input Video", value=os.path.join(TEMP_DIR, filename))
+
 
 # Function to check if a click is inside any bounding box
 def detect_click(evt: gr.SelectData):
@@ -174,7 +179,7 @@ def read_latest_metrics(target_ns: int = None):
                     if field.startswith("usage_user="):
                         try:
                             cpu_user = float(field.split("=")[1])
-                        except:
+                        except (ValueError, IndexError):
                             pass
 
         if mem_used_percent is None and "mem" in line:
@@ -184,7 +189,7 @@ def read_latest_metrics(target_ns: int = None):
                     if field.startswith("used_percent="):
                         try:
                             mem_used_percent = float(field.split("=")[1])
-                        except:
+                        except (ValueError, IndexError):
                             pass
 
         # Only consider GPU-related metrics for gpu_id=1
@@ -192,14 +197,14 @@ def read_latest_metrics(target_ns: int = None):
             parts = line.split()
             try:
                 gpu_package_power = float(parts[1].split("=")[1])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         if gpu_power is None and "gpu_cur_power" in line and "gpu_id=1" in line:
             parts = line.split()
             try:
                 gpu_power = float(parts[1].split("=")[1])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         if core_temp is None and "temp" in line:
@@ -209,7 +214,7 @@ def read_latest_metrics(target_ns: int = None):
                     if "temp" in field:
                         try:
                             core_temp = float(field.split("=")[1])
-                        except:
+                        except (ValueError, IndexError):
                             pass
 
         if gpu_freq is None and "gpu_frequency" in line and "gpu_id=1" in line:
@@ -217,7 +222,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("value="):
                     try:
                         gpu_freq = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if cpu_freq is None and "cpu_frequency_avg" in line:
@@ -225,7 +230,7 @@ def read_latest_metrics(target_ns: int = None):
                 parts = [part for part in line.split() if "frequency=" in part]
                 if parts:
                     cpu_freq = float(parts[0].split("=")[1])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         if gpu_render is None and "engine=render" in line and "gpu_id=1" in line:
@@ -233,7 +238,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_render = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_copy is None and "engine=copy" in line and "gpu_id=1" in line:
@@ -241,7 +246,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_copy = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_ve is None and "engine=video-enhance" in line and "gpu_id=1" in line:
@@ -249,7 +254,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_ve = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if (
@@ -262,7 +267,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_video = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_compute is None and "engine=compute" in line and "gpu_id=1" in line:
@@ -270,7 +275,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_compute = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         # GPU 0 metrics (new variables)
@@ -282,14 +287,14 @@ def read_latest_metrics(target_ns: int = None):
             parts = line.split()
             try:
                 gpu_package_power_0 = float(parts[1].split("=")[1])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         if gpu_power_0 is None and "gpu_cur_power" in line and "gpu_id=0" in line:
             parts = line.split()
             try:
                 gpu_power_0 = float(parts[1].split("=")[1])
-            except:
+            except (ValueError, IndexError):
                 pass
 
         if gpu_freq_0 is None and "gpu_frequency" in line and "gpu_id=0" in line:
@@ -297,7 +302,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("value="):
                     try:
                         gpu_freq_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_render_0 is None and "engine=render" in line and "gpu_id=0" in line:
@@ -305,7 +310,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_render_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_copy_0 is None and "engine=copy" in line and "gpu_id=0" in line:
@@ -313,7 +318,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_copy_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_ve_0 is None and "engine=video-enhance" in line and "gpu_id=0" in line:
@@ -321,7 +326,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_ve_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if (
@@ -334,7 +339,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_video_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if gpu_compute_0 is None and "engine=compute" in line and "gpu_id=0" in line:
@@ -342,7 +347,7 @@ def read_latest_metrics(target_ns: int = None):
                 if part.startswith("usage="):
                     try:
                         gpu_compute_0 = float(part.split("=")[1])
-                    except:
+                    except (ValueError, IndexError):
                         pass
 
         if all(
@@ -600,7 +605,9 @@ def on_run(data):
             arguments[component_id] = data[component]
 
     try:
-        video_output_path, constants, param_grid = prepare_video_and_constants(**arguments)
+        video_output_path, constants, param_grid = prepare_video_and_constants(
+            **arguments
+        )
     except ValueError as e:
         raise gr.Error(
             f"Error: {str(e)}",
@@ -711,10 +718,14 @@ def show_hide_component(component, config_key):
     except KeyError:
         pass
 
+
 def update_inferencing_channels_label():
     if current_pipeline[1]["parameters"]["run"]["recording_channels"]:
-        return gr.update(minimum=0, value=8, label=RECORDING_AND_INFERENCING_CHANNELS_LABEL)
+        return gr.update(
+            minimum=0, value=8, label=RECORDING_AND_INFERENCING_CHANNELS_LABEL
+        )
     return gr.update(minimum=1, value=8, label=INFERENCING_CHANNELS_LABEL)
+
 
 # Create the interface
 def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"):
@@ -729,15 +740,19 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         for pipeline in PipelineLoader.list():
             pipeline_info = PipelineLoader.config(pipeline)
             download_file(
-                pipeline_info['recording']['url'],
-                pipeline_info['recording']['filename'],
+                pipeline_info["recording"]["url"],
+                pipeline_info["recording"]["filename"],
             )
     except Exception as e:
         print(f"Error downloading pipeline recordings: {e}")
 
     # Video Player
     input_video_player = gr.Video(
-        label="Input Video", interactive=True, show_download_button=True, sources="upload", elem_id="input_video_player",
+        label="Input Video",
+        interactive=True,
+        show_download_button=True,
+        sources="upload",
+        elem_id="input_video_player",
     )
 
     output_video_player = gr.Video(
@@ -1052,7 +1067,11 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                     gr.update(value=None),
                 )  # Disable Run button  if input is empty, clears output
                 if v is None or v == ""
-                else (gr.update(interactive=True), gr.update(label="Input Video"), gr.update(value=None))
+                else (
+                    gr.update(interactive=True),
+                    gr.update(label="Input Video"),
+                    gr.update(value=None),
+                )
             ),
             inputs=input_video_player,
             outputs=[run_button, input_video_player, output_video_player],
@@ -1303,7 +1322,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                     object_classification_model,
                                 ],
                             ).then(
-                                lambda: set_video_path(current_pipeline[1]['recording']['filename']),
+                                lambda: set_video_path(
+                                    current_pipeline[1]["recording"]["filename"]
+                                ),
                                 None,
                                 input_video_player,
                             ).then(
@@ -1431,7 +1452,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             def _():
                                 show_hide_component(
                                     pipeline_video_enabled,
-                                    current_pipeline[1]["parameters"]["run"]["video_output_checkbox"],
+                                    current_pipeline[1]["parameters"]["run"][
+                                        "video_output_checkbox"
+                                    ],
                                 )
 
                         # Benchmark Parameters Accordion

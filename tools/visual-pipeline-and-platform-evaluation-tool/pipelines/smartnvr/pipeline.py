@@ -18,9 +18,7 @@ class SmartNVRPipeline(GstPipeline):
             (325, 108, 445, 168, "Inference", "Object Detection"),
         ]
 
-        self._sink = (
-            "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
-        )
+        self._sink = "sink_{id}::xpos={xpos} sink_{id}::ypos={ypos} sink_{id}::alpha=1 "
 
         # Add shmsink for live streaming (shared memory)
         self._shmsink = (
@@ -135,7 +133,6 @@ class SmartNVRPipeline(GstPipeline):
         inference_channels: int,
         elements: list = None,
     ) -> str:
-
         # Set pre process backed for object detection
         parameters["object_detection_pre_process_backend"] = (
             "opencv"
@@ -262,16 +259,15 @@ class SmartNVRPipeline(GstPipeline):
 
         # Handle inference channels
         for i in range(inference_channels):
-
             # Handle object detection parameters and constants
             detection_model_config = (
-                f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
-                f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
+                f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
+                f"model-proc={constants['OBJECT_DETECTION_MODEL_PROC']} "
             )
 
             if not constants["OBJECT_DETECTION_MODEL_PROC"]:
                 detection_model_config = (
-                    f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                    f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
                 )
 
             streams += self._inference_stream_decode_detect_track.format(
@@ -284,16 +280,18 @@ class SmartNVRPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
-                    or parameters["object_classification_device"] == "Disabled"):
+            if not (
+                constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                or parameters["object_classification_device"] == "Disabled"
+            ):
                 classification_model_config = (
-                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                    f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
+                    f"model-proc={constants['OBJECT_CLASSIFICATION_MODEL_PROC']} "
                 )
 
                 if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
                     classification_model_config = (
-                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                        f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
                     )
 
                 streams += self._inference_stream_classify.format(
@@ -342,34 +340,46 @@ class SmartNVRPipeline(GstPipeline):
         if parameters["live_preview_enabled"]:
             # Calculate output video size for grid layout to ensure same resolution for shmsink and output file
             output_width = 640 * grid_size
-            output_height = 360 * ((channels + grid_size - 1) // grid_size)  # ceil(channels / grid_size)
+            output_height = 360 * (
+                (channels + grid_size - 1) // grid_size
+            )  # ceil(channels / grid_size)
 
             # Always produce both file and live stream outputs
             try:
                 os.makedirs("/tmp/shared_memory", exist_ok=True)
                 with open(VIDEO_STREAM_META_PATH, "wb") as f:
                     # width=output_height, height=output_width, dtype_size=UINT8_DTYPE_SIZE (uint8)
-                    f.write(struct.pack("III", output_height, output_width, UINT8_DTYPE_SIZE))
+                    f.write(
+                        struct.pack(
+                            "III", output_height, output_width, UINT8_DTYPE_SIZE
+                        )
+                    )
             except Exception as e:
                 logging.warning(f"Could not write shared memory meta file: {e}")
 
-            streams = self._compositor_with_tee.format(
-                **constants,
-                sinks=sinks,
-                encoder=_encoder_element,
-                compositor=_compositor_element,
-                shmsink=self._shmsink,
-                output_width=output_width,
-                output_height=output_height,
-            ) + streams
+            streams = (
+                self._compositor_with_tee.format(
+                    **constants,
+                    sinks=sinks,
+                    encoder=_encoder_element,
+                    compositor=_compositor_element,
+                    shmsink=self._shmsink,
+                    output_width=output_width,
+                    output_height=output_height,
+                )
+                + streams
+            )
         else:
             # Prepend the compositor
-            streams = self._compositor.format(
-                **constants,
-                sinks=sinks,
-                encoder=_encoder_element,
-                compositor=_compositor_element,
-            ) + streams
+            streams = (
+                self._compositor.format(
+                    **constants,
+                    sinks=sinks,
+                    encoder=_encoder_element,
+                    compositor=_compositor_element,
+                )
+                + streams
+            )
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams
