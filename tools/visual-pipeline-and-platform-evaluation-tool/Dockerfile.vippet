@@ -30,13 +30,14 @@ ENV VIRTUAL_ENV=/home/dlstreamer/vippet/.venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
+COPY requirements.txt /home/dlstreamer/vippet/requirements.txt
 
 RUN \
     pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir -r requirements.txt
 
-ADD app.py \
+COPY --chown=dlstreamer:dlstreamer \
+    app.py \
     app.css \
     optimize.py \
     gstpipeline.py \
@@ -44,8 +45,9 @@ ADD app.py \
     explore.py \
     benchmark.py \
     utils.py \
+    cleanup_models.sh \
     /home/dlstreamer/vippet/
 
-ADD pipelines/ /home/dlstreamer/vippet/pipelines
+COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines
 
-CMD ["python", "app.py"]
+CMD ["/bin/bash", "-c", "./cleanup_models.sh; python app.py"]
