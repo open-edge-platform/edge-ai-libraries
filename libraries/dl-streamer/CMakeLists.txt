@@ -24,8 +24,8 @@ endif()
 
 # Define version
 set(VERSION_MAJOR 2025)
-set(VERSION_MINOR 2)
-set(VERSION_PATCH 0)
+set(VERSION_MINOR 1)
+set(VERSION_PATCH 2)
 
 if (NOT DEFINED GIT_INFO OR "${GIT_INFO}" STREQUAL "")
     set(GIT_INFO "0")
