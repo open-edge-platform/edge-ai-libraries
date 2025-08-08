@@ -844,7 +844,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             "YOLO v5m 640x640 (INT8)",
             "YOLO v10s 640x640 (FP16)",
             "YOLO v10m 640x640 (FP16)",
-            "YOLO v8 License Plate Detector (FP16)",
+            "YOLO v8 License Plate Detector (FP32)",
         ],
         value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
