@@ -25,7 +25,7 @@ x-vippet: &vippet
 
 services:
   models:
-    image: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
+    image: intel/dlstreamer:EAL1.2.RC2_2025.1.RC2-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output

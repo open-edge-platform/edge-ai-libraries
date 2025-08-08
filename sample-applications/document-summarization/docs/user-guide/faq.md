@@ -1,18 +1,18 @@
 # FAQ: Document Summarization Application
 
-### Q: What file formats are supported?
+## Q: What file formats are supported?
 A: PDF, docx and TXT (plain-text) files are supported.
 
-### Q: How large can my document be?
+## Q: How large can my document be?
 A: The maximum file size may vary depending on the summarization model being used.
 
-### Q: Can I use my own summarization model?
+## Q: Can I use my own summarization model?
 A: Yes, update the model files and configuration in the  OpenVINO™ model server service.
 
-### Q: Where are summaries stored?
+## Q: Where are summaries stored?
 A: Summaries are not stored by default; they are returned in the response.
 
-### Q: How do I update environment variables?
+## Q: How do I update environment variables?
 A: Edit the `.env` file in the project root and restart the services.
 
 ### Q: What is the ideal time for services or pods to become ready when deployed via Helm?

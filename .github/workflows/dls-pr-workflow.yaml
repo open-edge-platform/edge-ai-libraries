@@ -32,6 +32,22 @@ on:
 permissions: {}
 
 jobs:
+  code-style:
+    permissions:
+      contents: read
+    name: SCAN code-style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Code-style action
+        uses: ./.github/actions/common/code-style
+        with:
+          target_dir: "libraries/dl-streamer"
+
   check-license-headers:
     permissions:
       contents: read
@@ -144,9 +160,10 @@ jobs:
   hadolint:
     permissions:
       contents: read
+      pull-requests: write
     needs: [filter-docker-related-changes]
     if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: Run Hadolint
+    name: SCAN Hadolint
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -170,24 +187,81 @@ jobs:
         with:
           persist-credentials: false
 
-      - name: Install Hadolint
-        run: |
-          curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
-          chmod +x hadolint
-          mv hadolint /usr/local/bin/
-
-      - name: Run Hadolint
-        run: |
-          hadolint ${{ matrix.dockerfile }} \
-            --format tty \
-            | tee ${{ matrix.output-file }}
-
-      - name: Upload Hadolint report as artifact
-        if: always()
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      - name: Run Hadolint Action
+        uses: ./.github/actions/common/hadolint
         with:
-          name: hadolint-report-${{ matrix.name }}
-          path: ${{ matrix.output-file }}
+          dockerfile: ${{ matrix.dockerfile }}
+          output-file: ${{ matrix.output-file }}
+          name: ${{ matrix.name }}
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  pylint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN pylint 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+
+      - name: Run pylint
+        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: pylint-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  shellcheck:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run shellcheck
+        uses: ./edge-ai-libraries-repo/.github/actions/common/shellcheck
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: shellcheck-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  yamllint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+
+      - name: Run yamlint
+        uses: ./edge-ai-libraries-repo/.github/actions/common/yamllint
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: yamllint-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   clamav:
     permissions:
