@@ -77,14 +77,14 @@ Update or edit the values in YAML file as follows:
 | `global.huggingfaceToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
+| `global.vlmName` | VLM model to be used by VLM Inference Microservice | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `global.llmName` | LLM model to be used by OVMS (used only when OVMS is enabled)| `Intel/neural-chat-7b-v3-3` |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
 | `global.env.MINIO_ROOT_USER` | MinIO server user name | `<your-minio-user>` (at least 3 characters) |
 | `global.env.MINIO_ROOT_PASSWORD` | MinIO server password | `<your-minio-password>` (at least 8 characters) |
 | `global.env.RABBITMQ_DEFAULT_USER` | RabbitMQ username | `<your-rabbitmq-username>` |
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
-| `global.env.VLM_MODEL_NAME` | VLM model to use | `Qwen/Qwen2.5-VL-7B-Instruct` |
-| `global.env.OVMS_LLM_MODEL_NAME` | OVMS LLM model (when using OVMS) | `Intel/neural-chat-7b-v3-3` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
 | `videoSummaryManager.appNodePort` | port at which we access the application | `31998` |

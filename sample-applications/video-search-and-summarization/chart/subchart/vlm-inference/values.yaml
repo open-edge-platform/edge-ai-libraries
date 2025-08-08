@@ -3,6 +3,9 @@ global:
   volumeHostPath: "/mnt/vlmserving"
   # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
   pvcName: ""
+
+  # vlmName is the Vision-Language Model used by VLM Inference Microservice
+  vlmName: ""
   
   proxy:
     no_proxy: ""
@@ -23,7 +26,6 @@ vlminference:
     tag: "1.2.0"
     pullPolicy: "IfNotPresent"
   env:
-    VLM_MODEL_NAME: "Qwen/Qwen2.5-VL-7B-Instruct"
     VLM_COMPRESSION_WEIGHT_FORMAT: "int8"
     VLM_DEVICE: "cpu"
     VLM_SEED: "42"

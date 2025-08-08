@@ -30,6 +30,7 @@ RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID
 
 # Add poetry and venv to path
 ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
+ENV HOME=/home/appuser
 
 # Install curl to be used for health checks in final stages
 RUN apt update -y && apt install -y curl
@@ -67,11 +68,11 @@ RUN pip install --upgrade pip
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
 ENV LD_LIBRARY_PATH=/opt/intel/openvino/runtime/lib/intel64:/opt/intel/openvino/runtime/3rdparty/tbb/lib:/opt/intel/openvino/runtime/3rdparty/hddl/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/opt/intel/openvino/python:$PYTHONPATH
-ENV OUTPUT_DIR=/home/appuser/data
-ENV UPLOAD_DIR=/home/appuser/data/uploads
-ENV AUDIO_DIR=/home/appuser/data/audio
-ENV GGML_MODEL_DIR=/home/appuser/models/ggml
-ENV OPENVINO_MODEL_DIR=/home/appuser/models/openvino
+ENV OUTPUT_DIR=$HOME/data
+ENV UPLOAD_DIR=$HOME/data/uploads
+ENV AUDIO_DIR=$HOME/data/audio
+ENV GGML_MODEL_DIR=$HOME/models/ggml
+ENV OPENVINO_MODEL_DIR=$HOME/models/openvino
 
 
 FROM python-base AS builder-base
@@ -109,6 +110,8 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install remaining dev dependencies
 USER appuser
+# Create models and data directories
+RUN mkdir -p $HOME/models $HOME/data
 RUN poetry install --no-interaction --no-ansi
 
 # In dev mode, the application code will be mounted to /app from host to allow hot-reloads
@@ -163,7 +166,6 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
 
 RUN chown -R appuser:appuser /app 
     
-EXPOSE 8000
 # Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
 RUN echo '#!/bin/bash\n\
 exec gunicorn audio_analyzer.main:app \
@@ -178,6 +180,9 @@ exec gunicorn audio_analyzer.main:app \
 --error-logfile=-\n' > /app/gunicorn_start.sh && chmod +x /app/gunicorn_start.sh
 
 USER appuser
+# Create models and data directories
+RUN mkdir -p $HOME/models $HOME/data
 
+EXPOSE 8000
 # Run Gunicorn with Uvicorn workers for production
 CMD ["/app/gunicorn_start.sh"]

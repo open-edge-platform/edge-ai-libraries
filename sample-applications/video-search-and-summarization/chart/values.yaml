@@ -12,8 +12,13 @@ global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: ""
 
+  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  vlmName: ""
+  # llmName is Large Language Model Name used by OVMS service
+  llmName: ""
+
   proxy:
-    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8"
+    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
     http_proxy: ""
     https_proxy: ""
   env:
@@ -24,8 +29,6 @@ global:
     MINIO_ROOT_PASSWORD: ""
     RABBITMQ_DEFAULT_USER: ""
     RABBITMQ_DEFAULT_PASS: ""
-    VLM_MODEL_NAME: ""
-    OVMS_LLM_MODEL_NAME: ""
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart

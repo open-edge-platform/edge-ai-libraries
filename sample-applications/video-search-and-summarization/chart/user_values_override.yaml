@@ -27,8 +27,8 @@ global:
     RABBITMQ_DEFAULT_PASS: ""
 
     # Update following model names with the model name of you choice. Refer to docs for sample values.
-    VLM_MODEL_NAME: ""
-    OVMS_LLM_MODEL_NAME: ""
+    vlmName: ""
+    llmName: ""
 
     # Update these values for telemetry if required. Leave empty if telemetry is not used.
     OTLP_ENDPOINT: ""
