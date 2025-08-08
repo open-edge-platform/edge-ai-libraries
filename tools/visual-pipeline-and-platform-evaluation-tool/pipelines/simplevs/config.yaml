@@ -24,8 +24,8 @@ parameters:
       - "YOLO v5m 640x640 (INT8)"
       - "YOLO v10s 640x640 (FP16)"
       - "YOLO v10m 640x640 (FP16)"
-      - "YOLO v8 License Plate Detector (FP16)"
-    detection_model_default: "YOLO v8 License Plate Detector (FP16)"
+      - "YOLO v8 License Plate Detector (FP32)"
+    detection_model_default: "YOLO v8 License Plate Detector (FP32)"
     classification_models:
       - "Disabled"
       - "EfficientNet B0 (INT8)"

@@ -27,6 +27,7 @@ UINT8_DTYPE_SIZE = 1
 DEFAULT_FRAME_RATE = 30.0
 VIDEO_STREAM_META_PATH = "/tmp/shared_memory/video_stream.meta"
 
+
 def prepare_video_and_constants(
     **kwargs: dict[str, any],
 ):
@@ -86,8 +87,12 @@ def prepare_video_and_constants(
         "object_detection_nireq": [object_detection_nireq],
         "object_classification_device": object_classification_device.split(", "),
         "object_classification_batch_size": [object_classification_batch_size],
-        "object_classification_inference_interval": [object_classification_inference_interval],
-        "object_classification_reclassify_interval": [object_classification_reclassify_interval],
+        "object_classification_inference_interval": [
+            object_classification_inference_interval
+        ],
+        "object_classification_reclassify_interval": [
+            object_classification_reclassify_interval
+        ],
         "object_classification_nireq": [object_classification_nireq],
         "pipeline_watermark_enabled": [pipeline_watermark_enabled],
         "pipeline_video_enabled": [pipeline_video_enabled],
@@ -150,14 +155,14 @@ def prepare_video_and_constants(
                 f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
-        case "YOLO v8 License Plate Detector (FP16)":
+        case "YOLO v8 License Plate Detector (FP32)":
             if object_detection_device == "NPU":
                 raise ValueError(
                     "YOLO v8 License Plate Detector model is not supported on NPU device. Please select another model."
                 )
 
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/yolov8_license_plate_detector/FP16/yolov8_license_plate_detector.xml"
+                f"{MODELS_PATH}/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml"
             )
             constants["OBJECT_DETECTION_MODEL_PROC"] = None
         case _:
@@ -200,10 +205,10 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = None
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
+                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/public/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
+                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
             )
         case _:
             raise ValueError("Unrecognized Object Classification Model")
@@ -230,7 +235,9 @@ def find_shm_file():
         shm_files = [f for f in files if f.startswith("shmpipe.")]
         if not shm_files:
             return None
-        shm_files.sort(key=lambda x: os.path.getctime(os.path.join(shm_dir, x)), reverse=True)
+        shm_files.sort(
+            key=lambda x: os.path.getctime(os.path.join(shm_dir, x)), reverse=True
+        )
         return os.path.join(shm_dir, shm_files[0])
     except OSError:
         logger.error("Error accessing /dev/shm directory.")
@@ -286,7 +293,9 @@ def read_shared_memory_frame(meta_path, shm_fd):
         buf = mm[:frame_size]
         mm.close()
         if len(buf) != frame_size:
-            logger.error(f"Frame buffer size does not match expected frame size. Expected: {frame_size}, Actual: {len(buf)}")
+            logger.error(
+                f"Frame buffer size does not match expected frame size. Expected: {frame_size}, Actual: {len(buf)}"
+            )
             return None
         frame_bgr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3))
         frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
@@ -317,8 +326,11 @@ def get_video_resolution(video_path):
             return default_width, default_height
         return width, height
     except Exception:
-        logging.error(f"Exception occurred while reading video resolution for file: {video_path}")
+        logging.error(
+            f"Exception occurred while reading video resolution for file: {video_path}"
+        )
         return default_width, default_height
+
 
 def run_pipeline_and_extract_metrics(
     pipeline_cmd: GstPipeline,
@@ -357,7 +369,9 @@ def run_pipeline_and_extract_metrics(
         live_preview_enabled = params.get("live_preview_enabled", False)
 
         # Evaluate the pipeline with the given parameters, constants, and channels
-        _pipeline = pipeline_cmd.evaluate(constants, params, regular_channels, inference_channels, elements)
+        _pipeline = pipeline_cmd.evaluate(
+            constants, params, regular_channels, inference_channels, elements
+        )
 
         # Log the command
         logger.info(f"Pipeline Command: {_pipeline}")
@@ -392,7 +406,9 @@ def run_pipeline_and_extract_metrics(
                 try:
                     logger.debug("Starting process worker thread")
                     while not stop_event.is_set():
-                        reads, _, _ = select.select([process.stdout, process.stderr], [], [], poll_interval)
+                        reads, _, _ = select.select(
+                            [process.stdout, process.stderr], [], [], poll_interval
+                        )
                         for r in reads:
                             line = r.readline()
                             if not line:
@@ -420,7 +436,10 @@ def run_pipeline_and_extract_metrics(
                                     latest_fps = result["per_stream_fps"]
 
                                     # Write latest FPS to a file
-                                    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                                    with open(
+                                        "/home/dlstreamer/vippet/.collector-signals/fps.txt",
+                                        "w",
+                                    ) as f:
                                         f.write(f"{latest_fps}\n")
                             elif r == process.stderr:
                                 process_stderr.append(line)
@@ -438,7 +457,10 @@ def run_pipeline_and_extract_metrics(
                     # Wait for the metadata file to be created, 10 seconds max
                     wait_time = 0
                     max_wait = 10
-                    while not os.path.exists(VIDEO_STREAM_META_PATH) and wait_time < max_wait:
+                    while (
+                        not os.path.exists(VIDEO_STREAM_META_PATH)
+                        and wait_time < max_wait
+                    ):
                         time.sleep(0.1)
                         wait_time += 0.1
 
@@ -452,7 +474,9 @@ def run_pipeline_and_extract_metrics(
                             wait_time += 0.1
 
                     if shm_file is None:
-                        logger.error(f"Could not find shm_file for live preview after {max_wait} seconds, will not show live preview.")
+                        logger.error(
+                            f"Could not find shm_file for live preview after {max_wait} seconds, will not show live preview."
+                        )
                     else:
                         shm_fd = open(shm_file, "rb")
 
@@ -470,10 +494,14 @@ def run_pipeline_and_extract_metrics(
                                 exit_code = process.wait()
                                 break
                         except ps.NoSuchProcess as e:
-                            logger.info(f"Process {process.pid} is no longer running: {e}")
+                            logger.info(
+                                f"Process {process.pid} is no longer running: {e}"
+                            )
                             break
 
-                        frame = read_shared_memory_frame(meta_path=VIDEO_STREAM_META_PATH, shm_fd=shm_fd)
+                        frame = read_shared_memory_frame(
+                            meta_path=VIDEO_STREAM_META_PATH, shm_fd=shm_fd
+                        )
                         yield frame
                         time.sleep(1.0 / DEFAULT_FRAME_RATE)
 
@@ -482,7 +510,9 @@ def run_pipeline_and_extract_metrics(
                         if process.poll() is None:
                             exit_code = process.wait(timeout=10)
                     except subprocess.TimeoutExpired:
-                        logger.warning("Process did not exit cleanly after closing socket.")
+                        logger.warning(
+                            "Process did not exit cleanly after closing socket."
+                        )
 
                 else:
                     # No live preview: just wait for process
@@ -498,7 +528,9 @@ def run_pipeline_and_extract_metrics(
                                 exit_code = process.wait()
                                 break
                         except ps.NoSuchProcess as e:
-                            logger.info(f"Process {process.pid} is no longer running: {e}")
+                            logger.info(
+                                f"Process {process.pid} is no longer running: {e}"
+                            )
                             break
 
             finally:
@@ -576,8 +608,18 @@ def run_pipeline_and_extract_metrics(
                     "total_fps": total_fps,
                     "per_stream_fps": per_stream_fps,
                     "num_streams": num_streams,
-                    "stdout": "".join([line.decode("utf-8", errors="replace") for line in process_output]),
-                    "stderr": "".join([line.decode("utf-8", errors="replace") for line in process_stderr]),
+                    "stdout": "".join(
+                        [
+                            line.decode("utf-8", errors="replace")
+                            for line in process_output
+                        ]
+                    ),
+                    "stderr": "".join(
+                        [
+                            line.decode("utf-8", errors="replace")
+                            for line in process_stderr
+                        ]
+                    ),
                 }
             )
 
