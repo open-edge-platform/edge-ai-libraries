@@ -38,7 +38,7 @@ $ ./flanntest_dp  ../data/data_.txt | tee /tmp/flann_test_cpu.log
 
 FLANN benchmark logs computing latency in milliseconds, for various k and radius values, between Intel® oneAPI DPC++ level0 GPU and plain CPU execution.
 
-```
+```bash
 [----------] 1 test from oneapi_flann_knn_performance_test
 [ RUN      ] oneapi_flann_knn_performance_test.Positive
 data size is 198273
