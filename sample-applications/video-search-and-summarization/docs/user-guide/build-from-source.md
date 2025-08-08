@@ -2,7 +2,9 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
-> **Note:** The dependent microservices must be built separately from their respective microservice folders.
+> **Note:** 
+> - The dependent microservices can be built separately from their respective microservice folders which is recommended. There is an option provided to build dependencies along with sample application if required.
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
 
 ## Prerequisites
 
@@ -81,6 +83,16 @@ This section shows how to build the Video Search and Summary sample application 
   docker ps
   ```
 - Access the application dashboard and verify that it is functioning as expected.
+
+## Building with Copyleft Sources
+
+If you need to include copyleft sources in your build, you can set the following environment variable:
+
+```bash
+export ADD_COPYLEFT_SOURCES=true
+```
+
+When this environment variable is set to `true`, it allows the Dockerfiles to conditionally include copyleft sources when needed.
 
 ## Troubleshooting
 

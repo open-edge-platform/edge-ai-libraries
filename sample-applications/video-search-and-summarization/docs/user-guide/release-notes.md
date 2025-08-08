@@ -2,6 +2,34 @@
 
 
 ## Current Release
+**Version**: 1.2.0 \
+**Release Date**: 04 August 2025  
+
+**Features**:
+- This is an incremental release on top of RC4.1 providing fixes for issues found on RC4.1 The notes provided under RC4.1 apply for this incremental release too.
+- Issues fixed are listed below:
+    - Updated docker and helm to public registry.
+    - Updated tags for the helm and docker images. 
+
+
+## Previous releases
+
+**Version**: RC4.1 \
+**Release Date**: 29 July 2025  
+
+**Features**:
+- This is an incremental release on top of RC4 providing fixes for issues found on RC4. The notes provided under RC4 apply for this incremental release too.
+- Issues fixed are listed below:
+    - Error message is displayed on the UI when invalid video is uploaded in both video summary and video search modes.
+    - Only mp4 format is supported currently. For other formats, error message is displayed on the UI.
+    - Fix to ensure that the sample application can be shutdown in a terminal different from the one in which it was started.
+    - A few minor documentation issues have been fixed.
+    - Provided a means to manage the PVC in values.yaml file.
+    - Fixed an issue where video summary progress is kept in the pipeline manager service even if the specific video summary is deleted
+    - Issues around tag handling for videos has been fixed.
+    - Trouble shooting section updated with observed useful information.
+    - Enabled a minimum configuration of video summary to work on older Xeon configurations. Note that there is no official support for versions of Xeon earlier than Xeon 4.
+
 **Version**: RC4 \
 **Release Date**: 18 June 2025  
 
@@ -29,10 +57,3 @@
 - The Helm chart presently supports only CPU deployments.
 - Known issues are internally tracked. Reference not provided here.
 - `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-
-## Previous releases
-
-**Version**:  \
-**Release Date**:  
-
-- <Previous release notes>

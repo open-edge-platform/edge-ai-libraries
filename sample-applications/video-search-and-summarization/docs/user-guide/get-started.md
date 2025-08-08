@@ -53,15 +53,12 @@ sample-applications/video-search-and-summarization/
 Before running the application, you need to set several environment variables:
 
 1. **Registry Configuration**:
-   The application uses registry URL, project name, and tag to pull or build required images.
+   The application uses registry URL and tag to pull the required images.
 
     ```bash
-    export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
-    export PROJECT_NAME=<your-project-name>              # e.g. "video-search-and-summary""
-    export TAG=<your-tag>                                # e.g. "rc4" or "latest"
+    export REGISTRY_URL=intel   
+    export TAG=1.2.0   
     ```
-
-   > **_IMPORTANT:_** These variables control how image names are constructed. If `REGISTRY_URL` is **docker.io/username/** and `PROJECT_NAME` is **video-summary**, an image would be pulled or built as **docker.io/username/video-summary/<application-name>:tag**. The `<application-name>` is hardcoded in _image_ field of each service in all docker compose files. If `REGISTRY_URL` or `PROJECT_NAME` are not set, blank string will be used to construct the image name. If `TAG` is not set, **latest** will be used by default.
 
 2. **Required credentials for some services**:
    Following variables **MUST** be set on your current shell before running the setup script:
@@ -282,6 +279,17 @@ For alternative ways to set up the sample application, see:
 
 ## Troubleshooting
 
+### Containers started but Application not working
+
+- You can try resetting the volume storage, by deleting the previously created volumes using following commands:
+
+  ```bash
+  source setup.sh --down
+  docker volume rm audio_analyzer_data data-prep
+  ```
+  
+  > **_NOTE :_** This step does not apply when you are setting up the application for the first time.
+
 ### VLM Microservice Model Loading Issues
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
@@ -300,9 +308,9 @@ For alternative ways to set up the sample application, see:
    source setup.sh --down
    ```
 
-2. Remove the existing `ov-models` Docker volume:
+2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
    ```bash
-   docker volume rm ov-models
+   docker volume rm ov-models docker_ov-models
    ```
 
 3. Restart the application (the volume will be recreated with correct permissions):
@@ -314,6 +322,6 @@ For alternative ways to set up the sample application, see:
    source setup.sh --search
    ```
 
-**Note**: Removing the `ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
+**Note**: Removing the `ov-models`/`docker_ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.

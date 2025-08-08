@@ -5,7 +5,7 @@ from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from benchmark import Benchmark
-from pipeline import GstPipeline
+from gstpipeline import GstPipeline
 
 class TestPipeline(GstPipeline):
     def __init__(self):

@@ -13,7 +13,8 @@
 - **Telemetry:** OpenTelemetry instrumentation provides the application insights and API traces
 - **Streamlined Build, Deployment and Documentation:** Added setup script to simplify service build and deployment processes and several other [user guide](../user-guide)  All supporting documents have been added
  
-**Known Issues:**
+**Known Issues/Behaviour:**
 
 - EMF Deployment package is not supported yet
 - Summary time depends on the size and complexity (image, tables, cross references) of the document
+- Helm and docker compose deployment has been validated on EMT 3.0 

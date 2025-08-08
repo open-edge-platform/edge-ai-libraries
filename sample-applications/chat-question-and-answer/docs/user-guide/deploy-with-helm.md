@@ -20,12 +20,13 @@ Following steps should be followed to deploy ChatQ&A using Helm. You can install
 
 #### Step 1: Pull the Specific Chart
 
-Use the following command to pull the Helm chart from Docker Hub:
+Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer):
+
 ```bash
 helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <version-no>
 ```
 
-Refer to the release notes for details on the latest version number to use for the sample application.
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
 
 #### Step 2: Extract the `.tgz` File
 
@@ -34,7 +35,7 @@ After pulling the chart, extract the `.tgz` file:
 tar -xvf chat-question-and-answer-<version-no>.tgz
 ```
 
-This will create a directory named `chat-question-and-answer` containing the chart files. Navigate to the extracted directory. 
+This will create a directory named `chat-question-and-answer` containing the chart files. Navigate to the extracted directory.
 ```bash
 cd chat-question-and-answer
 ```
@@ -68,7 +69,7 @@ Edit only the `values.yaml` file to set the necessary environment variables. Ens
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `1.2.1`   |
+| `Chatqna.image.tag` | latest image tag                                  | `1.2.2`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |
@@ -139,7 +140,7 @@ kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 7: Access the Application 
+### Step 7: Access the Application
 
 Open the UI in a browser at http://\<node-ip\>:\<ui-node-port\>
 

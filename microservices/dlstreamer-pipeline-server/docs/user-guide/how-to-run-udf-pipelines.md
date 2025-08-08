@@ -2,11 +2,12 @@
 
 ## Prerequisite
 
-Ensure to build/pull the DL Streamer Pipeline Server extended image i.e., `intel/dlstreamer-pipeline-server:<version>-extended-ubuntu<ubuntu-version>`.
+Ensure to build/pull the DL Streamer Pipeline Server extended image.
 
 [Build instructions](./how-to-build-from-source.md)
 
-[Pull image](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
+Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server) or [ghcr](https://github.com/open-edge-platform/edge-ai-libraries/pkgs/container/edge-ai-libraries%2Fintel%2Fedge-ai-dlstreamer-pipeline-server)
+- Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.
 
 ## Steps
 DL Streamer Pipeline Server supports udfloader element which allow user to write an User Defined Function (UDF) that can transform video frames and/or manipulate metadata. You can do this by adding an element called 'udfloader'. You can try simple udfloader pipeline by replacing the following sections in [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json with the following

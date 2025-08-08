@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="hiwin_xeg_16_gripper" >
+  <xacro:include filename="$(find hiwin_xeg_16_support)/urdf/xeg_16_macro.xacro" />
+  <xacro:gripper prefix="" />
+</robot>

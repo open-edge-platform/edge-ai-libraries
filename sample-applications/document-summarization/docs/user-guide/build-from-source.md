@@ -2,6 +2,9 @@
 
 This section shows how to build the Document Summarization Sample Application from the source.
 
+> **Note:** 
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:

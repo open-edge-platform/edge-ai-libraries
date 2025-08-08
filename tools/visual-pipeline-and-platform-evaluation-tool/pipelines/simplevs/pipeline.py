@@ -1,7 +1,10 @@
+import logging
 import os
 from pathlib import Path
+import struct
 
-from pipeline import GstPipeline
+from gstpipeline import GstPipeline
+from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH
 
 
 class SimpleVideoStructurizationPipeline(GstPipeline):
@@ -50,6 +53,21 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "mp4mux ! "
             "filesink "
             "  location={VIDEO_OUTPUT_PATH} "
+        )
+
+        # Add shmsink for live preview (shared memory)
+        self._shmsink = (
+            "shmsink socket-path=/tmp/shared_memory/video_stream "
+            "wait-for-connection=false "
+            "sync=true "
+            "name=shmsink0 "
+        )
+
+        # shmsink branch for live preview (BGR format), width/height will be formatted in evaluate
+        self._shmsink_branch = (
+            "tee name=livetee "
+            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width={width},height={height} ! {shmsink} "
         )
 
     def evaluate(
@@ -111,6 +129,20 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         streams = ""
 
+        # Prepare shmsink and meta if live_preview_enabled
+        if parameters["live_preview_enabled"]:
+            # Get resolution using get_video_resolution
+            video_path = constants.get("VIDEO_PATH", "")
+            width, height = get_video_resolution(video_path)
+            # Write meta file for live preview
+            try:
+                os.makedirs("/tmp/shared_memory", exist_ok=True)
+                with open(VIDEO_STREAM_META_PATH, "wb") as f:
+                    # height, width, dtype_size=UINT8_DTYPE_SIZE (uint8)
+                    f.write(struct.pack("III", height, width, UINT8_DTYPE_SIZE))
+            except Exception as e:
+                logging.warning(f"Could not write shared memory meta file: {e}")
+
         for i in range(inference_channels):
             streams += self._inference_stream_decode_detect_track.format(
                 **parameters,
@@ -145,10 +177,19 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 streams += "gvawatermark ! "
 
             # Use video output for the first inference channel if enabled, otherwise use fakesink
-            streams += (
-                self._inference_output_stream.format(**constants, encoder=_encoder_element)
-                if i == 0 and parameters["pipeline_video_enabled"]
-                else "fakesink "
-            )
+            if i == 0 and (parameters["pipeline_video_enabled"] or parameters["live_preview_enabled"]):
+                if parameters["live_preview_enabled"]:
+                    # Use tee to split to both file and shmsink, fill in width/height here
+                    streams += self._shmsink_branch.format(
+                        **constants,
+                        encoder=_encoder_element,
+                        width=width,
+                        height=height,
+                        shmsink=self._shmsink
+                    )
+                else:
+                    streams += self._inference_output_stream.format(**constants, encoder=_encoder_element)
+            else:
+                streams += "fakesink "
 
         return "gst-launch-1.0 -q " + streams

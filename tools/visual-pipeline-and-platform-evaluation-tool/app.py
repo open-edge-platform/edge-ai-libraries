@@ -1,6 +1,7 @@
 import logging
 import os
 from datetime import datetime
+from typing import Dict, Tuple
 
 import gradio as gr
 import pandas as pd
@@ -11,10 +12,9 @@ import utils
 from benchmark import Benchmark
 from device import DeviceDiscovery
 from explore import GstInspector
-from optimize import OptimizationResult, PipelineOptimizer
-from pipeline import PipelineLoader, GstPipeline
+from optimize import PipelineOptimizer
+from gstpipeline import PipelineLoader, GstPipeline
 from utils import prepare_video_and_constants
-from typing import Tuple, Dict
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -130,7 +130,6 @@ def detect_click(evt: gr.SelectData):
         description,
     ) in current_pipeline[0].bounding_boxes():
         if x_min <= x <= x_max and y_min <= y <= y_max:
-
             match label:
                 case "Inference":
                     return gr.update(open=True)
@@ -593,7 +592,6 @@ def generate_stream_data(i, timestamp_ns=None):
 
 
 def on_run(data):
-
     arguments = {}
 
     for component in data:
@@ -609,8 +607,9 @@ def on_run(data):
             duration=10,
         )
 
-    recording_channels = arguments.get('recording_channels', 0) or 0
-    inferencing_channels = arguments.get('inferencing_channels', 0) or 0
+    recording_channels = arguments.get("recording_channels", 0) or 0
+    inferencing_channels = arguments.get("inferencing_channels", 0) or 0
+    live_preview_enabled = arguments.get("live_preview_enabled", False)
     # Validate channels
     if recording_channels + inferencing_channels == 0:
         raise gr.Error(
@@ -625,7 +624,21 @@ def on_run(data):
         channels=(recording_channels, inferencing_channels),
         elements=gst_inspector.get_elements(),
     )
-    optimizer.optimize()
+
+    # If live preview is enabled, stream frames using a generator.
+    # Otherwise, just run optimization (not a generator).
+    if live_preview_enabled:
+        # Show live preview, hide video player while streaming frames
+        for live_frame in optimizer.run_with_live_preview():
+            yield [
+                gr.update(value=live_frame, visible=True),
+                gr.update(visible=False),
+                None,
+            ]
+    else:
+        # Only show video player, never show live preview
+        optimizer.run_without_live_preview()
+
     best_result = optimizer.evaluate()
     if best_result is None:
         best_result_message = "No valid result was returned by the optimizer."
@@ -635,11 +648,15 @@ def on_run(data):
             f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
         )
 
-    return [video_output_path, best_result_message]
+    # Hide live preview and show video player and best result message
+    yield [
+        gr.update(visible=False),
+        gr.update(value=video_output_path, visible=True),
+        best_result_message,
+    ]
 
 
 def on_benchmark(data):
-
     arguments = {}
 
     for component in data:
@@ -671,7 +688,7 @@ def on_benchmark(data):
 
     # Return results
     try:
-        result = current_pipeline[1]['parameters']['benchmark']['result_format']
+        result = current_pipeline[1]["parameters"]["benchmark"]["result_format"]
     except KeyError:
         result = "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
 
@@ -721,7 +738,21 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     )
 
     output_video_player = gr.Video(
-        label="Output Video", interactive=False, show_download_button=True
+        label="Output Video (File)",
+        interactive=False,
+        show_download_button=True,
+        elem_id="output_video_player",
+        visible=True,
+    )
+
+    # Output Live Image (for live preview)
+    output_live_image = gr.Image(
+        label="Output Video (Live Preview)",
+        interactive=False,
+        show_download_button=False,
+        elem_id="output_live_image",
+        visible=False,
+        type="numpy",
     )
 
     # Pipeline diagram image
@@ -937,6 +968,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="pipeline_video_enabled",
     )
 
+    live_preview_enabled = gr.Checkbox(
+        label="Enable Live Preview",
+        value=False,
+        elem_id="live_preview_enabled",
+    )
+
     # Run button
     run_button = gr.Button("Run")
 
@@ -961,14 +998,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     timer = gr.Timer(1, active=False)
 
     pipeline_information = gr.Markdown(
-        f"### {current_pipeline[1]['name']}\n"
-        f"{current_pipeline[1]['definition']}"
+        f"### {current_pipeline[1]['name']}\n{current_pipeline[1]['definition']}"
     )
 
     # Components Set
     components = set()
     components.add(input_video_player)
     components.add(output_video_player)
+    components.add(output_live_image)
     components.add(pipeline_image)
     components.add(best_config_textbox)
     components.add(inferencing_channels)
@@ -988,10 +1025,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(object_classification_reclassify_interval)
     components.add(pipeline_watermark_enabled)
     components.add(pipeline_video_enabled)
+    components.add(live_preview_enabled)
 
     # Interface layout
     with gr.Blocks(theme=theme, css=css_code, title=title) as demo:
-
         """
         Components events handlers and interactions are defined here.
         """
@@ -1058,10 +1095,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             inputs=None,
             outputs=timer,
         ).then(
-            # Execute the pipeline
+            # Execute the pipeline and stream live preview (if enabled)
             on_run,
             inputs=components,
-            outputs=[output_video_player, best_config_textbox],
+            outputs=[output_live_image, output_video_player, best_config_textbox],
         ).then(
             # Stop the telemetry timer
             lambda: gr.update(active=False),
@@ -1177,10 +1214,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
         # Tab Interface
         with gr.Tabs() as tabs:
-
             # Home Tab
             with gr.Tab("Home", id=0):
-
                 gr.Markdown(
                     """
                     ## Recommended Pipelines
@@ -1192,13 +1227,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                 )
 
                 with gr.Row():
-
                     for pipeline in PipelineLoader.list():
-
                         pipeline_info = PipelineLoader.config(pipeline)
 
                         with gr.Column(scale=1, min_width=100):
-
                             gr.Image(
                                 value=lambda x=pipeline: f"./pipelines/{x}/thumbnail.png",
                                 show_label=False,
@@ -1230,8 +1262,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 None,
                                 None,
                             ).then(
-                                lambda: (f"### {current_pipeline[1]['name']}\n"
-                                         f"{current_pipeline[1]['definition']}"),
+                                lambda: (
+                                    f"### {current_pipeline[1]['name']}\n"
+                                    f"{current_pipeline[1]['definition']}"
+                                ),
                                 None,
                                 pipeline_information,
                             ).then(
@@ -1245,18 +1279,26 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             ).then(
                                 lambda: [
                                     gr.Dropdown(
-                                        choices=current_pipeline[1]["parameters"]["inference"]["detection_models"],
-                                        value=current_pipeline[1]["parameters"]["inference"]["detection_model_default"],
+                                        choices=current_pipeline[1]["parameters"][
+                                            "inference"
+                                        ]["detection_models"],
+                                        value=current_pipeline[1]["parameters"][
+                                            "inference"
+                                        ]["detection_model_default"],
                                     ),
                                     gr.Dropdown(
-                                        choices=current_pipeline[1]["parameters"]["inference"]["classification_models"],
-                                        value=current_pipeline[1]["parameters"]["inference"]["classification_model_default"],
-                                    )
+                                        choices=current_pipeline[1]["parameters"][
+                                            "inference"
+                                        ]["classification_models"],
+                                        value=current_pipeline[1]["parameters"][
+                                            "inference"
+                                        ]["classification_model_default"],
+                                    ),
                                 ],
                                 outputs=[
                                     object_detection_model,
                                     object_classification_model,
-                                ]
+                                ],
                             ).then(
                                 lambda: set_video_path(current_pipeline[1]['recording']['filename']),
                                 None,
@@ -1317,13 +1359,10 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
             # Run Tab
             with gr.Tab("Run", id=1) as run_tab:
-
                 # Main content
                 with gr.Row():
-
                     # Left column
                     with gr.Column(scale=2, min_width=300):
-
                         # Render the pipeline information
                         pipeline_information.render()
 
@@ -1344,7 +1383,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                         # Metrics plots
                         with gr.Row():
-
                             # Render plots
                             for i in range(len(plots)):
                                 plots[i].render()
@@ -1354,19 +1392,19 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
                     # Right column
                     with gr.Column(scale=1, min_width=150):
-
                         # Video Player Accordion
                         with gr.Accordion("Video Player", open=True):
-
                             # Input Video Player
                             input_video_player.render()
 
-                            # Output Video Player
+                            # Output Video Player (file)
                             output_video_player.render()
+
+                            # Output Live Image (for live preview)
+                            output_live_image.render()
 
                         # Pipeline Parameters Accordion
                         with gr.Accordion("Pipeline Parameters", open=True):
-
                             # Inference Channels
                             inferencing_channels.render()
 
@@ -1375,11 +1413,15 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             def _():
                                 show_hide_component(
                                     recording_channels,
-                                    current_pipeline[1]["parameters"]["run"]["recording_channels"],
+                                    current_pipeline[1]["parameters"]["run"][
+                                        "recording_channels"
+                                    ],
                                 )
 
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
+                            # Render live_preview_enabled checkbox
+                            live_preview_enabled.render()
 
                             # Enable video output checkbox
                             @gr.render(triggers=[run_tab.select])
@@ -1390,8 +1432,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 )
 
                         # Benchmark Parameters Accordion
-                        with gr.Accordion("Platform Ceiling Analysis Parameters", open=False):
-
+                        with gr.Accordion(
+                            "Platform Ceiling Analysis Parameters", open=False
+                        ):
                             # FPS Floor
                             fps_floor.render()
 
@@ -1400,12 +1443,13 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             def _():
                                 show_hide_component(
                                     ai_stream_rate,
-                                    current_pipeline[1]["parameters"]["benchmark"]["ai_stream_rate"],
+                                    current_pipeline[1]["parameters"]["benchmark"][
+                                        "ai_stream_rate"
+                                    ],
                                 )
 
                         # Inference Parameters Accordion
                         with inference_accordion.render():
-
                             # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()

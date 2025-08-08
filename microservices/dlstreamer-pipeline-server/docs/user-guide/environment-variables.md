@@ -7,6 +7,9 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `REST_SERVER_PORT=8080`
 
 ### RTSP related config
+- **ENABLE_RTSP (Boolean)** - Set to `true` to enable RTSP. Set to `false` to disable RTSP
+  - Example: `ENABLE_RTSP=true`
+  - Example: `ENABLE_RTSP=false`
 - **RTSP_CAMERA_IP (String)** - IP address of RTSP camera. 
   - Example: `RTSP_CAMERA_IP=<ip-addr>`
 
@@ -67,12 +70,34 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `SERVICE_NAME=my-service`
 - **PROMETHEUS_PORT (Integer)** - Port on which Prometheus metrics are exposed
   - Example: `PROMETHEUS_PORT=9999`
+- **GRAFANA_PORT (Integer)** - Port on which Grafana dashboard is exposed
+  - Example: `GRAFANA_PORT=3000`
+- **GRAFANA_USERNAME (String)** - Username to login into Grafana
+  - Example: `GRAFANA_USERNAME=dlsps123`
+- **GRAFANA_PASSWORD (String)** - Password to login into Grafana
+  - Example: `GRAFANA_PASSWORD=dlsps123`
 
-### Webrtc related config (Configure only if WebRTC is enabled)
+### WebRTC related config (Configure only if WebRTC is enabled)
+- **ENABLE_WEBRTC (Boolean)** - Set to `true` to enable WebRTC. Set to `false` to disable WebRTC
+  - Example: `ENABLE_WEBRTC=true`
+  - Example: `ENABLE_WEBRTC=false`
 - **WHIP_SERVER_IP (String)** - IP address of machine on which open mediamtx container is running
   - Example: `WHIP_SERVER_IP=<ip-addr>`
 - **WHIP_SERVER_PORT (Integer)** - Port on which mediamtx server is running
   - Example: `WHIP_SERVER_PORT=8889`
+-**WHIP_SERVER_TIMEOUT (String)** - Time limit for server timeout 
+  - Example: `WHIP_SERVER_TIMEOUT=10s`
+
+### InfluxDB related config (Configure only if InfluxDB is enabled)
+- **INFLUXDB_HOST (String)** - IP address of machine on which InfluxDB is hosted
+  - Example: `INFLUXDB_HOST=<ip-addr>`
+  - Example: `INFLUXDB_HOST=influxdb`
+- **INFLUXDB_PORT (Integer)**  - Port on which InfluxDB is running
+  - Example: `INFLUXDB_PORT=8086`
+- **INFLUXDB_USERNAME (String)** - Username to login into InfluxDB
+  - Example: `INFLUXDB_USER=influxadmin`
+- **INFLUXDB_PASS (String)** - Password to login into InfluxDB
+  - Example: `INFLUXDB_PASS=influxadmin`
 
 ### Miscellaneous env variables 
 - **GST_DEBUG (Integer)** - Enable GST debug logs
@@ -122,3 +147,5 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `BUILD_TARGET=dlstreamer-pipeline-server-extended`
 - **DLSTREAMER_PIPELINE_SERVER_DOCKERFILE (String)** - Path to docker file during building of DL Streamer Pipeline Server
   - Example: `DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile`
+- **ZE_ENABLE_ALT_DRIVERS (String)** - Variable needed to run inference successfully on NPU devices
+  - Example: `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`

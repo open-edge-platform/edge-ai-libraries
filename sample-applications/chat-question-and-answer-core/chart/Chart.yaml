@@ -1,7 +1,7 @@
 apiVersion: v2
 name: chat-question-and-answer-core
 description: A Helm chart for deploying chatqna-core and its UI
-version: 1.2.1
+version: 1.2.2
 appVersion: "1.0"
 dependencies:
   - name: chatqna-ui

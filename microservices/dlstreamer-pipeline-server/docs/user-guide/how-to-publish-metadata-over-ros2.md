@@ -4,11 +4,12 @@ DL Streamer Pipeline Server offers publishing the metadata (with or without enco
 
 ## Prerequisite
 
-Ensure to build/pull the DL Streamer Pipeline Server extended image i.e., `intel/dlstreamer-pipeline-server:<version>-extended-ubuntu<ubuntu-version>`.
+Ensure to build/pull the DL Streamer Pipeline Server extended image.
 
 [Build instructions](./how-to-build-from-source.md)
 
-[Pull image](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
+Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server) or [ghcr](https://github.com/open-edge-platform/edge-ai-libraries/pkgs/container/edge-ai-libraries%2Fintel%2Fedge-ai-dlstreamer-pipeline-server)
+- Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.
 
 ## Publish 
 
@@ -71,7 +72,7 @@ Below is an example that shows how to subscribe to the published data.
         sudo apt install -y python3 python3-pip python3-opencv
     ```
 
-- Install ROS2 Jazzy on Ubuntu24 and source it. Install pythyon and related dependencies too.
+- Install ROS2 Jazzy on Ubuntu24 and source it. Install python and related dependencies too.
     ```sh
         # Install ROS2 Jazzy
         sudo apt update && sudo apt install -y curl gnupg lsb-release

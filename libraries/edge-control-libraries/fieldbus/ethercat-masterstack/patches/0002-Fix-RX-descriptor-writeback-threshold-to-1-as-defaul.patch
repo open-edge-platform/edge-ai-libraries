@@ -1,0 +1,74 @@
+From 3f2b7ca431bec329a66fc290a4dac7c980733323 Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Thu, 31 Oct 2024 05:33:07 +0000
+Subject: [PATCH 2/2] Fix RX descriptor writeback threshold to 1 as default
+
+MAC write-back threshold should be set to 1 as default, this threshld
+will be refered to control the number of receive descriptors in the
+on-chip buffer that are ready to be written back to host memory. for
+EtherCAT, it need poll receive descriptors on time, if this value is
+bigger than 1, the ethercat stack will occur datagram timeout.
+
+Signed-off-by: Zhang, Wei E <wei.e.zhang@intel.com>
+---
+ devices/igc/igc-5.14-ethercat.h | 2 +-
+ devices/igc/igc-5.15-ethercat.h | 2 +-
+ devices/igc/igc-6.4-ethercat.h  | 2 +-
+ devices/igc/igc-6.6-ethercat.h  | 2 +-
+ 4 files changed, 4 insertions(+), 4 deletions(-)
+
+diff --git a/devices/igc/igc-5.14-ethercat.h b/devices/igc/igc-5.14-ethercat.h
+index c41d6583..874d9545 100644
+--- a/devices/igc/igc-5.14-ethercat.h
++++ b/devices/igc/igc-5.14-ethercat.h
+@@ -366,7 +366,7 @@ extern char igc_driver_name[];
+ #define IGC_RX_HTHRESH			8
+ #define IGC_TX_PTHRESH			8
+ #define IGC_TX_HTHRESH			1
+-#define IGC_RX_WTHRESH			4
++#define IGC_RX_WTHRESH			1
+ #define IGC_TX_WTHRESH			16
+ 
+ #define IGC_RX_DMA_ATTR \
+diff --git a/devices/igc/igc-5.15-ethercat.h b/devices/igc/igc-5.15-ethercat.h
+index 1f7bd8d3..a58a9d7b 100644
+--- a/devices/igc/igc-5.15-ethercat.h
++++ b/devices/igc/igc-5.15-ethercat.h
+@@ -380,7 +380,7 @@ extern char igc_driver_name[];
+ #define IGC_RX_HTHRESH			8
+ #define IGC_TX_PTHRESH			8
+ #define IGC_TX_HTHRESH			1
+-#define IGC_RX_WTHRESH			4
++#define IGC_RX_WTHRESH			1
+ #define IGC_TX_WTHRESH			16
+ 
+ #define IGC_RX_DMA_ATTR \
+diff --git a/devices/igc/igc-6.4-ethercat.h b/devices/igc/igc-6.4-ethercat.h
+index 107ea63b..d79310ae 100644
+--- a/devices/igc/igc-6.4-ethercat.h
++++ b/devices/igc/igc-6.4-ethercat.h
+@@ -421,7 +421,7 @@ static inline u32 igc_rss_type(const union igc_adv_rx_desc *rx_desc)
+ #define IGC_RX_HTHRESH			8
+ #define IGC_TX_PTHRESH			8
+ #define IGC_TX_HTHRESH			1
+-#define IGC_RX_WTHRESH			4
++#define IGC_RX_WTHRESH			1
+ #define IGC_TX_WTHRESH			16
+ 
+ #define IGC_RX_DMA_ATTR \
+diff --git a/devices/igc/igc-6.6-ethercat.h b/devices/igc/igc-6.6-ethercat.h
+index 8131a05d..52941932 100644
+--- a/devices/igc/igc-6.6-ethercat.h
++++ b/devices/igc/igc-6.6-ethercat.h
+@@ -435,7 +435,7 @@ static inline u32 igc_rss_type(const union igc_adv_rx_desc *rx_desc)
+ #define IGC_RX_HTHRESH			8
+ #define IGC_TX_PTHRESH			8
+ #define IGC_TX_HTHRESH			1
+-#define IGC_RX_WTHRESH			4
++#define IGC_RX_WTHRESH			1
+ #define IGC_TX_WTHRESH			16
+ 
+ #define IGC_RX_DMA_ATTR \
+-- 
+2.34.1
+

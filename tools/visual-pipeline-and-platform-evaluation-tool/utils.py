@@ -1,21 +1,31 @@
-import subprocess
-import re
-import time
+import contextlib
+import logging
+import mmap
 import os
 import random
-import string
-from typing import List, Dict, Tuple
-from subprocess import Popen, PIPE
-import psutil as ps
-from itertools import product
-import logging
-from pipeline import GstPipeline
+import re
 import select
+import string
+import struct
+import subprocess
+import threading
+import time
+from itertools import product
+from subprocess import Popen, PIPE
+from typing import List, Dict
 
+import cv2
+import numpy as np
+import psutil as ps
 
+from gstpipeline import GstPipeline
 
 cancelled = False
+logger = logging.getLogger("utils")
 
+UINT8_DTYPE_SIZE = 1
+DEFAULT_FRAME_RATE = 30.0
+VIDEO_STREAM_META_PATH = "/tmp/shared_memory/video_stream.meta"
 
 def prepare_video_and_constants(
     **kwargs: dict[str, any],
@@ -53,6 +63,7 @@ def prepare_video_and_constants(
     object_classification_nireq = kwargs.get("object_classification_nireq", 1)
     pipeline_watermark_enabled = kwargs.get("pipeline_watermark_enabled", True)
     pipeline_video_enabled = kwargs.get("pipeline_video_enabled", True)
+    live_preview_enabled = kwargs.get("live_preview_enabled", False)
 
     random_string = "".join(random.choices(string.ascii_lowercase + string.digits, k=6))
     video_output_path = input_video_player.replace(
@@ -66,7 +77,7 @@ def prepare_video_and_constants(
 
     # Reset the FPS file
     with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
-        f.write(f"0.0\n")
+        f.write("0.0\n")
 
     param_grid = {
         "object_detection_device": object_detection_device.split(", "),
@@ -80,6 +91,7 @@ def prepare_video_and_constants(
         "object_classification_nireq": [object_classification_nireq],
         "pipeline_watermark_enabled": [pipeline_watermark_enabled],
         "pipeline_video_enabled": [pipeline_video_enabled],
+        "live_preview_enabled": [live_preview_enabled],
     }
 
     constants = {
@@ -154,7 +166,7 @@ def prepare_video_and_constants(
     match object_classification_model:
         case "Disabled":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = "Disabled"
-            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = "Disabled"       
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = "Disabled"
         case "ResNet-50 TF (INT8)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/pipeline-zoo-models/resnet-50-tf_INT8/resnet-50-tf_i8.xml"
@@ -205,6 +217,109 @@ def _iterate_param_grid(param_grid: Dict[str, List[str]]):
         yield dict(zip(keys, combination))
 
 
+def find_shm_file():
+    """
+    Finds the most recent shared memory file for live preview.
+
+    Returns:
+        str or None: Full path of the most recent shared memory file, or None if not found.
+    """
+    try:
+        shm_dir = "/dev/shm"
+        files = os.listdir(shm_dir)
+        shm_files = [f for f in files if f.startswith("shmpipe.")]
+        if not shm_files:
+            return None
+        shm_files.sort(key=lambda x: os.path.getctime(os.path.join(shm_dir, x)), reverse=True)
+        return os.path.join(shm_dir, shm_files[0])
+    except OSError:
+        logger.error("Error accessing /dev/shm directory.")
+        return None
+
+
+def read_latest_meta(meta_path):
+    """
+    Reads the metadata file for shared memory frame dimensions and dtype size.
+
+    Args:
+        meta_path (str): Path to the metadata file.
+
+    Returns:
+        tuple or None: (height, width, dtype_size) if successful, None otherwise.
+    """
+    try:
+        with open(meta_path, "rb") as f:
+            meta = f.read(12)
+            if len(meta) != 12:
+                logger.error("Metadata file does not contain expected 12 bytes.")
+                return None
+            height, width, dtype_size = struct.unpack("III", meta)
+            return height, width, dtype_size
+    except (OSError, struct.error) as e:
+        logger.error(f"Error reading metadata file {meta_path}: {e}")
+        return None
+
+
+def read_shared_memory_frame(meta_path, shm_fd):
+    """
+    Reads a frame from shared memory using metadata for shape and dtype.
+
+    Args:
+        meta_path (str): Path to the metadata file.
+        shm_fd (file object): File descriptor for shared memory.
+
+    Returns:
+        np.ndarray or None: RGB frame if successful, None otherwise.
+    """
+    if shm_fd is None:
+        logger.error("Shared memory file descriptor is invalid.")
+        return None
+
+    meta = read_latest_meta(meta_path)
+    if not meta:
+        logger.error("Metadata is invalid.")
+        return None
+    height, width, dtype_size = meta
+    try:
+        frame_size = height * width * 3 * dtype_size
+        mm = mmap.mmap(shm_fd.fileno(), 0, access=mmap.ACCESS_READ)
+        buf = mm[:frame_size]
+        mm.close()
+        if len(buf) != frame_size:
+            logger.error(f"Frame buffer size does not match expected frame size. Expected: {frame_size}, Actual: {len(buf)}")
+            return None
+        frame_bgr = np.frombuffer(buf, dtype=np.uint8).reshape((height, width, 3))
+        frame_rgb = cv2.cvtColor(frame_bgr, cv2.COLOR_BGR2RGB)
+        return frame_rgb
+    except (ValueError, OSError, cv2.error) as e:
+        logger.error(f"Error reading shared memory frame: {e}")
+        return None
+
+
+def get_video_resolution(video_path):
+    """
+    Returns (width, height) of a video file or default (1280, 720) if any error occurs.
+    """
+    default_width = 1280
+    default_height = 720
+
+    try:
+        cap = cv2.VideoCapture(video_path)
+        if not cap.isOpened():
+            logging.error(f"Cannot open video file: {video_path}")
+            return default_width, default_height
+        width = int(cap.get(cv2.CAP_PROP_FRAME_WIDTH))
+        height = int(cap.get(cv2.CAP_PROP_FRAME_HEIGHT))
+        cap.release()
+        # If width or height is zero, return defaults and log warning
+        if width == 0 or height == 0:
+            logging.warning(f"Could not read video resolution for file: {video_path}")
+            return default_width, default_height
+        return width, height
+    except Exception:
+        logging.error(f"Exception occurred while reading video resolution for file: {video_path}")
+        return default_width, default_height
+
 def run_pipeline_and_extract_metrics(
     pipeline_cmd: GstPipeline,
     constants: Dict[str, str],
@@ -212,7 +327,7 @@ def run_pipeline_and_extract_metrics(
     channels: int | tuple[int, int] = 1,
     elements: List[tuple[str, str, str]] = [],
     poll_interval: int = 1,
-) -> Tuple[Dict[str, float], str, str]:
+):
     global cancelled
     """
 
@@ -224,9 +339,9 @@ def run_pipeline_and_extract_metrics(
         channels (int): Number of channels to match in the FPS metrics.
 
     Returns:
-        Tuple[Dict[str, float], str, str]: A dictionary of FPS metrics, stdout, and stderr.
+        List[Dict[str, any]]: A list of dictionaries containing the parameters and FPS metrics for each pipeline run.
     """
-    logger = logging.getLogger("utils")
+
     results = []
 
     # Set the number of regular channels
@@ -238,11 +353,11 @@ def run_pipeline_and_extract_metrics(
     inference_channels = channels if isinstance(channels, int) else channels[1]
 
     for params in _iterate_param_grid(parameters):
+        # Get live_preview_enabled from params
+        live_preview_enabled = params.get("live_preview_enabled", False)
 
         # Evaluate the pipeline with the given parameters, constants, and channels
-        _pipeline = pipeline_cmd.evaluate(
-            constants, params, regular_channels, inference_channels, elements
-        )
+        _pipeline = pipeline_cmd.evaluate(constants, params, regular_channels, inference_channels, elements)
 
         # Log the command
         logger.info(f"Pipeline Command: {_pipeline}")
@@ -263,52 +378,136 @@ def run_pipeline_and_extract_metrics(
             channels = inference_channels + regular_channels
             avg_fps_dict = {}
             process_output = []
+            process_stderr = []
 
             # Define pattern to capture FPSCounter metrics
             overall_pattern = r"FpsCounter\(overall ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             avg_pattern = r"FpsCounter\(average ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
             last_pattern = r"FpsCounter\(last ([\d.]+)sec\): total=([\d.]+) fps, number-streams=(\d+), per-stream=([\d.]+) fps"
 
-            # Poll the process to check if it is still running
-            while process.poll() is None:
-                if cancelled:
-                    process.terminate()
-                    cancelled = False
-                    break
+            stop_event = threading.Event()
+            shm_fd = None
 
-                reads, _, _ = select.select([process.stdout], [], [], poll_interval)
-                for r in reads:
-                    line = r.readline()
-                    if not line:
-                        continue
-                    process_output.append(line)
+            def process_worker():
+                try:
+                    logger.debug("Starting process worker thread")
+                    while not stop_event.is_set():
+                        reads, _, _ = select.select([process.stdout, process.stderr], [], [], poll_interval)
+                        for r in reads:
+                            line = r.readline()
+                            if not line:
+                                continue
+                            if r == process.stdout:
+                                process_output.append(line)
 
-                    # Write the average FPS to the log
-                    line_str = line.decode("utf-8")
-                    match = re.search(avg_pattern, line_str)
-                    if match:
-                        result = {
-                            "total_fps": float(match.group(2)),
-                            "number_streams": int(match.group(3)),
-                            "per_stream_fps": float(match.group(4)),
-                        }
-                        logger.info(
-                            f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
-                        )
+                                # Write the average FPS to the log
+                                line_str = line.decode("utf-8")
+                                match = re.search(avg_pattern, line_str)
+                                if match:
+                                    result = {
+                                        "total_fps": float(match.group(2)),
+                                        "number_streams": int(match.group(3)),
+                                        "per_stream_fps": float(match.group(4)),
+                                    }
+                                    logger.info(
+                                        f"Avg FPS: {result['total_fps']} fps; Num Streams: {result['number_streams']}; Per Stream FPS: {result['per_stream_fps']} fps."
+                                    )
 
-                        # Skip the result if the number of streams does not match the expected channels
-                        if result["number_streams"] != channels:
-                            continue
+                                    # Skip the result if the number of streams does not match the expected channels
+                                    if result["number_streams"] != channels:
+                                        continue
 
-                        latest_fps = result["per_stream_fps"]
-                        
-                        # Write latest FPS to a file
-                        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
-                            f.write(f"{latest_fps}\n")
+                                    latest_fps = result["per_stream_fps"]
 
-                if ps.Process(process.pid).status() == "zombie":
-                    exit_code = process.wait()
-                    break
+                                    # Write latest FPS to a file
+                                    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+                                        f.write(f"{latest_fps}\n")
+                            elif r == process.stderr:
+                                process_stderr.append(line)
+                except (OSError, ValueError, select.error) as e:
+                    logger.error(f"process_worker exception: {e}")
+                finally:
+                    logger.debug("process_worker thread is stopping")
+
+            # process_worker runs in a separate thread to avoid blocking the main thread in which we want to read frames as fast as possible
+            worker_thread = threading.Thread(target=process_worker, daemon=True)
+            worker_thread.start()
+
+            try:
+                if live_preview_enabled:
+                    # Wait for the metadata file to be created, 10 seconds max
+                    wait_time = 0
+                    max_wait = 10
+                    while not os.path.exists(VIDEO_STREAM_META_PATH) and wait_time < max_wait:
+                        time.sleep(0.1)
+                        wait_time += 0.1
+
+                    # Wait for the shared memory file to be created, 10 seconds max
+                    shm_file = None
+                    wait_time = 0
+                    while shm_file is None and wait_time < max_wait:
+                        shm_file = find_shm_file()
+                        if shm_file is None:
+                            time.sleep(0.1)
+                            wait_time += 0.1
+
+                    if shm_file is None:
+                        logger.error(f"Could not find shm_file for live preview after {max_wait} seconds, will not show live preview.")
+                    else:
+                        shm_fd = open(shm_file, "rb")
+
+                    while True:
+                        # Handle interruption
+                        if cancelled:
+                            process.terminate()
+                            cancelled = False
+                            logger.info("Process cancelled, terminating")
+                            break
+
+                        # If process is zombie, break and close shm_fd
+                        try:
+                            if ps.Process(process.pid).status() == "zombie":
+                                exit_code = process.wait()
+                                break
+                        except ps.NoSuchProcess as e:
+                            logger.info(f"Process {process.pid} is no longer running: {e}")
+                            break
+
+                        frame = read_shared_memory_frame(meta_path=VIDEO_STREAM_META_PATH, shm_fd=shm_fd)
+                        yield frame
+                        time.sleep(1.0 / DEFAULT_FRAME_RATE)
+
+                    # Wait for GStreamer process to end if not already
+                    try:
+                        if process.poll() is None:
+                            exit_code = process.wait(timeout=10)
+                    except subprocess.TimeoutExpired:
+                        logger.warning("Process did not exit cleanly after closing socket.")
+
+                else:
+                    # No live preview: just wait for process
+                    while process.poll() is None:
+                        if cancelled:
+                            process.terminate()
+                            cancelled = False
+                            logger.info("Process cancelled, terminating")
+                            break
+                        time.sleep(0.1)
+                        try:
+                            if ps.Process(process.pid).status() == "zombie":
+                                exit_code = process.wait()
+                                break
+                        except ps.NoSuchProcess as e:
+                            logger.info(f"Process {process.pid} is no longer running: {e}")
+                            break
+
+            finally:
+                logger.debug("Stopping frame worker thread")
+                stop_event.set()
+                worker_thread.join()
+                if shm_fd is not None:
+                    with contextlib.suppress(Exception):
+                        shm_fd.close()
 
             # Process the output and extract FPS metrics
             for line in process_output:
@@ -369,12 +568,6 @@ def run_pipeline_and_extract_metrics(
                 num_streams = "N/A"
                 per_stream_fps = "N/A"
 
-            # Log the metrics
-            logger.info("Exit code: {}".format(exit_code))
-            logger.info("Total FPS is {}".format(total_fps))
-            logger.info("Per Stream FPS is {}".format(per_stream_fps))
-            logger.info("Num of Streams is {}".format(num_streams))
-
             # Save results
             results.append(
                 {
@@ -383,10 +576,15 @@ def run_pipeline_and_extract_metrics(
                     "total_fps": total_fps,
                     "per_stream_fps": per_stream_fps,
                     "num_streams": num_streams,
+                    "stdout": "".join([line.decode("utf-8", errors="replace") for line in process_output]),
+                    "stderr": "".join([line.decode("utf-8", errors="replace") for line in process_stderr]),
                 }
             )
 
         except subprocess.CalledProcessError as e:
             logger.error(f"Error: {e}")
+            continue
+        except (OSError, ValueError) as e:
+            logger.error(f"Pipeline execution error: {e}")
             continue
     return results

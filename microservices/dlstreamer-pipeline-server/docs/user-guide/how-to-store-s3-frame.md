@@ -69,7 +69,27 @@ For the sake of demonstration, we will be using MinIO database as the S3 storage
     ```
 5. Create MinIO bucket.
     - DL Streamer Pipeline Server expects a bucket to be created before launching the pipeline. 
-    Here's is a sample python script (requires `boto3` python package) that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
+    - Install the package `boto3` in your python environment if not installed.
+        
+        It is recommended to create a virtual environment and install it there. You can run the following commands to add the necessary dependencies as well as create and activate the environment.
+            
+        ```sh
+        sudo apt update && \
+        sudo apt install -y python3 python3-pip python3-venv
+        ```
+        ```sh 
+        python3 -m venv venv && \
+        source venv/bin/activate
+        ```
+
+        Once the environment is ready, install `boto3` with the following command
+        ```sh
+        pip3 install --upgrade pip && \
+        pip3 install boto3==1.36.17
+        ```
+
+        Here is a sample python script that would connect to the minio server running and create a bucket named `dlstreamer-pipeline-results`. This is the bucket we will be using to put frame objects to. Modify the parameters according to the MinIO server configured.
+
         ```python
         import boto3
         url = "http://localhost:9000"

@@ -3,6 +3,7 @@ import shutil
 import tempfile
 import unittest
 from unittest.mock import MagicMock, patch
+import itertools
 
 import utils
 from utils import prepare_video_and_constants, run_pipeline_and_extract_metrics
@@ -60,18 +61,22 @@ class TestUtils(unittest.TestCase):
         # Mock process
         process_mock = MagicMock()
         process_mock.poll.side_effect = [None, 0]
-        process_mock.stdout.readline.side_effect = [
-            b"FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n",
-            b"",
-        ]
+        # Avoid StopIteration by returning empty bytes forever after the real line
+        process_mock.stdout.readline.side_effect = itertools.chain(
+            [b"FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n"],
+            itertools.repeat(b"")
+        )
         process_mock.pid = 1234
+        # Ensure fileno returns an int to avoid TypeError in select and bad fd errors
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
         mock_select.return_value = ([process_mock.stdout], [], [])
         mock_popen.return_value = process_mock
         mock_ps.Process.return_value.status.return_value = "zombie"
 
         constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
         parameters = {"object_detection_device": ["CPU"], "object_classification_device": ["CPU"]}
-        results = run_pipeline_and_extract_metrics(
+        gen = run_pipeline_and_extract_metrics(
             DummyPipeline(),
             constants,
             parameters,
@@ -79,6 +84,12 @@ class TestUtils(unittest.TestCase):
             elements=[],
             poll_interval=0,
         )
+        try:
+            while True:
+                next(gen)
+        except StopIteration as e:
+            results = e.value
+
         self.assertIsInstance(results, list)
         self.assertEqual(results[0]["total_fps"], 100.0)
         self.assertEqual(results[0]["per_stream_fps"], 100.0)
@@ -94,6 +105,9 @@ class TestUtils(unittest.TestCase):
         # Mock process
         process_mock = MagicMock()
         process_mock.poll.side_effect = [None]
+        # Avoid TypeError in select by providing fileno
+        process_mock.stdout.fileno.return_value = 10
+        process_mock.stderr.fileno.return_value = 11
         mock_popen.return_value = process_mock
 
         constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
@@ -102,8 +116,8 @@ class TestUtils(unittest.TestCase):
         # Signal to stop the pipeline
         utils.cancelled = True
 
-        # Run the pipeline
-        results = run_pipeline_and_extract_metrics(
+        # Run the pipeline and handle generator
+        gen = run_pipeline_and_extract_metrics(
             DummyPipeline(),
             constants,
             parameters,
@@ -111,6 +125,13 @@ class TestUtils(unittest.TestCase):
             elements=[],
             poll_interval=0,
         )
+        try:
+            # Exhaust generator to get return value
+            while True:
+                next(gen)
+        except StopIteration as e:
+            results = e.value
+
         self.assertIsInstance(results, list)
         self.assertEqual(utils.cancelled, False)
         process_mock.terminate.assert_called_once()

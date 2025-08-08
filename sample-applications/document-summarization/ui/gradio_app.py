@@ -117,13 +117,16 @@ def create_ui():
     return demo
 
 if __name__ == "__main__":
-    # Get port from environment or use default
+    # Get port and host from environment or use defaults
     port = int(config.GRADIO_PORT)
+    # For containers, we need to bind to all interfaces so nginx can reach us
+    host = "0.0.0.0"
     
     # Create and launch the UI
     demo = create_ui()
+    logger.info(f"Starting Gradio UI on {host}:{port}")
     demo.launch(
-        server_name="0.0.0.0",
+        server_name=host,
         server_port=port,
         share=False,
         inbrowser=False,

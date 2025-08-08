@@ -1,9 +1,11 @@
+import logging
 import math
 import os
 from pathlib import Path
-from typing import List
+import struct
 
-from pipeline import GstPipeline
+from gstpipeline import GstPipeline
+from utils import UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH
 
 
 class SmartNVRPipeline(GstPipeline):
@@ -20,6 +22,23 @@ class SmartNVRPipeline(GstPipeline):
             "sink_{id}::xpos={xpos} " "sink_{id}::ypos={ypos} " "sink_{id}::alpha=1 "
         )
 
+        # Add shmsink for live streaming (shared memory)
+        self._shmsink = (
+            "shmsink socket-path=/tmp/shared_memory/video_stream "
+            "wait-for-connection=false "
+            "sync=true "
+            "name=shmsink0 "
+        )
+
+        # Use tee to split output to both file and live stream
+        self._compositor_with_tee = (
+            "{compositor} "
+            "  name=comp "
+            "  {sinks} ! tee name=livetee "
+            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width={output_width},height={output_height} ! {shmsink} "
+        )
+
         self._compositor = (
             "{compositor} "
             "  name=comp "
@@ -30,7 +49,6 @@ class SmartNVRPipeline(GstPipeline):
             "filesink "
             "  location={VIDEO_OUTPUT_PATH} async=false "
         )
-
 
         self._recording_stream = (
             "filesrc "
@@ -115,7 +133,7 @@ class SmartNVRPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: List[tuple[str, str, str]] = [],
+        elements: list = None,
     ) -> str:
 
         # Set pre process backed for object detection
@@ -239,8 +257,6 @@ class SmartNVRPipeline(GstPipeline):
                 ),
             )
 
-
-
         # Create the streams
         streams = ""
 
@@ -268,8 +284,8 @@ class SmartNVRPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled" 
-                    or parameters["object_classification_device"] == "Disabled") :
+            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                    or parameters["object_classification_device"] == "Disabled"):
                 classification_model_config = (
                     f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
                     f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
@@ -290,7 +306,7 @@ class SmartNVRPipeline(GstPipeline):
             # Overlay inference results on the inferenced video if enabled
             if parameters["pipeline_watermark_enabled"]:
                 streams += "gvawatermark ! "
-            
+
             streams += self._inference_stream_metadata_processing.format(
                 **parameters,
                 **constants,
@@ -322,13 +338,38 @@ class SmartNVRPipeline(GstPipeline):
                 postprocessing=_postprocessing_element,
                 max_size_buffers=1,
             )
-        # Prepend the compositor 
-        streams = self._compositor.format(
-            **constants,
-            sinks=sinks,
-            encoder=_encoder_element,
-            compositor=_compositor_element,
-        ) + streams
+        # Compose pipeline depending on live_preview_enabled
+        if parameters["live_preview_enabled"]:
+            # Calculate output video size for grid layout to ensure same resolution for shmsink and output file
+            output_width = 640 * grid_size
+            output_height = 360 * ((channels + grid_size - 1) // grid_size)  # ceil(channels / grid_size)
+
+            # Always produce both file and live stream outputs
+            try:
+                os.makedirs("/tmp/shared_memory", exist_ok=True)
+                with open(VIDEO_STREAM_META_PATH, "wb") as f:
+                    # width=output_height, height=output_width, dtype_size=UINT8_DTYPE_SIZE (uint8)
+                    f.write(struct.pack("III", output_height, output_width, UINT8_DTYPE_SIZE))
+            except Exception as e:
+                logging.warning(f"Could not write shared memory meta file: {e}")
+
+            streams = self._compositor_with_tee.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+                shmsink=self._shmsink,
+                output_width=output_width,
+                output_height=output_height,
+            ) + streams
+        else:
+            # Prepend the compositor
+            streams = self._compositor.format(
+                **constants,
+                sinks=sinks,
+                encoder=_encoder_element,
+                compositor=_compositor_element,
+            ) + streams
 
         # Evaluate the pipeline
         return "gst-launch-1.0 -q " + streams

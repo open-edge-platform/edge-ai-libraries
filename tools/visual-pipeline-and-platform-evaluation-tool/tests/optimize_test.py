@@ -1,8 +1,8 @@
 import unittest
-from unittest.mock import MagicMock, patch
+from unittest.mock import patch
 
-from optimize import OptimizationResult, PipelineOptimizer
-from pipeline import GstPipeline
+from optimize import PipelineOptimizer
+from gstpipeline import GstPipeline
 
 
 class TestPipeline(GstPipeline):
@@ -32,27 +32,37 @@ class TestPipelineOptimizer(unittest.TestCase):
 
     @patch("optimize.run_pipeline_and_extract_metrics")
     def test_optimize(self, mock_run_metrics):
-        mock_run_metrics.return_value = [
+        metrics_list = [
             {
                 "params": {"pattern": "snow"},
                 "exit_code": 0,
                 "total_fps": 100.0,
                 "per_stream_fps": 5.0,
+                "num_streams": 20,
             },
             {
                 "params": {"pattern": "ball"},
                 "exit_code": 1,
                 "total_fps": 50.0,
                 "per_stream_fps": 2.5,
+                "num_streams": 20,
             },
         ]
+
+        # Proper generator: yields nothing, returns metrics_list
+        def fake_generator(*args, **kwargs):
+            if False:
+                yield  # This makes it a generator
+            return metrics_list
+        mock_run_metrics.side_effect = fake_generator
+
         optimizer = PipelineOptimizer(
             pipeline=self.pipeline,
             constants=self.constants,
             param_grid=self.param_grid,
             channels=2,
         )
-        optimizer.optimize()
+        optimizer.run_without_live_preview()
         self.assertEqual(len(optimizer.results), 2)
         self.assertEqual(optimizer.results[0].params["pattern"], "snow")
         self.assertEqual(optimizer.results[1].exit_code, 1)

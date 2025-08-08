@@ -39,7 +39,7 @@ RUN \
 ADD app.py \
     app.css \
     optimize.py \
-    pipeline.py \
+    gstpipeline.py \
     device.py \
     explore.py \
     benchmark.py \
