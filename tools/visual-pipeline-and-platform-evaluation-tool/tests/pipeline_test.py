@@ -37,7 +37,6 @@ class TestGstPipeline(unittest.TestCase):
 
 
 class TestPipelineLoader(unittest.TestCase):
-
     def setUp(self):
         self.test_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.test_dir.cleanup)

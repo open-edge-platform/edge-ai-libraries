@@ -48,11 +48,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         )
 
         self._inference_output_stream = (
-            "{encoder} ! "
-            "h264parse ! "
-            "mp4mux ! "
-            "filesink "
-            "  location={VIDEO_OUTPUT_PATH} "
+            "{encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
         )
 
         # Add shmsink for live preview (shared memory)
@@ -78,7 +74,6 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         inference_channels: int,
         elements: list = None,
     ) -> str:
-
         # Set decoder element based on device
         _decoder_element = (
             "decodebin3 "
@@ -118,13 +113,13 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         # Set model config for object detection
         detection_model_config = (
-            f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
-            f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
+            f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
+            f"model-proc={constants['OBJECT_DETECTION_MODEL_PROC']} "
         )
 
         if not constants["OBJECT_DETECTION_MODEL_PROC"]:
             detection_model_config = (
-                f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
             )
 
         streams = ""
@@ -153,17 +148,19 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
-                    or parameters["object_classification_device"] == "Disabled"):
+            if not (
+                constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                or parameters["object_classification_device"] == "Disabled"
+            ):
                 # Set model config for object classification
                 classification_model_config = (
-                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                    f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
+                    f"model-proc={constants['OBJECT_CLASSIFICATION_MODEL_PROC']} "
                 )
 
                 if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
                     classification_model_config = (
-                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                        f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
                     )
 
                 streams += self._inference_stream_classify.format(
@@ -173,11 +170,17 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 )
 
             # Overlay inference results on the inferred video if enabled
-            if parameters["pipeline_watermark_enabled"] and parameters["pipeline_video_enabled"]:
+            if (
+                parameters["pipeline_watermark_enabled"]
+                and parameters["pipeline_video_enabled"]
+            ):
                 streams += "gvawatermark ! "
 
             # Use video output for the first inference channel if enabled, otherwise use fakesink
-            if i == 0 and (parameters["pipeline_video_enabled"] or parameters["live_preview_enabled"]):
+            if i == 0 and (
+                parameters["pipeline_video_enabled"]
+                or parameters["live_preview_enabled"]
+            ):
                 if parameters["live_preview_enabled"]:
                     # Use tee to split to both file and shmsink, fill in width/height here
                     streams += self._shmsink_branch.format(
@@ -185,10 +188,12 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                         encoder=_encoder_element,
                         width=width,
                         height=height,
-                        shmsink=self._shmsink
+                        shmsink=self._shmsink,
                     )
                 else:
-                    streams += self._inference_output_stream.format(**constants, encoder=_encoder_element)
+                    streams += self._inference_output_stream.format(
+                        **constants, encoder=_encoder_element
+                    )
             else:
                 streams += "fakesink "
 
