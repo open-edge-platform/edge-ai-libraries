@@ -43,6 +43,6 @@ A: If the OVMS pod does not proceed beyond the init phase within 10 minutes, con
 
   After PVC cleanup, try redeploying the service.
 
-- #### Verify Network Stability:
+- ### Verify Network Stability:
   Ensure there are no underlying hardware issues such as a faulty network cable or unstable network connectivity, which might cause timeouts during initialization.
   
