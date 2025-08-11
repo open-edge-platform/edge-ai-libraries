@@ -7,8 +7,8 @@
 
 # Variables
 DLSTREAMER_VERSION="2025.1.2"
-DEB_PKGS_DOCKERFILE_U22="./docker/onebinary/ubuntu22/dlstreamer_deb_package_ubuntu22.Dockerfile"
-DEB_PKGS_DOCKERFILE_U24="./docker/onebinary/ubuntu24/dlstreamer_deb_package_ubuntu24.Dockerfile"
+DEB_PKGS_DOCKERFILE_U22="./docker/ubuntu/ubuntu22.Dockerfile"
+DEB_PKGS_DOCKERFILE_U24="./docker/ubuntu/ubuntu24.Dockerfile"
 DLSTREAMER_BUILD="local"
 IMAGE_NAME="dls_debs_temp_image"
 
