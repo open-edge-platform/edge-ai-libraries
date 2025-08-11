@@ -76,7 +76,6 @@ services:
     ipc: host
     pid: host
     volumes:
-      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:

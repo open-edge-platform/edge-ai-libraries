@@ -2,6 +2,7 @@ import unittest
 
 from pipelines.smartnvr.pipeline import SmartNVRPipeline
 
+
 class TestSmartNVRPipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = SmartNVRPipeline()

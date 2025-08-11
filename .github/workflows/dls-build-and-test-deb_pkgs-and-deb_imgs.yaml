@@ -176,7 +176,10 @@ jobs:
 
     - name: Init test environemtnt
       run: |
-        sudo apt install libcairo2-dev libgirepository1.0-dev
+        sudo apt install -y libcairo2-dev libgirepository1.0-dev
+        if [[ ${{ matrix.ubuntu_version }} == "ubuntu24" ]]; then
+            sudo apt install -y libopencv-dev
+        fi
         if [ -d "$HOME/.virtualenvs" ]; then
           echo "Directory $HOME/.virtualenvs exists - removing it"
           rm -rf $HOME/.virtualenvs

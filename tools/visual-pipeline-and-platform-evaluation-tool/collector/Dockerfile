@@ -20,6 +20,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+COPY telegraf.conf /etc/telegraf
 COPY qmassa_reader.py qmassa_reader.py
 COPY read_cpu_freq.sh read_cpu_freq.sh
 RUN chmod +x read_cpu_freq.sh

@@ -42,7 +42,7 @@ services:
     ports:
       - "${VS_HOST_PORT}:8000"
     environment:
-      no_proxy: ${no_proxy},${VCLIP_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST}
+      no_proxy: ${no_proxy},${VCLIP_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       VDMS_VDB_HOST: ${VDMS_VDB_HOST}
@@ -90,7 +90,7 @@ services:
     image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
     hostname: vdms-dataprep
     environment:
-      no_proxy: ${no_proxy},${VDMS_VDB_HOST},${VCLIP_HOST},${MINIO_HOST}
+      no_proxy: ${no_proxy},${VDMS_VDB_HOST},${VCLIP_HOST},${MINIO_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       APP_HOST: vdms-dataprep
@@ -124,8 +124,8 @@ services:
       - "${VCLIP_HOST_PORT}:8000"
     ipc: host
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
-      no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST}
+      no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
+      no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       MODEL_NAME: ${VCLIP_MODEL}
@@ -135,7 +135,7 @@ services:
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
     devices:
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH}:/dev/dri
     group_add:
       - ${USER_GROUP_ID-1000} 
       - ${VIDEO_GROUP_ID-44}    

@@ -54,6 +54,7 @@ class TestPipelineOptimizer(unittest.TestCase):
             if False:
                 yield  # This makes it a generator
             return metrics_list
+
         mock_run_metrics.side_effect = fake_generator
 
         optimizer = PipelineOptimizer(

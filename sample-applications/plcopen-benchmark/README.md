@@ -1,14 +1,19 @@
 # plcopen-benchmark
+
 Motion control benchmark with PLCopen Function Blocks
 
 ## Depends
+
 This repo depends on:
+
 - plcopen-motion
 - plcopen-servo
 - ecat-enablekit
 
 ## Build
-After setting up the dpendencies, follow below commands to build:
+
+After setting up the dependencies, follow below commands to build:
+
 ```shell
 mkdir build && cd build
 
@@ -18,7 +23,9 @@ make
 ```
 
 ## Run
+
 Run the benchmark program ``plcopen_benchmark``:
+
 ```shell
 plcopen_benchmark --<options>
 
