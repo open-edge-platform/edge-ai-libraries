@@ -71,7 +71,7 @@ source setupenv.sh
 
 ### Build the library
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries -b release-1.2.0
 cd edge-ai-libraries/libraries/orb-extractor
 mkdir build
 cd build

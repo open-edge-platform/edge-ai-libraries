@@ -10,6 +10,7 @@
 - Issues fixed are listed below:
     - Updated docker and helm to public registry.
     - Updated tags for the helm and docker images. 
+    - Sanity for deployment on EMT.
 
 
 ## Previous releases

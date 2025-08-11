@@ -27,7 +27,7 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 1. Clone the **ChatQ&A** repository:
 
     ```bash
-    git clone <repository-url>
+    git clone <repository-url> -b release-1.2.0
     cd <repository-url>/sample-applications/chat-question-and-answer
     ```
 

@@ -56,7 +56,7 @@ This method provides the fastest way to get started with the microservice.
 1. **Clone the repository**:
     Run the following command to clone the repository:
     ```bash
-    git clone <link-to-repository>
+    git clone <link-to-repository> -b release-1.2.0
     ```
 
 2. **Change to project directory**:

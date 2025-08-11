@@ -17,7 +17,7 @@ Before deploying the `dataprep` service, ensure the following services are up an
 1. **Clone the Repository**
 
    ```sh
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/dataprep
    ```
    Adjust the repo link appropriately in case of forked repo.

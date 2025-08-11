@@ -7,7 +7,7 @@ metadata:
   classname: SimpleVideoStructurizationPipeline
   enabled: true
 recording:
-  url: "https://videos.pexels.com/video-files/30787543/13168475_1280_720_25fps.mp4"
+  url: "https://github.com/open-edge-platform/edge-ai-resources/raw/6d452bf87bb1707630f747774d2d15caa1a6f7aa/videos/ParkingVideo.mp4"
   filename: license-plate-detection.mp4
 parameters:
   run:
@@ -24,8 +24,8 @@ parameters:
       - "YOLO v5m 640x640 (INT8)"
       - "YOLO v10s 640x640 (FP16)"
       - "YOLO v10m 640x640 (FP16)"
-      - "YOLO v8 License Plate Detector (FP16)"
-    detection_model_default: "YOLO v8 License Plate Detector (FP16)"
+      - "YOLO v8 License Plate Detector (FP32)"
+    detection_model_default: "YOLO v8 License Plate Detector (FP32)"
     classification_models:
       - "Disabled"
       - "EfficientNet B0 (INT8)"

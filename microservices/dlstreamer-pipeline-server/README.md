@@ -42,7 +42,7 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
 
   ```sh
-    git clone <link-to-repository>
+    git clone <link-to-repository> -b release-1.2.0
     cd <path/to/dlstreamer-pipeline-server/docker>
   ```
 
