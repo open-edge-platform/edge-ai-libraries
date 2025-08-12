@@ -21,17 +21,15 @@ README.md           @xwu2intel
 /microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-# this folder does not exist
-/microservices/object-store/                           @bharagha @madhuri-rai07 @yogeshmpandey
 
 # sample-applications
 # /sample-applications/chat-question-and-answer/  lacks codeowners, consider adding
 /sample-applications/chat-question-and-answer/                @bharagha @yogeshmpandey @madhuri-rai07
 /sample-applications/chat-question-and-answer-core/           @bharagha @yogeshmpandey @madhuri-rai07
+/sample-applications/document-summarization/                  @bharagha @yogeshmpandey @madhuri-rai07 
 /sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /sample-applications/plcopen-databus/                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /sample-applications/video-search-and-summarization/          @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
-
 
 # documentation content: microservices
 /microservices/audio-analyzer/docs/                             @bharagha @bhardwaj-nakul @krish918 @yogeshmpandey  @open-edge-platform/open-edge-platform-docs-write
