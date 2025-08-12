@@ -1,10 +1,5 @@
 # Troubleshooting
 
-## Inferencing on NPU
-
-To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#prerequisite-2-install-intel-npu-drivers) to install Intel NPU drivers.
-
----
 
 ## Using REST API in Image Ingestor mode has low first inference latency
 
@@ -113,6 +108,12 @@ The firewall may prevent you from viewing the video stream on web browser. Pleas
 ```sh
 sudo ufw disable
 ```
+
+---
+
+## Inferencing on NPU
+
+To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#prerequisite-2-install-intel-npu-drivers) to install Intel NPU drivers.
 
 ---
 
