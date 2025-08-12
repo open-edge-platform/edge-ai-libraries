@@ -122,11 +122,13 @@ jobs:
           tar czf coverity-output.tgz -C build cov-int
 
       - name: Upload to Coverity Scan
+        env:
+          GIT_BRANCH: ${{ github.ref_name }}
         run: |
           cd libraries/dl-streamer
           curl --form token=${{ secrets.DLS_COVERITY_TOKEN }} \
                --form email=${{ secrets.DLS_COVERITY_EMAIL }} \
                --form file=@coverity-output.tgz \
-               --form version="`date +%Y%m%d%H%M%S`" \
-               --form description="GitHub Action upload" \
+               --form version="$GIT_BRANCH-`date +%Y%m%d%H%M%S`" \
+               --form description="GA scan $GIT_BRANCH-`date +%Y%m%d%H%M%S`" \
                https://scan.coverity.com/builds?project=${{ secrets.DLS_COVERITY_PROJECT }}
