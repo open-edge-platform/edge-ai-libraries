@@ -19,6 +19,7 @@
 - Cleanup: Remove confidential info such as email and gitlab links. Removed unused model downloader tool, gRPC interface
 - Bug in appsink synchronization behavior not being consistent with gstreamer/DL Streamer
 - Bug in appsink destination and publisher configurations
+- WebRTC with GPU inferencing falls back to CPU if vah264enc is missing.
 
 ### Updates
 - DL Streamer updated to 2025.1.2
