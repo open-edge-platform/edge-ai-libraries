@@ -40,7 +40,7 @@ cd video-search-and-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the services credentials and proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the services credentials, provide model details (LLM and VLM), and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
