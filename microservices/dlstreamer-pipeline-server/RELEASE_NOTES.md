@@ -1,6 +1,6 @@
 # Release Notes
 
-# August 2025 (Upcoming release)
+# August 2025
 
 ## v3.1.0
 
@@ -21,7 +21,7 @@
 - Bug in appsink destination and publisher configurations
 
 ### Updates
-- DL Streamer updated to TBD
+- DL Streamer updated to 2025.1.2
 - Interface to Model registry updated with environment variables instead of config.json
 - Documentation updates: Cross stream batching, latency tracing, tutorial on launching and managing pipelines
 
