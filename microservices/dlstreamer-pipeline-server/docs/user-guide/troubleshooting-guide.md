@@ -117,6 +117,21 @@ To perform inferencing on an NPU device (for platforms with NPU accelerators suc
 
 ---
 
+## Unable to run GPU inference on some Arrow Lake machines with `resource allocation failed` errors
+
+For example:
+
+`ERROR vafilter gstvafilter.c:390:gst_va_filter_open:<vafilter0> vaCreateContext: resource allocation failed`
+
+This issue has been observed on systems with the Ultra Core 7 265K processor running Ubuntu 22.04.
+There are few options to fix this. 
+
+One is updating the kernel to `6.11.11-061111-generic` in the host system.
+
+Alternately, install OpenCL runtime packages in the host system. Refer to the instructions from OpenVINO documentation [here](https://docs.openvino.ai/2025/get-started/install-openvino/configurations/configurations-intel-gpu.html#linux) to install GPU drivers.
+
+---
+
 ## Error Logs
 
 View the container logs using this command.
