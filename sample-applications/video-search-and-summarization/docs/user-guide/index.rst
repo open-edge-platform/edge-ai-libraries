@@ -1,7 +1,7 @@
 .. toctree::
    :hidden:
 
-   overview
+   Overview
 
 .. toctree::
 
@@ -14,8 +14,6 @@
 
    build-from-source
    deploy-with-helm
-   deploy-with-edge-orchestrator
-   how-to-performance
 
 .. toctree::
    :caption: References
