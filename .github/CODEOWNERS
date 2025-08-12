@@ -26,7 +26,7 @@ README.md           @xwu2intel
 # /sample-applications/chat-question-and-answer/  lacks codeowners, consider adding
 /sample-applications/chat-question-and-answer/                @bharagha @yogeshmpandey @madhuri-rai07
 /sample-applications/chat-question-and-answer-core/           @bharagha @yogeshmpandey @madhuri-rai07
-/sample-applications/document-summarization/                  @bharagha @yogeshmpandey @madhuri-rai07 
+/sample-applications/document-summarization/                  @bharagha @madhuri-rai07 @Supriya-Krishnamurthi
 /sample-applications/plcopen-benchmark/                       @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /sample-applications/plcopen-databus/                         @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /sample-applications/video-search-and-summarization/          @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
