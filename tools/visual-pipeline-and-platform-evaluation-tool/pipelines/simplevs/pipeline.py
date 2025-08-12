@@ -4,7 +4,7 @@ from pathlib import Path
 import struct
 
 from gstpipeline import GstPipeline
-from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH
+from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH, is_yolov10_model
 
 
 class SimpleVideoStructurizationPipeline(GstPipeline):
@@ -27,6 +27,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "   pre-process-backend={object_detection_pre_process_backend} "
             "   batch-size={object_detection_batch_size} "
             "   inference-interval={object_detection_inference_interval} "
+            "   {ie_config_parameter} "
             "   nireq={object_detection_nireq} ! "
             "queue ! "
             "gvatrack "
@@ -122,6 +123,11 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
             )
 
+        # Set inference config parameter for GPU if using YOLOv10
+        ie_config_parameter = ""
+        if parameters["object_detection_device"] == "GPU" and is_yolov10_model(constants['OBJECT_DETECTION_MODEL_PATH']):
+            ie_config_parameter = "ie-config=GPU_DISABLE_WINOGRAD_CONVOLUTION=YES"
+
         streams = ""
 
         # Prepare shmsink and meta if live_preview_enabled
@@ -144,6 +150,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 **constants,
                 decoder=_decoder_element,
                 detection_model_config=detection_model_config,
+                ie_config_parameter=ie_config_parameter,
             )
 
             # Handle object classification parameters and constants

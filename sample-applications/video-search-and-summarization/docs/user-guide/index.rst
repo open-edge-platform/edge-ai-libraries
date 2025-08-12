@@ -2,10 +2,14 @@
    :hidden:
 
    Overview
+   Overview-search
+   Overview-summary
 
 .. toctree::
 
    overview-architecture
+   overview-architecture-search
+   overview-architecture-summary
    system-requirements
    get-started
 

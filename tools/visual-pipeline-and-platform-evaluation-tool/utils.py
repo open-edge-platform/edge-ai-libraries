@@ -198,9 +198,9 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
                 f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
             )
-        case "PaddleOCR (FP16)":
+        case "PaddleOCR (FP32)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP16/ch_PP-OCRv4_rec_infer.xml"
+                f"{MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = None
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
@@ -630,3 +630,15 @@ def run_pipeline_and_extract_metrics(
             logger.error(f"Pipeline execution error: {e}")
             continue
     return results
+
+def is_yolov10_model(model_path: str) -> bool:
+    """
+    Checks if the given model path corresponds to a YOLO v10 model.
+
+    Args:
+        model_path (str): Path to the model file.
+
+    Returns:
+        bool: True if the model is a YOLO v10 model, False otherwise.
+    """
+    return "yolov10" in model_path.lower()
