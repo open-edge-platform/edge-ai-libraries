@@ -16,7 +16,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
   ```sh
     cd [WORKDIR]
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-1.2.0
     cd edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker
     ```
 

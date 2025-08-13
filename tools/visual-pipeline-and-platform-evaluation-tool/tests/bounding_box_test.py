@@ -6,7 +6,6 @@ from bounding_box import extract_rectangles_with_labels, parse_numeric
 
 
 class TestBoundingBox(unittest.TestCase):
-
     def test_extract_rectangles_with_labels(self):
         svg_content = """<?xml version="1.0"?>
         <svg height="500" width="500" xmlns="http://www.w3.org/2000/svg">

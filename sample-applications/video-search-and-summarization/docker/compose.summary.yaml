@@ -54,7 +54,7 @@ services:
     ports:
       - "${VLM_HOST_PORT}:8000"
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST}
+      no_proxy: ${no_proxy},${MINIO_HOST},localhost
       no_proxy_env: ${no_proxy},${MINIO_HOST}
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
@@ -70,7 +70,7 @@ services:
       VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
     restart: unless-stopped
     devices:
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH}:/dev/dri
     group_add:
       - ${USER_GROUP_ID-1000} 
       - ${VIDEO_GROUP_ID-44}    
@@ -92,7 +92,7 @@ services:
     profiles:
       - ovms
     environment:
-      - no_proxy=${no_proxy}
+      - no_proxy=${no_proxy},localhost
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
     ports:
@@ -126,7 +126,7 @@ services:
       retries: 3
       start_period: 15s
     environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},${RABBITMQ_HOST}
+      no_proxy: ${no_proxy},${MINIO_HOST},${RABBITMQ_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       RABBITMQ_HOST: ${RABBITMQ_HOST}
@@ -181,11 +181,11 @@ services:
     volumes:
       - audio_analyzer_data:/models
       - audio_analyzer_data:/data
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH}:/dev/dri
     environment:
       - http_proxy
       - https_proxy
-      - no_proxy=$no_proxy,${MINIO_HOST}
+      - no_proxy=$no_proxy,${MINIO_HOST},localhost
       - DEBUG=false
       - ENABLED_WHISPER_MODELS=${AUDIO_ENABLED_MODELS} # Comma-separated list of models to enable
       - MAX_FILE_SIZE=${AUDIO_MAX_FILE} # 300MB
@@ -198,7 +198,7 @@ services:
       minio-service:
         condition: service_healthy
     devices:
-      - /dev/dri:/dev/dri
+      - ${DRI_MOUNT_PATH}:/dev/dri
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -222,7 +222,7 @@ services:
       retries: 3
       start_period: 15s
     environment:
-      no_proxy: ${no_proxy}
+      no_proxy: ${no_proxy},localhost
       http_proxy: $http_proxy
       https_proxy: $https_proxy
       RABBITMQ_DEFAULT_USER: ${RABBITMQ_USER}

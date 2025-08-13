@@ -36,7 +36,7 @@ If variables are not set, in that case, the `TAG` will have default value as _la
 
 1. **Clone the Repository**:
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
 cd edge-ai-libraries/microservices/vlm-openvino-serving/docker
 ```
 

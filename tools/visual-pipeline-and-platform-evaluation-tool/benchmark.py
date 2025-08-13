@@ -3,6 +3,7 @@
 This module provides the Benchmark class for evaluating pipeline performance
 based on configurable parameters and stream counts.
 """
+
 import logging
 import math
 from typing import List, Dict, Tuple
@@ -103,7 +104,11 @@ class Benchmark:
 
             self.logger.info(
                 "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
-                n_streams, total_fps, per_stream_fps, increments, incrementing
+                n_streams,
+                total_fps,
+                per_stream_fps,
+                increments,
+                incrementing,
             )
 
             if incrementing:
@@ -111,7 +116,11 @@ class Benchmark:
                     increments = int(per_stream_fps / self.fps_floor)
                     self.logger.info(
                         "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
-                        n_streams, total_fps, per_stream_fps, increments, incrementing
+                        n_streams,
+                        total_fps,
+                        per_stream_fps,
+                        increments,
+                        incrementing,
                     )
                     if increments <= 1:
                         increments = 5
@@ -120,7 +129,12 @@ class Benchmark:
                     increments = -1
             else:
                 if per_stream_fps >= self.fps_floor:
-                    best_config = (n_streams, ai_streams, non_ai_streams, per_stream_fps)
+                    best_config = (
+                        n_streams,
+                        ai_streams,
+                        non_ai_streams,
+                        per_stream_fps,
+                    )
                     break  # Success
                 else:
                     if n_streams <= 1:
