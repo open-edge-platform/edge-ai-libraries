@@ -6,7 +6,7 @@ from unittest.mock import MagicMock, patch
 import itertools
 
 import utils
-from utils import prepare_video_and_constants, run_pipeline_and_extract_metrics
+from utils import prepare_video_and_constants, run_pipeline_and_extract_metrics, is_yolov10_model
 
 
 class TestUtils(unittest.TestCase):
@@ -143,6 +143,26 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(results[0]["total_fps"], "N/A")
         self.assertEqual(results[0]["per_stream_fps"], "N/A")
         self.assertEqual(results[0]["num_streams"], "N/A")
+
+    def test_yolov10_model(self):
+        # Test with a valid YOLO v10 model path
+        self.assertTrue(is_yolov10_model("/path/to/yolov10s_model.xml"))
+
+    def test_non_yolov10_model(self):
+        # Test with a non-YOLO v10 model path
+        self.assertFalse(is_yolov10_model("/path/to/other_model.xml"))
+
+    def test_case_insensitivity(self):
+        # Test with mixed-case YOLO v10 model path
+        self.assertTrue(is_yolov10_model("/path/to/YOLOv10m_model.xml"))
+
+    def test_empty_path(self):
+        # Test with an empty string
+        self.assertFalse(is_yolov10_model(""))
+
+    def test_no_yolo_in_path(self):
+        # Test with a path that does not contain "yolov10"
+        self.assertFalse(is_yolov10_model("/path/to/yolo_model.xml"))
 
 
 if __name__ == "__main__":

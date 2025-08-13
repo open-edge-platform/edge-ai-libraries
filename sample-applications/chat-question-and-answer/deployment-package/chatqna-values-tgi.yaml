@@ -84,7 +84,7 @@ reranker:
     port: 8090
 chatqnaui:
   service:
-    port: 80
+    port: 8101
 
 nginxService:
   annotations:

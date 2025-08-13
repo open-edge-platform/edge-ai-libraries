@@ -1,5 +1,5 @@
 x-vippet: &vippet
-  image: docker.io/intel/vippet-app:v1.0.1
+  image: docker.io/intel/vippet-app:v1.2
   build:
     context: .
     dockerfile: Dockerfile.vippet
@@ -27,7 +27,7 @@ x-vippet: &vippet
 
 services:
   models:
-    image: intel/dlstreamer:EAL1.2.RC2_2025.1.RC2-ubuntu24
+    image: intel/dlstreamer:2025.1.2-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
@@ -61,7 +61,7 @@ services:
       - "/dev/accel:/dev/accel"
     profiles: [npu]
   collector:
-    image: docker.io/intel/vippet-collector:v1.0.0
+    image: docker.io/intel/vippet-collector:v1.2
     build:
       context: ./collector
       dockerfile: Dockerfile
@@ -80,7 +80,7 @@ services:
     restart: on-failure:5
   videogenerator:
     profiles: [do-not-start]
-    image: docker.io/intel/vippet-videogenerator:v1.0.2
+    image: docker.io/intel/vippet-videogenerator:v1.2
     build:
       context: video_generator
       dockerfile: Dockerfile
