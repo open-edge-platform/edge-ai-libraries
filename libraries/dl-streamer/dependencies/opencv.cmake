@@ -3,10 +3,7 @@ include(ExternalProject)
 # When changing version, you will also need to change the download hash
 set(DESIRED_VERSION 4.6.0)
 
-set(OpenCV_DIR "/usr/lib/x86_64-linux-gnu")
-
-find_package(OpenCV ${DESIRED_VERSION} PATHS /usr/lib/x86_64-linux-gnu NAMES opencv4)
-Message("${CMAKE_LIBRARY_ARCHITECTURE}")
+find_package(OpenCV ${DESIRED_VERSION})
 
 if (OpenCV_FOUND)
     return()
@@ -38,5 +35,10 @@ ExternalProject_Add(
                         -DBUILD_EXAMPLES=OFF 
                         -DBUILD_opencv_apps=OFF 
                         -DOPENCV_EXTRA_MODULES_PATH=${SOURCE_DIR}/modules
-                        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/install 
+                        -DCMAKE_INSTALL_PREFIX:PATH=${CMAKE_BINARY_DIR}/opencv-bin
 )
+
+if (INSTALL_DLSTREAMER)
+    execute_process(COMMAND mkdir -p ${DLSTREAMER_INSTALL_PREFIX}/opencv
+                    COMMAND cp -r ${CMAKE_BINARY_DIR}/opencv-bin ${DLSTREAMER_INSTALL_PREFIX}/opencv)
+endif()

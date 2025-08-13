@@ -57,8 +57,10 @@ build22: opencv build
 install: build ## Build and install DLStreamer
 	@echo "Installing DLStreamer"
 	@mkdir -p ${DLSTREAMER_INSTALL_PREFIX}
-	@mkdir -p ${DLSTREAMER_INSTALL_PREFIX}/gstreamer
-	@cp -r build/deps/gstreamer-bin/* ${DLSTREAMER_INSTALL_PREFIX}/gstreamer
+	@cmake \
+		-B build/deps \
+		-DINSTALL_DLSTREAMER=True \
+		./dependencies
 	@cp -r build/intel64/${BUILD_ARG} ${DLSTREAMER_INSTALL_PREFIX}
 	@cp -r samples/ ${DLSTREAMER_INSTALL_PREFIX}
 	@cp -r python/ ${DLSTREAMER_INSTALL_PREFIX}
