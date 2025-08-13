@@ -17,12 +17,13 @@ class TestDeviceInfo(unittest.TestCase):
             device_name="GPU",
             available_devices=["0"],
             full_device_name="Intel(R) Arc(TM) Graphics (iGPU)",
-            device_type="Type.INTEGRATED"
+            device_type="Type.INTEGRATED",
         )
         self.assertEqual(info.device_name, "GPU")
         self.assertEqual(info.available_devices, ["0"])
         self.assertEqual(info.full_device_name, "Intel(R) Arc(TM) Graphics (iGPU)")
         self.assertEqual(info.device_type, "Type.INTEGRATED")
+
 
 class TestDeviceDiscovery(unittest.TestCase):
     def setUp(self):
@@ -62,6 +63,7 @@ class TestDeviceDiscovery(unittest.TestCase):
         self.assertEqual(devices[1].device_name, "GPU")
         self.assertEqual(devices[0].full_device_name, "Intel CPU")
         self.assertEqual(devices[1].available_devices, ["0"])
+
 
 if __name__ == "__main__":
     unittest.main()

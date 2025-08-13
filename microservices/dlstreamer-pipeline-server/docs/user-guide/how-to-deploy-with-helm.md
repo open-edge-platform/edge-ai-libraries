@@ -30,7 +30,7 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
     `helm pull oci://ghcr.io/open-edge-platform/edge-ai-libraries/dlstreamer-pipeline-server --version 20250805-EAL1.2`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-20250804-EAL1.2.tgz`
+    `tar -xvf dlstreamer-pipeline-server-20250805-EAL1.2.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`

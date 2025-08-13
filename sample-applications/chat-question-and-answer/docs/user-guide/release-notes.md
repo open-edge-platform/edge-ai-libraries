@@ -21,7 +21,7 @@
 - EMF deployment is supported.
 - Bug fixes.
 
-### Known Issues/Behavior:
+**Known issues/behavior:**
 - UI and NGINX container running as root Privilege in Helm Deployment
 - Application running into Model Type issue on EMT.
 
@@ -31,7 +31,7 @@
 - Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
 - Bug fixes
 
-### Known Issues/Behavior:
+**Known issues/behavior:**
 - DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases.
 
 ## Earlier releases

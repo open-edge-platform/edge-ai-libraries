@@ -1,7 +1,7 @@
 .. toctree::
    :hidden:
    
-   overview
+   Overview
 
 .. toctree::
    
@@ -13,13 +13,12 @@
    :caption: How to
 
    build-from-source
-   deploy-with-helm-chart
+   deploy-with-helm
    how-to-performance
    
 .. toctree::
    :caption: References
    
-   benchmarks
    api-reference
    
 .. toctree::

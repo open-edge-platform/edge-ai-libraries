@@ -3,8 +3,8 @@ global:
     apiToken: <huggingface-api-token> # Set this during installation
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
-    http_proxy:
-    https_proxy:
+    http_proxy: ""
+    https_proxy: ""
 
   # vlmName is Vision-Language Model Name used by VLM Inference Microservice
   vlmName: ""

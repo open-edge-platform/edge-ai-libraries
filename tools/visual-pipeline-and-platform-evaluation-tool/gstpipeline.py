@@ -43,7 +43,9 @@ class GstPipeline:
 
 class PipelineLoader:
     @staticmethod
-    def _validate_pipeline_name(pipeline_name: str, pipeline_path: str = "pipelines") -> None:
+    def _validate_pipeline_name(
+        pipeline_name: str, pipeline_path: str = "pipelines"
+    ) -> None:
         """Validate pipeline_name and raise ValueError with details if invalid."""
         if (
             not pipeline_name
@@ -55,7 +57,9 @@ class PipelineLoader:
             raise ValueError(f"Invalid pipeline name: '{pipeline_name}'")
         valid_pipelines = PipelineLoader.list(pipeline_path)
         if pipeline_name not in valid_pipelines:
-            raise ValueError(f"Pipeline '{pipeline_name}' not found in '{pipeline_path}'")
+            raise ValueError(
+                f"Pipeline '{pipeline_name}' not found in '{pipeline_path}'"
+            )
 
     @staticmethod
     def list(pipeline_path: str = "pipelines") -> List[str]:
@@ -76,15 +80,21 @@ class PipelineLoader:
         pipelines_dir_real = os.path.realpath(pipeline_path)
         config_path_real = os.path.realpath(str(config_path))
         if not config_path_real.startswith(pipelines_dir_real + os.sep):
-            raise ValueError(f"Invalid pipeline name or path traversal detected for '{pipeline_name}'")
+            raise ValueError(
+                f"Invalid pipeline name or path traversal detected for '{pipeline_name}'"
+            )
         if not os.path.isfile(config_path_real):
-            raise FileNotFoundError(f"Config file for pipeline '{pipeline_name}' could not be resolved at {config_path}")
+            raise FileNotFoundError(
+                f"Config file for pipeline '{pipeline_name}' could not be resolved at {config_path}"
+            )
         # At this point, config_path_real is guaranteed to exist and be within pipelines_dir
         with open(config_path_real, "r", encoding="utf-8") as f:
             return yaml.safe_load(f.read())
 
     @staticmethod
-    def load(pipeline_name: str, pipeline_path: str = "pipelines") ->  Tuple[GstPipeline, Dict]:
+    def load(
+        pipeline_name: str, pipeline_path: str = "pipelines"
+    ) -> Tuple[GstPipeline, Dict]:
         """Load pipeline class and config, or just metadata.name"""
         PipelineLoader._validate_pipeline_name(pipeline_name, pipeline_path)
         config = PipelineLoader.config(pipeline_name, pipeline_path)

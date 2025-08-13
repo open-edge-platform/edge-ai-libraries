@@ -86,4 +86,3 @@ Additional option
 ### Adjusting for latency and CPU util
 export CPU_SLEEP_TIME=<sleep duration in microseconds>
 # Higher sleep value leads to higher latency & reduced CPU util and vice versa
-
