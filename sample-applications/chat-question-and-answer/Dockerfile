@@ -10,7 +10,6 @@ ENV PYTHONUNBUFFERED=1
 # Install system build dependencies
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
     libjemalloc-dev \
     curl && \
     apt-get clean && \
@@ -42,7 +41,6 @@ RUN groupadd -g 1001 appuser && \
 # Install only runtime dependencies
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
     libjemalloc2 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
