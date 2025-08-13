@@ -15,7 +15,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Use DLStreamer as the base image
-FROM intel/dlstreamer:EAL1.2.RC2_2025.1.RC2-ubuntu24
+FROM intel/dlstreamer:2025.1.2-ubuntu24
 
 # Set environment variable to non-interactive mode (avoids some prompts)
 ENV DEBIAN_FRONTEND=noninteractive

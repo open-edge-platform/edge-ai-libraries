@@ -14,7 +14,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/dlstreamer:EAL1.2.RC2_2025.1.RC2-ubuntu24
+FROM intel/dlstreamer:2025.1.2-ubuntu24
 
 USER root
 
