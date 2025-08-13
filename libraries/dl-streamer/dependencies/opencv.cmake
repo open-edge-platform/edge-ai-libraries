@@ -1,7 +1,7 @@
 include(ExternalProject)
 
 # When changing version, you will also need to change the download hash
-set(DESIRED_VERSION 4.10.0)
+set(DESIRED_VERSION 4.6.0)
 
 find_package(OpenCV ${DESIRED_VERSION})
 
@@ -13,8 +13,7 @@ ExternalProject_Add(
     opencv-contrib
     PREFIX ${CMAKE_BINARY_DIR}/opencv-contrib
     URL     https://github.com/opencv/opencv_contrib/archive/${DESIRED_VERSION}.zip
-    URL_MD5 cd23fd676a8fe9e01e25112f75d0f3ff
-    # URL_MD5 9065c130d87da6f5e7a4044f6f7ce4f6
+    URL_MD5 9065c130d87da6f5e7a4044f6f7ce4f6
     DOWNLOAD_EXTRACT_TIMESTAMP  true
     CONFIGURE_COMMAND   ""
     BUILD_COMMAND       ""
@@ -27,8 +26,7 @@ ExternalProject_Add(
     opencv
     PREFIX ${CMAKE_BINARY_DIR}/opencv
     URL     https://github.com/opencv/opencv/archive/${DESIRED_VERSION}.zip
-    URL_MD5 c0770bf41ba2ebe893f33a68f33f9204
-    # URL_MD5 e86914869fd4811f42814a4a2ad98d86
+    URL_MD5 e86914869fd4811f42814a4a2ad98d86
     DOWNLOAD_EXTRACT_TIMESTAMP  true
     CMAKE_GENERATOR     Ninja
     TEST_COMMAND        ""
