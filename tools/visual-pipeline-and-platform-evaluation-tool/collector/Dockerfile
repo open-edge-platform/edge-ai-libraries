@@ -8,7 +8,7 @@ RUN apt-get update && \
 
 RUN cargo install --locked qmassa
 
-FROM docker.io/library/telegraf:1.32 AS collector
+FROM docker.io/library/telegraf:1.35.3 AS collector
 
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
 
