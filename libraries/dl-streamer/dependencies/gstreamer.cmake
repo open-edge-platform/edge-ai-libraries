@@ -98,5 +98,5 @@ ExternalProject_Add(
 
 if (INSTALL_DLSTREAMER)
     execute_process(COMMAND mkdir -p ${DLSTREAMER_INSTALL_PREFIX}/gstreamer
-                    COMMAND cp -r ${CMAKE_BINARY_DIR}/gstreamer-bin ${DLSTREAMER_INSTALL_PREFIX}/gstreamer)
+                    COMMAND cp -r ${CMAKE_BINARY_DIR}/gstreamer-bin/. ${DLSTREAMER_INSTALL_PREFIX}/gstreamer)
 endif()

@@ -14,14 +14,14 @@ DEPENDENCY_DIR				:= build/deps
 OPENVINO_DIR 				?= /opt/intel/openvino_2025/
 
 DLSTREAMER_VERSION 	:= 0.0.0
-BUILD_ARG 			:= Release
+BUILD_TYPE 			?= Release
 
 DOCKER_PRIVATE_REGISTRY := # Empty on purpose
 
-export PATH 					:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/bin:${PROJECT_DIRECTORY}/build/intel64/Release/bin:${HOME}/.local/bin:${HOME}/python3venv/bin:${PATH}
-export GST_PLUGIN_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/gstreamer-1.0:${PROJECT_DIRECTORY}/build/intel64/Release/lib:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
-export LIBRARY_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib:${PROJECT_DIRECTORY}/build/intel64/Release/lib:/usr/lib:${LD_LIBRARY_PATH}
-export PKG_CONFIG_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib/pkgconfig:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/pkgconfig:${PROJECT_DIRECTORY}/build/intel64/Release/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+export PATH 					:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/bin:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/bin:${HOME}/.local/bin:${HOME}/python3venv/bin:${PATH}
+export GST_PLUGIN_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/gstreamer-1.0:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
+export LIBRARY_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/opencv-bin/lib:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib:${LD_LIBRARY_PATH}
+export PKG_CONFIG_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib/pkgconfig:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/pkgconfig:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
 export LIBVA_DRIVER_NAME 		:= iHD
 export LIBVA_DRIVERS_PATH 		:= /usr/lib/x86_64-linux-gnu/dri
 export GST_VA_ALL_DRIVERS 		:= 1
@@ -32,6 +32,7 @@ export GST_PLUGIN_FEATURE_RANK 	:= ${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 dependencies:
 	cmake \
 		-B build/deps \
+		-DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
 		./dependencies
 	cmake --build build/deps
 
@@ -40,9 +41,10 @@ build: dependencies ## Compile DLStreamer
 	source ${OPENVINO_DIR}/setupvars.sh
 	cmake \
 		-B build \
-		-DCMAKE_PREFIX_PATH:PATH=${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install \
+		-DCMAKE_PREFIX_PATH:PATH="${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install;${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/opencv-bin" \
 		-DCMAKE_INCLUDE_PATH:PATH=${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/include \
 		-DCMAKE_LIBRARY_PATH:PATH=${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib \
+		-DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
 		-DENABLE_PAHO_INSTALLATION=ON \
 		-DENABLE_RDKAFKA_INSTALLATION=ON \
 		-DENABLE_VAAPI=ON \
@@ -59,9 +61,11 @@ install: build ## Build and install DLStreamer
 	@mkdir -p ${DLSTREAMER_INSTALL_PREFIX}
 	@cmake \
 		-B build/deps \
+		-DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
 		-DINSTALL_DLSTREAMER=True \
+		-DDLSTREAMER_INSTALL_PREFIX=${DLSTREAMER_INSTALL_PREFIX} \
 		./dependencies
-	@cp -r build/intel64/${BUILD_ARG} ${DLSTREAMER_INSTALL_PREFIX}
+	@cp -r build/intel64/${BUILD_TYPE} ${DLSTREAMER_INSTALL_PREFIX}
 	@cp -r samples/ ${DLSTREAMER_INSTALL_PREFIX}
 	@cp -r python/ ${DLSTREAMER_INSTALL_PREFIX}
 	@cp -r scripts/ ${DLSTREAMER_INSTALL_PREFIX}
