@@ -84,13 +84,6 @@ RUN poetry install --only main
 FROM python-base AS dev
 ENV FASTAPI_ENV=development
 
-# Install runtime dependency for opencv
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
-
 WORKDIR $SETUP_PATH
 
 # Copy the poetry installation and the virtual env to current image
@@ -115,11 +108,8 @@ ENV FASTAPI_ENV=production
 
 WORKDIR /my-app
 
-# Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libmagic-dev \
-    libgl1-mesa-glx \
-    libglib2.0-0 && \
+    libmagic-dev && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
