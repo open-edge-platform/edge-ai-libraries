@@ -7,16 +7,27 @@ metadata:
 data:
   config.yaml: |
     model_settings:
+      MODEL_BACKEND: "{{ .Values.global.MODEL_BACKEND }}"
       EMBEDDING_MODEL_ID: "{{ .Values.global.EMBEDDING_MODEL }}"
-      RERANKER_MODEL_ID: "{{ .Values.global.RERANKER_MODEL }}"
       LLM_MODEL_ID: "{{ .Values.global.LLM_MODEL }}"
       MAX_TOKENS: {{ .Values.global.MAX_TOKENS }}
       {{- if .Values.global.PROMPT_TEMPLATE }}
       PROMPT_TEMPLATE: |
       {{ .Values.global.PROMPT_TEMPLATE | nindent 8 }}
       {{- end }}
+
+      {{- if and (ne (.Values.global.MODEL_BACKEND  | lower) "ollama") (.Values.global.RERANKER_MODEL) }}
+      RERANKER_MODEL_ID: "{{ .Values.global.RERANKER_MODEL }}"
+      {{- end }}
+
+      {{- if eq (.Values.global.MODEL_BACKEND | lower) "ollama" }}
+      KEEP_ALIVE: {{ .Values.global.KEEP_ALIVE }}
+      {{- end }}
+
     device_settings:
       EMBEDDING_DEVICE: "{{ .Values.global.EMBEDDING_DEVICE }}"
-      RERANKER_DEVICE: "{{ .Values.global.RERANKER_DEVICE }}"
       LLM_DEVICE: "{{ .Values.global.LLM_DEVICE }}"
+      {{- if and (ne (.Values.global.MODEL_BACKEND | lower) "ollama") (.Values.global.RERANKER_DEVICE) }}
+      RERANKER_DEVICE: "{{ .Values.global.RERANKER_DEVICE }}"
+      {{- end }}
 {{- end}}

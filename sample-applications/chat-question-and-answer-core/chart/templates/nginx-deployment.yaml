@@ -83,5 +83,5 @@ spec:
     - protocol: TCP
       port: 8102
       targetPort: 8102
-      nodePort: {{ .Values.global.UI_NODEPORT }}
+      nodePort: {{ .Values.global.ui_nodeport }}
   type: NodePort

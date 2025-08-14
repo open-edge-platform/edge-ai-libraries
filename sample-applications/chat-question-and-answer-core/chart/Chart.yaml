@@ -6,4 +6,4 @@ appVersion: "1.0"
 dependencies:
   - name: chatqna-ui
     version: 0.1.0
-    repository: "file://common/chatqna"
+    repository: "file://subchart/chatqna-ui"
