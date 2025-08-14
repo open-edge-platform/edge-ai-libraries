@@ -4,7 +4,7 @@
 
 DL Streamer Pipeline Server supports dynamic update of pipeline parameters using REST API. Users are required to provide required placeholders in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` to make it configurable at run-time of DL Streamer Pipeline Server container. 
 
-In case users want to update default pipeline, they need to update the same in configuration file that DL Streamer Pipeline Server loads. Users can mount updated config files from host systems on to DL Streamer Pipeline Server containers by updating `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`. To get you started, instruction to create sample docker compose file is available [here](./get-started.md#pull-the-image-and-start-container). Refer below snippets:
+In case users want to update default pipeline, they need to update the same in configuration file that DL Streamer Pipeline Server loads. Users can mount updated config files from host systems on to DL Streamer Pipeline Server containers by updating `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml`. To get started, refer the steps mentioned [here](./get-started.md#pull-the-image-and-start-container). Refer below snippets:
 
 ```sh
     volumes:
