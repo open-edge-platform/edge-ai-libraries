@@ -43,6 +43,9 @@ jobs:
         with:
           persist-credentials: false
 
+      - name: Remove thirdparty folder
+        run: rm -rf libraries/dl-streamer/thirdparty
+ 
       - name: Code-style action
         uses: ./.github/actions/common/code-style
         with:

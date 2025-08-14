@@ -16,9 +16,9 @@ on:
           - 'cache'
 permissions: {}
 env:
-  dlstreamer-version: "2025.0.1.3"
+  dlstreamer-version: "2025.1.2"
   DLS_REL_PATH: "./libraries/dl-streamer"
-  
+
 jobs:
   build-dls-deb-img:
     name: Build DLS ${{ matrix.ubuntu_version }} .deb and deb img
@@ -163,7 +163,7 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-  
+
     - name: Init submodules
       run: |
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
@@ -262,10 +262,10 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        
+
         ubuntu_version: [ubuntu22, ubuntu24]
-       
-        
+
+
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -325,7 +325,7 @@ jobs:
         report_suffix: ${{ matrix.ubuntu_version }}-edge-ai-dlstreamer-pipeline-server-extended
         scan-scope: all
         timeout: 20m
-        ignore_unfixed: true   
+        ignore_unfixed: true
 
     - name: Fail if vulnerabilities > 0 in Trivy results
       run: |

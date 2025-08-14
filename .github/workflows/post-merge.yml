@@ -63,7 +63,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.dlstreamer-pipeline-server_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -77,7 +77,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.document-ingestion_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -91,7 +91,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.model-registry_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -105,7 +105,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.object-store_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -119,7 +119,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -133,7 +133,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.visual-pipeline-platform-tool_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -147,7 +147,7 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer-core_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -161,14 +161,14 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.time-series-analytics-docs_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/time-series-analytics
-      branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
   build_plcopen-motion-control:
     permissions:
       contents: read          # needed for actions/checkout
@@ -176,11 +176,11 @@ jobs:
       issues: write           # needed to post PR comment
     needs: filter
     if: ${{ needs.filter.outputs.plcopen-motion-control_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: libraries/edge-control-libraries/plcopen-motion-control
-      branch_pattern: '^main$'  # PLCopen Motion Control only exists on 'main' branch
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it

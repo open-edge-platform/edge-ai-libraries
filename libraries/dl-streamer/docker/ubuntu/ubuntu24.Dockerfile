@@ -42,7 +42,7 @@ LABEL vendor="Intel Corporation"
 ARG GST_VERSION=1.26.4
 ARG OPENVINO_VERSION=2025.2.0
 
-ARG DLSTREAMER_VERSION=2025.0.1.3
+ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
@@ -64,7 +64,7 @@ RUN \
 RUN \
     curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
     gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" |\ 
+    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" |\
     tee /etc/apt/sources.list.d/intel-gpu-noble.list
 
 RUN \
@@ -76,7 +76,7 @@ RUN \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
-    
+
 RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
@@ -263,6 +263,29 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
 COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
 
+# Build librealsense
+WORKDIR /home/dlstreamer
+
+RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev libusb-1.0-0-dev libudev-dev pkg-config libgtk-3-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+RUN git clone https://github.com/IntelRealSense/librealsense.git librealsense
+
+WORKDIR /home/dlstreamer/librealsense
+
+RUN mkdir build
+
+WORKDIR /home/dlstreamer/librealsense/build
+
+RUN \
+    cmake ../ -DCMAKE_BUILD_TYPE="${BUILD_ARG}" -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
+    make -j "$(nproc)" && \
+    make install
+
+# Build DL Streamer
+WORKDIR /home/dlstreamer
+
 RUN apt-get update && apt-get install --no-install-recommends -y gnupg=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -300,18 +323,19 @@ ENV GST_PLUGIN_SCANNER=${GSTREAMER_DIR}/bin/gstreamer-1.0/gst-plugin-scanner
 ENV GI_TYPELIB_PATH=${GSTREAMER_DIR}/lib/girepository-1.0
 ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${PYTHONPATH}
 
-# Build DLStreamer 
+# Build DLStreamer
 RUN \
     cmake \
-    -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
-    -DENABLE_PAHO_INSTALLATION=ON \
-    -DENABLE_RDKAFKA_INSTALLATION=ON \
-    -DENABLE_VAAPI=ON \
-    -DENABLE_SAMPLES=ON \
-    .. && \
-    make -j "$(nproc)" && \
-    usermod -a -G video dlstreamer && \
-    chown -R dlstreamer:dlstreamer /home/dlstreamer
+       -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
+       -DENABLE_PAHO_INSTALLATION=ON \
+       -DENABLE_RDKAFKA_INSTALLATION=ON \
+       -DENABLE_VAAPI=ON \
+       -DENABLE_SAMPLES=ON \
+       -DENABLE_REALSENSE=ON \
+       .. && \
+       make -j "$(nproc)" && \
+       usermod -a -G video dlstreamer && \
+       chown -R dlstreamer:dlstreamer /home/dlstreamer
 
 WORKDIR /home/dlstreamer
 USER dlstreamer
@@ -398,7 +422,7 @@ RUN \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
-    
+
 RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu24.04_amd64.deb && \
