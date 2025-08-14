@@ -27,7 +27,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'dlstreamer-pipeline-server') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -40,7 +40,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'document-ingestion') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -53,7 +53,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'model-registry') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -66,7 +66,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'object-store') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -79,7 +79,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'chat-question-and-answer') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -92,7 +92,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'visual-pipeline-platform-tool') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -105,7 +105,7 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'chat-question-and-answer-core') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -118,21 +118,21 @@ jobs:
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'time-series-analytics') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@d690355163684f717d02a1e65650b8401670cd9a
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/time-series-analytics
-      branch_pattern: '^main$'  # TimeSeries Analytics Microservice only exists on 'main' branch
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
   build_plcopen-motion-control:
     permissions:
       contents: read          # needed for actions/checkout
       pull-requests: read     # needed for gh pr list
       issues: write           # needed to post PR comment
     if: ${{ (github.event.inputs.target == 'plcopen-motion-control') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@734970a73e3d6e8d7cd160e2cad6366770f52403
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -140,4 +140,4 @@ jobs:
     with:
       docs_directory: libraries/edge-control-libraries/plcopen-motion-control
       simple_mode: false
-      branch_pattern: '^main$'  # PLCopen Motion Control only exists on 'main' branch
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
