@@ -28,25 +28,11 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
      cd ./edge-ai-libraries/tools/visual-pipeline-and-platform-evaluation-tool
      ```
-     
-2. **Set Up Environment Variables**:
-   - Execute the setup script with the desired device profile:
-      ```bash
-       # For default CPU setup
-       source setup_env.sh
 
-       # For GPU setup
-       source setup_env.sh -d gpu
-     
-       # For NPU setup
-       source setup_env.sh -d npu
-      ```
-
-3. **Build and Start the Tool**:
-   - Run:
+2. **Build and Start the Tool**:
+   - Set the appropriate device type (CPU, GPU, or NPU) and run the following command:
      ```bash
-     make build
-     make run
+     make build run DEVICE_TYPE=<CPU/GPU/NPU>
      ```
 
 
