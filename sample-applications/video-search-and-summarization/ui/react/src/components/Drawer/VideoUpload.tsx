@@ -232,12 +232,20 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
       formData.append('tags', videoData.tags);
     }
 
-    return await axios.post<VideoRO>(videoUploadAPi, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (ev: AxiosProgressEvent) => {
-        setUploadProgress((ev.progress ?? 0) * 100);
-      },
-    });
+    try {
+      return await axios.post<VideoRO>(videoUploadAPi, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (ev: AxiosProgressEvent) => {
+          setUploadProgress((ev.progress ?? 0) * 100);
+        },
+      });
+    } catch (error) {
+      // Add context to the error
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Video upload failed: ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
   };
 
   const triggerSummaryPipeline = async (videoId: string): Promise<SummaryPipelinRO | null> => {
@@ -249,17 +257,18 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
       });
       return pipelineRes.data;
     } catch (error) {
-      if (error) {
-        notify('Unable to trigger pipeline', NotificationSeverity.ERROR);
+      // Add context to the error
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Pipeline trigger failed: ${error.response?.data?.message || error.message}`);
       }
-      return null;
+      throw error;
     }
   };
 
   const getSummaryPipelineDTO = (videoId: string): SummaryPipelineDTO => {
     const title = summaryName ?? '';
 
-    let res: SummaryPipelineDTO = {
+    const res: SummaryPipelineDTO = {
       evam: { evamPipeline: (selectorRef?.current?.value as EVAMPipelines) ?? EVAMPipelines.OBJECT_DETECTION },
       sampling: {
         chunkDuration: chunkDuration,
@@ -292,7 +301,15 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
   };
 
   const fetchUIState = async (stateId: string) => {
-    return await axios.get<UIState>(`${stateApi}/${stateId}`);
+    try {
+      return await axios.get<UIState>(`${stateApi}/${stateId}`);
+    } catch (error) {
+      // Add context to the error
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Failed to fetch UI state: ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
   };
 
   const triggerSummary = async () => {
@@ -331,14 +348,22 @@ export const VideoUpload: FC<VideoUploadProps> = ({ closeDrawer, isOpen }) => {
           }
         }
       }
-    } catch (error: any) {
-      console.log('ERROR', error);
-      if (error.reponse && error.response.data) {
-        notify(error.response.data.message, NotificationSeverity.ERROR);
-      }
+    } catch (error: unknown) {
+      console.error('Video upload/processing error:', error);
       setUploading(false);
-      setProgressText(t('error'));
       setProcessing(false);
+
+      // Extract error message from backend response
+      let errorMessage = t('videoUploadError');
+
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      notify(errorMessage, NotificationSeverity.ERROR);
+      setProgressText('');
     }
 
     setUploading(false);
