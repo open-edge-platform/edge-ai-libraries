@@ -195,9 +195,11 @@ export const VideoUploadSearch: FC<VideoUploadProps> = ({ closeDrawer, isOpen })
       }
     } catch (error: any) {
       console.log('ERROR', error);
-      if (error.reponse && error.response.data) {
+
+      if (error.response && error.response.data && error.response.data.message) {
         notify(error.response.data.message, NotificationSeverity.ERROR);
       }
+
       setUploading(false);
       setProgressText(t('error'));
       setProcessing(false);
