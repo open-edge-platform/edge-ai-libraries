@@ -23,6 +23,8 @@ README.md           @xwu2intel
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 # this folder does not exist
 /microservices/object-store/                           @bharagha @madhuri-rai07 @yogeshmpandey
+/microservices/isolation-forest                        @DrewBearly @ritachat @alexturk4
+/microservices/random-forest                           @DrewBearly @ritachat @alexturk4
 
 # sample-applications
 # /sample-applications/chat-question-and-answer/  lacks codeowners, consider adding
