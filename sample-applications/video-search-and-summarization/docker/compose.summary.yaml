@@ -204,7 +204,7 @@ services:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
       interval: 30s
       timeout: 10s
-      retries: 3
+      retries: 10
       start_period: 10s
     networks:
       - vs_network
