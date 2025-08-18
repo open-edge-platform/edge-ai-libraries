@@ -10,6 +10,7 @@ on:
         - all-documentation
         - dlstreamer-pipeline-server
         - document-ingestion
+        - document-summarization
         - model-registry
         - object-store
         - chat-question-and-answer
@@ -17,6 +18,7 @@ on:
         - chat-question-and-answer-core
         - time-series-analytics
         - plcopen-motion-control
+        - video-search-and-summarization
 
 permissions: {}
 
@@ -34,6 +36,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/dlstreamer-pipeline-server
+
   build_document-ingestion:
     permissions:
       contents: read          # needed for actions/checkout
@@ -47,6 +50,22 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/document-ingestion
+
+  build_document-summarization:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
+    if: ${{ (github.event.inputs.target == 'document-summarization') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
+    secrets:
+      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
+      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+    with:
+      docs_directory: sample-applications/document-summarization
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
+
   build_model-registry:
     permissions:
       contents: read          # needed for actions/checkout
@@ -60,6 +79,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/model-registry
+
   build_object-store:
     permissions:
       contents: read          # needed for actions/checkout
@@ -73,6 +93,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/object-store
+
   build_chat-question-and-answer:
     permissions:
       contents: read          # needed for actions/checkout
@@ -86,6 +107,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: sample-applications/chat-question-and-answer
+
   build_visual-pipeline-platform-tool:
     permissions:
       contents: read          # needed for actions/checkout
@@ -99,6 +121,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: tools/visual-pipeline-and-platform-evaluation-tool
+
   build_chat-question-and-answer-core:
     permissions:
       contents: read          # needed for actions/checkout
@@ -112,6 +135,7 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: sample-applications/chat-question-and-answer-core
+
   build_time-series-analytics:
     permissions:
       contents: read          # needed for actions/checkout
@@ -126,6 +150,7 @@ jobs:
     with:
       docs_directory: microservices/time-series-analytics
       branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
+
   build_plcopen-motion-control:
     permissions:
       contents: read          # needed for actions/checkout
@@ -140,4 +165,19 @@ jobs:
     with:
       docs_directory: libraries/edge-control-libraries/plcopen-motion-control
       simple_mode: false
+      branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
+
+  build_video-summarization:
+    permissions:
+      contents: read          # needed for actions/checkout
+      pull-requests: read     # needed for gh pr list
+      issues: write           # needed to post PR comment
+    if: ${{ (github.event.inputs.target == 'video-search-and-summarization') || (github.event.inputs.target == 'all-documentation') }}
+    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@8b0ae64836f0395b21ff9dd7d9438284e8e8beda
+    secrets:
+      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
+      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+    with:
+      docs_directory: sample-applications/video-search-and-summarization
       branch_pattern: '(?!release-1\.0\.0)(^(main|release-.*)$)'  # Does not exist on release-1.0.0 branch - Exclude it
