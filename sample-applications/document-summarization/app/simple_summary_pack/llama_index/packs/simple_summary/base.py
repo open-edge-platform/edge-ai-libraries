@@ -3,6 +3,9 @@
 
 """Simple Summary."""
 
+import nltk
+nltk.download('stopwords')
+
 from typing import Any, Dict, List, Optional, List
 
 from llama_index.core.llama_pack import BaseLlamaPack
