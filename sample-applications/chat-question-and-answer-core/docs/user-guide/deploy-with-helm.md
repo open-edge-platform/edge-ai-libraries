@@ -153,8 +153,12 @@ helm uninstall <name> -n <your-namespace>
   ```bash
   kubectl logs <pod_name>
   ```
-- The _PVC_ created during helm chart deployment will remain present until explicitly deleted, use the below command to delete:
+- If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, it must be deleted manually using the following commands:
   ```bash
+  # List the PVCs present in the given namespace
+  kubectl get pvc -n <namespace>
+
+  # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 ## Related links

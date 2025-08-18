@@ -93,7 +93,8 @@ reranker:
 chatqnaui:
   name: chatqna-ui
   service:
-    port: 80
+    port: 8101
 
 nginxService:
-  annotations: {}
+  annotations:
+    service-proxy.app.orchestrator.io/ports: "80"

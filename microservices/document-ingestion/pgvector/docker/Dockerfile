@@ -51,12 +51,6 @@ RUN poetry install --no-dev && \
 FROM python-base AS dev
 ENV FASTAPI_ENV=development
 
-# Install runtime dependency for opencv
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-
 WORKDIR $SETUP_PATH
 
 # Copy the poetry installation and the virtual env to current image
@@ -77,12 +71,6 @@ CMD ["uvicorn", "--host", "0.0.0.0", "--reload", "app.main:app"]
 # `prod` image used for runtime
 FROM python-base AS prod
 ENV FASTAPI_ENV=production
-
-# Install runtime dependency for opencv
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libgl1-mesa-glx \
-    libglib2.0-0 && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 COPY . /app/

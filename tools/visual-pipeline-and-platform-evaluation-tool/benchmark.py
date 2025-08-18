@@ -3,6 +3,7 @@
 This module provides the Benchmark class for evaluating pipeline performance
 based on configurable parameters and stream counts.
 """
+
 import logging
 import math
 from typing import List, Dict, Tuple
