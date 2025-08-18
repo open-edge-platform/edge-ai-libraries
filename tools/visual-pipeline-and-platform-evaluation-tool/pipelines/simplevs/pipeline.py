@@ -4,7 +4,7 @@ from pathlib import Path
 import struct
 
 from gstpipeline import GstPipeline
-from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH
+from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH, is_yolov10_model
 
 
 class SimpleVideoStructurizationPipeline(GstPipeline):
@@ -27,6 +27,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "   pre-process-backend={object_detection_pre_process_backend} "
             "   batch-size={object_detection_batch_size} "
             "   inference-interval={object_detection_inference_interval} "
+            "   {ie_config_parameter} "
             "   nireq={object_detection_nireq} ! "
             "queue ! "
             "gvatrack "
@@ -48,11 +49,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         )
 
         self._inference_output_stream = (
-            "{encoder} ! "
-            "h264parse ! "
-            "mp4mux ! "
-            "filesink "
-            "  location={VIDEO_OUTPUT_PATH} "
+            "{encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
         )
 
         # Add shmsink for live preview (shared memory)
@@ -78,7 +75,6 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         inference_channels: int,
         elements: list = None,
     ) -> str:
-
         # Set decoder element based on device
         _decoder_element = (
             "decodebin3 "
@@ -118,14 +114,19 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         # Set model config for object detection
         detection_model_config = (
-            f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
-            f"model-proc={constants["OBJECT_DETECTION_MODEL_PROC"]} "
+            f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
+            f"model-proc={constants['OBJECT_DETECTION_MODEL_PROC']} "
         )
 
         if not constants["OBJECT_DETECTION_MODEL_PROC"]:
             detection_model_config = (
-                f"model={constants["OBJECT_DETECTION_MODEL_PATH"]} "
+                f"model={constants['OBJECT_DETECTION_MODEL_PATH']} "
             )
+
+        # Set inference config parameter for GPU if using YOLOv10
+        ie_config_parameter = ""
+        if parameters["object_detection_device"] == "GPU" and is_yolov10_model(constants['OBJECT_DETECTION_MODEL_PATH']):
+            ie_config_parameter = "ie-config=GPU_DISABLE_WINOGRAD_CONVOLUTION=YES"
 
         streams = ""
 
@@ -149,21 +150,24 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 **constants,
                 decoder=_decoder_element,
                 detection_model_config=detection_model_config,
+                ie_config_parameter=ie_config_parameter,
             )
 
             # Handle object classification parameters and constants
             # Do this only if the object classification model is not disabled or the device is not disabled
-            if not (constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
-                    or parameters["object_classification_device"] == "Disabled"):
+            if not (
+                constants["OBJECT_CLASSIFICATION_MODEL_PATH"] == "Disabled"
+                or parameters["object_classification_device"] == "Disabled"
+            ):
                 # Set model config for object classification
                 classification_model_config = (
-                    f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
-                    f"model-proc={constants["OBJECT_CLASSIFICATION_MODEL_PROC"]} "
+                    f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
+                    f"model-proc={constants['OBJECT_CLASSIFICATION_MODEL_PROC']} "
                 )
 
                 if not constants["OBJECT_CLASSIFICATION_MODEL_PROC"]:
                     classification_model_config = (
-                        f"model={constants["OBJECT_CLASSIFICATION_MODEL_PATH"]} "
+                        f"model={constants['OBJECT_CLASSIFICATION_MODEL_PATH']} "
                     )
 
                 streams += self._inference_stream_classify.format(
@@ -173,11 +177,17 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 )
 
             # Overlay inference results on the inferred video if enabled
-            if parameters["pipeline_watermark_enabled"] and parameters["pipeline_video_enabled"]:
+            if (
+                parameters["pipeline_watermark_enabled"]
+                and parameters["pipeline_video_enabled"]
+            ):
                 streams += "gvawatermark ! "
 
             # Use video output for the first inference channel if enabled, otherwise use fakesink
-            if i == 0 and (parameters["pipeline_video_enabled"] or parameters["live_preview_enabled"]):
+            if i == 0 and (
+                parameters["pipeline_video_enabled"]
+                or parameters["live_preview_enabled"]
+            ):
                 if parameters["live_preview_enabled"]:
                     # Use tee to split to both file and shmsink, fill in width/height here
                     streams += self._shmsink_branch.format(
@@ -185,10 +195,12 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                         encoder=_encoder_element,
                         width=width,
                         height=height,
-                        shmsink=self._shmsink
+                        shmsink=self._shmsink,
                     )
                 else:
-                    streams += self._inference_output_stream.format(**constants, encoder=_encoder_element)
+                    streams += self._inference_output_stream.format(
+                        **constants, encoder=_encoder_element
+                    )
             else:
                 streams += "fakesink "
 

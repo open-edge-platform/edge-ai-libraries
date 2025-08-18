@@ -13,7 +13,7 @@ This guide provides instructions for deploying the Text Generation Inference (TG
 1. Clone the repository:
 
   ```sh
-  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+  git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
   cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/llm/tgi
   ```
   Adjust the repo link appropriately in case of forked repo.

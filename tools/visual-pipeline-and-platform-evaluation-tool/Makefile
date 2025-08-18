@@ -6,7 +6,8 @@ SHELL := bash -eu -o pipefail
 # default goal to show help
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
-	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help
+	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help \
+	public_models_choice reset_public_models_choice
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -18,6 +19,8 @@ DEV_COMPOSE_FILE := compose.dev.yml
 
 # Python venv Target
 VENV_DIR := .venv
+
+PUBLIC_MODELS_ENV := .public_models_env
 
 # Placeholder to prevent warnings about missing variables.
 # This value is overridden by setup_env.sh in relevant targets.
@@ -72,12 +75,31 @@ build-dev: check-device-type $(VENV_DIR) ## Build all dev images
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
 
-run: check-device-type ## Run the docker compose services
+public_models_choice: ## Ask if public models shall be downloaded
+	@if [ -f $(PUBLIC_MODELS_ENV) ]; then \
+		printf "Choice on downloading public models was already made, skipping prompt. "; \
+		printf "To reset choice run \`make reset_public_models_choice\`.\n"; \
+		exit 0; \
+	fi; \
+	read -p "Do you want to download public models? (y/n): " yn; \
+	case $$yn in \
+		y|Y|[yY][eE][sS]) DOWNLOAD_PUBLIC_MODELS=true ;; \
+		*) DOWNLOAD_PUBLIC_MODELS=false ;; \
+	esac; \
+	echo "DOWNLOAD_PUBLIC_MODELS set to $$DOWNLOAD_PUBLIC_MODELS" ;\
+	echo "DOWNLOAD_PUBLIC_MODELS=$$DOWNLOAD_PUBLIC_MODELS" > $(PUBLIC_MODELS_ENV)
+
+reset_public_models_choice: ## Reset choice on public models download
+	rm -rf $(PUBLIC_MODELS_ENV)
+
+run: check-device-type public_models_choice ## Run the docker compose services
 	source setup_env.sh -d $(DEVICE_TYPE) && \
+	mkdir -p models && chmod o+w models && \
 	docker compose up -d
 
-run-dev: check-device-type ## Run the docker compose services for development
+run-dev: check-device-type public_models_choice ## Run the docker compose services for development
 	source setup_env.sh -d $(DEVICE_TYPE) && \
+	mkdir -p models && chmod o+w models && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
 test: check-device-type ## Run tests

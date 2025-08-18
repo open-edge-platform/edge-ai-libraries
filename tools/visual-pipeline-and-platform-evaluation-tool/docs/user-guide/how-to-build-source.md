@@ -45,11 +45,8 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 3. **Build and Start the Tool**:
    - Run:
      ```bash
-     docker pull ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
-     docker pull docker.io/library/rust:1.87
-     docker pull docker.io/library/telegraf:1.32
-     docker compose build
-     docker compose up -d
+     make build
+     make run
      ```
 
 

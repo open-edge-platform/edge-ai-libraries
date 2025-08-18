@@ -6,10 +6,17 @@
 **Release Date**: WW32 2025
 
 - Enhanced container security by updating UI and NGINX containers to run as non-root users, aligning with industry best practices.
-- Improved EMT-S(Version 3.0) stability and performance through targeted bug fixes and optimizations.
-- Renamed stream_log/ endpoint to chat/, reflecting its current functionality more accurately.
+- Improved EMT-S 3.0 stability and performance through targeted bug fixes and optimizations. EMT 3.1 not supported in this version.
+- Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
+- Functional on EMT 3.0.
 
-## Previous Release
+## Known Issues/Behavior (Consolidated):
+- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
+- UI and NGINX container running as root Privilege in Helm Deployment - Closed
+- Application running into Model Type issue on EMT 3.1 - Open
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
+
+## Previous Releases
 
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
@@ -21,18 +28,11 @@
 - EMF deployment is supported.
 - Bug fixes.
 
-### Known Issues/Behavior:
-- UI and NGINX container running as root Privilege in Helm Deployment
-- Application running into Model Type issue on EMT.
-
 **Version**: 1.2.0 \
 **Release Date**: WW20 2025
 
 - Support for GPU (discrete and integrated) is now available. Refer to system requirements documentation for details.
 - Bug fixes
-
-### Known Issues/Behavior:
-- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases.
 
 ## Earlier releases
 

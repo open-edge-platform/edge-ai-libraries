@@ -43,26 +43,14 @@ By following this guide, you will learn how to:
         curl -L -o compose.yml "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
       ```
 
-3. **Download the Artifacts**:
-    - Download the artifacts:
+3. **Download Makefile**:
       ```bash
-        mkdir -p video_generator
-        curl -L -o video_generator/background.gif "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/background.gif"
-        curl -L -o video_generator/config.json "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/config.json"
-        mkdir -p video_generator/images/cars
-        curl -L -o video_generator/images/cars/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/1.png"
-        curl -L -o video_generator/images/cars/2.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/2.png"
-        curl -L -o video_generator/images/cars/3.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/cars/3.png"
-        mkdir -p video_generator/images/persons
-        curl -L -o video_generator/images/persons/1.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/1.png"
-        curl -L -o video_generator/images/persons/2.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/2.png"
-        curl -L -o video_generator/images/persons/3.png "https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/video_generator/images/persons/3.png"
+      curl -LO https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile
       ```
 
 4. **Start the Application**:
-    - Run the application using Docker Compose:
       ```bash
-      docker compose up -d
+      make run
       ```
 
 5. **Verify the Application**:

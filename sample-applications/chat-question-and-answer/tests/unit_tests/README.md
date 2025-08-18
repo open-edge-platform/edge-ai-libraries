@@ -61,7 +61,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Clone the repository to your local machine:
 
    ```bash
-   git clone <repository-url>
+   git clone <repository-url> -b release-1.2.0
    ```
 
 5. **Install the Required Packages**
@@ -133,7 +133,7 @@ If you prefer not to use virtual environment, please follow these steps:
     First, clone the repository to your local machine:
 
     ```bash
-    git clone <repository-url>
+    git clone <repository-url> -b release-1.2.0
     ```
 
 2. **Install the application dependencies**
