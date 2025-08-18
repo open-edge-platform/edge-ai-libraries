@@ -15,12 +15,12 @@
    - Use active voice and developer-focused language.
    - Follow the **Microsoft Developer Writing Style Guide**.
 
-4. **GitHub Copilot Can Help**:
+4. **GitHub Copilot Tool Can Help**:
    - **For Style Adherence**:
-     - This template specifys the style guide to be followed, ask Copilot to check.
-     - Copilot can generate suggestions in line with the specified writing style.
+     - This template specifys the style guide to be followed, ask GitHub Copilot tool to check.
+     - GitHub Copilot tool can generate suggestions in line with the specified writing style.
    - **To Validate Content Completeness**:
-     - The template includes in comments the user stories and acceptance criteria to be fulfilled by its content in each section. Copilot can check if you included all required information.
+     - The template includes in comments the user stories and acceptance criteria to be fulfilled by its content in each section. GitHub Copilot tool can check if you have included all required information.
 5. **Validation**:
    - Verify all details, links, and formatting before publishing.
    - Ensure that descriptions are accurate and actionable.
@@ -47,14 +47,14 @@ Details about the changes, improvements, and known issues in this release of the
      - [Learn More](./how-to-customize.md)
 -->
 
-- **Feature 1**: Pre-trained Models Optimized for Specific Use Cases: ViPPET includes pre-trained models that are optimized for specific use cases, such as object detection for Smart NVR pipeline. These models can be easily integrated into the pipeline, allowing users to quickly evaluate their performance on different Intel platforms.
-- **Feature 2**: Metrics Collection with Turbostat and Qmassa: VIPPET collects real-time CPU and GPU performance metrics using Turbostat and Qmassa. The collector agent runs in a dedicated collector container, gathering CPU and GPU metrics. Users can access and analyze these metrics via intuitive UI, enabling efficient system monitoring and optimization.
+- **Feature 1**: Pre-trained Models Optimized for Specific Use Cases: Visual Pipeline and Platform Evaluation Tool includes pre-trained models that are optimized for specific use cases, such as object detection for Smart NVR pipeline. These models can be easily integrated into the pipeline, allowing users to quickly evaluate their performance on different Intel® platforms.
+- **Feature 2**: Metrics Collection with Turbostat tool and Qmassa tool: Visual Pipeline and Platform Evaluation Tool collects real-time CPU and GPU performance metrics using Turbostat tool and Qmassa tool. The collector agent runs in a dedicated collector container, gathering CPU and GPU metrics. Users can access and analyze these metrics via intuitive UI, enabling efficient system monitoring and optimization.
 - **Feature 3**: Smart NVR Pipeline Integration: The Smart NVR Proxy Pipeline is seamlessly integrated into the tool, providing a structured video recorder architecture. It enables video analytics by supporting AI inference on selected input channels while maintaining efficient media processing. The pipeline includes multi-view composition, media encoding, and metadata extraction for insights.
 
 
 
 ### Known Issues
 
-- **Issue**: The VIPPET container fails to start the analysis when the "Run" button is clicked in the UI, specifically for systems without GPU.
+- **Issue**: The Visual Pipeline and Platform Evaluation Tool container fails to start the analysis when the "Run" button is clicked in the UI, specifically for systems without GPU.
   - **Workaround**: Consider upgrading the hardware to meet the required specifications for optimal performance.
 

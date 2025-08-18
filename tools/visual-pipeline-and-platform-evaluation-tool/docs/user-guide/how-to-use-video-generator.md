@@ -1,7 +1,7 @@
 
 # Build and Use Video Generator
 
-ViPPET includes a video generator that creates composite videos from images stored in subdirectories.
+Visual Pipeline and Platform Evaluation Tool includes a video generator that creates composite videos from images stored in subdirectories.
 
 This guide is ideal for developers who want to work directly with the source code.
 
