@@ -24,7 +24,7 @@
     "@nestjs/common": "^11.1.6",
     "@nestjs/config": "^4.0.2",
     "@nestjs/core": "^11.1.6",
-    "@nestjs/event-emitter": "^3.0.1",
+    "@nestjs/event-emitter": " ^3.0.1",
     "@nestjs/platform-express": "^11.1.6",
     "@nestjs/platform-socket.io": "^11.1.6",
     "@nestjs/swagger": "^11.2.0",
@@ -41,7 +41,7 @@
     "luxon": "^3.7.1",
     "minio": "^8.0.5",
     "nestjs-otel": "^7.0.1",
-    "openai": "^5.12.1",
+    "openai": "^4.82.0",
     "pg": "^8.16.3",
     "rabbitmq-client": "^5.0.5",
     "reflect-metadata": "^0.2.2",
@@ -56,7 +56,7 @@
     "@nestjs/cli": "^11.0.10",
     "@nestjs/schematics": "^11.0.7",
     "@nestjs/testing": "^11.1.6",
-    "@swc/cli": "^0.7.8",
+    "@swc/cli": "^0.6.0",
     "@swc/core": "^1.13.3",
     "@types/amqplib": "^0.10.7",
     "@types/express": "^5.0.3",
@@ -79,9 +79,6 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0"
-  },
-  "overrides": {
-    "form-data": "4.0.4"
   },
   "jest": {
     "moduleFileExtensions": [
