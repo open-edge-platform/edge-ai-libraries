@@ -14,6 +14,8 @@ This guide shows how to:
 - **Run different application stacks**: Execute different application stacks available in the application to perform video search and summary.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
+
+
 ## ✅ Prerequisites
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
@@ -34,7 +36,6 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.base.yaml      # Base services configuration
 │   ├── compose.summary.yaml   # Compose override file for video summarization services
 │   ├── compose.search.yaml    # Compose override file for Video search services 
-│   ├── compose.gpu_vlm.yaml   # GPU configuration for VLM
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OVMS
 ├── docs                       # Documentation
 │   └── user-guide             # User guides and tutorials
@@ -156,6 +157,19 @@ The Video Summary application offers multiple stacks and deployment options:
 ## ▶️ Running the Application
 
 <a name="running-app"></a>
+
+> **ℹ️ Note for EMT (Edge Microvisor Toolkit) Users**
+>
+> If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)**—an Azure Linux-based build pipeline for Intel® platforms—you must install the following package:
+>
+> ```bash
+> sudo dnf install mesa-libGL
+> # If you are using TDNF, you can use the following command to install:
+> sudo tdnf search mesa-libGL
+> sudo tdnf install mesa-libGL
+> ```
+>
+> Installing `mesa-libGL` provides the OpenGL library which is needed by `Audio Analyzer service`.
 
 Follow these steps to run the application:
 

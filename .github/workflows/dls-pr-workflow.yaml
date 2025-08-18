@@ -32,6 +32,25 @@ on:
 permissions: {}
 
 jobs:
+  code-style:
+    permissions:
+      contents: read
+    name: SCAN code-style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Remove thirdparty folder
+        run: rm -rf libraries/dl-streamer/thirdparty
+ 
+      - name: Code-style action
+        uses: ./.github/actions/common/code-style
+        with:
+          target_dir: "libraries/dl-streamer"
+
   check-license-headers:
     permissions:
       contents: read

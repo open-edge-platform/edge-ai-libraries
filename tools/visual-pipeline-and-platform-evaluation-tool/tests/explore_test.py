@@ -5,7 +5,6 @@ from explore import GstInspector
 
 
 class TestGstInspector(unittest.TestCase):
-
     def setUp(self):
         # Reset the singleton instance before each test
         GstInspector._instance = None

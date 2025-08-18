@@ -23,10 +23,9 @@ if (NOT CMAKE_BUILD_TYPE)
 endif()
 
 # Define version
-set(VERSION_YEAR 2025)
-set(VERSION_MAJOR 0)
+set(VERSION_MAJOR 2025)
 set(VERSION_MINOR 1)
-set(VERSION_PATCH 3)
+set(VERSION_PATCH 2)
 
 if (NOT DEFINED GIT_INFO OR "${GIT_INFO}" STREQUAL "")
     set(GIT_INFO "0")
@@ -35,7 +34,7 @@ endif()
 
 configure_file(cmake/version.txt.in version.txt)
 
-set(PRODUCT_VERSION ${VERSION_YEAR}.${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
+set(PRODUCT_VERSION ${VERSION_MAJOR}.${VERSION_MINOR}.${VERSION_PATCH})
 set(PLUGIN_VERSION ${PRODUCT_VERSION})
 
 # Propagate version to plugins
@@ -127,9 +126,11 @@ cmake_dependent_option(ENABLE_TESTS "Parameter to enable tests building" ON "UNI
 cmake_dependent_option(ENABLE_RDKAFKA_INSTALLATION "Enables rdkafka installation" OFF "UNIX" OFF)
 option(ENABLE_AUDIO_INFERENCE_ELEMENTS "Enables audio inference elements" ON)
 option(ENABLE_VPUX "Enables VPUX specific features" OFF)
+option(ENABLE_REALSENSE "Parameter to enable RelaseSense plugin compilation" OFF)
 option(ENABLE_GENAI "Enables GenAI elements" OFF)
 message("ENABLE_PAHO_INSTALLATION=${ENABLE_PAHO_INSTALLATION}")
 message("ENABLE_RDKAFKA_INSTALLATION=${ENABLE_RDKAFKA_INSTALLATION}")
+message("ENABLE_REALSENSE=${ENABLE_REALSENSE}")
 
 # Define compiler flags
 

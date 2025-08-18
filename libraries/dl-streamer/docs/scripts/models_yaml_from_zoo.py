@@ -240,7 +240,7 @@ for key, value in models.items():
         tempv = tempv[0].get('source', '')
     value.pop('files', None)
 
-    models_filtered[key] = value 
+    models_filtered[key] = value
 
 with open(args.output, 'w') as file:
     yaml.dump(models_filtered, file)
