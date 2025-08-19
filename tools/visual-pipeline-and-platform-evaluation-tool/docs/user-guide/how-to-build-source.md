@@ -36,6 +36,7 @@ new to these concepts, see:
 
 2. **Build and Start the Tool**:
    - Set the appropriate device type (CPU, GPU, or NPU) and run the following command:
+
      ```bash
      make build run DEVICE_TYPE=<CPU/GPU/NPU>
      ```

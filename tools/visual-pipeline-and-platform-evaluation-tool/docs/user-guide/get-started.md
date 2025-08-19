@@ -20,12 +20,15 @@ By following this guide, you will learn how to:
 ## Set up and First Use
 
 1. **Set Up Environment Variables**:
-   - Create and navigate to the directory:
-     ```bash
-     mkdir visual-pipeline-and-platform-evaluation-tool
-     cd visual-pipeline-and-platform-evaluation-tool
-     ```
+    - Create and navigate to the directory:
+
+      ```bash
+      mkdir visual-pipeline-and-platform-evaluation-tool
+      cd visual-pipeline-and-platform-evaluation-tool
+      ```
+
     - Download all required files:
+
       ```bash
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
@@ -36,6 +39,7 @@ By following this guide, you will learn how to:
 
 2. **Start the Application**:
     - Set the appropriate device type (CPU, GPU, or NPU) and run the following command:
+
       ```bash
       make run DEVICE_TYPE=<CPU/GPU/NPU>
       ```
@@ -52,14 +56,13 @@ By following this guide, you will learn how to:
 
     - **Expected Results**:
       - The microservice’s UI loads successfully.
-      - The Smart NVR or Simple VS pipeline is automatically executed when the "Run" button is clicked, and the output video is shown with device metrics.
-
+      - The Smart NVR or Simple VS pipeline is automatically executed when the "Run" button is clicked, and the
+        output video is shown with device metrics.
 
 ## Validation
 
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating that the microservice has started successfully.
-
 
 ## Advanced Setup Options
 
@@ -74,7 +77,6 @@ For alternative ways to set up the sample application, see:
   failing or becoming unresponsive for users without GPU hardware.
   - **Solution**: To avoid this issue, consider upgrading the hardware to meet the required specifications for
     optimal performance.
-
 
 ## Troubleshooting
 
