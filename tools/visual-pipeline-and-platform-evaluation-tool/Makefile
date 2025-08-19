@@ -102,10 +102,10 @@ run-dev: check-device-type public_models_choice ## Run the docker compose servic
 	mkdir -p models && chmod o+w models && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
-test: check-device-type ## Run tests
-	source setup_env.sh -d $(DEVICE_TYPE) && \
+test: $(VENV_DIR) ## Run tests
+	# Use only the vippet-cpu container to run tests as they are not device-dependent
 	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
-		vippet-$(shell echo $(DEVICE_TYPE) | tr '[:upper:]' '[:lower:]') python -m unittest discover -v -s ./tests -p '*_test.py'
+		vippet-cpu python -m unittest discover -v -s ./tests -p '*_test.py'
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
