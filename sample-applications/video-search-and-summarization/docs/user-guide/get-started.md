@@ -27,7 +27,7 @@ This guide shows how to:
 
 The repository is organized as follows:
 
-```plaintext
+```text
 sample-applications/video-search-and-summarization/
 ├── config                     # Configuration files
 │   ├── nginx.conf             # Nginx configuration
