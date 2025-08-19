@@ -34,7 +34,7 @@ Details about the changes, improvements, and known issues in this release of the
 ## Current Release: [Version 1.2]
 **Release Date**: [2025-08-20]
 
-### New Features
+### New Features (v1.2)
 
 - **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C) pipeline is a versatile, use case-agnostic solution that supports license plate recognition, vehicle detection with attribute classification, and other object detection and classification tasks, adaptable based on the selected model.
 - **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing users to view real-time results directly in the UI. This feature enhances the user experience by providing immediate feedback on video processing tasks.
@@ -47,7 +47,7 @@ Details about the changes, improvements, and known issues in this release of the
 ## Version 1.0.0
 **Release Date**: [2025-03-31]
 
-### New Features
+### New Features (v1.0.0)
 <!--
 **Guidelines for New Features**:
 1. **What to Include**:
