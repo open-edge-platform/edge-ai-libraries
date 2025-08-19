@@ -5,7 +5,7 @@ from http import HTTPStatus
 def test_chain_response(test_client, mocker):
     """
     Tests the chain response functionality of the server by simulating a POST
-    request to the `/stream_log` endpoint and verifying the streamed response.
+    request to the `/chat` endpoint and verifying the streamed response.
     Args:
         test_client: A test client instance used to simulate HTTP requests.
         mocker: A mocking library instance used to patch dependencies.
@@ -23,7 +23,7 @@ def test_chain_response(test_client, mocker):
     mocker.patch("app.server.build_chain", return_value=True)
     mocker.patch("app.server.process_query", return_value=iter(["one", "two"]))
 
-    response = test_client.post("/stream_log", json=payload)
+    response = test_client.post("/chat", json=payload)
 
     assert response.status_code == 200
     assert response.headers["content-type"] == "text/event-stream; charset=utf-8"
@@ -189,12 +189,15 @@ def test_fail_get_documents(test_client, mocker):
 
     mocker.patch('app.server.get_document_from_vectordb', side_effect=Exception("Error getting documents."))
 
+    mock_logger = mocker.patch('app.server.logger')
+    mock_logger.exception.return_value = None
+
     response = test_client.get("/documents")
 
     assert response.status_code == 500
     assert response.json() == {
         "detail": "Error getting documents."
-}
+    }
 
 
 def test_delete_embedding_failure(test_client, mocker):
@@ -214,6 +217,9 @@ def test_delete_embedding_failure(test_client, mocker):
     """
 
     mocker.patch('app.server.delete_embedding_from_vectordb', side_effect=Exception("Error deleting embeddings."))
+
+    mock_logger = mocker.patch('app.server.logger')
+    mock_logger.exception.return_value = None
 
     response = test_client.delete("/documents", params={"document": "test1.txt"})
 

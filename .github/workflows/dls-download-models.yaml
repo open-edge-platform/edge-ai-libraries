@@ -2,89 +2,168 @@ name: "[DLS] Models update on self-hosted runners"
 run-name: "[DLS] Models update on self-hosted runners (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
   schedule:
-    - cron: '0 6 * * MON' # 6:00 UTC each Monday
+    - cron: '0 5 * * MON' # 5:00 UTC each Monday
   workflow_dispatch:
+    inputs:
+      models_to_download:
+        description: 'Which models to download?'
+        required: true
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - public
+          - omz
+          - specified_model
+      model_name:
+        description: 'What model do you want to download?'
+        required: false
+        type: string
+      model_path:
+        description: 'Where do you want to download your specific model? (pulic/omz)'
+        required: false
+        type: string
+      runner_labels:
+        description: "List of runner(s) labels (example: DLS-TGL-02,DLS-ARL-01)"
+        required: false
+        type: string
+
 permissions: {}
 env:
   MODELS_PATH: "$HOME/models"
+  DEFAULT_LABELS: "DLS-ARL-01,DLS-ARL-02,DLS-ARL-03,DLS-TGL-01,DLS-TGL-02,DLS-TGL-03,DLS-TGL-04,DLS-TGL-05"
 
 jobs:
+  setup-runners:
+    name: Set runners to execute update
+    runs-on: [self-hosted, ubuntu]
+    outputs:
+      runners: ${{ steps.set-labels.outputs.runners }}
+    steps:
+      - name: Set runners labels
+        id: set-labels
+        env:
+          user_labels: ${{ inputs.runner_labels }}
+        run: |
+          LABELS=$user_labels
+          if [ -z "$LABELS" ]; then
+            LABELS="${{ env.DEFAULT_LABELS }}" # Use default configuration if user didn't set any input labels
+          fi
+          LABELS_ARRAY=$(echo "$LABELS" | jq -Rc 'split(",")')
+          echo "Runners lables array: $LABELS_ARRAY"
+          echo "runners=$LABELS_ARRAY" >> $GITHUB_OUTPUT
+
   update_linux_hosts:
     name: Update on Linux runners
-    runs-on: ${{ matrix.host_labels }}
+    needs: setup-runners
     permissions:
       contents: read
     strategy:
       fail-fast: false
       matrix:
-        include:
-          - host_labels: [self-hosted, DLS-ARL-01]
-          - host_labels: [self-hosted, DLS-ARL-02]
-          - host_labels: [self-hosted, DLS-TGL-01]
-          - host_labels: [self-hosted, DLS-TGL-02]
-          - host_labels: [self-hosted, DLS-TGL-03]
-          - host_labels: [self-hosted, DLS-TGL-04]
-          - host_labels: [self-hosted, DLS-TGL-05]
+        runner: ${{ fromJson(needs.setup-runners.outputs.runners) }}
+    runs-on:
+      - ${{ matrix.runner }}
     steps:
     - name: Get script
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
+        path: edge-ai-libraries-repo
         sparse-checkout: |
           libraries/dl-streamer/samples/download_public_models.sh
           libraries/dl-streamer/samples/download_omz_models.sh
           libraries/dl-streamer/samples/models_omz_samples.lst
         sparse-checkout-cone-mode: false
 
-    - name: Prepare directory
+    - name: Download only specific model
+      env:
+        models_path: ${{ inputs.model_path }}
+        models_name: ${{ inputs.model_name }}
+      if: ${{ inputs.models_to_download == 'specified_model' }}
       run: |
-        if [ -d "${{ env.MODELS_PATH }}" ]; then
-          echo "Directory ${{ env.MODELS_PATH }} exists - removing it"
-          rm -rf "${{ env.MODELS_PATH }}"
+        MODEL_PATH=$model_path
+        MODEL_NAME=$model_name
+        export MODELS_PATH=${{ env.MODELS_PATH }}
+        echo "MODEL_PATH=$MODEL_PATH"
+        echo "MODEL_NAME=$MODEL_NAME"
+        if [ -d "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME" ]; then
+          echo "Removing $MODEL_NAME directory"
+          rm -rf "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME"
+
+          if [[ "$MODEL_PATH" == "public" ]]; then
+            ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh "$MODEL_NAME" coco128
+          elif [[ "$MODEL_PATH" == "omz" ]]; then
+            mkdir -p .virtualenvs/dlstreamer
+            python3 -m venv .virtualenvs/dlstreamer
+            source .virtualenvs/dlstreamer/bin/activate
+            pip3 install --no-cache-dir --upgrade tensorflow==2.19.1 openvino-dev[onnx]==2024.6.0 torch==2.8.0
+            export MODELS_PATH=${{ env.MODELS_PATH }}
+            ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh $MODEL_NAME
+            deactivate
+          fi
         fi
-        mkdir -p ${{ env.MODELS_PATH }}
-        echo "Directory created: ${{ env.MODELS_PATH }}"
+
+    - name: Prepare directory for public models
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule' }}
+      run: |
+        if [ -d "${{ env.MODELS_PATH }}/public" ]; then
+          echo "Removing public models directory"
+          rm -rf "${{ env.MODELS_PATH }}/public"
+        fi
+
+    - name: Prepare directory for OMZ models
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
+      run: |
+        if [ -d "${{ env.MODELS_PATH }}/intel" ]; then
+          echo "Removing OMZ models directory"
+          rm -rf "${{ env.MODELS_PATH }}/intel"
+        fi
 
     - name: Download public models
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_public_models.sh
+        echo "Downloading public models"
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
-    - name: Verify public models downloading
-      run: |
-        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public )" ]; then
-          echo "Models not downloaded correctly ❌"
-          echo "Public models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
-          echo "Exiting..."
-          exit 1
-        else
-          echo "Models downloaded ✅"
-          echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
-        fi
-
-    - name: Download OMZ models
+    - name: Download OMZ models (setup venv, dependencies and download)
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         mkdir -p .virtualenvs/dlstreamer
         python3 -m venv .virtualenvs/dlstreamer
         source .virtualenvs/dlstreamer/bin/activate
-        pip3 install --no-cache-dir --upgrade tensorflow openvino-dev[onnx]
+        pip3 install --no-cache-dir --upgrade tensorflow==2.19.1 openvino-dev[onnx]==2024.6.0 torch==2.8.0
         export MODELS_PATH=${{ env.MODELS_PATH }}
-        ./libraries/dl-streamer/samples/download_omz_models.sh
+        ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_omz_models.sh
         deactivate
 
-    - name: Verify OMZ models downloading
+    - name: Verify public models downloading
+      if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
-        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel )" ]; then
-          echo "Models not downloaded correctly ❌"
-          echo "Open Model Zoo models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
-          echo "Exiting..."
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/public )" ]; then
+          echo "Public models not downloaded correctly ❌"
+          echo "Public models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
           exit 1
         else
-          echo "Models downloaded ✅"
+          echo "Public models downloaded ✅"
+          echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Verify OMZ models downloading
+      if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
+      run: |
+        if [ -z "$( ls -A ${{ env.MODELS_PATH }}/intel )" ]; then
+          echo "Open Model Zoo models not downloaded correctly ❌"
+          echo "Open Model Zoo models not downloaded ❌" >> $GITHUB_STEP_SUMMARY
+          exit 1
+        else
+          echo "Open Model Zoo models downloaded ✅"
           echo "Open Model Zoo models downloaded ✅" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Clean up
       if: always()
       run: |
-        rm -rf libraries .virtualenvs .git
+        rm -rf edge-ai-libraries-repo .virtualenvs
+        rm -rf $HOME/.virtualenvs

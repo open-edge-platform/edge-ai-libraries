@@ -40,7 +40,7 @@ spec:
             - name: INDEX_NAME
               value: {{ .Values.Chatqna.env.INDEX_NAME }}
             - name: HOME
-              value: /home/intelgai
+              value: /home/appuser
             - name: EMBEDDING_ENDPOINT_URL
               value: {{- if .Values.global.teiEmbeddingService.enabled }}
                       http://tei-embedding-service.{{ .Release.Namespace }}:6006
@@ -91,17 +91,21 @@ spec:
               value: "{{ .Values.Chatqna.env.SEED }}"
           securityContext:
             allowPrivilegeEscalation: false
+          {{- if .Values.global.OTLP_ENDPOINT }}
           volumeMounts:
             - name: ca-certificates
-              mountPath: /usr/local/share/ca-certificates
+              mountPath: /opt/share/ca-certificates
             - name: ssl-certs
               mountPath: /etc/ssl/certs
+          {{ end}}
+      {{- if .Values.global.OTLP_ENDPOINT }}
       volumes:
         - name: ca-certificates
           hostPath:
-            path: /usr/local/share/ca-certificates
+            path: /opt/share/ca-certificates
             type: Directory
         - name: ssl-certs
           hostPath:
             path: /etc/ssl/certs
             type: Directory
+      {{ end}}

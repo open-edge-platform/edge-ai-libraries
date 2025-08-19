@@ -10,6 +10,7 @@ import json
 import requests
 from fastapi import FastAPI, HTTPException, Response, status, Request, Query
 from pydantic import BaseModel
+from starlette.responses import JSONResponse
 from typing import Optional
 import uvicorn
 import subprocess
@@ -34,6 +35,8 @@ app = FastAPI()
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
+MAX_SIZE = 5 * 1024  # 5 KB
+
 config = {}
 opcua_send_alert = None
 config_updated_event = threading.Event()
@@ -84,10 +87,11 @@ def stop_kapacitor_service():
     try:
         response = requests.get(f"{KAPACITOR_URL}/kapacitor/v1/tasks")
         tasks = response.json().get('tasks', [])
-        id = tasks[0].get('id')
-        logger.info(f"Stopping Kapacitor tasks: {id}")
-        subprocess.run(["kapacitor", "disable", id], check=False)
-        subprocess.run(["pkill", "-9", "kapacitord"], check=False)
+        if len(tasks) > 0:
+            id = tasks[0].get('id')
+            logger.info(f"Stopping Kapacitor tasks: {id}")
+            subprocess.run(["kapacitor", "disable", id], check=False)
+            subprocess.run(["pkill", "-9", "kapacitord"], check=False)
     except subprocess.CalledProcessError as e:
         logger.error(f"Error stopping Kapacitor service: {e}")
 
@@ -377,10 +381,33 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                                 example: "Failed to write configuration to file"
     """
     try:
+        if len(json.dumps(config_data.model_dump()).encode('utf-8')) > MAX_SIZE:
+            return JSONResponse(
+                status_code=413,
+                content={"error": "Request exceeds the maximum allowed payload size of 5 KB."})
+
+        model_registry = config_data.model_registry
+        mandatory_model_registry_keys = ["version", "enable"]
+        missing_model_registry_keys = [key for key in mandatory_model_registry_keys if key not in model_registry]
+        if missing_model_registry_keys:
+            logger.error(f"Missing keys in model_registry: {missing_model_registry_keys}")
+            raise HTTPException(
+            status_code=422,
+            detail=f"Missing keys in model_registry: {', '.join(missing_model_registry_keys)}"
+            )
+
+        udfs = config_data.udfs
+        if "name" not in udfs:
+            logger.error("Missing key 'name' in udfs")
+            raise HTTPException(
+            status_code=422,
+            detail="Missing key 'name' in udfs"
+            )
+
         config["model_registry"] = {}
         config["udfs"] = {}
         config["alerts"] = {}
-        config["model_registry"] = config_data.model_registry
+        config["model_registry"] = model_registry
         config["udfs"] = config_data.udfs
         if config_data.alerts:
             config["alerts"] = config_data.alerts
@@ -396,7 +423,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
     return {"status": "success", "message": "Configuration updated successfully"}
 
 
-if __name__ == "__main__":
+if __name__ == "__main__": # pragma: no cover
     # Start the FastAPI server
     def run_server():
         uvicorn.run(app, host="0.0.0.0", port=5000)

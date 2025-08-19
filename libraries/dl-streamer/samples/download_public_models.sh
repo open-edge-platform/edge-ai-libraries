@@ -180,7 +180,7 @@ source "$VENV_DIR_QUANT/bin/activate"
 pip install --no-cache-dir --upgrade pip
 
 # Install OpenVINO module
-pip install --no-cache-dir openvino==2025.1.0 || handle_error $LINENO
+pip install --no-cache-dir openvino==2025.2.0 || handle_error $LINENO
 
 pip install --no-cache-dir onnx || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
@@ -189,7 +189,7 @@ pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
-  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics || handle_error $LINENO
+  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics==8.3.153 || handle_error $LINENO
 fi
 
 # Set the name of the virtual environment directory
@@ -219,7 +219,7 @@ pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
-  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics || handle_error $LINENO
+  pip install --no-cache-dir --upgrade --extra-index-url https://download.pytorch.org/whl/cpu ultralytics==8.3.153 || handle_error $LINENO
 fi
 
 # Install dependencies for CLIP models
@@ -249,7 +249,7 @@ quantize_yolo_model() {
     mkdir -p "$MODELS_PATH/datasets"
     local DATASET_MANIFEST="$MODELS_PATH/datasets/$QUANTIZE.yaml"
 
-    wget ${SUPPORTED_QUANTIZATION_DATASETS[$QUANTIZE]} -O "$DATASET_MANIFEST"
+    curl -L -o "$DATASET_MANIFEST" ${SUPPORTED_QUANTIZATION_DATASETS[$QUANTIZE]}
     echo "Quantizing: ${MODEL_DIR}"
     mkdir -p "$MODEL_DIR"
 
@@ -377,7 +377,7 @@ if [ "$MODEL" == "yolox_s" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all
     mkdir -p "$MODEL_DIR/FP16"
     mkdir -p "$MODEL_DIR/FP32"
     cd "$MODEL_DIR"
-    wget https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx
+    curl -O -L https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s.onnx
     ovc yolox_s.onnx --compress_to_fp16=True
     mv yolox_s.xml "$MODEL_DIR/FP16"
     mv yolox_s.bin "$MODEL_DIR/FP16"
@@ -488,7 +488,7 @@ for MODEL_NAME in "${YOLOv5_MODELS[@]}"; do
       cd "$MODEL_DIR"
       cp -r "$REPO_DIR" yolov5
       cd yolov5
-      wget "https://github.com/ultralytics/yolov5/releases/download/v7.0/${MODEL_NAME}.pt"
+      curl -L -O "https://github.com/ultralytics/yolov5/releases/download/v7.0/${MODEL_NAME}.pt"
 
       python3 export.py --weights "${MODEL_NAME}.pt" --include openvino --img-size 640 --dynamic
       python3 - <<EOF "${MODEL_NAME}"
@@ -569,11 +569,6 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
     pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
-  fi
-
-
-  if [[ $QUANTIZE != "" ]]; then
-    quantize_yolo_model "$MODEL_NAME"
   fi
 fi
 
@@ -682,7 +677,12 @@ YOLO_MODELS=(
 # Iterate over the models and export them
 for MODEL_NAME in "${!YOLO_MODELS[@]}"; do
   if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
-    export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" "$QUANTIZE"
+    MODEL_NAME_UPPER=$(echo "$MODEL_NAME" | tr '[:lower:]' '[:upper:]')
+    if [[ $MODEL_NAME_UPPER == *"OBB"* || $MODEL_NAME_UPPER == *"POSE"* || $MODEL_NAME_UPPER == *"SEG"* ]]; then
+      export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" ""
+    else
+      export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" "$QUANTIZE"
+    fi
   fi
 done
 
@@ -690,38 +690,28 @@ done
 if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]]; then
   MODEL_NAME="yolov8_license_plate_detector"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
-  DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
-  DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
+  DST_FILE1="$MODEL_DIR/FP32/$MODEL_NAME.xml"
 
-  if [[ ! -f "$DST_FILE1" || ! -f "$DST_FILE2" ]]; then
+  if [[ ! -f "$DST_FILE1" ]]; then
     echo "Downloading and converting: ${MODEL_DIR}"
     mkdir -p "$MODEL_DIR"
     cd "$MODEL_DIR"
 
-    wget --no-check-certificate 'https://drive.usercontent.google.com/uc?export=download&id=1Zmf5ynaTFhmln2z7Qvv-tgjkWQYQ9Zdw' -O ${MODEL_NAME}.pt
+    curl -L -k -o ${MODEL_NAME}.zip 'https://github.com/open-edge-platform/edge-ai-resources/raw/main/models/license-plate-reader.zip'
+    python3 -c "
+import zipfile
+import os
+with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
+    zip_ref.extractall('.')
+os.remove('${MODEL_NAME}.zip')
+"
 
-    python3 - <<EOF "$MODEL_NAME"
-from ultralytics import YOLO
-import openvino, sys, shutil, os
-
-model_name = sys.argv[1]
-weights = model_name + '.pt'
-
-model = YOLO(weights)
-model.info()
-converted_path = model.export(format='openvino')
-converted_model = converted_path + '/' + model_name + '.xml'
-core = openvino.Core()
-ov_model = core.read_model(model=converted_model)
-
-ov_model.set_rt_info('YOLOv8', ['model_info', 'model_type'])
-
-openvino.save_model(ov_model, './FP32/' + model_name + '.xml', compress_to_fp16=False)
-openvino.save_model(ov_model, './FP16/' + model_name + '.xml', compress_to_fp16=True)
-shutil.rmtree(converted_path)
-os.remove(f"{model_name}.pt")
-EOF
-
+    mkdir -p FP32 
+    cp license-plate-reader/models/yolov8n/yolov8n_retrained.bin FP32/${MODEL_NAME}.bin
+    cp license-plate-reader/models/yolov8n/yolov8n_retrained.xml FP32/${MODEL_NAME}.xml
+    chmod -R u+w license-plate-reader
+    rm -rf license-plate-reader
+    cd ..
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
@@ -787,10 +777,29 @@ if [ "$MODEL" == "hsemotion" ] || [ "$MODEL" == "all" ]; then
 
     ovc enet_b0_8_va_mtl.onnx --input "[16,3,224,224]"
     mkdir "$MODEL_DIR/FP16/"
-    mv enet_b0_8_va_mtl.xml "$MODEL_DIR/FP16/$MODEL_NAME.xml"
-    mv enet_b0_8_va_mtl.bin "$MODEL_DIR/FP16/$MODEL_NAME.bin"
+    mv enet_b0_8_va_mtl.xml "$MODEL_DIR/$MODEL_NAME.xml"
+    mv enet_b0_8_va_mtl.bin "$MODEL_DIR/$MODEL_NAME.bin"
     cd ../../../..
     rm -rf face-emotion-recognition
+    python3 - <<EOF
+import openvino
+import sys, os
+
+core = openvino.Core()
+ov_model = core.read_model(model='hsemotion.xml')
+
+ov_model.set_rt_info("anger contempt disgust fear happiness neutral sadness surprise", ['model_info', 'labels'])
+ov_model.set_rt_info("label", ['model_info', 'model_type'])
+ov_model.set_rt_info("True", ['model_info', 'output_raw_scores'])
+ov_model.set_rt_info("fit_to_window_letterbox", ['model_info', 'resize_type'])
+ov_model.set_rt_info("255", ['model_info', 'scale_values'])
+
+print(ov_model)
+
+openvino.save_model(ov_model, './FP16/' + 'hsemotion.xml')
+os.remove('hsemotion.xml')
+os.remove('hsemotion.bin')
+EOF
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
@@ -808,7 +817,7 @@ for MODEL_NAME in "${CLIP_MODELS[@]}"; do
       cd "$MODEL_DIR/FP32"
       IMAGE_URL="https://storage.openvinotoolkit.org/data/test_data/images/car.png"
       IMAGE_PATH=car.png
-      wget -O $IMAGE_PATH $IMAGE_URL
+      curl -L -o $IMAGE_PATH $IMAGE_URL
       echo "Image downloaded to $IMAGE_PATH"
       python3 - <<EOF "$MODEL_NAME" "$IMAGE_PATH"
 from transformers import CLIPProcessor, CLIPVisionModel
@@ -896,48 +905,36 @@ fi
 if [[ "$MODEL" == "ch_PP-OCRv4_rec_infer" ]] || [[ "$MODEL" == "all" ]]; then
   MODEL_NAME="ch_PP-OCRv4_rec_infer"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
-  DST_FILE1="$MODEL_DIR/FP32/$MODEL_NAME.xml"
-  DST_FILE2="$MODEL_DIR/FP16/$MODEL_NAME.xml"
+  DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
 
-  if [[ ! -f "$DST_FILE1" || ! -f "$DST_FILE2" ]]; then
-    mkdir -p "$MODEL_DIR"
+  if [[ ! -f "$DST_FILE1" ]]; then
     echo "Downloading and converting: ${MODEL_DIR}"
+    mkdir -p "$MODEL_DIR"
     cd "$MODEL_DIR"
-    wget "https://paddleocr.bj.bcebos.com/PP-OCRv4/chinese/$MODEL_NAME.tar"
-    python3 - <<EOF "$MODEL_NAME" "$MODEL_DIR" "$DST_FILE1"
-import tarfile
-import openvino as ov
-import sys, os, shutil
 
-model_name = sys.argv[1]
-model_dir = sys.argv[2]
-orig_model_path = sys.argv[1]
+    curl -L -k -o ${MODEL_NAME}.zip 'https://github.com/open-edge-platform/edge-ai-resources/raw/main/models/license-plate-reader.zip'
+    python3 -c "
+import zipfile
+import os
+with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
+    zip_ref.extractall('.')
+os.remove('${MODEL_NAME}.zip')
+"
 
-file = tarfile.open(f"{model_name}.tar")
-res = file.extractall(model_dir)
-file.close()
-if not res:
-    print(f"Model Extracted to {model_dir}.")
-else:
-    print("Error Extracting the model.")
-
-ov_model = ov.convert_model("ch_PP-OCRv4_rec_infer/inference.pdmodel")
-ov_model.reshape({"x": [-1, 3, 48, 192]})
-
-ov_model.set_rt_info("paddle_ocr", ['model_info', 'model_type'])
-ov_model.set_rt_info("58.395, 57.12, 57.375", ['model_info', 'scale_values'])  #std = [0.229, 0.224, 0.225]
-ov_model.set_rt_info("123.675, 116.28, 103.53", ['model_info', 'mean_values'])  #mean = [0.485, 0.456, 0.406]
-ov_model.set_rt_info("true", ['model_info', 'reverse_input_channels'])
-ov_model.set_rt_info("standard", ['model_info', 'resize_type'])
-
-ov.save_model(ov_model, './FP32/' + 'ch_PP-OCRv4_rec_infer.xml', compress_to_fp16=False)
-ov.save_model(ov_model, './FP16/' + 'ch_PP-OCRv4_rec_infer.xml', compress_to_fp16=True)
-
-shutil.rmtree(model_name)
-os.remove(f"{model_name}.tar")
-
-EOF
+    mkdir -p FP32 
+    cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.bin FP32/${MODEL_NAME}.bin
+    cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml FP32/${MODEL_NAME}.xml
+    chmod -R u+w license-plate-reader
+    rm -rf license-plate-reader
+    cd ..
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
 fi
+
+# Deactivate and remove venvs
+echo "Removing Python virtual environments..."
+deactivate
+rm -r $VENV_DIR
+rm -r $VENV_DIR_QUANT
+echo "Removed"

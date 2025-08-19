@@ -1,5 +1,5 @@
 # ==============================================================================
-# Copyright (C) 2018-2024 Intel Corporation
+# Copyright (C) 2018-2025 Intel Corporation
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
@@ -30,6 +30,7 @@ file (GLOB MAIN_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/gvadetect/converters/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gvainference/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gvainference/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvarealsense/*.cpp
 )
 
 file (GLOB MAIN_HEADERS
@@ -62,6 +63,7 @@ PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/gvaclassify/
     ${CMAKE_CURRENT_SOURCE_DIR}/gvadetect/
     ${CMAKE_CURRENT_SOURCE_DIR}/gvainference/
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvarealsense/
     ${DLSTREAMER_BASE_DIR}/src/base/dlstreamer_logger/
 PRIVATE
     ${GSTREAMER_INCLUDE_DIRS}
@@ -93,4 +95,10 @@ PUBLIC
 
 if(${ENABLE_VAAPI})
     target_link_libraries(${TARGET_NAME} PRIVATE va_api_wrapper image_inference_async)
+endif()
+
+if(WIN32)
+    find_package(dlfcn-win32 REQUIRED)
+    target_include_directories(${TARGET_NAME} PRIVATE ${dlfcn-win32_INCLUDE_DIRS})
+    target_link_libraries(${TARGET_NAME} PRIVATE ${dlfcn-win32_LIBRARIES})
 endif()

@@ -22,8 +22,16 @@ exporters:
   debug: {}
   prometheus:
     endpoint: 0.0.0.0:9464
+  loki:
+    endpoint: http://loki:3100/loki/api/v1/push
+  logging:  # Optional: structured logs to stdout
+    loglevel: debug
 service:
   pipelines:
+    logs:
+      receivers: [ otlp ]
+      processors: [ batch ]
+      exporters: [ loki, logging ] # Replace with your service name
     metrics:
       receivers: [ otlp ]  # Collect metrics using OTLP receiver
       exporters: [ prometheus ]  # Export to Prometheus

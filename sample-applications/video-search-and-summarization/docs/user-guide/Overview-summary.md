@@ -7,8 +7,8 @@ Video Summary provides a rich pipeline with a host of capabilities aiding qualit
 ![Video Summary web interface](./images/VideoSumm_Webpage.png)
 
 ## Table of Contents
-1. [Overview and Architecture](#overview-and-architecture)
-2. [How to Use the Application](#how-to-use-the-application)
+1. [Purpose](#purpose)
+2. [How to Use the Application](#how-to-use-the-application-effectively)
 
 ## Purpose
 

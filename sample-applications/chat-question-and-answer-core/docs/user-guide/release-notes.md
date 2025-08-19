@@ -1,7 +1,28 @@
 # Release Notes
 
-
 ## Current Release
+
+**Version**: 1.2.2 \
+**Release Date**: WW32 2025
+
+- Replaced environment variable-based configuration with YAML file loading for model-related settings, improving flexibility and maintainability.
+- Enhanced container security by updating UI and NGINX containers to run as non-root users, aligning with industry best practices.
+- Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
+- Functional on EMT 3.0.
+
+## Known Issues/Behavior (Consolidated):
+- Validation on the latest version of EMF has not been done. Hence, EMF should be considered as not supported. - Open
+- Not validated on EMT edge node - Closed
+
+## Previous Releases
+
+**Version**: 1.2.1 \
+**Release Date**: WW27 2025
+
+- Image Optimization for ChatQnA Core Backend. Reducing image sizes, which will lead to faster processing times and reduced bandwidth usage.
+- Security Vulnerabilities Fix for Dependency Packages.
+- Update in Setup Scripts for default model download path in the backend.
+- Bug fixes.
 
 **Version**: 1.2.0 \
 **Release Date**: WW20 2025
@@ -13,16 +34,14 @@
   - CPU-only support: intel/chatqna:core_1.2.0
   - GPU-enabled support: intel/chatqna:core_gpu_1.2.0
 
-## Previous releases
+## Earlier releases
 
 **Version**: 1.1.2 \
 **Release Date**: WW16 2025
 
 - Persistent volume used instead of hostpath. This is enabled by default requiring clusters to support dynamic storage support.
-- Documentation updated for ESC compatability. As ESC supports only absolute file path, the links in the documentation will always point to main repo even on forked repos.
+- Documentation updated for ESC compatability. As ESC supports only absolute file path, the links in the documentation always point to main repo even on forked repos.
 - Bug fixes
-
-## Previous releases
 
 **Version**: 1.1.1 \
 **Release Date**: WW13 2025

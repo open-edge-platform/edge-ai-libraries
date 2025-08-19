@@ -1,0 +1,47 @@
+From 4ba1679fc0766286d4228f87483af5338c7d4e67 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Wed, 17 Jul 2024 10:21:27 +0800
+Subject: [PATCH] add macro to define LINK and speed
+
+This is used to fix issue before dpdk 20.x.x
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ dpdk/ec_dpdk.c  | 7 +++++++
+ ipc/Makefile.am | 2 +-
+ 2 files changed, 8 insertions(+), 1 deletion(-)
+
+diff --git a/dpdk/ec_dpdk.c b/dpdk/ec_dpdk.c
+index 65c47f5f..6e9c839f 100644
+--- a/dpdk/ec_dpdk.c
++++ b/dpdk/ec_dpdk.c
+@@ -21,6 +21,13 @@
+ #define BURST_SIZE 32
+ #define BURST_SIZE_ECAT 1
+ 
++#ifndef RTE_ETH_LINK_DOWN
++#define RTE_ETH_LINK_DOWN	(0)
++#endif
++
++#ifndef RTE_ETH_LINK_SPEED_100M
++#define RTE_ETH_LINK_SPEED_100M	(1u<<4)
++#endif
+ /*****************************************************************************/
+ //#define EC_ETHERCAT_COMM_DEBUG
+ static struct rte_mempool *mbuf_pool;
+diff --git a/ipc/Makefile.am b/ipc/Makefile.am
+index 5d33311f..21e55478 100644
+--- a/ipc/Makefile.am
++++ b/ipc/Makefile.am
+@@ -45,7 +45,7 @@ noinst_HEADERS = \
+ 
+ libecat_ipc_la_AMFLAGS = -I m4
+ 
+-libecat_ipc_la_CFLAGS = -fno-strict-aliasing -Wall
++libecat_ipc_la_CFLAGS = -fno-strict-aliasing -Wall -lrt
+ if ENABLE_DAEMON
+ libecat_ipc_la_CFLAGS += -DEC_ENABLE_DAEMON
+ endif
+-- 
+2.45.2
+

@@ -1,0 +1,22 @@
+<launch>
+    <arg name="robot_description" default="robot_description"/>
+    <arg name="load_robot_description" default="true"/>
+    <arg name="manipulator_model" default="none"/>
+    <arg name="gripper_model" default="none"/>
+
+    <!-- Load the robot description -->
+    <group if="$(arg load_robot_description)">
+        <param name="$(arg robot_description)" command="$(find xacro)/xacro $(find hiwin_robot_moveit_config)/xacros/hiwin_robot_and_gripper.xacro prefix:='' manipulator_model:=$(arg manipulator_model) gripper_model:=$(arg gripper_model)"/>
+        <!-- The semantic description that corresponds to the URDF -->
+        <param name="$(arg robot_description)_semantic" textfile="$(find hiwin_robot_moveit_config)/srdf/hiwin_robot.srdf" />
+    </group>
+
+    <group ns="$(arg robot_description)_planning">
+        <rosparam command="load" file="$(find hiwin_robot_moveit_config)/config/joint_limits.yaml"/>
+    </group>
+
+    <!-- Load default settings for kinematics; these settings are overridden by settings in a node's namespace -->
+    <group ns="$(arg robot_description)_kinematics">
+        <rosparam command="load" file="$(find hiwin_robot_moveit_config)/config/kinematics.yaml"/>
+    </group>
+</launch>

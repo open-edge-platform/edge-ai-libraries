@@ -1,0 +1,174 @@
+#!/usr/bin/make -f
+
+include /usr/share/dpkg/pkg-info.mk
+include /usr/share/dpkg/vendor.mk
+
+# Uncomment this to turn on verbose mode.
+export DH_VERBOSE=1
+
+# genXec arch concatenate the following Intel GPU supported by intel-compute-runtime/ocloc
+#  gen12lp = TGL, ADL, RPL, ...
+#  xehpg = DG2
+#  xelpg = MTL
+genxlist := "gen9 gen11 genXe"
+defaultgenx := genXe
+# All level-zero orb GPU kernels
+kernellist := "fastext_genx fastclear_genx fastnmsext_genx gaussian_genx orb_descriptor_genx resize_genx"
+
+# special characters
+empty :=
+space := $(empty) $(empty)
+comma := ,
+semicol := ;
+
+# helper to create comma separated list from space separated list
+commasep = $(subst $(space),$(comma)$(space),$1)
+semicolsep = $(subst $(space),$(comma),$1)
+
+# remove double quotes
+unquote = $(subst $\",,$1)
+
+# recursive wildcard
+rwildcard=$(foreach d,$(wildcard $(1:=/*)),$(call rwildcard,$d,$2) $(filter $(subst *,%,$2),$d))
+
+# Hardening.
+export DEB_BUILD_MAINT_OPTIONS=hardening=+all
+export DEB_CXXFLAGS_MAINT_APPEND = -g1
+export DEB_HOST_MULTIARCH := $(shell dpkg-architecture -qDEB_HOST_MULTIARCH)
+
+CFLAGS := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto -ffat-lto-objects", $(shell dpkg-buildflags --get CFLAGS))
+CXXFLAGS := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto -ffat-lto-objects", $(shell dpkg-buildflags --get CXXFLAGS))
+LDFLAGS  := $(filter-out "-flto=auto -ffat-lto-objects -flto=auto", $(shell dpkg-buildflags --get LDFLAGS))
+
+zebindir := usr/lib/$(DEB_HOST_MULTIARCH)
+optdir := opt/intel/orb_lze
+
+BUILD_LIBORB_DIR=$(CURDIR)/build
+BUILD_ORBTEST_DIR=$(CURDIR)/build-orbtest
+
+# debian/configs: add additional, unsupported configurations here!
+#ZEBINS := $(call rwildcard,$(BUILD_LIBORB_DIR),*.spv)
+
+# uncomment for debugging purposes
+#$(info marchdefault: $(defaultgenx))
+#$(info marchlist-quote:  $(genxlist))
+#$(info marchlist-unquote:  $(call unquote,$(genxlist)))
+#$(info marchlist-commasep:  $(call commasep,$(call unquote,$(genxlist))))
+#$(foreach b,$(call commasep,$(call unquote,$(genxlist))),$(info $(b)))
+
+# Explicitly enable -DNDEBUG, see:
+# 	https://github.com/ros-infrastructure/bloom/issues/327
+export DEB_CXXFLAGS_MAINT_APPEND +=-DNDEBUG
+
+### dh_install ############################################################
+debian/liborb-lze.install: debian/liborb-lze.install.in
+	@$(call echo-verbose)
+	@$(call echo-silent,CREATE $@)
+	$(Q)sed -e 's%@spirvdir@%/$(optdir)/kernels%g' \
+		-e 's%@zebindir@%/$(zebindir)%g' $< > $@
+
+### dh_installdeb ############################################################
+debian/liborb-lze.postinst: debian/liborb-lze.postinst.in
+	@$(call echo-verbose)
+	@$(call echo-silent,CREATE $@)
+	$(Q)sed -e 's%@spirvdir@%/$(optdir)/kernels%g' \
+	        -e 's%@zebindir@%/$(zebindir)%g'  \
+	        -e 's/@kernellist@/$(call unquote,$(kernellist))/g' $< > $@
+
+override_dh_installdeb: debian/liborb-lze.postinst
+	$(Q)dh_installdeb
+
+### dh_installdebconf-arch ###################################################
+debian/liborb-lze.templates: debian/liborb-lze.templates.in
+	@$(call echo-verbose)
+	@$(call echo-silent,CREATE $@)
+	$(Q)sed -e 's/@marchdefault@/$(defaultgenx)/g' \
+	        -e 's/@marchlist@/$(call commasep,$(call unquote,$(genxlist)))/g' $< > $@
+
+debian/liborb-lze.config: debian/liborb-lze.config.in
+	@$(call echo-verbose)
+	@$(call echo-silent,CREATE $@)
+	@$(eval spvfilelist := $(call rwildcard,$(BUILD_LIBORB_DIR),*.spv))
+	@# create level0 orb kernel as bash associative array
+	$(Q)sed -e 's%@spirvdir@%/$(optdir)/kernels%g' \
+	        -e 's%@zebindir@%/$(zebindir)%g' \
+	        -e 's/@kernellist@/$(call unquote,$(kernellist))/g' $< > $@
+
+override_dh_installdebconf-arch: debian/liborb-lze.templates debian/liborb-lze.config
+	$(Q)dh_installdebconf -a
+
+override_dh_auto_configure:
+	dh_auto_configure -O--buildsystem=cmake 	\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ --   	\
+		-DBUILD_ZEBIN_INSTALL_DIR=/$(zebindir)	\
+		-DBUILD_TARGET_PLATFORM=$(defaultgenx)  \
+		-DTARGET_PLATFORM_LIST=$(call semicolsep,$(call unquote,$(genxlist)))      \
+		-DCMAKE_BUILD_TYPE=Release              \
+		-DCMAKE_INSTALL_LIBDIR=lib/$(DEB_HOST_MULTIARCH)  \
+		-DCMAKE_INSTALL_INCLUDEDIR=include/ && 	\
+	dh_auto_configure -O--buildsystem=cmake 	\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --   \
+
+override_dh_auto_build:
+	dh_auto_build -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ -- && 	\
+	dh_auto_build -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --
+
+override_dh_shlibdeps:
+	dh_shlibdeps
+
+override_dh_auto_clean:
+	$(RM) $(CURDIR)/debian/liborb-lze.templates &&	\
+	$(RM) $(CURDIR)/debian/liborb-lze.config && 	\
+	$(RM) $(CURDIR)/debian/liborb-lze.postinst &&	\
+	$(RM) $(CURDIR)/debian/liborb-lze.install &&	\
+	$(RM) -r $(CURDIR)/build && 			\
+	$(RM) -r $(CURDIR)/build-orbtest &&		\
+	dh_clean
+
+override_dh_auto_install: debian/liborb-lze.install
+	dh_auto_install -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_LIBORB_DIR) 	\
+		--sourcedirectory=$(CURDIR)/ -- && 	\
+	dh_auto_install -O--buildsystem=cmake 		\
+		-O--builddir=$(BUILD_ORBTEST_DIR) 	\
+		--sourcedirectory=$(CURDIR)/tests/ --
+	install -d $(CURDIR)/debian/tmp/$(optdir)/samples
+	install -m 0644 $(CURDIR)/samples/* \
+		$(CURDIR)/debian/tmp/$(optdir)/samples
+	install -m 0644 $(CURDIR)/images/* \
+		$(CURDIR)/debian/tmp/$(optdir)/samples
+	install -d $(CURDIR)/debian/tmp/$(optdir)/kernels
+	install -m 0644 $(BUILD_LIBORB_DIR)/*genx_*.spv \
+		$(CURDIR)/debian/tmp/$(optdir)/kernels
+	install -d $(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0644 $(CURDIR)/images/* \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/gaussTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/resizeTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/orbdescTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/fastTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/stereoTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/multicameraTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/multithreadTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/opencvfreeTest \
+		$(CURDIR)/debian/tmp/$(optdir)/tests
+	install -m 0755 $(BUILD_ORBTEST_DIR)/fuzzer/fuzzer_stereo \
+        $(CURDIR)/debian/tmp/$(optdir)/tests
+
+override_dh_dwz:
+	dh_dwz --exclude=fuzzer_stereo
+%:
+	dh $@ -v $(PARALLEL)

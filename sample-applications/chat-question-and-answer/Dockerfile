@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # --- Stage 1: Build dependencies ---
-FROM python:3.11-slim as python-base
+FROM python:3.11-slim AS python-base
 
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
@@ -10,12 +10,10 @@ ENV PYTHONUNBUFFERED=1
 # Install system build dependencies
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
     libjemalloc-dev \
     curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir poetry
 
 # Copy only dependency files
@@ -43,7 +41,6 @@ RUN groupadd -g 1001 appuser && \
 # Install only runtime dependencies
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-    libgl1-mesa-glx \
     libjemalloc2 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -53,6 +50,9 @@ WORKDIR /my-app
 # Copy installed packages from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
+
+# Upgrade setuptools to the latest version
+RUN pip install --no-cache-dir --upgrade setuptools
 
 # Copy application code
 COPY app ./app

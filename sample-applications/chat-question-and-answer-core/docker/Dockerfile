@@ -6,6 +6,8 @@ FROM python:3.11-slim AS python-base
 ARG USE_GPU=false
 ARG GPU_TYPE="none"  # Options: none, igpu, dgpu
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG UID=1000
+ARG GID=1000
 
 RUN echo "USE_GPU is set to $USE_GPU"; \
     echo "GPU_TYPE is set to $GPU_TYPE"
@@ -27,14 +29,13 @@ RUN if [ "$USE_GPU" = "true" ]; then \
     echo "Installing dGPU drivers version $INSTALL_DRIVER_VERSION"; \
     apt-get update && apt-get install -y --no-install-recommends ca-certificates libxml2; \
     /tmp/drivers/install_dgpu_drivers.sh; \
-    fi && \
-    apt-get clean && \
-    rm -rf /tmp/drivers && \
-    rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*; \
+    fi; \
     else \
     if [ "$GPU_TYPE" != "none" ]; then \
     echo "USE_GPU is set to false. No GPU drivers will be installed. Only CPU is supported."; \
     fi; \
+    apt-get clean && \
+    rm -rf /tmp/drivers /var/lib/apt/lists/* /tmp/*; \
     fi
 
 # Setting env vars for python, pip and poetry
@@ -59,12 +60,12 @@ ENV PYTHONUNBUFFERED=1 \
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
 
 # Upgrade pip and setuptools to the latest version to fix vuln
-RUN /usr/local/bin/pip install --upgrade pip setuptools
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
 
 # Create a non-root user
-RUN groupadd -g 1001 intelgai && \
-    useradd -m -s /bin/bash -u 1001 -g 1001 intelgai && \
-    chown -R intelgai:intelgai $HOME
+RUN groupadd -g ${GID} appuser && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser && \
+    chown -R appuser:appuser $HOME
 
 
 FROM python-base AS builder-base
@@ -82,11 +83,6 @@ RUN poetry install --only main
 # `dev` image is used during development / testing
 FROM python-base AS dev
 ENV FASTAPI_ENV=development
-
-# Install runtime dependency for opencv
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libgl1-mesa-glx \
-    libglib2.0-0
 
 WORKDIR $SETUP_PATH
 
@@ -110,24 +106,30 @@ CMD uvicorn app.server:app --host 0.0.0.0 --port 8888 --reload
 FROM python-base AS prod
 ENV FASTAPI_ENV=production
 
-# Install runtime dependency for opencv
-RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
-    libgl1-mesa-glx \
-    libglib2.0-0
+WORKDIR /my-app
 
+RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    libmagic-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the poetry installation and the virtual env
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_token_id = tokenizer.eos_token_id/' \
     /opt/projsetup/.venv/lib/python3.11/site-packages/langchain_huggingface/llms/huggingface_pipeline.py
 
-COPY . /app/
+# Prepare directories for model cache and config
+RUN mkdir -p /tmp/model_cache /tmp/model_config
 
-WORKDIR /app
+# Copy application code and model config
+COPY app ./app
+COPY model_config/sample/template.yaml /tmp/model_config/default_model.yaml
 
-RUN mkdir /tmp/model_cache && \
-    chown intelgai:intelgai /tmp/model_cache
+# Set ownership to appuser
+RUN chown -R appuser:appuser /my-app /tmp/model_cache /tmp/model_config/
 
-USER intelgai
+USER appuser
 
 EXPOSE 8888
 

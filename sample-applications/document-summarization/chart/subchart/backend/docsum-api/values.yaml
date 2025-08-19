@@ -1,0 +1,21 @@
+# Default configuration values for the document summarization Helm chart
+docSumBackend:
+  name: docsum-api
+  image:
+    repository: "intel/document-summary"
+    tag: "1.0.0"
+    pullPolicy: "IfNotPresent"
+  service:
+    type: ClusterIP
+    port: 8090
+    targetPort: 8000
+  env:    
+    apiPort: 8000
+# Resource requests and limits
+resources:
+  limits:
+    cpu: "1"
+    memory: "1Gi"
+  requests:
+    cpu: "500m"
+    memory: "512Mi"

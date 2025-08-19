@@ -1,834 +1,306 @@
+---
 openapi: 3.1.0
 info:
-  title: Model Registry
-  description: |
-
-    The Model Registry microservice offers a robust suite of endpoints designed to manage machine learning models within a locally deployed environment.
-
-    Additionally, this microservice allows users to access metadata for Intel® Geti hosted resources, such as projects and models.
-
-    It also facilitates the storage of models, making them readily available for downstream applications and services.
-  
-  version: 1.0.3
+  title: Audio Analyzer Service API
+  description: API for intelligent audio processing including speech transcription
+    and audio event detection
+  version: 1.0.0
+servers:
+- url: "/audio"
 paths:
-  /health:
-    get:
-      summary: Health Check.
-      description: Get the health status of the service.
-      operationId: health_check_health_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema: {}
-  /models:
+  "/api/v1/health":
     get:
       tags:
-        - models
-      summary: Get all registered model(s)
-      description: Get all registered model(s).
-      operationId: get_registered_models_models_get
-      parameters:
-        - name: name
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Name
-        - name: project_name
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Project Name
-        - name: category
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Category
-        - name: version
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Version
-        - name: architecture
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Architecture
-        - name: precision
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Precision
+      - Health API
+      summary: Health status of API
+      description: |-
+        Health check endpoint.
+
+        Returns:
+            A response indicating the service status, version and a descriptive message.
+      operationId: health_check_api_v1_health_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/RegisteredModelOut'
-                title: Response Get Registered Models Models Get
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                "$ref": "#/components/schemas/HealthResponse"
+  "/api/v1/transcriptions":
     post:
       tags:
-        - models
-      summary: Store the metadata and artifacts for a model into the registry.
-      description: Store the metadata and artifacts for a model.
-      operationId: store_model_models_post
+      - Transcription API
+      summary: Transcribe audio from uploaded video file or a video stored at Minio
+      description: "Transcribe speech from a video file.\n\nUpload a video file directly
+        or specify MinIO parameters to transcribe its audio content.\n\nTwo ways to
+        provide the video:\n- Upload a video file using form-data\n- Specify MinIO
+        parameters (minio_bucket, video_id, video_name) to retrieve from storage\n
+        \nArgs:\n    request: Form data containing the file or MinIO parameters and
+        transcription settings\n    language: Optional language code for transcription\n\nReturns:\n
+        \   A response with the transcription status and details"
+      operationId: transcribe_video_api_v1_transcriptions_post
+      parameters:
+      - name: language
+        in: query
+        required: false
+        schema:
+          type: string
+          description: _(Optional)_ Language for transcription. If not provided, auto-detection
+            will be used.
+          title: Language
+        description: _(Optional)_ Language for transcription. If not provided, auto-detection
+          will be used.
       requestBody:
-        required: true
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Body_store_model_models_post'
-      responses:
-        '201':
-          description: Created
-          content:
-            text/plain:
-              schema:
-                type: string
-              example: model_id
-        '409':
-          description: Conflict
-          content:
-            text/plain:
-              example: Model ID {id} is already in use.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
-  /models/{model_id}:
-    get:
-      tags:
-        - models
-      summary: Get a registered model by ID
-      description: Get a registered model by ID.
-      operationId: get_registered_model_by_id_models__model_id__get
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
+              "$ref": "#/components/schemas/Body_transcribe_video_api_v1_transcriptions_post"
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegisteredModelOut'
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-    put:
-      tags:
-        - models
-      summary: Update the specified properties of a registered model.
-      description: |-
-        Update the specified properties of a registered model.
-
-        The ability to update a model's stored compressed `file`, and `id` is not supported. 
-
-        If you would like to update any of these properties, you will need to delete the existing model (`DELETE /models`) and submit a `POST /models` request to store a model with the desired properties.
-      operationId: update_model_models__model_id__put
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Body_update_model_models__model_id__put'
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {}
-              example:
-                status: completed
+                "$ref": "#/components/schemas/TranscriptionResponse"
         '400':
+          content:
+            application/json:
+              schema:
+                "$ref": "#/components/schemas/ErrorResponse"
           description: Bad Request
-          content:
-            application/json:
-              example:
-                status: error
-                message: Invalid request. Check the request body and ensure at least 1 supported field is provided.
-        '404':
-          description: Not Found
-          content:
-            application/json:
-              example:
-                status: error
-                message: Model not found.
         '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+          description: Invalid request body or parameter provided
         '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              example:
-                status: error
-                message: string
-    delete:
-      tags:
-        - models
-      summary: Delete a registered model by ID
-      description: Delete a registered model by ID.
-      operationId: delete_registered_model_by_id_models__model_id__delete
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      responses:
-        '204':
-          description: No Content
-          content:
-            text/plain:
-              example: ''
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
-        '422':
-          description: Validation Error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /models/{model_id}/files:
+                "$ref": "#/components/schemas/ErrorResponse"
+          description: Internal Server Error
+  "/api/v1/models":
     get:
       tags:
-        - models
-      summary: Get a ZIP file containing the artifacts (files) for a registered model
-      description: Get a ZIP file containing the artifacts (files) for a registered model.
-      operationId: get_zip_for_registered_model_by_id_models__model_id__files_get
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {}
-            application/zip:
-              example: ''
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
-  /projects:
-    get:
-      tags:
-        - projects
-      summary: Get projects in a remote Intel® Geti workspace
-      description: |-
-        Get projects in a remote Intel® Geti workspace.
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-      operationId: get_projects_projects_get
+      - Models API
+      summary: Get list of models available for use with detailed information
+      description: "Get a list of available Whisper model variants that can be used
+        for transcription.\n\nThis endpoint returns all the whisper models that are
+        configured in the service\nand available for transcription requests, along
+        with detailed information including\ndisplay names, descriptions, and the
+        default model that is used when no specific \nmodel is requested.\n\nReturns:\n
+        \   A response with the list of available models with their details and the
+        default model"
+      operationId: get_available_models_api_v1_models_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                items:
-                  $ref: '#/components/schemas/ProjectOut'
-                type: array
-                title: Response Get Projects Projects Get
-  /projects/{project_id}:
-    get:
-      tags:
-        - projects
-      summary: Get a project by ID in a remote Intel® Geti workspace
-      description: |-
-        Get a project by ID in a remote Intel® Geti workspace.
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-      operationId: get_project_by_id_projects__project_id__get
-      parameters:
-        - name: project_id
-          in: path
-          required: true
-          schema:
-            title: Project Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectOut'
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Project not found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /projects/{project_id}/geti-models/download:
-    post:
-      tags:
-        - projects
-      summary: Store the metadata and artifacts for 1 or more OpenVINO           optimized model(s) from a remote Intel® Geti workspace into the registry
-      description: |-
-        Store the metadata and artifacts for 1 or more OpenVINO optimized model(s) from a remote Intel® Geti workspace into the registry. 
-
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-
-
-
-        For more information about these environment variables, review the [get_server_details_from_env](https://github.com/openvinotoolkit/geti-sdk/blob/675d1e39c1bea7173934bb81db358efa2c40e813/geti_sdk/utils/credentials_helpers.py#L52C5-L52C32) function in the Intel® Geti™ SDK.
-
-        If the `models` object contains a list of contains 1 or more `{"id":"<model_identifier>", "group_id": "model_group_identifier"}`, 1 or more models
-          will be downloaded and registered.
-      operationId: save_project_and_models_by_ids_projects__project_id__geti_models_download_post
-      parameters:
-        - name: project_id
-          in: path
-          required: true
-          schema:
-            title: Project Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ModelIdentifiersIn'
-      responses:
-        '201':
-          description: Created
-          content:
-            text/plain:
-              schema:
-                type: string
-              example: |-
-                Model(s): 1, 2, 3 are registered.
-                Note: Only OpenVINO optimized active models are supported at this time.
-        '403':
-          description: Forbidden
-          content:
-            text/plain:
-              example: |-
-                Model(s): 0 can not be registered.
-                Note: Only OpenVINO optimized active models are supported at this time.
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Project or model id not found. No model(s) registered.
-        '409':
-          description: Conflict
-          content:
-            text/plain:
-              example: |-
-                Model(s): 1 is already registered. No model(s) registered.
-                Tip: Delete the previously mentioned model(s) or remove the id(s) from the request body then try again.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
+                "$ref": "#/components/schemas/AvailableModelsResponse"
 components:
   schemas:
-    Body_store_model_models_post:
+    AvailableModelsResponse:
       properties:
+        models:
+          items:
+            "$ref": "#/components/schemas/WhisperModelInfo"
+          type: array
+          title: Models
+          description: List of available whisper model variants with detailed information
+        default_model:
+          type: string
+          title: Default Model
+          description: The default model used for transcription
+      type: object
+      required:
+      - models
+      - default_model
+      title: AvailableModelsResponse
+      description: Response schema for listing available models endpoint
+      examples:
+      - default_model: tiny.en
+        models:
+        - description: English only version of tiny whisper model. Significantly less
+            accuracy, extremely fast inference.
+          display_name: Tiny (English)
+          model_id: tiny.en
+        - description: English only version of base whisper model.
+          display_name: Base Model (English)
+          model_id: base.en
+    Body_transcribe_video_api_v1_transcriptions_post:
+      properties:
+        minio_bucket:
+          type: string
+          title: Minio Bucket
+          description: MinIO bucket containing the video file. Required if not using
+            filsystem for video source.
+          default: ''
+        video_id:
+          type: string
+          title: Video Id
+          description: ID/prefix of the video in the MinIO bucket. Required if not
+            using filsystem for video source.
+          default: ''
+        video_name:
+          type: string
+          title: Video Name
+          description: Name of the video file in the MinIO bucket. Required if not
+            using filsystem for video source.
+          default: ''
+        device:
+          "$ref": "#/components/schemas/DeviceType"
+          title: Device
+          description: '_(Optional)_ Device to use for transcription - ''cpu'' or
+            ''auto''. **Default value : cpu**'
+          default: cpu
+        model_name:
+          "$ref": "#/components/schemas/EnabledWhisperModels"
+          title: Model Name
+          description: '_(Optional)_ Variant of the whisper model to use. **Default
+            value : ''small.en'' or first available model**'
+          default: ''
+        include_timestamps:
+          type: boolean
+          title: Include Timestamps
+          description: '_(Optional)_ A flag to include timestamps in the transcription
+            output. **Default value : True**'
+          default: true
         file:
           type: string
           format: binary
           title: File
-          description: The ZIP file containing model files and related artifacts.
-        name:
+          description: Select video file to be transcribed. Optional if using MinIO
+            source.
+      type: object
+      title: Body_transcribe_video_api_v1_transcriptions_post
+    DeviceType:
+      type: string
+      enum:
+      - cpu
+      - gpu
+      - auto
+      title: DeviceType
+      description: Enum for the device types available for transcription
+    EnabledWhisperModels:
+      type: string
+      enum:
+      - tiny.en
+      - small.en
+      - medium.en
+      title: EnabledWhisperModels
+    ErrorResponse:
+      properties:
+        error_message:
           type: string
-          title: Name
-          description: The human-readable name of the model.
+          title: Error Message
+          description: Human-readable error message
+        details:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Details
+          description: Additional error details
+      type: object
+      required:
+      - error_message
+      title: ErrorResponse
+      description: Response schema for errors
+      examples:
+      - details: Invalid file format
+        error_message: Failed to process video file
+    HealthResponse:
+      properties:
+        status:
+          type: string
+          title: Status
+          description: Current health status of the API
+          default: healthy
         version:
           type: string
           title: Version
-          description: The version of the model (e.g., 1.0, 1A, v2).
-        target_device:
-          type: string
-          title: Target Device
-          description: The hardware platform the model is designed to run on (e.g., CPU, GPU, FPGA).
-        precision:
-          type: string
-          title: Precision
-          description: The precision of the model (e.g., FP32, FP16, INT8, INT4). Defaults to FP32.
-        format:
-          type: string
-          title: Format
-          description: The format of the model (e.g. openvino, pytorch).
-        score:
-          type: number
-          title: Score
-          description: A metric that represents the model's performance.
-        id:
-          type: string
-          title: Id
-          description: A unique identifier for the model.
-        created_date:
-          type: string
-          title: Created Date
-          description: The date and time the model was first created or trained. If empty, this will be the date and time the model was registered.(e.g. 2024-02-28 15:39:07.054000)
-        size:
-          type: integer
-          title: Size
-          description: The storage space occupied by the model files (e.g., in bytes).
-        origin:
-          type: string
-          title: Origin
-          description: The source of the model (e.g., geti), or where it was obtained from.
-        project_id:
-          type: string
-          title: Project Id
-          description: The unique identifier of the project the model belongs to, if applicable.
-        project_name:
-          type: string
-          title: Project Name
-          description: The human-readable name of the project the model belongs to, if applicable.
-        category:
-          type: string
-          title: Category
-          description: The category associated to the labels used by the model (e.g. Detection, Classification, etc.).
-        target_device_type:
-          type: string
-          title: Target Device Type
-          description: A more specific categorization of the target device (e.g., client, edge, cloud).
-        overview:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Overview
-          description: A general description of the model's purpose, function, and intended use cases. (e.g. {"description":"The description of the model"})
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Optimization Capabilities
-          description: If applicable, information about any specific optimizations made to the model, such as for speed, accuracy, or size reduction.
-        labels:
-          anyOf:
-            - type: string
-            - items: {}
-              type: array
-          title: Labels
-          description: A list of categories or classes the model can predict, if applicable.
-        architecture:
-          type: string
-          title: Architecture
-          description: The type of machine learning architecture used.
-      type: object
-      required:
-        - file
-        - name
-        - version
-      title: Body_store_model_models_post
-    Body_update_model_models__model_id__put:
-      properties:
-        name:
-          type: string
-          title: Name
-          description: The human-readable name of the model.
-        version:
-          type: string
-          title: Version
-          description: The version of the model (e.g., 1.0, 1A, v2).
-        target_device:
-          type: string
-          title: Target Device
-          description: The hardware platform the model is designed to run on (e.g., CPU, GPU, FPGA).
-        precision:
-          type: string
-          title: Precision
-          description: The precision of the model (e.g., FP32, FP16, INT8, INT4).
-        format:
-          type: string
-          title: Format
-          description: The format of the model (e.g. openvino, pytorch).
-        score:
-          type: number
-          title: Score
-          description: A metric that represents the model's performance.
-        created_date:
-          type: string
-          title: Created Date
-          description: The date and time the model was first created or trained. If empty, this will be the date and time the model was registered.(e.g. 2024-02-28 15:39:07.054000)
-        size:
-          type: integer
-          title: Size
-          description: The storage space occupied by the model files (e.g., in bytes).
-        origin:
-          type: string
-          title: Origin
-          description: The source of the model (e.g., geti), or where it was obtained from.
-        project_id:
-          type: string
-          title: Project Id
-          description: The unique identifier of the project the model belongs to, if applicable.
-        project_name:
-          type: string
-          title: Project Name
-          description: The human-readable name of the project the model belongs to, if applicable.
-        category:
-          type: string
-          title: Category
-          description: The category associated to the labels used by the model (e.g. Detection, Classification, etc.).
-        target_device_type:
-          type: string
-          title: Target Device Type
-          description: A more specific categorization of the target device (e.g., client, edge, cloud).
-        overview:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Overview
-          description: A general description of the model's purpose, function, and intended use cases. (e.g. {"description":"The description of the model"})
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Optimization Capabilities
-          description: If applicable, information about any specific optimizations made to the model, such as for speed, accuracy, or size reduction.
-        labels:
-          anyOf:
-            - type: string
-            - items: {}
-              type: array
-          title: Labels
-          description: A list of categories or classes the model can predict, if applicable.
-        architecture:
-          type: string
-          title: Architecture
-          description: The type of machine learning architecture used.
-      type: object
-      title: Body_update_model_models__model_id__put
-    HTTPValidationError:
-      properties:
-        detail:
-          items:
-            $ref: '#/components/schemas/ValidationError'
-          type: array
-          title: Detail
-      type: object
-      title: HTTPValidationError
-    ModelGroup:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        model_versions:
-          items:
-            $ref: '#/components/schemas/ModelVersion'
-          type: array
-          title: Model Versions
-      type: object
-      required:
-        - id
-        - name
-        - model_versions
-      title: ModelGroup
-      description: ModelGroup class
-    ModelIdentifier:
-      properties:
-        id:
-          type: string
-          title: Id
-        group_id:
-          type: string
-          title: Group Id
-      type: object
-      required:
-        - id
-        - group_id
-      title: ModelIdentifier
-      description: ModelIdentifier class
-    ModelIdentifiersIn:
-      properties:
-        models:
-          items:
-            $ref: '#/components/schemas/ModelIdentifier'
-          type: array
-          title: Models
-      type: object
-      required:
-        - models
-      title: ModelIdentifiersIn
-      description: Class used to capture active model ids sent in a HTTP request
-    ModelVersion:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        version:
-          type: integer
-          title: Version
-        openvino_models:
-          items:
-            $ref: '#/components/schemas/OptimizedModel'
-          type: array
-          title: Openvino Models
-          default: []
-      type: object
-      required:
-        - id
-        - name
-        - version
-      title: ModelVersion
-      description: ModelVersion class
-    OptimizedModel:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-      type: object
-      required:
-        - id
-        - name
-      title: OptimizedModel
-      description: OptimizedModel class
-    ProjectOut:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        creation_time:
-          type: string
-          title: Creation Time
-        model_groups:
-          items:
-            $ref: '#/components/schemas/ModelGroup'
-          type: array
-          title: Model Groups
-          default: []
-      type: object
-      required:
-        - id
-        - name
-        - creation_time
-      title: ProjectOut
-      description: Project class representation for HTTP Response
-    RegisteredModelOut:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        target_device:
-          type: string
-          title: Target Device
-        created_date:
-          type: string
-          title: Created Date
-        last_updated_date:
-          type: string
-          title: Last Updated Date
-        precision:
-          anyOf:
-            - items:
-                type: string
-              type: array
-          title: Precision
-        size:
-          anyOf:
-            - type: integer
-          title: Size
-        version:
-          type: string
-          title: Version
-        format:
-          anyOf:
-            - type: string
-          title: Format
-        origin:
-          anyOf:
-            - type: string
-          title: Origin
-        file_url:
-          type: string
-          title: File Url
-        project_id:
-          anyOf:
-            - type: string
-          title: Project Id
-        project_name:
-          anyOf:
-            - type: string
-          title: Project Name
-        category:
-          anyOf:
-            - type: string
-          title: Category
-        target_device_type:
-          anyOf:
-            - type: string
-          title: Target Device Type
-        score:
-          anyOf:
-            - type: number
-          title: Score
-        overview:
-          anyOf:
-            - type: string
-            - type: object
-          title: Overview
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - type: object
-          title: Optimization Capabilities
-        labels:
-          anyOf:
-            - items:
-                type: string
-              type: array
-            - items:
-                type: object
-              type: array
-          title: Labels
-        architecture:
-          anyOf:
-            - type: string
-          title: Architecture
-      type: object
-      required:
-        - id
-        - name
-        - target_device
-        - created_date
-        - last_updated_date
-        - precision
-        - size
-        - version
-        - format
-        - origin
-        - file_url
-        - project_id
-        - project_name
-        - category
-        - target_device_type
-        - score
-        - overview
-        - optimization_capabilities
-        - labels
-        - architecture
-      title: RegisteredModelOut
-      description: RegisteredModel class representation for HTTP Response
-    ValidationError:
-      properties:
-        loc:
-          items:
-            anyOf:
-              - type: string
-              - type: integer
-          type: array
-          title: Location
-        msg:
+          description: API version
+          default: 1.0.0
+        message:
           type: string
           title: Message
-        type:
+          description: Detailed status message
+          default: Service is running smoothly.
+      type: object
+      title: HealthResponse
+      description: Response schema for the health check endpoint
+      examples:
+      - message: Service is running smoothly.
+        status: healthy
+        version: 1.0.0
+    TranscriptionResponse:
+      properties:
+        status:
+          "$ref": "#/components/schemas/TranscriptionStatus"
+          description: Current status of the transcription job
+        message:
           type: string
-          title: Error Type
+          title: Message
+          description: Human-readable status message
+        job_id:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Job Id
+          description: Unique identifier for the transcription job
+        transcript_path:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Transcript Path
+          description: Path to the transcript file
+        video_name:
+          anyOf:
+          - type: string
+          - type: 'null'
+          title: Video Name
+          description: Name of the processed video file
+        video_duration:
+          anyOf:
+          - type: number
+          - type: 'null'
+          title: Video Duration
+          description: Duration of the video in seconds
       type: object
       required:
-        - loc
-        - msg
-        - type
-      title: ValidationError
+      - status
+      - message
+      title: TranscriptionResponse
+      description: Response schema for the transcription endpoint
+      examples:
+      - job_id: 1234-5678-90ab-cdef
+        message: Transcription completed successfully
+        status: completed
+        transcript_path: "/transcripts/meeting_recording.txt"
+        video_duration: 120.5
+        video_name: meeting_recording.mp4
+    TranscriptionStatus:
+      type: string
+      enum:
+      - pending
+      - processing
+      - completed
+      - failed
+      title: TranscriptionStatus
+      description: Enum for the status of a transcription job
+    WhisperModelInfo:
+      properties:
+        model_id:
+          type: string
+          title: Model Id
+        display_name:
+          type: string
+          title: Display Name
+        description:
+          type: string
+          title: Description
+      type: object
+      required:
+      - model_id
+      - display_name
+      - description
+      title: WhisperModelInfo
+      description: Schema for an individual whisper model's detailed information

@@ -77,3 +77,130 @@ def test_settings_initialization():
         assert settings.VLM_COMPRESSION_WEIGHT_FORMAT == "int8"
         assert settings.VLM_DEVICE == "CPU"
         assert settings.SEED == 42
+
+
+def test_ov_config_default():
+    """Test default OV_CONFIG behavior when not set"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        ov_config = settings.get_ov_config_dict()
+        assert ov_config == {"PERFORMANCE_HINT": "LATENCY"}
+
+
+def test_ov_config_valid_json():
+    """Test OV_CONFIG with valid JSON"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "OV_CONFIG": '{"PERFORMANCE_HINT": "THROUGHPUT", "NUM_STREAMS": 4}',
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        ov_config = settings.get_ov_config_dict()
+        assert ov_config == {"PERFORMANCE_HINT": "THROUGHPUT", "NUM_STREAMS": 4}
+
+
+def test_ov_config_invalid_json():
+    """Test OV_CONFIG with invalid JSON falls back to default"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "OV_CONFIG": '{"PERFORMANCE_HINT": "THROUGHPUT",}',  # Invalid JSON
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        ov_config = settings.get_ov_config_dict()
+        assert ov_config == {"PERFORMANCE_HINT": "LATENCY"}  # Falls back to default
+
+
+def test_ov_config_empty_string():
+    """Test OV_CONFIG with empty string"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "OV_CONFIG": "",
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        ov_config = settings.get_ov_config_dict()
+        assert ov_config == {"PERFORMANCE_HINT": "LATENCY"}  # Falls back to default
+
+
+def test_vlm_log_level_valid():
+    """Test VLM_LOG_LEVEL with valid values"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "VLM_LOG_LEVEL": "debug",
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        assert settings.VLM_LOG_LEVEL == "debug"
+
+
+def test_vlm_log_level_invalid():
+    """Test VLM_LOG_LEVEL with invalid value falls back to default"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "VLM_LOG_LEVEL": "invalid_level",
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        assert settings.VLM_LOG_LEVEL == "info"  # Falls back to default
+
+
+def test_vlm_log_level_default():
+    """Test VLM_LOG_LEVEL defaults to info when not set"""
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+        },
+        clear=True,
+    ):
+        settings = Settings()
+        assert settings.VLM_LOG_LEVEL == "info"
+
+
+def test_logging_configuration():
+    """Test that logging is configured with the correct level based on VLM_LOG_LEVEL"""
+    import logging
+    with mock.patch.dict(
+        os.environ,
+        {
+            "VLM_MODEL_NAME": "mock_model",
+            "VLM_DEVICE": "CPU",
+            "VLM_LOG_LEVEL": "debug",
+        },
+        clear=True,
+    ):
+        # We need to reload the module to test the logging configuration
+        import importlib
+        from src.utils import common
+        importlib.reload(common)
+        # Verify that the logging level was set correctly
+        assert logging.getLogger().level == logging.DEBUG
