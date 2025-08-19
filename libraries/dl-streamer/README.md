@@ -44,13 +44,37 @@ Currently building is supported for Ubuntu 24.04 and Ubuntu 22.04 systems.
 
 #### Compile DLStreamer and it's dependencies with
 ```bash
-make build # build22 for Ubuntu 22.04 systems
+make build
+```
+
+Assuming that you cloned this repository to `$HOME/edge-ai-libraries`, you can run the compiled DLStreamer by configuring your environment with these values:
+```bash
+export LIBVA_DRIVER_NAME=iHD
+export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib/gstreamer-1.0"
+export LD_LIBRARY_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/lib:$LD_LIBRARY_PATH"
+export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
+export GST_VA_ALL_DRIVERS="1"
+export PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:$PKG_CONFIG_PATH"
+export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 ```
 
 #### Install DLStreamer onto your system with
 > Note: DLStreamer will be installed in the `/opt/intel/dlstreamer` directory during this process.
 ```bash
 make install
+```
+
+You can run the installed DLStreamer by configuring your environment with these values:
+```bash
+export LIBVA_DRIVER_NAME=iHD
+export GST_PLUGIN_PATH="/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
+export LD_LIBRARY_PATH="/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
+export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
+export GST_VA_ALL_DRIVERS="1"
+export PATH="/opt/intel/dlstreamer/bin:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
+export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/opt/intel/dlstreamer/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
+export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 ```
 
 #### Build the DLStreamer DEB package with
@@ -79,11 +103,11 @@ When building manually, to use DLStreamer you will need to configure your enviro
 
 ```bash
 export LIBVA_DRIVER_NAME=iHD
-export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-export LD_LIBRARY_PATH="/opt/intel/dlstreamer/gstreamer/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
+export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
+export LD_LIBRARY_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/install/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/lib:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
 export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
 export GST_VA_ALL_DRIVERS="1"
-export PATH="/opt/intel/dlstreamer/gstreamer/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
+export PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/install/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/bin:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
 export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
 export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 ```
