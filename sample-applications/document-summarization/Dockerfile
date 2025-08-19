@@ -22,9 +22,8 @@ RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-root \
     && poetry cache clear pypi --all
 
-# install nltk data
-RUN pip install nltk \
- && mkdir -p /opt/share/nltk_data \
+# Download NLTK corpora (stopwords + punkt)
+RUN mkdir -p /opt/share/nltk_data \
  && python -m nltk.downloader -d /opt/share/nltk_data stopwords punkt
 
 FROM python:3.11-slim AS runtime
