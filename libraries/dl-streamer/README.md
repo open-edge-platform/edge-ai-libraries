@@ -98,19 +98,6 @@ make image # image22 for the Ubuntu 22.04 image
 ```bash
 make clean
 ```
-#### Configure environment
-When building manually, to use DLStreamer you will need to configure your environment so that DLStreamer can find all necessary elements. Assuming that you cloned this repository to `$HOME/edge-ai-libraries`, here's an example set of variables:
-
-```bash
-export LIBVA_DRIVER_NAME=iHD
-export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-export LD_LIBRARY_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/install/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/lib:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
-export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
-export GST_VA_ALL_DRIVERS="1"
-export PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/install/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/opencv-bin/bin:/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/opencv/lib:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
-export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-```
 
 ## Other Useful Links
 * [Get Started](https://dlstreamer.github.io/get_started/get_started_index.html)
