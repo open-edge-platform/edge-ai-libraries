@@ -1,7 +1,7 @@
 # Disclaimers
 
 **Video Generator Images**:
-We are providing 6 images that are only to be used as demo purposed and users should bring their own folder of images to run the video generator/create their own videos.
+Intel provides six images for demo purposes only. You must provide your own images to run the video generator or to create videos.
 
 **Human Rights**:
 Intel is committed to respecting human rights and avoiding complicity in human rights abuses. See Intel's Global Human Rights Principles. Intel's products and software are intended only to be used in applications that do not cause or contribute to a violation of an internationally recognized human right.
@@ -19,4 +19,4 @@ https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/yolov5s-416_
 Dataset Used: https://github.com/intel-iot-devkit/sample-videos?tab=readme-ov-file (CC-BY-4.0)*
 
 **Data Transparency**:
-Please refer to Model cards included in this folder for more information of the models as well as the usage in the Visual Pipeline and Platform Evaluation tool.
+Refer to Model cards included in this folder for more information on the models and their usage in the Visual Pipeline and Platform Evaluation tool.

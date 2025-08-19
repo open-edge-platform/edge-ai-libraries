@@ -1,16 +1,16 @@
 # Get Started
 
-The **Visual Pipeline and Platform Evaluation Tool (ViPPET)** helps hardware decision-makers and software developers select the optimal Intel platform by adjusting workload parameters and analyzing the provided performance metrics. Through its intuitive web-based interface, users can run the Smart NVR pipeline and evaluate key metrics such as throughput, CPU and GPU metrics, enabling them to assess platform performance and determine the ideal sizing for their needs.
+The **Visual Pipeline and Platform Evaluation Tool** helps hardware decision-makers and software developers select the optimal Intel® platform by adjusting workload parameters and analyzing the provided performance metrics. Through its intuitive web-based interface, users can run the Smart NVR pipeline and evaluate key metrics such as throughput, CPU and GPU metrics, enabling them to assess platform performance and determine the ideal sizing for their needs.
 
 By following this guide, you will learn how to:
-- **Set up the sample application**: Use Docker Compose to quickly deploy the application in your environment.
+- **Set up the sample application**: Use Docker Compose tool to quickly deploy the application in your environment.
 - **Run a predefined pipeline**: Execute the Smart NVR pipeline and observe metrics.
 
 
 ## Prerequisites
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
-- Install Docker: [Installation Guide](https://docs.docker.com/get-docker/).
-- Latest NPU Linux Drivers [Linux NPU Driver Releases](https://github.com/intel/linux-npu-driver/releases).
+- Install Docker platform: [Installation Guide](https://docs.docker.com/get-docker/).
+- Latest NPU Linux drivers [Linux NPU Driver Releases](https://github.com/intel/linux-npu-driver/releases).
 
 
 ## Set up and First Use
@@ -53,7 +53,7 @@ By following this guide, you will learn how to:
 ## Validation
 
 1. **Verify Build Success**:
-   - Check the logs. Look for confirmation messages indicating the microservice started successfully.
+   - Check the logs. Look for confirmation messages indicating that the microservice has started successfully.
 
 
 ## Advanced Setup Options
@@ -64,7 +64,7 @@ For alternative ways to set up the sample application, see:
 
 ### Known Issues
 
-- **Issue 1**: The VIPPET container fails to start the analysis when the "Run" button is clicked in the UI, specifically for systems without GPU. This results in the analysis process either failing or becoming unresponsive for users without GPU hardware.
+- **Issue 1**: The Visual Pipeline and Platform Evaluation Tool container fails to start the analysis when the "Run" button is clicked in the UI, specifically for systems without GPU. This results in the analysis process either failing or becoming unresponsive for users without GPU hardware.
   - **Solution**: To avoid this issue, consider upgrading the hardware to meet the required specifications for optimal performance.
 
 
@@ -76,7 +76,7 @@ For alternative ways to set up the sample application, see:
      docker compose logs
      ```
 2. **Port Conflicts**:
-   - Update the `ports` section in the Compose file to resolve conflicts.
+   - Update the `ports` section in the Docker Compose file to resolve conflicts.
 
 
 ## Supporting Resources
