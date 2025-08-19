@@ -103,7 +103,7 @@ run-dev: check-device-type public_models_choice ## Run the docker compose servic
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
 test: $(VENV_DIR) ## Run tests
-	# Use only the vippet-cpu container to run tests as they are not device-dependent
+	# Run tests using the vippet-cpu container (tests are device agnostic)
 	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu python -m unittest discover -v -s ./tests -p '*_test.py'
 
