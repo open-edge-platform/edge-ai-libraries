@@ -11,7 +11,7 @@ This page provides troubleshooting steps, FAQs, and resources to help you resolv
   ```bash
   docker compose logs
   ```
-  Check the logs for errors and resolve dependency issues.
+  Check the logs for errors, and resolve dependency issues.
 
 ### 2. Port Conflicts
 - **Issue**: Port conflicts with other running applications.
