@@ -133,7 +133,7 @@ the 'gva' elements used in this tutorial with some important properties
 here. Refer to
 [Intel® DL Streamer elements](../elements/elements.md) page for more details.
 
-- [`gvadetect`](../elements/gvadetect.md)
+- [gvadetect](../elements/gvadetect.md)
 
   \- Runs detection with the Inference Engine from OpenVINO™ Toolkit.
   We will use it to detect vehicles in a frame and output their
@@ -147,7 +147,7 @@ here. Refer to
     property to 1 would mean run detection on every frame while
     setting it to 5 would run detection on every fifth frame.
 
-- [`gvaclassify`](../elements/gvaclassify.md)
+- [gvaclassify](../elements/gvaclassify.md)
   \- Runs classification with the Inference Engine from OpenVINO™
   Toolkit. We will use it to label the bounding boxes that gvadetect
   outputs, with the type and color of the vehicle. `queue` element
@@ -158,7 +158,7 @@ here. Refer to
     describes the model input and output layer format. The
     model-proc file in this tutorial describes the output layer name
     and labels (person and vehicle) of objects it detects. See
-    [`model-proc`](../dev_guide/model_proc_file.md)> for more information.
+    [model-proc](../dev_guide/model_proc_file.md)> for more information.
   - device - device to run inferencing on
 
 - [`gvatrack](../elements/gvatrack.md)
@@ -168,7 +168,7 @@ here. Refer to
   on fewer frames and increases overall throughput while still
   tracking the position and type of objects in every frame.
 
-- [`gvawatermark`](../elements/gvawatermark.md)
+- [gvawatermark](../elements/gvawatermark.md)
 
   \- Overlays detection and classification results on top of video
   data. We will do exactly that. Parse the detected vehicle results
@@ -404,7 +404,7 @@ means you use a web camera to perform real-time inference.
 
 In order to use web camera as an input, we will replace the `filesrc`
 element in the object detection pipeline with
-[`v4l2src`](https://gstreamer.freedesktop.org/documentation/video4linux2/v4l2src.html?gi-language=c)
+[v4l2src](https://gstreamer.freedesktop.org/documentation/video4linux2/v4l2src.html?gi-language=c)
 element, that is used for capturing video from webcams. Before running
 the below updated pipeline, check the web camera path and update it in
 the pipeline. The web camera stream is usually in the `/dev/` directory.
@@ -423,7 +423,7 @@ gvawatermark ! videoconvert ! autovideosink sync=false
 
 In order to use RTSP source as an input, we will replace the `filesrc`
 element in the object detection pipeline with
-[`urisourcebin`](https://gstreamer.freedesktop.org/documentation/playback/urisourcebin.html?gi-language=c)
+[urisourcebin](https://gstreamer.freedesktop.org/documentation/playback/urisourcebin.html?gi-language=c)
 to access URIs. Before running the below updated pipeline, replace
 '\<RTSP_uri\>' with your RTSP URI and verify it before running the
 command.
@@ -483,7 +483,7 @@ In the above pipeline:
 4. `gvawatermark` displays the ROIs and their attributes.
 
 See
-[model-proc](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer/samples/gstreamer/model_proc)
+[model-proc](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples/gstreamer/model_proc)
 for the model-procs and its input and output specifications.
 
 ## Exercise 3: Use object tracking to improve performance {#object-tracking}
@@ -600,14 +600,14 @@ In the above pipeline:
 
 For publishing the results to MQTT or Kafka, please refer to the
 [metapublish
-samples](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer/samples/gstreamer/gst_launch/metapublish).
+samples](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples/gstreamer/gst_launch/metapublish).
 
 You have completed this tutorial. Now, start creating your video
 analytics pipeline with Intel® DL Streamer Pipeline Framework!
 
 ## Next Steps
 
-- [Samples overview](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer/samples/gstreamer/README.md)
+- [Samples overview](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples/gstreamer/README.md)
 - [Elements](../elements/elements.md)
 - [How to create model-proc file](../dev_guide/how_to_create_model_proc_file.md)
 

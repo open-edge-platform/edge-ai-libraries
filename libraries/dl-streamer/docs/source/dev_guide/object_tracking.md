@@ -2,9 +2,8 @@
 
 ## Object tracking types
 
-Object tracking element is
-[gvatrack](../elements/gvatrack)
-typically inserted into a video analytics pipeline right after object
+Object tracking element is [gvatrack](../elements/gvatrack) typically inserted into a
+video analytics pipeline right after object
 detection element [gvadetect](../elements/gvadetect)
 and can work in the following modes as specified by property
 *tracking-type*:
@@ -54,7 +53,7 @@ Example:
 ## Sample
 
 Please refer to sample
-[vehicle_pedestrian_tracking](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer/samples/gstreamer/gst_launch/vehicle_pedestrian_tracking)
+[vehicle_pedestrian_tracking](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples/gstreamer/gst_launch/vehicle_pedestrian_tracking)
 for pipeline example with `gvadetect`, `gvatrack`, `gvaclassify`
 elements
 

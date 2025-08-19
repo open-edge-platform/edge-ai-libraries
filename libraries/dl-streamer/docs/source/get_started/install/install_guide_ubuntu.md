@@ -14,7 +14,7 @@ For detailed description of installation process, including the option
 with building Intel® DL Streamer Pipeline Framework from the source code
 provided in
 [Open Edge Platform repository](https://github.com/open-edge-platform/edge-ai-libraries.git),
-please follow the [instructions](../../dev_guide/advanced_install/advanced_install_guide_index)
+please follow the [instructions](../../dev_guide/advanced_install/advanced_install_guide_prebuilt.md).
 
 ## Prerequisites
 
@@ -126,7 +126,7 @@ sudo apt-get install intel-dlstreamer
 use!**
 
 To see the full list of installed components check the
-[Dockerfile content for Ubuntu 24](https://github.com/open-edge-platform/edge-ai-libraries/blob/release-1.2.0/libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile)
+[Dockerfile content for Ubuntu 24](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile)
 
 ### [Optional] Step 4: Python dependencies
 
@@ -278,7 +278,7 @@ setfacl -m user:1000:r ~/.Xauthority
 ```
 
 > **NOTE**: If you want to build Docker image from DLStreamer Dockerfiles, please
-> follow [the instructions](../../dev_guide/advanced_install/advanced_build_docker_image).
+> follow [the instructions](../../dev_guide/advanced_install/advanced_build_docker_image.md).
 
 ### Step 4: Pull the Intel® DL Streamer Docker image from Docker Hub
 
