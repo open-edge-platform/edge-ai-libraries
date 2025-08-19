@@ -9,12 +9,10 @@ Assess Intel® hardware options, benchmark performance, and analyze key metrics 
 - Follow Microsoft Writing Guidelines: Use direct, active voice and avoid unnecessary jargon.
 -->
 
+
 ## Overview
 
-The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads by allowing you to
-configure workload parameters, benchmark performance, and analyze key metrics such as throughput, CPU, and GPU usage.
-With its intuitive interface, the tool provides actionable insights to help you optimize hardware selection and
-performance.
+The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection for AI workloads by allowing you to configure workload parameters, benchmark performance, and analyze key metrics such as throughput, CPU, and GPU usage. With its intuitive interface, the tool provides actionable insights to help you optimize hardware selection and performance.
 
 ### Use Cases
 
@@ -50,6 +48,7 @@ for tailored performance tests.
 **Automated Video Generation**: Generate synthetic test videos to evaluate system performance under controlled
 conditions.
 
+
 ## How It Works
 
 <!--
@@ -76,10 +75,6 @@ thermal data.
 **Visualization & Analysis**: View real-time performance metrics on the dashboard to compare configurations and
 optimize settings.
 
-## Coming Soon
-
-**Simple Video Structurization (D-T-C) Pipeline**: A new versatile pipeline supporting various object detection and
-classification tasks, adaptable to the selected model. Stay tuned for updates!
 
 ## Learn More
 
