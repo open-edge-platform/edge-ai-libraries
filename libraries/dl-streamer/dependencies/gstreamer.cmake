@@ -1,3 +1,9 @@
+# ==============================================================================
+# Copyright (C) 2018-2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
+
 include(ExternalProject)
 
 # When changing version, you will also need to change the download hash
