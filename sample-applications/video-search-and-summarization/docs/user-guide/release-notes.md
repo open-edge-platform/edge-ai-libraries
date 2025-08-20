@@ -10,7 +10,19 @@
 - Issues fixed are listed below:
     - Updated docker and helm to public registry.
     - Updated tags for the helm and docker images. 
+    - Sanity for deployment on EMT.
+- Limited support for EMT 3.0 based deployment. CPU-only configuration supported. 
+- Images for all required microservices uploaded and available on Docker registry.
 
+## Known Issues/Limitations (Consolidated):
+- Deployment on EMF is not supported. - Open
+- `RWOnce` PVC access mode not supported. - Open
+- Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals). - Closed
+- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. - Open
+- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing. - Open
+- VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct. - Open
+- The Helm chart presently supports only CPU deployments. - Open
+- Video summary with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines. - Open
 
 ## Previous releases
 
@@ -47,13 +59,3 @@
 **HW used for validation**:
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 - Vanilla Kubernetes Cluster
-
-**Known Issues/Limitations**:
-- EMF and EMT are not supported yet.
-- Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals).
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct.
-- The Helm chart presently supports only CPU deployments.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.

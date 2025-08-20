@@ -110,7 +110,6 @@ ENV FASTAPI_ENV=production
 
 WORKDIR /my-app
 
-# Install runtime dependency for opencv
 RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
     libmagic-dev && \
     apt-get clean && \

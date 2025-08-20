@@ -1,11 +1,15 @@
 import unittest
 from unittest import mock
 
-from app import create_interface, generate_stream_data, read_latest_metrics, chart_titles
+from app import (
+    create_interface,
+    generate_stream_data,
+    read_latest_metrics,
+    chart_titles,
+)
 
 
 class TestApp(unittest.TestCase):
-
     def test_create_interface(self):
         result = create_interface()
         self.assertIsNotNone(result)
@@ -26,9 +30,7 @@ class TestApp(unittest.TestCase):
             f"gpu engine=video,gpu_id=1 usage=1.0 {timestamp}\n"
             f"gpu engine=compute,gpu_id=1 usage=1.0 {timestamp}\n"
         )
-        with mock.patch(
-            "builtins.open", mock.mock_open(read_data=mock_data)
-        ) as mock_file:
+        with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
             result = read_latest_metrics()
             expected = [1.0 for _ in range(12)] + [None for _ in range(8)]
             self.assertEqual(result, expected)
@@ -49,9 +51,7 @@ class TestApp(unittest.TestCase):
             f"gpu engine=video usage=null {timestamp}\n"
             f"gpu engine=compute usage=null {timestamp}\n"
         )
-        with mock.patch(
-            "builtins.open", mock.mock_open(read_data=mock_data)
-        ) as mock_file:
+        with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
             result = read_latest_metrics()
             expected = [None for _ in range(20)]
             self.assertEqual(result, expected)

@@ -14,7 +14,7 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250729_EAL1.2_DLS_RC2-ubuntu24
+FROM intel/dlstreamer:2025.1.2-ubuntu24
 
 USER root
 
@@ -30,22 +30,24 @@ ENV VIRTUAL_ENV=/home/dlstreamer/vippet/.venv
 RUN python3 -m venv $VIRTUAL_ENV
 ENV PATH="$VIRTUAL_ENV/bin:$PATH"
 
-ADD requirements.txt /home/dlstreamer/vippet/requirements.txt
+COPY requirements.txt /home/dlstreamer/vippet/requirements.txt
 
 RUN \
     pip3 install --no-cache-dir --upgrade pip && \
     pip3 install --no-cache-dir -r requirements.txt
 
-ADD app.py \
+COPY --chown=dlstreamer:dlstreamer \
+    app.py \
     app.css \
     optimize.py \
-    pipeline.py \
+    gstpipeline.py \
     device.py \
     explore.py \
     benchmark.py \
     utils.py \
+    cleanup_models.sh \
     /home/dlstreamer/vippet/
 
-ADD pipelines/ /home/dlstreamer/vippet/pipelines
+COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines
 
-CMD ["python", "app.py"]
+CMD ["/bin/bash", "-c", "./cleanup_models.sh; python app.py"]

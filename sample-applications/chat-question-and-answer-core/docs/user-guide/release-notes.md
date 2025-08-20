@@ -7,9 +7,14 @@
 
 - Replaced environment variable-based configuration with YAML file loading for model-related settings, improving flexibility and maintainability.
 - Enhanced container security by updating UI and NGINX containers to run as non-root users, aligning with industry best practices.
-- Renamed stream_log/ endpoint to chat/, reflecting its current functionality more accurately.
+- Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
+- Functional on EMT 3.0.
 
-## Previous Release
+## Known Issues/Behavior (Consolidated):
+- Validation on the latest version of EMF has not been done. Hence, EMF should be considered as not supported. - Open
+- Not validated on EMT edge node - Closed
+
+## Previous Releases
 
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
@@ -18,10 +23,6 @@
 - Security Vulnerabilities Fix for Dependency Packages.
 - Update in Setup Scripts for default model download path in the backend.
 - Bug fixes.
-
-### Known Issues/Behavior:
-- Not validated with the EMF deployment package
-- Not validated on EMT edge node
 
 **Version**: 1.2.0 \
 **Release Date**: WW20 2025

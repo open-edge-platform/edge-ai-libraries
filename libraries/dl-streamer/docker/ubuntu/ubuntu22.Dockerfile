@@ -30,7 +30,8 @@
 #                      V
 #                  dlstreamer
 # ==============================================================================
-FROM ubuntu:22.04 AS builder
+ARG DOCKER_REGISTRY
+FROM ${DOCKER_REGISTRY}ubuntu:22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_ARG=Release
@@ -41,7 +42,7 @@ LABEL vendor="Intel Corporation"
 ARG GST_VERSION=1.26.4
 ARG OPENVINO_VERSION=2025.2.0
 
-ARG DLSTREAMER_VERSION=2025.0.1.3
+ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
@@ -73,7 +74,7 @@ RUN \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
-    
+
 RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
@@ -422,7 +423,8 @@ RUN \
     mv "/intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb" "/intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb"
 
 # ==============================================================================
-FROM ubuntu:22.04 AS dlstreamer
+ARG DOCKER_REGISTRY
+FROM ${DOCKER_REGISTRY}ubuntu:22.04 AS dlstreamer
 ARG DLSTREAMER_VERSION
 ARG DLSTREAMER_BUILD_NUMBER
 # Build final image for dlstreamer - using .deb packages for installation
@@ -453,7 +455,7 @@ RUN \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
-    
+
 RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
     curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \

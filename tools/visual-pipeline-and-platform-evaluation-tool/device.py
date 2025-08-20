@@ -1,8 +1,7 @@
-import logging as log
-import sys
-import openvino as ov
 from dataclasses import dataclass, field
-from typing import Any, Dict, List, Tuple, Union
+from typing import List
+
+import openvino as ov
 
 
 @dataclass

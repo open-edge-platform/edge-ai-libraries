@@ -1,9 +1,5 @@
 # Security Policy
-
-## Security practices
-
-[![OpenSSF Best Practices](https://www.bestpractices.dev/projects/<project-id>/badge)](https://www.bestpractices.dev/projects/<project-id>)
-[![Coverity](https://scan.coverity.com/projects/<project-id>/badge.svg)](https://scan.coverity.com/projects/<project-name>)
+Intel is committed to rapidly addressing security vulnerabilities affecting our customers and providing clear guidance on the solution, impact, severity and mitigation.
 
 ## Report a Vulnerability
 

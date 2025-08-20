@@ -8,7 +8,7 @@ RUN apt-get update && \
 
 RUN cargo install --locked qmassa
 
-FROM docker.io/library/telegraf:1.32 AS collector
+FROM docker.io/library/telegraf:1.35.3 AS collector
 
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
 
@@ -20,6 +20,7 @@ RUN apt-get update && \
 
 WORKDIR /app
 
+COPY telegraf.conf /etc/telegraf
 COPY qmassa_reader.py qmassa_reader.py
 COPY read_cpu_freq.sh read_cpu_freq.sh
 RUN chmod +x read_cpu_freq.sh
