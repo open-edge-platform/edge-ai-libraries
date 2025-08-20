@@ -101,7 +101,7 @@ async def get_documents():
         return {"status": "Success", "metadata": {"documents": documents}}
 
     except Exception as e:
-        logger.exception("Error getting documents.", error=e)
+        logger.exception("Error getting documents.")
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Error getting documents.",
@@ -151,7 +151,7 @@ async def ingest_document(
             # Save document in /tmp/ to ingest it
             tmp_file, err_message = await save_document(file_obj)
             if tmp_file is None:
-                logger.exception("Error saving file.", error=err_message)
+                logger.exception("Error saving file.")
                 raise HTTPException(
                     status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                     detail=f"Error saving file: {err_message}",
@@ -169,7 +169,7 @@ async def ingest_document(
                     )
 
             except Exception as err:
-                logger.exception("Error creating embedding.", error=err)
+                logger.exception("Error creating embedding.")
                 raise HTTPException(
                     status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                     detail=f"Error creating embedding: {err}",
@@ -189,7 +189,7 @@ async def ingest_document(
         raise ex
 
     except Exception as e:
-        logger.exception("Error ingesting document.", error=e)
+        logger.exception("Error ingesting document.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
     finally:
@@ -241,7 +241,7 @@ async def delete_embedding(document: str = "", delete_all: bool = False):
         raise ex
 
     except Exception as e:
-        logger.exception("Error deleting embeddings.", error=e)
+        logger.exception("Error deleting embeddings.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
 

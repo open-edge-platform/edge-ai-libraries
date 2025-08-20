@@ -24,7 +24,7 @@ async def get_devices():
         return {"devices": devices}
 
     except Exception as e:
-        logger.exception("Error getting devices list.", error=e)
+        logger.exception("Error getting devices list.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -47,14 +47,16 @@ async def get_device_info(device: str = ""):
         available_devices = OpenVINOBackend.get_available_devices()
 
         if device not in available_devices:
-            raise HTTPException(
-                status_code=HTTPStatus.NOT_FOUND,
-                detail=f"Device {device} not found. Available devices: {available_devices}",
-            )
+            raise ValueError(f"Device {device} not found. Available devices: {available_devices}")
         device_props = OpenVINOBackend.get_device_property(device)
 
         return JSONResponse(content=device_props)
 
+    except ValueError as e:
+        logger.exception("Device not found.")
+        # Handle the exception specifically for device not found
+        raise HTTPException(status_code=HTTPStatus.NOT_FOUND, detail=str(e))
+
     except Exception as e:
-        logger.exception("Error getting properties for device.", error=e)
+        logger.exception("Error getting properties for device.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))

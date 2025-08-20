@@ -67,7 +67,6 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-# RUN poetry install --with dev
 RUN poetry install --with dev,openvino,ollama
 
 # Source code will be mounted here

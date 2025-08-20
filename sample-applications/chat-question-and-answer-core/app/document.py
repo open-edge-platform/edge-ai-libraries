@@ -57,7 +57,7 @@ async def save_document(file_object: UploadFile):
         return tmp_path, None
 
     except Exception as err:
-        logger.exception("Error saving file.", error=err)
+        logger.exception("Error saving file.")
         return None, err
 
 
