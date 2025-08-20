@@ -51,8 +51,8 @@ Key components of the **Edge AI Libraries**:
 | [PLCopen Benchmark](plcopen-benchmark) | Sample Application | [Link](sample-applications/plcopen-benchmark) | [Build](sample-applications/plcopen-benchmark/README.md) |
 | [PLCopen Databus](plcopen-databus) | Sample Application | [Link](sample-applications/plcopen-databus) | [Build](sample-applications/plcopen-databus/README.md) |
 | [Video Search and Summarization](sample-applications/video-search-and-summarization) | Sample Application | [Link](sample-applications/video-search-and-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/video-search-and-summarization/docs/user-guide/build-from-source.md) instructions |
-| [Optimized Isolation Forest Classifier Training and Inference Microservice](microservices/isolation-forest) | Microservice| [Link](microservices/isolation-forest/README.md)| [Build](microservices/isolation-forest/README.md) |
-| [Optimizied Random Forest Training and Inference Microservice](microservices/random-forest/) | Microservice | [Link](microservices/isolation-forest/README.md) | [Build](microservices/isolation-forest/README.md) |
+| [Optimized Isolation Forest Classifier Training and Inference Microservice](https://github.com/intel/isolation-forest-microservice) | Microservice| [Link](https://github.com/intel/isolation-forest-microservice/blob/main/README.md)| [Build](https://github.com/intel/isolation-forest-microservice/blob/main/README.md) |
+| [Optimizied Random Forest Training and Inference Microservice](https://github.com/intel/random-forest-microservice) | Microservice | [Link](https://github.com/intel/random-forest-microservice/blob/main/README.md) | [Build](https://github.com/intel/random-forest-microservice/blob/main/README.md) |
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
