@@ -34,3 +34,9 @@
 [submodule "libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk"]
 	path = libraries/robotics-ai-libraries/motion-control-gateway/amr/ydlidar_ros2/sdk
 	url = https://github.com/YDLIDAR/sdk.git
+[submodule "microservices/isolation-forest"]
+	path = microservices/isolation-forest
+	url = https://github.com/intel/isolation-forest-microservice
+[submodule "microservices/random-forest"]
+	path = microservices/random-forest
+	url = https://github.com/intel/random-forest-microservice

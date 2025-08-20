@@ -1,11 +1,15 @@
 .. toctree::
    :hidden:
 
-   overview
+   Overview
+   Overview-search
+   Overview-summary
 
 .. toctree::
 
    overview-architecture
+   overview-architecture-search
+   overview-architecture-summary
    system-requirements
    get-started
 
@@ -14,8 +18,6 @@
 
    build-from-source
    deploy-with-helm
-   deploy-with-edge-orchestrator
-   how-to-performance
 
 .. toctree::
    :caption: References
