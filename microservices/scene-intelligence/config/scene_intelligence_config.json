@@ -1,0 +1,242 @@
+{
+  "service": {
+    "name": "scene-intelligence",
+    "version": "1.0.0",
+    "description": "Multi-intersection traffic analysis service with 16 cameras"
+  },
+  "intersections": [
+    {
+      "id": "intersection-1",
+      "name": "intersection-1",
+      "location": {
+        "latitude": 40.7506,
+        "longitude": -73.9944
+      },
+      "cameras": [
+        {
+          "id": "intersection-1-cam1",
+          "name": "intersection-1 - South View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-1-cam1",
+          "direction": "south view",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "facing": "south"
+          }
+        },
+        {
+          "id": "intersection-1-cam2",
+          "name": "intersection-1 - West View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-1-cam2",
+          "direction": "west view",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "facing": "west"
+          }
+        },
+        {
+          "id": "intersection-1-cam3",
+          "name": "intersection-1 - North View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-1-cam3",
+          "direction": "north view",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "facing": "north"
+          }
+        },
+        {
+          "id": "intersection-1-cam4",
+          "name": "intersection-1 - East View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-1-cam4",
+          "direction": "east view",
+          "position": {
+            "x": 0,
+            "y": 0,
+            "facing": "east"
+          }
+        }
+      ]
+    },
+    {
+      "id": "intersection-2",
+      "name": "intersection-2",
+      "location": {
+        "latitude": 40.7506,
+        "longitude": -73.9934
+      },
+      "cameras": [
+        {
+          "id": "intersection-2-cam1",
+          "name": "intersection-2 - South View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-2-cam1",
+          "direction": "south view",
+          "position": {
+            "x": 1,
+            "y": 0,
+            "facing": "south"
+          }
+        },
+        {
+          "id": "intersection-2-cam2",
+          "name": "intersection-2 - West View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-2-cam2",
+          "direction": "west view",
+          "position": {
+            "x": 1,
+            "y": 0,
+            "facing": "west"
+          }
+        },
+        {
+          "id": "intersection-2-cam3",
+          "name": "intersection-2 - North View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-2-cam3",
+          "direction": "north view",
+          "position": {
+            "x": 1,
+            "y": 0,
+            "facing": "north"
+          }
+        },
+        {
+          "id": "intersection-2-cam4",
+          "name": "intersection-2 - East View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-2-cam4",
+          "direction": "east view",
+          "position": {
+            "x": 1,
+            "y": 0,
+            "facing": "east"
+          }
+        }
+      ]
+    },
+    {
+      "id": "intersection-3",
+      "name": "intersection-3",
+      "location": {
+        "latitude": 40.751599999999996,
+        "longitude": -73.9944
+      },
+      "cameras": [
+        {
+          "id": "intersection-3-cam1",
+          "name": "intersection-3 - South View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-3-cam1",
+          "direction": "south view",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "facing": "south"
+          }
+        },
+        {
+          "id": "intersection-3-cam2",
+          "name": "intersection-3 - West View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-3-cam2",
+          "direction": "west view",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "facing": "west"
+          }
+        },
+        {
+          "id": "intersection-3-cam3",
+          "name": "intersection-3 - North View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-3-cam3",
+          "direction": "north view",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "facing": "north"
+          }
+        },
+        {
+          "id": "intersection-3-cam4",
+          "name": "intersection-3 - East View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-3-cam4",
+          "direction": "east view",
+          "position": {
+            "x": 0,
+            "y": 1,
+            "facing": "east"
+          }
+        }
+      ]
+    },
+    {
+      "id": "intersection-4",
+      "name": "intersection-4",
+      "location": {
+        "latitude": 40.751599999999996,
+        "longitude": -73.9934
+      },
+      "cameras": [
+        {
+          "id": "intersection-4-cam1",
+          "name": "intersection-4 - South View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-4-cam1",
+          "direction": "south view",
+          "position": {
+            "x": 1,
+            "y": 1,
+            "facing": "south"
+          }
+        },
+        {
+          "id": "intersection-4-cam2",
+          "name": "intersection-4 - West View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-4-cam2",
+          "direction": "west view",
+          "position": {
+            "x": 1,
+            "y": 1,
+            "facing": "west"
+          }
+        },
+        {
+          "id": "intersection-4-cam3",
+          "name": "intersection-4 - North View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-4-cam3",
+          "direction": "north view",
+          "position": {
+            "x": 1,
+            "y": 1,
+            "facing": "north"
+          }
+        },
+        {
+          "id": "intersection-4-cam4",
+          "name": "intersection-4 - East View",
+          "stream_uri": "rtsp://dlstreamer:8554/intersection-4-cam4",
+          "direction": "east view",
+          "position": {
+            "x": 1,
+            "y": 1,
+            "facing": "east"
+          }
+        }
+      ]
+    }
+  ],
+  "mqtt": {
+    "topics": {
+      "region_count_data": "scenescape/event/region/+/+/count",
+      "camera_images": "scenescape/image/camera/+"
+    },
+    "qos": 1,
+    "subscriptions": [
+      {
+        "topic_pattern": "scenescape/event/region/+/+/count",
+        "description": "Region count events for directional traffic density calculation"
+      },
+      {
+        "topic_pattern": "scenescape/image/camera/+",
+        "description": "Camera image data for intersection analysis"
+      }
+    ]
+  }
+}

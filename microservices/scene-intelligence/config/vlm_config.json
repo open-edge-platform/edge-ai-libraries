@@ -1,0 +1,22 @@
+{
+  "vlm_service": {
+    "base_url": "${VLM_BASE_URL}",
+    "model": "${VLM_MODEL}",
+    "timeout_seconds": 10,
+    "vlm_workers": 4
+  },
+  "traffic_analysis": {
+    "high_density_threshold": 5.0,
+    "minimum_duration_for_consistently_high_traffic_seconds": 4,
+    "vlm_cooldown_minutes": 1
+  },
+  "vlm_model_parameters": {
+    "max_completion_tokens": 500,
+    "temperature": 0.3,
+    "top_p": 0.9
+  },
+  "prompts": {
+    "system_prompt": "You are an AI traffic analyst specialized in analyzing intersection traffic conditions. Provide clear, actionable insights based on camera observations.",
+    "traffic_analysis_prompt": "You are analyzing traffic conditions at {intersection_id}.\n\nTRAFFIC SITUATION:\n- High traffic density detected in: {directions_text}\n- Traffic density values: {density_info}\n- Threshold for high density: {high_density_threshold}\n\nANALYSIS INSTRUCTIONS:\nAnalyze the provided intersection camera images and explain the reasons for high traffic density. Consider these factors:\n\n1. WEATHER CONDITIONS: Check for rain, snow, fog, or poor visibility that might slow traffic\n2. ROAD CONDITIONS: Look for road work, accidents, debris, or blocked lanes\n3. TRAFFIC PATTERNS: Identify congestion, vehicle backups, or queue formations\n4. SPECIAL EVENTS: Notice any unusual gatherings, events, or activities\n5. INFRASTRUCTURE: Check traffic lights, signs, or crossing conditions\n6. PEDESTRIAN ACTIVITY: Heavy pedestrian crossings affecting traffic flow\n7. VEHICLE TYPES: Presence of large vehicles, emergency vehicles, or buses\n\nRESPONSE FORMAT:\nProvide a concise analysis (100-200 words) explaining:\n- What you observe in the intersection scenes\n- Most likely reasons for the high traffic density\n- Any concerning conditions that need attention\n\nBe specific about what you see and focus on actionable insights for traffic management."
+  }
+}

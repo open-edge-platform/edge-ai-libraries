@@ -1,0 +1,474 @@
+{
+    'openapi': '3.1.0',
+    'info':
+        {
+            'title': 'Scene Intelligence API',
+            'description': 'Multi-intersection traffic analysis microservice',
+            'version': '1.0.0',
+        },
+    'paths':
+        {
+            '/api/v1/health':
+                {
+                    'get':
+                        {
+                            'summary': 'Health Check',
+                            'description': 'Extended health check endpoint.',
+                            'operationId': 'health_check_api_v1_health_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        {
+                                                            'schema':
+                                                                {
+                                                                    '$ref': '#/components/schemas/HealthResponse',
+                                                                },
+                                                        },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/config':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Service Config',
+                            'description': 'Get service configuration.',
+                            'operationId': 'get_service_config_api_v1_config_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/status':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Service Status',
+                            'description': 'Get comprehensive service status.',
+                            'operationId': 'get_service_status_api_v1_status_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/traffic/directional/summary':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Directional Traffic Summary',
+                            'description': 'Get directional traffic summary for all intersections with camera images.',
+                            'operationId': 'get_directional_traffic_summary_api_v1_traffic_directional_summary_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/traffic/directional/intersection/{intersection_id}':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Intersection Directional Traffic',
+                            'description': 'Get directional traffic data for a specific intersection with camera images.',
+                            'operationId': 'get_intersection_directional_traffic_api_v1_traffic_directional_intersection__intersection_id__get',
+                            'parameters':
+                                [
+                                    {
+                                        'name': 'intersection_id',
+                                        'in': 'path',
+                                        'required': true,
+                                        'schema':
+                                            {
+                                                'type': 'string',
+                                                'title': 'Intersection Id',
+                                            },
+                                    },
+                                ],
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                    '422':
+                                        {
+                                            'description': 'Validation Error',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        {
+                                                            'schema':
+                                                                {
+                                                                    '$ref': '#/components/schemas/HTTPValidationError',
+                                                                },
+                                                        },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/traffic/directional/regions/mapping':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Region Mapping',
+                            'description': 'Get region to direction mapping for all intersections.',
+                            'operationId': 'get_region_mapping_api_v1_traffic_directional_regions_mapping_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/cameras/images':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Camera Images',
+                            'description': 'Get camera images for all intersections or specific intersection.',
+                            'operationId': 'get_camera_images_api_v1_cameras_images_get',
+                            'parameters':
+                                [
+                                    {
+                                        'name': 'intersection_id',
+                                        'in': 'query',
+                                        'required': false,
+                                        'schema':
+                                            {
+                                                'anyOf':
+                                                    [
+                                                        { 'type': 'string' },
+                                                        { 'type': 'null' },
+                                                    ],
+                                                'description': 'Filter by intersection ID',
+                                                'title': 'Intersection Id',
+                                            },
+                                        'description': 'Filter by intersection ID',
+                                    },
+                                ],
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                    '422':
+                                        {
+                                            'description': 'Validation Error',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        {
+                                                            'schema':
+                                                                {
+                                                                    '$ref': '#/components/schemas/HTTPValidationError',
+                                                                },
+                                                        },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/cameras/stats':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Camera Stats',
+                            'description': 'Get statistics about camera images.',
+                            'operationId': 'get_camera_stats_api_v1_cameras_stats_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/debug/image-requests':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Image Request Status',
+                            'description': 'Get debug information about image request coordination.',
+                            'operationId': 'get_image_request_status_api_v1_debug_image_requests_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/config/vlm/threshold':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Vlm Threshold',
+                            'description': 'Get current VLM high traffic threshold.',
+                            'operationId': 'get_vlm_threshold_api_v1_config_vlm_threshold_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                    'put':
+                        {
+                            'summary': 'Update Vlm Threshold',
+                            'description': 'Update VLM high traffic threshold.',
+                            'operationId': 'update_vlm_threshold_api_v1_config_vlm_threshold_put',
+                            'requestBody':
+                                {
+                                    'content':
+                                        {
+                                            'application/json':
+                                                {
+                                                    'schema':
+                                                        {
+                                                            '$ref': '#/components/schemas/VLMThresholdUpdate',
+                                                        },
+                                                },
+                                        },
+                                    'required': true,
+                                },
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                    '422':
+                                        {
+                                            'description': 'Validation Error',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        {
+                                                            'schema':
+                                                                {
+                                                                    '$ref': '#/components/schemas/HTTPValidationError',
+                                                                },
+                                                        },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/api/v1/intersections':
+                {
+                    'get':
+                        {
+                            'summary': 'Get Intersections',
+                            'description': 'Get list of all available intersections with their IDs and names.',
+                            'operationId': 'get_intersections_api_v1_intersections_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+            '/health':
+                {
+                    'get':
+                        {
+                            'summary': 'Health Check',
+                            'description': 'Health check endpoint.',
+                            'operationId': 'health_check_health_get',
+                            'responses':
+                                {
+                                    '200':
+                                        {
+                                            'description': 'Successful Response',
+                                            'content':
+                                                {
+                                                    'application/json':
+                                                        { 'schema': {} },
+                                                },
+                                        },
+                                },
+                        },
+                },
+        },
+    'components':
+        {
+            'schemas':
+                {
+                    'HTTPValidationError':
+                        {
+                            'properties':
+                                {
+                                    'detail':
+                                        {
+                                            'items':
+                                                {
+                                                    '$ref': '#/components/schemas/ValidationError',
+                                                },
+                                            'type': 'array',
+                                            'title': 'Detail',
+                                        },
+                                },
+                            'type': 'object',
+                            'title': 'HTTPValidationError',
+                        },
+                    'HealthResponse':
+                        {
+                            'properties':
+                                {
+                                    'status':
+                                        { 'type': 'string', 'title': 'Status' },
+                                    'timestamp':
+                                        {
+                                            'type': 'string',
+                                            'format': 'date-time',
+                                            'title': 'Timestamp',
+                                        },
+                                    'service':
+                                        {
+                                            'type': 'string',
+                                            'title': 'Service',
+                                        },
+                                },
+                            'type': 'object',
+                            'required': ['status', 'timestamp', 'service'],
+                            'title': 'HealthResponse',
+                            'description': 'Health check response model.',
+                        },
+                    'VLMThresholdUpdate':
+                        {
+                            'properties':
+                                {
+                                    'threshold':
+                                        {
+                                            'type': 'number',
+                                            'exclusiveMinimum': 0,
+                                            'title': 'Threshold',
+                                            'description': 'High traffic density threshold for VLM analysis',
+                                        },
+                                },
+                            'type': 'object',
+                            'required': ['threshold'],
+                            'title': 'VLMThresholdUpdate',
+                            'description': 'VLM threshold update model.',
+                        },
+                    'ValidationError':
+                        {
+                            'properties':
+                                {
+                                    'loc':
+                                        {
+                                            'items':
+                                                {
+                                                    'anyOf':
+                                                        [
+                                                            {
+                                                                'type': 'string',
+                                                            },
+                                                            {
+                                                                'type': 'integer',
+                                                            },
+                                                        ],
+                                                },
+                                            'type': 'array',
+                                            'title': 'Location',
+                                        },
+                                    'msg':
+                                        {
+                                            'type': 'string',
+                                            'title': 'Message',
+                                        },
+                                    'type':
+                                        {
+                                            'type': 'string',
+                                            'title': 'Error Type',
+                                        },
+                                },
+                            'type': 'object',
+                            'required': ['loc', 'msg', 'type'],
+                            'title': 'ValidationError',
+                        },
+                },
+        },
+}

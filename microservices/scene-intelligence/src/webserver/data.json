@@ -1,0 +1,8361 @@
+[
+  {
+    "model": "manager.scene",
+    "pk": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+    "fields": {
+      "name": "Intersection-1",
+      "thumbnail": "",
+      "map": "Map_w_daisy_mountain_dr_and_gavilan-ge.jpg",
+      "scale": 5.765182197,
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "scale_z": 1.0,
+      "map_processed": null,
+      "output_lla": false,
+      "map_corners_lla": null,
+      "camera_calibration": "Manual",
+      "polycam_data": "",
+      "dataset_dir": "/home/scenescape/SceneScape/datasets/Intersection-1",
+      "output_dir": "/home/scenescape/SceneScape/datasets/Intersection-1/output_dir",
+      "output": null,
+      "retrieval_conf": null,
+      "global_descriptor_file": "",
+      "number_of_localizations": 50,
+      "global_feature": "netvlad",
+      "local_feature": {
+        "sift": {}
+      },
+      "matcher": {
+        "NN-ratio": {}
+      },
+      "minimum_number_of_matches": 20,
+      "polycam_hash": "",
+      "apriltag_size": 0.162,
+      "regulated_rate": 30.0,
+      "external_update_rate": 30.0,
+      "inlier_threshold": 0.5
+    }
+  },
+  {
+    "model": "manager.scene",
+    "pk": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+    "fields": {
+      "name": "Intersection-2",
+      "thumbnail": "",
+      "map": "Map_w_daisy_mountain_dr_and_gavilan-ge.jpg",
+      "scale": 5.765182197,
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "scale_z": 1.0,
+      "map_processed": null,
+      "output_lla": false,
+      "map_corners_lla": null,
+      "camera_calibration": "Manual",
+      "polycam_data": "",
+      "dataset_dir": "/home/scenescape/SceneScape/datasets/Intersection-2",
+      "output_dir": "/home/scenescape/SceneScape/datasets/Intersection-2/output_dir",
+      "output": null,
+      "retrieval_conf": null,
+      "global_descriptor_file": "",
+      "number_of_localizations": 50,
+      "global_feature": "netvlad",
+      "local_feature": {
+        "sift": {}
+      },
+      "matcher": {
+        "NN-ratio": {}
+      },
+      "minimum_number_of_matches": 20,
+      "polycam_hash": "",
+      "apriltag_size": 0.162,
+      "regulated_rate": 30.0,
+      "external_update_rate": 30.0,
+      "inlier_threshold": 0.5
+    }
+  },
+  {
+    "model": "manager.scene",
+    "pk": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+    "fields": {
+      "name": "Intersection-3",
+      "thumbnail": "",
+      "map": "Map_w_daisy_mountain_dr_and_gavilan-ge.jpg",
+      "scale": 5.765182197,
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "scale_z": 1.0,
+      "map_processed": null,
+      "output_lla": false,
+      "map_corners_lla": null,
+      "camera_calibration": "Manual",
+      "polycam_data": "",
+      "dataset_dir": "/home/scenescape/SceneScape/datasets/Intersection-3",
+      "output_dir": "/home/scenescape/SceneScape/datasets/Intersection-3/output_dir",
+      "output": null,
+      "retrieval_conf": null,
+      "global_descriptor_file": "",
+      "number_of_localizations": 50,
+      "global_feature": "netvlad",
+      "local_feature": {
+        "sift": {}
+      },
+      "matcher": {
+        "NN-ratio": {}
+      },
+      "minimum_number_of_matches": 20,
+      "polycam_hash": "",
+      "apriltag_size": 0.162,
+      "regulated_rate": 30.0,
+      "external_update_rate": 30.0,
+      "inlier_threshold": 0.5
+    }
+  },
+  {
+    "model": "manager.scene",
+    "pk": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+    "fields": {
+      "name": "Intersection-4",
+      "thumbnail": "",
+      "map": "Map_w_daisy_mountain_dr_and_gavilan-ge.jpg",
+      "scale": 5.765182197,
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale_x": 1.0,
+      "scale_y": 1.0,
+      "scale_z": 1.0,
+      "map_processed": null,
+      "output_lla": false,
+      "map_corners_lla": null,
+      "camera_calibration": "Manual",
+      "polycam_data": "",
+      "dataset_dir": "/home/scenescape/SceneScape/datasets/Intersection-4",
+      "output_dir": "/home/scenescape/SceneScape/datasets/Intersection-4/output_dir",
+      "output": null,
+      "retrieval_conf": null,
+      "global_descriptor_file": "",
+      "number_of_localizations": 50,
+      "global_feature": "netvlad",
+      "local_feature": {
+        "sift": {}
+      },
+      "matcher": {
+        "NN-ratio": {}
+      },
+      "minimum_number_of_matches": 20,
+      "polycam_hash": "",
+      "apriltag_size": 0.162,
+      "regulated_rate": 30.0,
+      "external_update_rate": 30.0,
+      "inlier_threshold": 0.5
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 1,
+    "fields": {
+      "sensor_id": "intersection-1-cam1",
+      "name": "intersection-1 south view",
+      "type": "camera",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 1,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"108.02058765723271\", \"334.0423054245283\", \"446.13379520440253\", \"313.1114878144654\", \"610.3602102987421\", \"140.83475825471697\", \"811.6180719339623\", \"140.83475825471697\", \"924.060529557196\", \"147.30388539220652\", \"1143.1850993832627\", \"320.26049588924536\", \"961.4042336799306\", \"313.1206191822308\", \"782.5310113329483\", \"312.21018142383656\", \"107.86830919644154\", \"68.49060177548785\", \"0.0\", \"101.77917745140088\", \"63.83688096255709\", \"1.4210854715202004e-14\", \"102.48939429460152\", \"1.5384699738632435\", \"0.0\", \"93.44318613103039\", \"1.3335042743181589\", \"0.0\", \"88.75955995440651\", \"2.875555245910803\", \"-7.105427357601002e-15\", \"87.70837097472771\", \"64.16746746080257\", \"0.0\", \"91.32915336301812\", \"63.210330353998664\", \"0.0\", \"94.69786858230263\", \"63.61840957945968\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2655.866835468197,
+      "intrinsics_fy": 2655.866835468197,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 2,
+    "fields": {
+      "sensor_id": "intersection-1-cam2",
+      "name": "intersection-1 west view",
+      "type": "camera",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 2,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"60.186840864496396\", \"280.44208995311374\", \"322.62709243682343\", \"278.832027060032\", \"513.2416377531769\", \"124.35539006359463\", \"723.5327528141819\", \"121.04586353801942\", \"805.4263016504393\", \"122.74245907105794\", \"940.7235239481288\", \"269.38711249308244\", \"791.7051032766678\", \"275.06537181622923\", \"69.11336850277394\", \"68.55720254801558\", \"0.0\", \"68.99504150879794\", \"74.15330217386757\", \"0.0\", \"2.7757003493450725\", \"72.44921517663875\", \"0.0\", \"7.450529403152856\", \"84.1672105310315\", \"0.0\", \"8.752329990736442\", \"88.47308711623153\", \"0.0\", \"68.35137745487383\", \"88.78658093188344\", \"0.0\", \"68.44156937414871\", \"84.95022472811237\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1974.931967264252,
+      "intrinsics_fy": 1974.931967264252,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 3,
+    "fields": {
+      "sensor_id": "intersection-1-cam3",
+      "name": "intersection-1 north view",
+      "type": "camera",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 3,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"177.25329205974842\", \"282.52029284591197\", \"397.8319084119497\", \"189.13664504716982\", \"743.9954304245283\", \"82.87249410377359\", \"914.901610579422\", \"126.63451159665028\", \"970.5461583493401\", \"216.14965366130116\", \"897.6746513252557\", \"288.2452579499383\", \"709.1470349309504\", \"282.8269699431357\", \"589.899454907007\", \"87.9608605705694\", \"74.93007936355738\", \"112.3892971465732\", \"-1.4210854715202004e-14\", \"75.9495373589712\", \"133.79806051072475\", \"0.0\", \"83.0697996213779\", \"191.11114065182187\", \"1.4210854715202004e-14\", \"90.67984898957336\", \"162.81382733348659\", \"0.0\", \"91.45541709095616\", \"130.5444826349961\", \"0.0\", \"88.9315852252499\", \"115.39536659755744\", \"-1.4210854715202004e-14\", \"85.27561534742915\", \"114.85374150903955\", \"0.0\", \"76.21333511656263\", \"184.60428331006648\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2678.765404512253,
+      "intrinsics_fy": 2678.765404512253,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 4,
+    "fields": {
+      "sensor_id": "intersection-1-cam4",
+      "name": "intersection-1 east view",
+      "type": "camera",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 4,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"42.0080090408805\", \"301.8410475628931\", \"407.4922857704403\", \"276.0800412735849\", \"452.5337697796447\", \"170.345511603951\", \"822.6535925455839\", \"128.80765804142453\", \"908.9932527902873\", \"130.62533509920777\", \"1067.8797725426482\", \"284.90658001624695\", \"859.9159722301404\", \"283.31020795299924\", \"106.774636582528\", \"113.6156175973816\", \"0.0\", \"111.42494364722336\", \"106.45378816585338\", \"-7.105427357601002e-15\", \"139.77653119234654\", \"111.51989883952415\", \"0.0\", \"168.57788707198242\", \"96.51120155710471\", \"0.0\", \"167.39666396715322\", \"91.52696006709216\", \"0.0\", \"111.45478233884333\", \"90.3907942095686\", \"0.0\", \"111.35709834870426\", \"95.44542215518169\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1687.7541189412862,
+      "intrinsics_fy": 1687.7541189412862,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 5,
+    "fields": {
+      "sensor_id": "intersection-2-cam1",
+      "name": "intersection-2 south view",
+      "type": "camera",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 5,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"108.02058765723271\", \"334.0423054245283\", \"446.13379520440253\", \"313.1114878144654\", \"610.3602102987421\", \"140.83475825471697\", \"811.6180719339623\", \"140.83475825471697\", \"924.060529557196\", \"147.30388539220652\", \"1143.1850993832627\", \"320.26049588924536\", \"961.4042336799306\", \"313.1206191822308\", \"782.5310113329483\", \"312.21018142383656\", \"107.86830919644154\", \"68.49060177548785\", \"0.0\", \"101.77917745140088\", \"63.83688096255709\", \"1.4210854715202004e-14\", \"102.48939429460152\", \"1.5384699738632435\", \"0.0\", \"93.44318613103039\", \"1.3335042743181589\", \"0.0\", \"88.75955995440651\", \"2.875555245910803\", \"-7.105427357601002e-15\", \"87.70837097472771\", \"64.16746746080257\", \"0.0\", \"91.32915336301812\", \"63.210330353998664\", \"0.0\", \"94.69786858230263\", \"63.61840957945968\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2655.866835468197,
+      "intrinsics_fy": 2655.866835468197,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 6,
+    "fields": {
+      "sensor_id": "intersection-2-cam2",
+      "name": "intersection-2 west view",
+      "type": "camera",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 6,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"60.186840864496396\", \"280.44208995311374\", \"322.62709243682343\", \"278.832027060032\", \"513.2416377531769\", \"124.35539006359463\", \"723.5327528141819\", \"121.04586353801942\", \"805.4263016504393\", \"122.74245907105794\", \"940.7235239481288\", \"269.38711249308244\", \"791.7051032766678\", \"275.06537181622923\", \"69.11336850277394\", \"68.55720254801558\", \"0.0\", \"68.99504150879794\", \"74.15330217386757\", \"0.0\", \"2.7757003493450725\", \"72.44921517663875\", \"0.0\", \"7.450529403152856\", \"84.1672105310315\", \"0.0\", \"8.752329990736442\", \"88.47308711623153\", \"0.0\", \"68.35137745487383\", \"88.78658093188344\", \"0.0\", \"68.44156937414871\", \"84.95022472811237\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1974.931967264252,
+      "intrinsics_fy": 1974.931967264252,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 7,
+    "fields": {
+      "sensor_id": "intersection-2-cam3",
+      "name": "intersection-2 north view",
+      "type": "camera",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 7,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"177.25329205974842\", \"282.52029284591197\", \"397.8319084119497\", \"189.13664504716982\", \"743.9954304245283\", \"82.87249410377359\", \"914.901610579422\", \"126.63451159665028\", \"970.5461583493401\", \"216.14965366130116\", \"897.6746513252557\", \"288.2452579499383\", \"709.1470349309504\", \"282.8269699431357\", \"589.899454907007\", \"87.9608605705694\", \"74.93007936355738\", \"112.3892971465732\", \"-1.4210854715202004e-14\", \"75.9495373589712\", \"133.79806051072475\", \"0.0\", \"83.0697996213779\", \"191.11114065182187\", \"1.4210854715202004e-14\", \"90.67984898957336\", \"162.81382733348659\", \"0.0\", \"91.45541709095616\", \"130.5444826349961\", \"0.0\", \"88.9315852252499\", \"115.39536659755744\", \"-1.4210854715202004e-14\", \"85.27561534742915\", \"114.85374150903955\", \"0.0\", \"76.21333511656263\", \"184.60428331006648\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2678.765404512253,
+      "intrinsics_fy": 2678.765404512253,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 8,
+    "fields": {
+      "sensor_id": "intersection-2-cam4",
+      "name": "intersection-2 east view",
+      "type": "camera",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 8,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"42.0080090408805\", \"301.8410475628931\", \"407.4922857704403\", \"276.0800412735849\", \"452.5337697796447\", \"170.345511603951\", \"822.6535925455839\", \"128.80765804142453\", \"908.9932527902873\", \"130.62533509920777\", \"1067.8797725426482\", \"284.90658001624695\", \"859.9159722301404\", \"283.31020795299924\", \"106.774636582528\", \"113.6156175973816\", \"0.0\", \"111.42494364722336\", \"106.45378816585338\", \"-7.105427357601002e-15\", \"139.77653119234654\", \"111.51989883952415\", \"0.0\", \"168.57788707198242\", \"96.51120155710471\", \"0.0\", \"167.39666396715322\", \"91.52696006709216\", \"0.0\", \"111.45478233884333\", \"90.3907942095686\", \"0.0\", \"111.35709834870426\", \"95.44542215518169\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1687.7541189412862,
+      "intrinsics_fy": 1687.7541189412862,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 9,
+    "fields": {
+      "sensor_id": "intersection-3-cam1",
+      "name": "intersection-3 south view",
+      "type": "camera",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 9,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"108.02058765723271\", \"334.0423054245283\", \"446.13379520440253\", \"313.1114878144654\", \"610.3602102987421\", \"140.83475825471697\", \"811.6180719339623\", \"140.83475825471697\", \"924.060529557196\", \"147.30388539220652\", \"1143.1850993832627\", \"320.26049588924536\", \"961.4042336799306\", \"313.1206191822308\", \"782.5310113329483\", \"312.21018142383656\", \"107.86830919644154\", \"68.49060177548785\", \"0.0\", \"101.77917745140088\", \"63.83688096255709\", \"1.4210854715202004e-14\", \"102.48939429460152\", \"1.5384699738632435\", \"0.0\", \"93.44318613103039\", \"1.3335042743181589\", \"0.0\", \"88.75955995440651\", \"2.875555245910803\", \"-7.105427357601002e-15\", \"87.70837097472771\", \"64.16746746080257\", \"0.0\", \"91.32915336301812\", \"63.210330353998664\", \"0.0\", \"94.69786858230263\", \"63.61840957945968\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2655.866835468197,
+      "intrinsics_fy": 2655.866835468197,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 10,
+    "fields": {
+      "sensor_id": "intersection-3-cam2",
+      "name": "intersection-3 west view",
+      "type": "camera",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 10,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"60.186840864496396\", \"280.44208995311374\", \"322.62709243682343\", \"278.832027060032\", \"513.2416377531769\", \"124.35539006359463\", \"723.5327528141819\", \"121.04586353801942\", \"805.4263016504393\", \"122.74245907105794\", \"940.7235239481288\", \"269.38711249308244\", \"791.7051032766678\", \"275.06537181622923\", \"69.11336850277394\", \"68.55720254801558\", \"0.0\", \"68.99504150879794\", \"74.15330217386757\", \"0.0\", \"2.7757003493450725\", \"72.44921517663875\", \"0.0\", \"7.450529403152856\", \"84.1672105310315\", \"0.0\", \"8.752329990736442\", \"88.47308711623153\", \"0.0\", \"68.35137745487383\", \"88.78658093188344\", \"0.0\", \"68.44156937414871\", \"84.95022472811237\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1974.931967264252,
+      "intrinsics_fy": 1974.931967264252,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 11,
+    "fields": {
+      "sensor_id": "intersection-3-cam3",
+      "name": "intersection-3 north view",
+      "type": "camera",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 11,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"177.25329205974842\", \"282.52029284591197\", \"397.8319084119497\", \"189.13664504716982\", \"743.9954304245283\", \"82.87249410377359\", \"914.901610579422\", \"126.63451159665028\", \"970.5461583493401\", \"216.14965366130116\", \"897.6746513252557\", \"288.2452579499383\", \"709.1470349309504\", \"282.8269699431357\", \"589.899454907007\", \"87.9608605705694\", \"74.93007936355738\", \"112.3892971465732\", \"-1.4210854715202004e-14\", \"75.9495373589712\", \"133.79806051072475\", \"0.0\", \"83.0697996213779\", \"191.11114065182187\", \"1.4210854715202004e-14\", \"90.67984898957336\", \"162.81382733348659\", \"0.0\", \"91.45541709095616\", \"130.5444826349961\", \"0.0\", \"88.9315852252499\", \"115.39536659755744\", \"-1.4210854715202004e-14\", \"85.27561534742915\", \"114.85374150903955\", \"0.0\", \"76.21333511656263\", \"184.60428331006648\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2678.765404512253,
+      "intrinsics_fy": 2678.765404512253,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 12,
+    "fields": {
+      "sensor_id": "intersection-3-cam4",
+      "name": "intersection-3 east view",
+      "type": "camera",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 12,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"42.0080090408805\", \"301.8410475628931\", \"407.4922857704403\", \"276.0800412735849\", \"452.5337697796447\", \"170.345511603951\", \"822.6535925455839\", \"128.80765804142453\", \"908.9932527902873\", \"130.62533509920777\", \"1067.8797725426482\", \"284.90658001624695\", \"859.9159722301404\", \"283.31020795299924\", \"106.774636582528\", \"113.6156175973816\", \"0.0\", \"111.42494364722336\", \"106.45378816585338\", \"-7.105427357601002e-15\", \"139.77653119234654\", \"111.51989883952415\", \"0.0\", \"168.57788707198242\", \"96.51120155710471\", \"0.0\", \"167.39666396715322\", \"91.52696006709216\", \"0.0\", \"111.45478233884333\", \"90.3907942095686\", \"0.0\", \"111.35709834870426\", \"95.44542215518169\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1687.7541189412862,
+      "intrinsics_fy": 1687.7541189412862,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 13,
+    "fields": {
+      "sensor_id": "intersection-4-cam1",
+      "name": "intersection-4 south view",
+      "type": "camera",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 13,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"108.02058765723271\", \"334.0423054245283\", \"446.13379520440253\", \"313.1114878144654\", \"610.3602102987421\", \"140.83475825471697\", \"811.6180719339623\", \"140.83475825471697\", \"924.060529557196\", \"147.30388539220652\", \"1143.1850993832627\", \"320.26049588924536\", \"961.4042336799306\", \"313.1206191822308\", \"782.5310113329483\", \"312.21018142383656\", \"107.86830919644154\", \"68.49060177548785\", \"0.0\", \"101.77917745140088\", \"63.83688096255709\", \"1.4210854715202004e-14\", \"102.48939429460152\", \"1.5384699738632435\", \"0.0\", \"93.44318613103039\", \"1.3335042743181589\", \"0.0\", \"88.75955995440651\", \"2.875555245910803\", \"-7.105427357601002e-15\", \"87.70837097472771\", \"64.16746746080257\", \"0.0\", \"91.32915336301812\", \"63.210330353998664\", \"0.0\", \"94.69786858230263\", \"63.61840957945968\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2655.866835468197,
+      "intrinsics_fy": 2655.866835468197,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 14,
+    "fields": {
+      "sensor_id": "intersection-4-cam2",
+      "name": "intersection-4 west view",
+      "type": "camera",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 14,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"60.186840864496396\", \"280.44208995311374\", \"322.62709243682343\", \"278.832027060032\", \"513.2416377531769\", \"124.35539006359463\", \"723.5327528141819\", \"121.04586353801942\", \"805.4263016504393\", \"122.74245907105794\", \"940.7235239481288\", \"269.38711249308244\", \"791.7051032766678\", \"275.06537181622923\", \"69.11336850277394\", \"68.55720254801558\", \"0.0\", \"68.99504150879794\", \"74.15330217386757\", \"0.0\", \"2.7757003493450725\", \"72.44921517663875\", \"0.0\", \"7.450529403152856\", \"84.1672105310315\", \"0.0\", \"8.752329990736442\", \"88.47308711623153\", \"0.0\", \"68.35137745487383\", \"88.78658093188344\", \"0.0\", \"68.44156937414871\", \"84.95022472811237\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1974.931967264252,
+      "intrinsics_fy": 1974.931967264252,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 15,
+    "fields": {
+      "sensor_id": "intersection-4-cam3",
+      "name": "intersection-4 north view",
+      "type": "camera",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 15,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"177.25329205974842\", \"282.52029284591197\", \"397.8319084119497\", \"189.13664504716982\", \"743.9954304245283\", \"82.87249410377359\", \"914.901610579422\", \"126.63451159665028\", \"970.5461583493401\", \"216.14965366130116\", \"897.6746513252557\", \"288.2452579499383\", \"709.1470349309504\", \"282.8269699431357\", \"589.899454907007\", \"87.9608605705694\", \"74.93007936355738\", \"112.3892971465732\", \"-1.4210854715202004e-14\", \"75.9495373589712\", \"133.79806051072475\", \"0.0\", \"83.0697996213779\", \"191.11114065182187\", \"1.4210854715202004e-14\", \"90.67984898957336\", \"162.81382733348659\", \"0.0\", \"91.45541709095616\", \"130.5444826349961\", \"0.0\", \"88.9315852252499\", \"115.39536659755744\", \"-1.4210854715202004e-14\", \"85.27561534742915\", \"114.85374150903955\", \"0.0\", \"76.21333511656263\", \"184.60428331006648\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 2678.765404512253,
+      "intrinsics_fy": 2678.765404512253,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.sensor",
+    "pk": 16,
+    "fields": {
+      "sensor_id": "intersection-4-cam4",
+      "name": "intersection-4 east view",
+      "type": "camera",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "icon": ""
+    }
+  },
+  {
+    "model": "manager.cam",
+    "pk": 16,
+    "fields": {
+      "command": null,
+      "camerachain": null,
+      "threshold": null,
+      "aspect": null,
+      "cv_subsystem": null,
+      "transforms": "[\"42.0080090408805\", \"301.8410475628931\", \"407.4922857704403\", \"276.0800412735849\", \"452.5337697796447\", \"170.345511603951\", \"822.6535925455839\", \"128.80765804142453\", \"908.9932527902873\", \"130.62533509920777\", \"1067.8797725426482\", \"284.90658001624695\", \"859.9159722301404\", \"283.31020795299924\", \"106.774636582528\", \"113.6156175973816\", \"0.0\", \"111.42494364722336\", \"106.45378816585338\", \"-7.105427357601002e-15\", \"139.77653119234654\", \"111.51989883952415\", \"0.0\", \"168.57788707198242\", \"96.51120155710471\", \"0.0\", \"167.39666396715322\", \"91.52696006709216\", \"0.0\", \"111.45478233884333\", \"90.3907942095686\", \"0.0\", \"111.35709834870426\", \"95.44542215518169\", \"0.0\"]",
+      "transform_type": "3d-2d point correspondence",
+      "width": 640,
+      "height": 480,
+      "scene_x": null,
+      "scene_y": null,
+      "scene_z": null,
+      "intrinsics_fx": 1687.7541189412862,
+      "intrinsics_fy": 1687.7541189412862,
+      "intrinsics_cx": 640.0,
+      "intrinsics_cy": 360.0,
+      "distortion_k1": 0.0,
+      "distortion_k2": 0.0,
+      "distortion_p1": 0.0,
+      "distortion_p2": 0.0,
+      "distortion_k3": 0.0,
+      "sensor": null,
+      "sensorchain": null,
+      "sensorattrib": null,
+      "window": false,
+      "usetimestamps": false,
+      "virtual": null,
+      "debug": false,
+      "override_saved_intrinstics": false,
+      "frames": null,
+      "stats": false,
+      "waitforstable": false,
+      "preprocess": false,
+      "realtime": false,
+      "faketime": false,
+      "modelconfig": null,
+      "rootcert": null,
+      "cert": null,
+      "cvcores": null,
+      "ovcores": null,
+      "unwarp": false,
+      "ovmshost": null,
+      "framerate": null,
+      "maxcache": null,
+      "filter": "none",
+      "disable_rotation": false,
+      "maxdistance": null
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1000,
+    "fields": {
+      "name": "WCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1000,
+    "fields": {
+      "uuid": "facc2134-5bf0-42c8-bb9d-c0ad12afa339",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1001,
+    "fields": {
+      "name": "NCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1001,
+    "fields": {
+      "uuid": "000e0079-cdd7-4b1d-bf0d-58e401129bde",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1002,
+    "fields": {
+      "name": "SCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1002,
+    "fields": {
+      "uuid": "1876917b-c8f5-4d89-b2d3-08a19438d785",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1003,
+    "fields": {
+      "name": "ECWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1003,
+    "fields": {
+      "uuid": "6e0d10ff-f677-4086-a546-1ea1ad2a5613",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1004,
+    "fields": {
+      "name": "NOPED"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1004,
+    "fields": {
+      "uuid": "a71cf12a-46e0-4ef6-82ff-6c8848b51a17",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1005,
+    "fields": {
+      "name": "WBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1005,
+    "fields": {
+      "uuid": "2f09acf4-8a49-4c8f-9ddf-8ed5283d712b",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1006,
+    "fields": {
+      "name": "NBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1006,
+    "fields": {
+      "uuid": "829b93ed-4f90-4a72-9bad-07506793a0fc",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1007,
+    "fields": {
+      "name": "EBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1007,
+    "fields": {
+      "uuid": "88c0ed07-a260-4c0c-bad7-7001d78bbe6e",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1008,
+    "fields": {
+      "name": "SBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1008,
+    "fields": {
+      "uuid": "0fa52076-757e-4b32-a1b4-aa2d1b0617e8",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1009,
+    "fields": {
+      "name": "WBSBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1009,
+    "fields": {
+      "uuid": "ea2465aa-f49a-4f0a-817b-08bf8fae0dfa",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1010,
+    "fields": {
+      "name": "EBNBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1010,
+    "fields": {
+      "uuid": "3fabc0a0-a8be-4842-ab0a-dd1d0c4336ca",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1011,
+    "fields": {
+      "name": "WBNBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1011,
+    "fields": {
+      "uuid": "449b22cd-8b6e-402f-ac13-8d1d5f93b6b6",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1012,
+    "fields": {
+      "name": "NBEBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1012,
+    "fields": {
+      "uuid": "1f0cd75e-a447-4481-9633-2f9a88745f28",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1013,
+    "fields": {
+      "name": "SBEBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1013,
+    "fields": {
+      "uuid": "a58319a2-e12b-4bdd-995a-6bffe7c6d45c",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1014,
+    "fields": {
+      "name": "EBSBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1014,
+    "fields": {
+      "uuid": "9fd4d314-e111-4537-861c-8313a2b65883",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1015,
+    "fields": {
+      "name": "NBWBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1015,
+    "fields": {
+      "uuid": "b4046db9-37fe-4e10-b03a-fcf1320ed40a",
+      "scene": "cb1cf1a0-b936-4d47-9221-3fd5cf24857d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1016,
+    "fields": {
+      "name": "WCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1016,
+    "fields": {
+      "uuid": "fa0bb3a7-6a53-421d-99b1-c1c84f10189e",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1017,
+    "fields": {
+      "name": "NCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1017,
+    "fields": {
+      "uuid": "9d2141ae-0d70-4d34-ab30-f8611133bf5d",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1018,
+    "fields": {
+      "name": "SCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1018,
+    "fields": {
+      "uuid": "fcd5a9f6-5db1-4b05-86ce-1f15ff2fd504",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1019,
+    "fields": {
+      "name": "ECWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1019,
+    "fields": {
+      "uuid": "7a619010-2289-49db-8042-67d9fefdb672",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1020,
+    "fields": {
+      "name": "NOPED"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1020,
+    "fields": {
+      "uuid": "708b9af7-97eb-46ec-83e9-498aab2b840c",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1021,
+    "fields": {
+      "name": "WBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1021,
+    "fields": {
+      "uuid": "91a3472a-b641-48fb-9b3f-15d10818f41c",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1022,
+    "fields": {
+      "name": "NBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1022,
+    "fields": {
+      "uuid": "65d23ef0-1eaf-456d-b798-4c2fe35e777e",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1023,
+    "fields": {
+      "name": "EBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1023,
+    "fields": {
+      "uuid": "d13d609b-cf09-46e4-b59e-050dfbf61a8b",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1024,
+    "fields": {
+      "name": "SBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1024,
+    "fields": {
+      "uuid": "28e181ad-93e2-4ef7-9305-d7134580475d",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1025,
+    "fields": {
+      "name": "WBSBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1025,
+    "fields": {
+      "uuid": "8dd0dded-3542-48c2-b97c-0cf263f2e8ff",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1026,
+    "fields": {
+      "name": "EBNBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1026,
+    "fields": {
+      "uuid": "e7430785-1bb1-4670-8ca1-5d65adaac2c2",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1027,
+    "fields": {
+      "name": "WBNBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1027,
+    "fields": {
+      "uuid": "884c2a8f-0896-46dd-b9de-48842de2bff5",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1028,
+    "fields": {
+      "name": "NBEBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1028,
+    "fields": {
+      "uuid": "4c61c21b-a175-4d27-abeb-ae1a3136633f",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1029,
+    "fields": {
+      "name": "SBEBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1029,
+    "fields": {
+      "uuid": "0d55e9ad-e3ba-4159-b78c-4148accbd896",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1030,
+    "fields": {
+      "name": "EBSBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1030,
+    "fields": {
+      "uuid": "53df8bf6-cb73-493e-98ae-d2d7a0431f89",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1031,
+    "fields": {
+      "name": "NBWBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1031,
+    "fields": {
+      "uuid": "610e576d-8b03-4fa1-9628-28cd39454124",
+      "scene": "8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1032,
+    "fields": {
+      "name": "WCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1032,
+    "fields": {
+      "uuid": "bd0b91b8-ccfb-4413-acb9-91d7ad0abce0",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1033,
+    "fields": {
+      "name": "NCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1033,
+    "fields": {
+      "uuid": "8d2edd2f-667d-41c2-9bc0-fadb27906452",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1034,
+    "fields": {
+      "name": "SCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1034,
+    "fields": {
+      "uuid": "453cb3e7-c819-46eb-81c6-d772eec9d2a8",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1035,
+    "fields": {
+      "name": "ECWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1035,
+    "fields": {
+      "uuid": "fe6d755b-86ca-4d57-9ca3-51d5dda19801",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1036,
+    "fields": {
+      "name": "NOPED"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1036,
+    "fields": {
+      "uuid": "d9eb6c5b-2960-4bb0-be0e-1adef427bd19",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1037,
+    "fields": {
+      "name": "WBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1037,
+    "fields": {
+      "uuid": "cc1b3c84-3726-452a-9ee5-1c7632d2b2ce",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1038,
+    "fields": {
+      "name": "NBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1038,
+    "fields": {
+      "uuid": "70a11397-1893-4cdd-8562-335c69b43217",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1039,
+    "fields": {
+      "name": "EBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1039,
+    "fields": {
+      "uuid": "69a07e0d-50fd-427a-a15b-b7642c3aa5f4",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1040,
+    "fields": {
+      "name": "SBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1040,
+    "fields": {
+      "uuid": "adbfafae-d093-4547-97aa-ce55c7b93813",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1041,
+    "fields": {
+      "name": "WBSBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1041,
+    "fields": {
+      "uuid": "6154d564-de22-4096-8414-88e9e0162b1e",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1042,
+    "fields": {
+      "name": "EBNBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1042,
+    "fields": {
+      "uuid": "b404859c-d3ac-4ed1-a209-42da38ecce48",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1043,
+    "fields": {
+      "name": "WBNBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1043,
+    "fields": {
+      "uuid": "c9bd48a2-59eb-4231-a4fa-d2450ebb12a1",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1044,
+    "fields": {
+      "name": "NBEBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1044,
+    "fields": {
+      "uuid": "22e7c91a-b685-456b-b4fe-8fa2729295b1",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1045,
+    "fields": {
+      "name": "SBEBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1045,
+    "fields": {
+      "uuid": "da3c61be-a66f-4519-b023-c75a18011c06",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1046,
+    "fields": {
+      "name": "EBSBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1046,
+    "fields": {
+      "uuid": "1afad845-382a-48d2-b434-eab4c708dc9d",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1047,
+    "fields": {
+      "name": "NBWBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1047,
+    "fields": {
+      "uuid": "2ef3e5ec-1112-46e3-8b79-371c5ea9faad",
+      "scene": "3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1048,
+    "fields": {
+      "name": "WCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1048,
+    "fields": {
+      "uuid": "1f9e4433-1a4f-4800-a9a4-5382a9718a8f",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1049,
+    "fields": {
+      "name": "NCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1049,
+    "fields": {
+      "uuid": "9e151779-b04e-4833-9720-f4496ead4f09",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1050,
+    "fields": {
+      "name": "SCWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1050,
+    "fields": {
+      "uuid": "aeff2999-2eef-4e32-8d3f-9ba11be0954e",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1051,
+    "fields": {
+      "name": "ECWLK"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1051,
+    "fields": {
+      "uuid": "acc0c905-65a8-40db-94c0-aacef63895ff",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1052,
+    "fields": {
+      "name": "NOPED"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1052,
+    "fields": {
+      "uuid": "05589922-8ecb-45f5-8711-eeefadd053c3",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1053,
+    "fields": {
+      "name": "WBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1053,
+    "fields": {
+      "uuid": "01596d07-352e-4839-a93c-63f6ed72a2eb",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1054,
+    "fields": {
+      "name": "NBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1054,
+    "fields": {
+      "uuid": "83a84679-1565-479d-82c8-6bf9bbf8a4c7",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1055,
+    "fields": {
+      "name": "EBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1055,
+    "fields": {
+      "uuid": "53474e4a-8de6-4c59-bedf-9a9bc3a22e5c",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1056,
+    "fields": {
+      "name": "SBLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1056,
+    "fields": {
+      "uuid": "b7ef0ecc-5d54-461a-b4b2-a96e32dbdc87",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1057,
+    "fields": {
+      "name": "WBSBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1057,
+    "fields": {
+      "uuid": "01c9f809-52c6-4652-a8ec-f6f3b70e3708",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1058,
+    "fields": {
+      "name": "EBNBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1058,
+    "fields": {
+      "uuid": "b6c7f30f-9602-44f9-9e8c-4f43b055f5e5",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1059,
+    "fields": {
+      "name": "WBNBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1059,
+    "fields": {
+      "uuid": "d548be73-e0d3-4f90-8aac-2dc04b219f2d",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1060,
+    "fields": {
+      "name": "NBEBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1060,
+    "fields": {
+      "uuid": "0334f8de-a491-4388-abf1-60905e2655d0",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1061,
+    "fields": {
+      "name": "SBEBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1061,
+    "fields": {
+      "uuid": "d7a0467d-d403-45ef-bcaf-a831ebc681a1",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1062,
+    "fields": {
+      "name": "EBSBRTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1062,
+    "fields": {
+      "uuid": "974cefdc-1f76-4fb3-b274-cc4dd8beaaac",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingbox",
+    "pk": 1063,
+    "fields": {
+      "name": "NBWBLTLANE"
+    }
+  },
+  {
+    "model": "manager.region",
+    "pk": 1063,
+    "fields": {
+      "uuid": "918a5bdf-d8f6-46bc-976e-ddaa83d2ccfb",
+      "scene": "9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e",
+      "buffer_size": 0.0,
+      "height": 1.0,
+      "volumetric": false
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10000,
+    "fields": {
+      "sequence": 0,
+      "x": 112.22542113875886,
+      "y": 112.05196608290296
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10001,
+    "fields": {
+      "sequence": 1,
+      "x": 112.22542113875886,
+      "y": 108.40940990992935
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10002,
+    "fields": {
+      "sequence": 2,
+      "x": 169.11867945948978,
+      "y": 108.58286496578523
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10003,
+    "fields": {
+      "sequence": 3,
+      "x": 169.11867945948978,
+      "y": 112.57233125047063
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10004,
+    "fields": {
+      "sequence": 0,
+      "x": 102.85884812254096,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10005,
+    "fields": {
+      "sequence": 1,
+      "x": 107.36867957479403,
+      "y": 64.00491561082228
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10006,
+    "fields": {
+      "sequence": 2,
+      "x": 106.32794923965871,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10007,
+    "fields": {
+      "sequence": 3,
+      "x": 101.47120767569386,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10008,
+    "fields": {
+      "sequence": 0,
+      "x": 83.43188186668162,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10009,
+    "fields": {
+      "sequence": 1,
+      "x": 87.24789309551113,
+      "y": 167.5575839567868
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10010,
+    "fields": {
+      "sequence": 2,
+      "x": 88.46207848650235,
+      "y": 115.69452225587659
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10011,
+    "fields": {
+      "sequence": 3,
+      "x": 92.27808971533186,
+      "y": 116.38834247930015
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10012,
+    "fields": {
+      "sequence": 4,
+      "x": 91.58426949190832,
+      "y": 168.9452244036339
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10013,
+    "fields": {
+      "sequence": 5,
+      "x": 90.71699421262888,
+      "y": 175.36306147030172
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10014,
+    "fields": {
+      "sequence": 6,
+      "x": 87.42134815136703,
+      "y": 189.41292099462856
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10015,
+    "fields": {
+      "sequence": 0,
+      "x": 0.5203651675676608,
+      "y": 68.51474706307535
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10016,
+    "fields": {
+      "sequence": 1,
+      "x": 69.03511223064301,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10017,
+    "fields": {
+      "sequence": 2,
+      "x": 68.86165717478713,
+      "y": 72.67766840361664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10018,
+    "fields": {
+      "sequence": 3,
+      "x": 0.8672752792794347,
+      "y": 72.33075829190486
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10019,
+    "fields": {
+      "sequence": 0,
+      "x": 68.16783695136357,
+      "y": 106.67485935137047
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10020,
+    "fields": {
+      "sequence": 1,
+      "x": 71.63693806848131,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10021,
+    "fields": {
+      "sequence": 2,
+      "x": 73.1980335711843,
+      "y": 66.60674144866059
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10022,
+    "fields": {
+      "sequence": 3,
+      "x": 69.55547739821067,
+      "y": 68.68820211893123
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10023,
+    "fields": {
+      "sequence": 0,
+      "x": 72.85112345947252,
+      "y": 109.45014024506467
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10024,
+    "fields": {
+      "sequence": 1,
+      "x": 106.32794923965871,
+      "y": 114.65379192074127
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10025,
+    "fields": {
+      "sequence": 2,
+      "x": 105.28721890452339,
+      "y": 117.60252787029135
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10026,
+    "fields": {
+      "sequence": 3,
+      "x": 75.27949424145494,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10027,
+    "fields": {
+      "sequence": 0,
+      "x": 107.54213463064991,
+      "y": 64.69873583424584
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10028,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 68.16783695136357
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10029,
+    "fields": {
+      "sequence": 2,
+      "x": 74.06530885046372,
+      "y": 65.56601111352526
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10030,
+    "fields": {
+      "sequence": 3,
+      "x": 74.93258412974316,
+      "y": 62.61727516397519
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10031,
+    "fields": {
+      "sequence": 0,
+      "x": 107.19522451893813,
+      "y": 113.61306158560595
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10032,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10033,
+    "fields": {
+      "sequence": 2,
+      "x": 112.39887619461474,
+      "y": 72.50421334776074
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10034,
+    "fields": {
+      "sequence": 3,
+      "x": 111.35814585947942,
+      "y": 112.39887619461474
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10035,
+    "fields": {
+      "sequence": 0,
+      "x": 71.98384818019308,
+      "y": 108.23595485407346
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10036,
+    "fields": {
+      "sequence": 1,
+      "x": 75.7998594090226,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10037,
+    "fields": {
+      "sequence": 2,
+      "x": 103.89957845767628,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10038,
+    "fields": {
+      "sequence": 3,
+      "x": 106.50140429551459,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10039,
+    "fields": {
+      "sequence": 4,
+      "x": 108.40940990992935,
+      "y": 68.86165717478713
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10040,
+    "fields": {
+      "sequence": 5,
+      "x": 73.89185379460784,
+      "y": 66.25983133694882
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10041,
+    "fields": {
+      "sequence": 0,
+      "x": 112.05196608290296,
+      "y": 107.54213463064991
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10042,
+    "fields": {
+      "sequence": 1,
+      "x": 112.39887619461474,
+      "y": 94.70646049731428
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10043,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.96137622344081
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10044,
+    "fields": {
+      "sequence": 3,
+      "x": 169.29213451534568,
+      "y": 107.7155896865058
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10045,
+    "fields": {
+      "sequence": 0,
+      "x": 94.70646049731428,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10046,
+    "fields": {
+      "sequence": 1,
+      "x": 102.51193801082918,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10047,
+    "fields": {
+      "sequence": 2,
+      "x": 100.9508425081262,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10048,
+    "fields": {
+      "sequence": 3,
+      "x": 93.49227510632306,
+      "y": 0.3469101117117739
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10049,
+    "fields": {
+      "sequence": 0,
+      "x": 68.34129200721947,
+      "y": 85.51334253695227
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10050,
+    "fields": {
+      "sequence": 1,
+      "x": 68.68820211893123,
+      "y": 74.23876390631962
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10051,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 72.85112345947252
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10052,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 83.7787919783934
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10053,
+    "fields": {
+      "sequence": 0,
+      "x": 75.45294929731082,
+      "y": 114.13342675317361
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10054,
+    "fields": {
+      "sequence": 1,
+      "x": 85.16643242524049,
+      "y": 115.34761214416483
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10055,
+    "fields": {
+      "sequence": 2,
+      "x": 83.08497175496986,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10056,
+    "fields": {
+      "sequence": 3,
+      "x": 74.23876390631962,
+      "y": 188.19873560363735
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10057,
+    "fields": {
+      "sequence": 0,
+      "x": 112.39887619461474,
+      "y": 88.28862343064645
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10058,
+    "fields": {
+      "sequence": 1,
+      "x": 169.29213451534568,
+      "y": 88.98244365407001
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10059,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.44101105587315
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10060,
+    "fields": {
+      "sequence": 3,
+      "x": 112.39887619461474,
+      "y": 90.71699421262888
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10061,
+    "fields": {
+      "sequence": 0,
+      "x": 67.99438189550769,
+      "y": 92.27808971533186
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10062,
+    "fields": {
+      "sequence": 1,
+      "x": 68.34129200721947,
+      "y": 88.80898859821411
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10063,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 84.64606725767284
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10064,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 90.89044926848476
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10065,
+    "fields": {
+      "sequence": 0,
+      "x": 92.9719099387554,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10066,
+    "fields": {
+      "sequence": 1,
+      "x": 90.19662904506121,
+      "y": 21.855337037841757
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10067,
+    "fields": {
+      "sequence": 2,
+      "x": 91.41081443605242,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10068,
+    "fields": {
+      "sequence": 3,
+      "x": 87.59480320722291,
+      "y": 62.964185275686965
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10069,
+    "fields": {
+      "sequence": 4,
+      "x": 86.3806178162317,
+      "y": 20.814606702706435
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10070,
+    "fields": {
+      "sequence": 5,
+      "x": 86.20716276037581,
+      "y": 0.6938202234235478
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10071,
+    "fields": {
+      "sequence": 0,
+      "x": 112.22542113875886,
+      "y": 112.05196608290296
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10072,
+    "fields": {
+      "sequence": 1,
+      "x": 112.22542113875886,
+      "y": 108.40940990992935
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10073,
+    "fields": {
+      "sequence": 2,
+      "x": 169.11867945948978,
+      "y": 108.58286496578523
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10074,
+    "fields": {
+      "sequence": 3,
+      "x": 169.11867945948978,
+      "y": 112.57233125047063
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10075,
+    "fields": {
+      "sequence": 0,
+      "x": 102.85884812254096,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10076,
+    "fields": {
+      "sequence": 1,
+      "x": 107.36867957479403,
+      "y": 64.00491561082228
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10077,
+    "fields": {
+      "sequence": 2,
+      "x": 106.32794923965871,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10078,
+    "fields": {
+      "sequence": 3,
+      "x": 101.47120767569386,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10079,
+    "fields": {
+      "sequence": 0,
+      "x": 83.43188186668162,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10080,
+    "fields": {
+      "sequence": 1,
+      "x": 87.24789309551113,
+      "y": 167.5575839567868
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10081,
+    "fields": {
+      "sequence": 2,
+      "x": 88.46207848650235,
+      "y": 115.69452225587659
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10082,
+    "fields": {
+      "sequence": 3,
+      "x": 92.27808971533186,
+      "y": 116.38834247930015
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10083,
+    "fields": {
+      "sequence": 4,
+      "x": 91.58426949190832,
+      "y": 168.9452244036339
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10084,
+    "fields": {
+      "sequence": 5,
+      "x": 90.71699421262888,
+      "y": 175.36306147030172
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10085,
+    "fields": {
+      "sequence": 6,
+      "x": 87.42134815136703,
+      "y": 189.41292099462856
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10086,
+    "fields": {
+      "sequence": 0,
+      "x": 0.5203651675676608,
+      "y": 68.51474706307535
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10087,
+    "fields": {
+      "sequence": 1,
+      "x": 69.03511223064301,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10088,
+    "fields": {
+      "sequence": 2,
+      "x": 68.86165717478713,
+      "y": 72.67766840361664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10089,
+    "fields": {
+      "sequence": 3,
+      "x": 0.8672752792794347,
+      "y": 72.33075829190486
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10090,
+    "fields": {
+      "sequence": 0,
+      "x": 68.16783695136357,
+      "y": 106.67485935137047
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10091,
+    "fields": {
+      "sequence": 1,
+      "x": 71.63693806848131,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10092,
+    "fields": {
+      "sequence": 2,
+      "x": 73.1980335711843,
+      "y": 66.60674144866059
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10093,
+    "fields": {
+      "sequence": 3,
+      "x": 69.55547739821067,
+      "y": 68.68820211893123
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10094,
+    "fields": {
+      "sequence": 0,
+      "x": 72.85112345947252,
+      "y": 109.45014024506467
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10095,
+    "fields": {
+      "sequence": 1,
+      "x": 106.32794923965871,
+      "y": 114.65379192074127
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10096,
+    "fields": {
+      "sequence": 2,
+      "x": 105.28721890452339,
+      "y": 117.60252787029135
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10097,
+    "fields": {
+      "sequence": 3,
+      "x": 75.27949424145494,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10098,
+    "fields": {
+      "sequence": 0,
+      "x": 107.54213463064991,
+      "y": 64.69873583424584
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10099,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 68.16783695136357
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10100,
+    "fields": {
+      "sequence": 2,
+      "x": 74.06530885046372,
+      "y": 65.56601111352526
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10101,
+    "fields": {
+      "sequence": 3,
+      "x": 74.93258412974316,
+      "y": 62.61727516397519
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10102,
+    "fields": {
+      "sequence": 0,
+      "x": 107.19522451893813,
+      "y": 113.61306158560595
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10103,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10104,
+    "fields": {
+      "sequence": 2,
+      "x": 112.39887619461474,
+      "y": 72.50421334776074
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10105,
+    "fields": {
+      "sequence": 3,
+      "x": 111.35814585947942,
+      "y": 112.39887619461474
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10106,
+    "fields": {
+      "sequence": 0,
+      "x": 71.98384818019308,
+      "y": 108.23595485407346
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10107,
+    "fields": {
+      "sequence": 1,
+      "x": 75.7998594090226,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10108,
+    "fields": {
+      "sequence": 2,
+      "x": 103.89957845767628,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10109,
+    "fields": {
+      "sequence": 3,
+      "x": 106.50140429551459,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10110,
+    "fields": {
+      "sequence": 4,
+      "x": 108.40940990992935,
+      "y": 68.86165717478713
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10111,
+    "fields": {
+      "sequence": 5,
+      "x": 73.89185379460784,
+      "y": 66.25983133694882
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10112,
+    "fields": {
+      "sequence": 0,
+      "x": 112.05196608290296,
+      "y": 107.54213463064991
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10113,
+    "fields": {
+      "sequence": 1,
+      "x": 112.39887619461474,
+      "y": 94.70646049731428
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10114,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.96137622344081
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10115,
+    "fields": {
+      "sequence": 3,
+      "x": 169.29213451534568,
+      "y": 107.7155896865058
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10116,
+    "fields": {
+      "sequence": 0,
+      "x": 94.70646049731428,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10117,
+    "fields": {
+      "sequence": 1,
+      "x": 102.51193801082918,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10118,
+    "fields": {
+      "sequence": 2,
+      "x": 100.9508425081262,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10119,
+    "fields": {
+      "sequence": 3,
+      "x": 93.49227510632306,
+      "y": 0.3469101117117739
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10120,
+    "fields": {
+      "sequence": 0,
+      "x": 68.34129200721947,
+      "y": 85.51334253695227
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10121,
+    "fields": {
+      "sequence": 1,
+      "x": 68.68820211893123,
+      "y": 74.23876390631962
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10122,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 72.85112345947252
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10123,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 83.7787919783934
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10124,
+    "fields": {
+      "sequence": 0,
+      "x": 75.45294929731082,
+      "y": 114.13342675317361
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10125,
+    "fields": {
+      "sequence": 1,
+      "x": 85.16643242524049,
+      "y": 115.34761214416483
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10126,
+    "fields": {
+      "sequence": 2,
+      "x": 83.08497175496986,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10127,
+    "fields": {
+      "sequence": 3,
+      "x": 74.23876390631962,
+      "y": 188.19873560363735
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10128,
+    "fields": {
+      "sequence": 0,
+      "x": 112.39887619461474,
+      "y": 88.28862343064645
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10129,
+    "fields": {
+      "sequence": 1,
+      "x": 169.29213451534568,
+      "y": 88.98244365407001
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10130,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.44101105587315
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10131,
+    "fields": {
+      "sequence": 3,
+      "x": 112.39887619461474,
+      "y": 90.71699421262888
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10132,
+    "fields": {
+      "sequence": 0,
+      "x": 67.99438189550769,
+      "y": 92.27808971533186
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10133,
+    "fields": {
+      "sequence": 1,
+      "x": 68.34129200721947,
+      "y": 88.80898859821411
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10134,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 84.64606725767284
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10135,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 90.89044926848476
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10136,
+    "fields": {
+      "sequence": 0,
+      "x": 92.9719099387554,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10137,
+    "fields": {
+      "sequence": 1,
+      "x": 90.19662904506121,
+      "y": 21.855337037841757
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10138,
+    "fields": {
+      "sequence": 2,
+      "x": 91.41081443605242,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10139,
+    "fields": {
+      "sequence": 3,
+      "x": 87.59480320722291,
+      "y": 62.964185275686965
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10140,
+    "fields": {
+      "sequence": 4,
+      "x": 86.3806178162317,
+      "y": 20.814606702706435
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10141,
+    "fields": {
+      "sequence": 5,
+      "x": 86.20716276037581,
+      "y": 0.6938202234235478
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10142,
+    "fields": {
+      "sequence": 0,
+      "x": 112.22542113875886,
+      "y": 112.05196608290296
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10143,
+    "fields": {
+      "sequence": 1,
+      "x": 112.22542113875886,
+      "y": 108.40940990992935
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10144,
+    "fields": {
+      "sequence": 2,
+      "x": 169.11867945948978,
+      "y": 108.58286496578523
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10145,
+    "fields": {
+      "sequence": 3,
+      "x": 169.11867945948978,
+      "y": 112.57233125047063
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10146,
+    "fields": {
+      "sequence": 0,
+      "x": 102.85884812254096,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10147,
+    "fields": {
+      "sequence": 1,
+      "x": 107.36867957479403,
+      "y": 64.00491561082228
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10148,
+    "fields": {
+      "sequence": 2,
+      "x": 106.32794923965871,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10149,
+    "fields": {
+      "sequence": 3,
+      "x": 101.47120767569386,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10150,
+    "fields": {
+      "sequence": 0,
+      "x": 83.43188186668162,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10151,
+    "fields": {
+      "sequence": 1,
+      "x": 87.24789309551113,
+      "y": 167.5575839567868
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10152,
+    "fields": {
+      "sequence": 2,
+      "x": 88.46207848650235,
+      "y": 115.69452225587659
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10153,
+    "fields": {
+      "sequence": 3,
+      "x": 92.27808971533186,
+      "y": 116.38834247930015
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10154,
+    "fields": {
+      "sequence": 4,
+      "x": 91.58426949190832,
+      "y": 168.9452244036339
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10155,
+    "fields": {
+      "sequence": 5,
+      "x": 90.71699421262888,
+      "y": 175.36306147030172
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10156,
+    "fields": {
+      "sequence": 6,
+      "x": 87.42134815136703,
+      "y": 189.41292099462856
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10157,
+    "fields": {
+      "sequence": 0,
+      "x": 0.5203651675676608,
+      "y": 68.51474706307535
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10158,
+    "fields": {
+      "sequence": 1,
+      "x": 69.03511223064301,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10159,
+    "fields": {
+      "sequence": 2,
+      "x": 68.86165717478713,
+      "y": 72.67766840361664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10160,
+    "fields": {
+      "sequence": 3,
+      "x": 0.8672752792794347,
+      "y": 72.33075829190486
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10161,
+    "fields": {
+      "sequence": 0,
+      "x": 68.16783695136357,
+      "y": 106.67485935137047
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10162,
+    "fields": {
+      "sequence": 1,
+      "x": 71.63693806848131,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10163,
+    "fields": {
+      "sequence": 2,
+      "x": 73.1980335711843,
+      "y": 66.60674144866059
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10164,
+    "fields": {
+      "sequence": 3,
+      "x": 69.55547739821067,
+      "y": 68.68820211893123
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10165,
+    "fields": {
+      "sequence": 0,
+      "x": 72.85112345947252,
+      "y": 109.45014024506467
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10166,
+    "fields": {
+      "sequence": 1,
+      "x": 106.32794923965871,
+      "y": 114.65379192074127
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10167,
+    "fields": {
+      "sequence": 2,
+      "x": 105.28721890452339,
+      "y": 117.60252787029135
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10168,
+    "fields": {
+      "sequence": 3,
+      "x": 75.27949424145494,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10169,
+    "fields": {
+      "sequence": 0,
+      "x": 107.54213463064991,
+      "y": 64.69873583424584
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10170,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 68.16783695136357
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10171,
+    "fields": {
+      "sequence": 2,
+      "x": 74.06530885046372,
+      "y": 65.56601111352526
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10172,
+    "fields": {
+      "sequence": 3,
+      "x": 74.93258412974316,
+      "y": 62.61727516397519
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10173,
+    "fields": {
+      "sequence": 0,
+      "x": 107.19522451893813,
+      "y": 113.61306158560595
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10174,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10175,
+    "fields": {
+      "sequence": 2,
+      "x": 112.39887619461474,
+      "y": 72.50421334776074
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10176,
+    "fields": {
+      "sequence": 3,
+      "x": 111.35814585947942,
+      "y": 112.39887619461474
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10177,
+    "fields": {
+      "sequence": 0,
+      "x": 71.98384818019308,
+      "y": 108.23595485407346
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10178,
+    "fields": {
+      "sequence": 1,
+      "x": 75.7998594090226,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10179,
+    "fields": {
+      "sequence": 2,
+      "x": 103.89957845767628,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10180,
+    "fields": {
+      "sequence": 3,
+      "x": 106.50140429551459,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10181,
+    "fields": {
+      "sequence": 4,
+      "x": 108.40940990992935,
+      "y": 68.86165717478713
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10182,
+    "fields": {
+      "sequence": 5,
+      "x": 73.89185379460784,
+      "y": 66.25983133694882
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10183,
+    "fields": {
+      "sequence": 0,
+      "x": 112.05196608290296,
+      "y": 107.54213463064991
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10184,
+    "fields": {
+      "sequence": 1,
+      "x": 112.39887619461474,
+      "y": 94.70646049731428
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10185,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.96137622344081
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10186,
+    "fields": {
+      "sequence": 3,
+      "x": 169.29213451534568,
+      "y": 107.7155896865058
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10187,
+    "fields": {
+      "sequence": 0,
+      "x": 94.70646049731428,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10188,
+    "fields": {
+      "sequence": 1,
+      "x": 102.51193801082918,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10189,
+    "fields": {
+      "sequence": 2,
+      "x": 100.9508425081262,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10190,
+    "fields": {
+      "sequence": 3,
+      "x": 93.49227510632306,
+      "y": 0.3469101117117739
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10191,
+    "fields": {
+      "sequence": 0,
+      "x": 68.34129200721947,
+      "y": 85.51334253695227
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10192,
+    "fields": {
+      "sequence": 1,
+      "x": 68.68820211893123,
+      "y": 74.23876390631962
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10193,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 72.85112345947252
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10194,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 83.7787919783934
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10195,
+    "fields": {
+      "sequence": 0,
+      "x": 75.45294929731082,
+      "y": 114.13342675317361
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10196,
+    "fields": {
+      "sequence": 1,
+      "x": 85.16643242524049,
+      "y": 115.34761214416483
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10197,
+    "fields": {
+      "sequence": 2,
+      "x": 83.08497175496986,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10198,
+    "fields": {
+      "sequence": 3,
+      "x": 74.23876390631962,
+      "y": 188.19873560363735
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10199,
+    "fields": {
+      "sequence": 0,
+      "x": 112.39887619461474,
+      "y": 88.28862343064645
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10200,
+    "fields": {
+      "sequence": 1,
+      "x": 169.29213451534568,
+      "y": 88.98244365407001
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10201,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.44101105587315
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10202,
+    "fields": {
+      "sequence": 3,
+      "x": 112.39887619461474,
+      "y": 90.71699421262888
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10203,
+    "fields": {
+      "sequence": 0,
+      "x": 67.99438189550769,
+      "y": 92.27808971533186
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10204,
+    "fields": {
+      "sequence": 1,
+      "x": 68.34129200721947,
+      "y": 88.80898859821411
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10205,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 84.64606725767284
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10206,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 90.89044926848476
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10207,
+    "fields": {
+      "sequence": 0,
+      "x": 92.9719099387554,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10208,
+    "fields": {
+      "sequence": 1,
+      "x": 90.19662904506121,
+      "y": 21.855337037841757
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10209,
+    "fields": {
+      "sequence": 2,
+      "x": 91.41081443605242,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10210,
+    "fields": {
+      "sequence": 3,
+      "x": 87.59480320722291,
+      "y": 62.964185275686965
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10211,
+    "fields": {
+      "sequence": 4,
+      "x": 86.3806178162317,
+      "y": 20.814606702706435
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10212,
+    "fields": {
+      "sequence": 5,
+      "x": 86.20716276037581,
+      "y": 0.6938202234235478
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10213,
+    "fields": {
+      "sequence": 0,
+      "x": 112.22542113875886,
+      "y": 112.05196608290296
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10214,
+    "fields": {
+      "sequence": 1,
+      "x": 112.22542113875886,
+      "y": 108.40940990992935
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10215,
+    "fields": {
+      "sequence": 2,
+      "x": 169.11867945948978,
+      "y": 108.58286496578523
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10216,
+    "fields": {
+      "sequence": 3,
+      "x": 169.11867945948978,
+      "y": 112.57233125047063
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10217,
+    "fields": {
+      "sequence": 0,
+      "x": 102.85884812254096,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10218,
+    "fields": {
+      "sequence": 1,
+      "x": 107.36867957479403,
+      "y": 64.00491561082228
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10219,
+    "fields": {
+      "sequence": 2,
+      "x": 106.32794923965871,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10220,
+    "fields": {
+      "sequence": 3,
+      "x": 101.47120767569386,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10221,
+    "fields": {
+      "sequence": 0,
+      "x": 83.43188186668162,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10222,
+    "fields": {
+      "sequence": 1,
+      "x": 87.24789309551113,
+      "y": 167.5575839567868
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10223,
+    "fields": {
+      "sequence": 2,
+      "x": 88.46207848650235,
+      "y": 115.69452225587659
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10224,
+    "fields": {
+      "sequence": 3,
+      "x": 92.27808971533186,
+      "y": 116.38834247930015
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10225,
+    "fields": {
+      "sequence": 4,
+      "x": 91.58426949190832,
+      "y": 168.9452244036339
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10226,
+    "fields": {
+      "sequence": 5,
+      "x": 90.71699421262888,
+      "y": 175.36306147030172
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10227,
+    "fields": {
+      "sequence": 6,
+      "x": 87.42134815136703,
+      "y": 189.41292099462856
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10228,
+    "fields": {
+      "sequence": 0,
+      "x": 0.5203651675676608,
+      "y": 68.51474706307535
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10229,
+    "fields": {
+      "sequence": 1,
+      "x": 69.03511223064301,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10230,
+    "fields": {
+      "sequence": 2,
+      "x": 68.86165717478713,
+      "y": 72.67766840361664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10231,
+    "fields": {
+      "sequence": 3,
+      "x": 0.8672752792794347,
+      "y": 72.33075829190486
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10232,
+    "fields": {
+      "sequence": 0,
+      "x": 68.16783695136357,
+      "y": 106.67485935137047
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10233,
+    "fields": {
+      "sequence": 1,
+      "x": 71.63693806848131,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10234,
+    "fields": {
+      "sequence": 2,
+      "x": 73.1980335711843,
+      "y": 66.60674144866059
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10235,
+    "fields": {
+      "sequence": 3,
+      "x": 69.55547739821067,
+      "y": 68.68820211893123
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10236,
+    "fields": {
+      "sequence": 0,
+      "x": 72.85112345947252,
+      "y": 109.45014024506467
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10237,
+    "fields": {
+      "sequence": 1,
+      "x": 106.32794923965871,
+      "y": 114.65379192074127
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10238,
+    "fields": {
+      "sequence": 2,
+      "x": 105.28721890452339,
+      "y": 117.60252787029135
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10239,
+    "fields": {
+      "sequence": 3,
+      "x": 75.27949424145494,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10240,
+    "fields": {
+      "sequence": 0,
+      "x": 107.54213463064991,
+      "y": 64.69873583424584
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10241,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 68.16783695136357
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10242,
+    "fields": {
+      "sequence": 2,
+      "x": 74.06530885046372,
+      "y": 65.56601111352526
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10243,
+    "fields": {
+      "sequence": 3,
+      "x": 74.93258412974316,
+      "y": 62.61727516397519
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10244,
+    "fields": {
+      "sequence": 0,
+      "x": 107.19522451893813,
+      "y": 113.61306158560595
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10245,
+    "fields": {
+      "sequence": 1,
+      "x": 109.1032301333529,
+      "y": 69.03511223064301
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10246,
+    "fields": {
+      "sequence": 2,
+      "x": 112.39887619461474,
+      "y": 72.50421334776074
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10247,
+    "fields": {
+      "sequence": 3,
+      "x": 111.35814585947942,
+      "y": 112.39887619461474
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10248,
+    "fields": {
+      "sequence": 0,
+      "x": 71.98384818019308,
+      "y": 108.23595485407346
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10249,
+    "fields": {
+      "sequence": 1,
+      "x": 75.7998594090226,
+      "y": 108.92977507749701
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10250,
+    "fields": {
+      "sequence": 2,
+      "x": 103.89957845767628,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10251,
+    "fields": {
+      "sequence": 3,
+      "x": 106.50140429551459,
+      "y": 113.43960652975007
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10252,
+    "fields": {
+      "sequence": 4,
+      "x": 108.40940990992935,
+      "y": 68.86165717478713
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10253,
+    "fields": {
+      "sequence": 5,
+      "x": 73.89185379460784,
+      "y": 66.25983133694882
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10254,
+    "fields": {
+      "sequence": 0,
+      "x": 112.05196608290296,
+      "y": 107.54213463064991
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10255,
+    "fields": {
+      "sequence": 1,
+      "x": 112.39887619461474,
+      "y": 94.70646049731428
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10256,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.96137622344081
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10257,
+    "fields": {
+      "sequence": 3,
+      "x": 169.29213451534568,
+      "y": 107.7155896865058
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10258,
+    "fields": {
+      "sequence": 0,
+      "x": 94.70646049731428,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10259,
+    "fields": {
+      "sequence": 1,
+      "x": 102.51193801082918,
+      "y": 63.8314605549664
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10260,
+    "fields": {
+      "sequence": 2,
+      "x": 100.9508425081262,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10261,
+    "fields": {
+      "sequence": 3,
+      "x": 93.49227510632306,
+      "y": 0.3469101117117739
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10262,
+    "fields": {
+      "sequence": 0,
+      "x": 68.34129200721947,
+      "y": 85.51334253695227
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10263,
+    "fields": {
+      "sequence": 1,
+      "x": 68.68820211893123,
+      "y": 74.23876390631962
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10264,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 72.85112345947252
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10265,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 83.7787919783934
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10266,
+    "fields": {
+      "sequence": 0,
+      "x": 75.45294929731082,
+      "y": 114.13342675317361
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10267,
+    "fields": {
+      "sequence": 1,
+      "x": 85.16643242524049,
+      "y": 115.34761214416483
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10268,
+    "fields": {
+      "sequence": 2,
+      "x": 83.08497175496986,
+      "y": 188.8925558270609
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10269,
+    "fields": {
+      "sequence": 3,
+      "x": 74.23876390631962,
+      "y": 188.19873560363735
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10270,
+    "fields": {
+      "sequence": 0,
+      "x": 112.39887619461474,
+      "y": 88.28862343064645
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10271,
+    "fields": {
+      "sequence": 1,
+      "x": 169.29213451534568,
+      "y": 88.98244365407001
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10272,
+    "fields": {
+      "sequence": 2,
+      "x": 169.46558957120155,
+      "y": 96.44101105587315
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10273,
+    "fields": {
+      "sequence": 3,
+      "x": 112.39887619461474,
+      "y": 90.71699421262888
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10274,
+    "fields": {
+      "sequence": 0,
+      "x": 67.99438189550769,
+      "y": 92.27808971533186
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10275,
+    "fields": {
+      "sequence": 1,
+      "x": 68.34129200721947,
+      "y": 88.80898859821411
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10276,
+    "fields": {
+      "sequence": 2,
+      "x": 0.3469101117117739,
+      "y": 84.64606725767284
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10277,
+    "fields": {
+      "sequence": 3,
+      "x": 0.3469101117117739,
+      "y": 90.89044926848476
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10278,
+    "fields": {
+      "sequence": 0,
+      "x": 92.9719099387554,
+      "y": 0.5203651675676608
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10279,
+    "fields": {
+      "sequence": 1,
+      "x": 90.19662904506121,
+      "y": 21.855337037841757
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10280,
+    "fields": {
+      "sequence": 2,
+      "x": 91.41081443605242,
+      "y": 63.31109538739874
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10281,
+    "fields": {
+      "sequence": 3,
+      "x": 87.59480320722291,
+      "y": 62.964185275686965
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10282,
+    "fields": {
+      "sequence": 4,
+      "x": 86.3806178162317,
+      "y": 20.814606702706435
+    }
+  },
+  {
+    "model": "manager.boundingboxpoints",
+    "pk": 10283,
+    "fields": {
+      "sequence": 5,
+      "x": 86.20716276037581,
+      "y": 0.6938202234235478
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10000,
+    "fields": {
+      "region": 1011
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10001,
+    "fields": {
+      "region": 1011
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10002,
+    "fields": {
+      "region": 1011
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10003,
+    "fields": {
+      "region": 1011
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10004,
+    "fields": {
+      "region": 1012
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10005,
+    "fields": {
+      "region": 1012
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10006,
+    "fields": {
+      "region": 1012
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10007,
+    "fields": {
+      "region": 1012
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10008,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10009,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10010,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10011,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10012,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10013,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10014,
+    "fields": {
+      "region": 1013
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10015,
+    "fields": {
+      "region": 1014
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10016,
+    "fields": {
+      "region": 1014
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10017,
+    "fields": {
+      "region": 1014
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10018,
+    "fields": {
+      "region": 1014
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10019,
+    "fields": {
+      "region": 1000
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10020,
+    "fields": {
+      "region": 1000
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10021,
+    "fields": {
+      "region": 1000
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10022,
+    "fields": {
+      "region": 1000
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10023,
+    "fields": {
+      "region": 1001
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10024,
+    "fields": {
+      "region": 1001
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10025,
+    "fields": {
+      "region": 1001
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10026,
+    "fields": {
+      "region": 1001
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10027,
+    "fields": {
+      "region": 1002
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10028,
+    "fields": {
+      "region": 1002
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10029,
+    "fields": {
+      "region": 1002
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10030,
+    "fields": {
+      "region": 1002
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10031,
+    "fields": {
+      "region": 1003
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10032,
+    "fields": {
+      "region": 1003
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10033,
+    "fields": {
+      "region": 1003
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10034,
+    "fields": {
+      "region": 1003
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10035,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10036,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10037,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10038,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10039,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10040,
+    "fields": {
+      "region": 1004
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10041,
+    "fields": {
+      "region": 1005
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10042,
+    "fields": {
+      "region": 1005
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10043,
+    "fields": {
+      "region": 1005
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10044,
+    "fields": {
+      "region": 1005
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10045,
+    "fields": {
+      "region": 1006
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10046,
+    "fields": {
+      "region": 1006
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10047,
+    "fields": {
+      "region": 1006
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10048,
+    "fields": {
+      "region": 1006
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10049,
+    "fields": {
+      "region": 1007
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10050,
+    "fields": {
+      "region": 1007
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10051,
+    "fields": {
+      "region": 1007
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10052,
+    "fields": {
+      "region": 1007
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10053,
+    "fields": {
+      "region": 1008
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10054,
+    "fields": {
+      "region": 1008
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10055,
+    "fields": {
+      "region": 1008
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10056,
+    "fields": {
+      "region": 1008
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10057,
+    "fields": {
+      "region": 1009
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10058,
+    "fields": {
+      "region": 1009
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10059,
+    "fields": {
+      "region": 1009
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10060,
+    "fields": {
+      "region": 1009
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10061,
+    "fields": {
+      "region": 1010
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10062,
+    "fields": {
+      "region": 1010
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10063,
+    "fields": {
+      "region": 1010
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10064,
+    "fields": {
+      "region": 1010
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10065,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10066,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10067,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10068,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10069,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10070,
+    "fields": {
+      "region": 1015
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10071,
+    "fields": {
+      "region": 1027
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10072,
+    "fields": {
+      "region": 1027
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10073,
+    "fields": {
+      "region": 1027
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10074,
+    "fields": {
+      "region": 1027
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10075,
+    "fields": {
+      "region": 1028
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10076,
+    "fields": {
+      "region": 1028
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10077,
+    "fields": {
+      "region": 1028
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10078,
+    "fields": {
+      "region": 1028
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10079,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10080,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10081,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10082,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10083,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10084,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10085,
+    "fields": {
+      "region": 1029
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10086,
+    "fields": {
+      "region": 1030
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10087,
+    "fields": {
+      "region": 1030
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10088,
+    "fields": {
+      "region": 1030
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10089,
+    "fields": {
+      "region": 1030
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10090,
+    "fields": {
+      "region": 1016
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10091,
+    "fields": {
+      "region": 1016
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10092,
+    "fields": {
+      "region": 1016
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10093,
+    "fields": {
+      "region": 1016
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10094,
+    "fields": {
+      "region": 1017
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10095,
+    "fields": {
+      "region": 1017
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10096,
+    "fields": {
+      "region": 1017
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10097,
+    "fields": {
+      "region": 1017
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10098,
+    "fields": {
+      "region": 1018
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10099,
+    "fields": {
+      "region": 1018
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10100,
+    "fields": {
+      "region": 1018
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10101,
+    "fields": {
+      "region": 1018
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10102,
+    "fields": {
+      "region": 1019
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10103,
+    "fields": {
+      "region": 1019
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10104,
+    "fields": {
+      "region": 1019
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10105,
+    "fields": {
+      "region": 1019
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10106,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10107,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10108,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10109,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10110,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10111,
+    "fields": {
+      "region": 1020
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10112,
+    "fields": {
+      "region": 1021
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10113,
+    "fields": {
+      "region": 1021
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10114,
+    "fields": {
+      "region": 1021
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10115,
+    "fields": {
+      "region": 1021
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10116,
+    "fields": {
+      "region": 1022
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10117,
+    "fields": {
+      "region": 1022
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10118,
+    "fields": {
+      "region": 1022
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10119,
+    "fields": {
+      "region": 1022
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10120,
+    "fields": {
+      "region": 1023
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10121,
+    "fields": {
+      "region": 1023
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10122,
+    "fields": {
+      "region": 1023
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10123,
+    "fields": {
+      "region": 1023
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10124,
+    "fields": {
+      "region": 1024
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10125,
+    "fields": {
+      "region": 1024
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10126,
+    "fields": {
+      "region": 1024
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10127,
+    "fields": {
+      "region": 1024
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10128,
+    "fields": {
+      "region": 1025
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10129,
+    "fields": {
+      "region": 1025
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10130,
+    "fields": {
+      "region": 1025
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10131,
+    "fields": {
+      "region": 1025
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10132,
+    "fields": {
+      "region": 1026
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10133,
+    "fields": {
+      "region": 1026
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10134,
+    "fields": {
+      "region": 1026
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10135,
+    "fields": {
+      "region": 1026
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10136,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10137,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10138,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10139,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10140,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10141,
+    "fields": {
+      "region": 1031
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10142,
+    "fields": {
+      "region": 1043
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10143,
+    "fields": {
+      "region": 1043
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10144,
+    "fields": {
+      "region": 1043
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10145,
+    "fields": {
+      "region": 1043
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10146,
+    "fields": {
+      "region": 1044
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10147,
+    "fields": {
+      "region": 1044
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10148,
+    "fields": {
+      "region": 1044
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10149,
+    "fields": {
+      "region": 1044
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10150,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10151,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10152,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10153,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10154,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10155,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10156,
+    "fields": {
+      "region": 1045
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10157,
+    "fields": {
+      "region": 1046
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10158,
+    "fields": {
+      "region": 1046
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10159,
+    "fields": {
+      "region": 1046
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10160,
+    "fields": {
+      "region": 1046
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10161,
+    "fields": {
+      "region": 1032
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10162,
+    "fields": {
+      "region": 1032
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10163,
+    "fields": {
+      "region": 1032
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10164,
+    "fields": {
+      "region": 1032
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10165,
+    "fields": {
+      "region": 1033
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10166,
+    "fields": {
+      "region": 1033
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10167,
+    "fields": {
+      "region": 1033
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10168,
+    "fields": {
+      "region": 1033
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10169,
+    "fields": {
+      "region": 1034
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10170,
+    "fields": {
+      "region": 1034
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10171,
+    "fields": {
+      "region": 1034
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10172,
+    "fields": {
+      "region": 1034
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10173,
+    "fields": {
+      "region": 1035
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10174,
+    "fields": {
+      "region": 1035
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10175,
+    "fields": {
+      "region": 1035
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10176,
+    "fields": {
+      "region": 1035
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10177,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10178,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10179,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10180,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10181,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10182,
+    "fields": {
+      "region": 1036
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10183,
+    "fields": {
+      "region": 1037
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10184,
+    "fields": {
+      "region": 1037
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10185,
+    "fields": {
+      "region": 1037
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10186,
+    "fields": {
+      "region": 1037
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10187,
+    "fields": {
+      "region": 1038
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10188,
+    "fields": {
+      "region": 1038
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10189,
+    "fields": {
+      "region": 1038
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10190,
+    "fields": {
+      "region": 1038
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10191,
+    "fields": {
+      "region": 1039
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10192,
+    "fields": {
+      "region": 1039
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10193,
+    "fields": {
+      "region": 1039
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10194,
+    "fields": {
+      "region": 1039
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10195,
+    "fields": {
+      "region": 1040
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10196,
+    "fields": {
+      "region": 1040
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10197,
+    "fields": {
+      "region": 1040
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10198,
+    "fields": {
+      "region": 1040
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10199,
+    "fields": {
+      "region": 1041
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10200,
+    "fields": {
+      "region": 1041
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10201,
+    "fields": {
+      "region": 1041
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10202,
+    "fields": {
+      "region": 1041
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10203,
+    "fields": {
+      "region": 1042
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10204,
+    "fields": {
+      "region": 1042
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10205,
+    "fields": {
+      "region": 1042
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10206,
+    "fields": {
+      "region": 1042
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10207,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10208,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10209,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10210,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10211,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10212,
+    "fields": {
+      "region": 1047
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10213,
+    "fields": {
+      "region": 1059
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10214,
+    "fields": {
+      "region": 1059
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10215,
+    "fields": {
+      "region": 1059
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10216,
+    "fields": {
+      "region": 1059
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10217,
+    "fields": {
+      "region": 1060
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10218,
+    "fields": {
+      "region": 1060
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10219,
+    "fields": {
+      "region": 1060
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10220,
+    "fields": {
+      "region": 1060
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10221,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10222,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10223,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10224,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10225,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10226,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10227,
+    "fields": {
+      "region": 1061
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10228,
+    "fields": {
+      "region": 1062
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10229,
+    "fields": {
+      "region": 1062
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10230,
+    "fields": {
+      "region": 1062
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10231,
+    "fields": {
+      "region": 1062
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10232,
+    "fields": {
+      "region": 1048
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10233,
+    "fields": {
+      "region": 1048
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10234,
+    "fields": {
+      "region": 1048
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10235,
+    "fields": {
+      "region": 1048
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10236,
+    "fields": {
+      "region": 1049
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10237,
+    "fields": {
+      "region": 1049
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10238,
+    "fields": {
+      "region": 1049
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10239,
+    "fields": {
+      "region": 1049
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10240,
+    "fields": {
+      "region": 1050
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10241,
+    "fields": {
+      "region": 1050
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10242,
+    "fields": {
+      "region": 1050
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10243,
+    "fields": {
+      "region": 1050
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10244,
+    "fields": {
+      "region": 1051
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10245,
+    "fields": {
+      "region": 1051
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10246,
+    "fields": {
+      "region": 1051
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10247,
+    "fields": {
+      "region": 1051
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10248,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10249,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10250,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10251,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10252,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10253,
+    "fields": {
+      "region": 1052
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10254,
+    "fields": {
+      "region": 1053
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10255,
+    "fields": {
+      "region": 1053
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10256,
+    "fields": {
+      "region": 1053
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10257,
+    "fields": {
+      "region": 1053
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10258,
+    "fields": {
+      "region": 1054
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10259,
+    "fields": {
+      "region": 1054
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10260,
+    "fields": {
+      "region": 1054
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10261,
+    "fields": {
+      "region": 1054
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10262,
+    "fields": {
+      "region": 1055
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10263,
+    "fields": {
+      "region": 1055
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10264,
+    "fields": {
+      "region": 1055
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10265,
+    "fields": {
+      "region": 1055
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10266,
+    "fields": {
+      "region": 1056
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10267,
+    "fields": {
+      "region": 1056
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10268,
+    "fields": {
+      "region": 1056
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10269,
+    "fields": {
+      "region": 1056
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10270,
+    "fields": {
+      "region": 1057
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10271,
+    "fields": {
+      "region": 1057
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10272,
+    "fields": {
+      "region": 1057
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10273,
+    "fields": {
+      "region": 1057
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10274,
+    "fields": {
+      "region": 1058
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10275,
+    "fields": {
+      "region": 1058
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10276,
+    "fields": {
+      "region": 1058
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10277,
+    "fields": {
+      "region": 1058
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10278,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10279,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10280,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10281,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10282,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionpoint",
+    "pk": 10283,
+    "fields": {
+      "region": 1063
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40000,
+    "fields": {
+      "region": 1000,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40001,
+    "fields": {
+      "region": 1001,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40002,
+    "fields": {
+      "region": 1002,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40003,
+    "fields": {
+      "region": 1003,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40004,
+    "fields": {
+      "region": 1004,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40005,
+    "fields": {
+      "region": 1005,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40006,
+    "fields": {
+      "region": 1006,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40007,
+    "fields": {
+      "region": 1007,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40008,
+    "fields": {
+      "region": 1008,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40009,
+    "fields": {
+      "region": 1009,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40010,
+    "fields": {
+      "region": 1010,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40011,
+    "fields": {
+      "region": 1011,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40012,
+    "fields": {
+      "region": 1012,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40013,
+    "fields": {
+      "region": 1013,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40014,
+    "fields": {
+      "region": 1014,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40015,
+    "fields": {
+      "region": 1015,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40016,
+    "fields": {
+      "region": 1016,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40017,
+    "fields": {
+      "region": 1017,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40018,
+    "fields": {
+      "region": 1018,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40019,
+    "fields": {
+      "region": 1019,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40020,
+    "fields": {
+      "region": 1020,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40021,
+    "fields": {
+      "region": 1021,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40022,
+    "fields": {
+      "region": 1022,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40023,
+    "fields": {
+      "region": 1023,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40024,
+    "fields": {
+      "region": 1024,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40025,
+    "fields": {
+      "region": 1025,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40026,
+    "fields": {
+      "region": 1026,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40027,
+    "fields": {
+      "region": 1027,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40028,
+    "fields": {
+      "region": 1028,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40029,
+    "fields": {
+      "region": 1029,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40030,
+    "fields": {
+      "region": 1030,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40031,
+    "fields": {
+      "region": 1031,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40032,
+    "fields": {
+      "region": 1032,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40033,
+    "fields": {
+      "region": 1033,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40034,
+    "fields": {
+      "region": 1034,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40035,
+    "fields": {
+      "region": 1035,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40036,
+    "fields": {
+      "region": 1036,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40037,
+    "fields": {
+      "region": 1037,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40038,
+    "fields": {
+      "region": 1038,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40039,
+    "fields": {
+      "region": 1039,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40040,
+    "fields": {
+      "region": 1040,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40041,
+    "fields": {
+      "region": 1041,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40042,
+    "fields": {
+      "region": 1042,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40043,
+    "fields": {
+      "region": 1043,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40044,
+    "fields": {
+      "region": 1044,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40045,
+    "fields": {
+      "region": 1045,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40046,
+    "fields": {
+      "region": 1046,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40047,
+    "fields": {
+      "region": 1047,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40048,
+    "fields": {
+      "region": 1048,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40049,
+    "fields": {
+      "region": 1049,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40050,
+    "fields": {
+      "region": 1050,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40051,
+    "fields": {
+      "region": 1051,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40052,
+    "fields": {
+      "region": 1052,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40053,
+    "fields": {
+      "region": 1053,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40054,
+    "fields": {
+      "region": 1054,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40055,
+    "fields": {
+      "region": 1055,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40056,
+    "fields": {
+      "region": 1056,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40057,
+    "fields": {
+      "region": 1057,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40058,
+    "fields": {
+      "region": 1058,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40059,
+    "fields": {
+      "region": 1059,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40060,
+    "fields": {
+      "region": 1060,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40061,
+    "fields": {
+      "region": 1061,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40062,
+    "fields": {
+      "region": 1062,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.regionoccupancythreshold",
+    "pk": 40063,
+    "fields": {
+      "region": 1063,
+      "sectors": [
+        {
+          "color": "green",
+          "color_min": 0
+        },
+        {
+          "color": "yellow",
+          "color_min": 2
+        },
+        {
+          "color": "red",
+          "color_min": 5
+        }
+      ],
+      "range_max": 10
+    }
+  },
+  {
+    "model": "manager.asset3d",
+    "pk": 2,
+    "fields": {
+      "name": "vehicle",
+      "x_size": 2.5,
+      "y_size": 1.5,
+      "z_size": 1.5,
+      "x_buffer_size": 0.0,
+      "y_buffer_size": 0.0,
+      "z_buffer_size": 0.0,
+      "mark_color": "blue",
+      "model_3d": "",
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale": 1.0,
+      "rotation_from_velocity": true,
+      "tracking_radius": 2.0,
+      "shift_type": 1,
+      "project_to_map": false
+    }
+  },
+  {
+    "model": "manager.asset3d",
+    "pk": 3,
+    "fields": {
+      "name": "pedestrian",
+      "x_size": 0.5,
+      "y_size": 0.5,
+      "z_size": 1.5,
+      "x_buffer_size": 0.0,
+      "y_buffer_size": 0.0,
+      "z_buffer_size": 0.0,
+      "mark_color": "green",
+      "model_3d": "",
+      "rotation_x": 0.0,
+      "rotation_y": 0.0,
+      "rotation_z": 0.0,
+      "translation_x": 0.0,
+      "translation_y": 0.0,
+      "translation_z": 0.0,
+      "scale": 1.0,
+      "rotation_from_velocity": false,
+      "tracking_radius": 2.0,
+      "shift_type": 1,
+      "project_to_map": false
+    }
+  },
+  {
+    "model": "manager.databasestatus",
+    "pk": 1,
+    "fields": {
+      "is_ready": true
+    }
+  }
+]

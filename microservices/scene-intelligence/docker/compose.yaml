@@ -1,0 +1,377 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: scene-intelligence
+
+networks:
+  scenescape:
+
+secrets:
+  root-cert:
+    file: ../src/secrets/certs/scenescape-ca.pem
+  broker-cert:
+    file: ../src/secrets/certs/scenescape-broker.crt
+  broker-key:
+    file: ../src/secrets/certs/scenescape-broker.key
+  web-cert:
+    file: ../src/secrets/certs/scenescape-web.crt
+  web-key:
+    file: ../src/secrets/certs/scenescape-web.key
+  django:
+    file: ../src/secrets/django
+  controller.auth:
+    file: ../src/secrets/controller.auth
+  browser.auth:
+    file: ../src/secrets/browser.auth
+  supass:
+    file: ../src/secrets/supass
+
+
+services:
+  # NTP Server for time synchronization
+  ntpserver:
+    image: docker.io/dockurr/chrony:4.6.1
+    container_name: scene-intelligence-ntpserver
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      HTTP_PROXY: ${http_proxy}
+      HTTPS_PROXY: ${https_proxy}
+      NO_PROXY: ${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+    networks:
+      scenescape:
+        aliases:
+          - ntpserv
+    restart: on-failure:5
+
+  # MQTT Broker
+  broker:
+    image: docker.io/library/eclipse-mosquitto:2.0.21
+    container_name: scene-intelligence-broker
+    ports:
+      - "${MQTT_PORT:-1883}:1883"
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      HTTP_PROXY: ${http_proxy}
+      HTTPS_PROXY: ${https_proxy}
+      NO_PROXY: ${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+    volumes:
+      - ../src/mosquitto/mosquitto-secure.conf:/mosquitto/config/mosquitto.conf
+    secrets:
+      - root-cert
+      - broker-cert
+      - broker-key
+    entrypoint: [
+        "/bin/sh",
+        "-e",
+        "-c",
+        "mkdir -p /mosquitto/secrets && \
+        cp -r /run/secrets/* /mosquitto/secrets/ && \
+        chown -R mosquitto:mosquitto /mosquitto/secrets && \
+        /docker-entrypoint.sh /usr/sbin/mosquitto -c /mosquitto/config/mosquitto.conf",
+      ]
+    networks:
+      scenescape:
+        aliases:
+          - broker.scenescape.intel.com
+    restart: on-failure:5
+
+
+  # DL Streamer Pipeline Server for Video Analytics
+  dlstreamer-pipeline-server:
+    image: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer-pipeline-server:20250731_EAL1.2_DLSPS_RC4-ubuntu24
+    container_name: scene-intelligence-dlstreamer
+    networks:
+      - scenescape
+    privileged: true
+    ports:
+      - "${DLSTREAMER_PORT:-8555}:8080"
+    devices:
+      - "/dev/dri:/dev/dri"
+    depends_on:
+      - broker
+      - ntpserver
+    environment:
+      - ENABLE_RTSP=true
+      - ENABLE_WEBRTC=true
+      - WEBRTC_SIGNALING_SERVER=ws://localhost:8443
+      - RUN_MODE=EVA
+      - GENICAM=Balluff
+      - DETECTION_DEVICE=CPU
+      - CLASSIFICATION_DEVICE=CPU
+      - ADD_UTCTIME_TO_METADATA=true
+      - APPEND_PIPELINE_NAME_TO_PUBLISHER_TOPIC=false
+      - REST_SERVER_PORT=8080
+      - MQTT_HOST=broker.scenescape.intel.com
+      - MQTT_PORT=1883
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy_env},.scenescape.intel.com,${HOST_IP},ntpserver
+      - NO_PROXY=${no_proxy_env},.scenescape.intel.com,${HOST_IP},ntpserver
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+    volumes:
+      - ../src/dlstreamer-pipeline-server/config.json:/home/pipeline-server/config.json
+      - ../src/dlstreamer-pipeline-server/user_scripts:/home/pipeline-server/user_scripts
+      - ../src/dlstreamer-pipeline-server/videos:/home/pipeline-server/videos
+      - ../src/dlstreamer-pipeline-server/models/intersection:/home/pipeline-server/models/object_detection/intersection
+      - dlstreamer-pipeline-server-pipeline-root:/var/cache/pipeline_root:uid=1999,gid=1999
+      - dlstreamer-pipeline-server-tmp:/tmp
+    secrets:
+      - source: root-cert
+        target: certs/scenescape-ca.pem
+    restart: on-failure:5
+
+  # SceneScape Database Server
+  pgserver:
+    image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    container_name: scene-intelligence-pgserver
+    init: true
+    networks:
+      - scenescape
+    environment:
+      - "DBROOT=/workspace"
+      - "EXAMPLEDB=scene-intelligence.tar.bz2"
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - NO_PROXY=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+    entrypoint: [
+        "/bin/bash",
+        "-e",
+        "-c",
+        "cp /tmp/user_access_config.json /home/scenescape/SceneScape/user_access_config.json && \
+        cp /tmp/scene-intelligence.tar.bz2 /home/scenescape/SceneScape/scene-intelligence.tar.bz2 && \
+        chown -R scenescape:scenescape /workspace && \
+        SUPASS=$(cat /run/secrets/supass) /usr/local/bin/scenescape-init database --preloadexample",
+      ]
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - pgserver-db:/workspace/db
+      - pgserver-migrations:/workspace/migrations
+      - pgserver-media:/workspace/media
+      - ../src/webserver/user_access_config.json:/tmp/user_access_config.json
+      - ../src/webserver/scene-intelligence.tar.bz2:/tmp/scene-intelligence.tar.bz2
+    secrets:
+      - django
+      - browser.auth
+      - controller.auth
+      - supass
+    restart: on-failure:5
+
+  # SceneScape Web Server
+  web:
+    image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    container_name: scene-intelligence-web
+    init: true
+    networks:
+      scenescape:
+        aliases:
+          - web.scenescape.intel.com
+    depends_on:
+      - pgserver
+    ports:
+      - "${SCENESCAPE_PORT:-443}:443"
+    environment:
+      - "DBROOT=/workspace"
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - NO_PROXY=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+    command: >
+      webserver
+      --dbhost pgserver
+      --broker broker.scenescape.intel.com
+      --brokerauth /run/secrets/browser.auth
+      --brokerrootcert /run/secrets/certs/scenescape-ca.pem
+    healthcheck:
+      test: "curl --insecure -X GET https://web.scenescape.intel.com:443/api/v1/database-ready | grep 'true'"
+      interval: 10s
+      timeout: 120s
+      retries: 10
+      start_period: 10s
+    cap_add:
+      - SYS_ADMIN
+    devices:
+      - /dev/fuse
+    security_opt:
+      - apparmor:unconfined
+    volumes:
+      - pgserver-media:/workspace/media
+    secrets:
+      - source: root-cert
+        target: certs/scenescape-ca.pem
+      - source: web-cert
+        target: certs/scenescape-web.crt
+      - source: web-key
+        target: certs/scenescape-web.key
+      - django
+      - browser.auth
+      - controller.auth
+    restart: on-failure:5
+
+  # SceneScape Controller
+  scene:
+    image: ${REGISTRY:-}scenescape-controller:${TAG:-latest}
+    container_name: scene-intelligence-scene
+    init: true
+    environment:
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - NO_PROXY=${no_proxy_env},.scenescape.intel.com,${HOST_IP}
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+    networks:
+      scenescape:
+    depends_on:
+      web:
+        condition: service_healthy
+      broker:
+        condition: service_started
+      ntpserver:
+        condition: service_started
+    command: controller --broker broker.scenescape.intel.com --ntp ntpserv
+    volumes:
+      - pgserver-media:/home/scenescape/SceneScape/media
+      - ../src/controller/tracker-config.json:/home/scenescape/SceneScape/tracker-config.json
+    secrets:
+      - source: root-cert
+        target: certs/scenescape-ca.pem
+      - django
+      - controller.auth
+    restart: on-failure:5
+
+  # Scene Intelligence API Service
+  scene-intelligence:
+    image: ${REGISTRY:-}scene-intelligence:${TAG:-latest}
+    container_name: scene-intelligence-api
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+    ports:
+      - "${SCENE_INTELLIGENCE_PORT:-8081}:8080"
+    depends_on:
+      web:
+        condition: service_healthy
+      broker:
+        condition: service_started
+      vlm-openvino-serving:
+        condition: service_healthy
+    environment:
+      - SCENESCAPE_URL=${SCENESCAPE_URL:-https://web.scenescape.intel.com}
+      - MQTT_BROKER_HOST=${MQTT_BROKER_HOST:-broker.scenescape.intel.com}
+      - MQTT_BROKER_PORT=${MQTT_BROKER_PORT:-1883}
+      - LOG_LEVEL=${LOG_LEVEL:-INFO}
+      - SCENE_INTELLIGENCE_CONFIG=${SCENE_INTELLIGENCE_CONFIG:-/app/config/scene_intelligence_config.json}
+      - TRAFFIC_BUFFER_DURATION=${TRAFFIC_BUFFER_DURATION:-60}
+      - DATA_RETENTION_HOURS=${DATA_RETENTION_HOURS:-24}
+      # VLM Service Configuration
+      - VLM_BASE_URL=${VLM_BASE_URL:-http://vlm-openvino-serving:8000}
+      - VLM_MODEL=${VLM_MODEL:-Qwen/Qwen2.5-VL-3B-Instruct}
+      - VLM_WORKERS=${VLM_WORKERS:-4}
+      - HIGH_DENSITY_THRESHOLD=${HIGH_DENSITY_THRESHOLD:-5.0}
+      - MINIMUM_DURATION_FOR_CONSISTENTLY_HIGH_TRAFFIC_SECONDS=${MINIMUM_DURATION_FOR_CONSISTENTLY_HIGH_TRAFFIC_SECONDS:-2}
+      - VLM_COOLDOWN_MINUTES=${VLM_COOLDOWN_MINUTES:-1}
+      - VLM_TIMEOUT_SECONDS=${VLM_TIMEOUT_SECONDS:-10}
+      - VLM_MAX_COMPLETION_TOKENS=${VLM_MAX_COMPLETION_TOKENS:-500}
+      - VLM_TEMPERATURE=${VLM_TEMPERATURE:-0.3}
+      - VLM_TOP_P=${VLM_TOP_P:-0.9}
+      - VLM_CONFIG_FILE=${VLM_CONFIG_FILE:-config/vlm_config.json}
+      # VLM prompt environment variables are optional overrides
+      # If you want to override prompts, set these in your environment:
+      # - VLM_SYSTEM_PROMPT="Your custom system prompt"
+      # - VLM_TRAFFIC_ANALYSIS_PROMPT="Your custom analysis prompt"
+      # Proxy settings
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy_env},.scenescape.intel.com,vlm-openvino-serving,${HOST_IP}
+      - NO_PROXY=${no_proxy_env},.scenescape.intel.com,vlm-openvino-serving,${HOST_IP}
+      - HTTP_PROXY=${http_proxy}
+      - HTTPS_PROXY=${https_proxy}
+    volumes:
+      - ../config:/app/config:ro
+    secrets:
+      - source: root-cert
+        target: root-cert
+    networks:
+      - scenescape
+    healthcheck:
+      test: ["CMD", "curl", "-f", "http://localhost:8080/health"]
+      interval: ${HEALTH_CHECK_INTERVAL:-30s}
+      timeout: ${HEALTH_CHECK_TIMEOUT:-10s}
+      retries: ${HEALTH_CHECK_RETRIES:-3}
+      start_period: ${HEALTH_CHECK_START_PERIOD:-10s}
+    restart: unless-stopped
+
+  # VLM OpenVINO Serving Service
+  vlm-openvino-serving:
+    image: ${REGISTRY:-}vlm-openvino-serving:${TAG:-latest}
+    container_name: scene-intelligence-vlm-serving
+    ports:
+      - "${VLM_SERVICE_PORT:-9764}:8000"
+    ipc: host
+    environment:
+      # Proxy settings
+      no_proxy_env: ${no_proxy_env},${HOST_IP}
+      no_proxy: ${no_proxy_env},${HOST_IP}
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      # VLM Model configuration
+      VLM_MODEL_NAME: ${VLM_MODEL_NAME:-Qwen/Qwen2.5-VL-3B-Instruct}
+      VLM_COMPRESSION_WEIGHT_FORMAT: ${VLM_COMPRESSION_WEIGHT_FORMAT:-int8}
+      VLM_DEVICE: ${VLM_DEVICE:-CPU}
+      VLM_SEED: ${VLM_SEED:-42}
+      WORKERS: ${VLM_WORKERS:-4}
+      VLM_MAX_COMPLETION_TOKENS: ${VLM_MAX_COMPLETION_TOKENS:-500}
+      HUGGINGFACE_TOKEN: ${HUGGINGFACE_TOKEN}
+      OV_CONFIG: ${OV_CONFIG}
+      VLM_LOG_LEVEL: ${VLM_LOG_LEVEL:-info}
+      OPENVINO_LOG_LEVEL: ${VLM_OPENVINO_LOG_LEVEL:-1}
+      VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
+    restart: unless-stopped
+    devices:
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID:-1000} 
+      - ${VIDEO_GROUP_ID:-44}    
+      - ${RENDER_GROUP_ID:-109} 
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 40
+      start_period: 10s
+    networks:
+      - scenescape
+    volumes:
+      - ov-models:/home/appuser/.cache/huggingface
+      - ov-models:/app/ov-model
+
+volumes:
+  dlstreamer-pipeline-server-pipeline-root:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  dlstreamer-pipeline-server-tmp:
+    driver: local
+    driver_opts:
+      type: tmpfs
+      device: tmpfs
+  pgserver-db:
+  pgserver-migrations:
+  pgserver-media:
+  ov-models:
