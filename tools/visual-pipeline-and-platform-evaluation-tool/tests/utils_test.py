@@ -6,7 +6,11 @@ from unittest.mock import MagicMock, patch
 import itertools
 
 import utils
-from utils import prepare_video_and_constants, run_pipeline_and_extract_metrics, is_yolov10_model
+from utils import (
+    prepare_video_and_constants,
+    run_pipeline_and_extract_metrics,
+    is_yolov10_model,
+)
 
 
 class TestUtils(unittest.TestCase):
