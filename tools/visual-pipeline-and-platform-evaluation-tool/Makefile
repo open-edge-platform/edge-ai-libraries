@@ -104,10 +104,10 @@ run-dev: check-device-type public_models_choice ## Run the docker compose servic
 
 test: $(VENV_DIR) ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
-	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
+	docker compose run --user $(id -u):$(id -g) --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu bash -c "\
-		ls -la && python -m coverage run --source=./ --data-file=/tmp/.coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
-		python -m coverage report  --data-file=/tmp/.coverage --omit=*/config-3.py,*/config.py,*_test.py"
+		ls -la && python -m coverage run --source=./ -m unittest discover -v -s ./tests -p '*_test.py' && \
+		python -m coverage report --omit=*/config-3.py,*/config.py,*_test.py"
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
