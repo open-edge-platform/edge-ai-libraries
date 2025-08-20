@@ -16,7 +16,7 @@ CERTDOMAIN="scenescape.intel.com"
 CERTPASS=$(openssl rand -base64 33)
 DBPASS=${DBPASS:-"'$(openssl rand -base64 12)'"}
 EXEC_PATH="$(dirname "$(readlink -f "$0")")"
-MQTTUSERS="controller.auth=scenectrl browser.auth=admin"
+MQTTUSERS="controller.auth=scenectrl browser.auth=webuser"
 SECRETSDIR="$EXEC_PATH/../secrets"
 
 # Generate root CA key
@@ -75,7 +75,7 @@ for uid in $MQTTUSERS; do
     case $USERPASS in
         *:* ) ;;
         # * ) USERPASS=$USERPASS:$(openssl rand -base64 12);;
-        * ) USERPASS=$USERPASS:admin;;
+        * ) USERPASS=$USERPASS:webuser;;
     esac
     USER=${USERPASS%:*}
     PASS=${USERPASS##*:}
