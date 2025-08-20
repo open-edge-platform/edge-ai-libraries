@@ -28,7 +28,7 @@ jobs:
       bootstrap_tools: 'nodejs'
       run_version_check: false
       run_build: false
-      run_lint: false
+      run_lint: true
       lint_makeflags: '-k'
       run_test: true
       run_reuse_check: false

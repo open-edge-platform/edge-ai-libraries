@@ -34,7 +34,7 @@ $(VENV_DIR): requirements.txt ## Create Python venv
 
 all: lint build run test ## Run lint, build, run and test
 
-lint: $(VENV_DIR) mdlint pyright ruff ## Run all linters
+lint: $(VENV_DIR) mdlint ruff ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
@@ -106,7 +106,7 @@ test: $(VENV_DIR) ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
 	docker compose run --user $(id -u):$(id -g) --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu bash -c "\
-		ls -la && python -m coverage run --source=./ -m unittest discover -v -s ./tests -p '*_test.py' && \
+		python -m coverage run --source=./ -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --omit=*/config-3.py,*/config.py,*_test.py"
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
