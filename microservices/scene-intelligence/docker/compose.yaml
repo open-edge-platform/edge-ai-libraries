@@ -82,7 +82,7 @@ services:
 
   # DL Streamer Pipeline Server for Video Analytics
   dlstreamer-pipeline-server:
-    image: ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer-pipeline-server:20250731_EAL1.2_DLSPS_RC4-ubuntu24
+    image: docker.io/intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
     container_name: scene-intelligence-dlstreamer
     networks:
       - scenescape
@@ -127,7 +127,8 @@ services:
 
   # SceneScape Database Server
   pgserver:
-    image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    # image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    image: docker.io/intel/scenescape-manager:v1.4.0
     container_name: scene-intelligence-pgserver
     init: true
     networks:
@@ -171,7 +172,8 @@ services:
 
   # SceneScape Web Server
   web:
-    image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    # image: ${REGISTRY:-}scenescape-manager:${TAG:-latest}
+    image: docker.io/intel/scenescape-manager:v1.4.0
     container_name: scene-intelligence-web
     init: true
     networks:
@@ -224,7 +226,8 @@ services:
 
   # SceneScape Controller
   scene:
-    image: ${REGISTRY:-}scenescape-controller:${TAG:-latest}
+    # image: ${REGISTRY:-}scenescape-controller:${TAG:-latest}
+    image: docker.io/intel/scenescape-controller:v1.4.0
     container_name: scene-intelligence-scene
     init: true
     environment:
