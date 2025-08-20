@@ -109,6 +109,10 @@ test: $(VENV_DIR) ## Run tests and generate coverage report
 		python -m coverage run --source=./ -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --omit=*/config-3.py,*/config.py,*_test.py"
 
+generate-html-coverage: test ## Generate HTML coverage report
+	python -m coverage html --omit=*/config-3.py,*/config.py,*_test.py
+	echo 'HTML report generated in htmlcov/index.html'
+
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
 
