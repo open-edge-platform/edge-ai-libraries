@@ -229,7 +229,7 @@ jobs:
 
     - name: Manage models directories after fail
       if: ${{ steps.verify-omz.outcome == 'failure' && steps.verify-omz.outcome != 'skipped' ||
-              steps.verify-public.outcome != == 'failure' && steps.verify-public.outcome != 'skipped' ||
+              steps.verify-public.outcome == 'failure' && steps.verify-public.outcome != 'skipped' ||
               steps.download-public.outcome == 'failure' && steps.download-public.outcome != 'skipped' ||
               steps.download-omz.outcome == 'failure' && steps.download-omz.outcome != 'skipped' }}
       run: |
