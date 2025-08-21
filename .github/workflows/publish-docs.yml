@@ -12,7 +12,6 @@ on:
         - document-ingestion
         - document-summarization
         - model-registry
-        - object-store
         - chat-question-and-answer
         - visual-pipeline-platform-tool
         - chat-question-and-answer-core
@@ -49,7 +48,7 @@ jobs:
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
-      docs_directory: microservices/document-ingestion
+      docs_directory: microservices/document-ingestion/pgvector
 
   build_document-summarization:
     permissions:
@@ -79,20 +78,6 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/model-registry
-
-  build_object-store:
-    permissions:
-      contents: read          # needed for actions/checkout
-      pull-requests: read     # needed for gh pr list
-      issues: write           # needed to post PR comment
-    if: ${{ (github.event.inputs.target == 'object-store') || (github.event.inputs.target == 'all-documentation') }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@a77655e8fbb08f0d8e500a451aa0025bec249803
-    secrets:
-      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
-      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
-      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
-    with:
-      docs_directory: microservices/object-store
 
   build_chat-question-and-answer:
     permissions:
