@@ -21,9 +21,9 @@ spec:
       containers:
         - name: chatqna-core
           {{- if eq (.Values.global.MODEL_BACKEND | lower) "ollama" }}
-          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.ollamaTag }}"
+          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.tags.ollama }}"
           {{- else }}
-          image: "{{ .Values.image.registry }}chatqna:{{ if .Values.gpu.enabled }}{{ .Values.image.backendGpuTag }}{{ else }}{{ .Values.image.backendTag }}{{ end }}"
+          image: "{{ .Values.image.registry }}chatqna:{{ if .Values.gpu.enabled }}{{ .Values.image.tags.openvinoGPU }}{{ else }}{{ .Values.image.tags.openvinoCPU }}{{ end }}"
           {{- end }}
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
           securityContext:

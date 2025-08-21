@@ -111,6 +111,10 @@ class Settings(BaseSettings):
         if self.MODEL_BACKEND == "openvino":
             self._ENABLE_RERANK = True
 
+            # Validate Huggingface token
+            if not self.HF_ACCESS_TOKEN:
+                raise ValueError("HF_ACCESS_TOKEN must not be an empty string for 'openvino' backend.")
+
             # Validate required model IDs
             for model_name in ["EMBEDDING_MODEL_ID", "RERANKER_MODEL_ID", "LLM_MODEL_ID"]:
                 model_id = getattr(self, model_name)

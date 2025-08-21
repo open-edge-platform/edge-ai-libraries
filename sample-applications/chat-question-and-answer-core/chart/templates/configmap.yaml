@@ -24,10 +24,10 @@ data:
       KEEP_ALIVE: {{ .Values.global.KEEP_ALIVE }}
       {{- end }}
 
+    {{- if ne (.Values.global.MODEL_BACKEND | lower) "ollama" }}
     device_settings:
       EMBEDDING_DEVICE: "{{ .Values.global.EMBEDDING_DEVICE }}"
       LLM_DEVICE: "{{ .Values.global.LLM_DEVICE }}"
-      {{- if and (ne (.Values.global.MODEL_BACKEND | lower) "ollama") (.Values.global.RERANKER_DEVICE) }}
       RERANKER_DEVICE: "{{ .Values.global.RERANKER_DEVICE }}"
-      {{- end }}
+    {{- end }}
 {{- end}}

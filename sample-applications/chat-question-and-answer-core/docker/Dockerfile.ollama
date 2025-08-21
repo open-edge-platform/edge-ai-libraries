@@ -46,8 +46,9 @@ COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
 RUN poetry install --with ollama --without dev --without openvino
 
-# Install ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh - \
+# Install ollama version 0.11.4
+#RUN curl -fsSL https://ollama.com/install.sh | sh - \
+RUN curl -fsSL https://ollama.com/install.sh | OLLAMA_VERSION=0.11.4 sh - \
     && mkdir -p /tmp/ollama_lib \
     && rsync -av \
     --exclude='libggml-cuda.so' \
