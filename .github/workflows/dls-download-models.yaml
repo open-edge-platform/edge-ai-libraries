@@ -224,11 +224,14 @@ jobs:
       run: |
         echo "steps.download-public.outcome: ${{ steps.download-public.outcome }}"
         echo "steps.download-omz.outcome: ${{ steps.download-omz.outcome }}"
-        echo "Ssteps.verify-public.outcome: ${{ steps.verify-public.outcome }}"
-        echo "Ssteps.verify-omz.outcome: ${{ steps.verify-omz.outcome }}"
+        echo "steps.verify-public.outcome: ${{ steps.verify-public.outcome }}"
+        echo "steps.verify-omz.outcome: ${{ steps.verify-omz.outcome }}"
 
     - name: Manage models directories after fail
-      if: ${{ steps.verify-omz.outcome != 'success' || steps.verify-public.outcome != 'success' || steps.download-public.outcome != 'success' || steps.download-omz.outcome != 'success' }}
+      if: ${{ steps.verify-omz.outcome == 'failure' && steps.verify-omz.outcome != 'skipped' ||
+              steps.verify-public.outcome != == 'failure' && steps.verify-public.outcome != 'skipped' ||
+              steps.download-public.outcome == 'failure' && steps.download-public.outcome != 'skipped' ||
+              steps.download-omz.outcome == 'failure' && steps.download-omz.outcome != 'skipped' }}
       run: |
         # No success - restore old models
         [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
