@@ -9,9 +9,9 @@ pipelines are defined and loaded by Deep Learning Streamer Pipeline Server (DL S
 # Pipeline Definition Files
 DL Streamer Pipeline Server exposes multiple application related fields in the config file.
 The default config is present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json`.
-        
-   
-The following table describes the essential attributes that are supported in the `config` section. 
+
+
+The following table describes the essential attributes that are supported in the `config` section.
 
 |      Parameter      |                                                     Description                                                |
 | :-----------------: | -------------------------------------------------------------------------------------------------------------- |
@@ -54,7 +54,7 @@ the template property is specific to the underlying framework
 i.e. `GStreamer`. Pipeline use the `source`,
 `destination` and `parameters` sections of an incoming pipeline
 `request` to customize the source, destination and behavior of a
-pipeline implemented in an underlying framework. 
+pipeline implemented in an underlying framework.
 
 ### GStreamer Pipeline Definition
 
@@ -82,7 +82,7 @@ the calling application.
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](../../../../../../../libraries/dl-streamer/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/model_preparation.md).
 
 #### Source Abstraction
 `{auto_source}` is a virtual source that is updated with the appropriate GStreamer element and properties at request time.
@@ -95,7 +95,7 @@ The GStreamer element is chosen based on the `type` specified in the source sect
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](../../../../../../../libraries/dl-streamer/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/model_preparation.md).
 
 **Sample audio pipeline**
 ```
@@ -106,12 +106,12 @@ Note: The model used in the above pipeline is an example of how it can be used f
             " ! gvametaconvert name=metaconvert ! gvametapublish name=destination",
             " ! appsink name=appsink"
 ```
-Note: The model used in the above pipeline is an example of how it can be used from [here](https://dlstreamer.github.io/supported_models.html). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](https://dlstreamer.github.io/dev_guide/model_preparation.html)
+Note: The model used in the above pipeline is an example of how it can be used from [here](../../../../../../../libraries/dl-streamer/docs/source/supported_models.md). Please refer the documentation from DL Streamer on how to download any given model for your usage [here](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/model_preparation.md).
 
 
-|    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks | 
+|    Source    |    GStreamer Element     |      Source section of curl request       |        Source pipeline snippet     | Remarks |
 | :----------: |  :---------------------: | ----------------------------------------- | ---------------------------------- |---------|
-| Application  | `appsrc`	                  | N/A	                                | N/A                           |         | 
+| Application  | `appsrc`	                  | N/A	                                | N/A                           |         |
 | File | `urisourcebin`	| <pre>"source": {<br>  "uri": "file://path",<br>  "type": "uri"<br>}<br></pre> | <pre>`urisourcebin` uri=file://path name=source</pre> |         |
 | RTSP | `urisourcebin`	| <pre> "source": { <br>  "uri": "rtsp://url",<br>   "type": "uri"<br> }<br></pre> | <pre> `urisourcebin` uri=rtsp://url name=source</pre> |         |
 | URL | `urisourcebin`	| <pre> "source": { <br>  "uri": "https://url",<br>   "type": "uri"<br> }<br></pre> | <pre> `urisourcebin` uri=https://url name=source </pre> | If you are behind proxy, make sure to set proxy as below in docker compose file for this URLs to work <pre> `http_proxy=http://proxy.example.com:123` <br> `https_proxy=http://proxy.example.com:123`  </pre>  |
@@ -228,7 +228,7 @@ targets the same hardware device and video format.
 #### More Information
 
 For more information and examples of media analytics pipelines created
-with DL Streamer please see the [tutorial](https://dlstreamer.github.io/get_started/tutorial.html).
+with DL Streamer please see the [tutorial](../../../../../../../libraries/dl-streamer/docs/source/get_started/tutorial.md).
 
 ## Pipeline Parameters
 
@@ -743,12 +743,12 @@ Some models might have a separate `.txt` file for `labels`, in addition to or in
 If such a file exists, the Pipeline Server automatically looks for this file in the path
 `models/model-alias/model-version/*.txt`.
 
-For more details on model proc and labels see [Model Proc File](https://dlstreamer.github.io/dev_guide/model_proc_file.html)
+For more details on model proc and labels see [Model Proc File](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/model_proc_file.md).
 
 ### Deep Learning Streamer (DL Streamer)
 For more information on DL Streamer `model-proc` files and samples for
 common models please see the DL Streamer
-[documentation](https://dlstreamer.github.io/dev_guide/how_to_create_model_proc_file.html#how-to-create-model-proc-file)
+[documentation](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/how_to_create_model_proc_file.md#how-to-create-model-proc-file).
 and
 [samples](https://github.com/dlstreamer/dlstreamer/tree/master/samples).
 
@@ -773,7 +773,7 @@ The hierarchical directory structure is made up of four levels:
 > Note: Not all models have a file for labels. In such cases, the labels could be listed in the `model-proc`file.
 
 Here's a sample directory listing for the `yolo-v3-tf` model:
-Note: The mentioned model is available [here](https://dlstreamer.github.io/supported_models.html)
+Note: The mentioned model is available [here](../../../../../../../libraries/dl-streamer/docs/source/supported_models.md).
 
 ```
 models/

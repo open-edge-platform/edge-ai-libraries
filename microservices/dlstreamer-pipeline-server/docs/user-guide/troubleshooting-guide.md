@@ -3,9 +3,9 @@
 
 ## Using REST API in Image Ingestor mode has low first inference latency
 
-This is an expected behavior observed only for the first inference. Subsequent inferences would be considerably faster. 
+This is an expected behavior observed only for the first inference. Subsequent inferences would be considerably faster.
 For inference on GPU, the first inference might be even slower. Latency for up to 15 seconds have been observed for image requests inference on GPU.
-When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for the first inference latency to avoid request time out. 
+When in `sync` mode, we suggest users to provide a `timeout` with a value to accommodate for the first inference latency to avoid request time out.
 Read [here](./advanced-guide/detailed_usage/rest_api/restapi_reference_guide.md#post-pipelinesnameversioninstance_id) to learn more about the API.
 
 ---
@@ -38,7 +38,7 @@ privileged_access_required: true
 ---
 
 ## Using RTSP/WebRTC streaming, S3_write or MQTT fails with GPU elements in pipeline
- 
+
 If you are using GPU elements in the pipeline, RTSP/WebRTC streaming, S3_write and MQTT will not work because these are expects CPU buffer. \
 Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in case you are using S3_write) in the GPU pipeline.
 ```sh
@@ -50,7 +50,7 @@ Add `vapostproc ! video/x-raw` before appsink element or `jpegenc` element(in ca
 ---
 
 ## RTSP streaming fails if you are using udfloader
- 
+
 If you are using udfloader<link> pipeline RTSP streaming will not work because RTSP pipeline does not support RGB, BGR or Mono format.
 If you are using `udfloader pipeline` or `RGB, BGR or GRAY8` format in the pipeline, add  `videoconvert ! video/x-raw, format=(string)NV12` before `appsink` element in pipeline.
 ```sh
@@ -113,7 +113,7 @@ sudo ufw disable
 
 ## Inferencing on NPU
 
-To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#prerequisite-2-install-intel-npu-drivers) to install Intel NPU drivers.
+To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](../../../../libraries/dl-streamer/docs/source/dev_guide/advanced_install/advanced_install_guide_prerequisites.md#prerequisite-2---install-intel-npu-drivers) to install Intel NPU drivers.
 
 ---
 
@@ -124,7 +124,7 @@ For example:
 `ERROR vafilter gstvafilter.c:390:gst_va_filter_open:<vafilter0> vaCreateContext: resource allocation failed`
 
 This issue has been observed on systems with the Ultra Core 7 265K processor running Ubuntu 22.04.
-There are few options to fix this. 
+There are few options to fix this.
 
 One is updating the kernel to `6.11.11-061111-generic` in the host system.
 

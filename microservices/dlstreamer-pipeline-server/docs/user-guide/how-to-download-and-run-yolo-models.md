@@ -2,9 +2,9 @@
 
 ## Steps
 
-This tutorial shows how to download YOLO models (YOLOv8, YOLOv9, YOLOv10, YOLO11) and run as part of object detection pipeline. 
+This tutorial shows how to download YOLO models (YOLOv8, YOLOv9, YOLOv10, YOLO11) and run as part of object detection pipeline.
 
-For downloading all supported YOLO models and converting them to OpenVINO IR format, please refer to this [document](https://dlstreamer.github.io/dev_guide/yolo_models.html).
+For downloading all supported YOLO models and converting them to OpenVINO IR format, please refer to this [document](../../../../libraries/dl-streamer/docs/source/dev_guide/yolo_models.md).
 
 ### Download
 #### Step 1: Create virtual environment
@@ -27,10 +27,10 @@ python -m pip install --upgrade pip
 pip install openvino==2025.0.0 ultralytics
 ```
 
-#### Step 5: Download Yolo11 model 
-Run the python script from [here](https://dlstreamer.github.io/dev_guide/yolo_models.html#yolov8-yolov9-yolov10-yolo11) to download and convert yolo11 model in Intel OpenVINO format. Replace the `model_name` and `model_type` in the script with relevant value as required for other models. 
+#### Step 5: Download Yolo11 model
+Run the python script from [here](../../../../libraries/dl-streamer/docs/source/dev_guide/yolo_models.md) to download and convert yolo11 model in Intel OpenVINO format. Replace the `model_name` and `model_type` in the script with relevant value as required for other models.
 
-#### Step 6: Deactivate virtual environment 
+#### Step 6: Deactivate virtual environment
 ```sh
 deactivate
 ```

@@ -33,10 +33,10 @@ Gstreamer has a variety of hardware specific encoders and decoders elements such
 
 Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete).
 
-Read DLStreamer [docs](https://dlstreamer.github.io/dev_guide/gpu_device_selection.html) for more details.
+Read DLStreamer [docs](../../../../libraries/dl-streamer/docs/source/dev_guide/gpu_device_selection.md).
 
 ### GPU specific element properties
-DLStreamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read DLStreamer [docs](https://dlstreamer.github.io/dev_guide/model_preparation.html#model-pre-and-post-processing) for more details.
+DLStreamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read DLStreamer [docs](../../../../libraries/dl-streamer/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
 
 ## Tutorial on how to use GPU specific pipelines
 
@@ -82,5 +82,4 @@ DLStreamer inference elements also provides property such as `pre-process-backen
     ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://dlstreamer.github.io/dev_guide/performance_guide.html)
-
+- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](../../../../libraries/dl-streamer/docs/source/dev_guide/performance_guide.md).

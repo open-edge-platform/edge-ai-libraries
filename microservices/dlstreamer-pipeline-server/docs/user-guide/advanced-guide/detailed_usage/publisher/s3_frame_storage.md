@@ -1,6 +1,6 @@
 # S3 Frame Storage
 
-DL Streamer Pipeline Server supports publishing frames to S3 compatible storage. 
+DL Streamer Pipeline Server supports publishing frames to S3 compatible storage.
 
 
 **Contents**
@@ -8,13 +8,13 @@ DL Streamer Pipeline Server supports publishing frames to S3 compatible storage.
   - [S3_write configuration](#s3_write-configuration)
 
 ## Storing annotated or unannotated data
-Depending upon the pipeline configured, it can store both annotated and unannotated frames. This is determined by whether the pipeline string has a `gvawatermark` element present or not. To learn more about the element, refer [here](https://dlstreamer.github.io/elements/gvawatermark.html)
+Depending upon the pipeline configured, it can store both annotated and unannotated frames. This is determined by whether the pipeline string has a `gvawatermark` element present or not. To learn more about the element, refer [here](../../../../../../../libraries/dl-streamer/docs/source/elements/gvawatermark.md).
 
 ## S3_write configuration
 Following parameters are supported to configure S3 publishing.
   ```sh
     "S3_write": {
-        "bucket": "<name-of-bucket-in-s3-storage>", 
+        "bucket": "<name-of-bucket-in-s3-storage>",
         "folder_prefix": "<folder-path-where-frame-will-be-stored>",
         "block": false
     }

@@ -19,7 +19,7 @@
     ```
 
 ## Quick try out
-Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server helm charts followed by running a sample usecase. 
+Follow the steps in this section to quickly pull the latest pre-built DL Streamer Pipeline Server helm charts followed by running a sample usecase.
 
 ### Pull the helm chart (Optional)
 
@@ -55,7 +55,7 @@ Update the below fields in `values.yaml` file in the helm chart
 - Check if DL Streamer Pipeline Server is running fine
 
     `kubectl get pods --namespace apps`and monitor its logs using `kubectl logs -f <pod_name> -n apps`
-    
+
 ### Run default sample
 
 Once the pods are up, we will send a pipeline request to DL Streamer Pipeline Server to run a detection model on a warehouse video.
@@ -98,7 +98,7 @@ The REST request will return a pipeline instance ID, which can be used as an ide
     tail -f /tmp/results.jsonl
   ```
 
-- RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:30025/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc 
+- RTSP Stream will be accessible at `rtsp://<SYSTEM_IP_ADDRESS>:30025/pallet_defect_detection`.  Users can view this on any media player e.g. vlc (as a network stream), ffplay etc
 
   ![sample frame RTSP stream](./images/sample-pallet-defect-detection.png)
 
@@ -109,12 +109,12 @@ To check the pipeline status and stop the pipeline send the following requests,
     curl --location -X GET http://localhost:30007/pipelines/status
    ```
 
- - stop a running pipeline instance, 
+ - stop a running pipeline instance,
    ```sh
     curl --location -X DELETE http://localhost:30007/pipelines/{instance_id}
    ```
 
- - Uninstall the helm chart, 
+ - Uninstall the helm chart,
    ```sh
     helm uninstall dlsps -n apps
    ```
@@ -134,7 +134,7 @@ In this get started guide, you learned how to start the DL Streamer Pipeline Ser
 -   Understand the components, services, architecture, and data flow, in
     the [Overview](Overview.md).
 -   For more details on advanced configuration, usage of features refer to [Advanced user guide](./advanced-guide/Overview.md)
--   For more details on Deep Learning Streamer visit [this](https://dlstreamer.github.io/) page.
+-   For more details on Deep Learning Streamer visit [this](../../../../libraries/dl-streamer/docs/source/index.md) page.
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.

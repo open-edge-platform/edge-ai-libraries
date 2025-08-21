@@ -1,6 +1,6 @@
 # Cross stream batching
 
-DL Streamer Pipeline Server supports grouping multiple frames in single batch during model processing. `batch-size` is an optional parameter to be used which specifies the number of input frames grouped together in a single batch. 
+DL Streamer Pipeline Server supports grouping multiple frames in single batch during model processing. `batch-size` is an optional parameter to be used which specifies the number of input frames grouped together in a single batch.
 
 For multi stream pipelines using same pipeline configuration, it is recommended to create [shared inference element](./multistream-pipelines.md) by setting `model-instance-id` to a unique value along with `batch-size` for cross stream batching to occur across elements with same `model-instance-id`.
 
@@ -19,7 +19,7 @@ Choosing the right batch size:
 
 > In a multi stream pipeline with a shared model instance, frames can be grouped into a single batch either from multiple pipelines or exclusively from one pipeline, depending on the timing of arrival of frames from the pipelines.
 
-The following curl command can be used to start the pipeline - 
+The following curl command can be used to start the pipeline -
 ``` sh
     curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
     "source": {
@@ -46,7 +46,7 @@ The following curl command can be used to start the pipeline -
 }'
 ```
 
-To verify the effect of `batch-size`, you can monitor the memory utilization of the Docker container using the `docker stats` command. As the `batch-size` increases, the memory utilization also increases due to the additional frames being processed in a single batch. Note that the exact statistics may vary based on the underlying hardware and system/pipeline configuration but the performance is expected to be similar to [DLStreamer](https://dlstreamer.github.io/dev_guide/performance_guide.html#multi-stream-pipelines-with-single-ai-stage). 
+To verify the effect of `batch-size`, you can monitor the memory utilization of the Docker container using the `docker stats` command. As the `batch-size` increases, the memory utilization also increases due to the additional frames being processed in a single batch. Note that the exact statistics may vary based on the underlying hardware and system/pipeline configuration but the performance is expected to be similar to [DLStreamer](../../../../../../../libraries/dl-streamer/docs/source/dev_guide/performance_guide.md#3-multi-stream-pipelines-with-single-ai-stage).
 
 * docker stats with batch-size as 1, no of streams as 4
 ```sh
