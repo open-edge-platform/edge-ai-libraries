@@ -24,3 +24,4 @@
 .. toctree::
    
    release-notes
+   faq
