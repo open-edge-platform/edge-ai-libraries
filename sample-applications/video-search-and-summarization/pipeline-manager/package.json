@@ -1,10 +1,10 @@
 {
-  "name": "video-summary",
+  "name": "Pipeline Manager",
   "version": "0.0.1",
   "description": "",
   "author": "",
   "private": true,
-  "license": "UNLICENSED",
+  "license": "Apache-2.0",
   "scripts": {
     "build": "nest build",
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
@@ -28,13 +28,14 @@
     "@nestjs/platform-express": "^11.0.1",
     "@nestjs/platform-socket.io": "^11.0.6",
     "@nestjs/swagger": "^11.2.0",
+    "@nestjs/terminus": "^11.0.0",
     "@nestjs/typeorm": "^11.0.0",
     "@nestjs/websockets": "^11.0.6",
     "@opentelemetry/auto-instrumentations-node": "^0.58.1",
     "@opentelemetry/exporter-trace-otlp-http": "^0.200.0",
     "@opentelemetry/sdk-node": "^0.200.0",
     "@opentelemetry/sdk-trace-base": "^2.0.0",
-    "axios": "^1.7.9",
+    "axios": "^1.10.0",
     "base64-js": "^1.5.1",
     "https-proxy-agent": "^7.0.6",
     "luxon": "^3.5.0",
@@ -78,6 +79,9 @@
     "tsconfig-paths": "^4.2.0",
     "typescript": "^5.7.3",
     "typescript-eslint": "^8.20.0"
+  },
+  "overrides": {
+    "form-data": "4.0.4"
   },
   "jest": {
     "moduleFileExtensions": [

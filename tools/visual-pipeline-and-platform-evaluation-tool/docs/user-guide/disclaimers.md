@@ -1,22 +1,34 @@
 # Disclaimers
 
-**Video Generator Images**:
-We are providing 6 images that are only to be used as demo purposed and users should bring their own folder of images to run the video generator/create their own videos.
+## Video Generator Images
 
-**Human Rights**:
-Intel is committed to respecting human rights and avoiding complicity in human rights abuses. See Intel's Global Human Rights Principles. Intel's products and software are intended only to be used in applications that do not cause or contribute to a violation of an internationally recognized human right.
+Intel provides six images for demo purposes only. You must provide your own images to run the video generator or
+to create videos.
 
-**Models Licensing**:
+## Human Rights
 
-https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/ssdlite_mobilenet_v2_INT8 (Apache 2.0)
+Intel is committed to respecting human rights and avoiding complicity in human rights abuses. See Intel's Global
+Human Rights Principles. Intel's products and software are intended only to be used in applications that do not
+cause or contribute to a violation of an internationally recognized human right.
 
-https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/resnet-50-tf_INT8 (Apache 2.0)
+## Models Licensing
 
-https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/efficientnet-b0_INT8 (Apache 2.0)
+[ssdlite_mobilenet_v2_INT8](https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/ssdlite_mobilenet_v2_INT8)
+(Apache 2.0)
 
-https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/yolov5s-416_INT8 (GPL v3)
+[resnet-50-tf_INT8](https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/resnet-50-tf_INT8)
+(Apache 2.0)
 
-Dataset Used: https://github.com/intel-iot-devkit/sample-videos?tab=readme-ov-file (CC-BY-4.0)*
+[efficientnet-b0_INT8](https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/efficientnet-b0_INT8)
+(Apache 2.0)
 
-**Data Transparency**:
-Please refer to Model cards included in this folder for more information of the models as well as the usage in the Visual Pipeline and Platform Evaluation tool.
+[yolov5s-416_INT8](https://github.com/dlstreamer/pipeline-zoo-models/tree/main/storage/yolov5s-416_INT8)
+(GPL v3)
+
+Dataset Used: [Intel IoT DevKit Sample Videos](https://github.com/intel-iot-devkit/sample-videos?tab=readme-ov-file)
+(CC-BY-4.0)*
+
+## Data Transparency
+
+Refer to Model cards included in this folder for more information on the models and their usage in the Visual Pipeline and
+Platform Evaluation tool.

@@ -2,16 +2,31 @@
 
 This python script supports publishing frames and metadata to specified MQTT broker.
 
-#### Refer to the sample pipeline [Person Detection pipeline with MQTT Publishing](../../../pipelines/user_defined_pipelines/mqtt_publisher_sample/pipeline.json) which performs person detection and publishes the inference results to mqtt broker using this script.
+We need to update the pipeline key in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/default/config.json` as shown below:
+```sh
+"pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvafpscounter ! gvametapublish name=destination ! appsink name=appsink"
+```
+Add mqtt_publisher to the `properties` key in the `config.json` file as shown below:
+```sh
+  "mqtt_publisher": {
+    "element": {
+      "name": "mqtt_publisher",
+      "property": "kwarg",
+      "format": "json"
+    },
+    "type": "object"
+  }
+
+```
 
 
 Sample REST request:
 
 ```json
-curl localhost:8080/pipelines/user_defined_pipelines/mqtt_publisher_sample -X POST -H 'Content-Type: application/json' -d '
+curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '
 {
     "source": {
-        "uri": "file:///home/pipeline-server/resources/classroom.avi",
+        "uri": "file:///home/pipeline-server/resources/videos/warehouse.avi",
         "type": "uri"
     },
     "destination": {
@@ -22,63 +37,17 @@ curl localhost:8080/pipelines/user_defined_pipelines/mqtt_publisher_sample -X PO
         }
     },
     "parameters": {
-        "mqtt_publisher_config": {
-            "host": "<mqtt broker address>",
-            "port": 1883
+	"detection-properties": {
+            "model": "/home/pipeline-server/resources/models/geti/pallet_defect_detection/deployment/Detection/model/model.xml",
+            "device": "CPU"
+        },
+        "mqtt_publisher": {
+            "publish_frame": true
         }
     }
 }'
 
 ```
-
-
-#### MQTT publishing to broker could be over a secure communication channel providing encryption and authentication over TLS.
-
-Follow the below steps to securely connect to MQTT broker. 
--  [Generate certificates](../../../eii/docs//mqtt_publish_doc.md#secure-publishing#1)
-- [Configure and start broker](../../../eii/docs//mqtt_publish_doc.md#secure-publishing#2)
-- [Configure and start subscriber](../../../eii/docs//mqtt_publish_doc.md#secure-publishing#3) 
-    
-Upon completing the broker and subscriber setup, refer to the below steps to configuring secure connection. 
-
-- Modify [docker-compose.yml](../../docker-compose.yml)
-
-    ```yaml
-        ports:
-        - "8883:8883"
-    ```
-
-- Sample REST request with configuration for secure connection
-
-    ```json
-    curl localhost:8080/pipelines/user_defined_pipelines/mqtt_publisher_sample -X POST -H 'Content-Type: application/json' -d '
-    {
-        "source": {
-            "uri": "file:///home/pipeline-server/resources/classroom.avi",
-            "type": "uri"
-        },
-        "destination": {
-            "metadata": {
-                "type": "file",
-                "path": "/tmp/results.jsonl",
-                "format": "json-lines"
-            }
-        },
-        "parameters": {
-            "mqtt_publisher_config": {
-                "host": "<mqtt broker address>",
-                "port": 8883,
-                "tls": {
-                    "ca_cert": "/MqttCerts/ca.crt",
-                    "client_key": "/MqttCerts/client/client.key",
-                    "client_cert": "/MqttCerts/client/client.crt"
-                }
-            }
-        }
-    }'
-
-    ```
-
 
 ### Note:
 - Prerequisites for MQTT Publisher (setting up mqtt broker, subscriber) can be found [here](../../../eii/docs/mqtt_publish_doc.md#prerequisites-for-mqtt-publishing)

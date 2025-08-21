@@ -1,0 +1,95 @@
+From efaaa047cb6b69cc9b03772796df47bc0c6d173e Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Wed, 24 Jul 2024 10:44:13 +0800
+Subject: [PATCH] update multi-axis to support ethercat over dpdk
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ examples/multi_axis/Makefile.am | 14 +++++++++++++-
+ examples/multi_axis/main.c      | 31 +++++++++++++++++++++++++++++--
+ 2 files changed, 42 insertions(+), 3 deletions(-)
+
+diff --git a/examples/multi_axis/Makefile.am b/examples/multi_axis/Makefile.am
+index 4eac77b6..5078889f 100644
+--- a/examples/multi_axis/Makefile.am
++++ b/examples/multi_axis/Makefile.am
+@@ -49,7 +49,19 @@ ec_multi_axis_example_CFLAGS = \
+ 	-I$(top_srcdir)/include
+ 
+ ec_multi_axis_example_LDFLAGS = \
+-	-L$(top_builddir)/lib/.libs -lethercat -lrt -lpthread -lmodbus
++	-lrt -lpthread -lmodbus
++if ENABLE_USERMODE
++if ENABLE_DAEMON
++ec_multi_axis_example_LDFLAGS += \
++	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++else
++ec_multi_axis_example_LDFLAGS += \
++	-L$(top_builddir)/master/.libs -lethercatd
++endif
++else
++ec_multi_axis_example_LDFLAGS += \
++	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++endif
+ endif
+ 
+ #------------------------------------------------------------------------------
+diff --git a/examples/multi_axis/main.c b/examples/multi_axis/main.c
+index 9cec65a5..0ccf6560 100644
+--- a/examples/multi_axis/main.c
++++ b/examples/multi_axis/main.c
+@@ -1108,7 +1108,11 @@ int main(int argc, char *argv[])
+     int ret;
+ #endif
+ 
+-	getOptions(argc,argv);
++#if !EC_ENABLE_DAEMON
++    ec_slave_info_t slave_info;
++    ec_master_state_t master_state = {};
++#endif
++    getOptions(argc,argv);
+     data_init();
+     axis_circle_init();
+     signal(SIGTERM, signal_handler);
+@@ -1121,6 +1125,29 @@ int main(int argc, char *argv[])
+     if (!master)
+         return -1;
+ 
++#if !EC_ENABLE_DAEMON
++    printf("Getting master state...\n");
++    ecrt_master_state(master, &master_state);
++    while (1){
++        ecrt_master_state(master, &master_state);
++        if ((master_state.slaves_responding == 1)&&(master_state.al_states&0x0E))
++           break;
++        sleep(0.01);
++    };
++    printf("Getting slave info...\n");
++    while(1)
++    {
++        ret = ecrt_master_get_slave(master, 0, &slave_info);
++        if (ret != 0) {
++            printf("Error in getting slave info\n");
++        } else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
++            printf("slave info state=%d\n",slave_info.al_state);
++            break;
++        }
++        sleep(0.01);
++    };
++#endif
++
+     printf("Creating domain ...\n");
+     domain = ecrt_master_create_domain(master);
+     if (!domain)
+@@ -1310,7 +1337,7 @@ int main(int argc, char *argv[])
+     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
+     if (pthread_create(&cyclic_thread, &thattr, &my_thread, NULL)) {
+         fprintf(stderr, "pthread_create cyclic task failed\n");
+-		return 1;
++		    return 1;
+     }
+     while (run || close_signal != 0)
+ 	    sched_yield();
+-- 
+2.45.2
+

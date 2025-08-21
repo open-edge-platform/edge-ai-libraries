@@ -1,0 +1,50 @@
+---
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+
+services:
+  #temporary solution until docker host resolution available on linux
+  docker-host:
+    image: qoomon/docker-host
+    cap_add: [ 'NET_ADMIN', 'NET_RAW' ]
+    restart: on-failure
+    deploy:
+      resources:
+        limits:
+          memory: 8M
+
+  telegraf:
+    image: telegraf:1.14-alpine
+    environment:
+      - MQTT_BROKER=docker-host
+    volumes:
+      - ./telegraf/telegraf.conf:/etc/telegraf/telegraf.conf:ro
+    links:
+      - docker-host
+      - influxdb
+    ports:
+      - '${HOST_IP}:8125:8125/udp'
+
+  influxdb:
+    image: influxdb:1.8-alpine
+    env_file: configuration.env
+    ports:
+      - '${HOST_IP}:8086:8086'
+    volumes:
+      - influxdb_data:/var/lib/influxdb
+
+  grafana:
+    image: grafana/grafana:6.7.0
+    env_file: configuration.env
+    links:
+      - influxdb
+    ports:
+      - '${HOST_IP}:3000:3000'
+    volumes:
+      - grafana_data:/var/lib/grafana
+      - ./grafana/provisioning/:/etc/grafana/provisioning/
+      - ./grafana/dashboards/:/var/lib/grafana/dashboards/
+
+volumes:
+  grafana_data: {}
+  influxdb_data: {}

@@ -20,10 +20,12 @@ Following steps should be followed to deploy Document Summarization application 
 
 #### Step 1: Pull the Specific Chart
 
-Use the following command to pull the Helm chart from Docker Hub:
+Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/document-summarization):
 ```bash
 helm pull oci://registry-1.docker.io/intel/document-summarization --version <version-no>
 ```
+
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application.
 
 Refer to the release notes for details on the latest version number to use for the sample application.
 
@@ -41,11 +43,11 @@ cd document-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the selected `values*.yaml` file to set the necessary environment variables. Ensure you set the proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
-| `global.proxy.noProxy` | NOPROXY | `<your-no-proxy>, docker service names` |
+| `global.proxy.noProxy` | NOPROXY | `<your-no-proxy>` |
 | `global.proxy.httpProxy` | HTTP PROXY | `<your-http-proxy>` |
 | `global.proxy.httpsProxy` | HTTPS PROXY | `<your-https-proxy>` |
 | `global.huggingface.token` | Your Hugging Face API token | `<your-huggingface-token` |
@@ -70,9 +72,9 @@ Navigate to the chart directory:
 cd <repository-url>/sample-applications/document-summarization/chart
 ```
 
-#### Step 3: Configure the `values*.yaml` File
+#### Step 3: Configure the `values.yaml` File
 
-Edit the `values*.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
 
 #### Step 4: Build Helm Dependencies
@@ -86,7 +88,7 @@ helm dependency build
 
 ### Step 5: Deploy the Helm Chart
 
-Deploy the OVMS Helm chart:
+Deploy the Document Summarization Helm chart:
 
 ```bash
 helm install document-summarization . -n <your-namespace>
@@ -141,12 +143,15 @@ helm uninstall document-summarization -n <your-namespace>
   ```bash
   kubectl logs <pod-name>
   ```
-- The _PVC_ created during helm chart deployment will remain present until explicitly deleted, use the below command to delete:
+- If the PVC created during a Helm chart deployment is not removed or auto-deleted due to a deployment failure or being stuck, it must be deleted manually using the following commands:
   ```bash
+  # List the PVCs present in the given namespace
+  kubectl get pvc -n <namespace>
+
+  # Delete the required PVC from the namespace
   kubectl delete pvc <pvc-name> -n <namespace>
   ```
 ## Related links
 
 - [How to Build from Source](./build-from-source.md)
 - [How to Test Performance](./how-to-performance.md)
-- [How to Benchmark](./benchmarks.md)

@@ -39,18 +39,19 @@ Follow the steps in this section to quickly pull the latest pre-built Deep Learn
 
 ### Pull the image and start container
 
-- Pull the image with the latest tag from registry
-
-   ```sh
-     docker pull intel/dlstreamer-pipeline-server:3.1.0
-   ```
-
 - Clone the repository and change to the docker directory inside DL Streamer Pipeline Server project.
 
   ```sh
     git clone <link-to-repository>
     cd <path/to/dlstreamer-pipeline-server/docker>
   ```
+
+- Pull the image with the latest tag from registry
+
+   ```sh
+     # Update DLSTREAMER_PIPELINE_SERVER_IMAGE in <path/to/dlstreamer-pipeline-server/docker/.env> if necessary
+     docker pull "$(grep ^DLSTREAMER_PIPELINE_SERVER_IMAGE= .env | cut -d= -f2-)"
+   ```
 
 - Run the image with the [compose file](./docker/docker-compose.yml) provided in this repo.
 
@@ -122,6 +123,8 @@ Now you have successfully run the Deep Learning Streamer Pipeline Server contain
 
 You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
+Note: Ensure to set the right values in the [.env file](./docker/.env) for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
+
 ### Prerequisites
 Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
 
@@ -131,21 +134,16 @@ Add the following lines in [.env file](./docker/.env) if you are behind a proxy.
   no_proxy= # example: no_proxy=localhost,127.0.0.1
   ```
 
-Update the following lines in [.env file](./docker/.env) for choosing the right base image and also for naming the image that gets built.
+Update the following lines in [.env file](./docker/.env) for choosing the right base and target images and also for naming the image that gets built.
 
   ``` sh
-  # For Ubuntu 22.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu22:candidate1407
-  # For Ubuntu 24.04: ghcr.io/open-edge-platform/edge-ai-libraries/deb-final-img-ubuntu24:candidate1407
+  # See .env file for example values
   BASE_IMAGE=
 
-  # For Ubuntu 22.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
-  # For Ubuntu 24.04 and optimized image: intel/dlstreamer-pipeline-server:3.1.0-ubuntu24
-  # For Ubuntu 22.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22
-  # For Ubuntu 24.04 and extended image: intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24
+  # See .env file for example values
   DLSTREAMER_PIPELINE_SERVER_IMAGE=
 
-  # For optimized image: dlstreamer-pipeline-server
-  # For extended image: dlstreamer-pipeline-server-extended
+  # See .env file for example values
   BUILD_TARGET=
   ```
 
@@ -161,7 +159,7 @@ Run the following commands:
      docker compose build
    ```
    
-   The docker image `intel/dlstreamer-pipeline-server:3.1.0-ubuntu22`, `intel/dlstreamer-pipeline-server:3.1.0-ubuntu24`, `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu22` or `intel/dlstreamer-pipeline-server:3.1.0-extended-ubuntu24` is now built (based on the .env changes done above) and available for you to run.
+   The docker image of DL Streamer Pipeline Server is now built (based on the .env changes done above) and available for you to run.
    
    ```sh
      docker compose up
@@ -177,8 +175,17 @@ Refer [here](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreame
   ```sh
     docker build -f sources.Dockerfile -t intel/dlstreamer-pipeline-server:3.1.0-sources .
   ```
+
+  Run the following command to view the directory structure of source code for distributed GPL/LGPL/AGPL components:
+  ```sh
+    docker run intel/dlstreamer-pipeline-server:3.1.0-sources
+  ```
 ---
 
+## Troubleshooting
+- [Troubleshooting Guide](docs/user-guide/troubleshooting-guide.md)
+
+---
 ## Learn More
 
 -   Understand the components, services, architecture, and data flow, in the [Overview](https://docs.openedgeplatform.intel.com/edge-ai-libraries/dlstreamer-pipeline-server/main/user-guide/Overview.html)

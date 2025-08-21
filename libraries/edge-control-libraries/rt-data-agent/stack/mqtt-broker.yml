@@ -1,0 +1,20 @@
+---
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+
+services:
+  ## Define mqtt message bus service
+  mqtt_broker:
+    container_name: mqtt_broker
+    image: eclipse-mosquitto:1.5
+    ports:
+      - "${HOST_IP}:1883:1883"
+        #volumes:
+        #- ./mqtt/mosquitto.conf:/mosquitto/config/mosquitto.conf:ro
+        #- ./mqtt/passwd:/mosquitto/config/passwd:ro
+
+  telegraf:
+    environment:
+      - MQTT_BROKER=mqtt_broker
+    links:
+      - mqtt_broker

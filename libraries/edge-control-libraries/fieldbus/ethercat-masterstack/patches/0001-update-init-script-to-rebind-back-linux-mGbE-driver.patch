@@ -1,0 +1,30 @@
+From fb483042b168e77f47ea363e165a1c4bb470ac97 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Fri, 13 Sep 2024 07:53:01 +0800
+Subject: [PATCH] update init script to rebind back linux mGbE driver
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ script/init.d/ethercat.in | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/script/init.d/ethercat.in b/script/init.d/ethercat.in
+index a7c7d6ac..8fd19551 100755
+--- a/script/init.d/ethercat.in
++++ b/script/init.d/ethercat.in
+@@ -217,6 +217,12 @@ stop)
+             fi
+         fi
+ 
++        if [ ${MODULE} = "stmmac" ]; then
++            MODULE=${MODULE}eth
++        elif [ ${MODULE} = "dwmac_intel" ]; then
++            MODULE=intel-eth-pci
++        fi
++
+         for dev in $REBIND_NICS; do
+             if [ -d /sys/bus/pci/drivers/${MODULE} ]; then
+                 echo $dev > /sys/bus/pci/drivers/${MODULE}/bind
+-- 
+2.46.0
+

@@ -81,7 +81,6 @@ if [ "$DEVICE" == "GPU" ]; then
     if compgen -G "/dev/dri/render*" > /dev/null; then
         echo "GPU rendering device found. Getting the GID..."
         export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
-        DEVICE="GPU"
         PROFILES="GPU-DEVICE"
     else
         echo -e "No GPU rendering device found. \nSwitching to CPU processing..."
@@ -90,12 +89,6 @@ fi
 
 export USER_GROUP_ID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
-export EMBEDDING_MODEL_ID="BAAI/bge-small-en-v1.5"
-export LLM_MODEL_ID="microsoft/Phi-3.5-mini-instruct"
-export RERANKER_MODEL_ID="BAAI/bge-reranker-base"
-export EMBEDDING_DEVICE="${DEVICE}"
-export RERANKER_DEVICE="${DEVICE}"
-export LLM_DEVICE="${DEVICE}"
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
 
 export APP_BACKEND_URL="/v1/chatqna"

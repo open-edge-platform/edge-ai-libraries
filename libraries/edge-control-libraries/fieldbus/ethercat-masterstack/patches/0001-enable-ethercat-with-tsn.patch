@@ -1,0 +1,238 @@
+From 3cefa5452719a412ea4ac958fdc59acc27d15ed5 Mon Sep 17 00:00:00 2001
+From: Na Cui <na.cui@intel.com>
+Date: Tue, 27 Aug 2024 14:03:23 +0800
+Subject: [PATCH] enable ethercat with tsn
+
+Signed-off-by: Na Cui <na.cui@intel.com>
+---
+ configure.ac      | 100 ++++++++++++++++++++++++++++++++++++++++++++++
+ devices/generic.c |  53 +++++++++++++++++++++++-
+ 2 files changed, 151 insertions(+), 2 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 44e072e5..fc18fb69 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1158,6 +1158,106 @@ fi
+ AM_CONDITIONAL(ENABLE_EOE, test "x$eoe" = "x1")
+ AC_SUBST(ENABLE_EOE,[$eoe])
+ 
++
++#------------------------------------------------------------------------------
++# Ethernet with TSN support
++#------------------------------------------------------------------------------
++
++AC_MSG_CHECKING([whether to build with EwT support])
++
++AC_ARG_ENABLE([ewt],
++    AS_HELP_STRING([--enable-ewt],
++                   [Enable EwT support (default: no)]),
++    [
++        case "${enableval}" in
++            yes) ewt=1
++                ;;
++            no) ewt=0
++                ;;
++            *) AC_MSG_ERROR([Invalid value for --enable-ewt])
++                ;;
++        esac
++    ],
++    [ewt=0]
++)
++
++if test "x${ewt}" = "x1"; then
++    AC_DEFINE([EC_EWT], [1], [EwT support enabled])
++    AC_MSG_RESULT([yes])
++else
++    AC_MSG_RESULT([no])
++fi
++
++AM_CONDITIONAL(ENABLE_EWT, test "x$ewt" = "x1")
++AC_SUBST(ENABLE_EWT,[$ewt])
++
++
++if test "x${ewt}" = "x1"; then
++#------------------------------------------------------------------------------
++# Redundacy (VLAN priority)
++#------------------------------------------------------------------------------
++AC_ARG_WITH([vpriority],
++    AC_HELP_STRING(
++        [--with-vprioriy=<NUMBER>],
++        [vlan priority. Default: 5]
++    ),
++    [
++        vpriority=[$withval]
++    ],
++    [
++        vpriority=5
++    ]
++)
++
++AC_MSG_CHECKING([for vlan priority])
++
++if test "${vpriority}" -lt 1; then
++    AC_MSG_ERROR([Number must be greater than zero!])
++else
++    if test "${vpriority}" -gt 1; then
++        AC_MSG_RESULT([$vpriority (Redundancy enabled)])
++    else
++        AC_MSG_RESULT([$vpriority (Redundancy disabled)])
++    fi
++fi
++
++AC_DEFINE_UNQUOTED([EC_VLAN_PRIORITY], $vpriority,
++    [VLAN priority])
++
++
++#------------------------------------------------------------------------------
++# Redundancy (VLAN ID)
++#------------------------------------------------------------------------------
++
++AC_ARG_WITH([vid],
++    AC_HELP_STRING(
++        [--with-vid=<NUMBER>],
++        [VLAN ID. Default:3]
++    ),
++    [
++        vid=[$withval]
++    ],
++    [
++        vid=3
++    ]
++)
++
++AC_MSG_CHECKING([vlan id])
++
++if test "${vid}" -lt 1; then
++    AC_MSG_ERROR([Number must be greater than zero!])
++else
++    if test "${vid}" -gt 1; then
++        AC_MSG_RESULT([$devices (Redundancy enabled)])
++    else
++        AC_MSG_RESULT([$devices (Redundancy disabled)])
++    fi
++fi
++
++AC_DEFINE_UNQUOTED([EC_VLAN_ID], $vid, [VLAN ID])
++fi
++
++
+ #-----------------------------------------------------------------------------
+ # CPU timestamp counter support
+ #-----------------------------------------------------------------------------
+diff --git a/devices/generic.c b/devices/generic.c
+index f6cef9b5..bb34b02b 100644
+--- a/devices/generic.c
++++ b/devices/generic.c
+@@ -34,11 +34,17 @@
+ 
+ #include "../globals.h"
+ #include "ecdev.h"
++#ifdef EC_EWT
++    #include <linux/if_vlan.h>
++    #include <net/sock.h>
++#endif
+ 
+ #define PFX "ec_generic: "
+ 
+ #define ETH_P_ETHERCAT 0x88A4
+-
++#ifdef EC_EWT
++    #define ETH_P_8021Q 0x8810
++#endif
+ #define EC_GEN_RX_BUF_SIZE 1600
+ 
+ #if defined(CONFIG_SUSE_KERNEL) && LINUX_VERSION_CODE >= KERNEL_VERSION(5, 14, 0)
+@@ -198,8 +204,14 @@ void ec_gen_device_clear(
+     }
+ }
+ 
++
+ /****************************************************************************/
+ 
++#ifdef EC_EWT
++    uint16_t vid_TSN = EC_VLAN_ID;
++    uint16_t vpriority_TSN = EC_VLAN_PRIORITY;
++#endif
++
+ /** Creates a network socket.
+  */
+ int ec_gen_device_create_socket(
+@@ -210,14 +222,27 @@ int ec_gen_device_create_socket(
+     int ret;
+     struct sockaddr_ll sa;
+ 
++#ifdef EC_EWT
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
++    sockptr_t prio = KERNEL_SOCKPTR(&vpriority_TSN);
++#else
++    int priority = vpriority_TSN;
++#endif
++#endif
++
+     dev->rx_buf = kmalloc(EC_GEN_RX_BUF_SIZE, GFP_KERNEL);
+     if (!dev->rx_buf) {
+         return -ENOMEM;
+     }
+ 
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 2, 0)
++#ifdef EC_EWT
++    ret = sock_create_kern(&init_net, PF_PACKET, SOCK_RAW,
++            htons(IPPROTO_IP), &dev->socket);
++#else
+     ret = sock_create_kern(&init_net, PF_PACKET, SOCK_RAW,
+             htons(ETH_P_ETHERCAT), &dev->socket);
++#endif
+ #else
+     ret = sock_create_kern(PF_PACKET, SOCK_RAW, htons(ETH_P_ETHERCAT),
+             &dev->socket);
+@@ -234,6 +259,20 @@ int ec_gen_device_create_socket(
+     sa.sll_family = AF_PACKET;
+     sa.sll_protocol = htons(ETH_P_ETHERCAT);
+     sa.sll_ifindex = desc->ifindex;
++#ifdef EC_EWT
++#if LINUX_VERSION_CODE >= KERNEL_VERSION(5, 8, 0)
++    if (sock_setsockopt(dev->socket, SOL_SOCKET, SO_PRIORITY, prio, sizeof(prio)))
++#else
++    if (kernel_setsockopt(dev->socket, SOL_SOCKET, SO_PRIORITY, (char*)&priority, sizeof(priority)))
++#endif
++    {
++        printk(KERN_ERR PFX "Failed to set priority to interface\n");
++        sock_release(dev->socket);
++        dev->socket = NULL;
++        return ret;
++    }
++#endif
++
+     ret = kernel_bind(dev->socket, (struct sockaddr *) &sa, sizeof(sa));
+     if (ret) {
+         printk(KERN_ERR PFX "Failed to bind() socket to interface"
+@@ -416,7 +455,9 @@ int __init ec_gen_init_module(void)
+     struct list_head descs;
+     struct net_device *netdev;
+     ec_gen_interface_desc_t *desc, *next;
+-
++#ifdef EC_EWT
++    int vid = vid_TSN;
++#endif
+     printk(KERN_INFO PFX "EtherCAT master generic Ethernet device module %s\n",
+             EC_MASTER_VERSION);
+ 
+@@ -427,6 +468,14 @@ int __init ec_gen_init_module(void)
+     for_each_netdev_rcu(&init_net, netdev) {
+         if (netdev->type != ARPHRD_ETHER)
+             continue;
++#ifdef EC_EWT
++        if (!is_vlan_dev(netdev))
++            continue;
++        printk(KERN_INFO PFX "Vlan id read from machine is %d\n", vlan_dev_vlan_id(netdev));
++        printk(KERN_INFO PFX "Vlan id set by input/default is %d\n", vid);
++        if (vlan_dev_vlan_id(netdev) != vid)
++            continue;
++#endif
+         desc = kmalloc(sizeof(ec_gen_interface_desc_t), GFP_ATOMIC);
+         if (!desc) {
+             ret = -ENOMEM;
+-- 
+2.34.1
+

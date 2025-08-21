@@ -89,6 +89,6 @@ kubectl get all -n apps # it takes few mins to have all application resources cl
 
 
   # Debugging UDF errors if container is not restarting and providing expected results
-  kubectl exec -it $POD_NAME bash
+  kubectl exec -it $POD_NAME -n apps -- /bin/bash
   $ cat /tmp/log/kapacitor/kapacitor.log | grep -i error
   ```

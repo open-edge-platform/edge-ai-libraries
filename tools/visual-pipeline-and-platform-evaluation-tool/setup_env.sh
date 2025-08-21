@@ -66,3 +66,4 @@ case "$DEVICE" in
 esac
 
 export COMPOSE_PROFILES=$PROFILE
+export DEVICE_TYPE=$DEVICE

@@ -1,0 +1,30 @@
+From bc34fcf3e66087a0eb78df5aa1d18dbdbfc0433b Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Tue, 18 Mar 2025 09:52:15 +0800
+Subject: [PATCH] use min to replace MIN in kernel mode
+
+Signed-off-by: Zhang, Wei E <wei.e.zhang@intel.com>
+---
+ master/ioctl.c | 6 ++++++
+ 1 file changed, 6 insertions(+)
+
+diff --git a/master/ioctl.c b/master/ioctl.c
+index 4506dc1a..4107d235 100644
+--- a/master/ioctl.c
++++ b/master/ioctl.c
+@@ -110,6 +110,12 @@ static int ec_copy_from_user(void *to, const void *from, size_t n, void *ctx) {
+ static int MIN(int a, int b) {
+     return (a<b)?a:b;
+ }
++#else
++#if LINUX_VERSION_CODE < KERNEL_VERSION(6, 11, 0)
++static int MIN(int a, int b) {
++    return min(a, b);
++}
++#endif
+ #endif
+ /****************************************************************************/
+ 
+-- 
+2.34.1
+

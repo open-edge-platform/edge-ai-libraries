@@ -32,6 +32,25 @@ on:
 permissions: {}
 
 jobs:
+  code-style:
+    permissions:
+      contents: read
+    name: SCAN code-style
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Remove thirdparty folder
+        run: rm -rf libraries/dl-streamer/thirdparty
+ 
+      - name: Code-style action
+        uses: ./.github/actions/common/code-style
+        with:
+          target_dir: "libraries/dl-streamer"
+
   check-license-headers:
     permissions:
       contents: read
@@ -46,14 +65,14 @@ jobs:
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
 
-  static-code-analysis:
-    permissions:
-      security-events: write
-      actions: read
-      contents: read
-      packages: read
-    name: SCAN static code analysis
-    uses: ./.github/workflows/codeql.yaml
+  # static-code-analysis:
+  #   permissions:
+  #     security-events: write
+  #     actions: read
+  #     contents: read
+  #     packages: read
+  #   name: SCAN static code analysis
+  #   uses: ./.github/workflows/codeql.yaml
 
   static-code-analysis-for-c-cpp:
     permissions:
@@ -123,16 +142,16 @@ jobs:
         include:
           - name: dlstreamer_ubuntu22
             path: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
-            output: reports/dlstreamer_ubuntu22.json
+            output: reports/trivy-dlstreamer_ubuntu22.json
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
-            output: reports/dlstreamer_ubuntu24.json
+            output: reports/trivy-dlstreamer_ubuntu24.json
           - name: dlstreamer_fedora41
             path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
-            output: reports/dlstreamer_fedora41.json
+            output: reports/trivy-dlstreamer_fedora41.json
           - name: dlstreamer-testing-ubuntu
             path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
-            output: reports/dlstreamer-testing-ubuntu.json
+            output: reports/trivy-dlstreamer-testing-ubuntu.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
@@ -140,6 +159,112 @@ jobs:
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
       name: ${{ matrix.name }}
+
+  hadolint:
+    permissions:
+      contents: read
+      pull-requests: write
+    needs: [filter-docker-related-changes]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: SCAN Hadolint
+    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - name: dlstreamer_ubuntu22
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
+            output-file: hadolint-dlstreamer_ubuntu22.json
+          - name: dlstreamer_ubuntu24
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
+            output-file: hadolint-dlstreamer_ubuntu24.json
+          - name: dlstreamer_fedora41
+            dockerfile: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
+            output-file: hadolint-dlstreamer_fedora41.json
+          - name: dlstreamer-testing-ubuntu
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
+            output-file: hadolint-dlstreamer-testing-ubuntu.json
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Run Hadolint Action
+        uses: ./.github/actions/common/hadolint
+        with:
+          dockerfile: ${{ matrix.dockerfile }}
+          output-file: ${{ matrix.output-file }}
+          name: ${{ matrix.name }}
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  pylint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN pylint 
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+
+      - name: Run pylint
+        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: pylint-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  shellcheck:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN shellcheck
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Run shellcheck
+        uses: ./edge-ai-libraries-repo/.github/actions/common/shellcheck
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: shellcheck-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+  yamllint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: SCAN yamllint
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+
+      - name: Run yamlint
+        uses: ./edge-ai-libraries-repo/.github/actions/common/yamllint
+        with:
+          path: edge-ai-libraries-repo/libraries/dl-streamer
+          output-file: yamllint-report.txt
+          name: dls
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
   clamav:
     permissions:

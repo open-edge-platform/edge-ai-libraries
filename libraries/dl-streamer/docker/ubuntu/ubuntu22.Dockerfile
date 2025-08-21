@@ -30,7 +30,8 @@
 #                      V
 #                  dlstreamer
 # ==============================================================================
-FROM ubuntu:22.04 AS builder
+ARG DOCKER_REGISTRY
+FROM ${DOCKER_REGISTRY}ubuntu:22.04 AS builder
 
 ARG DEBIAN_FRONTEND=noninteractive
 ARG BUILD_ARG=Release
@@ -38,10 +39,10 @@ ARG BUILD_ARG=Release
 LABEL description="This is the development image of Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
 
-ARG GST_VERSION=1.26.1
+ARG GST_VERSION=1.26.4
 ARG OPENVINO_VERSION=2025.2.0
 
-ARG DLSTREAMER_VERSION=2025.0.1.3
+ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
@@ -62,7 +63,7 @@ RUN \
     curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
     gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
     echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy unified" | \
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
+    tee /etc/apt/sources.list.d/intel-gpu-jammy.list
 
 RUN \
     apt-get update && \
@@ -72,19 +73,16 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
-RUN \
-    mkdir -p ./npu_debs && \
-    curl -sSL -o ./npu_debs/level-zero_1.17.44+u22.04_amd64.deb https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb && \
-    curl -sSL --insecure https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 | \
-    grep -oP 'href="\K[^"]*'22.04'[^"]*\.deb' | \
-    while read -r url; do \
-    curl -sSL -O "https://github.com${url}" --output-dir ./npu_debs; \
-    done && \
-    rm ./npu_debs/intel-fw-npu* && \
-    apt-get install -y -q --no-install-recommends ./npu_debs/*.deb && \
-    rm -rf ./npu_debs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+WORKDIR /tmp/npu_deps
+
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
+    rm -rf /var/lib/apt/lists/* /tmp/npu_deps
+
+WORKDIR /
 
 RUN \
     apt-get update && \
@@ -243,7 +241,7 @@ RUN \
     git clone https://gitlab.freedesktop.org/gstreamer/gst-plugins-rs.git && \
     shopt -s dotglob && \
     mv gst-plugins-rs/* . && \
-    git checkout 207196a0334da74c4db9db7c565d882cb9ebc07d && \
+    git checkout "tags/gstreamer-$GST_VERSION" && \
     curl -sSL --insecure https://sh.rustup.rs | sh -s -- -y --default-toolchain 1.86.0 && \
     source "$HOME"/.cargo/env && \
     cargo install cargo-c --version=0.10.11 --locked && \
@@ -425,7 +423,8 @@ RUN \
     mv "/intel-dlstreamer_${DLSTREAMER_VERSION}_amd64.deb" "/intel-dlstreamer_${DLSTREAMER_VERSION}.${DLSTREAMER_BUILD_NUMBER}_amd64.deb"
 
 # ==============================================================================
-FROM ubuntu:22.04 AS dlstreamer
+ARG DOCKER_REGISTRY
+FROM ${DOCKER_REGISTRY}ubuntu:22.04 AS dlstreamer
 ARG DLSTREAMER_VERSION
 ARG DLSTREAMER_BUILD_NUMBER
 # Build final image for dlstreamer - using .deb packages for installation
@@ -435,7 +434,7 @@ SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 # install prerequisites - gcc and cmake are needed to run .cpp samples
 RUN \
     apt-get update && \
-    apt-get install -y -q --no-install-recommends  libtbb12=\* curl=\* gcc=\* cmake=\*  gpg=\* ca-certificates=\* && \
+    apt-get install -y -q --no-install-recommends  libtbb12=\* curl=\* gcc=\* cmake=\*  gpg=\* ca-certificates=\* git=\* python3-venv=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -455,19 +454,16 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
-RUN \
-    mkdir -p ./npu_debs && \
-    curl -sSL -o ./npu_debs/level-zero_1.17.44+u22.04_amd64.deb https://github.com/oneapi-src/level-zero/releases/download/v1.17.44/level-zero_1.17.44+u22.04_amd64.deb && \
-    curl -sSL --insecure https://github.com/intel/linux-npu-driver/releases/expanded_assets/v1.13.0 | \
-    grep -oP 'href="\K[^"]*'22.04'[^"]*\.deb' | \
-    while read -r url; do \
-    curl -sSL -O "https://github.com${url}" --output-dir ./npu_debs; \
-    done && \
-    rm ./npu_debs/intel-fw-npu* && \
-    apt-get install -y -q --no-install-recommends ./npu_debs/*.deb && \
-    rm -rf ./npu_debs && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+WORKDIR /tmp/npu_deps
+
+RUN curl -L -O https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    curl -L -O https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu22.04_amd64.deb && \
+    apt-get update && apt-get install --no-install-recommends -y /tmp/npu_deps/*.deb && \
+    rm -rf /var/lib/apt/lists/* /tmp/npu_deps
+
+WORKDIR /
 
 RUN curl -fsSL https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | \
     gpg --dearmor -o /usr/share/keyrings/intel-sw-products.gpg && \

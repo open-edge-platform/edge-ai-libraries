@@ -617,7 +617,8 @@ class OpenVinoNewApiImpl {
     }
 
     // convert ov::Any to GstStructure
-    static std::map<std::string, GstStructure *> get_model_info_preproc(const std::string model_file) {
+    static std::map<std::string, GstStructure *> get_model_info_preproc(const std::string model_file,
+                                                                        const gchar *pre_proc_config) {
         std::map<std::string, GstStructure *> res;
         std::string layer_name("ANY");
         GstStructure *s = nullptr;
@@ -641,6 +642,14 @@ class OpenVinoNewApiImpl {
         if (_model->has_rt_info({"model_info"})) {
             modelConfig = _model->get_rt_info<ov::AnyMap>("model_info");
             s = gst_structure_new_empty(layer_name.data());
+        }
+
+        // override model config with command line pre-processing parameters if provided
+        auto pre_proc_params = Utils::stringToMap(pre_proc_config);
+        for (auto &item : pre_proc_params) {
+            if (modelConfig.find(item.first) != modelConfig.end()) {
+                modelConfig[item.first] = item.second;
+            }
         }
 
         // the parameter parsing loop may use locale-dependent floating point conversion
@@ -1009,6 +1018,14 @@ class OpenVinoNewApiImpl {
         }
 
         _batch_size = config.batch_size();
+        if (_batch_size == 0) {
+            try {
+                _batch_size = core().get_property(config.device(), ov::optimal_batch_size);
+            } catch (...) {
+                _batch_size = 1; // Fallback if optimal batch size property is not supported
+            }
+        }
+
         GVA_DEBUG("Setting batch size of %d to model", _batch_size);
         ov::set_batch(_model, _batch_size);
 
@@ -1350,6 +1367,7 @@ OpenVINOImageInference::OpenVINOImageInference(const InferenceBackend::Inference
 
         model_name = _impl->_model->get_friendly_name();
         nireq = _impl->_nireq;
+        batch_size = _impl->_batch_size;
         image_layer = _impl->_image_input_name;
 
         for (int i = 0; i < nireq; i++) {
@@ -1703,8 +1721,9 @@ std::map<std::string, GstStructure *> OpenVINOImageInference::GetModelInfoPostpr
     return info;
 }
 
-std::map<std::string, GstStructure *> OpenVINOImageInference::GetModelInfoPreproc(const std::string model_file) {
-    auto info = OpenVinoNewApiImpl::get_model_info_preproc(model_file);
+std::map<std::string, GstStructure *> OpenVINOImageInference::GetModelInfoPreproc(const std::string model_file,
+                                                                                  const gchar *pre_proc_config) {
+    auto info = OpenVinoNewApiImpl::get_model_info_preproc(model_file, pre_proc_config);
     return info;
 }
 
