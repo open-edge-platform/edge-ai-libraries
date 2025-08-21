@@ -21,7 +21,7 @@ This project demonstrates video ingestion and processing using Deep Learning Str
 1. Clone the repo and change to `video_ingestion` component directory:
 
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
     cd edge-ai-libraries/sample-applications/video-search-and-summarization/video-ingestion
     ```
 2. Download and Convert Models to OpenVINO IR format

@@ -21,7 +21,7 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 ## Setup
 1. Clone the repository:
    ```sh
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
    cd edge-ai-libraries/sample-applications/video-search-and-summarization/pipeline-manager
    ```
 2. Build the Docker image:

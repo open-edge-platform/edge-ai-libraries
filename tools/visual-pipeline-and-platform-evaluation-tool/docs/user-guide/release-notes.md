@@ -31,10 +31,23 @@
 
 Details about the changes, improvements, and known issues in this release of the application.
 
-## Current Release: [Version 1.0.0]
+## Current Release: [Version 1.2]
+**Release Date**: [2025-08-20]
+
+### New Features (v1.2)
+
+- **Feature 1**: Simple Video Structurization Pipeline: The Simple Video Structurization (D-T-C) pipeline is a versatile, use case-agnostic solution that supports license plate recognition, vehicle detection with attribute classification, and other object detection and classification tasks, adaptable based on the selected model.
+- **Feature 2**: Live pipeline output preview: The pipeline now supports live output, allowing users to view real-time results directly in the UI. This feature enhances the user experience by providing immediate feedback on video processing tasks.
+- **Feature 3**: New pre-trained models: The release includes new pre-trained models for object detection (`YOLO v8 License Plate Detector`) and classification (`PaddleOCR`, `Vehicle Attributes Recognition Barrier 0039`), expanding the range of supported use cases and improving accuracy for specific tasks.
+
+### Known Issues (v1.2)
+
+- **Issue**: Metrics are displayed only for the last GPU when the system has multiple discrete GPUs.
+
+## Version 1.0.0
 **Release Date**: [2025-03-31]
 
-### New Features
+### New Features (v1.0.0)
 <!--
 **Guidelines for New Features**:
 1. **What to Include**:
@@ -53,7 +66,7 @@ Details about the changes, improvements, and known issues in this release of the
 
 
 
-### Known Issues
+### Known Issues (v1.0.0)
 
 - **Issue**: The VIPPET container fails to start the analysis when the "Run" button is clicked in the UI, specifically for systems without GPU.
   - **Workaround**: Consider upgrading the hardware to meet the required specifications for optimal performance.

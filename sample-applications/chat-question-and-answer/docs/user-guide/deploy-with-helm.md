@@ -23,10 +23,10 @@ Following steps should be followed to deploy ChatQ&A using Helm. You can install
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version <version-no>
+helm pull oci://registry-1.docker.io/intel/chat-question-and-answer --version 1.2.2
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application.
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer/tags) for details on the latest version number to use for the sample application. Use the above specified version for `release-1.2.0`.
 
 #### Step 2: Extract the `.tgz` File
 
@@ -86,7 +86,7 @@ NOTE: GPU is only enabled for openvino model server (OVMS)
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone <repository-url>
+git clone <repository-url>  -b release-1.2.0
 ```
 
 #### Step 2: Change to the Chart Directory

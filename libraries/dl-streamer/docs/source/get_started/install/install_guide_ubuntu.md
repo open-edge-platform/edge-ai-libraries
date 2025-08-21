@@ -30,7 +30,7 @@ resources when additional configuration is required.
 ```bash
 mkdir -p ~/intel/dlstreamer_gst
 cd ~/intel/dlstreamer_gst/
-wget -O DLS_install_prerequisites.sh https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && chmod +x DLS_install_prerequisites.sh
+wget -O DLS_install_prerequisites.sh https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/release-1.2.0/libraries/dl-streamer/scripts/DLS_install_prerequisites.sh && chmod +x DLS_install_prerequisites.sh
 ```
 
 ### Step 2: Execute the script and follow its instructions
@@ -73,7 +73,7 @@ drivers. In such case, please follow drivers installing instruction on
 This option provides the simplest installation flow using apt-get
 install command.
 
-### Step 1: Install prerequisites
+### Step 1: Installing prerequisites
 
 Run the script DLS_install_prerequisites.sh to install required GPU/NPU
 drivers. For more details see [prerequisites](#prerequisites).
@@ -84,33 +84,29 @@ drivers. For more details see [prerequisites](#prerequisites).
 
 ### Step 2: Setup repositories
 
-#### Ubuntu 22
+- **In Ubuntu 22**
 
-```bash
-sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-sudo wget -O- https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg | sudo tee /usr/share/keyrings/sed-archive-keyring.gpg > /dev/null
-sudo echo "deb [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/$(source /etc/os-release && echo $VERSION_CODENAME) sed main" | sudo tee /etc/apt/sources.list.d/sed.list
-sudo bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000" > /etc/apt/preferences.d/sed'
-sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
-```
+  ```bash
+  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/  keyrings/dls-archive-keyring.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/  ubuntu22 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/  openvino/2025 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
+  ```
 
-#### Ubuntu 24
+- **Ubuntu 24**
 
-```bash
-sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
-sudo wget -O- https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg | sudo tee /usr/share/keyrings/sed-archive-keyring.gpg > /dev/null
-sudo echo "deb [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/$(source /etc/os-release && echo $VERSION_CODENAME) sed main" | sudo tee /etc/apt/sources.list.d/sed.list
-sudo bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000" > /etc/apt/preferences.d/sed'
-sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
-```
+  ```bash
+  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/  keyrings/dls-archive-keyring.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/  ubuntu24 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/  openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
+  ```
 
-> **NOTE:** If you have OpenVINO™ installed in a version different from 2025.0.0,
-> please uninstall the OpenVINO™ packages using the following commands.
+  > **NOTE:** If you have OpenVINO™ installed in a version different from 2025.2.0,
+  > please uninstall the OpenVINO™ packages using the following commands.
 
-```bash
-sudo apt remove -y openvino* libopenvino-* python3-openvino*
-sudo apt-get autoremove
-```
+  ```bash
+  sudo apt remove -y openvino* libopenvino-* python3-openvino*
+  sudo apt-get autoremove
+  ```
 
 ### Step 3: Install Intel® DL Streamer Pipeline Framework
 
@@ -175,53 +171,53 @@ following command:
 > **NOTE:** To set up Linux with the relevant environment variables every time a new
 > terminal is opened, open `~/.bashrc` and add the following lines:
 
-**Ubuntu 24**
+- **Ubuntu 24**
 
-```bash
-export LIBVA_DRIVER_NAME=iHD
-export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/streamer/lib/
-export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
-export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-export GST_VA_ALL_DRIVERS=1
-export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
-export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
-```
+  ```bash
+  export LIBVA_DRIVER_NAME=iHD
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/streamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+  export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+  export GST_VA_ALL_DRIVERS=1
+  export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
+  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  ```
 
-**Ubuntu 22**
+- **Ubuntu 22**
 
-```bash
+  ```bash
 
-export LIBVA_DRIVER_NAME=iHD
-export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/streamer/lib/
-export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka
-export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
-export GST_VA_ALL_DRIVERS=1
-export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
-export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
-```
+  export LIBVA_DRIVER_NAME=iHD
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/streamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka
+  export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
+  export GST_VA_ALL_DRIVERS=1
+  export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
+  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  ```
 
-**Fedora 41**
+- **Fedora 41**
 
-```bash
-export LIBVA_DRIVER_NAME=iHD
-export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
-export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka:/opt/ffmpeg
-export LIBVA_DRIVERS_PATH=/usr/lib64/dri-nonfree
-export GST_VA_ALL_DRIVERS=1
-export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
-export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
-```
+  ```bash
+  export LIBVA_DRIVER_NAME=iHD
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/gstreamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/  rdkafka:/opt/ffmpeg
+  export LIBVA_DRIVERS_PATH=/usr/lib64/dri-nonfree
+  export GST_VA_ALL_DRIVERS=1
+  export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
+  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  ```
 
-or run:
+  or run:
 
-```bash
-source /opt/intel/dlstreamer/scripts/setup_dls_env.sh
-```
+  ```bash
+  source /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+  ```
 
-to configure environment variables for the current terminal session.
+  to configure environment variables for the current terminal session.
 
 ### [Optional] Step 6: Auxiliary installation steps
 
@@ -240,7 +236,7 @@ sudo apt install intel-dlstreamer=<VERSION>.<UPDATE>.<PATCH>
 For example
 
 ```bash
-sudo apt install intel-dlstreamer=2025.0.0
+sudo apt install intel-dlstreamer=2025.1.2
 ```
 
 C. List available versions
@@ -251,7 +247,7 @@ sudo apt show -a intel-dlstreamer
 
 ## Option #2: Install Docker image from Docker Hub and run it
 
-### Step 1: Install prerequisites
+### Step 1: Installation of prerequisites
 
 Run the script `DLS_install_prerequisites.sh` to setup your environment.
 For more details see [prerequisites](#prerequisites).
@@ -260,13 +256,13 @@ For more details see [prerequisites](#prerequisites).
 ./DLS_install_prerequisites.sh
 ```
 
-### Step 2: Install Docker
+### Step 2: Installation of Docker
 
 [Get Docker](https://docs.docker.com/get-docker/) for your host OS.
 To prevent file permission issues please follow "Manage Docker as a non-root user" section
 steps described [here](https://docs.docker.com/engine/install/linux-postinstall/)
 
-### Step 3: Allow connection to X server
+### Step 3: Allowing connection to X server
 
 Some Pipeline Framework samples use display. Hence, first run the
 following commands to allow connection from Docker container to X server
@@ -290,13 +286,13 @@ For **Ubuntu 22.04** please specify tag e.g. **2025.1.2-ubuntu22**.
 For **Ubuntu 24.04** please use **latest** tag or specified version e.g.
 **2025.1.2-ubuntu24**.
 
-- Ubuntu 22
+- **Ubuntu 22**
 
   ```bash
   docker pull intel/dlstreamer:2025.1.2-ubuntu22
   ```
 
-- Ubuntu 24
+- **Ubuntu 24**
 
   ```bash
   docker pull intel/dlstreamer:latest
@@ -307,13 +303,13 @@ For **Ubuntu 24.04** please use **latest** tag or specified version e.g.
 To confirm that your installation is completed successfully, please run
 a container
 
-- Ubuntu 22
+- **Ubuntu 22**
 
   ```bash
   docker run -it intel/dlstreamer:2025.1.2-ubuntu22
   ```
 
-- Ubuntu 24
+- **Ubuntu 24**
 
   ```bash
   docker run -it intel/dlstreamer:latest

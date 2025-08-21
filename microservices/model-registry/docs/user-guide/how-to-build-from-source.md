@@ -29,8 +29,7 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 
 1. **Clone the Repository**:
     ```bash
-    git clone https://github.com/{{repo-path}}.git
-    
+    git clone https://github.com/{{repo-path}}.git  -b release-1.2.0
     cd {{repo-name}}
     ```
 

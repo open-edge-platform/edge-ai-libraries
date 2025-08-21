@@ -176,7 +176,7 @@ Follow these steps to run the application:
 1. Clone the repository and navigate to the project directory:
 
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-1.2.0
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 

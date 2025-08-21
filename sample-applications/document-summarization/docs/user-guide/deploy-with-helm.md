@@ -22,10 +22,10 @@ Following steps should be followed to deploy Document Summarization application 
 
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/document-summarization):
 ```bash
-helm pull oci://registry-1.docker.io/intel/document-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/document-summarization --version 1.0.0
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application.
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/document-summarization/tags) for details on the latest version number to use for the sample application. Use the above specified version for `release-1.2.0`.
 
 Refer to the release notes for details on the latest version number to use for the sample application.
 
@@ -62,7 +62,7 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone <repository-url>
+git clone <repository-url> -b release-1.2.0
 ```
 
 #### Step 2: Change to the Chart Directory

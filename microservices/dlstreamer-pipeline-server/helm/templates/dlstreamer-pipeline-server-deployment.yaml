@@ -34,7 +34,7 @@ spec:
             git clone --depth 1 https://github.com/open-edge-platform/edge-ai-libraries /repo -b release-1.2.0
             mkdir -p /resources/models/geti /resources/videos
             cp -r /repo/microservices/dlstreamer-pipeline-server/resources/models/geti/ /resources/models/
-            curl -L https://github.com/open-edge-platform/edge-ai-libraries/raw/main/microservices/dlstreamer-pipeline-server/resources/videos/warehouse.avi -o /resources/videos/warehouse.avi
+            curl -L https://github.com/open-edge-platform/edge-ai-libraries/raw/release-1.2.0/microservices/dlstreamer-pipeline-server/resources/videos/warehouse.avi -o /resources/videos/warehouse.avi
         volumeMounts:
           - name: pipeline-resources
             mountPath: /resources

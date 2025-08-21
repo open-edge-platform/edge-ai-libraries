@@ -16,7 +16,7 @@ This section shows how to build the Video Search and Summary sample application 
 1. **Clone the Repository**:
     - Clone the Video Summary Sample Application repository:
       ```bash
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git -b release-1.2.0
       ```
 
 2. **Navigate to the Directory**:

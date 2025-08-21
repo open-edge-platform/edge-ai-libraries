@@ -74,7 +74,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    Clone the repository.
 
    ```bash
-   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
    ```
    Note: Adjust the repo link appropriately in case of forked repo.
 

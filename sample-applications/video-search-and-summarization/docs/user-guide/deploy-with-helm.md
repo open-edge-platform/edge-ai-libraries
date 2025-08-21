@@ -21,10 +21,10 @@ Do the following to deploy VSS using Helm chart.
 
 Use the following command to pull the Helm chart from Docker Hub:
 ```bash
-helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version <version-no>
+helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --version 1.2.0
 ```
 
-Refer to the release notes for details on the latest version number to use for the sample application.
+Refer to the release notes for details on the latest version number to use for the sample application. Use the above specified version for `release-1.2.0`.
 
 #### Step 2: Extract the `.tgz` File
 
@@ -69,7 +69,7 @@ Edit the `values.yaml` file to set the necessary environment variables. At minim
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone <repo>
+git clone <repo> -b release-1.2.0
 ```
 
 #### Step 2: Change to the Chart Directory

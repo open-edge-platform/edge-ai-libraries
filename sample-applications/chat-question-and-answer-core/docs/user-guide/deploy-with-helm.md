@@ -23,10 +23,10 @@ You can deploy the ChatQ&A Core application using `Helm` in **two ways**: by pul
 Use the following command to pull the Helm chart from [Docker Hub](https://hub.docker.com/r/intel/chat-question-and-answer-core):
 
 ```bash
-helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core --version <version-no>
+helm pull oci://registry-1.docker.io/intel/chat-question-and-answer-core --version 1.2.2
 ```
 
-🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for details on the latest version number to use for the sample application.
+🔍 Refer to the [Docker Hub tags page](https://hub.docker.com/r/intel/chat-question-and-answer-core/tags) for details on the latest version number to use for the sample application. Use the above specified version for `release-1.2.0`.
 
 
 #### Step 2: Extract the Chart
@@ -81,7 +81,7 @@ For systems with multiple GPUs (e.g., both integrated and discrete Intel GPUs), 
 Clone the repository containing the Helm chart:
 
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b release-1.2.0
 ```
 
 #### Step 2: Change to the Chart Directory

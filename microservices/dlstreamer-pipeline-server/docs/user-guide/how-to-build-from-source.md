@@ -1,6 +1,6 @@
 # How to build from source
 
-You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image. 
+You can build either an optimized or an extended DL Streamer Pipeline Server image (for both Ubuntu22 and Ubuntu24) based on your use case. The extended image contains the Geti SDK, the OpenVINO Model API and ROS2 on top of the optimized image.
 
 Note: Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file for building DL Streamer Pipeline Server optimized image and DL Streamer Pipeline Server extended image when you follow the below steps. The mentioned file has the necessary details written as comments.
 
@@ -36,7 +36,7 @@ Note: Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microse
     BUILD_TARGET=
     ```
 
-    Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer#build-the-dlstreamer-docker-image-with) and use it as `BASE_IMAGE` in the above mentioned `.env` file
+    Note: If you do not have access to the above mentioned `BASE_IMAGE`, then you can build [DL Streamer docker image from source](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer#build-the-dlstreamer-docker-image-with) and use it as `BASE_IMAGE` in the above mentioned `.env` file
 
 ### Build DL Streamer Pipeline Server image and start container
 
@@ -52,7 +52,7 @@ Note: Ensure to set the right values in the `[WORKDIR]/edge-ai-libraries/microse
 
 ---
 
-2. Run the below command to start the container 
+2. Run the below command to start the container
     ```sh
     docker compose up
     ```

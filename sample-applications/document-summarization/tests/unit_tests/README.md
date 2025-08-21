@@ -59,7 +59,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Clone the repository to your local machine:
 
    ```bash
-   git clone <repository-url>
+   git clone <repository-url> -b release-1.2.0
    cd ~/<repository-url>/sample-applications/document-summarization
    ```
 

@@ -25,12 +25,12 @@ This guide is designed to you build and use the tool.
 .. toctree::
    :caption: Source Code
 
-   GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool>
+   GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/tools/visual-pipeline-and-platform-evaluation-tool>
 
 .. toctree::
    :maxdepth: 2
    :caption: Community and Support
-   
+
    disclaimers
    support
 

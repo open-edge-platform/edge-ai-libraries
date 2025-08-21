@@ -34,7 +34,7 @@ the GStreamer command line tool gst-launch-1.0. For more information and
 examples please refer to the online documentation for
 [gst-launch-1.0](https://gstreamer.freedesktop.org/documentation/tools/gst-launch.html?gi-language=c).
 
-### Pipelines
+### GStreamer Library Pipelines
 
 The command line tool **gst-launch-1.0** enables developers to describe
 a media analytics pipeline as a series of connected elements. The list
@@ -52,7 +52,7 @@ Example with test video input:
 gst-launch-1.0 videotestsrc ! ximagesink
 ```
 
-### Elements
+### GStreamer Library Elements
 
 An
 [element](https://gstreamer.freedesktop.org/documentation/application-development/basics/elements.html?gi-language=c)
@@ -373,7 +373,7 @@ elements:
 - gvadetect
 - gvawatermark
 
-### Pipeline
+### Exercise 1.1 Create a Pipeline
 
 We will create a pipeline to detect people and vehicles in a video. The
 pipeline will accept a video file input, decode it and run vehicle
@@ -388,6 +388,10 @@ filesrc location=${VIDEO_EXAMPLE} ! decodebin3 ! \
 gvadetect model=${DETECTION_MODEL} model_proc=${DETECTION_MODEL_PROC} device=CPU ! queue ! \
 gvawatermark ! videoconvert ! autovideosink sync=false
 ```
+
+> **Note**: On EMT OS the `X11/wayland` display server is by default disabled. To see the
+> the video for the above pipeline, replace the last gstreamer element `autovideosink sync=false`
+> with `kmssink sync=false`. The system on which the pipeline is running must be working on the KVM setup.
 
 **Expected output**: You will see your video overlaid by bounding boxes
 around persons, vehicles, and bikes.
@@ -450,7 +454,7 @@ This exercise uses the following Pipeline Framework elements:
 - gvaclassify
 - gvawatermark
 
-### Pipeline
+### Exercise 2.1: Create a Pipeline
 
 We will create a pipeline to detect people and vehicles in a video and
 classify the detected people and vehicle to provide additional
@@ -465,6 +469,10 @@ gvadetect model=${DETECTION_MODEL} model_proc=${DETECTION_MODEL_PROC} device=CPU
 gvaclassify model=${VEHICLE_CLASSIFICATION_MODEL} model-proc=${VEHICLE_CLASSIFICATION_MODEL_PROC} device=CPU object-class=vehicle ! queue ! \
 gvawatermark ! videoconvert ! autovideosink sync=false
 ```
+
+> **Note**: On EMT OS the `X11/wayland` display server is by default disabled. To see the
+> the video for the above pipeline, replace the last gstreamer element `autovideosink sync=false`
+> with `kmssink sync=false`. The system on which the pipeline is running must be working on the KVM setup.
 
 **Expected output**: Persons, vehicles, and bikes are bound by colored
 boxes, and detection results as well as classification attributes such
@@ -499,7 +507,7 @@ This exercise uses the following Pipeline Framework elements:
 - `gvatrack`
 - `gvawatermark`
 
-### Pipeline
+### Exercise 3.1: Create a Pipeline
 
 We will use the same pipeline as in exercise 2, for detecting and
 classifying vehicle and people. We will add `gvatrack` element after
@@ -518,6 +526,10 @@ gvatrack tracking-type=short-term-imageless ! queue ! \
 gvaclassify model=${VEHICLE_CLASSIFICATION_MODEL} model-proc=${VEHICLE_CLASSIFICATION_MODEL_PROC} device=CPU object-class=vehicle reclassify-interval=10 ! queue ! \
 gvawatermark ! videoconvert ! autovideosink sync=false
 ```
+
+> **Note**: On EMT OS the `X11/wayland` display server is by default disabled. To see the
+> the video for the above pipeline, replace the last gstreamer element `autovideosink sync=false`
+> with `kmssink sync=false`. The system on which the pipeline is running must be working on the KVM setup.
 
 **Expected output**: Persons, vehicles, and bikes are bound by colored
 boxes, and detection results as well as classification attributes such
@@ -567,7 +579,7 @@ output file path:
 export OUTFILE=~/pipeline_output.json
 ```
 
-### Pipeline
+### Exercise 4.1: Create a Pipeline
 
 We will use the same pipeline as in exercise 2 for detecting and
 classifying vehicle and people. However, instead of overlaying the
@@ -605,7 +617,7 @@ samples](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.
 You have completed this tutorial. Now, start creating your video
 analytics pipeline with Intel® DL Streamer Pipeline Framework!
 
-## Next Steps
+## Additional Resources
 
 - [Samples overview](https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/libraries/dl-streamer/samples/gstreamer/README.md)
 - [Elements](../elements/elements.md)
