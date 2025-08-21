@@ -18,7 +18,7 @@ def test_download(test_client, mocker):
     mock_minio.download_video_stream.return_value = mock_stream
 
     mocker.patch("src.core.util.get_minio_client", return_value=mock_minio)
-    mocker.patch("src.app.StreamingResponse", return_value={})
+    mocker.patch("src.main.StreamingResponse", return_value={})
 
     response = test_client.get("/videos/download?video_id=test-video-id")
     assert response.status_code == HTTPStatus.OK
@@ -59,7 +59,7 @@ def test_download_with_range_header(test_client, mocker):
     mock_minio.get_object_size.return_value = 1000
 
     mocker.patch("src.core.util.get_minio_client", return_value=mock_minio)
-    mocker.patch("src.app.StreamingResponse", return_value={})
+    mocker.patch("src.main.StreamingResponse", return_value={})
 
     # Test with range header
     headers = {"Range": "bytes=0-499"}
