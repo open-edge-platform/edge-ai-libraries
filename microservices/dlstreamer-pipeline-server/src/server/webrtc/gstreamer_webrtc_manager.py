@@ -3,6 +3,9 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+import gi
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
 
 from src.server.webrtc.gstreamer_webrtc_stream import GStreamerWebRTCStream
 from src.server.common.utils import logging
@@ -79,15 +82,24 @@ class GStreamerWebRTCManager:
         
         is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
         
+        # Look for vah264enc element. Reported in some Xeon platforms as missing.
+        # When incoming buffers are from GPU and vah264enc is not present, 
+        # we will use the software encoder to ensure that the pipeline can still function without it.
+        vah264enc_present = Gst.ElementFactory.find("vah264enc")
+        
         if "image/jpeg" in stream_caps:
-            if is_gpu and buffer_type == "VAMemory":
+            if is_gpu and buffer_type == "VAMemory" and vah264enc_present:
                 video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory
             else:
+                if is_gpu and buffer_type == "VAMemory" and not vah264enc_present:  # warn if GPU buffer and no vah264enc
+                    self._logger.warning("vah264enc not found, using software encoding")
                 video_pipeline = self._WebRTCVideoPipeline_jpeg
         else:
-            if is_gpu and buffer_type == "VAMemory":
+            if is_gpu and buffer_type == "VAMemory" and vah264enc_present:
                 video_pipeline = self._WebRTCVideoPipeline_VAMemory
             else:
+                if is_gpu and buffer_type == "VAMemory" and not vah264enc_present:  # warn if GPU buffer and no vah264enc
+                    self._logger.warning("vah264enc not found, using software encoding")
                 video_pipeline = self._WebRTCVideoPipeline
         if overlay is False:
             video_pipeline = video_pipeline.replace("! gvawatermark ", "")

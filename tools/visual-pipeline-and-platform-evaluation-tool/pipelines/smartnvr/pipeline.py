@@ -273,7 +273,9 @@ class SmartNVRPipeline(GstPipeline):
 
             # Set inference config parameter for GPU if using YOLOv10
             ie_config_parameter = ""
-            if parameters["object_detection_device"] == "GPU" and is_yolov10_model(constants['OBJECT_DETECTION_MODEL_PATH']):
+            if parameters["object_detection_device"] == "GPU" and is_yolov10_model(
+                constants["OBJECT_DETECTION_MODEL_PATH"]
+            ):
                 ie_config_parameter = "ie-config=GPU_DISABLE_WINOGRAD_CONVOLUTION=YES"
 
             streams += self._inference_stream_decode_detect_track.format(

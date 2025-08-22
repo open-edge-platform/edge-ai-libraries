@@ -9,6 +9,13 @@
         # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_cpu_decode_and_inference/config.json to config file that DL Streamer Pipeline Server container loads.
         - "../configs/sample_cpu_decode_and_inference/config.json:/home/pipeline-server/config.json"
     ```
+- Restart DL Streamer pipeline server
+
+    ```sh
+        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
+        docker compose down
+        docker compose up
+    ```
 
 - In the pipeline string in the above config file, we have added CPU specific elements/properties for decoding and inferencing on CPU backend. We will now start the pipeline with a curl request
 
@@ -33,13 +40,6 @@
     }'
     ```
 
-- Restart DL Streamer pipeline server
-
-    ```sh
-        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
-        docker compose down
-        docker compose up
-    ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
 - To perform decode and inference on GPU, please see [this document](./how-to-use-gpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://dlstreamer.github.io/dev_guide/performance_guide.html)

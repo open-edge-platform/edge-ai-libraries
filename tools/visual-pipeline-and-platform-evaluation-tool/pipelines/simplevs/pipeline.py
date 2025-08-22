@@ -4,7 +4,12 @@ from pathlib import Path
 import struct
 
 from gstpipeline import GstPipeline
-from utils import get_video_resolution, UINT8_DTYPE_SIZE, VIDEO_STREAM_META_PATH, is_yolov10_model
+from utils import (
+    get_video_resolution,
+    UINT8_DTYPE_SIZE,
+    VIDEO_STREAM_META_PATH,
+    is_yolov10_model,
+)
 
 
 class SimpleVideoStructurizationPipeline(GstPipeline):
@@ -125,7 +130,9 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         # Set inference config parameter for GPU if using YOLOv10
         ie_config_parameter = ""
-        if parameters["object_detection_device"] == "GPU" and is_yolov10_model(constants['OBJECT_DETECTION_MODEL_PATH']):
+        if parameters["object_detection_device"] == "GPU" and is_yolov10_model(
+            constants["OBJECT_DETECTION_MODEL_PATH"]
+        ):
             ie_config_parameter = "ie-config=GPU_DISABLE_WINOGRAD_CONVOLUTION=YES"
 
         streams = ""

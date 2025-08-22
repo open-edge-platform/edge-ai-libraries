@@ -50,6 +50,14 @@ DLStreamer inference elements also provides property such as `pre-process-backen
         - "../configs/sample_gpu_decode_and_inference/config.json:/home/pipeline-server/config.json"
     ```
 
+- Restart DL Streamer pipeline server
+
+    ```sh
+        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
+        docker compose down
+        docker compose up
+    ```
+
 - In the pipeline string in the above config file, we have added GPU specific elements/properties for decoding and inferencing on GPU backend. We will now start the pipeline with a curl request
 
     ```sh
@@ -71,14 +79,6 @@ DLStreamer inference elements also provides property such as `pre-process-backen
             }
         }
     }'
-    ```
-
-- Restart DL Streamer pipeline server
-
-    ```sh
-        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
-        docker compose down
-        docker compose up
     ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
