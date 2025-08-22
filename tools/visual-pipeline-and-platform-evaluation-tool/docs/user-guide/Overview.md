@@ -57,7 +57,7 @@ The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video 
 
 **Data Ingestion**: Provide video streams from live cameras or recorded files. Configure pipeline parameters to match your evaluation needs.
 
-**AI Processing**: Apply AI inference using OpenVINO™ models to detect objects in video streams. 
+**AI Processing**: Apply AI inference using OpenVINO™ models to detect objects in video streams.
 
 **Performance Evaluation**: Collect hardware performance metrics, including CPU/GPU usage, power consumption, and thermal data.
 
@@ -70,3 +70,16 @@ The Visual Pipeline and Platform Evaluation Tool integrates with AI-based video 
 - [How to Build Source](how-to-build-source.md)
 - [How to use Video Generator ](how-to-use-video-generator.md)
 - [Release Notes](release-notes.md)
+
+:::{toctree}
+:hidden:
+
+system-requirements
+get-started
+release-notes
+how-to-build-source
+how-to-use-video-generator
+GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/main/tools/visual-pipeline-and-platform-evaluation-tool>
+disclaimers
+support
+:::

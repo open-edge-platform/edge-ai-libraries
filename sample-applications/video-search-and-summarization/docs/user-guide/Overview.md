@@ -13,9 +13,16 @@ Detailed hardware and software requirements are available [here](./system-requir
 
 To get started with the application, please refer to the [Get Started](./get-started.md) page.
 
+:::{toctree}
+:hidden:
 
-.. toctree::
-   :hidden:
-
-   Overview-search
-   Overview-summary
+overview-architecture
+Overview-search
+Overview-summary
+system-requirements
+get-started
+build-from-source
+deploy-with-helm
+api-reference
+release-notes
+:::

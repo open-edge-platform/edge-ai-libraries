@@ -5,32 +5,6 @@ The Visual Pipeline and Platform Evaluation Tool simplifies hardware selection f
 
 This guide is designed to you build and use the tool.
 
-
 .. toctree::
-   :maxdepth: 2
-   :caption: Get Started
 
    Overview <Overview>
-   system-requirements
-   get-started
-   release-notes
-
-.. toctree::
-   :maxdepth: 2
-   :caption: How to
-
-   how-to-build-source
-   how-to-use-video-generator
-
-.. toctree::
-   :caption: Source Code
-
-   GitHub <https://github.com/open-edge-platform/edge-ai-libraries/tree/release-1.2.0/tools/visual-pipeline-and-platform-evaluation-tool>
-
-.. toctree::
-   :maxdepth: 2
-   :caption: Community and Support
-
-   disclaimers
-   support
-
