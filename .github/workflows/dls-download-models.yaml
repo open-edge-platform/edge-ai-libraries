@@ -213,14 +213,14 @@ jobs:
         fi
 
     - name: Manage models directories after success
-      if: ${{ steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
+      if: ${{ inputs.models_to_download != 'specified_model' && steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
       run: |
         rm -rf "${{ env.MODELS_PATH }}/public_old_old"
         rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
         echo "New models set up ✅" >> $GITHUB_STEP_SUMMARY
 
     - name: Manage models directories after fail
-      if: ${{ always() && !(steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success') }}
+      if: ${{ always() && inputs.models_to_download != 'specified_model' && !(steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success') }}
       run: |
         # No success - restore old models
         [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
