@@ -6,7 +6,7 @@ from fastapi import APIRouter, HTTPException
 router = APIRouter()
 
 
-@router.get("/ollama-model", tags=["Model API"], summary="Check status of OLLAMA models")
+@router.get("/ollama-models", tags=["Model API"], summary="Check status of OLLAMA models")
 async def get_loaded_ollama_models():
     """
     Retrieves the list of currently loaded Ollama models.
@@ -32,7 +32,7 @@ async def get_loaded_ollama_models():
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@router.get("/ollama-model/{model_id}", tags=["Model API"], summary="Get OLLAMA model metadata")
+@router.get("/ollama-model", tags=["Model API"], summary="Get OLLAMA model metadata")
 async def get_ollama_model_metadata(model_id: str = ""):
     """
     Retrieves metadata for a specified OLLAMA model.

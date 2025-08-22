@@ -43,7 +43,7 @@ def test_get_loaded_ollama_models(test_client, mocker, skip_if_not_ollama):
     """
     Tests the retrieval of loaded Ollama models via the API endpoint.
     This test mocks the `list_active_models` method of the OllamaBackend to return a predefined list of models.
-    It then sends a GET request to the `/ollama-model` endpoint and verifies:
+    It then sends a GET request to the `/ollama-models` endpoint and verifies:
       - The response status code is 200 (OK).
       - The response JSON contains the "model_list" key.
       - The "model_list" value is a list.
@@ -55,7 +55,7 @@ def test_get_loaded_ollama_models(test_client, mocker, skip_if_not_ollama):
     """
 
     mocker.patch('app.ollama_backend.OllamaBackend.list_active_models', return_value=mock_model_list)
-    response = test_client.get("/ollama-model")
+    response = test_client.get("/ollama-models")
     assert response.status_code == 200
     assert "model_list" in response.json()
     assert isinstance(response.json()["model_list"], list)
@@ -79,7 +79,7 @@ def test_get_ollama_model_metadata(test_client, mocker, model_id, skip_if_not_ol
 
     expected_metadata = mock_model_metadata_map[model_id]
     mocker.patch('app.ollama_backend.OllamaBackend.show_model_info', return_value=expected_metadata)
-    response = test_client.get("/ollama-model/{model_id}")
+    response = test_client.get("/ollama-model?model_id={model_id}")
     assert response.status_code == 200
     assert response.json() == expected_metadata
 
@@ -102,7 +102,7 @@ def test_invalid_ollama_model_id(test_client, mocker, skip_if_not_ollama):
 
     mocker.patch('app.ollama_backend.OllamaBackend.show_model_info', side_effect=Exception("Error getting model metadata."))
 
-    response = test_client.get(f"/ollama-model/{invalid_model_id}")
+    response = test_client.get(f"/ollama-model?model_id={invalid_model_id}")
 
     # Check for expected error response
     assert response.status_code == 404

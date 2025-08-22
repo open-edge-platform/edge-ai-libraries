@@ -322,7 +322,7 @@ paths:
               summary: Curl example
               value: |
                 curl -X POST "http://localhost:8888/chat" -H "Content-Type: application/json" -d '{"input": "what is load_chain?"}'
-  /ollama-model:
+  /ollama-models:
     get:
       tags:
         - Model API
@@ -357,8 +357,8 @@ paths:
             curl:
               summary: Curl example
               value: |
-                curl -X GET "http://localhost:8888/ollama-model"
-  /ollama-model/{model_id}:
+                curl -X GET "http://localhost:8888/ollama-models"
+  /ollama-model:
     get:
       tags:
         - Model API
@@ -366,11 +366,11 @@ paths:
       description: Retrieves metadata for a specified OLLAMA model.
       parameters:
         - name: model_id
-          in: path
-          required: true
-          description: The identifier of the OLLAMA model.
+          in: query
+          required: false
           schema:
             type: string
+          description: The identifier of the OLLAMA model.
       responses:
         '200':
           description: Metadata information about the specified OLLAMA model
@@ -380,10 +380,13 @@ paths:
                 type: object
                 additionalProperties: true
               example:
-                name: llama2
-                size: 7B
-                description: Llama 2 model for chat
-                version: "2.0"
+                model_id: llama2
+                name: Llama 2
+                version: 1.0
+                description: Meta's Llama 2 model
+                parameters:
+                  num_layers: 32
+                  hidden_size: 4096
         '404':
           description: Model not found or error retrieving metadata
           content:
@@ -410,7 +413,7 @@ paths:
         curl:
           summary: Curl example
           value: |
-            curl -X GET "http://localhost:8888/ollama-model/llama2"
+            curl -X GET "http://localhost:8888/ollama-model?model_id=llama2"
 components:
   schemas:
     HTTPValidationError:
