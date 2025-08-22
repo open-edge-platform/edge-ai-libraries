@@ -79,8 +79,8 @@ jobs:
 
     - name: Download only specific model
       env:
-        models_path: ${{ inputs.specific_model_path }}
-        models_name: ${{ inputs.specific_model_name }}
+        model_path: ${{ inputs.specific_model_path }}
+        model_name: ${{ inputs.specific_model_name }}
       if: ${{ inputs.models_to_download == 'specific_model' }}
       run: |
         MODEL_PATH=$model_path
