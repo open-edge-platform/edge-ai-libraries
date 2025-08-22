@@ -67,13 +67,20 @@ check-device-type:
 		exit 1; \
 	fi; \
 
-build: check-device-type $(VENV_DIR) ## Build all images
+build: check-device-type $(VENV_DIR) ## Build core images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose build
 
-build-dev: check-device-type $(VENV_DIR) ## Build all dev images
+build-dev: check-device-type $(VENV_DIR) ## Build core dev images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
+
+build-videogenerator: ## Build videogenerator image
+	docker compose build videogenerator
+
+docker-build: ## Build all images
+	$(MAKE) build DEVICE_TYPE=$${DEVICE_TYPE:-CPU}
+	$(MAKE) build-videogenerator
 
 public_models_choice: ## Ask if public models shall be downloaded
 	@if [ -f $(PUBLIC_MODELS_ENV) ]; then \
