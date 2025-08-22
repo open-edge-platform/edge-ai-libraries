@@ -230,16 +230,16 @@ jobs:
       env:
         models_to_download: ${{ inputs.models_to_download }}
       run: |
-        models_to_download=$models_to_download
+        models=$models_to_download
 
-        if [[ "$input" == "public" || "$input" == "all" || "$input" == "schedule" ]]; then
+        if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] && mv "${{ env.MODELS_PATH }}/public_old_old" "${{ env.MODELS_PATH }}/public_old"
           echo "Old public models restored" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [[ "$input" == "omz" || "$input" == "all" || "$input" == "schedule" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel" ] && rm -rf "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old" ] && mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] && mv "${{ env.MODELS_PATH }}/intel_old_old" "${{ env.MODELS_PATH }}/intel_old"
