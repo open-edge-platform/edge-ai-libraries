@@ -48,12 +48,12 @@ def get_vlm_service(request: Request):
     return getattr(request.app.state, "vlm_service", None)
 
 
-@router.get("/health", response_model=HealthResponse)
-async def health_check():
-    """Extended health check endpoint."""
-    return HealthResponse(
-        status="healthy", timestamp=datetime.utcnow(), service="scene-intelligence"
-    )
+# @router.get("/health", response_model=HealthResponse)
+# async def health_check():
+#     """Extended health check endpoint."""
+#     return HealthResponse(
+#         status="healthy", timestamp=datetime.utcnow(), service="scene-intelligence"
+#     )
 
 
 @router.get("/config")
