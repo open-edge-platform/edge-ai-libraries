@@ -148,7 +148,6 @@ jobs:
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Downloading public models"
-        DeleteMe
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Download OMZ models (setup venv, dependencies and download)
