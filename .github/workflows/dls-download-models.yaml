@@ -148,6 +148,7 @@ jobs:
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Downloading public models"
+        DeleteMe
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Download OMZ models (setup venv, dependencies and download)
@@ -176,8 +177,8 @@ jobs:
           echo "Public models directory created"
           echo "Public models directory created" >> $GITHUB_STEP_SUMMARY
           DIR_SIZE_MB=$(du -sm "${{ env.MODELS_PATH }}/public" | cut -f1)
-          echo "Public models directory size: ${DIR_SIZE_MB}MB)"
-          echo "Public models directory size: ${DIR_SIZE_MB}MB)" >> $GITHUB_STEP_SUMMARY
+          echo "Public models directory size: ${DIR_SIZE_MB}MB"
+          echo "Public models directory size: ${DIR_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
           if [ "$DIR_SIZE_MB" -ge "${{ env.MODELS_DIR_MIN_SIZE_MB }}" ]; then
             echo "Public models downloaded ✅"
             echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
@@ -201,8 +202,8 @@ jobs:
           echo "Open Model Zoo models directory created"
           echo "Open Model Zoo models directory created" >> $GITHUB_STEP_SUMMARY
           DIR_SIZE_MB=$(du -sm "${{ env.MODELS_PATH }}/intel" | cut -f1)
-          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB)"
-          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB)" >> $GITHUB_STEP_SUMMARY
+          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB"
+          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
           if [ "$DIR_SIZE_MB" -ge "${{ env.MODELS_DIR_MIN_SIZE_MB }}" ]; then
             echo "Open Model Zoo models downloaded ✅"
             echo "Open Model Zoo models downloaded ✅" >> $GITHUB_STEP_SUMMARY
