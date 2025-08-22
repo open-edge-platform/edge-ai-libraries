@@ -20,7 +20,7 @@ on:
         required: false
         type: string
       specific_model_path:
-        description: 'Where do you want to download your SPECIFIC model? (pulic/omz)'
+        description: 'Where do you want to download your SPECIFIC model? (public/omz)'
         required: false
         type: string
       runner_labels:
