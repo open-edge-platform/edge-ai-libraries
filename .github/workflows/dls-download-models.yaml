@@ -110,18 +110,18 @@ jobs:
       if: ${{ inputs.models_to_download == 'public' || inputs.models_to_download == 'all' || github.event_name == 'schedule' }}
       run: |
         # Prepare directories with backup of existing ones
-        # 1) mv public public_old
-        # 2) mv public_old public_old_old
+        # 1) mv public_old public_old_old
+        # 2) mv public public_old
 
-        if [ -d "${{ env.MODELS_PATH }}/public" ]; then
-          echo "Changing directories names: public -> public_old"
-          [ -d "${{ env.MODELS_PATH }}/public_old" ] && rm -r "${{ env.MODELS_PATH }}/public_old"
-          mv "${{ env.MODELS_PATH }}/public" "${{ env.MODELS_PATH }}/public_old"
-        fi
         if [ -d "${{ env.MODELS_PATH }}/public_old" ]; then
           echo "Changing directories names: public_old -> public_old_old"
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] && rm -r "${{ env.MODELS_PATH }}/public_old_old"
           mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public_old_old"
+        fi
+        if [ -d "${{ env.MODELS_PATH }}/public" ]; then
+          echo "Changing directories names: public -> public_old"
+          [ -d "${{ env.MODELS_PATH }}/public_old" ] && rm -r "${{ env.MODELS_PATH }}/public_old"
+          mv "${{ env.MODELS_PATH }}/public" "${{ env.MODELS_PATH }}/public_old"
         fi
 
     - name: Prepare directory for OMZ models
@@ -131,15 +131,15 @@ jobs:
         # 1) mv intel intel_old
         # 2) mv intel_old intel_old_old
 
-        if [ -d "${{ env.MODELS_PATH }}/intel" ]; then
-          echo "Changing directories names: intel -> intel_old"
-          [ -d "${{ env.MODELS_PATH }}/intel_old" ] && rm -r "${{ env.MODELS_PATH }}/intel_old"
-          mv "${{ env.MODELS_PATH }}/intel" "${{ env.MODELS_PATH }}/intel_old"
-        fi
         if [ -d "${{ env.MODELS_PATH }}/intel_old" ]; then
           echo "Changing directories names: intel_old -> intel_old_old"
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] && rm -r "${{ env.MODELS_PATH }}/intel_old_old"
           mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel_old_old"
+        fi
+        if [ -d "${{ env.MODELS_PATH }}/intel" ]; then
+          echo "Changing directories names: intel -> intel_old"
+          [ -d "${{ env.MODELS_PATH }}/intel_old" ] && rm -r "${{ env.MODELS_PATH }}/intel_old"
+          mv "${{ env.MODELS_PATH }}/intel" "${{ env.MODELS_PATH }}/intel_old"
         fi
 
     - name: Download public models
@@ -216,8 +216,8 @@ jobs:
     - name: Manage models directories after success
       if: ${{ inputs.models_to_download != 'specific_model' && steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
       run: |
-        rm -rf "${{ env.MODELS_PATH }}/public_old_old"
-        rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
+        [ -d "${{ env.MODELS_PATH }}/public_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/public_old_old"
+        [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
         echo "New models set up ✅" >> $GITHUB_STEP_SUMMARY
 
     - name: Manage models directories after fail
@@ -226,10 +226,10 @@ jobs:
         # No success - restore old models
         [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
         [ -d "${{ env.MODELS_PATH }}/intel" ] && rm -rf "${{ env.MODELS_PATH }}/intel"
-        mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
-        mv "${{ env.MODELS_PATH }}/public_old_old" "${{ env.MODELS_PATH }}/public_old"
-        mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel"
-        mv "${{ env.MODELS_PATH }}/intel_old_old" "${{ env.MODELS_PATH }}/intel_old"
+        [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
+        [ -d "${{ env.MODELS_PATH }}/public_old_old" ] && mv "${{ env.MODELS_PATH }}/public_old_old" "${{ env.MODELS_PATH }}/public_old"
+        [ -d "${{ env.MODELS_PATH }}/intel_old" ] && mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel"
+        [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] && mv "${{ env.MODELS_PATH }}/intel_old_old" "${{ env.MODELS_PATH }}/intel_old"
         echo "Old models restored" >> $GITHUB_STEP_SUMMARY
 
     - name: Clean up
