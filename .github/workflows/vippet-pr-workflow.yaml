@@ -47,10 +47,9 @@ jobs:
         run: |
           echo "Pre-merge pipeline result: $pre_merge_pipeline_result"
 
-          # TODO enable after fixing linter issues
-          # if [ "$pre_merge_pipeline_result" == "success" ] || [ "$pre_merge_pipeline_result" == "skipped" ]; then
-          #   echo "Pre-merge check passed successfully."
-          # else
-          #   echo "Pre-merge checks failed. PR can't get merged"
-          #   exit 1
-          # fi
+          if [ "$pre_merge_pipeline_result" == "success" ] || [ "$pre_merge_pipeline_result" == "skipped" ]; then
+            echo "Pre-merge checks passed successfully."
+          else
+            echo "Pre-merge checks failed. PR can't be merged."
+            exit 1
+          fi
