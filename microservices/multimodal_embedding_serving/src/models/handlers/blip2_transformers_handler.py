@@ -3,7 +3,21 @@
 
 """
 BLIP-2 model handler implementation using Transformers library.
-This replaces the LAVIS-based implementation to avoid vocabulary size mismatch issues.
+
+This module provides an alternative BLIP-2 handler that uses the Hugging Face
+Transformers library instead of the LAVIS framework. This implementation helps
+avoid vocabulary size mismatch issues and provides better compatibility with
+standard PyTorch workflows.
+
+The Transformers-based implementation offers:
+- Better integration with Hugging Face ecosystem
+- Simplified model loading and configuration
+- Improved stability and error handling
+- Consistent tokenization and preprocessing
+- Enhanced OpenVINO conversion support
+
+The handler maintains the same interface as other model handlers while providing
+BLIP-2's advanced vision-language capabilities through the Q-Former architecture.
 """
 
 from pathlib import Path
@@ -23,7 +37,24 @@ from ..utils import (
 
 
 class TransformersBlip2Model(torch.nn.Module):
-    """Custom BLIP-2 model wrapper for embedding extraction using Transformers."""
+    """
+    Custom BLIP-2 model wrapper for embedding extraction using Transformers library.
+    
+    This wrapper provides a unified interface for BLIP-2 models loaded through
+    the Hugging Face Transformers library. It handles the Q-Former architecture
+    and ensures consistent embedding dimensions across text and image modalities.
+    
+    The wrapper manages:
+    - Q-Former based feature alignment
+    - Consistent embedding dimensionality
+    - Text and image encoding workflows
+    - Tokenization and preprocessing
+    
+    Args:
+        blip2_model: The loaded BLIP-2 model from Transformers
+        processor: Associated processor for text and image preprocessing
+        embedding_dim: Target embedding dimension (auto-detected if None)
+    """
     
     def __init__(self, blip2_model, processor, embedding_dim=None):
         super().__init__()
@@ -47,7 +78,19 @@ class TransformersBlip2Model(torch.nn.Module):
         logger.info(f"BLIP2 Transformers embedding dimension: {self.embedding_dim}")
 
     def encode_image(self, pixel_values):
-        """Encode image using BLIP2 Q-Former for consistent embeddings."""
+        """
+        Encode image using BLIP2 Q-Former for consistent embeddings.
+        
+        Processes images through the vision model and Q-Former to produce
+        aligned embeddings suitable for multimodal tasks. The Q-Former
+        architecture bridges vision and language representations.
+        
+        Args:
+            pixel_values: Preprocessed image tensor
+            
+        Returns:
+            Image embeddings aligned through Q-Former architecture
+        """
         with torch.no_grad():
             # Get vision features
             vision_outputs = self.blip2_model.vision_model(pixel_values)
@@ -68,7 +111,20 @@ class TransformersBlip2Model(torch.nn.Module):
             return image_features
 
     def encode_text(self, input_ids, attention_mask):
-        """Encode text using BLIP2 language model with projection to Q-Former space."""
+        """
+        Encode text using BLIP2 language model with projection to Q-Former space.
+        
+        Processes text through the language model and projects the features
+        to match the Q-Former embedding space for consistent multimodal
+        representation alignment.
+        
+        Args:
+            input_ids: Tokenized input text tensor
+            attention_mask: Attention mask for the input
+            
+        Returns:
+            Text embeddings projected to Q-Former space
+        """
         with torch.no_grad():
             # Use the language model to get text embeddings
             language_outputs = self.blip2_model.language_model(
@@ -100,7 +156,19 @@ class TransformersBlip2Model(torch.nn.Module):
             return text_features
 
     def tokenizer(self, text_descriptions):
-        """Tokenize text using the language model's tokenizer."""
+        """
+        Tokenize text using the language model's tokenizer.
+        
+        Provides a consistent tokenization interface that handles both
+        single strings and lists of text descriptions. Uses the underlying
+        language model's tokenizer with appropriate padding and truncation.
+        
+        Args:
+            text_descriptions: Single text string or list of text strings
+            
+        Returns:
+            Dictionary containing input_ids and attention_mask tensors
+        """
         if isinstance(text_descriptions, str):
             text_descriptions = [text_descriptions]
         
@@ -120,8 +188,27 @@ class TransformersBlip2Model(torch.nn.Module):
 
 class BLIP2TransformersHandler(BaseEmbeddingModel):
     """
-    Handler for BLIP-2 models using Transformers library.
-    This replaces the LAVIS-based implementation to avoid vocabulary size issues.
+    Handler for BLIP-2 models using the Hugging Face Transformers library.
+    
+    This handler provides an alternative implementation to the LAVIS-based
+    BLIP-2 handler, offering better integration with the Transformers ecosystem
+    and improved stability. It maintains the same interface while leveraging
+    Transformers' robust model loading and processing capabilities.
+    
+    Key features:
+    - Transformers-based model loading and processing
+    - Automatic model variant selection
+    - Improved tokenization and preprocessing
+    - Enhanced OpenVINO conversion support
+    - Better error handling and stability
+    
+    Attributes:
+        model_name: BLIP-2 model variant identifier
+        pretrained: Pretrained checkpoint specification
+        image_size: Input image dimensions
+        use_openvino: Whether to use OpenVINO optimization
+        device: Target device for inference
+        transformers_model_map: Mapping to Hugging Face model names
     """
     
     def __init__(self, model_config: Dict[str, Any]):
@@ -146,7 +233,16 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         self.ov_text_encoder = None
         
     def _get_transformers_model_name(self):
-        """Get the appropriate Transformers model name."""
+        """
+        Get the appropriate Transformers model name for the current configuration.
+        
+        Maps the internal model configuration to the corresponding Hugging Face
+        model identifier. This allows for flexible model selection while
+        maintaining a consistent interface.
+        
+        Returns:
+            str: Hugging Face model identifier for the current configuration
+        """
         if self.model_name in self.transformers_model_map:
             model_variants = self.transformers_model_map[self.model_name]
             if self.pretrained in model_variants:
@@ -156,7 +252,22 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         return "Salesforce/blip2-opt-2.7b"
         
     def load_model(self) -> None:
-        """Load BLIP-2 model using Transformers library."""
+        """
+        Load BLIP-2 model using the Transformers library.
+        
+        Initializes the BLIP-2 model and processor from Hugging Face Transformers,
+        providing an alternative to LAVIS-based loading. Handles both standard
+        PyTorch loading and OpenVINO optimization modes.
+        
+        The loading process includes:
+        - Model variant selection and mapping
+        - Processor and tokenizer initialization
+        - Custom wrapper creation for consistent interface
+        - OpenVINO model compilation (if enabled)
+        
+        Raises:
+            Exception: If model loading fails for any reason
+        """
         try:
             logger.info(f"Loading BLIP-2 model: {self.model_name} with pretrained: {self.pretrained}")
             

@@ -1,6 +1,25 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+Common utilities and configuration management for multimodal embedding serving.
+
+This module provides centralized configuration management, logging setup, and
+common error message definitions. It uses Pydantic for robust configuration
+validation and supports both environment variables and .env file configuration.
+
+Key components:
+- Settings class for application configuration
+- Environment variable handling with defaults
+- Proxy configuration management  
+- Model parameter validation
+- Centralized error message definitions
+- Logging configuration
+
+The module ensures consistent configuration across the application and provides
+fallback mechanisms for different deployment scenarios.
+"""
+
 import logging
 import os
 from pathlib import Path
@@ -28,16 +47,32 @@ else:
 
 class Settings(BaseSettings):
     """
-    Configuration settings for the application.
+    Application configuration settings with environment variable support.
+
+    This class defines all configuration parameters for the multimodal embedding
+    serving application. It uses Pydantic for validation and supports loading
+    from environment variables or .env files.
+
+    The settings include model configuration, device selection, proxy settings,
+    and video processing parameters. All settings have sensible defaults and
+    can be overridden via environment variables.
 
     Attributes:
-        APP_NAME (str): Name of the application.
-        APP_DISPLAY_NAME (str): Display name of the application.
-        APP_DESC (str): Description of the application.
-        EMBEDDING_MODEL_NAME (str): Name of the pre-trained model.
-        http_proxy (str): HTTP proxy setting.
-        https_proxy (str): HTTPS proxy setting.
-        no_proxy_env (str): No proxy setting.
+        APP_NAME: Internal application name identifier
+        APP_DISPLAY_NAME: Human-readable application name
+        APP_DESC: Application description for API documentation
+        EMBEDDING_MODEL_NAME: Default model to load for embedding generation
+        EMBEDDING_DEVICE: Target device for model inference (CPU/GPU)  
+        EMBEDDING_MODEL_PATH: Path for model storage
+        EMBEDDING_USE_OV: Whether to use OpenVINO optimization
+        EMBEDDING_OV_MODELS_DIR: Directory for OpenVINO model storage
+        MODEL_NAME: Legacy model name parameter (for backward compatibility)
+        http_proxy: HTTP proxy server URL
+        https_proxy: HTTPS proxy server URL
+        no_proxy_env: Domains to bypass proxy
+        DEFAULT_START_OFFSET_SEC: Default video start offset
+        DEFAULT_CLIP_DURATION: Default video clip duration  
+        DEFAULT_NUM_FRAMES: Default number of frames to extract
     """
 
     APP_NAME: str = "Multimodal-Embedding-Serving"
@@ -73,6 +108,21 @@ class Settings(BaseSettings):
     @field_validator("http_proxy", "https_proxy", mode="before")
     @classmethod
     def validate_proxy_url(cls, v):
+        """
+        Validate proxy URL format.
+        
+        Ensures that proxy URLs start with http:// or https:// if they are provided.
+        Empty strings or None values are allowed.
+        
+        Args:
+            v: The proxy URL value to validate
+            
+        Returns:
+            The validated proxy URL
+            
+        Raises:
+            ValueError: If the proxy URL format is invalid
+        """
         if v and v != "" and not v.startswith(("http://", "https://")):
             raise ValueError(f"Invalid proxy URL: {v}")
         return v
@@ -91,7 +141,15 @@ except Exception as e:
 
 class ErrorMessages:
     """
-    Error messages used throughout the application.
+    Centralized error message definitions for the application.
+    
+    This class provides a single location for all error messages used throughout
+    the multimodal embedding serving application. Using constants for error
+    messages ensures consistency and makes maintenance easier.
+    
+    The messages are organized by functional area and provide descriptive
+    error descriptions for different failure scenarios including text processing,
+    image handling, video processing, and file operations.
     """
 
     GET_TEXT_FEATURES_ERROR = "Error in get_text_features"

@@ -5,16 +5,31 @@
 """
 Cross-Project SDK Examples for Multimodal Embedding Serving
 
-This file demonstrates how to use the multimodal embedding serving
-microservice as an SDK from another project, simulating real-world usage
-where you want to integrate embedding capabilities into your own application.
+This module demonstrates how to use the multimodal embedding serving microservice
+as an SDK from external projects, simulating real-world integration scenarios
+where embedding capabilities are incorporated into larger applications.
 
-This example assumes you're importing from a different project directory.
+Key demonstration areas:
+- SDK-style imports and initialization patterns
+- Model handler creation and configuration
+- Text and image embedding generation workflows  
+- Error handling and best practices
+- Performance optimization techniques
+- Cross-project integration patterns
+
+The examples show practical usage patterns for developers who want to integrate
+multimodal embedding capabilities into their own applications without running
+a separate server process. This approach is ideal for batch processing,
+data preprocessing pipelines, and embedded applications.
 
 NOTE: IDE may show import errors for multimodal_embedding_serving imports.
 This is expected since the imports are resolved dynamically at runtime
 after adding the service path to sys.path. The code will work correctly
 when executed.
+
+Usage:
+    Run this script directly to see SDK integration examples, or reference
+    the patterns for your own cross-project integrations.
 """
 
 import os
@@ -23,10 +38,19 @@ from pathlib import Path
 
 def setup_cross_project_imports():
     """
-    Setup imports for cross-project usage.
+    Setup imports for cross-project SDK usage.
     
-    This simulates importing from another project where the multimodal-embedding-serving
-    is located in a sibling directory or different location.
+    This function demonstrates how to properly configure the Python path
+    for importing the multimodal embedding serving microservice from external
+    projects. It simulates the scenario where the embedding service is located
+    in a different directory structure from the consuming application.
+    
+    Returns:
+        str: Path to the multimodal embedding serving directory
+        
+    Note:
+        In production deployments, you would typically install the package
+        or use proper Python packaging instead of path manipulation.
     """
     print("=" * 70)
     print("Cross-Project Import Setup")

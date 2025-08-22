@@ -3,6 +3,20 @@
 
 """
 SigLIP model handler implementation.
+
+This module provides a handler for SigLIP (Sigmoid Loss for Language-Image Pre-training)
+models, which use a sigmoid-based loss function instead of the traditional softmax
+approach used in CLIP. This change allows for better scalability and often improved
+performance on large-scale datasets.
+
+SigLIP models offer several advantages:
+- More efficient training with sigmoid loss
+- Better performance on image-text retrieval tasks
+- Improved scalability for large batch sizes
+- Enhanced robustness in multimodal understanding
+
+The handler supports various SigLIP architectures and includes OpenVINO optimization
+for efficient inference deployment.
 """
 
 from pathlib import Path
@@ -25,8 +39,23 @@ from ..utils import (
 
 class SigLIPHandler(BaseEmbeddingModel):
     """
-    Handler for SigLIP models using open_clip library.
-    Follows the initialization pattern from the MobileCLIP notebook.
+    Handler for SigLIP models using the open_clip library.
+    
+    This class implements the BaseEmbeddingModel interface for SigLIP models,
+    providing sigmoid-based contrastive learning for text and image encoding.
+    SigLIP's sigmoid approach offers improved training efficiency and often
+    better performance compared to traditional softmax-based approaches.
+    
+    The handler follows the established initialization patterns and supports
+    both PyTorch and OpenVINO inference modes for optimal performance across
+    different deployment scenarios.
+    
+    Attributes:
+        model_name: SigLIP model architecture name
+        pretrained: Pretrained checkpoint identifier
+        use_openvino: Whether to use OpenVINO optimization
+        device: Target device for inference
+        ov_models_dir: Directory for OpenVINO model storage
     """
     
     def __init__(self, model_config: Dict[str, Any]):
@@ -51,7 +80,7 @@ class SigLIPHandler(BaseEmbeddingModel):
                 # Load OpenVINO models
                 self._load_openvino_models()
             else:
-                # Follow the notebook pattern for SigLIP models
+                # Use optimized initialization for SigLIP models
                 self.model, _, self.preprocess = open_clip.create_model_and_transforms(
                     self.model_name, 
                     pretrained=self.pretrained
@@ -124,7 +153,7 @@ class SigLIPHandler(BaseEmbeddingModel):
         return image_features
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
-        """Convert SigLIP model to OpenVINO format following the notebook pattern."""
+        """Convert SigLIP model to OpenVINO format for inference optimization."""
         ov_models_path = Path(ov_models_dir)
         ov_models_path.mkdir(exist_ok=True)
         
@@ -145,7 +174,7 @@ class SigLIPHandler(BaseEmbeddingModel):
         sample_image = torch.randn(1, 3, self.image_size, self.image_size)
         sample_text = tokenizer(["sample text"])
         
-        # Convert image encoder following the notebook pattern
+        # Convert image encoder for OpenVINO optimization
         if not image_encoder_path.exists():
             logger.info(f"Converting SigLIP image encoder to OpenVINO: {image_encoder_path}")
             
@@ -166,7 +195,7 @@ class SigLIPHandler(BaseEmbeddingModel):
             # Restore original forward method
             model.forward = original_forward
         
-        # Convert text encoder following the notebook pattern
+        # Convert text encoder for OpenVINO optimization
         if not text_encoder_path.exists():
             logger.info(f"Converting SigLIP text encoder to OpenVINO: {text_encoder_path}")
             

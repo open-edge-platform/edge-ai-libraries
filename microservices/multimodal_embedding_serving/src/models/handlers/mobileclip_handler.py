@@ -3,6 +3,20 @@
 
 """
 MobileCLIP model handler implementation.
+
+This module provides a handler for MobileCLIP models, which are mobile-optimized
+versions of CLIP designed for efficient inference on resource-constrained devices.
+MobileCLIP models offer a good balance between performance and computational efficiency.
+
+The handler supports various MobileCLIP architectures including:
+- mobileclip_s0: Small model variant optimized for mobile devices
+- mobileclip_s1: Balanced model with improved accuracy  
+- mobileclip_s2: Enhanced model with better performance
+- mobileclip_b: Base model with standard capabilities
+- mobileclip_blt: Base model with lightweight transformer
+
+The implementation includes support for OpenVINO optimization and follows
+the initialization patterns established in the MobileCLIP examples.
 """
 
 from pathlib import Path
@@ -24,7 +38,23 @@ from ..utils import (
 
 
 def se_block_forward(self, inputs):
-    """Apply forward pass for SE block - required for MobileCLIP conversion."""
+    """
+    Apply forward pass for SE (Squeeze-and-Excitation) block.
+    
+    This function is required for MobileCLIP OpenVINO conversion and implements
+    the Squeeze-and-Excitation mechanism that adaptively recalibrates channel-wise
+    feature responses by explicitly modeling interdependencies between channels.
+    
+    Args:
+        inputs: Input tensor with shape [batch_size, channels, height, width]
+        
+    Returns:
+        Recalibrated feature tensor with same shape as input
+        
+    Note:
+        This function patches the SE block forward method for proper OpenVINO
+        conversion compatibility with MobileCLIP models.
+    """
     b, c, h, w = inputs.size()
     x = F.avg_pool2d(inputs, kernel_size=[8, 8])
     x = self.reduce(x)
@@ -37,8 +67,23 @@ def se_block_forward(self, inputs):
 
 class MobileCLIPHandler(BaseEmbeddingModel):
     """
-    Handler for MobileCLIP models using mobileclip library.
-    Follows the initialization pattern from the MobileCLIP notebook.
+    Handler for MobileCLIP models using the mobileclip library.
+    
+    This class implements the BaseEmbeddingModel interface for MobileCLIP models,
+    providing optimized text and image encoding for mobile and edge devices.
+    The handler follows standard initialization patterns for MobileCLIP models.
+    
+    MobileCLIP models are designed for efficiency while maintaining good accuracy,
+    making them suitable for deployment scenarios with limited computational resources.
+    
+    Attributes:
+        model_name: MobileCLIP model variant name (e.g., "mobileclip_s0")
+        pretrained: Path to pretrained checkpoint file
+        url: URL for downloading model checkpoints if needed
+        image_size: Input image size for the model (typically 256)
+        use_openvino: Whether to use OpenVINO optimization
+        device: Target device for inference
+        ov_models_dir: Directory for OpenVINO model storage
     """
     
     def __init__(self, model_config: Dict[str, Any]):
@@ -159,7 +204,7 @@ class MobileCLIPHandler(BaseEmbeddingModel):
         return image_features
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
-        """Convert MobileCLIP model to OpenVINO format following the notebook pattern."""
+        """Convert MobileCLIP model to OpenVINO format for inference optimization."""
         ov_models_path = Path(ov_models_dir)
         ov_models_path.mkdir(exist_ok=True)
         

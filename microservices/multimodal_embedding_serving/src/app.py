@@ -1,6 +1,27 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
+"""
+FastAPI application for multimodal embedding serving.
+
+This module provides a REST API for generating embeddings from various input types:
+- Text queries and documents
+- Images from URLs or base64 encoded data  
+- Videos from URLs, base64, or file paths with frame extraction
+
+The application supports multiple embedding models including CLIP, MobileCLIP, 
+SigLIP, and BLIP2, with optional OpenVINO optimization for improved performance.
+
+Key endpoints:
+- /health: Health check endpoint
+- /models: List available models
+- /model/current: Get current model information
+- /embeddings: Generate embeddings from input data
+
+The application follows a factory pattern for model instantiation and provides
+comprehensive error handling and logging.
+"""
+
 from typing import List, Union
 
 from fastapi import FastAPI, HTTPException
@@ -27,6 +48,15 @@ health_status = False
 
 @app.on_event("startup")
 async def startup_event():
+    """
+    Application startup event handler.
+    
+    Initializes the embedding model based on configuration settings.
+    Validates model support, loads the model handler, and performs health checks.
+    
+    Raises:
+        RuntimeError: If model is not supported or fails to initialize
+    """
     global embedding_model, health_status
     logger.info(f"Starting application with model: {settings.EMBEDDING_MODEL_NAME}")
     
@@ -57,44 +87,104 @@ async def startup_event():
 
 
 class TextInput(BaseModel):
+    """
+    Input model for text data.
+    
+    Attributes:
+        type: Input type identifier (should be "text")
+        text: Single text string or list of text strings to embed
+    """
     type: str
     text: Union[str, List[str]]
 
 
 class ImageUrlInput(BaseModel):
+    """
+    Input model for image URLs.
+    
+    Attributes:
+        type: Input type identifier (should be "image_url")
+        image_url: URL of the image to download and embed
+    """
     type: str
     image_url: str
 
 
 class ImageBase64Input(BaseModel):
+    """
+    Input model for base64 encoded images.
+    
+    Attributes:
+        type: Input type identifier (should be "image_base64")
+        image_base64: Base64 encoded image string
+    """
     type: str
     image_base64: str
 
 
 class VideoFramesInput(BaseModel):
+    """
+    Input model for video represented as individual frames.
+    
+    Attributes:
+        type: Input type identifier (should be "video_frames")
+        video_frames: List of image frames as URLs or base64 data
+    """
     type: str
     video_frames: List[Union[ImageUrlInput, ImageBase64Input]]
 
 
 class VideoUrlInput(BaseModel):
+    """
+    Input model for video URLs with segmentation configuration.
+    
+    Attributes:
+        type: Input type identifier (should be "video_url")
+        video_url: URL of the video to download and process
+        segment_config: Configuration for video frame extraction
+    """
     type: str
     video_url: str
     segment_config: dict
 
 
 class VideoBase64Input(BaseModel):
+    """
+    Input model for base64 encoded videos.
+    
+    Attributes:
+        type: Input type identifier (should be "video_base64")
+        video_base64: Base64 encoded video string
+        segment_config: Configuration for video frame extraction
+    """
     type: str
     video_base64: str
     segment_config: dict
 
 
 class VideoFileInput(BaseModel):
+    """
+    Input model for local video files.
+    
+    Attributes:
+        type: Input type identifier (should be "video_file")
+        video_path: Path to the local video file
+        segment_config: Configuration for video frame extraction
+    """
     type: str
     video_path: str
     segment_config: dict
 
 
 class EmbeddingRequest(BaseModel):
+    """
+    Main request model for embedding generation.
+    
+    Attributes:
+        model: Name of the model to use for embedding generation
+        input: Input data (text, image, or video in various formats)
+        encoding_format: Format for the returned embeddings
+    """
     model: str
     input: Union[
         TextInput,

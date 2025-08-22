@@ -5,8 +5,22 @@
 """
 Server Examples for Multimodal Embedding Serving
 
-This file demonstrates how to start and use the FastAPI server
-for multimodal embedding generation.
+This module demonstrates how to start and interact with the FastAPI server
+for multimodal embedding generation. It provides complete examples for:
+
+- Starting the FastAPI server with proper configuration
+- Making API calls for different input types (text, images, videos)
+- Handling responses and error conditions
+- Testing various model configurations
+
+The examples cover practical usage scenarios including text embedding generation,
+image processing from URLs and base64 data, and video frame extraction workflows.
+These examples serve as a comprehensive guide for integrating the embedding
+service into larger applications and systems.
+
+Usage:
+    Run this script directly to see server interaction examples, or import
+    specific functions for use in your own applications.
 """
 
 import os
@@ -18,7 +32,18 @@ from pathlib import Path
 
 
 def start_server_example():
-    """Example: Start the FastAPI server"""
+    """
+    Example: Start the FastAPI server with configuration.
+    
+    Demonstrates how to properly configure and start the multimodal embedding
+    server with environment variables. Shows the complete startup process
+    including model loading and health checks.
+    
+    Note:
+        This is a blocking operation that starts the server process.
+        Use in testing or development scenarios where manual server
+        control is needed.
+    """
     print("=" * 50)
     print("Starting FastAPI Server Example")
     print("=" * 50)

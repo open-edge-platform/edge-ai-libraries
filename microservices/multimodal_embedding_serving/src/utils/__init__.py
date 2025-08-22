@@ -4,8 +4,19 @@
 """
 Utilities for multimodal embedding serving.
 
-This module contains utility functions and common configurations for the
-multimodal embedding serving application.
+This module provides essential utility functions and configurations for the
+multimodal embedding serving application. It includes common functionality
+for data processing, file handling, configuration management, and error handling.
+
+Key components:
+- Settings management and environment configuration  
+- Image and video processing utilities
+- File download and format conversion functions
+- Logging and error message definitions
+- Base64 encoding/decoding utilities
+
+The utilities support various input formats including URLs, base64 encoded data,
+and local files, enabling flexible data input for embedding generation.
 """
 
 from .common import Settings, ErrorMessages, logger, settings

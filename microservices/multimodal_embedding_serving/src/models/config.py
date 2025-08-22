@@ -3,8 +3,10 @@
 
 """
 Model configuration registry.
-Defines all supported models and their configurations.
-Based on the MobileCLIP notebook model configurations.
+
+This module defines all supported models and their configurations for the
+multimodal embedding serving system. It provides centralized configuration
+management for various model architectures and their parameters.
 """
 
 import os
@@ -12,18 +14,42 @@ from pathlib import Path
 
 
 def default_image_probs(image_features, text_features):
-    """Default similarity calculation for CLIP-style models."""
+    """
+    Default similarity calculation for CLIP-style models.
+    
+    Computes similarity scores between image and text features using cosine similarity
+    scaled by a temperature factor of 100.
+    
+    Args:
+        image_features: Image feature embeddings tensor
+        text_features: Text feature embeddings tensor
+        
+    Returns:
+        Softmax normalized similarity probabilities
+    """
     image_probs = (100.0 * text_features @ image_features.T).softmax(dim=-1)
     return image_probs
 
 
 def blip2_image_probs(image_features, text_features):
-    """BLIP2-specific similarity calculation."""
+    """
+    BLIP2-specific similarity calculation.
+    
+    Computes similarity using the first token features for both image and text,
+    which is the standard approach for BLIP2 models.
+    
+    Args:
+        image_features: Image feature embeddings tensor with shape [batch, seq_len, hidden_dim]  
+        text_features: Text feature embeddings tensor with shape [batch, seq_len, hidden_dim]
+        
+    Returns:
+        Similarity scores between image and text features
+    """
     image_probs = image_features[:, 0, :] @ text_features[:, 0, :].t()
     return image_probs
 
 
-# Model configurations based on the MobileCLIP notebook
+# Model configurations for supported architectures
 MODEL_CONFIGS = {
     "MobileCLIP": {
         "mobileclip_s0": {

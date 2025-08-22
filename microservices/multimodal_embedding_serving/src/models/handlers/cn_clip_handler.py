@@ -3,6 +3,21 @@
 
 """
 CN-CLIP model handler implementation.
+
+This module provides a handler for CN-CLIP (Chinese CLIP) models, which are
+specifically designed and trained for Chinese language and multimodal tasks.
+CN-CLIP extends the CLIP architecture to better handle Chinese text and
+Chinese-English cross-modal understanding.
+
+Key features of CN-CLIP:
+- Optimized for Chinese language understanding
+- Cross-lingual capabilities (Chinese-English)
+- Enhanced performance on Chinese multimodal datasets
+- Support for traditional Chinese text processing
+- Cultural context awareness in visual understanding
+
+The handler supports various CN-CLIP model sizes and includes OpenVINO
+optimization for efficient deployment in Chinese language applications.
 """
 
 from pathlib import Path
@@ -25,7 +40,16 @@ from ..utils import (
 
 
 class TextEncoder(torch.nn.Module):
-    """Custom text encoder wrapper for OpenVINO conversion."""
+    """
+    Custom text encoder wrapper for OpenVINO conversion.
+    
+    This wrapper class encapsulates the CN-CLIP text encoder to provide
+    a clean interface for OpenVINO model conversion. It handles the specific
+    requirements of the CN-CLIP text encoding pipeline for conversion.
+    
+    Args:
+        model: The CN-CLIP model containing the text encoder
+    """
     def __init__(self, model):
         super().__init__()
         self.model = model
