@@ -14,13 +14,13 @@ on:
           - all
           - public
           - omz
-          - specified_model
-      model_name:
-        description: 'What model do you want to download?'
+          - specific_model
+      specific_model_name:
+        description: 'What SPECIFIC model do you want to download?'
         required: false
         type: string
-      model_path:
-        description: 'Where do you want to download your specific model? (pulic/omz)'
+      specific_model_path:
+        description: 'Where do you want to download your SPECIFIC model? (pulic/omz)'
         required: false
         type: string
       runner_labels:
@@ -79,8 +79,8 @@ jobs:
 
     - name: Download only specific model
       env:
-        models_path: ${{ inputs.model_path }}
-        models_name: ${{ inputs.model_name }}
+        models_path: ${{ inputs.specific_model_path }}
+        models_name: ${{ inputs.specific_model_name }}
       if: ${{ inputs.models_to_download == 'specified_model' }}
       run: |
         MODEL_PATH=$model_path
@@ -88,6 +88,7 @@ jobs:
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "MODEL_PATH=$MODEL_PATH"
         echo "MODEL_NAME=$MODEL_NAME"
+        echo "Downloading specific model ${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME"  >> $GITHUB_STEP_SUMMARY
         if [ -d "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME" ]; then
           echo "Removing $MODEL_NAME directory"
           rm -rf "${{ env.MODELS_PATH }}/$MODEL_PATH/$MODEL_NAME"
@@ -147,7 +148,6 @@ jobs:
       run: |
         export MODELS_PATH=${{ env.MODELS_PATH }}
         echo "Downloading public models"
-        DeleteMe
         ./edge-ai-libraries-repo/libraries/dl-streamer/samples/download_public_models.sh all coco128
 
     - name: Download OMZ models (setup venv, dependencies and download)
@@ -218,14 +218,6 @@ jobs:
         rm -rf "${{ env.MODELS_PATH }}/public_old_old"
         rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
         echo "New models set up ✅" >> $GITHUB_STEP_SUMMARY
-
-    - name: Print outcoms
-      if: always()
-      run: |
-        echo "steps.download-public.outcome: ${{ steps.download-public.outcome }}"
-        echo "steps.download-omz.outcome: ${{ steps.download-omz.outcome }}"
-        echo "Ssteps.verify-public.outcome: ${{ steps.verify-public.outcome }}"
-        echo "Ssteps.verify-omz.outcome: ${{ steps.verify-omz.outcome }}"
 
     - name: Manage models directories after fail
       if: ${{ always() && !(steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success') }}
