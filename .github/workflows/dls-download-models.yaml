@@ -213,7 +213,7 @@ jobs:
         fi
 
     - name: Manage models directories after success
-      if: ${{ steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' }}
+      if: ${{ steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
       run: |
         rm -rf "${{ env.MODELS_PATH }}/public_old_old"
         rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
@@ -228,7 +228,7 @@ jobs:
         echo "Ssteps.verify-omz.outcome: ${{ steps.verify-omz.outcome }}"
 
     - name: Manage models directories after fail
-      if: ${{ steps.verify-omz.outcome != 'success' || steps.verify-public.outcome != 'success' || steps.download-public.outcome != 'success' || steps.download-omz.outcome != 'success' }}
+      if: ${{ always() && !(steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success') }}
       run: |
         # No success - restore old models
         [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
