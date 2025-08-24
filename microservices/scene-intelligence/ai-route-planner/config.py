@@ -2,7 +2,7 @@ import os
 from enum import Enum
 from pathlib import Path
 
-# Constants for the Route Planner Application
+# Configs and Constants for the Route Planner Application
 
 # Default locations and coordinates
 DEFAULT_LOCATIONS = [
@@ -15,9 +15,6 @@ DEFAULT_LOCATION_COORDINATES = {
     "Berkeley, California": [37.8715, -122.2730],
     "Santa Clara, California": [37.3541, -121.9552],
 }
-
-# GPX file mappings
-GPX_FILES: dict = {"direct": "berkeley-oakland-i880.gpx"}
 
 # Directory where GPX files reside
 GPX_DIR: Path = Path(__file__).parent / "data" / "routes"
@@ -33,15 +30,11 @@ SCENE_INTELLIGENCE_ENDPOINTS = {
     "update_threshold": "/api/v1/config/vlm/threshold"
 }
 
-# Threshold for traffic density to trigger rerouting
-TRAFFIC_DENSITY_THRESHOLD = 5
-
 class CongestionLevel(Enum):
     LOW = "Low"
     MODERATE = "Moderate"
     HIGH = "High"
     SEVERE = "Severe"
-
 
 class WeatherStatus(Enum):
     SUNNY = "Sunny"
@@ -52,7 +45,6 @@ class WeatherStatus(Enum):
     STORMY = "Stormy"
     SNOWY = "Snowy"
 
-
 # Weather conditions that trigger alternate route search
 ADVERSE_WEATHER_CONDITIONS = [
     WeatherStatus.FOG,
@@ -60,7 +52,6 @@ ADVERSE_WEATHER_CONDITIONS = [
     WeatherStatus.STORMY,
     WeatherStatus.SNOWY,
 ]
-
 
 class StaticOptimizerName(Enum):
     """
@@ -122,12 +113,3 @@ APP_DETAILS = """# Welcome to Agentic AI Route Planning
 """
 
 INITIAL_MAP_HTML = "<div style='text-align: center; padding: 50px; font-size: 18px; color: #666;'>Select locations and click 'Find Route' to see the route map</div>"
-
-# Progress tracking constants
-PROGRESS_STEPS = {
-    "weather": 0.2,
-    "traffic": 0.4,
-    "fire": 0.6,
-    "evaluation": 0.8,
-    "completion": 1.0,
-}
