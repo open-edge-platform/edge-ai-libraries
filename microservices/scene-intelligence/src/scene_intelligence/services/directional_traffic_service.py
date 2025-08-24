@@ -51,10 +51,10 @@ class DirectionalTrafficService:
     
     # Intersection coordinates (lat, lng) - coordinates in San Francisco Bay Area
     INTERSECTION_COORDINATES = {
-        'cb1cf1a0-b936-4d47-9221-3fd5cf24857d': {'latitude': 37.59381, 'longitude': -122.30188, 'name': 'Main St & 1st Ave'},
-        '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c': {'latitude': 37.65000, 'longitude': -122.32000, 'name': 'Main St & 2nd Ave'},
-        '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d': {'latitude': 37.75000, 'longitude': -122.34000, 'name': '2nd St & 1st Ave'},
-        '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e': {'latitude': 37.86719, 'longitude': -122.36722, 'name': '2nd St & 2nd Ave'}
+        'cb1cf1a0-b936-4d47-9221-3fd5cf24857d': {'latitude': 37.86719, 'longitude': -122.30188, 'name': 'Main St & 1st Ave'},
+        '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c': {'latitude': 37.59381, 'longitude': -122.36722, 'name': 'Main St & 2nd Ave'},
+        '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d': {'latitude': 37.73789, 'longitude': -122.40806, 'name': '2nd St & 1st Ave'},
+        '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e': {'latitude': 37.49076, 'longitude': -122.21788, 'name': '2nd St & 2nd Ave'}
     }
     
     def __init__(self, config_service):
@@ -226,8 +226,8 @@ class DirectionalTrafficService:
                 intersection_name = coord_info['name']
         else:
             # Fallback coordinates (default San Francisco Bay Area location)
-            latitude = 37.65000
-            longitude = -122.32000
+            latitude = 37.73789
+            longitude = -122.40806
             if not intersection_name:
                 # Generate name dynamically based on scene position
                 scene_index = list(sorted(self.region_mapping.keys())).index(scene_id) + 1
@@ -311,8 +311,8 @@ class DirectionalTrafficService:
             scene_info = {
                 'scene_id': scene_id,
                 'intersection_name': coord_info.get('name', f"Intersection-{i}"),
-                'latitude': coord_info.get('latitude', 37.65000),
-                'longitude': coord_info.get('longitude', -122.32000),
+                'latitude': coord_info.get('latitude', 37.73789),
+                'longitude': coord_info.get('longitude', -122.40806),
                 'region_count': len(self.region_mapping[scene_id]),
                 'regions': list(self.region_mapping[scene_id].keys())
             }
