@@ -325,8 +325,8 @@ start_ai_route_planner() {
     (
         cd "${AI_ROUTE_PLANNER_DIR}"
         echo -e "${YELLOW}Starting AI Route Planner with uv run main.py...${NC}"
-        nohup uv run main.py > ../ai-route-planner.log 2>&1 &
-        echo $! > ../ai-route-planner.pid
+        nohup uv run main.py >| ../ai-route-planner.log 2>&1 &
+        echo $! >| ../ai-route-planner.pid
         echo -e "${GREEN}AI Route Planner started in background (PID: $!)${NC}"
         echo -e "${YELLOW}Logs available at: ai-route-planner.log${NC}"
     )
