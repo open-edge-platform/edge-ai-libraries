@@ -189,7 +189,7 @@ class RouteService:
 
     def create_direct_route_map(
         self, start_location: str, end_location: str
-    ) -> tuple[str, str]:
+    ) -> tuple[str, float, str]:
         """Create initial map showing only the main route before AI analysis"""
         map_data_parser: MapDataParser = self._load_direct_shortest_route(
             start_location, end_location
@@ -201,11 +201,12 @@ class RouteService:
         # Get the next data source to be used for route optimization and current route map
         next_data_source = self._get_next_data_source()
         direct_route_map = self.create_route_map(start_location, end_location)
-        return next_data_source, direct_route_map
+        distance = self.route_state["optimal_route"]["distance"] if self.route_state else 0.0
+        return next_data_source, distance, direct_route_map
 
     def create_alternate_route_map(
         self, start_location: str, end_location: str
-    ) -> tuple[str, str, str, Optional[dict[str, str]]]:
+    ) -> tuple[str, str, float, str, Optional[dict[str, str]]]:
         """Create map showing alternative route"""
 
         self._load_alternate_route(start_location, end_location)
@@ -225,8 +226,9 @@ class RouteService:
 
         # Create alternate route map for the alternate route
         alternate_map = self.create_route_map(start_location, end_location, incident_location)
+        distance = self.route_state["optimal_route"]["distance"] if self.route_state else 0.0
 
-        return next_data_source, alternate_planning_reason, alternate_map, intersection_images
+        return next_data_source, alternate_planning_reason, distance, alternate_map, intersection_images
 
     def create_route_map(self, start_location: str, end_location: str, incident_location: Optional[GeoCoordinates] = None) -> str:
         """Create a complete route map with all routes and markers"""

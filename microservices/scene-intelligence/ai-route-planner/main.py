@@ -41,13 +41,14 @@ def get_direct_route(source: str, destination: str) -> tuple[str, str, str]:
         )
 
     # Start planning the route
-    next_data_source, main_route_map = route_service.create_direct_route_map(
+    next_data_source, distance, main_route_map = route_service.create_direct_route_map(
         source, destination
     )
 
     thinking_message = (
         f"## Route Planning Started\n\n #### Route: {source} -> {destination}\n\n ### Direct route "
-        + f"loaded by analysing shortest route between {source} and {destination}. \n\n"
+        + f"loaded by analysing shortest route between {source} and {destination}."
+        + f" \n\n ##### Total Distance : {distance:.2f} Kms \n\n"
     )
 
     # Set message to show Real-time Agent actions
@@ -71,18 +72,18 @@ def get_optimal_route(source: str, destination: str) -> tuple[str, str, str, Opt
         )
 
     # Start planning the route
-    next_data_source, route_issue, optimized_route_map, intersection_images = (
+    next_data_source, route_issue, distance, optimized_route_map, intersection_images = (
         route_service.create_alternate_route_map(source, destination)
     )
     if route_issue:
         thinking_message = (
             f"\n #### Route: {source} -> {destination}\n\n ### Route Updated due to "
-            + f"{route_issue} \n\n"
+            + f"{route_issue} \n\n ##### Total Distance for Updated Route : {distance:.2f} Kms\n\n"
         )
     else:
         thinking_message = (
             f" #### Route: {source} -> {destination}\n\n ### No traffic or weather issues found on "
-            + "current route. \n\n"
+            + f"current route. \n\n ##### Total Distance : {distance:.2f} Kms \n\n"
         )
 
     # Set message to show Real-time Agent actions
@@ -395,8 +396,8 @@ def create_gradio_interface() -> gr.Blocks:
     
     /* Styling for the thinking output markdown component */
     .thinking-output {
-        background-color: #ffffff;
         border-radius: 10px;
+        border: solid 1px #EBE6E6;
         padding: 16px;
         box-shadow: 0 2px 8px rgba(0,0,0,0.08);
         overflow-y: auto;
@@ -417,6 +418,14 @@ def create_gradio_interface() -> gr.Blocks:
         color: #1073be;
     }
 
+    .thinking-output h4 {
+        color: #950d85
+    }
+    
+    .thinking-output h5, .thinking-output h6 {
+        color: #b942ab;
+    }
+
     .thinking-output code {
         background-color: #f3f4f6;
         padding: 2px 5px;
@@ -434,11 +443,11 @@ def create_gradio_interface() -> gr.Blocks:
     }
     
     .thinking-output em, .thinking-output i {
-        color: #4b5563;
+        color: #8d3419;
     }
     
     .thinking-output strong, .thinking-output b {
-        color: #111827;
+        color: #262E9E;
     }
     
     .status-indicator {

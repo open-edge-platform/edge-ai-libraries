@@ -1,3 +1,4 @@
+import os
 from enum import Enum
 from pathlib import Path
 
@@ -25,7 +26,8 @@ GPX_DIR: Path = Path(__file__).parent / "data" / "routes"
 ROUTE_STATUS_DIR: Path = Path(__file__).parent / "data" / "csv"
 
 # Real-time traffic API endpoint
-SCENE_INTELLIGENCE_API_BASE = "http://localhost:8082"
+# Get the API BASE from env var or a default value is picked
+SCENE_INTELLIGENCE_API_BASE = os.getenv("SI_API_BASE", "http://localhost:8082")
 SCENE_INTELLIGENCE_ENDPOINTS = {
     "traffic_summary": "/api/v1/traffic/directional/summary",
     "update_threshold": "/api/v1/config/vlm/threshold"
