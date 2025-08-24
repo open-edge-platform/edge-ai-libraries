@@ -86,10 +86,10 @@ def generate_comprehensive_database():
     
     # Global intersection data
     intersections = [
-        {"id": "intersection-1", "name": "Main St & 1st Ave", "lat": 40.7506, "lon": -73.9944},
-        {"id": "intersection-2", "name": "Main St & 2nd Ave", "lat": 40.7506, "lon": -73.9934},  
-        {"id": "intersection-3", "name": "2nd St & 1st Ave", "lat": 40.7516, "lon": -73.9944},
-        {"id": "intersection-4", "name": "2nd St & 2nd Ave", "lat": 40.7516, "lon": -73.9934}
+        {"id": "intersection-1", "name": "Main St & 1st Ave", "lat": 37.59381, "lon": -122.30188},
+        {"id": "intersection-2", "name": "Main St & 2nd Ave", "lat": 37.65000, "lon": -122.32000},  
+        {"id": "intersection-3", "name": "2nd St & 1st Ave", "lat": 37.75000, "lon": -122.34000},
+        {"id": "intersection-4", "name": "2nd St & 2nd Ave", "lat": 37.86719, "lon": -122.36722}
     ]
     
     # Generate scenes
