@@ -1,0 +1,25 @@
+[project]
+name = "ai-route-planner"
+version = "0.1.0"
+description = "Route Planner - Agentic AI based Commuter Support System"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    "black==23.7.0",
+    "branca==0.6.0",
+    "folium==0.14.0",
+    "gpxpy",
+    "gradio>=5.43.1",
+    "isort",
+    "langgraph>=0.6.6",
+    "mypy",
+    "numpy",
+    "pandas",
+    "pillow>=10.4.0",
+    "pydantic",
+    "pytest",
+    "python-dateutil",
+    "requests",
+    "rich",
+    "typing-extensions",
+]

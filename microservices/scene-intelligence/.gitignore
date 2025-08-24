@@ -40,3 +40,6 @@ htmlcov
 **/secrets/*.auth
 **/secrets/supass
 **/dlstreamer-pipeline-server/videos/**.ts
+
+
+ai-route-planner.pid

@@ -1,0 +1,14 @@
+location,event_name,date,start_time,end_time,expected_attendance,impact_radius_miles,traffic_impact,latitude,longitude
+Berkeley,Summer Festival,2025-08-15,08:00,10:00,1500,0.5,Moderate,37.8715,-122.2730
+Oakland,Road Construction,2025-08-15,07:30,16:00,0,1.0,High,37.7983,-122.2502
+San Bruno,Annual Street Fair,2025-08-15,09:00,17:00,2500,0.8,High,37.6305,-122.4111
+San Bruno,Bridge Maintenance,2025-08-15,08:00,12:00,0,1.2,Severe,37.5897,-122.3862
+San Bruno,Regional Championship,2025-08-15,07:00,18:00,15000,2.0,Severe,37.5384,-122.3067
+East Palo Alto,Farmers Market,2025-08-15,06:00,11:00,800,0.3,Low,37.4671,-122.1425
+San Bruno,Music Festival,2025-08-15,08:30,16:30,25000,3.0,Severe,37.3824,-121.9651
+San Bruno,Tech Conference,2025-08-15,07:00,19:00,8000,1.5,High,37.3782,-121.9625
+San Bruno,Cultural Parade,2025-08-15,09:00,14:00,5000,1.0,High,37.3654,-121.9584
+East Palo Alto,Highway Construction,2025-08-15,06:00,18:00,0,0.8,Moderate,37.5499,-122.0550
+I-880,School Tournament,2025-08-15,07:30,16:30,2000,0.6,Moderate,37.4921,-121.9480
+I-880,Road Maintenance,2025-08-15,08:00,14:00,0,1.5,Severe,37.6149,-122.0727
+I-880,Water Main Repair,2025-08-15,07:00,11:00,0,1.0,High,37.6251,-122.0799

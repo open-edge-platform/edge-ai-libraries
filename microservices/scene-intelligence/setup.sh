@@ -24,11 +24,11 @@ if [ "$#" -eq 0 ] || ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     echo -e "  --secrets:    Generate secrets only"
     echo -e "  --videos:     Download demo videos only"
     echo -e "  --build:      Download videos and build Docker images"
-    echo -e "  --run:        Start the service"
-    echo -e "  --stop:       Stop the service"
-    echo -e "  --clean:      Clean up containers and volumes"
-    echo -e "  --status:     Show service status"
-    echo -e "  --setup:      Full setup: secrets + videos + build + run (default)"
+    echo -e "  --run:        Start the service and AI Route Planner"
+    echo -e "  --stop:       Stop the service and AI Route Planner"
+    echo -e "  --clean:      Clean up containers, volumes, and AI Route Planner logs"
+    echo -e "  --status:     Show service status including AI Route Planner"
+    echo -e "  --setup:      Full setup: secrets + videos + build + run (includes AI Route Planner)"
     echo -e "  --help:       Show this help message${NC}"
     echo -e "-----------------------------------------------------------------"
     return 0
@@ -45,8 +45,13 @@ elif [ "$1" != "--help" ] && [ "$1" != "--setenv" ] && [ "$1" != "--secrets" ] &
     return 1
 
 elif [ "$1" = "--stop" ]; then
-    # If --stop is passed, bring down the Docker containers
+    # If --stop is passed, bring down the Docker containers and stop AI Route Planner
     echo -e "${YELLOW}Stopping Scene Intelligence service... ${NC}"
+    
+    # Stop AI Route Planner first
+    stop_ai_route_planner
+    
+    # Stop Docker services
     docker compose -f docker/compose.yaml down
     if [ $? -ne 0 ]; then
         return 1
@@ -57,6 +62,13 @@ elif [ "$1" = "--stop" ]; then
 elif [ "$1" = "--clean" ]; then
     # If --clean is passed, clean up containers and volumes
     echo -e "${YELLOW}Cleaning up containers and volumes... ${NC}"
+    
+    # Stop AI Route Planner first
+    stop_ai_route_planner
+    
+    # Clean up log files
+    rm -f ai-route-planner.log
+    
     docker compose -f docker/compose.yaml down --rmi all --volumes --remove-orphans
     if [ $? -ne 0 ]; then
         return 1
@@ -68,6 +80,20 @@ elif [ "$1" = "--status" ]; then
     # Show service status
     echo -e "${BLUE}Scene Intelligence Service Status:${NC}"
     docker compose -f docker/compose.yaml ps
+    
+    echo ""
+    echo -e "${BLUE}AI Route Planner Status:${NC}"
+    if [ -f "ai-route-planner.pid" ]; then
+        PID=$(cat ai-route-planner.pid)
+        if ps -p $PID > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ AI Route Planner is running (PID: $PID)${NC}"
+            echo -e "  URL: ${YELLOW}http://localhost:${AI_ROUTE_PLANNER_PORT}${NC}"
+        else
+            echo -e "${RED}✗ AI Route Planner is not running (stale PID file)${NC}"
+        fi
+    else
+        echo -e "${RED}✗ AI Route Planner is not running${NC}"
+    fi
     return 0
 fi
 
@@ -142,6 +168,10 @@ export VLM_TEMPERATURE=${VLM_TEMPERATURE:-0.3}
 export VLM_TOP_P=${VLM_TOP_P:-0.9}
 export VLM_CONFIG_FILE=${VLM_CONFIG_FILE:-config/vlm_config.json}
 
+# AI Route Planner Configuration
+export AI_ROUTE_PLANNER_PORT=${AI_ROUTE_PLANNER_PORT:-7864}
+export AI_ROUTE_PLANNER_DIR=${AI_ROUTE_PLANNER_DIR:-ai-route-planner}
+
 # VLM Prompts (optional environment variable overrides)
 # export VLM_SYSTEM_PROMPT="Custom system prompt..."
 # export VLM_TRAFFIC_ANALYSIS_PROMPT="Custom traffic analysis prompt with {intersection_id}, {directions_text}, {density_info}, {high_density_threshold} placeholders..."
@@ -172,6 +202,7 @@ echo -e "  MQTT_PORT: ${YELLOW}$MQTT_PORT${NC}"
 echo -e "  SCENESCAPE_PORT: ${YELLOW}$SCENESCAPE_PORT${NC}"
 echo -e "  SCENE_INTELLIGENCE_PORT: ${YELLOW}$SCENE_INTELLIGENCE_PORT${NC}"
 echo -e "  VLM_SERVICE_PORT: ${YELLOW}$VLM_SERVICE_PORT${NC}"
+echo -e "  AI_ROUTE_PLANNER_PORT: ${YELLOW}$AI_ROUTE_PLANNER_PORT${NC}"
 echo -e "  VLM_MODEL_NAME: ${YELLOW}$VLM_MODEL_NAME${NC}"
 echo -e "  VLM_WORKERS: ${YELLOW}$VLM_WORKERS${NC}"
 echo -e "  VLM_DEVICE: ${YELLOW}$VLM_DEVICE${NC}"
@@ -254,6 +285,66 @@ build_images() {
     fi
 }
 
+# Function to stop AI Route Planner
+stop_ai_route_planner() {
+    echo -e "${YELLOW}Stopping AI Route Planner...${NC}"
+    
+    if [ -f "ai-route-planner.pid" ]; then
+        PID=$(cat ai-route-planner.pid)
+        if ps -p $PID > /dev/null 2>&1; then
+            kill $PID
+            echo -e "${GREEN}AI Route Planner stopped (PID: $PID)${NC}"
+            rm -f ai-route-planner.pid
+        else
+            echo -e "${YELLOW}AI Route Planner was not running${NC}"
+            rm -f ai-route-planner.pid
+        fi
+    else
+        echo -e "${YELLOW}AI Route Planner PID file not found${NC}"
+    fi
+}
+
+# Function to start AI Route Planner
+start_ai_route_planner() {
+    echo -e "${BLUE}==> Starting AI Route Planner...${NC}"
+    
+    # Check if the AI Route Planner directory exists
+    if [ ! -d "${AI_ROUTE_PLANNER_DIR}" ]; then
+        echo -e "${YELLOW}AI Route Planner directory '${AI_ROUTE_PLANNER_DIR}' not found, skipping...${NC}"
+        return 0
+    fi
+    
+    # Check if uv is installed
+    if ! command -v uv &> /dev/null; then
+        echo -e "${YELLOW}uv is not installed. AI Route Planner requires uv to run.${NC}"
+        echo -e "${YELLOW}Please install uv first: https://docs.astral.sh/uv/getting-started/installation/${NC}"
+        return 0
+    fi
+    
+    # Change to AI Route Planner directory and start the application in background
+    (
+        cd "${AI_ROUTE_PLANNER_DIR}"
+        echo -e "${YELLOW}Starting AI Route Planner with uv run main.py...${NC}"
+        nohup uv run main.py > ../ai-route-planner.log 2>&1 &
+        echo $! > ../ai-route-planner.pid
+        echo -e "${GREEN}AI Route Planner started in background (PID: $!)${NC}"
+        echo -e "${YELLOW}Logs available at: ai-route-planner.log${NC}"
+    )
+    
+    # Give it a moment to start
+    sleep 2
+    
+    # Check if it's running
+    if [ -f "ai-route-planner.pid" ]; then
+        PID=$(cat ai-route-planner.pid)
+        if ps -p $PID > /dev/null 2>&1; then
+            echo -e "${GREEN}✓ AI Route Planner is running (PID: $PID)${NC}"
+        else
+            echo -e "${YELLOW}AI Route Planner may have failed to start. Check ai-route-planner.log for details.${NC}"
+        fi
+    fi
+}
+
 # Function to start the service
 start_service() {
     echo -e "${BLUE}==> Starting Scene Intelligence service...${NC}"
@@ -272,9 +363,14 @@ start_service() {
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}Scene Intelligence service started successfully!${NC}"
+        
+        # Start AI Route Planner
+        start_ai_route_planner
+        
         echo ""
         echo -e "${BLUE}Services:${NC}"
         echo -e "  • Scene Intelligence API: ${YELLOW}http://localhost:${SCENE_INTELLIGENCE_PORT}${NC}"
+        echo -e "  • AI Route Planner: ${YELLOW}http://localhost:${AI_ROUTE_PLANNER_PORT}${NC}"
         echo -e "  • SceneScape Web: ${YELLOW}https://localhost:${SCENESCAPE_PORT}${NC}"
         echo -e "  • MQTT Broker: ${YELLOW}localhost:${MQTT_PORT}${NC}"
         echo -e "  • DL Streamer: ${YELLOW}http://localhost:${DLSTREAMER_PORT}${NC}"
