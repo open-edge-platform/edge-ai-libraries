@@ -3,23 +3,28 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+
+"""
+Time Series Analytics Microservice's main module
+
+This module exposes FastAPI server providing capabilities for data ingestion,
+configuration management, and OPC UA alerts.
+"""
 import os
 import logging
 import time
 import json
-import requests
-from fastapi import FastAPI, HTTPException, Response, status, Request, Query
-from pydantic import BaseModel
-from starlette.responses import JSONResponse
-from typing import Optional
-import uvicorn
 import subprocess
 import threading
+from typing import Optional
+import requests
+
+from fastapi import FastAPI, HTTPException, Response, status, Request, Query, BackgroundTasks
+from pydantic import BaseModel
+from starlette.responses import JSONResponse
+import uvicorn
 import classifier_startup
-from fastapi import BackgroundTasks
 from opcua_alerts import OpcuaAlerts
-
-
 
 log_level = os.getenv('KAPACITOR_LOGGING_LEVEL', 'INFO').upper()
 logging_level = getattr(logging, log_level, logging.INFO)
@@ -31,73 +36,103 @@ logging.basicConfig(
 )
 
 logger = logging.getLogger()
+
 app = FastAPI()
 
-KAPACITOR_URL = os.getenv('KAPACITOR_URL','http://localhost:9092')
+KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
 
 config = {}
-opcua_send_alert = None
+OPCUA_SEND_ALERT = None
 config_updated_event = threading.Event()
+
+
 class DataPoint(BaseModel):
+    """Data point model for input data."""
     topic: str
     tags: Optional[dict] = None
     fields: dict
     timestamp: Optional[int] = None
 
+
 class Config(BaseModel):
-    model_registry : dict = {"enable": False, "version": "1.0"}
+    """Configuration model for the service."""
+    model_registry: dict = {"enable": False, "version": "1.0"}
     udfs: dict = {"name": "udf_name"}
     alerts: Optional[dict] = {}
 
-class Opcua_Alerts_Message(BaseModel):
-   class Config:
-       extra = 'allow'
+
+class OpcuaAlertsMessage(BaseModel):
+    """Model for OPC UA alert messages."""
+
+    class Config:
+        """Pydantic configuration."""
+        extra = 'allow'
 
 def json_to_line_protocol(data_point: DataPoint):
-
+    """
+    Convert a DataPoint object to InfluxDB line protocol format.
+    
+    Args:
+        data_point: DataPoint object containing topic, tags, fields, and timestamp
+        
+    Returns:
+        str: Formatted line protocol string
+    """
     tags = data_point.tags or {}
     tags_part = ''
     if tags:
         tags_part = ','.join([f"{key}={value}" for key, value in tags.items()])
 
     fields_part = ','.join([f"{key}={value}" for key, value in data_point.fields.items()])
-    
+
     # Use current time in nanoseconds if timestamp is None
-    ts = data_point.timestamp or int(time.time() * 1e9)
+    timestamp = data_point.timestamp or int(time.time() * 1e9)
 
     if tags_part:
-        line_protocol = f"{data_point.topic},{tags_part} {fields_part} {ts}"
+        line_protocol = f"{data_point.topic},{tags_part} {fields_part} {timestamp}"
     else:
-        line_protocol = f"{data_point.topic} {fields_part} {ts}"
-    logger.debug(f"Converted line protocol: {line_protocol}")
+        line_protocol = f"{data_point.topic} {fields_part} {timestamp}"
+    logger.debug("Converted line protocol: %s", line_protocol)
     return line_protocol
 
-def start_kapacitor_service(config):
-  
-    classifier_startup.classifier_startup(config)
+
+def start_kapacitor_service(service_config):
+    """
+    Start the Kapacitor service with the given configuration.
+    
+    Args:
+        service_config: Configuration dictionary for the service
+    """
+    classifier_startup.classifier_startup(service_config)
+
 
 def stop_kapacitor_service():
+    """Stop the Kapacitor service and all running tasks."""
     response = Response()
     result = health_check(response)
     if result["status"] != "kapacitor daemon is running":
         logger.info("Kapacitor daemon is not running.")
         return
     try:
-        response = requests.get(f"{KAPACITOR_URL}/kapacitor/v1/tasks")
+        response = requests.get(f"{KAPACITOR_URL}/kapacitor/v1/tasks", timeout=30)
         tasks = response.json().get('tasks', [])
         if len(tasks) > 0:
-            id = tasks[0].get('id')
-            logger.info(f"Stopping Kapacitor tasks: {id}")
-            subprocess.run(["kapacitor", "disable", id], check=False)
+            task_id = tasks[0].get('id')
+            print("Stopping Kapacitor tasks:", task_id)
+            logger.info("Stopping Kapacitor tasks: %s", task_id)
+            subprocess.run(["kapacitor", "disable", task_id], check=False)
             subprocess.run(["pkill", "-9", "kapacitord"], check=False)
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Error stopping Kapacitor service: {e}")
+    except subprocess.CalledProcessError as error:
+        logger.error("Error stopping Kapacitor service: %s", error)
+
 
 def restart_kapacitor():
+    """Restart the Kapacitor service."""
     stop_kapacitor_service()
     start_kapacitor_service(config)
+
 
 @app.get("/health")
 def health_check(response: Response):
@@ -105,12 +140,12 @@ def health_check(response: Response):
     url = f"{KAPACITOR_URL}/kapacitor/v1/ping"
     try:
         # Make an HTTP GET request to the service
-        r = requests.get(url, timeout=1)
-        if r.status_code == 200 or r.status_code == 204:
+        request_response = requests.get(url, timeout=1)
+        if request_response.status_code in (200, 204):
             return {"status": "kapacitor daemon is running"}
-        else:
-            r.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
-            return {"status": "kapacitor daemon is not running properly"}
+
+        response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
+        return {"status": "kapacitor daemon is not running properly"}
     except requests.exceptions.ConnectionError:
         response.status_code = status.HTTP_503_SERVICE_UNAVAILABLE
         return {"status": "Port not accessible and kapacitor daemon not running"}
@@ -119,12 +154,14 @@ def health_check(response: Response):
         return {"status": "An error occurred while checking the service"}
 
 @app.post("/opcua_alerts")
-async def receive_alert(alert: Opcua_Alerts_Message):
+async def receive_alert(alert: OpcuaAlertsMessage):
     """
     Receive and process OPC UA alerts.
 
-    This endpoint accepts alert messages in JSON format and forwards them to the configured OPC UA client.
-    If the OPC UA client is not initialized, it will attempt to initialize it using the current configuration.
+    This endpoint accepts alert messages in JSON format and forwards them to the 
+    configured OPC UA client.
+    If the OPC UA client is not initialized, it will attempt to initialize it 
+    using the current configuration.
 
     Request Body Example:
         {
@@ -152,43 +189,47 @@ async def receive_alert(alert: Opcua_Alerts_Message):
                         }
 
     Raises:
-        HTTPException: If OPC UA alerts are not configured or if there is an error during processing.
+        HTTPException: If OPC UA alerts are not configured or if there is an error during 
+        processing.
     """
-    global opcua_send_alert
+    global OPCUA_SEND_ALERT
     try:
         if "alerts" in config.keys() and "opcua" in config["alerts"].keys():
             try:
-                if opcua_send_alert is None or \
-                    opcua_send_alert.opcua_server != config["alerts"]["opcua"]["opcua_server"] or \
-                    not(await opcua_send_alert.is_connected()):
+                if OPCUA_SEND_ALERT is None or \
+                    OPCUA_SEND_ALERT.opcua_server != config["alerts"]["opcua"]["opcua_server"] or \
+                    not (await OPCUA_SEND_ALERT.is_connected()):
                     logger.info("Initializing OPC UA client for sending alerts")
-                    opcua_send_alert = OpcuaAlerts(config)
-                    await opcua_send_alert.initialize_opcua()
-            except Exception as e:
-                logger.exception("Failed to initialize OPC UA client")  # This logs the full traceback
-                raise HTTPException(status_code=500, detail=f"Failed to initialize OPC UA client: {e}")
+                    OPCUA_SEND_ALERT = OpcuaAlerts(config)
+                    await OPCUA_SEND_ALERT.initialize_opcua()
+            except Exception as error:
+                logger.exception("Failed to initialize OPC UA client")
+                raise HTTPException(status_code=500,
+                                  detail=f"Failed to initialize OPC UA client: {error}") from error
 
-            if opcua_send_alert.node_id != config["alerts"]["opcua"]["node_id"] or \
-                opcua_send_alert.namespace != config["alerts"]["opcua"]["namespace"]:
-                opcua_send_alert.node_id = config["alerts"]["opcua"]["node_id"]
-                opcua_send_alert.namespace = config["alerts"]["opcua"]["namespace"]
-            
+            if OPCUA_SEND_ALERT.node_id != config["alerts"]["opcua"]["node_id"] or \
+                OPCUA_SEND_ALERT.namespace != config["alerts"]["opcua"]["namespace"]:
+                OPCUA_SEND_ALERT.node_id = config["alerts"]["opcua"]["node_id"]
+                OPCUA_SEND_ALERT.namespace = config["alerts"]["opcua"]["namespace"]
+
             alert_message = json.dumps(alert.model_dump())
             try:
-                await opcua_send_alert.send_alert_to_opcua(alert_message)
+                await OPCUA_SEND_ALERT.send_alert_to_opcua(alert_message)
             except Exception as e:
-                logger.exception(f"Failed to send alert to OPC UA node:{e}")
+                logger.exception("Failed to send alert to OPC UA node: %s", e)
                 raise HTTPException(status_code=500, detail=f"Failed to send alert: {e}")
         else:
-            raise HTTPException(status_code=500, detail="OPC UA alerts are not configured in the service")
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+            raise HTTPException(status_code=500,
+                              detail="OPC UA alerts are not configured in the service")
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
     return {"status_code": 200, "status": "success", "message": "Alert received"}
 
 @app.post("/input")
 async def receive_data(data_point: DataPoint):
     """
-    Receives a data point in JSON format, converts it to InfluxDB line protocol, and sends it to the Kapacitor service.
+    Receives a data point in JSON format, converts it to InfluxDB line protocol, 
+    and sends it to the Kapacitor service.
 
     The input JSON must include:
         - topic (str): The topic name.
@@ -209,7 +250,8 @@ async def receive_data(data_point: DataPoint):
     Returns:
         dict: A status message indicating success or failure.
     Raises:
-        HTTPException: If the Kapacitor service returns an error or if any exception occurs during processing.
+        HTTPException: If the Kapacitor service returns an error or if any exception 
+        occurs during processing.
 
     responses:
         '200':
@@ -244,7 +286,7 @@ async def receive_data(data_point: DataPoint):
     try:
         # Convert JSON to line protocol
         line_protocol = json_to_line_protocol(data_point)
-        logging.debug(f"Received data point: {line_protocol}")
+        logging.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
         if result["status"] != "kapacitor daemon is running":
@@ -252,24 +294,31 @@ async def receive_data(data_point: DataPoint):
             raise HTTPException(status_code=500, detail="Kapacitor daemon is not running")
         url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
         # Send data to Kapacitor
-        response = requests.post(url, data=line_protocol, headers={"Content-Type": "text/plain"})
+        kapacitor_response = requests.post(url, data=line_protocol,
+                                         headers={"Content-Type": "text/plain"}, timeout=30)
 
-        if response.status_code == 204:
-            return {"status": "success", "message": "Data sent to Time Series Analytics microservice"}
-        else:
-            raise HTTPException(status_code=response.status_code, detail=response.text)
-    except Exception as e:
-        raise HTTPException(status_code=500, detail=str(e))
+        if kapacitor_response.status_code == 204:
+            return {"status": "success",
+                   "message": "Data sent to Time Series Analytics microservice"}
+
+        raise HTTPException(status_code=kapacitor_response.status_code,
+                          detail=kapacitor_response.text)
+    except Exception as error:
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 @app.get("/config")
 async def get_config(
     request: Request,
-    restart: Optional[bool] = Query(False, description="Restart the Time Series Analytics Microservice UDF deployment if true"),
+    restart: Optional[bool] = Query(False,
+                                   description="Restart the Time Series Analytics "
+                                             "Microservice UDF deployment if true"),
     background_tasks: BackgroundTasks = None):
     """
     Endpoint to retrieve the current configuration of the input service.
-    Accepts an optional 'restart' query parameter and returns the current configuration in JSON format.
-    If 'restart=true' is provided, the Time Series Analytics Microservice UDF deployment service will be restarted before returning the configuration.
+    Accepts an optional 'restart' query parameter and returns the current configuration 
+    in JSON format.
+    If 'restart=true' is provided, the Time Series Analytics Microservice UDF deployment 
+    service will be restarted before returning the configuration.
 
     ---
     parameters:
@@ -306,7 +355,7 @@ async def get_config(
     """
     try:
         if restart:
-            
+
             if background_tasks is not None:
                 background_tasks.add_task(restart_kapacitor)
         params = dict(request.query_params)
@@ -316,9 +365,9 @@ async def get_config(
             return config
         filtered_config = {k: config.get(k) for k in params if k in config}
         return filtered_config
-    except Exception as e:
-        logger.error(f"Error retrieving configuration: {e}")
-        raise HTTPException(status_code=500, detail=str(e))
+    except Exception as error:
+        logger.error("Error retrieving configuration: %s", error)
+        raise HTTPException(status_code=500, detail=str(error)) from error
 
 @app.post("/config")
 async def config_file_change(config_data: Config, background_tasks: BackgroundTasks):
@@ -388,9 +437,10 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
 
         model_registry = config_data.model_registry
         mandatory_model_registry_keys = ["version", "enable"]
-        missing_model_registry_keys = [key for key in mandatory_model_registry_keys if key not in model_registry]
+        missing_model_registry_keys = [key for key in mandatory_model_registry_keys
+                                     if key not in model_registry]
         if missing_model_registry_keys:
-            logger.error(f"Missing keys in model_registry: {missing_model_registry_keys}")
+            logger.error("Missing keys in model_registry: %s", missing_model_registry_keys)
             raise HTTPException(
             status_code=422,
             detail=f"Missing keys in model_registry: {', '.join(missing_model_registry_keys)}"
@@ -411,27 +461,30 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
         config["udfs"] = config_data.udfs
         if config_data.alerts:
             config["alerts"] = config_data.alerts
-        logger.debug(f"Received configuration data: {config}")
-    except json.JSONDecodeError as e:
-        logger.error(f"Invalid JSON format in configuration data: {e}")
-        raise HTTPException(status_code=422, detail="Invalid JSON format in configuration data")
-    except KeyError as e:
-        logger.error(f"Missing required key in configuration data: {e}")
-        raise HTTPException(status_code=422, detail=f"Missing required key: {e}")
+        logger.debug("Received configuration data: %s", config)
+    except json.JSONDecodeError as error:
+        logger.error("Invalid JSON format in configuration data: %s", error)
+        raise HTTPException(status_code=422,
+                          detail="Invalid JSON format in configuration data") from error
+    except KeyError as error:
+        logger.error("Missing required key in configuration data: %s", error)
+        raise HTTPException(status_code=422,
+                  detail=f"Missing required key: {error}") from error
 
     background_tasks.add_task(restart_kapacitor)
     return {"status": "success", "message": "Configuration updated successfully"}
 
 
-if __name__ == "__main__": # pragma: no cover
+if __name__ == "__main__":  # pragma: no cover
     # Start the FastAPI server
     def run_server():
+        """Run the FastAPI server."""
         uvicorn.run(app, host="0.0.0.0", port=5000)
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
     try:
-        with open (CONFIG_FILE, 'r') as file:
+        with open(CONFIG_FILE, 'r', encoding='utf-8') as file:
             config = json.load(file)
         logger.info("App configuration loaded successfully from config.json file")
         start_kapacitor_service(config)
@@ -439,5 +492,5 @@ if __name__ == "__main__": # pragma: no cover
             time.sleep(1)
     except FileNotFoundError:
         logger.warning("config.json file not found, waiting for the configuration")
-    except Exception as e:
-        logger.error(f"Time Series Analytics Microservice failure - {e}")
+    except Exception as error:
+        logger.error("Time Series Analytics Microservice failure - %s", error)
