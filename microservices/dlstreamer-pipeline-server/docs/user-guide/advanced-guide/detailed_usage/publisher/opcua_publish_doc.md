@@ -70,20 +70,11 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
         - `publish_frame` set this flag to '*true*' if you need frame blobs inside the metadata to be published. If it is set to '*false*' only metadata will be published.
     - The configuration above will allow DL Streamer Pipeline Server to load a pipeline that would run an object detection using dlstreamer element `gvadetect` and publish the meta-data along with the frame if `publish_frame` is set to `true` to OPC UA server variable.
 
-4. Allow DL Streamer Pipeline Server to read the above modified configuration. 
-    - We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).
-    
-        ```yaml
-        services:
-          dlstreamer-pipeline-server:
-            volumes:
-              - "../configs/default/config.json:/home/pipeline-server/config.json"
-        ```
-5. Start DL Streamer Pipeline Server.
+4. Start DL Streamer Pipeline Server.
     ```sh
     docker compose up -d
     ```
-6. Launch pipeline by sending the following curl request.
+5. Launch pipeline by sending the following curl request.
     ``` sh
     curl http://localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
             "source": {
@@ -125,7 +116,7 @@ To publish the meta-data and frame over OPCUA, follow the steps below.
     }'
     ```
 
-7. Run the following sample subscriber on the same/different machine by updating the `<IP-Address of OPCUA Server>` and `<OPCUA-server-variable>` to read the meta-data written to OPC UA server variable from DL Streamer Pipeline Server. Please update the below script with `ip`, `username` and `password` as mentioned in the step 1.
+6. Run the following sample subscriber on the same/different machine by updating the `<IP-Address of OPCUA Server>` and `<OPCUA-server-variable>` to read the meta-data written to OPC UA server variable from DL Streamer Pipeline Server. Please update the below script with `ip`, `username` and `password` as mentioned in the step 1.
 
     ```python
     import asyncio

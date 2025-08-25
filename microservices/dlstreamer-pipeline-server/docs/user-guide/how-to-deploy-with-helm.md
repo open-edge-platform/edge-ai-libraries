@@ -10,7 +10,7 @@
   Refer to tutorials such as <https://adamtheautomator.com/install-kubernetes-ubuntu> and many other
   online tutorials to setup kubernetes cluster on the web with host OS as ubuntu 22.04.
 - For helm installation, refer to [helm website](https://helm.sh/docs/intro/install/)
-- Clone the Edge-AI-Libraries repository from open edge platform and change to the docker directory inside DL Streamer Pipeline Server project.
+- Clone the Edge-AI-Libraries repository from open edge platform and change to the helm directory inside DL Streamer Pipeline Server project.
 
   ```sh
     cd [WORKDIR]
@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://ghcr.io/open-edge-platform/edge-ai-libraries/dlstreamer-pipeline-server --version 20250805-EAL1.2`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 3.1.0-helm`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-20250805-EAL1.2.tgz`
+    `tar -xvf dlstreamer-pipeline-server-3.1.0-helm.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`

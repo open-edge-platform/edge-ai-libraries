@@ -15,7 +15,7 @@ This page provides detailed hardware, software, and platform requirements to hel
 ## Minimum Requirements
 | **Component**      | **Minimum Requirement**   | **Recommended**         |
 |---------------------|---------------------------|--------------------------|
-| **Processor**       | 11th Generation Intel® Core™ processor and above with Intel® HD Graphics /  Intel® Xeon® processor    | Intel® Core™ Ultra Processors (Series 2) also known as Arrow Lake |
+| **Processor**       | 11th Generation Intel® Core™ processor and above with Intel® HD Graphics  | Intel® Core™ Ultra Processors (Series 2) also known as Arrow Lake |
 | **Memory**          | 16 GB                     | 16 GB                   |
 | **Disk Space**      | 64 GB                | 128 GB               |
 

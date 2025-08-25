@@ -11,10 +11,10 @@ FROM kapacitor:$KAPACITOR_VERSION
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
-        python3 python3-pip git ca-certificates && \
+        python3 python3-pip git ca-certificates intel-gpu-tools && \
     python3 -m pip install --no-cache-dir --upgrade pip && \
     apt-get purge -y --auto-remove && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
 
 WORKDIR /app
 
@@ -25,6 +25,28 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSIO
     git sparse-checkout set udf/agent/py && \
     mv /tmp/kapacitor/udf/agent/py /app/kapacitor_python && \
     rm -rf /tmp/kapacitor
+
+# Install Intel GPU tools and clean up
+RUN apt-get update && apt-get install -y --no-install-recommends intel-gpu-tools
+
+RUN export no_proxy= && \
+    apt-get update && \
+    . /etc/os-release && \
+    if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
+        echo "Ubuntu version ${VERSION_CODENAME} not supported"; \
+    else \
+        wget --no-check-certificate -qO- https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/gpu-intel-graphics.gpg && \
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gpu-intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
+        tee /etc/apt/sources.list.d/intel-gpu-"${VERSION_CODENAME}".list && \
+        apt-get update; \
+    fi && \
+    apt-get install -y --no-install-recommends \
+    intel-opencl-icd=\* ocl-icd-opencl-dev=\* intel-level-zero-gpu=\* level-zero=\* \
+    libmfx1=\* libmfxgen1=\* libvpl2=\* intel-media-va-driver-non-free=\* \
+    libgbm1=\* libigdgmm12=\* libxatracker2=\* libdrm-amdgpu1=\* \
+    va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
@@ -41,7 +63,7 @@ RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
 ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
-    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/app/idp/lib"
+    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/oneapi/2025.1/lib"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
@@ -73,7 +95,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         # Get source code for installed Python packages with copyleft licenses \
         mkdir -p /copyleft_sources/python && \
         cd /copyleft_sources/python && \
-        apt-get update && apt-get install -y --no-install-recommends gcc build-essential libffi-dev python3-dev && \
+        apt-get update && apt-get install -y --no-install-recommends gcc libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
         pip3 freeze | cut -d= -f1 | while read pkg; do \
             meta=$(pip3 show $pkg 2>/dev/null); \
@@ -83,7 +105,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
                 pip3 download --no-binary :all: $pkg || true; \
             fi; \
         done; \
-        apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
+        apt-get remove --purge -y gcc libffi-dev python3-dev; \
     fi
 
 WORKDIR /app
@@ -97,4 +119,4 @@ USER $TIMESERIES_USER_NAME
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "./main.py"]
+ENTRYPOINT ["python3", "main.py"]

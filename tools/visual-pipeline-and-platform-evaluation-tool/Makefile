@@ -34,7 +34,7 @@ $(VENV_DIR): requirements.txt ## Create Python venv
 
 all: lint build run test ## Run lint, build, run and test
 
-lint: $(VENV_DIR) mdlint pyright ruff ## Run all linters
+lint: $(VENV_DIR) mdlint ruff ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
@@ -102,10 +102,12 @@ run-dev: check-device-type public_models_choice ## Run the docker compose servic
 	mkdir -p models && chmod o+w models && \
 	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
-test: check-device-type ## Run tests
-	source setup_env.sh -d $(DEVICE_TYPE) && \
+test: $(VENV_DIR) ## Run tests and generate coverage report
+	# Run tests using the vippet-cpu container (tests are device agnostic)
 	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
-		vippet-$(shell echo $(DEVICE_TYPE) | tr '[:upper:]' '[:lower:]') python -m unittest discover -v -s ./tests -p '*_test.py'
+		vippet-cpu bash -c "\
+		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
+		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash

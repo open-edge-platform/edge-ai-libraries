@@ -149,14 +149,14 @@ def test_stop_kapacitor_service_success(monkeypatch):
     class FakeResp:
         def json(self):
             return {"tasks": [{"id": "task1"}]}
-    monkeypatch.setattr(main.requests, "get", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
     # Track subprocess.run calls
     calls = []
     def fake_run(cmd, check):
         calls.append((tuple(cmd), check))
     monkeypatch.setattr(main.subprocess, "run", fake_run)
     # Mock logger
-    monkeypatch.setattr(main.logger, "info", lambda msg: None)
+    monkeypatch.setattr(main.logger, "info", lambda *args, **kwargs: None)
     main.stop_kapacitor_service()
     assert (("kapacitor", "disable", "task1"), False) in calls
     assert (("pkill", "-9", "kapacitord"), False) in calls
@@ -166,12 +166,12 @@ def test_stop_kapacitor_service_subprocess_error(monkeypatch):
     class FakeResp:
         def json(self):
             return {"tasks": [{"id": "task1"}]}
-    monkeypatch.setattr(main.requests, "get", lambda *a, **k: FakeResp())
+    monkeypatch.setattr(main.requests, "get", lambda url, **kwargs: FakeResp())
     def fake_run(cmd, check):
         raise main.subprocess.CalledProcessError(1, cmd)
     monkeypatch.setattr(main.subprocess, "run", fake_run)
     errors = []
-    monkeypatch.setattr(main.logger, "error", lambda msg: errors.append(msg))
+    monkeypatch.setattr(main.logger, "error", lambda msg, *args, **kwargs: errors.append(msg))
     main.stop_kapacitor_service()
     assert any("Error stopping Kapacitor service" in e for e in errors)
 
@@ -223,18 +223,17 @@ def test_receive_alert_success(monkeypatch):
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
     # Ensure global is None to trigger initialization
-    main.opcua_send_alert = None
+    main.OPCUA_SEND_ALERT = None
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
     assert resp.status_code == 200
     assert resp.json()["status"] == "success"
     assert resp.json()["message"] == "Alert received"
-    # Should have initialized and sent alert
     mock_instance.initialize_opcua.assert_awaited()
     mock_instance.send_alert_to_opcua.assert_awaited()
 
 def test_receive_alert_reinitialize_on_server_change(monkeypatch):
-    # Existing opcua_send_alert with different server triggers re-init
+    # Existing OPCUA_SEND_ALERT with different server triggers re-init
     mock_opcua_alerts = mock.Mock()
     mock_instance = mock.Mock()
     monkeypatch.setitem(sys.modules, "opcua_alerts", mock.Mock())
@@ -246,7 +245,7 @@ def test_receive_alert_reinitialize_on_server_change(monkeypatch):
     mock_instance.initialize_opcua = mock.AsyncMock()
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
-    main.opcua_send_alert = mock_instance
+    main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
     assert resp.status_code == 200
@@ -254,7 +253,7 @@ def test_receive_alert_reinitialize_on_server_change(monkeypatch):
     mock_instance.send_alert_to_opcua.assert_awaited()
 
 def test_receive_alert_reinitialize_on_not_connected(monkeypatch):
-    # Existing opcua_send_alert not connected triggers re-init
+    # Existing OPCUA_SEND_ALERT not connected triggers re-init
     mock_opcua_alerts = mock.Mock()
     mock_instance = mock.Mock()
     monkeypatch.setitem(sys.modules, "opcua_alerts", mock.Mock())
@@ -266,7 +265,7 @@ def test_receive_alert_reinitialize_on_not_connected(monkeypatch):
     mock_instance.initialize_opcua = mock.AsyncMock()
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
-    main.opcua_send_alert = mock_instance
+    main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
     assert resp.status_code == 200
@@ -286,7 +285,7 @@ def test_receive_alert_update_node_id_and_namespace(monkeypatch):
     mock_instance.initialize_opcua = mock.AsyncMock()
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
-    main.opcua_send_alert = mock_instance
+    main.OPCUA_SEND_ALERT = mock_instance
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
     assert resp.status_code == 200
@@ -311,7 +310,7 @@ def test_receive_alert_initialize_opcua_fails(monkeypatch):
     mock_instance.initialize_opcua = mock.AsyncMock(side_effect=Exception("init fail"))
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
-    main.opcua_send_alert = None
+    main.OPCUA_SEND_ALERT = None
     # Restore config for alerts
     main.config["alerts"] = {"opcua": {"opcua_server": "opc.tcp://localhost:4840", "node_id": "ns=2;i=2", "namespace": 2}}
     alert_data = {"alert": "test message"}
@@ -332,7 +331,7 @@ def test_receive_alert_send_alert_fails(monkeypatch):
     mock_instance.send_alert_to_opcua = mock.AsyncMock(side_effect=Exception("send fail"))
     mock_opcua_alerts.return_value = mock_instance
     monkeypatch.setattr(main, "OpcuaAlerts", mock_opcua_alerts)
-    main.opcua_send_alert = None
+    main.OPCUA_SEND_ALERT = None
     alert_data = {"alert": "test message"}
     resp = client.post("/opcua_alerts", json=alert_data)
     assert resp.status_code == 500
