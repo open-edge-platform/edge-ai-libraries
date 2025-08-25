@@ -5,7 +5,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -75,7 +75,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -145,7 +145,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -215,7 +215,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -285,7 +285,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -355,7 +355,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -425,7 +425,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -495,7 +495,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -565,7 +565,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -635,7 +635,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -705,7 +705,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -775,7 +775,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -845,7 +845,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122north.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -915,7 +915,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122east.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -985,7 +985,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122south.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {
@@ -1055,7 +1055,7 @@
                 "source": "gstreamer",
                 "queue_maxsize": 50,
                 "auto_start": true,
-                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=15/1 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml ! queue ! gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
+                "pipeline": "multifilesrc loop=true location=/home/pipeline-server/videos/1122west.ts name=source ! decodebin ! videorate ! videoconvert ! video/x-raw,format=BGR,framerate=1/2 ! gvapython class=PostDecodeTimestampCapture function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=timesync ! gvadetect model-instance-id=detect1 inference-interval=1 model=/home/pipeline-server/models/object_detection/intersection/openvino.xml !  gvametaconvert add-tensor-data=true name=metaconvert ! gvapython class=PostInferenceDataPublish function=processFrame module=/home/pipeline-server/user_scripts/gvapython/sscape/sscape_adapter.py name=datapublisher ! gvametapublish name=destination ! appsink sync=true",
                 "parameters": {
                     "type": "object",
                     "properties": {

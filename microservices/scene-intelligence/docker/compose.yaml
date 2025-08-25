@@ -244,9 +244,11 @@ services:
         condition: service_healthy
       broker:
         condition: service_started
+      dlstreamer-pipeline-server:
+        condition: service_healthy
       ntpserver:
         condition: service_started
-    command: controller --broker broker.scenescape.intel.com --ntp ntpserv
+    command: controller --broker broker.scenescape.intel.com --ntp ntpserv --maxlag 10
     volumes:
       - pgserver-media:/home/scenescape/SceneScape/media
       - ../src/controller/tracker-config.json:/home/scenescape/SceneScape/tracker-config.json
