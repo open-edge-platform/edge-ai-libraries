@@ -1,4 +1,4 @@
-FROM docker.io/library/rust:1.89 AS qmassa
+FROM docker.io/library/rust:1.87 AS qmassa
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
