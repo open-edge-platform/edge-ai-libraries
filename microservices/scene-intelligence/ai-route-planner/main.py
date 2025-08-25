@@ -147,7 +147,7 @@ def planner_agent_thread(source: str, destination: str):
         optimization_active = False
 
 
-def start_agent(source: str, destination: str) -> None:
+def start_agent(source: str, destination: str) -> tuple[gr.Button, gr.Button]:
     """
     This function launches a background thread that triggers an Agent which continuously
     checks for route conditions, starting with finding the shortest direct route.
@@ -179,8 +179,10 @@ def start_agent(source: str, destination: str) -> None:
         )
         optimization_thread.start()
 
+    return gr.Button(interactive=not optimization_active), gr.Button(interactive=optimization_active)
 
-def stop_agent() -> str:
+
+def stop_agent() -> tuple[gr.Button, gr.Button]:
     """
     Stops the agent runner thread if it's running.
     Returns status message.
@@ -195,9 +197,13 @@ def stop_agent() -> str:
         ):
             optimization_active = False
             optimization_thread.join(timeout=2.0)
-            return "Route monitoring stopped"
+            logger.info("Route Planning Stopped!")
+            return gr.Button(interactive=optimization_active), gr.Button(interactive=not optimization_active)
         else:
-            return "No active route monitoring to stop"
+            logger.info("No Route Planning Agents Running.")
+            return gr.Button(), gr.Button()
+
+    
 
 def check_for_updates(*args):
     """
@@ -499,7 +505,7 @@ def create_gradio_interface() -> gr.Blocks:
                     container=True,
                 )
             with gr.Column(scale=1):
-                search_btn = gr.Button("Find Route", variant="primary", size="lg", elem_classes=["search-button"])
+                search_btn = gr.Button("Find Route", variant="primary", size="lg", elem_classes=["search-button"], interactive=True)
 
         with gr.Row(elem_classes=["settings-panel"]):
             with gr.Column(scale=3):
@@ -531,7 +537,8 @@ def create_gradio_interface() -> gr.Blocks:
                 stop_agent_btn = gr.Button(
                     "Stop Route Planning", 
                     variant="stop", 
-                    elem_classes=["stop-button"]
+                    elem_classes=["stop-button"],
+                    interactive=False
                 )
 
         # AI Thinking Output and Route Map side by side
@@ -597,7 +604,7 @@ def create_gradio_interface() -> gr.Blocks:
         search_btn.click(
             fn=start_agent,
             inputs=[start_dropdown, end_dropdown],
-            outputs=None,
+            outputs=[search_btn, stop_agent_btn],
         ).then(
             fn=lambda: "Active - Analysing fastest route ...",
             inputs=None,
@@ -611,7 +618,7 @@ def create_gradio_interface() -> gr.Blocks:
         stop_agent_btn.click(
             fn=stop_agent,
             inputs=None,
-            outputs=agent_status,
+            outputs=[stop_agent_btn, search_btn]
         ).then(
             fn=lambda: ("Inactive", "Agent Stopped!", *[gr.update(visible=False) for _ in range(4)]),
             inputs=None,
