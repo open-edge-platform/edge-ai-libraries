@@ -21,7 +21,6 @@ ExternalProject_Add(
     PREFIX ${CMAKE_BINARY_DIR}/gstreamer
     GIT_REPOSITORY  https://gitlab.freedesktop.org/gstreamer/gstreamer.git
     GIT_TAG         ${DESIRED_VERSION}
-    DOWNLOAD_EXTRACT_TIMESTAMP  true
     BUILD_COMMAND       ninja
     INSTALL_COMMAND     meson install
     TEST_COMMAND        ""

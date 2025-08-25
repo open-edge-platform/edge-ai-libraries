@@ -20,7 +20,6 @@ ExternalProject_Add(
     PREFIX ${CMAKE_BINARY_DIR}/opencv-contrib
     URL     https://github.com/opencv/opencv_contrib/archive/${DESIRED_VERSION}.zip
     URL_MD5 9065c130d87da6f5e7a4044f6f7ce4f6
-    DOWNLOAD_EXTRACT_TIMESTAMP  true
     CONFIGURE_COMMAND   ""
     BUILD_COMMAND       ""
     INSTALL_COMMAND     ""
