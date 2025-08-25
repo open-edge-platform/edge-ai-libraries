@@ -214,12 +214,15 @@ jobs:
 
     - name: Manage models directories after success
       if: ${{ inputs.models_to_download != 'specific_model' && steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
+      env:
+        models_to_download: ${{ inputs.models_to_download }}
       run: |
-        if [[ "$input" == "public" || "$input" == "all" || "$input" == "schedule" ]]; then
+        models=$models_to_download
+        if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/public_old_old"
           echo "New public models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
-        if [[ "$input" == "omz" || "$input" == "all" || "$input" == "schedule" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
           echo "New Open Model Zoo models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
@@ -230,7 +233,6 @@ jobs:
         models_to_download: ${{ inputs.models_to_download }}
       run: |
         models=$models_to_download
-
         if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
