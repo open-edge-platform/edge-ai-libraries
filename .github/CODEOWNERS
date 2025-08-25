@@ -17,7 +17,7 @@ README.md           @xwu2intel
 /microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
 /microservices/model-registry/                         @rrajore @elroyashjr
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
-/microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel
+/microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe
 /microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
