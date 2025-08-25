@@ -4,7 +4,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-from pipeline import GstPipeline, PipelineLoader
+from gstpipeline import GstPipeline, PipelineLoader
 
 
 class TestGstPipeline(unittest.TestCase):
@@ -31,12 +31,12 @@ class TestGstPipeline(unittest.TestCase):
                     "parameters": {},
                     "regular_channels": 1,
                     "inference_channels": 1,
+                    "elements": [],
                 }
             )
 
 
 class TestPipelineLoader(unittest.TestCase):
-
     def setUp(self):
         self.test_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.test_dir.cleanup)
@@ -63,7 +63,7 @@ class TestPipelineLoader(unittest.TestCase):
         self.assertEqual(config, {"key": "value"})
 
     def test_config_file_not_found(self):
-        with self.assertRaises(FileNotFoundError):
+        with self.assertRaises(ValueError):
             PipelineLoader.config("non_existent_pipeline", self.test_dir.name)
 
     def test_load(self):

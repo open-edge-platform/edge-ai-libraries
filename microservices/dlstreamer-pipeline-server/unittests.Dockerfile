@@ -1,4 +1,7 @@
-FROM intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
+
+FROM ${BASE_IMAGE} 
+
 LABEL description="This Dockerfile is used to run unit tests for dlstreamer-pipeline-server microservice."
 
 ARG USER

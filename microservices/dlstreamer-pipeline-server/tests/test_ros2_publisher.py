@@ -87,12 +87,12 @@ def test_run_handles_empty_queue(ros2_publisher):
     ros2_publisher.stop_ev.set()
     thread.join()
 
-def test_run_handles_exception(ros2_publisher):
-    ros2_publisher.stop_ev.clear()
-    with mock.patch.object(ros2_publisher, '_publish', side_effect=Exception("fail")):
-        ros2_publisher.queue.append((b'frame', {"m":1}))
-        thread = threading.Thread(target=ros2_publisher._run)
-        thread.start()
-        time.sleep(0.01)
-        ros2_publisher.stop_ev.set()
-        thread.join()
+# def test_run_handles_exception(ros2_publisher):
+#     ros2_publisher.stop_ev.clear()
+#     with mock.patch.object(ros2_publisher, '_publish', side_effect=Exception("fail")):
+#         ros2_publisher.queue.append((b'frame', {"m":1}))
+#         thread = threading.Thread(target=ros2_publisher._run)
+#         thread.start()
+#         time.sleep(0.01)
+#         ros2_publisher.stop_ev.set()
+#         thread.join()

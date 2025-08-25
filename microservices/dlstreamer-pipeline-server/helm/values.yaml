@@ -11,13 +11,9 @@ env:
   GST_DEBUG: "1"
   HTTPS: "false"
   RTSP_PORT: "8554"
-  MR_URL:
-  MR_SAVED_MODELS_DIR:
-  MR_REQUEST_TIMEOUT:
-  MR_VERIFY_CERT:
   http_proxy: 
   https_proxy: 
-  no_proxy: "eshqaservicelayer.intel.com,intel.com,.intel.com,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,192.168.49.2"
+  no_proxy: "intel.com,.intel.com,localhost,127.0.0.1,10.0.0.0/8,192.168.0.0/16,172.16.0.0/12,192.168.49.2"
 privileged_access_required: false
 gpu:
   enabled: false
@@ -32,3 +28,5 @@ config:
     ext:
       rest_api_port: "30007"
       rtsp_output_port: "30025"
+images:
+  dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22

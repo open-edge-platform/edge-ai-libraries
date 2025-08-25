@@ -1,0 +1,20 @@
+.. |atom| replace:: Intel® Atom®
+.. |Atom| replace:: Intel® Atom®
+.. |core| replace:: Intel® Core™
+.. |Core| replace:: Intel® Core™
+.. |EAE| replace:: EcoStruxure* Automation Expert
+.. |ECI| replace:: Intel® Edge Controls for Industrial
+.. |EII| replace:: Intel® Edge Insights for Industrial
+.. |intel| replace:: Intel®
+.. |Intel| replace:: Intel®
+.. |Linux| replace:: Linux*
+.. |oneapi| replace:: oneAPI™
+.. |oneAPI| replace:: oneAPI™
+.. |openvino| replace:: OpenVINO™
+.. |OpenVINO| replace:: OpenVINO™
+.. |os| replace:: Linux*
+.. |Ubuntu| replace:: Canonical® Ubuntu®
+.. |ubuntu| replace:: Canonical® Ubuntu®
+.. |Windows| replace:: Microsoft Windows*
+
+.. |top_name| replace:: PLCopen Motion Control

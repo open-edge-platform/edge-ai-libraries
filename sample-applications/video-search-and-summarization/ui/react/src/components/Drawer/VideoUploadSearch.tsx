@@ -129,18 +129,34 @@ export const VideoUploadSearch: FC<VideoUploadProps> = ({ closeDrawer, isOpen })
       formData.append('tags', videoData.tags);
     }
 
-    return await axios.post<VideoRO>(videoUploadAPi, formData, {
-      headers: { 'Content-Type': 'multipart/form-data' },
-      onUploadProgress: (ev: AxiosProgressEvent) => {
-        setUploadProgress((ev.progress ?? 0) * 100);
-      },
-    });
+    try {
+      return await axios.post<VideoRO>(videoUploadAPi, formData, {
+        headers: { 'Content-Type': 'multipart/form-data' },
+        onUploadProgress: (ev: AxiosProgressEvent) => {
+          setUploadProgress((ev.progress ?? 0) * 100);
+        },
+      });
+    } catch (error) {
+      // Add context to the error
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Video upload failed: ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
   };
 
   const triggerEmbeddings = async (videoId: string) => {
     const api = [videoUploadAPi, 'search-embeddings', videoId].join('/');
-    const res = await axios.post<{ status: string; message: string }>(api);
-    return res.data;
+    try {
+      const res = await axios.post<{ status: string; message: string }>(api);
+      return res.data;
+    } catch (error) {
+      // Add context to the error
+      if (axios.isAxiosError(error)) {
+        throw new Error(`Embedding creation failed: ${error.response?.data?.message || error.message}`);
+      }
+      throw error;
+    }
   };
 
   const triggerSearch = async () => {
@@ -169,19 +185,30 @@ export const VideoUploadSearch: FC<VideoUploadProps> = ({ closeDrawer, isOpen })
           setUploading(false);
           resetForm();
           closeDrawer();
+          notify(t('CreatingEmbeddings') + ' ' + t('success'), NotificationSeverity.SUCCESS);
+        } else {
+          throw new Error(embeddingRes.message || t('unknownError'));
         }
+      } else {
+        throw new Error(t('serverError'));
       }
-    } catch (error: any) {
-      console.log('ERROR', error);
-      if (error.reponse && error.response.data) {
-        notify(error.response.data.message, NotificationSeverity.ERROR);
-      }
+    } catch (error: unknown) {
+      console.error('Video upload/processing error:', error);
       setUploading(false);
-      setProgressText(t('error'));
       setProcessing(false);
-    }
 
-    setUploading(false);
+      // Extract error message from backend response
+      let errorMessage = t('videoUploadError');
+
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      notify(errorMessage, NotificationSeverity.ERROR);
+      setProgressText('');
+    }
   };
 
   return (

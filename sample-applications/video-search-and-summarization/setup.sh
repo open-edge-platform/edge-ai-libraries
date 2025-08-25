@@ -72,8 +72,6 @@ export APP_HOST_PORT=12345
 # Export all environment variables
 # Base configuration
 export HOST_IP=$(ip route get 1 | awk '{print $7}')  # Fetch the host IP
-# Add HOST_IP to no_proxy only if not already present
-[[ $no_proxy != *"${HOST_IP}"* ]] && export no_proxy="${no_proxy},${HOST_IP}"
 export TAG=${TAG:-latest}
 
 # If REGISTRY_URL is set, ensure it ends with a trailing slash
@@ -323,6 +321,15 @@ if ls /dev/dri/render* >/dev/null 2>&1; then
 else
     echo -e  "${YELLOW}RENDER device does not exist. Setting RENDER_DEVICE_GID to 0 ${NC}"
     export RENDER_DEVICE_GID=0
+fi
+
+# Set DRI_MOUNT_PATH based on whether /dev/dri exists and is not empty
+if [ -d /dev/dri ] && [ "$(ls -A /dev/dri)" ]; then
+    export DRI_MOUNT_PATH="/dev/dri"
+    echo -e "${GREEN}/dev/dri found and not empty. Will mount.${NC}"
+else
+    export DRI_MOUNT_PATH="/dev/null"
+    echo -e "${YELLOW}/dev/dri not found or empty, will mount /dev/null instead.${NC}"
 fi
 
 # Function to convert object detection models

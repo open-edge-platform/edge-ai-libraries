@@ -27,6 +27,8 @@ RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSIO
     rm -rf /tmp/kapacitor
 
 # Install Intel GPU tools and clean up
+RUN apt-get update && apt-get install -y --no-install-recommends intel-gpu-tools
+
 RUN export no_proxy= && \
     apt-get update && \
     . /etc/os-release && \

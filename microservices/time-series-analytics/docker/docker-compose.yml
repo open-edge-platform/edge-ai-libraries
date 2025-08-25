@@ -20,6 +20,7 @@ services:
     hostname: ia-time-series-analytics-microservice
     image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}${IMAGE_SUFFIX:+-${IMAGE_SUFFIX}}
     restart: unless-stopped
+    privileged: true
     security_opt:
     - no-new-privileges
     read_only: true

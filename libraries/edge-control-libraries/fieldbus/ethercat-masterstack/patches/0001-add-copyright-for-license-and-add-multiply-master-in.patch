@@ -1,0 +1,726 @@
+From a4e20a3ee5f1c77890cb46b42115d889bad857b1 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Fri, 9 Aug 2024 10:31:28 +0800
+Subject: [PATCH] add copyright for license and add multiply master into debug
+ example
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ dpdk/Makefile.am      | 46 +++++++++++++++++-----------------------
+ dpdk/ec_dpdk.c        | 29 +++++++++++++++++++++++--
+ dpdk/ecdev.h          | 30 ++++++++++++++++++++++++--
+ examples/debug/main.c | 34 +++++++++++++++++++++++++++++-
+ ipc/Makefile.am       | 46 +++++++++++++++++-----------------------
+ ipc/ecat_ipc.h        | 29 +++++++++++++++++++++++++
+ ipc/ipc_atomic.h      | 30 ++++++++++++++++++++++++++
+ ipc/ipc_ctrl.c        | 30 ++++++++++++++++++++++++++
+ ipc/ipc_ctrl.h        | 30 ++++++++++++++++++++++++++
+ ipc/ipc_iface.c       | 30 ++++++++++++++++++++++++++
+ ipc/ipc_iface.h       | 30 ++++++++++++++++++++++++++
+ ipc/ipc_shm.h         | 30 ++++++++++++++++++++++++++
+ master/ecrt_config.c  | 22 +++++++++++++++++++
+ master/ecrt_config.h  | 22 +++++++++++++++++++
+ master/ethercatd.c    | 49 ++++++++++++++++---------------------------
+ master/mm.h           | 22 +++++++++++++++++++
+ master/wq.h           | 22 +++++++++++++++++++
+ 17 files changed, 441 insertions(+), 90 deletions(-)
+
+diff --git a/dpdk/Makefile.am b/dpdk/Makefile.am
+index 6dc0986d..f1beabcb 100644
+--- a/dpdk/Makefile.am
++++ b/dpdk/Makefile.am
+@@ -1,32 +1,24 @@
+ #------------------------------------------------------------------------------
+ #
+-#  $Id$
+-#
+-#  Copyright (C) 2006-2012  Florian Pose, Ingenieurgemeinschaft IgH
+-#
+-#  This file is part of the IgH EtherCAT master userspace library.
+-#
+-#  The IgH EtherCAT master userspace library is free software; you can
+-#  redistribute it and/or modify it under the terms of the GNU Lesser General
+-#  Public License as published by the Free Software Foundation; version 2.1 of
+-#  the License.
+-#
+-#  The IgH EtherCAT master userspace library is distributed in the hope that
+-#  it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+-#  warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-#  GNU Lesser General Public License for more details.
+-#
+-#  You should have received a copy of the GNU Lesser General Public License
+-#  along with the IgH EtherCAT master userspace library. If not, see
+-#  <http://www.gnu.org/licenses/>.
+-#
+-#  ---
+-#
+-#  The license mentioned above concerns the source code only. Using the
+-#  EtherCAT technology and brand is only permitted in compliance with the
+-#  industrial property and similar rights of Beckhoff Automation GmbH.
+-#
+-#------------------------------------------------------------------------------
++# Copyright (C) 2024 Intel Corporation
++# 
++# This program is free software; you can redistribute it and/or modify it
++# under the terms of the GNU General Public License, as published
++# by the Free Software Foundation; either version 2 of the License,
++# or (at your option) any later version.
++# 
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++# 
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, see <http://www.gnu.org/licenses/>.
++# 
++#
++# SPDX-License-Identifier: GPL-2.0-or-later
++#
++#-----------------------------------------------------------------------------
+ 
+ lib_LTLIBRARIES = libecat_dpdk.la
+ 
+diff --git a/dpdk/ec_dpdk.c b/dpdk/ec_dpdk.c
+index 6e9c839f..f3d971dd 100644
+--- a/dpdk/ec_dpdk.c
++++ b/dpdk/ec_dpdk.c
+@@ -1,5 +1,30 @@
+-/* SPDX-License-Identifier: BSD-3-Clause
+- * Copyright(c) 2020 Intel Corporation
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ecat_atomic.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
+  */
+ 
+ /*****************************************************************************/
+diff --git a/dpdk/ecdev.h b/dpdk/ecdev.h
+index 0b9e66cc..dce5bd46 100644
+--- a/dpdk/ecdev.h
++++ b/dpdk/ecdev.h
+@@ -1,7 +1,33 @@
+-/* SPDX-License-Identifier: BSD-3-Clause
+- * Copyright(c) 2020 Intel Corporation
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ecdev.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
+  */
+ 
++
+ #ifndef __ECDEV_H__
+ #define __ECDEV_H__
+ 
+diff --git a/examples/debug/main.c b/examples/debug/main.c
+index a3758c15..26e80de2 100644
+--- a/examples/debug/main.c
++++ b/examples/debug/main.c
+@@ -37,24 +37,56 @@
+ 
+ static volatile int run = 1;
+ static ec_master_t *master = NULL;
++static int master_id = 0;
+ 
+ void signal_handler(int sig)
+ {
+     run = 0;
+ }
+ 
++static void getOptions(int argc, char **argv)
++{
++    int index;
++    static struct option longOptions[] = {
++        //name		has_arg				flag	val
++        {"master",required_argument,	NULL,	'm'},
++        {"help",	no_argument,		NULL,	'h'},
++        {}
++    };
++    do{
++        index = getopt_long(argc, argv, "m:h", longOptions, NULL);
++	      switch(index){
++        case 'h':
++            printf("Global options:\n");
++            printf("  --master -m  Set master id. default is %d \n", master_id);
++            printf("  --help     -h  Show this help.\n");
++            exit(0);
++            break;
++        case 'm':
++            master_id = atoi(optarg);
++            if (master_id > 1)
++                master_id = 0;
++            break;
++        default:
++            break;
++        }
++    }
++    while(index != -1);
++}
++
+ 
+ /****************************************************************************
+  * Main function
+  ***************************************************************************/
+ int main(int argc, char *argv[])
+ {
++    getOptions(argc,argv);
+     signal(SIGTERM, signal_handler);
+     signal(SIGINT, signal_handler);
+     mlockall(MCL_CURRENT | MCL_FUTURE);
+ 
+     printf("Requesting master...\n");
+-    master = ecrt_request_master(0);
++    master = ecrt_request_master(master_id);
+     if (!master) {
+         return -1;
+     }
+diff --git a/ipc/Makefile.am b/ipc/Makefile.am
+index 21e55478..43a93766 100644
+--- a/ipc/Makefile.am
++++ b/ipc/Makefile.am
+@@ -1,32 +1,24 @@
+ #------------------------------------------------------------------------------
+ #
+-#  $Id$
+-#
+-#  Copyright (C) 2006-2012  Florian Pose, Ingenieurgemeinschaft IgH
+-#
+-#  This file is part of the IgH EtherCAT master userspace library.
+-#
+-#  The IgH EtherCAT master userspace library is free software; you can
+-#  redistribute it and/or modify it under the terms of the GNU Lesser General
+-#  Public License as published by the Free Software Foundation; version 2.1 of
+-#  the License.
+-#
+-#  The IgH EtherCAT master userspace library is distributed in the hope that
+-#  it will be useful, but WITHOUT ANY WARRANTY; without even the implied
+-#  warranty of MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+-#  GNU Lesser General Public License for more details.
+-#
+-#  You should have received a copy of the GNU Lesser General Public License
+-#  along with the IgH EtherCAT master userspace library. If not, see
+-#  <http://www.gnu.org/licenses/>.
+-#
+-#  ---
+-#
+-#  The license mentioned above concerns the source code only. Using the
+-#  EtherCAT technology and brand is only permitted in compliance with the
+-#  industrial property and similar rights of Beckhoff Automation GmbH.
+-#
+-#------------------------------------------------------------------------------
++# Copyright (C) 2024 Intel Corporation
++# 
++# This program is free software; you can redistribute it and/or modify it
++# under the terms of the GNU General Public License, as published
++# by the Free Software Foundation; either version 2 of the License,
++# or (at your option) any later version.
++# 
++# This program is distributed in the hope that it will be useful,
++# but WITHOUT ANY WARRANTY; without even the implied warranty of
++# MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++# GNU General Public License for more details.
++# 
++# You should have received a copy of the GNU General Public License
++# along with this program; if not, see <http://www.gnu.org/licenses/>.
++# 
++#
++# SPDX-License-Identifier: GPL-2.0-or-later
++#
++#-----------------------------------------------------------------------------
+ 
+ noinst_LTLIBRARIES = libecat_ipc.la
+ 
+diff --git a/ipc/ecat_ipc.h b/ipc/ecat_ipc.h
+index c190eef3..be2d3745 100644
+--- a/ipc/ecat_ipc.h
++++ b/ipc/ecat_ipc.h
+@@ -1,3 +1,32 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ecat_ipc.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
+ #ifndef __ECAT_IPC_H_DEF__
+ #define __ECAT_IPC_H_DEF__
+ 
+diff --git a/ipc/ipc_atomic.h b/ipc/ipc_atomic.h
+index 1748789d..1da4e2bf 100644
+--- a/ipc/ipc_atomic.h
++++ b/ipc/ipc_atomic.h
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ecat_atomic.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #ifndef __IPC_ATOMIC_H_DEF__
+ #define __IPC_ATOMIC_H_DEF__
+ 
+diff --git a/ipc/ipc_ctrl.c b/ipc/ipc_ctrl.c
+index 7dc102c0..e0851d85 100644
+--- a/ipc/ipc_ctrl.c
++++ b/ipc/ipc_ctrl.c
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ipc_ctrl.c
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #include <stdio.h>
+ #include <unistd.h>
+ #include <stdlib.h>
+diff --git a/ipc/ipc_ctrl.h b/ipc/ipc_ctrl.h
+index 5f686e46..06c3b9d7 100644
+--- a/ipc/ipc_ctrl.h
++++ b/ipc/ipc_ctrl.h
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ipc_ctrl.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #ifndef __IPC_CTRL_H_DEF__
+ #define __IPC_CTRL_H_DEF__
+ 
+diff --git a/ipc/ipc_iface.c b/ipc/ipc_iface.c
+index f58b4aaf..f0c10c22 100644
+--- a/ipc/ipc_iface.c
++++ b/ipc/ipc_iface.c
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ipc_iface.c
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #include <stdio.h>
+ #include <unistd.h>
+ #include "ecat_ipc.h"
+diff --git a/ipc/ipc_iface.h b/ipc/ipc_iface.h
+index 68e76b97..cc0743b3 100644
+--- a/ipc/ipc_iface.h
++++ b/ipc/ipc_iface.h
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ipc_iface.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #ifndef __IPC_IFACE_H_DEF__
+ #define __IPC_IFACE_H_DEF__
+ 
+diff --git a/ipc/ipc_shm.h b/ipc/ipc_shm.h
+index 84b7135d..00e2a076 100644
+--- a/ipc/ipc_shm.h
++++ b/ipc/ipc_shm.h
+@@ -1,3 +1,33 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
++/**
++ * @file ipc_shm.h
++ *
++ * Maintainer: Zhang Wei <wei.e.zhang@intel.com>
++ *
++ */
++
++
+ #ifndef __IPC_SHM_H_DEF__
+ #define __IPC_SHM_H_DEF__
+ #include <errno.h>
+diff --git a/master/ecrt_config.c b/master/ecrt_config.c
+index 73e04793..46caaa07 100644
+--- a/master/ecrt_config.c
++++ b/master/ecrt_config.c
+@@ -1,3 +1,25 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
+ #include <errno.h>
+ #include <stdio.h>
+ #include <string.h>
+diff --git a/master/ecrt_config.h b/master/ecrt_config.h
+index cc808d2b..b52f0e38 100644
+--- a/master/ecrt_config.h
++++ b/master/ecrt_config.h
+@@ -1,3 +1,25 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
+ #ifndef __ECRT_CONFIG_H__
+ #define __ECRT_CONFIG_H__
+ 
+diff --git a/master/ethercatd.c b/master/ethercatd.c
+index d5261ae5..52da964a 100644
+--- a/master/ethercatd.c
++++ b/master/ethercatd.c
+@@ -1,37 +1,24 @@
+-/******************************************************************************
+- *
+- *  $Id$
+- *
+- *  Copyright (C) 2006-2008  Florian Pose, Ingenieurgemeinschaft IgH
+- *
+- *  This file is part of the IgH EtherCAT Master.
+- *
+- *  The IgH EtherCAT Master is free software; you can redistribute it and/or
+- *  modify it under the terms of the GNU General Public License version 2, as
+- *  published by the Free Software Foundation.
+- *
+- *  The IgH EtherCAT Master is distributed in the hope that it will be useful,
+- *  but WITHOUT ANY WARRANTY; without even the implied warranty of
+- *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
+- *  Public License for more details.
++/*
+  *
+- *  You should have received a copy of the GNU General Public License along
+- *  with the IgH EtherCAT Master; if not, write to the Free Software
+- *  Foundation, Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
+  *
+- *  ---
++ * SPDX-License-Identifier: GPL-2.0-or-later
+  *
+- *  The license mentioned above concerns the source code only. Using the
+- *  EtherCAT technology and brand is only permitted in compliance with the
+- *  industrial property and similar rights of Beckhoff Automation GmbH.
+- *
+- *****************************************************************************/
+-
+-/** \file
+- * EtherCAT master driver module.
+- */
+-
+-/*****************************************************************************/
++*/
+ 
+ #include "globals.h"
+ #ifndef EC_USERMODE
+diff --git a/master/mm.h b/master/mm.h
+index 42f33a43..dd880c03 100644
+--- a/master/mm.h
++++ b/master/mm.h
+@@ -1,3 +1,25 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
+ #ifndef __EC_MM_H__
+ #define __EC_MM_H__
+ 
+diff --git a/master/wq.h b/master/wq.h
+index e26fdd04..9eb54dc8 100644
+--- a/master/wq.h
++++ b/master/wq.h
+@@ -1,3 +1,25 @@
++/*
++ *
++ * Copyright (C) 2024 Intel Corporation
++ * 
++ * This program is free software; you can redistribute it and/or modify it
++ * under the terms of the GNU General Public License, as published
++ * by the Free Software Foundation; either version 2 of the License,
++ * or (at your option) any later version.
++ * 
++ * This program is distributed in the hope that it will be useful,
++ * but WITHOUT ANY WARRANTY; without even the implied warranty of
++ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
++ * GNU General Public License for more details.
++ * 
++ * You should have received a copy of the GNU General Public License
++ * along with this program; if not, see <http://www.gnu.org/licenses/>.
++ * 
++ *
++ * SPDX-License-Identifier: GPL-2.0-or-later
++ *
++*/
++
+ #ifndef __EC_WQ_H__
+ #define __EC_WQ_H__
+ 
+-- 
+2.46.0
+

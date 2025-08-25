@@ -83,6 +83,8 @@ services:
       - INFLUXDB_PORT=${INFLUXDB_PORT}
       - INFLUXDB_USER=${INFLUXDB_USER}
       - INFLUXDB_PASS=${INFLUXDB_PASS}
+      # NPU related environment variables
+      - ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
     volumes:
       - "../resources:/home/pipeline-server/resources/"
       # - "../configs/default/config.json:/home/pipeline-server/config.json"
@@ -111,6 +113,7 @@ services:
     devices:
       # Following devices under /dev filesystem will be needed based on usecase
       # dri - GPU
+      # accel - NPU
       # USB camera devices
       # Selective mount can be done for deployment as mounting whole /dev is not recommended
       - "/dev:/dev"

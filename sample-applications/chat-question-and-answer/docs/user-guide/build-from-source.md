@@ -2,6 +2,10 @@
 
 This guide provides step-by-step instructions for building the ChatQ&A Sample Application from source.
 
+> **Note:** 
+> - The dependent microservices must be built separately from their respective microservice folders.
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:

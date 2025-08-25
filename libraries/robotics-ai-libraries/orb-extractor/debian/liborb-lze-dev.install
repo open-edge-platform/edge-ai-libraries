@@ -1,0 +1,8 @@
+usr/include/*.h
+usr/lib/*/cmake/orblze/*
+usr/lib/*/pkgconfig/orblze.pc
+opt/intel/orb_lze/samples/*.cpp
+opt/intel/orb_lze/samples/*.h
+opt/intel/orb_lze/samples/CMakeLists.txt
+opt/intel/orb_lze/samples/tutorial.md
+opt/intel/orb_lze/samples/market.jpg

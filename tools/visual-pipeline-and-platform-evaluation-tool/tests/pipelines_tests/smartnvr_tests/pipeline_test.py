@@ -2,6 +2,7 @@ import unittest
 
 from pipelines.smartnvr.pipeline import SmartNVRPipeline
 
+
 class TestSmartNVRPipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = SmartNVRPipeline()
@@ -63,6 +64,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": False,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -97,6 +99,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -135,6 +138,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -166,6 +170,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -204,6 +209,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,
@@ -252,6 +258,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
                 "pipeline_watermark_enabled": True,
+                "live_preview_enabled": False,
             },
             regular_channels=self.regular_channels,
             inference_channels=self.inference_channels,

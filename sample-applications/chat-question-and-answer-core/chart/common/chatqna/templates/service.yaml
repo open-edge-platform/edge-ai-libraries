@@ -6,6 +6,6 @@ spec:
   type: {{ .Values.uiService.type }}
   ports:
     - port: {{ .Values.uiService.port }}
-      targetPort: 80
+      targetPort: 8102
   selector:
     app: chatqna-core-ui

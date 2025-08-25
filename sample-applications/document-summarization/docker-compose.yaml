@@ -1,12 +1,12 @@
 services:
   nginx:
-    image: nginx:latest
+    image: nginxinc/nginx-unprivileged:1.27.4
     environment:
       - no_proxy=${no_proxy},docsum-ui,docsum-api
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
     ports:
-      - "8101:80"
+      - "8101:8080"
     volumes:
       - ./nginx.conf:/etc/nginx/nginx.conf:ro
     depends_on:
@@ -22,6 +22,10 @@ services:
       - no_proxy=${no_proxy}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
+    ulimits:
+      nofile:
+        soft: 16384
+        hard: 65536
     ports:
       - "9300:9300"
       - "8300:80"
@@ -37,7 +41,7 @@ services:
       - my_network
 
   docsum-api:
-    image: ${REGISTRY:-}genai-docsum:${TAG}
+    image: ${REGISTRY:-}document-summary:${TAG}
     build:
       context: .
       dockerfile: Dockerfile
@@ -59,11 +63,11 @@ services:
     networks:
       - my_network
     volumes:
-      - /usr/local/share/ca-certificates:/usr/local/share/ca-certificates
+      - /opt/share/ca-certificates:/opt/share/ca-certificates
       - /etc/ssl/certs:/etc/ssl/certs
 
   docsum-ui:
-    image: ${REGISTRY:-}genai-docsum:${TAG}
+    image: ${REGISTRY:-}document-summary:${TAG}
     build:
       context: .
       dockerfile: Dockerfile
