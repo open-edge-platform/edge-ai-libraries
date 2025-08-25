@@ -19,8 +19,9 @@ route_service = RouteService()
 current_route_info = None
 optimization_active = False
 optimization_thread = None
-UI_UPDATE_INTERVAL = 12  # Poll interval for new updates from data_queue used by thread
-OPTIMIZATION_INTERVAL = 8  # Seconds between agent invocations
+agent_iteration_count = 1
+UI_UPDATE_INTERVAL = 9  # Poll interval for new updates from data_queue used by thread
+OPTIMIZATION_INTERVAL = 12  # Seconds between agent invocations
 
 # Queue for passing data between agent thread and UI
 data_queue = queue.Queue()
@@ -107,16 +108,16 @@ def planner_agent_thread(source: str, destination: str):
     global optimization_active
     logger.info(f"Triggering Route Planner Agent for route {source} to {destination}")
 
-    iteration_count = 1
+    global agent_iteration_count
     try:
         while optimization_active:
             logger.info(
-                f"Running agent iteration {iteration_count} for route {source} to {destination}"
+                f"Running agent iteration {agent_iteration_count} for route {source} to {destination}"
             )
 
             time.sleep(OPTIMIZATION_INTERVAL)
 
-            if iteration_count == 1:
+            if agent_iteration_count == 1:
                 # Start by getting direct shortest route. Shortest direct route needs to found only once.
                 agent_status_msg, thinking_output, map_output = get_direct_route(
                     source, destination
@@ -131,7 +132,7 @@ def planner_agent_thread(source: str, destination: str):
             # Put the results in the queue to be picked up by the UI
             data_queue.put(
                 {
-                    "iteration": iteration_count,
+                    "iteration": agent_iteration_count,
                     "timestamp": time.time(),
                     "agent_status": agent_status_msg,
                     "thinking_output": thinking_output,
@@ -140,7 +141,7 @@ def planner_agent_thread(source: str, destination: str):
                 }
             )
 
-            iteration_count += 1
+            agent_iteration_count += 1
 
     except Exception as e:
         logger.error(f"Error in Route Planning Agent thread: {e}")
@@ -206,7 +207,7 @@ def stop_agent() -> tuple[gr.Button, gr.Button]:
             optimization_thread.join(timeout=2.0)
 
             logger.info("Route Planning Stopped!")
-            return gr.Button(interactive=optimization_active), gr.Button(interactive=not optimization_active)
+            return gr.Button(interactive=optimization_active), gr.Button(interactive=not optimization_active, value="Resume Route Planning")
         else:
             logger.info("No Route Planning Agents Running.")
             return gr.Button(), gr.Button()
