@@ -90,9 +90,6 @@ build-videogenerator: ## Build videogenerator image
 	DOCKER_TAG=$(DOCKER_TAG) docker compose build videogenerator
 
 docker-build: ## Build all images
-	ls -la
-	cat collector/Dockerfile
-	git rev-parse HEAD
 	$(MAKE) build DEVICE_TYPE=$${DEVICE_TYPE:-CPU}
 	$(MAKE) build-videogenerator
 
