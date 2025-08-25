@@ -1,11 +1,10 @@
-scikit-learn-intelex==2025.2.0
+scikit-learn-intelex==2025.7.0
 scikit-learn==1.6.1
-protobuf==6.31.1
-modin==0.32.0
-tomlkit==0.13.2
 asyncua==1.1.5
-fastapi==0.115.12
+fastapi==0.116.1
 uvicorn==0.34.0
 influxdb==5.3.2
 requests==2.32.4
-numpy==2.2.6
+tomlkit==0.13.2
+protobuf==6.31.1
+dpctl==0.20.2

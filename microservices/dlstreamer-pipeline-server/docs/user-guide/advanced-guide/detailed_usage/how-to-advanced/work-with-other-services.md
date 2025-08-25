@@ -20,7 +20,7 @@ In the current release of DL Streamer Pipeline Server, the following two workflo
     docker pull intel/model-registry:1.0.3
     ```
 
-2.  Follow the instructions in the Model Registry's Get Started Guide: https://docs.edgeplatform.intel.com/model-registry-as-a-service/1.0.3/user-guide/get-started.html to run the microservice.
+2.  Follow the instructions in the [Model Registry's Get Started Guide](https://docs.openedgeplatform.intel.com/edge-ai-libraries/model-registry/main/user-guide/get-started.html) to run the microservice.
 3. Send a POST request to store a model.
     * Use the following `curl` command to send a POST request with FormData fields corresponding to the model's properties. 
 
@@ -140,7 +140,7 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
     * Location: Within an object in the `"config.pipelines"` list.
     * Supported sub-properties:
         * **name** (String, Optional): The name associated to a model.
-        	* Example: `"name": "pallet-detection-FP32-YOLO"`
+        	* Example: `"name": "pdd"`
         * **project_name** (String, Optional): The name of the project associated to a model.
         	* Example: `"project_name": "Pallet Defect Detection"`
         * **version** (String, Optional): The version of a model.
@@ -174,13 +174,6 @@ A sample config has been provided for this demonstration at `[WORKDIR]/edge-ai-l
             * Location: model property for inferencing element within pipeline definition `"config.pipelines[...]"` list.
             * Example: `"pipeline": "....gvadetect model=./mr_models/yolo11s_m-v1_fp32/FP32/yolo11s.xml name=detection...."`
 
-The `config.json` file must be volume mounted inside the `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/docker-compose.yml` to reflect the configuration changes when DL Streamer Pipeline Server is brought up.
-
-```sh
-volumes:
-      # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/config.json to config file that DL Streamer Pipeline Server container loads."
-      - "../configs/config.json:/home/pipeline-server/config.json"
-```
 
 Next bring up the containers
 ```sh
@@ -228,7 +221,7 @@ Download/Update model:
 Along with model properties, `deploy`, `origin` and `pipeline_element_name` should be provided to download the model and restart the pipeline with the newly downloaded model set for the specific pipeline element.
 ```json
 {
-    "name": "pallet-detection-FP32-YOLO",
+    "name": "pdd",
     "project_name": "pallet-detection",
     "version": "v2",
     "category": "Detection",
