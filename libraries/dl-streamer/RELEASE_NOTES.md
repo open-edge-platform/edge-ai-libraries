@@ -94,9 +94,9 @@ The complete solution leverages:
 | [gvawatermark](./docs/source/elements/gvawatermark.md) | Overlays the metadata on the video frame to visualize the inference results. |
 
 
-For the details of supported platforms, please refer to [System Requirements](./docs/source/get_started/system_requirements.html) section.
+For the details of supported platforms, please refer to [System Requirements](./docs/source/get_started/system_requirements.md) section.
 
-For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.html)
+For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md)
 
 ## New in this Release
 
@@ -347,7 +347,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 
 ### System Requirements
 
-Please refer to [DL Streamer documentation](./docs/source/get_started/system_requirements.html).
+Please refer to [DL Streamer documentation](./docs/source/get_started/system_requirements.md).
 
 ## Installation Notes
 
@@ -357,7 +357,7 @@ There are several installation options for Pipeline Framework:
 1. Build Docker image from docker file and run Docker image
 1. Build Pipeline Framework from source code
 
-For more detailed instructions please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.html).
+For more detailed instructions please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md).
 
 ## Samples
 
