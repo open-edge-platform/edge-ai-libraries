@@ -22,7 +22,6 @@ ExternalProject_Add(
     PREFIX ${CMAKE_BINARY_DIR}/ffmpeg
     URL     https://ffmpeg.org/releases/ffmpeg-${DESIRED_VERSION}.tar.gz
     URL_MD5 cce359cad7ed0d4f0079f7864080ad36
-    DOWNLOAD_EXTRACT_TIMESTAMP true
     INSTALL_COMMAND make install
     TEST_COMMAND    ""
     CONFIGURE_COMMAND   <SOURCE_DIR>/configure 
