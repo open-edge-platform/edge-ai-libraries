@@ -118,7 +118,7 @@ class VLMService:
         
         # Windowed analysis configuration (your requirements)
         self.traffic_window_duration_seconds = 15  # 15-second sliding window
-        self.sustained_threshold_seconds = 12.5     # 12.5 seconds sustained high traffic
+        self.sustained_threshold_seconds = 5     # 12.5 seconds sustained high traffic
         self.analysis_display_duration_minutes = 20  # Show analysis for 20 minutes
         
         # Legacy config for backward compatibility

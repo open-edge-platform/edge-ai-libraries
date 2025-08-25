@@ -49,21 +49,126 @@ class DirectionalTrafficService:
         'westbound': ['WBLANE', 'NBWBLTLANE']                               # West bound lanes and turns
     }
     
-    # Intersection coordinates (lat, lng) - coordinates in San Francisco Bay Area
-    INTERSECTION_COORDINATES = {
-        'cb1cf1a0-b936-4d47-9221-3fd5cf24857d': {'latitude': 37.86719, 'longitude': -122.30188, 'name': 'Main St & 1st Ave'},
-        '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c': {'latitude': 37.59381, 'longitude': -122.36722, 'name': 'Main St & 2nd Ave'},
-        '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d': {'latitude': 37.73789, 'longitude': -122.40806, 'name': '2nd St & 1st Ave'},
-        '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e': {'latitude': 37.49076, 'longitude': -122.21788, 'name': '2nd St & 2nd Ave'}
-    }
-    
     def __init__(self, config_service):
         """Initialize directional traffic service."""
         self.config = config_service
         self.region_mapping = {}  # scene_id -> {region_name -> region_uuid}
         self.region_counts = {}   # region_uuid -> {vehicle: count, pedestrian: count}
+        self.intersection_coordinates = {}  # scene_id -> coordinates from config
+        self._load_intersection_coordinates()
         self._load_region_mapping()
         logger.info("Directional traffic service initialized")
+    
+    def _load_intersection_coordinates(self):
+        """Load intersection coordinates from config file and scene names from data.json."""
+        try:
+            intersections = self.config.get_intersections()
+            
+            # Load scene names from data.json to ensure consistency
+            scene_name_mapping = self._load_scene_names_from_data_json()
+            
+            # Create intersection coordinates mapping using scene names from data.json
+            # Default scene IDs (these should match data.json)
+            default_scene_ids = [
+                'cb1cf1a0-b936-4d47-9221-3fd5cf24857d',  # Intersection-1 from data.json
+                '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c',  # Intersection-2 from data.json  
+                '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d',  # Intersection-3 from data.json
+                '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e'   # Intersection-4 from data.json
+            ]
+            
+            for scene_id in default_scene_ids:
+                # Get intersection name from data.json (e.g., "Intersection-1")
+                intersection_name = scene_name_mapping.get(scene_id, f"Intersection-{scene_id[:8]}")
+                
+                # Convert to config format (e.g., "Intersection-1" -> "intersection-1")
+                config_intersection_id = intersection_name.lower()
+                
+                if config_intersection_id in intersections:
+                    intersection_data = intersections[config_intersection_id]
+                    location = intersection_data.get('location', {})
+                    self.intersection_coordinates[scene_id] = {
+                        'latitude': location.get('latitude', 37.7749),  # Default SF coordinates
+                        'longitude': location.get('longitude', -122.4194),
+                        'name': intersection_name  # Use name from data.json
+                    }
+                    logger.debug(f"Loaded coordinates for {scene_id} ({intersection_name}): {self.intersection_coordinates[scene_id]}")
+                else:
+                    logger.warning(f"Intersection {config_intersection_id} not found in config, using data.json name")
+                    # Fallback to default coordinates but keep data.json name
+                    self.intersection_coordinates[scene_id] = {
+                        'latitude': 37.7749,
+                        'longitude': -122.4194,
+                        'name': intersection_name
+                    }
+            
+            logger.info(f"Loaded {len(self.intersection_coordinates)} intersection coordinates from config and data.json")
+            
+        except Exception as e:
+            logger.error(f"Failed to load intersection coordinates from config: {str(e)}")
+            # Fallback to default coordinates with data.json names
+            self._load_fallback_coordinates()
+
+    def _load_scene_names_from_data_json(self) -> Dict[str, str]:
+        """Load scene UUID to name mapping from data.json file."""
+        try:
+            import os
+            
+            # Try multiple locations for the data file (same as other services)
+            data_paths = [
+                "/app/data/data.json",  # Docker container path
+                # Relative to current service file: services/ -> scene_intelligence/ -> src/ -> webserver/
+                os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(os.path.abspath(__file__)))), "webserver", "data.json")
+            ]
+            
+            data = None
+            data_file = None
+            
+            for path in data_paths:
+                try:
+                    with open(path, 'r') as f:
+                        data = json.load(f)
+                        data_file = path
+                        break
+                except (FileNotFoundError, json.JSONDecodeError) as e:
+                    logger.debug(f"Failed to load data from {path}: {str(e)}")
+                    continue
+            
+            if data is None:
+                logger.warning("Could not find data.json, using fallback scene names")
+                return {}
+            
+            # Extract scene names from data.json
+            scene_mapping = {}
+            for item in data:
+                if item.get("model") == "manager.scene" and item.get("pk"):
+                    scene_uuid = item.get("pk")
+                    scene_name = item.get("fields", {}).get("name", "")
+                    if scene_uuid and scene_name:
+                        scene_mapping[scene_uuid] = scene_name
+            
+            logger.debug(f"Loaded {len(scene_mapping)} scene names from {data_file}")
+            return scene_mapping
+            
+        except Exception as e:
+            logger.error(f"Failed to load scene names from data.json: {str(e)}")
+            return {}
+
+    def _load_fallback_coordinates(self):
+        """Load fallback coordinates with hardcoded mapping."""
+        # Fallback to default coordinates for all scene IDs (with correct names from data.json)
+        fallback_mapping = {
+            'cb1cf1a0-b936-4d47-9221-3fd5cf24857d': 'Intersection-1',
+            '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c': 'Intersection-2', 
+            '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d': 'Intersection-3',
+            '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e': 'Intersection-4'
+        }
+        
+        for scene_id, name in fallback_mapping.items():
+            self.intersection_coordinates[scene_id] = {
+                'latitude': 37.7749,
+                'longitude': -122.4194,
+                'name': name
+            }
     
     def _load_region_mapping(self):
         """Load region number to UUID mapping from database."""
@@ -217,8 +322,8 @@ class DirectionalTrafficService:
             logger.warning(f"Invalid scene ID requested: {scene_id}")
             return None
         
-        # Get coordinates and name from predefined mapping
-        coord_info = self.INTERSECTION_COORDINATES.get(scene_id)
+        # Get coordinates and name from config-loaded mapping
+        coord_info = self.intersection_coordinates.get(scene_id)
         if coord_info:
             latitude = coord_info['latitude']
             longitude = coord_info['longitude']
@@ -226,12 +331,17 @@ class DirectionalTrafficService:
                 intersection_name = coord_info['name']
         else:
             # Fallback coordinates (default San Francisco Bay Area location)
-            latitude = 37.73789
-            longitude = -122.40806
+            latitude = 37.7749
+            longitude = -122.4194
             if not intersection_name:
-                # Generate name dynamically based on scene position
-                scene_index = list(sorted(self.region_mapping.keys())).index(scene_id) + 1
-                intersection_name = f"Intersection-{scene_index}"
+                # Use correct hardcoded mapping as final fallback (consistent with data.json)
+                fallback_names = {
+                    'cb1cf1a0-b936-4d47-9221-3fd5cf24857d': 'Intersection-1',
+                    '8f2a4c5e-d9b1-4e3f-a2c8-1b5d7e9f3a6c': 'Intersection-2', 
+                    '3d7b9e1f-c4a6-4f8e-b2d5-6a8c0e2f4b7d': 'Intersection-3',
+                    '9a4e6c2d-f1b8-4a3e-c7d9-5e8a1c4f6b9e': 'Intersection-4'
+                }
+                intersection_name = fallback_names.get(scene_id, f"Intersection-{scene_id[:8]}")
         
         # Calculate directional densities
         northbound = self._calculate_directional_density(scene_id, 'northbound')
@@ -268,12 +378,12 @@ class DirectionalTrafficService:
         """Get directional traffic summary for all intersections."""
         intersections_data = []
         
-        # Get data for each intersection (dynamically from loaded scenes)
-        for i, scene_id in enumerate(sorted(self.region_mapping.keys()), 1):
-            # Generate intersection name dynamically
-            intersection_name = f"Intersection-{i}"
-            intersection_data = self.get_intersection_directional_data(scene_id, intersection_name)
-            intersections_data.append(intersection_data)
+        # Get data for each intersection (using correct intersection names from data.json)
+        for scene_id in sorted(self.region_mapping.keys()):
+            # Use the get_intersection_directional_data method which handles correct naming
+            intersection_data = self.get_intersection_directional_data(scene_id)
+            if intersection_data:
+                intersections_data.append(intersection_data)
         
         # Calculate overall totals
         overall_northbound = sum(data.northbound_density for data in intersections_data)
@@ -305,14 +415,14 @@ class DirectionalTrafficService:
         """Get list of available scenes with their information."""
         scenes = []
         for i, scene_id in enumerate(sorted(self.region_mapping.keys()), 1):
-            # Get coordinates and name from predefined mapping
-            coord_info = self.INTERSECTION_COORDINATES.get(scene_id, {})
+            # Get coordinates and name from config-loaded mapping
+            coord_info = self.intersection_coordinates.get(scene_id, {})
             
             scene_info = {
                 'scene_id': scene_id,
                 'intersection_name': coord_info.get('name', f"Intersection-{i}"),
-                'latitude': coord_info.get('latitude', 37.73789),
-                'longitude': coord_info.get('longitude', -122.40806),
+                'latitude': coord_info.get('latitude', 37.7749),
+                'longitude': coord_info.get('longitude', -122.4194),
                 'region_count': len(self.region_mapping[scene_id]),
                 'regions': list(self.region_mapping[scene_id].keys())
             }

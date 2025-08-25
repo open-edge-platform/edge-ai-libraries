@@ -322,31 +322,79 @@ async def get_directional_traffic_summary(
         else:
             logger.warning("VLM service not available")
             
-        # Add camera images - prioritize VLM analysis stored images, fallback to fresh images for high density
+        # Add camera images - ensure all high density intersections have images
         if image_service:
+            # Track which intersections need fresh images
+            intersections_needing_images = set()
+            
             for intersection_data in summary_dict["intersections"]:
                 intersection_id = intersection_data["intersection_id"]
                 
+                # Check if this intersection currently has high traffic density
+                directional_densities = {
+                    "northbound": intersection_data.get("northbound_density", 0),
+                    "southbound": intersection_data.get("southbound_density", 0),
+                    "eastbound": intersection_data.get("eastbound_density", 0),
+                    "westbound": intersection_data.get("westbound_density", 0)
+                }
+                
+                has_current_high_density = False
+                if vlm_service:
+                    high_directions = vlm_service.analyze_high_density_directions(directional_densities)
+                    has_current_high_density = len(high_directions) > 0
+                
                 # Check if VLM analysis has stored camera images
                 vlm_analysis_in_intersection = intersection_data.get("vlm_analysis")
-                if vlm_analysis_in_intersection and "camera_images" in vlm_analysis_in_intersection:
+                has_vlm_stored_images = (vlm_analysis_in_intersection and 
+                                       "camera_images" in vlm_analysis_in_intersection and 
+                                       vlm_analysis_in_intersection["camera_images"])
+                
+                if has_vlm_stored_images:
                     # Use camera images stored with VLM analysis for consistency and retention
                     intersection_data["camera_images"] = vlm_analysis_in_intersection["camera_images"]
                     logger.debug("Using VLM analysis stored camera images", 
                                intersection_id=intersection_id, 
                                image_count=len(vlm_analysis_in_intersection["camera_images"]))
-                elif intersection_id in high_density_intersections:
-                    # Only add fresh images if this intersection currently has high density and no VLM stored images
-                    camera_images = image_service.get_intersection_images_by_scene_uuid(intersection_id, max_age_minutes=3)
-                    intersection_data["camera_images"] = camera_images
-                    logger.debug("Added fresh camera images to high-density intersection", 
-                               intersection_id=intersection_id, 
-                               image_count=len(camera_images))
+                elif has_current_high_density:
+                    # Mark for fresh image retrieval since it has high density but no VLM stored images
+                    intersections_needing_images.add(intersection_id)
                 else:
                     # No images for normal/low density intersections without VLM analysis
                     intersection_data["camera_images"] = {}
                     logger.debug("No images added for normal-density intersection", 
                                intersection_id=intersection_id)
+            
+            # Request fresh images for intersections with high density that don't have VLM stored images
+            if intersections_needing_images and mqtt_publisher:
+                # Remove intersections that already had images requested in the earlier logic
+                additional_intersections = intersections_needing_images - set(high_density_intersections)
+                
+                if additional_intersections:
+                    logger.info("Requesting fresh images for additional high-density intersections without VLM stored images", 
+                               intersections=list(additional_intersections))
+                    
+                    # Send getimage commands for intersections that need fresh images
+                    send_success = await mqtt_publisher.send_getimage_commands_for_intersections(list(additional_intersections))
+                    if send_success:
+                        logger.info("Successfully sent getimage commands for additional high-density intersections, waiting for images...")
+                        # Wait for fresh images
+                        await asyncio.sleep(2)  # 2 seconds should be enough for cameras to respond
+                    else:
+                        logger.warning("Failed to send getimage commands for additional high-density intersections")
+                else:
+                    logger.debug("No additional image requests needed - all high-density intersections already covered")
+            
+            # Now populate camera images for all intersections that needed them
+            for intersection_data in summary_dict["intersections"]:
+                intersection_id = intersection_data["intersection_id"]
+                
+                if intersection_id in intersections_needing_images:
+                    # Get fresh images for high-density intersections
+                    camera_images = image_service.get_intersection_images_by_scene_uuid(intersection_id, max_age_minutes=3)
+                    intersection_data["camera_images"] = camera_images
+                    logger.debug("Added fresh camera images to high-density intersection", 
+                               intersection_id=intersection_id, 
+                               image_count=len(camera_images))
         else:
             logger.warning("Image service not available")
             # Set empty camera_images for all intersections

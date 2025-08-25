@@ -118,7 +118,8 @@ class ImageService:
                         pk = item.get('pk')
                         name = item.get('fields', {}).get('name')
                         if pk and name and 'Intersection' in name:
-                            intersection_id = name.lower().replace('intersection-', 'intersection-')
+                            # Convert from "Intersection-3" to "intersection-3"
+                            intersection_id = name.lower()
                             self.scene_uuid_to_intersection_id[pk] = intersection_id
                 logger.info("Scene UUID to intersection mapping initialized", mapping=self.scene_uuid_to_intersection_id)
             else:

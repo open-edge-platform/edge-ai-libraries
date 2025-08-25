@@ -9,8 +9,8 @@
       "id": "intersection-1",
       "name": "intersection-1",
       "location": {
-        "latitude": 37.86719,
-        "longitude": -122.30188
+        "latitude": 37.55336,
+        "longitude": -122.29627
       },
       "cameras": [
         {
@@ -63,8 +63,8 @@
       "id": "intersection-2",
       "name": "intersection-2",
       "location": {
-        "latitude": 37.59381,
-        "longitude": -122.36722
+        "latitude": 37.82837,
+        "longitude": -122.29489
       },
       "cameras": [
         {
@@ -117,8 +117,8 @@
       "id": "intersection-3",
       "name": "intersection-3",
       "location": {
-        "latitude": 37.73789,
-        "longitude": -122.40806
+        "latitude": 37.69076,
+        "longitude": -122.09948
       },
       "cameras": [
         {
@@ -171,8 +171,8 @@
       "id": "intersection-4",
       "name": "intersection-4",
       "location": {
-        "latitude": 37.49076,
-        "longitude": -122.21788
+        "latitude": 37.70127,
+        "longitude": -121.92295
       },
       "cameras": [
         {
