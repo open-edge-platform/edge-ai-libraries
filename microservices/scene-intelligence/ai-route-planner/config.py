@@ -95,6 +95,7 @@ MAP_COLORS = {
     "optimal_route": "#13B513",
     "start_marker": "#0AB438",
     "route_incident": "#FA1B07",
+    "no_incident": "#193A58",
     "end_marker": "#FF9D00",
     "waypoint": "#A47C02",
     "non_optimal_route_direct": "#9C9B9B",

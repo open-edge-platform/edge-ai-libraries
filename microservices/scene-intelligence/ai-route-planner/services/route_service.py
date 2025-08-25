@@ -160,7 +160,12 @@ class RouteService:
             route_issue = f"'{weather_condition.value}' weather condition on the route."
         elif live_traffic := self.route_state.get("live_traffic", {}):
             if live_traffic.get("traffic_density", 0) > 0:
+                
+                if live_traffic.get("is_sub_optimal"):
+                    route_issue += "## Sub-optimal Route Found (All routes have high congestion)."
+
                 route_issue = f"high traffic density of {live_traffic.get('traffic_density')} at {live_traffic.get('intersection_name')}"
+
                 if live_traffic.get("traffic_description"):
                     route_issue += f" - {live_traffic.get('traffic_description')[:900]} ..."
 
@@ -227,8 +232,9 @@ class RouteService:
         # Create alternate route map for the alternate route
         alternate_map = self.create_route_map(start_location, end_location, incident_location)
         distance = self.route_state["optimal_route"]["distance"] if self.route_state else 0.0
+        is_sub_optimal = self.route_state.get("is_sub_optimal") if self.route_state else False
 
-        return next_data_source, alternate_planning_reason, distance, alternate_map, intersection_images
+        return next_data_source, alternate_planning_reason, distance, is_sub_optimal, alternate_map, intersection_images
 
     def create_route_map(self, start_location: str, end_location: str, incident_location: Optional[GeoCoordinates] = None) -> str:
         """Create a complete route map with all routes and markers"""

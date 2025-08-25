@@ -123,6 +123,18 @@ class MapCreator:
 
     def add_incident_marker(self, map_obj: folium.Map, latitude: float, longitude: float) -> None:
         """Add a marker for route incidents"""
+
+        # A dict mapping lats and longs to intersection name
+        intersection_names: dict[tuple, str] = {
+            (37.55336,  -122.29627): "Intersection 1",
+            (37.82837, -122.29489): "Intersection 2",
+            (37.69076, -122.09948): "Intersection 3",
+            (37.70127, -121.92295): "Intersection 4"
+        }
+
+        # get current intersection name
+        # current_intersection = intersection_names.get((latitude, longitude), "Unknown Intersection")
+
         incident_icon_html = f"""
         <div style="
             background-color: {self.map_colors["route_incident"]};
@@ -143,17 +155,53 @@ class MapCreator:
             "></div>
         </div>
         """
+        no_incident_icon_html = f"""
+        <div style="
+            background-color: {self.map_colors["no_incident"]};
+            border: 3px solid white;
+            border-radius: 50%;
+            width: 20px;
+            height: 20px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+        ">
+            <div style="
+                background-color: white;
+                border-radius: 50%;
+                width: 8px;
+                height: 8px;
+            "></div>
+        </div>
+        """
+        for coordinates, intersection_name in intersection_names.items():
+            
+            current_latitude, current_longitude = coordinates
 
-        folium.Marker(
-            location=[latitude, longitude],
-            popup=folium.Popup(
-                "<b>Route Incident</b><br>Traffic incident affecting the route",
-                max_width=200,
-            ),
-            icon=folium.DivIcon(
-                html=incident_icon_html, icon_size=(20, 20), icon_anchor=(10, 10)
-            ),
-        ).add_to(map_obj)
+            if latitude == current_latitude and longitude == current_longitude:
+                folium.Marker(
+                    location=[latitude, longitude],
+                    popup=folium.Popup(
+                        f"<b>{intersection_name}</b><br>Traffic incident affecting the route",
+                        max_width=200,
+                    ),
+                    icon=folium.DivIcon(
+                        html=incident_icon_html, icon_size=(20, 20), icon_anchor=(10, 10)
+                    ),
+                ).add_to(map_obj)
+            else:
+                folium.Marker(
+                    location=[current_latitude, current_longitude],
+                    popup=folium.Popup(
+                        f"<b>{intersection_name}</b><br>Traffic incident affecting the route",
+                        max_width=200,
+                    ),
+                    icon=folium.DivIcon(
+                        html=no_incident_icon_html, icon_size=(20, 20), icon_anchor=(10, 10)
+                    ),
+                ).add_to(map_obj)
+
 
     def add_location_markers(
         self,

@@ -39,6 +39,8 @@ class RoutePlanner:
         # Construct all required nodes and edges and compile the graph
         self.graph = self._build_graph()
 
+        self.live_traffic_status_list: list[dict] = []
+
     def _find_new_shortest_available_route(
         self, source: str, destination: str, no_fly_list: list[str]
     ) -> tuple[str, float]:
@@ -187,9 +189,13 @@ class RoutePlanner:
         optimal_route_state = state.get("optimal_route", {})
         live_traffic_state = {}
 
+        # If none of the routes are optional, we store sub-optimal route here.
+        sub_optimal_route: dict[str, str] = {}
+        sub_optimal_density: int = 0
+
         # fetch the available live traffic data 
         live_traffic_controller = LiveTrafficController()
-        route_status = live_traffic_controller.fetch_route_status()
+        live_route_status = live_traffic_controller.fetch_route_status()
 
         # Iterate till no new routes are available
         while True:
@@ -217,7 +223,9 @@ class RoutePlanner:
                 if route_not_optimal:
                     break
 
-                for traffic_status in route_status:
+                # Iterate over all routes/intersection found by live traffic controller and proceed with only those which
+                # match the lats and longs of current trackpoint
+                for traffic_status in live_route_status:
                     if (
                         abs(traffic_status.location_coordinates.latitude - trackpoint["lat"])
                         <= live_traffic_controller.proximity_factor
@@ -228,6 +236,14 @@ class RoutePlanner:
                             # If traffic is below threshold, stop looking for more trackpoints in current route
                             logger.info(f"High traffic density ({traffic_status.traffic_density}) in {next_shortest_route_name}. Finding next shortest route...")
                             route_not_optimal = True
+
+                            if not sub_optimal_route or sub_optimal_density < traffic_status.traffic_density:
+                                sub_optimal_route = {
+                                    "route_name": next_shortest_route_name,
+                                    "distance": next_shortest_distance,
+                                }
+                                sub_optimal_density = traffic_status.traffic_density
+                                logger.info(f"Sub-optimal route updated to {sub_optimal_route} with traffic density {sub_optimal_density}")
 
                             # Update the live traffic data to provide details of traffic situation and intersection images
                             live_traffic_state = {
@@ -240,11 +256,21 @@ class RoutePlanner:
                                 "intersection_images": traffic_status.intersection_images,
                             }
 
-                            break
+                            self.live_traffic_status_list.append(live_traffic_state)
+
+                            # If we have received intersection images, break out of loop else try to find matching intersection 
+                            # passing the threshold criteria with possible intersection images.
+                            if traffic_status.intersection_images:
+                                break
+                            
+                            logger.info("No intersection image found, checking for other intersections")
 
             if i == len(trackpoints) - 1 and not route_not_optimal:
                 # If we reached the last trackpoint without finding high traffic, consider route to be optimal
                 logger.info(f"Route {next_shortest_route_name} is optimal.")
+
+                # Go for the best route, when you have it. Get rid of the second best.
+                sub_optimal_route = {}
 
                 # Update the optimal_route_state for the graph state
                 optimal_route_state = {
@@ -257,9 +283,16 @@ class RoutePlanner:
                 # Add current route to local no_fly_list and try next shortest route if any
                 local_no_fly_list.append(next_shortest_route_name)
 
+        # If live traffic status (the issues in traffic) is for same route as that of sub_optimal_route
+        # pick the live traffic status of previous route
+        if sub_optimal_route and live_traffic_state and sub_optimal_route["route_name"] == live_traffic_state.get("route_name"):
+            logger.info("Picking previous live traffic status as current optimal route is sub-optimal")
+            live_traffic_state = self.live_traffic_status_list[0]
+
         return {
-            "optimal_route": optimal_route_state,
+            "optimal_route": sub_optimal_route or optimal_route_state,
             "live_traffic": live_traffic_state,
+            "is_sub_optimal": bool(sub_optimal_route),
         }
 
 

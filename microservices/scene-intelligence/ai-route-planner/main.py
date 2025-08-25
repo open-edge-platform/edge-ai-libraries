@@ -19,7 +19,7 @@ route_service = RouteService()
 current_route_info = None
 optimization_active = False
 optimization_thread = None
-UI_UPDATE_INTERVAL = 6  # Poll interval for new updates from data_queue used by thread
+UI_UPDATE_INTERVAL = 12  # Poll interval for new updates from data_queue used by thread
 OPTIMIZATION_INTERVAL = 8  # Seconds between agent invocations
 
 # Queue for passing data between agent thread and UI
@@ -72,18 +72,25 @@ def get_optimal_route(source: str, destination: str) -> tuple[str, str, str, Opt
         )
 
     # Start planning the route
-    next_data_source, route_issue, distance, optimized_route_map, intersection_images = (
+    next_data_source, route_issue, distance, is_sub_optimal, optimized_route_map, intersection_images = (
         route_service.create_alternate_route_map(source, destination)
     )
+
+    thinking_message: str = f"\n #### Route: {source} -> {destination}\n\n"
+
+    if is_sub_optimal:
+        thinking_message += (
+            f"## Sub-optimal Route Found (All routes have high congestion). \n"
+        )
+
     if route_issue:
-        thinking_message = (
-            f"\n #### Route: {source} -> {destination}\n\n ### Route Updated due to "
+        thinking_message += ("### Route Updated due to "
             + f"{route_issue} \n\n ##### Total Distance for Updated Route : {distance:.2f} Kms\n\n"
         )
     else:
         thinking_message = (
-            f" #### Route: {source} -> {destination}\n\n ### No traffic or weather issues found on "
-            + f"current route. \n\n ##### Total Distance : {distance:.2f} Kms \n\n"
+            f"### No traffic or weather issues found on current route."
+             + f"\n\n ##### Total Distance : {distance:.2f} Kms \n\n"
         )
 
     # Set message to show Real-time Agent actions
@@ -197,6 +204,7 @@ def stop_agent() -> tuple[gr.Button, gr.Button]:
         ):
             optimization_active = False
             optimization_thread.join(timeout=2.0)
+
             logger.info("Route Planning Stopped!")
             return gr.Button(interactive=optimization_active), gr.Button(interactive=not optimization_active)
         else:

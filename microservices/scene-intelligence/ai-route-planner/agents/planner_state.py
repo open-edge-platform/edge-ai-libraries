@@ -38,3 +38,4 @@ class RoutePlannerState(TypedDict):
         StaticOptimizerName
     ]  # List of Route optimizers to be applied
     live_traffic: LiveTrafficState  # Details of live traffic recieved during real-time route optimization
+    is_sub_optimal: bool  # Flag to indicate if the optimal route is sub-optimal
