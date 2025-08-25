@@ -90,7 +90,7 @@ build-videogenerator: ## Build videogenerator image
 	DOCKER_TAG=$(DOCKER_TAG) docker compose build videogenerator
 
 docker-build: ## Build all images
-	$(MAKE) build DEVICE_TYPE=$${DEVICE_TYPE:-CPU}
+	$(MAKE) build DEVICE_TYPE=$(or $(DEVICE_TYPE),CPU)
 	$(MAKE) build-videogenerator
 
 public_models_choice: ## Ask if public models shall be downloaded
