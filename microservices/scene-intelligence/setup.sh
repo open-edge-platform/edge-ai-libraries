@@ -83,14 +83,9 @@ elif [ "$1" = "--status" ]; then
     
     echo ""
     echo -e "${BLUE}AI Route Planner Status:${NC}"
-    if [ -f "ai-route-planner.pid" ]; then
-        PID=$(cat ai-route-planner.pid)
-        if ps -p $PID > /dev/null 2>&1; then
-            echo -e "${GREEN}✓ AI Route Planner is running (PID: $PID)${NC}"
-            echo -e "  URL: ${YELLOW}http://localhost:${AI_ROUTE_PLANNER_PORT}${NC}"
-        else
-            echo -e "${RED}✗ AI Route Planner is not running (stale PID file)${NC}"
-        fi
+    if lsof -i :${AI_ROUTE_PLANNER_PORT} > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ AI Route Planner is running on port ${AI_ROUTE_PLANNER_PORT}${NC}"
+        echo -e "  URL: ${YELLOW}http://localhost:${AI_ROUTE_PLANNER_PORT}${NC}"
     else
         echo -e "${RED}✗ AI Route Planner is not running${NC}"
     fi
@@ -289,18 +284,19 @@ build_images() {
 stop_ai_route_planner() {
     echo -e "${YELLOW}Stopping AI Route Planner...${NC}"
     
-    if [ -f "ai-route-planner.pid" ]; then
-        PID=$(cat ai-route-planner.pid)
-        if ps -p $PID > /dev/null 2>&1; then
-            kill $PID
-            echo -e "${GREEN}AI Route Planner stopped (PID: $PID)${NC}"
-            rm -f ai-route-planner.pid
+    if lsof -i :${AI_ROUTE_PLANNER_PORT} > /dev/null 2>&1; then
+        echo -e "${YELLOW}Found AI Route Planner running on port ${AI_ROUTE_PLANNER_PORT}, stopping...${NC}"
+        fuser -k ${AI_ROUTE_PLANNER_PORT}/tcp 2>/dev/null
+        sleep 1
+        
+        # Verify it's stopped
+        if lsof -i :${AI_ROUTE_PLANNER_PORT} > /dev/null 2>&1; then
+            echo -e "${RED}Failed to stop AI Route Planner${NC}"
         else
-            echo -e "${YELLOW}AI Route Planner was not running${NC}"
-            rm -f ai-route-planner.pid
+            echo -e "${GREEN}AI Route Planner stopped successfully${NC}"
         fi
     else
-        echo -e "${YELLOW}AI Route Planner PID file not found${NC}"
+        echo -e "${YELLOW}AI Route Planner is not running${NC}"
     fi
 }
 
@@ -321,27 +317,30 @@ start_ai_route_planner() {
         return 0
     fi
     
+    # Check if port is already in use
+    if lsof -i :${AI_ROUTE_PLANNER_PORT} > /dev/null 2>&1; then
+        echo -e "${YELLOW}Port ${AI_ROUTE_PLANNER_PORT} is already in use. Stopping existing process...${NC}"
+        fuser -k ${AI_ROUTE_PLANNER_PORT}/tcp 2>/dev/null
+        sleep 2
+    fi
+    
     # Change to AI Route Planner directory and start the application in background
     (
         cd "${AI_ROUTE_PLANNER_DIR}"
         echo -e "${YELLOW}Starting AI Route Planner with uv run main.py...${NC}"
         nohup uv run main.py >| ../ai-route-planner.log 2>&1 &
-        echo $! >| ../ai-route-planner.pid
-        echo -e "${GREEN}AI Route Planner started in background (PID: $!)${NC}"
+        echo -e "${GREEN}AI Route Planner started in background${NC}"
         echo -e "${YELLOW}Logs available at: ai-route-planner.log${NC}"
     )
     
     # Give it a moment to start
-    sleep 2
+    sleep 3
     
-    # Check if it's running
-    if [ -f "ai-route-planner.pid" ]; then
-        PID=$(cat ai-route-planner.pid)
-        if ps -p $PID > /dev/null 2>&1; then
-            echo -e "${GREEN}✓ AI Route Planner is running (PID: $PID)${NC}"
-        else
-            echo -e "${YELLOW}AI Route Planner may have failed to start. Check ai-route-planner.log for details.${NC}"
-        fi
+    # Check if it's running by checking the port
+    if lsof -i :${AI_ROUTE_PLANNER_PORT} > /dev/null 2>&1; then
+        echo -e "${GREEN}✓ AI Route Planner is running on port ${AI_ROUTE_PLANNER_PORT}${NC}"
+    else
+        echo -e "${YELLOW}AI Route Planner may have failed to start. Check ai-route-planner.log for details.${NC}"
     fi
 }
 
