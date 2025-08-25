@@ -1,1 +1,4 @@
 ignorefile: tools/visual-pipeline-and-platform-evaluation-tool/.trivyignore.yaml
+vulnerability:
+  # This enables ignoring vulnerabilities that don't have a fix yet
+  ignore-unfixed: true
