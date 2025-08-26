@@ -132,17 +132,24 @@ class OpenVINOBackend:
 
         if model_type == "embedding":
             model = OVModelForFeatureExtraction.from_pretrained(
-                model_id, export=True
+                model_id,
+                export=True,
+                trust_remote_code=True
             )
 
         elif model_type == "reranker":
             model = OVModelForSequenceClassification.from_pretrained(
-                model_id, export=True
+                model_id,
+                export=True,
+                trust_remote_code=True
             )
 
         elif model_type == "llm":
             model = OVModelForCausalLM.from_pretrained(
-                model_id, export=True, weight_format="int8"
+                model_id,
+                export=True,
+                weight_format="int8",
+                trust_remote_code=True
             )
 
         else:
