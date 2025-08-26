@@ -6,29 +6,32 @@
 
 # Use the Kapacitor image as the base image
 ARG KAPACITOR_VERSION
-FROM kapacitor:$KAPACITOR_VERSION
+FROM kapacitor:$KAPACITOR_VERSION as builder
 
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3 python3-pip git ca-certificates intel-gpu-tools && \
-    python3 -m pip install --no-cache-dir --upgrade pip && \
-    apt-get purge -y --auto-remove && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
-
-WORKDIR /app
+    apt-get install -y --no-install-recommends git
 
 # Clone only the required files to reduce image size
 RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSION} \
     https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
     cd /tmp/kapacitor && \
-    git sparse-checkout set udf/agent/py && \
-    mv /tmp/kapacitor/udf/agent/py /app/kapacitor_python && \
-    rm -rf /tmp/kapacitor
+    git sparse-checkout set udf/agent/py
+
+FROM kapacitor:$KAPACITOR_VERSION as runtime
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 python3-pip intel-gpu-tools && \
+    apt-get purge -y --auto-remove && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
+
+# Copy kapacitor Python UDF agent files from builder image
+COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
 # Install Intel GPU tools and clean up
-RUN apt-get update && apt-get install -y --no-install-recommends intel-gpu-tools
-
 RUN export no_proxy= && \
     apt-get update && \
     . /etc/os-release && \
@@ -46,7 +49,7 @@ RUN export no_proxy= && \
     libgbm1=\* libigdgmm12=\* libxatracker2=\* libdrm-amdgpu1=\* \
     va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
     apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+    rm -rf /var/lib/apt/lists/* 
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
@@ -110,8 +113,8 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
 
 WORKDIR /app
 # Remove git and clean up to reduce image size
-RUN apt-get purge -y --auto-remove git && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
+RUN apt-get purge -y --auto-remove && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip /timeseries_user/.cache/pip
 
 # Switch to non-root user for security
 USER $TIMESERIES_USER_NAME

@@ -176,8 +176,8 @@ jobs:
           echo "Public models directory created"
           echo "Public models directory created" >> $GITHUB_STEP_SUMMARY
           DIR_SIZE_MB=$(du -sm "${{ env.MODELS_PATH }}/public" | cut -f1)
-          echo "Public models directory size: ${DIR_SIZE_MB}MB"
-          echo "Public models directory size: ${DIR_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
+          echo "Public models directory size: ${DIR_SIZE_MB} MB"
+          echo "Public models directory size: ${DIR_SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
           if [ "$DIR_SIZE_MB" -ge "${{ env.MODELS_DIR_MIN_SIZE_MB }}" ]; then
             echo "Public models downloaded ✅"
             echo "Public models downloaded ✅" >> $GITHUB_STEP_SUMMARY
@@ -201,8 +201,8 @@ jobs:
           echo "Open Model Zoo models directory created"
           echo "Open Model Zoo models directory created" >> $GITHUB_STEP_SUMMARY
           DIR_SIZE_MB=$(du -sm "${{ env.MODELS_PATH }}/intel" | cut -f1)
-          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB"
-          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB}MB" >> $GITHUB_STEP_SUMMARY
+          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB} MB"
+          echo "Open Model Zoo models directory size: ${DIR_SIZE_MB} MB" >> $GITHUB_STEP_SUMMARY
           if [ "$DIR_SIZE_MB" -ge "${{ env.MODELS_DIR_MIN_SIZE_MB }}" ]; then
             echo "Open Model Zoo models downloaded ✅"
             echo "Open Model Zoo models downloaded ✅" >> $GITHUB_STEP_SUMMARY
@@ -214,12 +214,15 @@ jobs:
 
     - name: Manage models directories after success
       if: ${{ inputs.models_to_download != 'specific_model' && steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
+      env:
+        models_to_download: ${{ inputs.models_to_download }}
       run: |
-        if [[ "$input" == "public" || "$input" == "all" || "$input" == "schedule" ]]; then
+        models=$models_to_download
+        if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/public_old_old"
           echo "New public models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
-        if [[ "$input" == "omz" || "$input" == "all" || "$input" == "schedule" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
           echo "New Open Model Zoo models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
@@ -230,7 +233,6 @@ jobs:
         models_to_download: ${{ inputs.models_to_download }}
       run: |
         models=$models_to_download
-
         if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
