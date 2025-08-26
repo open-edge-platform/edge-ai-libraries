@@ -20,8 +20,8 @@ DOCKER_PRIVATE_REGISTRY := # Empty on purpose
 
 export PATH 					:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/bin:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/bin:${HOME}/.local/bin:${HOME}/python3venv/bin:${PATH}
 export GST_PLUGIN_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/gstreamer-1.0:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
-export LIBRARY_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/opencv-bin/lib:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib:${LD_LIBRARY_PATH}
-export PKG_CONFIG_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib/pkgconfig:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/pkgconfig:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:${PKG_CONFIG_PATH}
+export LIBRARY_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/opencv-bin/lib:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib
+export PKG_CONFIG_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/lib/pkgconfig:${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/pkgconfig:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib/pkgconfig:/usr/local/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig
 export LIBVA_DRIVER_NAME 		:= iHD
 export LIBVA_DRIVERS_PATH 		:= /usr/lib/x86_64-linux-gnu/dri
 export GST_VA_ALL_DRIVERS 		:= 1
@@ -37,7 +37,7 @@ dependencies:
 	cmake --build build/deps
 
 .PHONY: build
-build: dependencies ## Compile DLStreamer
+build: dependencies ## Compile Deep Learning Streamer
 	source ${OPENVINO_DIR}/setupvars.sh
 	cmake \
 		-B build \
@@ -52,12 +52,9 @@ build: dependencies ## Compile DLStreamer
 		-DENABLE_TESTS=OFF 
 	cmake --build build
 
-.PHONY: build22
-build22: opencv build
-
 .PHONY: install
-install: build ## Build and install DLStreamer
-	@echo "Installing DLStreamer"
+install: build ## Build and install Deep Learning Streamer
+	@echo "Installing Deep Learning Streamer"
 	@mkdir -p ${DLSTREAMER_INSTALL_PREFIX}
 	@cmake \
 		-B build/deps \
@@ -74,7 +71,7 @@ install: build ## Build and install DLStreamer
 	@echo "Installation successful"
 
 .PHONY: deb
-deb: ## Build the DLStreamer DEB package for Ubuntu 24.04
+deb: ## Build the Deep Learning Streamer DEB package for Ubuntu 24.04
 	mkdir -p build/packages/deb
 	docker build . \
 		-f docker/ubuntu/ubuntu24.Dockerfile \
@@ -93,7 +90,7 @@ deb: ## Build the DLStreamer DEB package for Ubuntu 24.04
 	docker rm deb-builder
 
 .PHONY: deb22
-deb22: ## Build the DLStreamer DEB package for Ubuntu 22.04
+deb22: ## Build the Deep Learning Streamer DEB package for Ubuntu 22.04
 	mkdir -p build/packages/deb
 	docker build . \
 		-f docker/ubuntu/ubuntu22.Dockerfile \
@@ -112,7 +109,7 @@ deb22: ## Build the DLStreamer DEB package for Ubuntu 22.04
 	docker rm deb-builder
 
 .PHONY: rpm
-rpm: ## Build the DLStreamer RPM package
+rpm: ## Build the Deep Learning Streamer RPM package
 	mkdir -p build/packages/rpm
 	docker build . \
 		-t rpm-builder \
@@ -131,7 +128,7 @@ rpm: ## Build the DLStreamer RPM package
 	docker rm rpm-builder
 
 .PHONY: image
-image: ## Build the DLStreamer docker image based on Ubuntu 24.04
+image: ## Build the Deep Learning Streamer docker image based on Ubuntu 24.04
 	docker build . \
 		-f docker/ubuntu/ubuntu24.Dockerfile \
 		-t dlstreamer:dev \
@@ -144,7 +141,7 @@ image: ## Build the DLStreamer docker image based on Ubuntu 24.04
 		--build-arg DOCKER_PRIVATE_REGISTRY=${DOCKER_PRIVATE_REGISTRY}
 
 .PHONY: image22
-image22: ## Build the DLStreamer docker image based on Ubuntu 22.04
+image22: ## Build the Deep Learning Streamer docker image based on Ubuntu 22.04
 	docker build . \
 		-f docker/ubuntu/ubuntu22.Dockerfile \
 		-t dlstreamer:dev \

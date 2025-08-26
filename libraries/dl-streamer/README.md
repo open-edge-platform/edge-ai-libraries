@@ -39,15 +39,15 @@ List of [supported models](./docs/source/supported_models.md) which include LVM,
 Report bugs and requests [on the issues page](https://github.com/open-edge-platform/edge-ai-libraries/issues)
 
 ## Compilation
-You can build DLStreamer using the provided Makefile. Reference `make help` for a list of all available targets.
+You can build DL Streamer using the provided Makefile. Reference `make help` for a list of all available targets.
 Currently building is supported for Ubuntu 24.04 and Ubuntu 22.04 systems.
 
-#### Compile DLStreamer and it's dependencies with
+#### Compile Deep Learning Streamer and it's dependencies with
 ```bash
 make build
 ```
 
-Assuming that you cloned this repository to `$HOME/edge-ai-libraries`, you can run the compiled DLStreamer by configuring your environment with these values:
+Assuming that you cloned this repository to `$HOME/edge-ai-libraries`, you can run the compiled DL Streamer by configuring your environment with these values:
 ```bash
 export LIBVA_DRIVER_NAME=iHD
 export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/deps/gstreamer-bin/lib/gstreamer-1.0"
@@ -59,13 +59,13 @@ export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/librari
 export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 ```
 
-#### Install DLStreamer onto your system with
-> Note: DLStreamer will be installed in the `/opt/intel/dlstreamer` directory during this process.
+#### Install Deep Learning Streamer onto your system with
+> Note: DL Streamer will be installed in the `/opt/intel/dlstreamer` directory during this process.
 ```bash
 make install
 ```
 
-You can run the installed DLStreamer by configuring your environment with these values:
+You can run the installed DL Streamer by configuring your environment with these values:
 ```bash
 export LIBVA_DRIVER_NAME=iHD
 export GST_PLUGIN_PATH="/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
@@ -77,19 +77,19 @@ export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:/opt/intel/dlstreamer/lib/pkgco
 export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
 ```
 
-#### Build the DLStreamer DEB package with
+#### Build the Deep Learning Streamer DEB package with
 > Note: the DEB package build process requires that docker be present on the system.
 ```bash
 make deb # deb22 for the Ubuntu 22.04 package
 ```
 
-#### Build the DLStreamer RPM package with
+#### Build the Deep Learning Streamer RPM package with
 > Note: the RPM package build process requires that docker be present on the system.
 ```bash
 make rpm
 ```
 
-#### Build the DLStreamer docker image with
+#### Build the Deep Learning Streamer docker image with
 ```bash
 make image # image22 for the Ubuntu 22.04 image
 ```
