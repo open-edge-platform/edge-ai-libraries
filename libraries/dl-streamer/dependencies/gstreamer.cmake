@@ -9,6 +9,9 @@ include(ExternalProject)
 # When changing version, you will also need to change the download hash
 set(DESIRED_VERSION 1.26.1)
 
+# Note: the dependency scripts follow a template, this is left here should other 
+# dependencies be added in the future and this file used as a reference.
+#
 # find_package(PkgConfig)
 # pkg_check_modules(GSTREAMER gstreamer-1.0=${DESIRED_VERSION})
 
