@@ -117,7 +117,7 @@ NamedPipe::~NamedPipe() {
             if (remove(_pipeName.c_str()))
                 throw std::runtime_error("Failed to remove pipe " + _pipeName);
         }
-    } catch (const std::exception& e) {
+    } catch (const std::exception &e) {
         fprintf(stderr, "Error in NamedPipe destructor: %s\n", e.what());
     } catch (...) {
         fprintf(stderr, "Unknown error in NamedPipe destructor\n");
