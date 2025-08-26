@@ -1,0 +1,10 @@
+<launch>
+  <arg name="gripper_com_port" default="0" doc="COM port the gripper is connected to" />
+  <arg name="gripper_model" default="16" doc="Model of the gripper."/>
+  <arg name="gripper_name" default="gripper" doc="Name of the gripper."/>
+  <arg name="log_level" default="INFO" doc="Log output level for the driver [INFO, DEBUG]"/>
+
+  <node name="hiwin_gripper_driver" pkg="hiwin_driver" type="gripper_driver.py" args="--gripper_com_port $(arg gripper_com_port)
+   --gripper_name $(arg gripper_name) --gripper_model $(arg gripper_model) --log_level $(arg log_level)" output="screen">
+  </node>
+</launch>

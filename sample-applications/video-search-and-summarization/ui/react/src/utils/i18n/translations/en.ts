@@ -162,6 +162,7 @@ export const enTranslations = {
   errorWithUpperCase: 'Error',
   deletedSuccessfully: 'deleted successfully',
   unknownError: 'An unknown error occurred',
+  videoUploadError: 'An error occurred during video upload',
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',

@@ -22,13 +22,18 @@ RUN poetry config virtualenvs.create false \
     && poetry install --only=main --no-root \
     && poetry cache clear pypi --all
 
+# Download NLTK corpora (stopwords + punkt)
+RUN mkdir -p /opt/share/nltk_data \
+ && python -m nltk.downloader -d /opt/share/nltk_data stopwords punkt
+
 FROM python:3.11-slim AS runtime
 
 # Set environment variables
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     HOME="/home/appuser" \
-    PYTHONPATH="/app"
+    PYTHONPATH="/app" \
+    NLTK_DATA="/opt/share/nltk_data"
 
 # Install only runtime system dependenciesAdd commentMore actions
 RUN apt-get update && apt-get install -y --no-install-recommends \
@@ -45,6 +50,7 @@ RUN groupadd -g 1001 appuser \
     && chown -R appuser:appuser $HOME
 
 # Copy Python packages from builder stageAdd commentMore actions
+COPY --from=builder /opt/share/nltk_data /opt/share/nltk_data
 COPY --from=builder /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=builder /usr/local/bin /usr/local/bin
 
@@ -54,6 +60,9 @@ WORKDIR /app
 # Copy application code
 COPY --chown=appuser:appuser app ./app
 COPY --chown=appuser:appuser ui ./ui
+
+# Set ownership for nltk_data
+RUN chown -R appuser:appuser /opt/share/nltk_data
 
 # Switch to non-root userAdd commentMore actions
 USER appuser

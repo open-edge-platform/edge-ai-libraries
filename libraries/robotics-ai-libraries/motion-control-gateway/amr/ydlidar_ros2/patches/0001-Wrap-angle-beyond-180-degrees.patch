@@ -1,0 +1,65 @@
+From e2cd7ad2b0610215ac2fa1bc93f21872249d9f0f Mon Sep 17 00:00:00 2001
+From: Jeremy Ouillette <jeremy.ouillette@intel.com>
+Date: Mon, 7 Jul 2025 22:46:45 -0700
+Subject: [PATCH] Wrap angle beyond 180 degrees.
+
+---
+ src/CYdLidar.cpp | 17 +++++++++++++----
+ 1 file changed, 13 insertions(+), 4 deletions(-)
+
+diff --git a/src/CYdLidar.cpp b/src/CYdLidar.cpp
+index 01b2c33..d75ef37 100644
+--- a/src/CYdLidar.cpp
++++ b/src/CYdLidar.cpp
+@@ -1,4 +1,4 @@
+-﻿/*********************************************************************
++/*********************************************************************
+ * Software License Agreement (BSD License)
+ *
+ *  Copyright (c) 2018, EAIBOT, Inc.
+@@ -129,6 +129,15 @@ bool CYdLidar::isRangeIgnore(double angle) const {
+   return ret;
+ }
+ 
++static double to_N180_180(double degree)
++{
++	if(degree > 180.0) {
++		degree -= 360.0;
++	} else if(degree < -180.0) {
++		degree += 360.0;
++	}
++	return degree;
++}
+ 
+ /*-------------------------------------------------------------
+ 						doProcessSimple
+@@ -177,7 +186,7 @@ bool  CYdLidar::doProcessSimple(LaserScan &outscan,
+       m_MinAngle = m_MaxAngle;
+       m_MaxAngle = temp;
+     }
+-
++    
+     int all_node_count = count;
+ 
+     outscan.config.min_angle = angles::from_degrees(m_MinAngle);
+@@ -215,7 +224,7 @@ bool  CYdLidar::doProcessSimple(LaserScan &outscan,
+       }
+ 
+       intensity = static_cast<float>(global_nodes[i].sync_quality);
+-      angle = angles::from_degrees(angle);
++      angle = angles::from_degrees(to_N180_180(angle + 180.0)); //wangyuxiang: bug angle rotate 180
+ 
+       //Rotate 180 degrees or not
+       if (m_Reversion) {
+@@ -379,7 +388,7 @@ bool CYdLidar::checkLidarAbnormal() {
+ 
+ 
+         if (IS_OK(op_result)) {
+-          if (abs(data.front() - count) > 10) {
++          if (abs((int)(data.front() - count)) > 10) {
+             data.erase(data.begin());
+           }
+ 
+-- 
+2.30.2
+

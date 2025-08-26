@@ -1,0 +1,41 @@
+Source: orb-extractor
+Maintainer: ECI Maintainer <eci.maintainer@intel.com>
+Section: libs
+Priority: optional
+Build-Depends: debhelper (>= 13),
+               pkg-config,
+               cmake,
+	       libze-dev, intel-opencl-icd, libopencv-dev (>= 4.2.0),  intel-ocloc-dev (>=23.43.27642.40), intel-ocloc (>=23.43.27642.40), intel-igc-cm, libgtest-dev, 
+
+Package: liborb-lze-dev
+Architecture: any
+Section: libdevel
+Depends:  libze-dev,
+	 liborb-lze (= ${binary:Version}),
+	 ${misc:Depends}
+Description: ORB (Oriented FAST and Rotated BRIEF) - development files
+ The ORB (Oriented FAST and Rotated BRIEF) feature extractor consists
+ of various CV kernels such as resize, gaussian, fast, compute descriptor
+ and orientation while non CV functions like distribute_keypoints_via_tree.
+ .
+ This package contains development files (headers and samples).
+
+Package: liborb-lze
+Architecture: amd64
+Multi-Arch: same
+Depends: debconf (>=1.5.71), bash (>=4), ${shlibs:Depends}, ${misc:Depends},  libze1 | level-zero, intel-opencl-icd (>=23.43.27642.40), libze-intel-gpu1  (>=23.43.27642.40), intel-ocloc (>=23.43.27642.40), 
+Suggests: ros-humble-robotics-sdk-license
+Description: ORB (Oriented FAST and Rotated BRIEF) - development files
+ The ORB (Oriented FAST and Rotated BRIEF) feature extractor consists
+ of various CV kernels such as resize, gaussian, fast, compute descriptor
+ and orientation while non CV functions like distribute_keypoints_via_tree.
+ .
+ This package contains shared library and Intel(R) level-zero GPU kernel.
+
+Package: orb-extractor-lze-test
+Architecture: amd64
+Section: science
+Depends: ${misc:Depends}, ${shlibs:Depends}, liborb-lze (= ${binary:Version})
+Multi-Arch: foreign
+Description: [internal] ORB (Oriented FAST and Rotated BRIEF) - feature extraction testsuite
+ using Intel(R) Level-Zero GPU

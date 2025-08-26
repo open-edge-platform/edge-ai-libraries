@@ -1,50 +1,44 @@
 x-vippet: &vippet
-  image: docker.io/intel/vippet-app:v1.0.0
+  image: docker.io/intel/vippet-app:v1.2
   build:
     context: .
     dockerfile: Dockerfile.vippet
   ports:
     - "7860:7860"
-  command: python app.py
   healthcheck:
-    test: ["CMD", "wget", "-qO-", "http://localhost:7860/"]
+    test: ["CMD", "curl", "--fail", "--silent", "--show-error", "--output", "/dev/null", "http://localhost:7860/"]
     interval: 30s
     timeout: 10s
     retries: 5
   depends_on:
     models:
-      condition: service_healthy
+      condition: service_completed_successfully
   restart: on-failure:5
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
     PIPELINE: smartnvr
+  env_file:
+    - path: '.public_models_env'
+      required: false
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./models:/home/dlstreamer/vippet/models
 
 services:
   models:
-    image: docker.io/intel/dlstreamer:2025.0.1.3-ubuntu24
+    image: intel/dlstreamer:2025.1.2-ubuntu24
     container_name: models
     volumes:
       - ./models/:/output
-      - ./models.sh:/tmp/models.sh
+      - ./models.sh:/home/dlstreamer/models.sh
     environment:
       - MODELS_PATH=/output/
-    user: root
-    command: bash -c '
-        cp /tmp/models.sh . &&
-        chmod +x models.sh &&
-        bash -c ./models.sh &&
-        tail -f /dev/null
-      '
+    env_file:
+      - path: '.public_models_env'
+        required: false
+    command: './models.sh'
     restart: on-failure:5
-    healthcheck:
-      test: ["CMD", "test", "-f", "healthcheck.txt"]
-      interval: 30s
-      timeout: 10s
-      retries: 5
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu
@@ -67,7 +61,7 @@ services:
       - "/dev/accel:/dev/accel"
     profiles: [npu]
   collector:
-    image: docker.io/intel/vippet-collector:v1.0.0
+    image: docker.io/intel/vippet-collector:v1.2
     build:
       context: ./collector
       dockerfile: Dockerfile
@@ -82,12 +76,11 @@ services:
     ipc: host
     pid: host
     volumes:
-      - ./collector/telegraf.conf:/etc/telegraf/telegraf.conf
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
   videogenerator:
     profiles: [do-not-start]
-    image: docker.io/intel/vippet-videogenerator:v1.0.1
+    image: docker.io/intel/vippet-videogenerator:v1.2
     build:
       context: video_generator
       dockerfile: Dockerfile

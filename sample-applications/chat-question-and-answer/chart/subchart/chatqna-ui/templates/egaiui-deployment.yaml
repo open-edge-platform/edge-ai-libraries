@@ -11,12 +11,17 @@ spec:
       labels:
         app: {{ .Values.chatqnaui.name }}
     spec:
+      securityContext:
+          runAsUser: 101
+          runAsGroup: 101
+          fsGroup: 101
+          allowPrivilegeEscalation: false
       containers:
         - name: {{ .Values.chatqnaui.name }}
           image: {{ .Values.chatqnaui.image.repository }}:{{ .Values.chatqnaui.image.tag }}
           imagePullPolicy: {{ .Values.chatqnaui.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.chatqnaui.service.targetPort }}
+            - containerPort: {{ .Values.chatqnaui.service.port }}
           env:
             - name: APP_ENDPOINT_URL
               value: "{{ .Values.chatqnaui.env.APP_ENDPOINT_URL }}"

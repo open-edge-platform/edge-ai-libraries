@@ -165,7 +165,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
     fi
 
 RUN chown -R appuser:appuser /app 
-    
+
 # Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
 RUN echo '#!/bin/bash\n\
 exec gunicorn audio_analyzer.main:app \

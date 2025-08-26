@@ -1,13 +1,11 @@
 import json
 import logging
-import math
 import os
 import random
 import shutil
 import subprocess
 import tempfile
 
-from PIL import Image, ImageOps
 
 from composite_generator import create_composite_frames
 
@@ -130,8 +128,20 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
 
     # Encoder settings with dynamic bitrate
     encoder_settings = {
-        "h264": ["x264enc", f"bitrate={bitrate}", "speed-preset=fast", "tune=zerolatency"],
-        "hevc": ["x265enc", f"bitrate={bitrate}", "speed-preset=fast", "tune=zerolatency", "!", "h265parse"],
+        "h264": [
+            "x264enc",
+            f"bitrate={bitrate}",
+            "speed-preset=fast",
+            "tune=zerolatency",
+        ],
+        "hevc": [
+            "x265enc",
+            f"bitrate={bitrate}",
+            "speed-preset=fast",
+            "tune=zerolatency",
+            "!",
+            "h265parse",
+        ],
         "vp8": ["vp8enc", f"target-bitrate={bitrate}", "deadline=1000000"],
         "vp9": ["vp9enc", f"target-bitrate={bitrate}", "deadline=1000000"],
         "av1": ["av1enc", f"target-bitrate={bitrate}"],
@@ -156,11 +166,23 @@ def generate_video(temp_dir, output_file, frame_rate, encoding, bitrate=2000):
 
     # Construct the GStreamer pipeline command
     gst_command = [
-        "gst-launch-1.0", "-e",
-        "multifilesrc", f"location={temp_dir}/frame_%05d.jpeg", "index=0", f"caps={caps}", "!",
-        decoding, "!", "videoconvert", "!",
-        *encoder_settings[encoding_lower], "!", muxer, "!",
-        "filesink", f"location={output_file}"
+        "gst-launch-1.0",
+        "-e",
+        "multifilesrc",
+        f"location={temp_dir}/frame_%05d.jpeg",
+        "index=0",
+        f"caps={caps}",
+        "!",
+        decoding,
+        "!",
+        "videoconvert",
+        "!",
+        *encoder_settings[encoding_lower],
+        "!",
+        muxer,
+        "!",
+        "filesink",
+        f"location={output_file}",
     ]
 
     logging.debug(f"Running GStreamer Command:\n{' '.join(gst_command)}")

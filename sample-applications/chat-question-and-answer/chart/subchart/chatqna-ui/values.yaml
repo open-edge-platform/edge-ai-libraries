@@ -1,18 +1,18 @@
 global:
   proxy:
-    no_proxy: 
-    http_proxy: 
-    https_proxy: 
+    no_proxy:
+    http_proxy:
+    https_proxy:
 
 chatqnaui:
   name: chatqna-ui
   image:
     repository: intel/chatqna-ui
-    tag: "1.2.1"
+    tag: "1.2.2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
-    port: 80
+    port: 8101
     targetPort: 8101
   env:
     APP_ENDPOINT_URL: "/v1/chatqna"

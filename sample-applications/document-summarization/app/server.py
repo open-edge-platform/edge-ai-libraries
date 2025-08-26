@@ -7,6 +7,7 @@ import shutil
 import logging
 import traceback
 import openlit
+import tempfile
 from typing import Any
 from openai import OpenAI
 from fastapi import FastAPI, File, UploadFile
@@ -23,6 +24,8 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
+
+tmp_docs_dir = os.path.join(tempfile.gettempdir(), "docs")
 
 # Configure logging
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
@@ -107,17 +110,6 @@ def save_uploaded_file(uploaded_file: UploadFile, destination: str):
         raise
 
 
-def ensure_directory_exists(directory: str):
-    """
-    Ensure that the specified directory exists. If it doesn't, create it.
-    
-    Args:
-        directory (str): The path to the directory to be checked/created.
-    """
-    if not os.path.exists(directory):
-        os.makedirs(directory)
-
-
 def clean_directory(directory: str):
     """
     Remove all files and directories within the specified directory.
@@ -169,9 +161,12 @@ async def stream_data_endpoint(
                 status_code=400,
                 content={"message": f"Only {', '.join(config.SUPPORTED_FILE_EXTENSIONS)} files are allowed to upload."},
             )
+        
+        # Create a safe subdirectory inside the system temp dir
+        os.makedirs(tmp_docs_dir, exist_ok=True)
 
-        ensure_directory_exists("/tmp/docs")
-        file_location = f"/tmp/docs/{file.filename}"
+        file_location = os.path.join(tmp_docs_dir, file.filename)
+
         save_uploaded_file(file, file_location)
         
         # Verify file exists and has content
@@ -228,9 +223,9 @@ async def stream_data_endpoint(
         )
     finally:
         try:
-            if os.path.exists("/tmp/docs"):
-                logger.info("Cleaning /tmp/docs directory")
-                clean_directory("/tmp/docs")
+            if os.path.exists(tmp_docs_dir):
+                logger.info(f"Cleaning {tmp_docs_dir} directory")
+                clean_directory(tmp_docs_dir)
                 logger.info("Directory cleaned successfully")
         except Exception as e:
             logger.error(f"Error cleaning directory: {str(e)}")
@@ -239,9 +234,10 @@ async def stream_data_endpoint(
 FastAPIInstrumentor.instrument_app(app)
 
 if __name__ == "__main__":
-    # Get API port from environment or use default
+    # Get API port and host from environment or use defaults
     port = int(config.API_PORT or "8090")
-    
+    host = "0.0.0.0"  # Uses 0.0.0.0 to allow external access
+
     # Start FastAPI with Uvicorn
-    logger.info(f"Starting Document Summarization API on port {port}")
-    uvicorn.run("server:app", host="0.0.0.0", port=port, reload=False)
+    logger.info(f"Starting Document Summarization API on {host}:{port}")
+    uvicorn.run("server:app", host=host, port=port, reload=False)

@@ -2,6 +2,9 @@
 
 This section shows how to build the Document Summarization Sample Application from the source.
 
+> **Note:** 
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+
 ## Prerequisites
 
 Before you begin, ensure that you have the following prerequisites:
@@ -33,7 +36,7 @@ Before you begin, ensure that you have the following prerequisites:
 
       # Docker Image Registry Configuration
       export REGISTRY="intel/"
-      export TAG=1.0.0
+      export TAG=1.0.1
       ```
 
       To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.

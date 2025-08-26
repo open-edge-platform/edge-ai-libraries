@@ -7,10 +7,13 @@
     `cd helm`
 - Update the below fields in `values.yaml` file in the helm chart
     ``` sh
-    http_proxy: # example: http_proxy: http://proxy.example.com:891
-    https_proxy: # example: http_proxy: http://proxy.example.com:891
+    env:
+        http_proxy: # example: http_proxy: http://proxy.example.com:891
+        https_proxy: # example: http_proxy: http://proxy.example.com:891
+    images:
+        dlstreamer_pipeline_server: # example: dlstreamer_pipeline_server: intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
     ```
-- Install the helm chart
+- Install the helm chart:
     `helm install dlsps . -n apps --create-namespace`
 - Check if Deep Learning Streamer Pipeline Server is running fine
     `kubectl get pods --namespace apps`and monitor its logs using `kubectl logs -f <pod_name> -n apps`
@@ -42,6 +45,8 @@
         }'
     ```
 - Open VLC media player on your windows system. Cick on Media -> Open Network Stream -> Enter `rtsp://<Host_IP_where_Deep_Learning_Streamer_Pipeline_Server_is_running>:30025/pallet-defect-detection` in network URL tab and hit Play to see the visualization.
+- Uninstall the helm chart:
+    `helm uninstall dlsps -n apps`
 
 ## Troubleshooting
 - [Troubleshooting Guide](../docs/user-guide/troubleshooting-guide.md)

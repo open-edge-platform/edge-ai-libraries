@@ -17,7 +17,7 @@ spec:
           image: {{ .Values.nginx.image.repository }}:{{ .Values.nginx.image.tag }}
           imagePullPolicy: {{ .Values.nginx.image.pullPolicy }}
           ports:
-            - containerPort: 80
+            - containerPort: 8080
           env:
             - name: no_proxy
               value: "{{ .Values.global.proxy.noProxy }},localhost,docsum-api,docsum-ui"
@@ -27,7 +27,12 @@ spec:
               value: {{ .Values.global.proxy.httpsProxy }}
           volumeMounts:
             - name: nginx-config
-              mountPath: /etc/nginx/conf.d
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
+      securityContext:
+        allowPrivilegeEscalation: false
+
+
       volumes:
         - name: nginx-config
           configMap:
@@ -42,8 +47,8 @@ spec:
     app: {{ include "nginx.fullname" . }}
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 80
+      port: 8080
+      targetPort: 8080
       nodePort: {{ .Values.global.ui.nodePort }}
   type: NodePort
 ---
@@ -52,41 +57,46 @@ kind: ConfigMap
 metadata:
   name: {{ include "nginx.fullname" . }}-config
 data:
-  nginx.conf: |
-   
-    server {
-      listen 80;
-      listen [::]:80;
+  nginx.conf: |+
+    pid /tmp/nginx.pid;
 
-      client_max_body_size 500M;
-      proxy_read_timeout 300;
-      proxy_connect_timeout 300;
-      proxy_send_timeout 300;      
-      
-      location / {
-            proxy_pass http://docsum-ui:9998/;
-            proxy_http_version 1.1;
-            proxy_buffering off;
-            proxy_redirect off;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "Upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Host $http_host;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_cache_bypass $http_upgrade;
+    events {}
+
+    http {
+      server {
+        listen 8080;
+        listen [::]:8080;
+
+        client_max_body_size 500M;
+        proxy_read_timeout 300;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+
+        location / {
+          proxy_pass http://docsum-ui:9998/;
+          proxy_http_version 1.1;
+          proxy_buffering off;
+          proxy_redirect off;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "Upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Host $http_host;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_cache_bypass $http_upgrade;
         }
-      
-      location /api {
-            proxy_pass http://docsum-api:8090/v1/docsum;
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "Upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_cache_bypass $http_upgrade;
+
+        location /api {
+          proxy_pass http://docsum-api:8090/v1/docsum;
+          proxy_http_version 1.1;
+          proxy_set_header Upgrade $http_upgrade;
+          proxy_set_header Connection "Upgrade";
+          proxy_set_header Host $host;
+          proxy_set_header X-Real-IP $remote_addr;
+          proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+          proxy_set_header X-Forwarded-Proto $scheme;
+          proxy_cache_bypass $http_upgrade;
         }
+      }
     }

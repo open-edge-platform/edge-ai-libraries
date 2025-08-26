@@ -1,0 +1,12 @@
+*.pyc
+__pycache__/
+.*_cache/
+**/charts
+.vscode
+.venv
+coverage
+.coverage
+.coverage-report/
+*.lock
+!poetry.lock
+.vscode

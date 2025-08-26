@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
+<package format="3">
+  <name>jaka_moveit_py</name>
+  <version>0.0.0</version>
+  <description>An example of using moveit_py.</description>
+  <maintainer email="peterdavidfagan@gmail.com">Peter David Fagan</maintainer>
+  <license>Apache License 2.0</license>
+
+  <author email="peterdavidfagan@gmail.com">Peter David Fagan</author>
+
+  <depend>moveit_py</depend>
+  <depend>rclpy</depend>
+  <depend>rcl</depend>
+  <depend>numpy</depend>
+
+  <export>
+    <build_type>ament_python</build_type>
+  </export>
+</package>

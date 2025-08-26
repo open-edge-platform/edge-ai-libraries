@@ -25,7 +25,7 @@ Before you begin, ensure that you have the following prerequisites:
 
           @task
           def ask_query(self):
-              self.client.post("/v1/chatqna/stream_log", json={"input": "What is the capital of France?"})
+              self.client.post("/v1/chatqna/chat", json={"input": "What is the capital of France?"})
       ```
 
 3. **Run the Performance Test**:
