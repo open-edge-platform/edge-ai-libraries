@@ -37,7 +37,8 @@ logging.basicConfig(
 
 logger = logging.getLogger()
 
-app = FastAPI()
+REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
+app = FastAPI(root_path=REST_API_ROOT_PATH)
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
