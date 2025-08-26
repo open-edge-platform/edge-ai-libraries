@@ -1,6 +1,6 @@
 services:
   nginx-cpu:
-    image: nginxinc/nginx-unprivileged:1.27.4
+    image: nginxinc/nginx-unprivileged:1.29
     profiles:
       - DEFAULT
     ports:
@@ -12,7 +12,7 @@ services:
       - chatqna-core-ui
 
   nginx-gpu:
-    image: nginxinc/nginx-unprivileged:1.27.4
+    image: nginxinc/nginx-unprivileged:1.29
     profiles:
       - GPU-DEVICE
     ports:

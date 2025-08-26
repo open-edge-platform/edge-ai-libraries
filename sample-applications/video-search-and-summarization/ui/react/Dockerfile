@@ -13,7 +13,7 @@ COPY . .
 
 RUN ["npm", "run", "build"]
 
-FROM nginx:1.27.4
+FROM nginx:1.29
 
 COPY --from=vite-app /user/app/dist /user/share/nginx/html
 COPY ./env.sh /docker-entrypoint.d/env.sh

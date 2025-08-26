@@ -37,7 +37,7 @@ RUN ["npm", "run", "build"]
 # -----------------------------------------------------------------------------
 # Stage 2: Serve the built app using Nginx (unprivileged)
 # -----------------------------------------------------------------------------
-FROM nginxinc/nginx-unprivileged:1.27.4
+FROM nginxinc/nginx-unprivileged:1.29
 
 # Copy the built app from the previous stage
 COPY --from=vite-app /user/app/dist /usr/share/nginx/html
