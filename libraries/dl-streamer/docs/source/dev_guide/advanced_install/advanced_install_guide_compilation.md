@@ -85,7 +85,7 @@ pip install --upgrade pip==24.0
 pip install meson==1.4.1 ninja==1.11.1.1
 ```
 
-## Step 4: Clone Intel® DL Streamer repository
+## Step 4: Clone Deep Learning Streamer repository
 
 ```bash
 cd ~
