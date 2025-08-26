@@ -135,17 +135,17 @@ git submodule update --init libraries/dl-streamer/thirdparty/spdlog
   cd /opt/intel
   sudo ln -s openvino_2025.2.0 openvino_2025
   ```
-## Step 6: Build Intel DLStreamer
+## Step 6: Build Intel Deep Learning Streamer
 
-To build DLStreamer is it recommended to use the provided makefile for ease of use:
+To build DL Streamer is it recommended to use the provided makefile for ease of use:
 ```bash
 make build
 ```
-Running this command will build any major missing dependencies and then compile DLStreamer itself.
+Running this command will build any major missing dependencies and then compile DL Streamer itself.
 
-## Step 7: Install DLStreamer (optional)
+## Step 7: Install Deep Learning Streamer (optional)
 
-After building DLStreamer you can install it on your local system by running:
+After building DL Streamer you can install it on your local system by running:
 ```bash
 sudo -E make install
 ```
