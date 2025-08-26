@@ -7,6 +7,9 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `REST_SERVER_PORT=8080`
 
 ### RTSP related config
+- **ENABLE_RTSP (Boolean)** - Set to `true` to enable RTSP. Set to `false` to disable RTSP
+  - Example: `ENABLE_RTSP=true`
+  - Example: `ENABLE_RTSP=false`
 - **RTSP_CAMERA_IP (String)** - IP address of RTSP camera. 
   - Example: `RTSP_CAMERA_IP=<ip-addr>`
 
@@ -67,12 +70,34 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `SERVICE_NAME=my-service`
 - **PROMETHEUS_PORT (Integer)** - Port on which Prometheus metrics are exposed
   - Example: `PROMETHEUS_PORT=9999`
+- **GRAFANA_PORT (Integer)** - Port on which Grafana dashboard is exposed
+  - Example: `GRAFANA_PORT=3000`
+- **GRAFANA_USERNAME (String)** - Username to login into Grafana
+  - Example: `GRAFANA_USERNAME=dlsps123`
+- **GRAFANA_PASSWORD (String)** - Password to login into Grafana
+  - Example: `GRAFANA_PASSWORD=dlsps123`
 
-### Webrtc related config (Configure only if WebRTC is enabled)
+### WebRTC related config (Configure only if WebRTC is enabled)
+- **ENABLE_WEBRTC (Boolean)** - Set to `true` to enable WebRTC. Set to `false` to disable WebRTC
+  - Example: `ENABLE_WEBRTC=true`
+  - Example: `ENABLE_WEBRTC=false`
 - **WHIP_SERVER_IP (String)** - IP address of machine on which open mediamtx container is running
   - Example: `WHIP_SERVER_IP=<ip-addr>`
 - **WHIP_SERVER_PORT (Integer)** - Port on which mediamtx server is running
   - Example: `WHIP_SERVER_PORT=8889`
+-**WHIP_SERVER_TIMEOUT (String)** - Time limit for server timeout 
+  - Example: `WHIP_SERVER_TIMEOUT=10s`
+
+### InfluxDB related config (Configure only if InfluxDB is enabled)
+- **INFLUXDB_HOST (String)** - IP address of machine on which InfluxDB is hosted
+  - Example: `INFLUXDB_HOST=<ip-addr>`
+  - Example: `INFLUXDB_HOST=influxdb`
+- **INFLUXDB_PORT (Integer)**  - Port on which InfluxDB is running
+  - Example: `INFLUXDB_PORT=8086`
+- **INFLUXDB_USERNAME (String)** - Username to login into InfluxDB
+  - Example: `INFLUXDB_USER=influxadmin`
+- **INFLUXDB_PASS (String)** - Password to login into InfluxDB
+  - Example: `INFLUXDB_PASS=influxadmin`
 
 ### Miscellaneous env variables 
 - **GST_DEBUG (Integer)** - Enable GST debug logs
@@ -113,12 +138,14 @@ DL Streamer Pipeline Server microservice's configuration is defined via environm
   - Example: `LOG_LEVEL=DEBUG`
   - Example: `LOG_LEVEL=ERROR`
   - Example: `LOG_LEVEL=WARN`
-- **BASE_IMAGE (String)** - Base image name to be used to build the DLStreamer pipeline server docker
+- **BASE_IMAGE (String)** - Base image name to be used to build the DL Streamer Pipeline Server docker
   - Example: `BASE_IMAGE=<base-image-name>`
-- **DLSTREAMER_PIPELINE_SERVER_IMAGE (String)** - Final image name to be given after successful build of DLStreamer pipeline server
+- **DLSTREAMER_PIPELINE_SERVER_IMAGE (String)** - Image name to build or run DL Streamer Pipeline Server
   - Example: `DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-ubuntu22`
-- **BUILD_TARGET (String)** - Option to select the target build for DLStreamer pipeline server. Use `dlstreamer-pipeline-server` for optimized image and `dlstreamer-pipeline-server-extended` for extended image
+- **BUILD_TARGET (String)** - Option to select the target build for DL Streamer Pipeline Server. Use `dlstreamer-pipeline-server` for optimized image and `dlstreamer-pipeline-server-extended` for extended image
   - Example: `BUILD_TARGET=dlstreamer-pipeline-server`
   - Example: `BUILD_TARGET=dlstreamer-pipeline-server-extended`
-- **DLSTREAMER_PIPELINE_SERVER_DOCKERFILE (String)** - Path to docker file during building of DLStreamer pipeline server
+- **DLSTREAMER_PIPELINE_SERVER_DOCKERFILE (String)** - Path to docker file during building of DL Streamer Pipeline Server
   - Example: `DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile`
+- **ZE_ENABLE_ALT_DRIVERS (String)** - Variable needed to run inference successfully on NPU devices
+  - Example: `ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so`

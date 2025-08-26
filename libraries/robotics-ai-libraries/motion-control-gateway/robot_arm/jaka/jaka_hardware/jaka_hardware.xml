@@ -1,0 +1,9 @@
+<library path="jaka_hardware">
+  <class name="jaka_hardware/JAKASystemCANHardware"
+         type="jaka_hardware::JAKASystemCANHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      JAKA hardware interface.
+    </description>
+  </class>
+</library>

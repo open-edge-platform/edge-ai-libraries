@@ -1,0 +1,5 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="manipulator" >
+  <xacro:include filename="$(find hiwin_ra610_1355_gb_support)/urdf/ra610_1355_gb_macro.xacro" />
+  <xacro:manipulator prefix="" />
+</robot>

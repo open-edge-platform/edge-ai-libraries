@@ -43,14 +43,14 @@ videosummaryui:
 rabbitmq:
   enabled: false
   name: rabbitmq
-  fullname: rabbitmq  
+  fullname: rabbitmq
   service:
     name: rabbitmq
     type: ClusterIP
     amqpPort: 5672
     managementPort: 15672
     mqttPort: 1883
-    
+
 minioServer:
   service:
     port: 9000

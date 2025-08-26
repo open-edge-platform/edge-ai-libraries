@@ -3,3 +3,4 @@
 # Development dependencies
 ruff==0.12.3
 pyright==1.1.403
+coverage==7.10.4

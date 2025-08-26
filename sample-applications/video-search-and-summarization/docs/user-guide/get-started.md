@@ -14,6 +14,8 @@ This guide shows how to:
 - **Run different application stacks**: Execute different application stacks available in the application to perform video search and summary.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
+
+
 ## ✅ Prerequisites
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
@@ -25,7 +27,7 @@ This guide shows how to:
 
 The repository is organized as follows:
 
-```plaintext
+```text
 sample-applications/video-search-and-summarization/
 ├── config                     # Configuration files
 │   ├── nginx.conf             # Nginx configuration
@@ -34,7 +36,6 @@ sample-applications/video-search-and-summarization/
 │   ├── compose.base.yaml      # Base services configuration
 │   ├── compose.summary.yaml   # Compose override file for video summarization services
 │   ├── compose.search.yaml    # Compose override file for Video search services 
-│   ├── compose.gpu_vlm.yaml   # GPU configuration for VLM
 │   └── compose.gpu_ovms.yaml  # GPU configuration for OVMS
 ├── docs                       # Documentation
 │   └── user-guide             # User guides and tutorials
@@ -53,15 +54,12 @@ sample-applications/video-search-and-summarization/
 Before running the application, you need to set several environment variables:
 
 1. **Registry Configuration**:
-   The application uses registry URL, project name, and tag to pull or build required images.
+   The application uses registry URL and tag to pull the required images.
 
     ```bash
-    export REGISTRY_URL=<your-container-registry-url>    # e.g. "docker.io/username/"
-    export PROJECT_NAME=<your-project-name>              # e.g. "video-search-and-summary""
-    export TAG=<your-tag>                                # e.g. "rc4" or "latest"
+    export REGISTRY_URL=intel   
+    export TAG=1.2.0   
     ```
-
-   > **_IMPORTANT:_** These variables control how image names are constructed. If `REGISTRY_URL` is **docker.io/username/** and `PROJECT_NAME` is **video-summary**, an image would be pulled or built as **docker.io/username/video-summary/<application-name>:tag**. The `<application-name>` is hardcoded in _image_ field of each service in all docker compose files. If `REGISTRY_URL` or `PROJECT_NAME` are not set, blank string will be used to construct the image name. If `TAG` is not set, **latest** will be used by default.
 
 2. **Required credentials for some services**:
    Following variables **MUST** be set on your current shell before running the setup script:
@@ -176,6 +174,19 @@ The Video Summary application offers multiple stacks and deployment options:
 ## ▶️ Running the Application
 
 <a name="running-app"></a>
+
+> **ℹ️ Note for EMT (Edge Microvisor Toolkit) Users**
+>
+> If you are running the VSS application on an OS image built with **Edge Microvisor Toolkit (EMT)**—an Azure Linux-based build pipeline for Intel® platforms—you must install the following package:
+>
+> ```bash
+> sudo dnf install mesa-libGL
+> # If you are using TDNF, you can use the following command to install:
+> sudo tdnf search mesa-libGL
+> sudo tdnf install mesa-libGL
+> ```
+>
+> Installing `mesa-libGL` provides the OpenGL library which is needed by `Audio Analyzer service`.
 
 Follow these steps to run the application:
 

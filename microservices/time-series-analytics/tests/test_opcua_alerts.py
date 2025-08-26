@@ -158,4 +158,4 @@ async def test_is_connected_false(valid_config, caplog):
     alerts.client.get_node.side_effect = Exception("fail")
     result = await alerts.is_connected()
     assert result is False
-    assert "Error checking OP CUA connection status" in caplog.text
+    assert "Error checking OPC UA connection status" in caplog.text

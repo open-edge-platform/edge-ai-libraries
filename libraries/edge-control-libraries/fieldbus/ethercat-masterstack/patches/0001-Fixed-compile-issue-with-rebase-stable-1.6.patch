@@ -1,0 +1,685 @@
+From 6599e389b3fcb4ef05552d4bef8aa38f184e3c91 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Mon, 1 Jul 2024 14:53:50 +0800
+Subject: [PATCH] Fixed compile issue with rebase stable-1.6
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ globals.h                 |  4 --
+ lib/slave_config.c        | 28 +++++++++++++
+ master/fsm_foe.c          |  2 +-
+ master/fsm_master.c       |  8 +++-
+ master/fsm_pdo.c          |  6 +--
+ master/fsm_pdo_entry.c    |  6 +--
+ master/fsm_slave_config.c |  3 +-
+ master/ioctl.c            | 85 +++++++++++++++++++++++++--------------
+ master/master.c           |  8 +++-
+ master/reg_request.c      |  4 +-
+ master/slave_config.c     | 19 +++++++--
+ master/voe_handler.c      |  4 +-
+ script/Makefile.am        |  4 ++
+ 13 files changed, 127 insertions(+), 54 deletions(-)
+
+diff --git a/globals.h b/globals.h
+index e77ca444..0f11882e 100644
+--- a/globals.h
++++ b/globals.h
+@@ -187,10 +187,6 @@ static inline int ec_nanosleep(uint64_t ns)
+ #define EBUSY 16
+ #endif
+ 
+-#ifdef EC_USERMODE
+-#define min(x,y) (x < y ? x : y)
+-#define max(x,y) (x > y ? x : y)
+-#endif
+ 
+ #endif
+ #endif
+diff --git a/lib/slave_config.c b/lib/slave_config.c
+index e293c47e..f3954bdb 100644
+--- a/lib/slave_config.c
++++ b/lib/slave_config.c
+@@ -1027,7 +1027,11 @@ int ecrt_slave_config_eoe_mac_address(ec_slave_config_t *sc,
+     memcpy(io.mac_address, mac_address, EC_ETH_ALEN);
+     io.mac_address_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE MAC address: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1049,7 +1053,11 @@ int ecrt_slave_config_eoe_ip_address(ec_slave_config_t *sc,
+     io.ip_address = ip_address;
+     io.ip_address_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE IP address: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1071,7 +1079,11 @@ int ecrt_slave_config_eoe_subnet_mask(ec_slave_config_t *sc,
+     io.subnet_mask = subnet_mask;
+     io.subnet_mask_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE subnet mask: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1093,7 +1105,11 @@ int ecrt_slave_config_eoe_default_gateway(ec_slave_config_t *sc,
+     io.gateway = gateway_address;
+     io.gateway_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE default gateway: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1115,7 +1131,11 @@ int ecrt_slave_config_eoe_dns_address(ec_slave_config_t *sc,
+     io.dns = dns_address;
+     io.dns_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE DNS address: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1137,7 +1157,11 @@ int ecrt_slave_config_eoe_hostname(ec_slave_config_t *sc,
+     strncpy(io.name, (const char *) name, EC_MAX_HOSTNAME_SIZE - 1);
+     io.name_included = 1;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_EOE_IP_PARAM, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure EoE hostname: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+@@ -1163,7 +1187,11 @@ int ecrt_slave_config_state_timeout(ec_slave_config_t *sc,
+     io.to_state = to_state;
+     io.timeout_ms = timeout_ms;
+ 
++#ifdef EC_USERMODE
++    ret = ipc_ctrl_ioctl(sc->master->ipcs, EC_IOCTL_SC_STATE_TIMEOUT, &io);
++#else
+     ret = ioctl(sc->master->fd, EC_IOCTL_SC_STATE_TIMEOUT, &io);
++#endif
+     if (EC_IOCTL_IS_ERROR(ret)) {
+         fprintf(stderr, "Failed to configure AL state timeout: %s\n",
+                 strerror(EC_IOCTL_ERRNO(ret)));
+diff --git a/master/fsm_foe.c b/master/fsm_foe.c
+index 567fac0b..4a7662fd 100644
+--- a/master/fsm_foe.c
++++ b/master/fsm_foe.c
+@@ -793,7 +793,7 @@ void ec_fsm_foe_state_data_read(
+                 fsm->request->error_code);
+         if (rec_size > 6) {
+             uint8_t text[256];
+-            strncpy(text, data + 6, min(rec_size - 6, sizeof(text)));
++            strncpy(text, data + 6, ((rec_size - 6 < sizeof(text))?(rec_size - 6):sizeof(text)));
+             EC_SLAVE_ERR(slave, "FoE Error Text: %s\n", text);
+         }
+         ec_foe_set_rx_error(fsm, FOE_OPCODE_ERROR);
+diff --git a/master/fsm_master.c b/master/fsm_master.c
+index b734bcbf..27c3e251 100644
+--- a/master/fsm_master.c
++++ b/master/fsm_master.c
+@@ -57,8 +57,8 @@ int ec_fsm_master_action_process_int_request(ec_fsm_master_t *);
+ void ec_fsm_master_action_idle(ec_fsm_master_t *);
+ void ec_fsm_master_action_next_slave_state(ec_fsm_master_t *);
+ void ec_fsm_master_action_configure(ec_fsm_master_t *);
+-u64 ec_fsm_master_dc_offset32(ec_fsm_master_t *, u64, u64, unsigned long);
+-u64 ec_fsm_master_dc_offset64(ec_fsm_master_t *, u64, u64, unsigned long);
++u64 ec_fsm_master_dc_offset32(ec_fsm_master_t *, u64, u64, u64);
++u64 ec_fsm_master_dc_offset64(ec_fsm_master_t *, u64, u64, u64);
+ 
+ /****************************************************************************/
+ 
+@@ -110,7 +110,9 @@ void ec_fsm_master_init(
+     ec_fsm_coe_init(&fsm->fsm_coe);
+     ec_fsm_soe_init(&fsm->fsm_soe);
+     ec_fsm_pdo_init(&fsm->fsm_pdo, &fsm->fsm_coe);
++#ifdef EC_EOE
+     ec_fsm_eoe_init(&fsm->fsm_eoe);
++#endif
+     ec_fsm_change_init(&fsm->fsm_change, fsm->datagram);
+     ec_fsm_slave_config_init(&fsm->fsm_slave_config, fsm->datagram,
+             &fsm->fsm_change, &fsm->fsm_coe, &fsm->fsm_soe, &fsm->fsm_pdo,
+@@ -132,7 +134,9 @@ void ec_fsm_master_clear(
+     ec_fsm_coe_clear(&fsm->fsm_coe);
+     ec_fsm_soe_clear(&fsm->fsm_soe);
+     ec_fsm_pdo_clear(&fsm->fsm_pdo);
++#ifdef EC_EOE
+     ec_fsm_eoe_clear(&fsm->fsm_eoe);
++#endif
+     ec_fsm_change_clear(&fsm->fsm_change);
+     ec_fsm_slave_config_clear(&fsm->fsm_slave_config);
+     ec_fsm_slave_scan_clear(&fsm->fsm_slave_scan);
+diff --git a/master/fsm_pdo.c b/master/fsm_pdo.c
+index d208ef15..cf4e8b70 100644
+--- a/master/fsm_pdo.c
++++ b/master/fsm_pdo.c
+@@ -107,11 +107,11 @@ void ec_fsm_pdo_print(
+         const ec_fsm_pdo_t *fsm /**< PDO configuration state machine. */
+         )
+ {
+-    ec_print(KERN_CONT "Currently assigned PDOs: ");
++    ec_print(EC_CONT "Currently assigned PDOs: ");
+     ec_pdo_list_print(&fsm->sync->pdos);
+-    ec_print(KERN_CONT ". PDOs to assign: ");
++    ec_print(EC_CONT ". PDOs to assign: ");
+     ec_pdo_list_print(&fsm->pdos);
+-    ec_print(KERN_CONT "\n");
++    ec_print(EC_CONT "\n");
+ }
+ 
+ /****************************************************************************/
+diff --git a/master/fsm_pdo_entry.c b/master/fsm_pdo_entry.c
+index aa183fe2..4bcd0eee 100644
+--- a/master/fsm_pdo_entry.c
++++ b/master/fsm_pdo_entry.c
+@@ -96,11 +96,11 @@ void ec_fsm_pdo_entry_print(
+         const ec_fsm_pdo_entry_t *fsm /**< PDO mapping state machine. */
+         )
+ {
+-    ec_print(KERN_CONT "Currently mapped PDO entries: ");
++    ec_print(EC_CONT "Currently mapped PDO entries: ");
+     ec_pdo_print_entries(fsm->cur_pdo);
+-    ec_print(KERN_CONT ". Entries to map: ");
++    ec_print(EC_CONT ". Entries to map: ");
+     ec_pdo_print_entries(fsm->source_pdo);
+-    ec_print(KERN_CONT "\n");
++    ec_print(EC_CONT "\n");
+ }
+ 
+ /****************************************************************************/
+diff --git a/master/fsm_slave_config.c b/master/fsm_slave_config.c
+index 81cf4690..afef89e0 100644
+--- a/master/fsm_slave_config.c
++++ b/master/fsm_slave_config.c
+@@ -1004,6 +1004,7 @@ void ec_fsm_slave_config_state_eoe_ip_param(
+         ec_fsm_slave_config_t *fsm /**< slave state machine */
+         )
+ {
++#ifdef EC_EOE
+     ec_slave_t *slave = fsm->slave;
+ 
+     if (ec_fsm_eoe_exec(fsm->fsm_eoe, fsm->datagram)) {
+@@ -1016,7 +1017,7 @@ void ec_fsm_slave_config_state_eoe_ip_param(
+     else {
+         EC_SLAVE_ERR(slave, "Failed to set EoE IP parameters.\n");
+     }
+-
++#endif
+     ec_fsm_slave_config_enter_pdo_conf(fsm);
+ }
+ 
+diff --git a/master/ioctl.c b/master/ioctl.c
+index 58b86668..6e884476 100644
+--- a/master/ioctl.c
++++ b/master/ioctl.c
+@@ -68,7 +68,7 @@
+ # define ec_copy_to_user(to, from, n, ctx) \
+     memcpy(to, from, n)
+ # define ec_copy_from_user(to, from, n, ctx) \
+-    rtdm_safe_copy_from_user(ec_ioctl_to_rtdm(ctx), to, from, n)
++    memcpy(to, from, n)
+ #else
+ # define ec_copy_to_user(to, from, n, ctx) \
+     rtdm_safe_copy_to_user(ec_ioctl_to_rtdm(ctx), to, from, n)
+@@ -106,6 +106,9 @@ static int ec_copy_from_user(void *to, const void *from, size_t n, void *ctx) {
+ #endif
+ #endif  // EC_IOCTL_RTDM
+ 
++static int MIN(int a, int b) {
++    return (a<b)?a:b;
++}
+ /****************************************************************************/
+ 
+ /** Copies a string to an ioctl structure.
+@@ -1231,7 +1234,7 @@ static ATTRIBUTES int ec_ioctl_slave_sii_write(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -1255,7 +1258,7 @@ static ATTRIBUTES int ec_ioctl_slave_sii_write(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+ #endif
+@@ -1330,7 +1333,7 @@ static ATTRIBUTES int ec_ioctl_slave_reg_read(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -1350,7 +1353,7 @@ static ATTRIBUTES int ec_ioctl_slave_reg_read(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+ #endif
+@@ -1444,7 +1447,7 @@ static ATTRIBUTES int ec_ioctl_slave_reg_write(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -1464,7 +1467,7 @@ static ATTRIBUTES int ec_ioctl_slave_reg_write(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+ #endif
+@@ -1743,7 +1746,7 @@ static ATTRIBUTES int ec_ioctl_config_sdo(
+     ioctl->subindex = req->subindex;
+     ioctl->size = req->data_size;
+     memcpy(ioctl->data, req->data,
+-            min((u32) ioctl->size, (u32) EC_MAX_SDO_DATA_SIZE));
++            MIN((u32) ioctl->size, (u32) EC_MAX_SDO_DATA_SIZE));
+     ioctl->complete_access = req->complete_access;
+ 
+     ec_lock_up(&master->master_sem);
+@@ -1836,7 +1839,7 @@ static ATTRIBUTES int ec_ioctl_config_idn(
+     ioctl->state = req->al_state;
+     ioctl->size = req->data_size;
+     memcpy(ioctl->data, req->data,
+-            min((u32) ioctl->size, (u32) EC_MAX_IDN_DATA_SIZE));
++            MIN((u32) ioctl->size, (u32) EC_MAX_IDN_DATA_SIZE));
+ 
+     ec_lock_up(&master->master_sem);
+ 
+@@ -1924,7 +1927,7 @@ static ATTRIBUTES int ec_ioctl_config_flag(
+         return -EINVAL;
+     }
+ 
+-    size = min((u32) strlen(flag->key), (u32) EC_MAX_FLAG_KEY_SIZE - 1);
++    size = MIN((u32) strlen(flag->key), (u32) EC_MAX_FLAG_KEY_SIZE - 1);
+     memcpy(ioctl->key, flag->key, size);
+     ioctl->key[size] = 0x00;
+     ioctl->value = flag->value;
+@@ -1969,21 +1972,33 @@ static ATTRIBUTES int ec_ioctl_config_ip(
+         return -ENOMEM;
+     }
+ 
+-    if (copy_from_user(ioctl, (void __user *) arg, sizeof(*ioctl))) {
++    if (ec_copy_from_user(ioctl, (void __user *) arg, sizeof(*ioctl))) {
++#ifdef EC_USERMODE
++        free(ioctl);
++#else
+         kfree(ioctl);
++#endif
+         return -EFAULT;
+     }
+ 
+-    if (down_interruptible(&master->master_sem)) {
++    if (ec_lock_down_interruptible(&master->master_sem)) {
++#ifdef EC_USERMODE
++        free(ioctl);
++#else
+         kfree(ioctl);
++#endif
+         return -EINTR;
+     }
+ 
+     if (!(sc = ec_master_get_config_const(master, ioctl->config_index))) {
+-        up(&master->master_sem);
++        ec_lock_up(&master->master_sem);
+         EC_MASTER_ERR(master, "Slave config %u does not exist!\n",
+                 ioctl->config_index);
++#ifdef EC_USERMODE
++        free(ioctl);
++#else
+         kfree(ioctl);
++#endif
+         return -EINVAL;
+     }
+ 
+@@ -2003,14 +2018,22 @@ static ATTRIBUTES int ec_ioctl_config_ip(
+     ioctl->dns = req->dns;
+     strncpy(ioctl->name, req->name, EC_MAX_HOSTNAME_SIZE);
+ 
+-    up(&master->master_sem);
++    ec_lock_up(&master->master_sem);
+ 
+-    if (copy_to_user((void __user *) arg, ioctl, sizeof(*ioctl))) {
++    if (ec_copy_to_user((void __user *) arg, ioctl, sizeof(*ioctl))) {
++#ifdef EC_USERMODE
++        free(ioctl);
++#else
+         kfree(ioctl);
++#endif
+         return -EFAULT;
+     }
+ 
++#ifdef EC_USERMODE
++    free(ioctl);
++#else
+     kfree(ioctl);
++#endif
+     return 0;
+ }
+ 
+@@ -2141,7 +2164,7 @@ static ATTRIBUTES int ec_ioctl_slave_eoe_ip_param(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&req.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&req.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -2160,7 +2183,7 @@ static ATTRIBUTES int ec_ioctl_slave_eoe_ip_param(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&req.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&req.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, req.state != EC_INT_REQUEST_BUSY);
+ #endif
+@@ -3166,7 +3189,7 @@ static ATTRIBUTES int ec_ioctl_sc_dc(
+ {
+     ec_ioctl_config_t data;
+     ec_slave_config_t *sc;
+-    int ret;
++    int ret = 0;
+ 
+     if (unlikely(!ctx->requested))
+         return -EPERM;
+@@ -3916,20 +3939,20 @@ static ATTRIBUTES int ec_ioctl_sc_state_timeout(
+         return -EPERM;
+     }
+ 
+-    if (copy_from_user(&ioctl, (void __user *) arg, sizeof(ioctl))) {
++    if (ec_copy_from_user(&ioctl, (void __user *) arg, sizeof(ioctl), ctx)) {
+         return -EFAULT;
+     }
+ 
+-    if (down_interruptible(&master->master_sem)) {
++    if (ec_lock_down_interruptible(&master->master_sem)) {
+         return -EINTR;
+     }
+ 
+     if (!(sc = ec_master_get_config(master, ioctl.config_index))) {
+-        up(&master->master_sem);
++        ec_lock_up(&master->master_sem);
+         return -ENOENT;
+     }
+ 
+-    up(&master->master_sem); /** \todo sc could be invalidated */
++    ec_lock_up(&master->master_sem); /** \todo sc could be invalidated */
+ 
+     ret = ecrt_slave_config_state_timeout(sc, ioctl.from_state,
+             ioctl.to_state, ioctl.timeout_ms);
+@@ -3957,20 +3980,20 @@ static ATTRIBUTES int ec_ioctl_sc_ip(
+         return -EPERM;
+     }
+ 
+-    if (copy_from_user(&io, (void __user *) arg, sizeof(io))) {
++    if (ec_copy_from_user(&io, (void __user *) arg, sizeof(io), ctx)) {
+         return -EFAULT;
+     }
+ 
+-    if (down_interruptible(&master->master_sem)) {
++    if (ec_lock_down_interruptible(&master->master_sem)) {
+         return -EINTR;
+     }
+ 
+     if (!(sc = ec_master_get_config(master, io.config_index))) {
+-        up(&master->master_sem);
++        ec_lock_up(&master->master_sem);
+         return -ENOENT;
+     }
+ 
+-    up(&master->master_sem); /** \todo sc could be invalidated */
++    ec_lock_up(&master->master_sem); /** \todo sc could be invalidated */
+ 
+     /* the kernel versions of the EoE set IP methods never fail. */
+     if (io.mac_address_included) {
+@@ -4719,7 +4742,7 @@ static ATTRIBUTES int ec_ioctl_reg_request_data(
+     }
+ 
+     if (ec_copy_to_user((void __user *) io.data, ecrt_reg_request_data(reg),
+-                min(reg->mem_size, io.mem_size), ctx)) {
++                MIN(reg->mem_size, io.mem_size), ctx)) {
+         return -EFAULT;
+     }
+ 
+@@ -5268,7 +5291,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -5288,7 +5311,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_read(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+ #endif
+@@ -5398,7 +5421,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
+ 
+     // wait for processing through FSM
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED);
++    while(atomic_load((atomic_int*)&request.state) == EC_INT_REQUEST_QUEUED){};
+     {
+ #else
+     if (wait_event_interruptible(master->request_queue,
+@@ -5418,7 +5441,7 @@ static ATTRIBUTES int ec_ioctl_slave_foe_write(
+ 
+     // wait until master FSM has finished processing
+ #ifdef EC_USERMODE
+-    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY);
++    while(atomic_load((atomic_int*)&request.state) <= EC_INT_REQUEST_BUSY){};
+ #else
+     wait_event(master->request_queue, request.state != EC_INT_REQUEST_BUSY);
+ #endif
+diff --git a/master/master.c b/master/master.c
+index 103e4f74..67b05718 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -56,14 +56,17 @@
+ #include "datagram.h"
+ 
+ #ifdef EC_EOE
++#ifndef EC_USERMODE
+ #if LINUX_VERSION_CODE >= KERNEL_VERSION(4, 11, 0)
+ #include <uapi/linux/sched/types.h> // struct sched_param
+ #include <linux/sched/types.h> // sched_setscheduler
+ #endif
++#endif
+ #include "ethernet.h"
+ #endif
+ 
+-#if LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0) || \
++#ifndef EC_USERMODE
++#if (LINUX_VERSION_CODE >= KERNEL_VERSION(3, 17, 0)) || \
+     (defined(CONFIG_PREEMPT_RT_FULL) && LINUX_VERSION_CODE >= KERNEL_VERSION(3, 2, 0))
+ #  define ec_rt_lock_interruptible(lock) \
+           rt_mutex_lock_interruptible(lock)
+@@ -71,6 +74,7 @@
+ #  define ec_rt_lock_interruptible(lock) \
+           rt_mutex_lock_interruptible(lock, 0)
+ #endif
++#endif
+ 
+ #include "master.h"
+ 
+@@ -2935,7 +2939,7 @@ int ecrt_master_send_ext(ec_master_t *master)
+     ec_datagram_t *datagram, *next;
+ 
+ #ifdef EC_USERMODE
+-		ec_lock_down(&master->ext_queue_sem)
++		ec_lock_down(&master->ext_queue_sem);
+ #else
+     if (down_trylock(&master->ext_queue_sem))
+         return -EAGAIN;
+diff --git a/master/reg_request.c b/master/reg_request.c
+index 3b2edb2b..456c5bf3 100644
+--- a/master/reg_request.c
++++ b/master/reg_request.c
+@@ -108,7 +108,7 @@ int ecrt_reg_request_write(ec_reg_request_t *reg, uint16_t address,
+ {
+     reg->dir = EC_DIR_OUTPUT;
+     reg->address = address;
+-    reg->transfer_size = min(size, reg->mem_size);
++    reg->transfer_size = ((size < reg->mem_size) ? size:reg->mem_size);
+     reg->state = EC_INT_REQUEST_QUEUED;
+     return 0;
+ }
+@@ -120,7 +120,7 @@ int ecrt_reg_request_read(ec_reg_request_t *reg, uint16_t address,
+ {
+     reg->dir = EC_DIR_INPUT;
+     reg->address = address;
+-    reg->transfer_size = min(size, reg->mem_size);
++    reg->transfer_size = ((size < reg->mem_size) ? size:reg->mem_size);
+     reg->state = EC_INT_REQUEST_QUEUED;
+     return 0;
+ }
+diff --git a/master/slave_config.c b/master/slave_config.c
+index 34de0557..6d3d8356 100644
+--- a/master/slave_config.c
++++ b/master/slave_config.c
+@@ -181,7 +181,7 @@ void ec_slave_config_clear(
+         list_del(&reg->list);
+         ec_reg_request_clear(reg);
+ #ifdef EC_USERMODE
+-        free(reg;
++        free(reg);
+ #else
+         kfree(reg);
+ #endif
+@@ -223,7 +223,11 @@ void ec_slave_config_clear(
+     // free all AL timeouts
+     list_for_each_entry_safe(timeout, next_timeout, &sc->al_timeouts, list) {
+         list_del(&timeout->list);
++#ifdef EC_USERMODE
++        free(timeout);
++#else
+         kfree(timeout);
++#endif
+     }
+ 
+     ec_coe_emerg_ring_clear(&sc->emerg_ring);
+@@ -1675,7 +1679,11 @@ int ecrt_slave_config_state_timeout(ec_slave_config_t *sc,
+             if (timeout_ms == 0) {
+                 // delete configured value
+                 list_del(&timeout->list);
++#ifdef EC_USERMODE
++                free(timeout);
++#else
+                 kfree(timeout);
++#endif
+                 return 0;
+             }
+             timeout->timeout_ms = timeout_ms;
+@@ -1688,8 +1696,13 @@ int ecrt_slave_config_state_timeout(ec_slave_config_t *sc,
+     }
+ 
+     /* no timeout found. create one. */
++#ifdef EC_USERMODE
++    if (!(timeout = (ec_al_timeout_t *)
++          malloc(sizeof(ec_al_timeout_t)))) {
++#else
+     if (!(timeout = (ec_al_timeout_t *)
+           kmalloc(sizeof(ec_al_timeout_t), GFP_KERNEL))) {
++#endif
+         EC_CONFIG_ERR(sc, "Failed to allocate memory for"
+                 " AL timeout configuration!\n");
+         return -ENOMEM;
+@@ -1699,9 +1712,9 @@ int ecrt_slave_config_state_timeout(ec_slave_config_t *sc,
+     timeout->to = to_state;
+     timeout->timeout_ms = timeout_ms;
+ 
+-    down(&sc->master->master_sem);
++    ec_lock_down(&sc->master->master_sem);
+     list_add_tail(&timeout->list, &sc->al_timeouts);
+-    up(&sc->master->master_sem);
++    ec_lock_up(&sc->master->master_sem);
+     return 0;
+ }
+ 
+diff --git a/master/voe_handler.c b/master/voe_handler.c
+index dff2e5fc..c2d97923 100644
+--- a/master/voe_handler.c
++++ b/master/voe_handler.c
+@@ -561,7 +561,7 @@ void ec_voe_handler_state_error(ec_voe_handler_t *voe)
+ /****************************************************************************/
+ 
+ /** \cond */
+-
++#ifndef EC_USERMODE
+ EXPORT_SYMBOL(ecrt_voe_handler_send_header);
+ EXPORT_SYMBOL(ecrt_voe_handler_received_header);
+ EXPORT_SYMBOL(ecrt_voe_handler_data);
+@@ -569,7 +569,7 @@ EXPORT_SYMBOL(ecrt_voe_handler_data_size);
+ EXPORT_SYMBOL(ecrt_voe_handler_read);
+ EXPORT_SYMBOL(ecrt_voe_handler_write);
+ EXPORT_SYMBOL(ecrt_voe_handler_execute);
+-
++#endif
+ /** \endcond */
+ 
+ /****************************************************************************/
+diff --git a/script/Makefile.am b/script/Makefile.am
+index 301a6cbb..3b08644d 100644
+--- a/script/Makefile.am
++++ b/script/Makefile.am
+@@ -48,6 +48,10 @@ CLEANFILES = \
+ if HAVE_SYSTEMD
+ systemdsystemunit_DATA = ethercat.service
+ endif
++else
++sbin_SCRIPTS = dpdk-driver-bind.sh
++CLEANFILES = \
++  dpdk-driver-bind.sh
+ endif
+ 
+ completionsdir = $(datadir)/bash-completion/completions
+-- 
+2.45.2
+

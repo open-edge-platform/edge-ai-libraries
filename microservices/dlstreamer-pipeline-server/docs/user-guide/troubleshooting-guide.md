@@ -1,5 +1,6 @@
 # Troubleshooting
 
+
 ## Using REST API in Image Ingestor mode has low first inference latency
 
 This is an expected behavior observed only for the first inference. Subsequent inferences would be considerably faster. 
@@ -107,6 +108,27 @@ The firewall may prevent you from viewing the video stream on web browser. Pleas
 ```sh
 sudo ufw disable
 ```
+
+---
+
+## Inferencing on NPU
+
+To perform inferencing on an NPU device (for platforms with NPU accelerators such as Ultra Core processors), ensure you have completed the required pre-requisites. Refer to the instructions [here](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_prerequisites.html#prerequisite-2-install-intel-npu-drivers) to install Intel NPU drivers.
+
+---
+
+## Unable to run GPU inference on some Arrow Lake machines with `resource allocation failed` errors
+
+For example:
+
+`ERROR vafilter gstvafilter.c:390:gst_va_filter_open:<vafilter0> vaCreateContext: resource allocation failed`
+
+This issue has been observed on systems with the Ultra Core 7 265K processor running Ubuntu 22.04.
+There are few options to fix this. 
+
+One is updating the kernel to `6.11.11-061111-generic` in the host system.
+
+Alternately, install OpenCL runtime packages in the host system. Refer to the instructions from OpenVINO documentation [here](https://docs.openvino.ai/2025/get-started/install-openvino/configurations/configurations-intel-gpu.html#linux) to install GPU drivers.
 
 ---
 

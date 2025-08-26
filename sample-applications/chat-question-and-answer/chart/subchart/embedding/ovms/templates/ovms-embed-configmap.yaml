@@ -29,7 +29,7 @@ data:
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"
-        python3 export_model.py embeddings --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }} --cache_size 2
+        python3 export_model.py embeddings --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device {{ .Values.global.gpu.device }}
     else
         echo "GPU is not enabled, using CPU model"
         python3 export_model.py embeddings --source_model "${model}" --weight-format "${weight_format}" --config_file_path models/config.json  --model_repository_path models --target_device CPU

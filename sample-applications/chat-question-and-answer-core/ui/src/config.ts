@@ -5,7 +5,7 @@ export const DATA_PREP_URL: string =
   import.meta.env.VITE_BACKEND_URL + '/documents';
 
 export const CHAT_QNA_URL: string =
-  import.meta.env.VITE_BACKEND_URL + '/stream_log';
+  import.meta.env.VITE_BACKEND_URL + '/chat';
 
 export const HEALTH_CHECK_URL: string =
   import.meta.env.VITE_BACKEND_URL + '/health';

@@ -1,0 +1,11 @@
+moveit_setup_assistant_config:
+  URDF:
+    package: jaka_description
+    relative_path: urdf/jaka_zu3.urdf
+    xacro_args: ""
+  SRDF:
+    relative_path: config/jaka_zu3.srdf
+  CONFIG:
+    author_name: yu yan
+    author_email: yu.yan@intel.com
+    generated_timestamp: 1628054747

@@ -5,9 +5,13 @@ definition: >
 metadata:
   classname: SmartNVRPipeline
   enabled: true
+recording:
+  url: "https://storage.openvinotoolkit.org/repositories/openvino_notebooks/data/data/video/people.mp4"
+  filename: people.mp4
 parameters:
   run:
     recording_channels: true
+    video_output_checkbox: false
   benchmark:
     ai_stream_rate: true
     result_format: "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"

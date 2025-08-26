@@ -43,7 +43,7 @@ Chatqna:
   name: chatqna-backend
   image:
     repository: intel/chatqna
-    tag: "1.2.1"
+    tag: "1.2.2"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
@@ -93,7 +93,8 @@ reranker:
 chatqnaui:
   name: chatqna-ui
   service:
-    port: 80
+    port: 8101
 
 nginxService:
-  annotations: {}
+  annotations:
+    service-proxy.app.orchestrator.io/ports: "80"

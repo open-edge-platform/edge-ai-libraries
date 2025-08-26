@@ -1,0 +1,285 @@
+This file contains the list of third party software ("third party programs") contained in the Intel software and their required notices and/or license terms. This third party software, even if included with the distribution of the Intel software, may be governed by separate license terms, including without limitation, third party license terms, other Intel software license terms, and open source software license terms. These separate license terms govern your use of the third party programs as set forth in the "third-party-programs.txt" or other similarly-named text file.
+
+Third party programs and their corresponding required notices and/or license terms are listed below.
+
+===========================================================
+
+1)@angular-devkit/core, @angular-devkit/schematics, @angular-devkit/schematics-cli, @babel/code-frame, @babel/compat-data, @babel/core, @babel/generator, @babel/helper-compilation-targets, @babel/helper-module-imports, @babel/helper-module-transforms, @babel/helper-plugin-utils, @babel/helper-string-parser, @babel/helper-validator-identifier, @babel/helper-validator-option, @babel/helpers, @babel/parser, @babel/plugin-syntax-async-generators, @babel/plugin-syntax-bigint, @babel/plugin-syntax-class-properties, @babel/plugin-syntax-class-static-block, @babel/plugin-syntax-import-attributes, @babel/plugin-syntax-import-meta, @babel/plugin-syntax-json-strings, @babel/plugin-syntax-jsx, @babel/plugin-syntax-logical-assignment-operators, @babel/plugin-syntax-nullish-coalescing-operator, @babel/plugin-syntax-numeric-separator, @babel/plugin-syntax-object-rest-spread, @babel/plugin-syntax-optional-catch-binding, @babel/plugin-syntax-optional-chaining, @babel/plugin-syntax-private-property-in-object, @babel/plugin-syntax-top-level-await, @babel/plugin-syntax-typescript, @babel/template, @babel/traverse, @babel/types, @bcoe/v8-coverage, @colors/colors, @cspotcode/source-map-support, @eslint-community/eslint-utils, @eslint-community/regexpp, @eslint/eslintrc, @eslint/js, @inquirer/checkbox, @inquirer/confirm, @inquirer/core, @inquirer/editor, @inquirer/expand, @inquirer/figures, @inquirer/input, @inquirer/number, @inquirer/password, @inquirer/prompts, @inquirer/rawlist, @inquirer/search, @inquirer/select, @inquirer/type, @istanbuljs/schema, @jest/console, @jest/core, @jest/environment, @jest/expect, @jest/expect-utils, @jest/fake-timers, @jest/globals, @jest/reporters, @jest/schemas, @jest/source-map, @jest/test-result, @jest/test-sequencer, @jest/transform, @jest/types, @jridgewell/gen-mapping, @jridgewell/resolve-uri, @jridgewell/set-array, @jridgewell/source-map, @jridgewell/sourcemap-codec, @jridgewell/trace-mapping, @js-sdsl/ordered-map, @lukeed/csprng, @microsoft/tsdoc, @my-scope/package-a, @my-scope/package-b, @napi-rs/nice, @napi-rs/nice-linux-x64-gnu, @napi-rs/nice-linux-x64-musl, @nestjs/axios, @nestjs/cli, @nestjs/common, @nestjs/config, @nestjs/core, @nestjs/event-emitter, @nestjs/mapped-types, @nestjs/platform-express, @nestjs/platform-socket.io, @nestjs/schematics, @nestjs/swagger, @nestjs/terminus, @nestjs/testing, @nestjs/typeorm, @nestjs/websockets, @noble/hashes, @nodelib/fs.scandir, @nodelib/fs.stat, @nodelib/fs.walk, @nuxt/opencollective, @paralleldrive/cuid2, @pkgjs/parseargs, @pkgr/core, @sec-ant/readable-stream, @sinclair/typebox, @sindresorhus/is, @socket.io/component-emitter, @sqltools/formatter, @swc/cli, @szmarczak/http-timer, @tokenizer/inflate, @tokenizer/token, @tsconfig/node10, @tsconfig/node12, @tsconfig/node14, @tsconfig/node16, @types/amqplib, @types/aws-lambda, @types/babel__core, @types/babel__generator, @types/babel__template, @types/babel__traverse, @types/body-parser, @types/bunyan, @types/connect, @types/cookiejar, @types/cors, @types/eslint, @types/eslint-scope, @types/estree, @types/express, @types/express-serve-static-core, @types/gensync, @types/graceful-fs, @types/http-cache-semantics, @types/http-errors, @types/istanbul-lib-coverage, @types/istanbul-lib-report, @types/istanbul-reports, @types/jest, @types/json-schema, @types/luxon, @types/memcached, @types/methods, @types/mime, @types/multer, @types/mysql, @types/node, @types/node-fetch, @types/pg, @types/pg-pool, @types/qs, @types/range-parser, @types/send, @types/serve-static, @types/shimmer, @types/stack-utils, @types/superagent, @types/supertest, @types/tedious, @types/yargs, @types/yargs-parser, @typescript-eslint/eslint-plugin, @typescript-eslint/parser, @typescript-eslint/scope-manager, @typescript-eslint/type-utils, @typescript-eslint/types, @typescript-eslint/typescript-estree, @typescript-eslint/utils, @typescript-eslint/visitor-keys, @webassemblyjs/ast, @webassemblyjs/floating-point-hex-parser, @webassemblyjs/helper-api-error, @webassemblyjs/helper-buffer, @webassemblyjs/helper-numbers, @webassemblyjs/helper-wasm-bytecode, @webassemblyjs/helper-wasm-section, @webassemblyjs/ieee754, @webassemblyjs/utf8, @webassemblyjs/wasm-edit, @webassemblyjs/wasm-gen, @webassemblyjs/wasm-opt, @webassemblyjs/wasm-parser, @webassemblyjs/wast-printer, @xhmikosr/archive-type, @xhmikosr/bin-check, @xhmikosr/bin-wrapper, @xhmikosr/decompress, @xhmikosr/decompress-tar, @xhmikosr/decompress-tarbz2, @xhmikosr/decompress-targz, @xhmikosr/decompress-unzip, @xhmikosr/downloader, @xhmikosr/os-filter-obj, abort-controller, accepts, acorn, acorn-import-attributes, acorn-jsx, acorn-walk, agentkeepalive, ajv, ajv-formats, ajv-keywords, ansi-colors, ansi-escapes, app-root-path, append-field, arch, arg, argparse, array-timsort, asap, async, asynckit, available-typed-arrays, axios, babel-jest, babel-plugin-jest-hoist, babel-preset-current-node-syntax, babel-preset-jest, base64-js, base64id, bignumber.js, bin-version, bin-version-check, bl, block-stream2, body-parser, boxen, braces, browser-or-node, browserslist, bs-logger, buffer, buffer-crc32, buffer-from, busboy, bytes, cacheable-lookup, cacheable-request, call-bind, call-bind-apply-helpers, call-bound, callsites, camelcase, char-regex, chardet, check-disk-space, chokidar, chrome-trace-event, cjs-module-lexer, cli-boxes, cli-cursor, cli-spinners, cli-table3, clone, co, collect-v8-coverage, combined-stream, commander, comment-json, component-emitter, concat-map, concat-stream, consola, content-disposition, content-type, convert-source-map, cookie, cookie-signature, cookiejar, core-util-is, cors, cosmiconfig, create-jest, create-require, dayjs, decode-uri-component, decompress-response, dedent, deep-is, deepmerge, defaults, defer-to-connect, define-data-property, delayed-stream, depd, destroy, detect-newline, diff-sequences, dunder-proto, ee-first, emittery, encodeurl, engine.io, engine.io-parser, enhanced-resolve, error-ex, es-define-property, es-errors, es-module-lexer, es-object-atoms, escalade, escape-html, escape-string-regexp, eslint, eslint-config-prettier, eslint-plugin-prettier, etag, event-target-shim, eventemitter2, eventemitter3, events, execa, exit, expect, express, ext-list, ext-name, extend, external-editor, fast-deep-equal, fast-fifo, fast-glob, fast-json-stable-stringify, fast-levenshtein, fast-safe-stringify, fast-xml-parser, fflate, file-entry-cache, file-type, filename-reserved-regex, filenamify, fill-range, filter-obj, finalhandler, find-up, find-versions, flat-cache, follow-redirects, for-each, fork-ts-checker-webpack-plugin, form-data, form-data-encoder, formdata-node, formidable, forwarded, forwarded-parse, fresh, fs-extra, function-bind, gensync, get-intrinsic, get-package-type, get-proto, get-stream, globals, gopd, got, graphemer, has-flag, has-own-prop, has-property-descriptors, has-symbols, has-tostringtag, hasown, html-escaper, http-errors, http2-wrapper, humanize-ms, ignore, import-fresh, import-local, ipaddr.js, is-arguments, is-arrayish, is-binary-path, is-callable, is-core-module, is-extglob, is-generator-fn, is-generator-function, is-glob, is-interactive, is-number, is-plain-obj, is-promise, is-regex, is-stream, is-typed-array, is-unicode-supported, isarray, jest, jest-changed-files, jest-circus, jest-cli, jest-config, jest-diff, jest-docblock, jest-each, jest-environment-node, jest-get-type, jest-haste-map, jest-leak-detector, jest-matcher-utils, jest-message-util, jest-mock, jest-pnp-resolver, jest-regex-util, jest-resolve, jest-resolve-dependencies, jest-runner, jest-runtime, jest-snapshot, jest-util, jest-validate, jest-watcher, jest-worker, js-tokens, js-yaml, jsesc, json-bigint, json-buffer, json-schema-traverse, json-stable-stringify-without-jsonify, json5, jsonc-parser, jsonfile, keyv, kind-of, kleur, leven, levn, lines-and-columns, ljharb-monorepo-symlink-test, load-esm, loader-runner, locate-path, lodash, lodash.camelcase, lodash.memoize, lodash.merge, log-symbols, lowercase-keys, luxon, magic-string, make-dir, math-intrinsics, media-typer, merge-descriptors, merge-stream, merge2, methods, micromatch, mime, mime-db, mime-types, mimic-fn, mimic-response, minimist, module-details-from-path, multer, natural-compare, neo-async, nghttp2-libs, node-abort-controller, node-domexception, node-emoji, node-fetch, node-int64, node-releases, normalize-path, normalize-url, npm-run-path, object-assign, object-hash, object-inspect, on-finished, on-headers, onetime, optionator, ora, os-tmpdir, p-cancelable, p-limit, p-locate, p-try, package, parent-module, parse-json, parseurl, path-exists, path-is-absolute, path-parse, path-to-regexp, path-type, peek-readable, pend, pg, pg-cloudflare, pg-connection-string, pg-pool, pg-protocol, pg-types, pgpass, pirates, piscina, pkg-dir, pluralize, possible-typed-array-names, postgres-array, postgres-bytea, postgres-date, postgres-interval, prelude-ls, prettier, prettier-linter-helpers, pretty-format, process-nextick-args, prompts, proxy-addr, proxy-from-env, punycode, pure-rand, query-string, queue-microtask, quick-lru, rabbitmq-client, randombytes, range-parser, raw-body, react-is, readable-stream, readdirp, repeat-string, require-directory, require-from-string, require-in-the-middle, resolve, resolve-alpn, resolve-cwd, resolve-from, resolve.exports, response-time, responselike, restore-cursor, reusify, router, run-parallel, safe-buffer, safe-regex-test, schema-utils, semver-regex, semver-truncate, send, serve-static, set-function-length, side-channel, side-channel-list, side-channel-map, side-channel-weakmap, sisteransi, slash, socket.io, socket.io-adapter, socket.io-parser, sort-keys, sort-keys-length, source-map-support, split-on-first, sql-highlight, srt-parser-2, stack-utils, statuses, streamsearch, streamx, strict-uri-encode, string-length, string_decoder, strip-bom, strip-final-newline, strip-json-comments, strnum, strtok3, superagent, supertest, supports-preserve-symlinks-flag, symbol-observable, synckit, systeminformation, tapable, tar-stream, terser-webpack-plugin, through, through2, tmp, to-regex-range, toidentifier, token-types, tr46, tree-kill, ts-api-utils, ts-jest, ts-loader, ts-node, tsconfig-paths, tsconfig-paths-webpack-plugin, type-check, type-detect, type-is, typedarray, typeorm, typescript-eslint, uid, uint8array-extras, unbzip2-stream, undici-types, universalify, unpipe, update-browserslist-db, util, utils-merge, uuid, v8-compile-cache-lib, vary, watchpack, wcwidth, web-encoding, web-streams-polyfill, webpack, webpack-node-externals, webpack-sources, whatwg-url, which-typed-array, widest-line, word-wrap, ws, xml2js, xmlbuilder, xtend, yargs, yauzl, yn, yocto-queue, yoctocolors-cjs, zod
+MIT License
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+
+-------------------------------------------------------------
+2)@ampproject/remapping, @eslint/config-array, @eslint/core, @eslint/object-schema, @eslint/plugin-kit, @grpc/grpc-js, @grpc/proto-loader, @humanfs/core, @humanfs/node, @humanwhocodes/module-importer, @humanwhocodes/retry, @opentelemetry/api, @opentelemetry/api-logs, @opentelemetry/auto-instrumentations-node, @opentelemetry/context-async-hooks, @opentelemetry/core, @opentelemetry/exporter-logs-otlp-grpc, @opentelemetry/exporter-logs-otlp-http, @opentelemetry/exporter-logs-otlp-proto, @opentelemetry/exporter-metrics-otlp-grpc, @opentelemetry/exporter-metrics-otlp-http, @opentelemetry/exporter-metrics-otlp-proto, @opentelemetry/exporter-prometheus, @opentelemetry/exporter-trace-otlp-grpc, @opentelemetry/exporter-trace-otlp-http, @opentelemetry/exporter-trace-otlp-proto, @opentelemetry/exporter-zipkin, @opentelemetry/host-metrics, @opentelemetry/instrumentation, @opentelemetry/instrumentation-amqplib, @opentelemetry/instrumentation-aws-lambda, @opentelemetry/instrumentation-aws-sdk, @opentelemetry/instrumentation-bunyan, @opentelemetry/instrumentation-cassandra-driver, @opentelemetry/instrumentation-connect, @opentelemetry/instrumentation-cucumber, @opentelemetry/instrumentation-dataloader, @opentelemetry/instrumentation-dns, @opentelemetry/instrumentation-express, @opentelemetry/instrumentation-fastify, @opentelemetry/instrumentation-fs, @opentelemetry/instrumentation-generic-pool, @opentelemetry/instrumentation-graphql, @opentelemetry/instrumentation-grpc, @opentelemetry/instrumentation-hapi, @opentelemetry/instrumentation-http, @opentelemetry/instrumentation-ioredis, @opentelemetry/instrumentation-kafkajs, @opentelemetry/instrumentation-knex, @opentelemetry/instrumentation-koa, @opentelemetry/instrumentation-lru-memoizer, @opentelemetry/instrumentation-memcached, @opentelemetry/instrumentation-mongodb, @opentelemetry/instrumentation-mongoose, @opentelemetry/instrumentation-mysql, @opentelemetry/instrumentation-mysql2, @opentelemetry/instrumentation-nestjs-core, @opentelemetry/instrumentation-net, @opentelemetry/instrumentation-pg, @opentelemetry/instrumentation-pino, @opentelemetry/instrumentation-redis, @opentelemetry/instrumentation-redis-4, @opentelemetry/instrumentation-restify, @opentelemetry/instrumentation-router, @opentelemetry/instrumentation-runtime-node, @opentelemetry/instrumentation-socket.io, @opentelemetry/instrumentation-tedious, @opentelemetry/instrumentation-undici, @opentelemetry/instrumentation-winston, @opentelemetry/otlp-exporter-base, @opentelemetry/otlp-grpc-exporter-base, @opentelemetry/otlp-transformer, @opentelemetry/propagation-utils, @opentelemetry/propagator-b3, @opentelemetry/propagator-jaeger, @opentelemetry/redis-common, @opentelemetry/resource-detector-alibaba-cloud, @opentelemetry/resource-detector-aws, @opentelemetry/resource-detector-azure, @opentelemetry/resource-detector-container, @opentelemetry/resource-detector-gcp, @opentelemetry/resources, @opentelemetry/sdk-logs, @opentelemetry/sdk-metrics, @opentelemetry/sdk-node, @opentelemetry/sdk-trace-base, @opentelemetry/sdk-trace-node, @opentelemetry/semantic-conventions, @opentelemetry/sql-common, @scarf/scarf, @swc/core, @swc/core-linux-x64-gnu, @swc/core-linux-x64-musl, @swc/counter, @swc/types, @webassemblyjs/leb128, @xtuc/long, @zxing/text-encoding, b4a, bare-events, bser, ejs, eslint-visitor-keys, fast-diff, fb-watchman, filelist, gaxios, gcp-metadata, google-logging-utils, human-signals, import-in-the-middle, jake, long, memfs, minio, nestjs-otel, openai, pipeline manager, reflect-metadata, rxjs, swagger-ui-dist, text-decoder, typescript, walker
+                                 Apache License
+                           Version 2.0, January 2004
+                        http://www.apache.org/licenses/
+
+   TERMS AND CONDITIONS FOR USE, REPRODUCTION, AND DISTRIBUTION
+
+   1. Definitions.
+
+      "License" shall mean the terms and conditions for use, reproduction,
+      and distribution as defined by Sections 1 through 9 of this document.
+
+      "Licensor" shall mean the copyright owner or entity authorized by
+      the copyright owner that is granting the License.
+
+      "Legal Entity" shall mean the union of the acting entity and all
+      other entities that control, are controlled by, or are under common
+      control with that entity. For the purposes of this definition,
+      "control" means (i) the power, direct or indirect, to cause the
+      direction or management of such entity, whether by contract or
+      otherwise, or (ii) ownership of fifty percent (50%) or more of the
+      outstanding shares, or (iii) beneficial ownership of such entity.
+
+      "You" (or "Your") shall mean an individual or Legal Entity
+      exercising permissions granted by this License.
+
+      "Source" form shall mean the preferred form for making modifications,
+      including but not limited to software source code, documentation
+      source, and configuration files.
+
+      "Object" form shall mean any form resulting from mechanical
+      transformation or translation of a Source form, including but
+      not limited to compiled object code, generated documentation,
+      and conversions to other media types.
+
+      "Work" shall mean the work of authorship, whether in Source or
+      Object form, made available under the License, as indicated by a
+      copyright notice that is included in or attached to the work
+      (an example is provided in the Appendix below).
+
+      "Derivative Works" shall mean any work, whether in Source or Object
+      form, that is based on (or derived from) the Work and for which the
+      editorial revisions, annotations, elaborations, or other modifications
+      represent, as a whole, an original work of authorship. For the purposes
+      of this License, Derivative Works shall not include works that remain
+      separable from, or merely link (or bind by name) to the interfaces of,
+      the Work and Derivative Works thereof.
+
+      "Contribution" shall mean any work of authorship, including
+      the original version of the Work and any modifications or additions
+      to that Work or Derivative Works thereof, that is intentionally
+      submitted to Licensor for inclusion in the Work by the copyright owner
+      or by an individual or Legal Entity authorized to submit on behalf of
+      the copyright owner. For the purposes of this definition, "submitted"
+      means any form of electronic, verbal, or written communication sent
+      to the Licensor or its representatives, including but not limited to
+      communication on electronic mailing lists, source code control systems,
+      and issue tracking systems that are managed by, or on behalf of, the
+      Licensor for the purpose of discussing and improving the Work, but
+      excluding communication that is conspicuously marked or otherwise
+      designated in writing by the copyright owner as "Not a Contribution."
+
+      "Contributor" shall mean Licensor and any individual or Legal Entity
+      on behalf of whom a Contribution has been received by Licensor and
+      subsequently incorporated within the Work.
+
+   2. Grant of Copyright License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      copyright license to reproduce, prepare Derivative Works of,
+      publicly display, publicly perform, sublicense, and distribute the
+      Work and such Derivative Works in Source or Object form.
+
+   3. Grant of Patent License. Subject to the terms and conditions of
+      this License, each Contributor hereby grants to You a perpetual,
+      worldwide, non-exclusive, no-charge, royalty-free, irrevocable
+      (except as stated in this section) patent license to make, have made,
+      use, offer to sell, sell, import, and otherwise transfer the Work,
+      where such license applies only to those patent claims licensable
+      by such Contributor that are necessarily infringed by their
+      Contribution(s) alone or by combination of their Contribution(s)
+      with the Work to which such Contribution(s) was submitted. If You
+      institute patent litigation against any entity (including a
+      cross-claim or counterclaim in a lawsuit) alleging that the Work
+      or a Contribution incorporated within the Work constitutes direct
+      or contributory patent infringement, then any patent licenses
+      granted to You under this License for that Work shall terminate
+      as of the date such litigation is filed.
+
+   4. Redistribution. You may reproduce and distribute copies of the
+      Work or Derivative Works thereof in any medium, with or without
+      modifications, and in Source or Object form, provided that You
+      meet the following conditions:
+
+      (a) You must retain, in the Source form of any Derivative Works
+          that You distribute, all copyright, patent, trademark, and
+          attribution notices from the Source form of the Work,
+          excluding those notices that do not pertain to any part of
+          the Derivative Works; and
+
+      (b) You must include a copy of this License; and
+
+      (c) If the Work includes a "NOTICE" text file as part of its
+          distribution, then any Derivative Works that You distribute must
+          include a readable copy of the attribution notices contained
+          within such NOTICE file, excluding those notices that do not
+          pertain to any part of the Derivative Works, in at least one
+          of the following places: within a NOTICE text file distributed
+          as part of the Derivative Works; within the Source form or
+          documentation, if provided along with the Derivative Works; or,
+          within a display generated by the Derivative Works, if and
+          wherever such third-party notices normally appear. The contents
+          of the NOTICE file are for informational purposes only and
+          do not modify the License. You may add Your own attribution
+          notices within Derivative Works that You distribute, alongside
+          or as an addendum to the NOTICE text from the Work, provided
+          that such additional attribution notices cannot be construed
+          as modifying the License.
+
+      You may add Your own copyright statement to Your modifications and
+      may provide additional or different license terms and conditions
+      for use, reproduction, or distribution of Your modifications, or
+      for any such Derivative Works as a whole, provided Your use,
+      reproduction, and distribution of the Work otherwise complies with
+      the conditions stated in this License.
+
+   5. Submission of Contributions. Unless You explicitly state otherwise,
+      any Contribution intentionally submitted for inclusion in the Work
+      by You to the Licensor shall be under the terms and conditions of
+      this License, without any additional terms or conditions.
+      Notwithstanding the above, nothing herein shall supersede or modify
+      the terms of any separate license agreement you may have executed
+      with Licensor regarding such Contributions.
+
+   6. Trademarks. This License does not grant permission to use the trade
+      names, trademarks, service marks, or product names of the Licensor,
+      except as required for reasonable and customary use in describing the
+      origin of the Work and reproducing the content of the NOTICE file.
+
+   7. Disclaimer of Warranty. Unless required by applicable law or
+      agreed to in writing, Licensor provides the Work (and each
+      Contributor provides its Contributions) on an "AS IS" BASIS,
+      WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or
+      implied, including, without limitation, any warranties or conditions
+      of TITLE, NON-INFRINGEMENT, MERCHANTABILITY, or FITNESS FOR A
+      PARTICULAR PURPOSE. You are solely responsible for determining the
+      appropriateness of using or redistributing the Work and assume any
+      risks associated with Your exercise of permissions under this License.
+
+   8. Limitation of Liability. In no event and under no legal theory,
+      whether in tort (including negligence), contract, or otherwise,
+      unless required by applicable law (such as deliberate and grossly
+      negligent acts) or agreed to in writing, shall any Contributor be
+      liable to You for damages, including any direct, indirect, special,
+      incidental, or consequential damages of any character arising as a
+      result of this License or out of the use or inability to use the
+      Work (including but not limited to damages for loss of goodwill,
+      work stoppage, computer failure or malfunction, or any and all
+      other commercial damages or losses), even if such Contributor
+      has been advised of the possibility of such damages.
+
+   9. Accepting Warranty or Additional Liability. While redistributing
+      the Work or Derivative Works thereof, You may choose to offer,
+      and charge a fee for, acceptance of support, warranty, indemnity,
+      or other liability obligations and/or rights consistent with this
+      License. However, in accepting such obligations, You may act only
+      on Your own behalf and on Your sole responsibility, not on behalf
+      of any other Contributor, and only if You agree to indemnify,
+      defend, and hold each Contributor harmless for any liability
+      incurred by, or claims asserted against, such Contributor by reason
+      of your accepting any such warranty or additional liability.
+
+   END OF TERMS AND CONDITIONS
+
+   APPENDIX: How to apply the Apache License to your work.
+
+      To apply the Apache License to your work, attach the following
+      boilerplate notice, with the fields enclosed by brackets "[]"
+      replaced with your own identifying information. (Don't include
+      the brackets!)  The text should be enclosed in the appropriate
+      comment syntax for the file format. We also recommend that a
+      file or class name and description of purpose be included on the
+      same "printed page" as the copyright notice for easier
+      identification within third-party archives.
+
+   Copyright [yyyy] [name of copyright owner]
+
+   Licensed under the Apache License, Version 2.0 (the "License");
+   you may not use this file except in compliance with the License.
+   You may obtain a copy of the License at
+
+       http://www.apache.org/licenses/LICENSE-2.0
+
+   Unless required by applicable law or agreed to in writing, software
+   distributed under the License is distributed on an "AS IS" BASIS,
+   WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+   See the License for the specific language governing permissions and
+   limitations under the License.
+
+-----------------------------------------------------------------------
+3)@protobufjs/aspromise, @protobufjs/base64, @protobufjs/codegen, @protobufjs/eventemitter, @protobufjs/fetch, @protobufjs/float, @protobufjs/inquire, @protobufjs/path, @protobufjs/pool, @protobufjs/utf8, @sinonjs/commons, @sinonjs/fake-timers, @xtuc/ieee754, babel-plugin-istanbul, bin, dist, dotenv, dotenv-expand, eslint-scope, espree, esprima, esquery, esrecurse, estraverse, esutils, fast-uri, glob-to-regexp, ieee754, istanbul-lib-coverage, istanbul-lib-instrument, istanbul-lib-report, istanbul-lib-source-maps, istanbul-reports, makeerror, protobufjs, qs, serialize-javascript, sha.js, shimmer, source-map, stream-chain, stream-json, terser, tmpl, uri-js, webidl-conversions
+BSD License
+
+Redistribution and use in source and binary forms, with or without
+modification, are permitted provided that the following conditions are met:
+
+1. Redistributions of source code must retain the above copyright notice,
+   this list of conditions and the following disclaimer.
+
+2. Redistributions in binary form must reproduce the above copyright notice,
+   this list of conditions and the following disclaimer in the documentation
+   and/or other materials provided with the distribution.
+
+3. Neither the name of the copyright holder nor the names of its
+   contributors may be used to endorse or promote products derived from
+   this software without specific prior written permission.
+
+THIS SOFTWARE IS PROVIDED BY THE COPYRIGHT HOLDERS AND CONTRIBUTORS "AS IS"
+AND ANY EXPRESS OR IMPLIED WARRANTIES, INCLUDING, BUT NOT LIMITED TO, THE
+IMPLIED WARRANTIES OF MERCHANTABILITY AND FITNESS FOR A PARTICULAR PURPOSE ARE
+DISCLAIMED. IN NO EVENT SHALL THE COPYRIGHT HOLDER OR CONTRIBUTORS BE LIABLE
+FOR ANY DIRECT, INDIRECT, INCIDENTAL, SPECIAL, EXEMPLARY, OR CONSEQUENTIAL
+DAMAGES (INCLUDING, BUT NOT LIMITED TO, PROCUREMENT OF SUBSTITUTE GOODS OR
+SERVICES; LOSS OF USE, DATA, OR PROFITS; OR BUSINESS INTERRUPTION) HOWEVER
+CAUSED AND ON ANY THEORY OF LIABILITY, WHETHER IN CONTRACT, STRICT LIABILITY,
+OR TORT (INCLUDING NEGLIGENCE OR OTHERWISE) ARISING IN ANY WAY OUT OF THE USE
+OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
+
+-------------------------------------------------------------
+4)type-fest
+License: (MIT OR CC0-1.0)
+
+-------------------------------------------------------------
+5)tslib
+License: 0BSD
+
+-------------------------------------------------------------
+6)caniuse-lite
+License: CC-BY-4.0
+
+-------------------------------------------------------------
+7)@isaacs/cliui, @isaacs/fs-minipass, @isaacs/string-locale-compare, @istanbuljs/load-nyc-config, ansi-align, ansis, anymatch, cli-width, dezalgo, electron-to-chromium, fastq, flatted, fs.realpath, get-caller-file, glob-parent, inflight, inherits, inspect-with-kind, iterare, make-error, mylib, once, pg-int8, picocolors, sax, setprototypeof, split2, strip-dirs, test-exclude, v8-to-istanbul, wrappy, y18n, yargs-parser
+License: ISC
+
+-------------------------------------------------------------
+8)argparse
+License: Python-2.0
+
+-------------------------------------------------------------
+9)fs-monkey
+License: Unlicense
+
+-------------------------------------------------------------
+10)curl, libcurl
+License: curl
+
+-------------------------------------------------------------

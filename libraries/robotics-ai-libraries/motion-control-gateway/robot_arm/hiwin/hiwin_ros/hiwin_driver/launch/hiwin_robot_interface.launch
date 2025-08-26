@@ -1,0 +1,12 @@
+<launch>
+  <arg name="manipulator_ip" default="127.0.0.1" />
+  <arg name="manipulator_name" default="manipulator" doc="Name of the robot."/>
+  <arg name="log_level" default="ERROR" doc="Log output level for the driver [INFO, DEBUG, ERROR]"/>
+  <arg name="control_mode" default="1" doc="Set to 0 if you only want to monitor the controller without controling it."/>
+
+  <param name ="manipulator_ip_address" value="$(arg manipulator_ip)"/>
+
+  <node name="$(arg manipulator_name)_hiwin_robot_driver" pkg="hiwin_driver" type="robot_driver.py"
+        args="--robot_ip $(arg manipulator_ip) --robot_name $(arg manipulator_name) --log_level $(arg log_level) --control_mode $(arg control_mode)" output="screen">
+  </node>
+</launch>

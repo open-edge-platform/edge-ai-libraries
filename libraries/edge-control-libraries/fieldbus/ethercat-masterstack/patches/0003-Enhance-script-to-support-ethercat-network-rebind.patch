@@ -1,0 +1,191 @@
+From d10fe62d527c4c2dd5a1c2a59bc866434797f45b Mon Sep 17 00:00:00 2001
+From: HKH347710 <kanghua.he@intel.com>
+Date: Wed, 12 Jun 2024 10:12:17 +0000
+Subject: [PATCH 3/8] Enhance script to support ethercat network rebind
+
+Add dpdk-driver-bind.sh script and add REBIND_NICS in configuration file.
+
+Signed-off-by: HKH347710 <kanghua.he@intel.com>
+---
+ script/dpdk-driver-bind.sh | 117 +++++++++++++++++++++++++++++++++++++
+ script/init.d/ethercat.in  |  19 ++++--
+ script/sysconfig/ethercat  |   1 +
+ 3 files changed, 133 insertions(+), 4 deletions(-)
+ create mode 100644 script/dpdk-driver-bind.sh
+
+diff --git a/script/dpdk-driver-bind.sh b/script/dpdk-driver-bind.sh
+new file mode 100644
+index 00000000..0fa3528f
+--- /dev/null
++++ b/script/dpdk-driver-bind.sh
+@@ -0,0 +1,117 @@
++#!/bin/sh
++
++#------------------------------------------------------------------------------
++
++# huge page info
++RESERVE_HUGE_PAGES_KB=2097152 # 2G
++HUGE_PAGE_SIZE_KB=2048        # 2M
++RESERVE_PAGES=1024            # RESERVE_HUGE_PAGES_KB/HUGE_PAGE_SIZE_KB
++
++# dpdk drivers: "igb_uio", "vfio-pci", "uio_pci_generic"
++DPDK_DRIVERS=vfio-pci
++# BDF of PCI device
++DEVICE_BDF=
++# kernel module of PCI device
++DEVICE_MODULES=
++
++#------------------------------------------------------------------------------
++
++vfio_bind() {
++    local bdf dev
++    for bdf in "$@"; do
++        echo "vfio bind: $bdf ..."
++        for dev in $(ls /sys/bus/pci/devices/$bdf/iommu_group/devices); do
++            if [ -e /sys/bus/pci/devices/$dev/driver ]; then
++                echo "    $dev : unbind driver ..."
++                echo $dev > /sys/bus/pci/devices/$dev/driver/unbind
++            fi
++
++            if [ -e /sys/bus/pci/devices/$dev/driver_override ]; then
++                echo "    $dev : set driver_override ..."
++                echo $DPDK_DRIVERS > /sys/bus/pci/devices/$dev/driver_override
++            fi
++
++            if [ -e /sys/bus/pci/drivers/$DPDK_DRIVERS/bind ]; then
++                echo "    $dev : bind to vfio ..."
++                echo $dev > /sys/bus/pci/drivers/$DPDK_DRIVERS/bind
++            fi
++        done
++    done
++}
++
++#------------------------------------------------------------------------------
++
++vfio_unbind() {
++    local bdf dev
++    for bdf in "$@"; do
++        echo "$DEVICE_MODULES bind: $bdf ..."
++        for dev in $(ls /sys/bus/pci/devices/$bdf/iommu_group/devices); do
++            if [ -e /sys/bus/pci/devices/$dev/driver ]; then
++                echo "    $dev : unbind driver ..."
++                echo $dev > /sys/bus/pci/devices/$dev/driver/unbind
++            fi
++
++            if [ -e /sys/bus/pci/devices/$dev/driver_override ]; then
++                echo "    $dev : clear driver_override ..."
++                echo "" > /sys/bus/pci/devices/$dev/driver_override
++            fi
++
++            if [ -e /sys/bus/pci/drivers/$DEVICE_MODULES/bind ]; then
++                echo "    $dev : bind to $DEVICE_MODULES ..."
++                echo $dev > /sys/bus/pci/drivers/$DEVICE_MODULES/bind
++            fi
++        done
++    done
++}
++
++#------------------------------------------------------------------------------
++
++case "${1}" in
++
++start)
++    echo "start "
++
++    if [ ${#} != 2 ]; then
++        echo " please input device BDF;"
++        echo " example: ./dpdk-driver-bind.sh start 0000:02:00.0"
++        exit 6
++    fi
++    DEVICE_BDF=$2
++
++
++    if [ -e /sys/kernel/mm/hugepages/hugepages-${HUGE_PAGE_SIZE_KB}kB/nr_hugepages ]; then
++        echo "    set huge_page_size $HUGE_PAGE_SIZE_KBkb"
++        echo $RESERVE_PAGES > /sys/kernel/mm/hugepages/hugepages-${HUGE_PAGE_SIZE_KB}kB/nr_hugepages
++    fi
++
++    echo "    modprobe dpdk driver"
++    modprobe $DPDK_DRIVERS
++
++    vfio_bind $DEVICE_BDF
++
++    ;;
++
++stop)
++    echo "stop "
++
++    if [ ${#} != 2 ]; then
++        echo " please input device BDF;"
++        echo " example: ./dpdk-driver-bind.sh stop 0000:02:00.0"
++        exit 0
++    fi
++    DEVICE_BDF=$2
++		DEVICE_MODULES=$(lspci -k -s $DEVICE_BDF | grep "Kernel modules" | awk '{print $3}' | awk '{sub(/,$/,"")}1')
++
++    vfio_unbind $DEVICE_BDF
++  
++    ;;
++
++*)
++
++    echo "USAGE: $0 {start|stop}"
++    ;;
++
++esac
++
++#------------------------------------------------------------------------------
++
+diff --git a/script/init.d/ethercat.in b/script/init.d/ethercat.in
+index 6eac1bec..a7c7d6ac 100755
+--- a/script/init.d/ethercat.in
++++ b/script/init.d/ethercat.in
+@@ -171,11 +171,16 @@ start)
+             continue # ec_* module not found
+         fi
+         if [ "${MODULE}" != "generic" ]; then
+-            if ${LSMOD} | grep "^${MODULE} " > /dev/null; then
+-                if ! ${RMMOD} "${MODULE}"; then
+-                    exit_fail
++            for dev in $REBIND_NICS; do
++                if [ -d /sys/bus/pci/devices/$dev/driver ]; then
++                    echo $dev > /sys/bus/pci/devices/$dev/driver/unbind
+                 fi
+-            fi
++            done
++            #if ${LSMOD} | grep "^${MODULE} " > /dev/null; then
++            #    if ! ${RMMOD} "${MODULE}"; then
++            #        exit_fail
++            #    fi
++            #fi
+         fi
+         if ! ${MODPROBE} ${MODPROBE_FLAGS} "${ECMODULE}"; then
+             if [ "${MODULE}" != "generic" ]; then
+@@ -211,6 +216,12 @@ stop)
+                 echo Warning: Failed to restore "${MODULE}".
+             fi
+         fi
++
++        for dev in $REBIND_NICS; do
++            if [ -d /sys/bus/pci/drivers/${MODULE} ]; then
++                echo $dev > /sys/bus/pci/drivers/${MODULE}/bind
++            fi
++        done
+     done
+ 
+     exit_success
+diff --git a/script/sysconfig/ethercat b/script/sysconfig/ethercat
+index f8b2388b..933512fb 100644
+--- a/script/sysconfig/ethercat
++++ b/script/sysconfig/ethercat
+@@ -56,6 +56,7 @@ MASTER0_DEVICE=""
+ # before the master is started, otherwise all frames will time out.
+ #
+ DEVICE_MODULES=""
++REBIND_NICS=""
+ 
+ #
+ # Flags for loading kernel modules.
+-- 
+2.45.2
+
