@@ -20,7 +20,9 @@ class TestPipeline(GstPipeline):
             "fakesink"
         )
 
-    def evaluate(self, constants, parameters, inference_channels, regular_channels):
+    def evaluate(
+        self, constants, parameters, regular_channels, inference_channels, elements
+    ):
         return "gst-launch-1.0 -q " + " ".join(
             [self._pipeline.format(**parameters, **constants)]
             * (inference_channels + regular_channels)
@@ -33,7 +35,7 @@ class TestBenchmark(unittest.TestCase):
         self.pipeline_cls = TestPipeline
         self.fps_floor = 30.0
         self.rate = 50
-        self.parameters = {"object_detection_device": "cpu"}
+        self.parameters = {"object_detection_device": ["cpu"]}
         self.constants = {"const1": "value1"}
         self.elements = [("element1", "type1", "name1")]
         self.benchmark = Benchmark(

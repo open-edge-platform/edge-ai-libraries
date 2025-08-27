@@ -150,7 +150,7 @@ class PipelineOptimizer:
         # Yield frames from shared method, with live_preview enabled
         yield from self._run_and_collect_metrics(live_preview=True)
 
-    def evaluate(self) -> OptimizationResult:
+    def evaluate(self) -> OptimizationResult | None:
         if not self.results:
             raise ValueError("No results to evaluate")
 

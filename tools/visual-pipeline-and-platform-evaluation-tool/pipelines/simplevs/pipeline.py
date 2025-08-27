@@ -78,7 +78,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: list = None,
+        elements: list = [],
     ) -> str:
         # Set decoder element based on device
         _decoder_element = (
@@ -138,6 +138,8 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         streams = ""
 
         # Prepare shmsink and meta if live_preview_enabled
+        width = 0
+        height = 0
         if parameters["live_preview_enabled"]:
             # Get resolution using get_video_resolution
             video_path = constants.get("VIDEO_PATH", "")

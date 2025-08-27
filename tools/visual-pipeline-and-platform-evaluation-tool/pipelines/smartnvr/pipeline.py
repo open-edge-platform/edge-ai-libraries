@@ -132,7 +132,7 @@ class SmartNVRPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: list = None,
+        elements: list = [],
     ) -> str:
         # Set pre process backed for object detection
         parameters["object_detection_pre_process_backend"] = (
