@@ -1,5 +1,5 @@
 # Audio Analyzer
-Audio Analyzer microservice is used to generate transcription of audio from video files. 
+Audio Analyzer microservice is used to generate transcription of audio from video files.
 
 ## Overview
 The Audio Analyzer microservice provides an automated solution for extracting and transcribing audio from video files. Designed for seamless integration into modern AI pipelines this microservice enables converting spoken content within videos into accurate, searchable text. By leveraging state-of-the-art speech-to-text models, the service supports a wide range of audio formats and languages, making it suitable for diverse applications such as video summary, media analysis, compliance monitoring, and content indexing.
@@ -60,7 +60,7 @@ The following Whisper model variants are supported by the service (for both GGML
 | tiny.en  | Tiny model  | ~75M | English-only |
 | base     | Base model  | ~150M | Multilingual |
 | base.en  | Base model  | ~150M | English-only |
-| small    | Small model | ~450M | Multilingual | 
+| small    | Small model | ~450M | Multilingual |
 | small.en | Small model | ~450M | English-only |
 | medium   | Medium model | ~1.5GB | Multilingual |
 | medium.en | Medium model | ~1.5GB | English-only |
@@ -70,6 +70,6 @@ The following Whisper model variants are supported by the service (for both GGML
 
 ## Supporting Resources
 
-* [Get Started Guide](get-started.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+* [Get Started Guide](./get-started.md)
+* [API Reference](./api-reference.md)
+* [System Requirements](./system-requirements.md)

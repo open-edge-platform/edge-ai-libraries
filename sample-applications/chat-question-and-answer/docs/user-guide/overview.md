@@ -33,7 +33,7 @@ The ChatQ&A sample application includes the following components:
 - **ChatQ&A backend microservice**: The Chat&A backend microservice is responsible for responding to the user queries. LangChain framework is used to create the RAG chain and provide the necessary integrations with VectorDB. The backend microservice provides a REST API to accept user queries.
 - **ChatQ&A UI**: A reference UI is provided to enable users quickly try the sample-application. The  UI is not designed to be a comprehensive guide on the design of UI but is more a functional implementation to enable quick demo interaction. It allows users to create the context by uploading the documents and provide weblinks. Users can then interact with the RAG pipeline. It uses the REST API provided by the document ingestion and ChatQ&A backend for its operations.
 
-All the 3rd party components are not built from source but instead the respective pre-built images are pulled from their artefactory (Docker hub for example) and used. The model serving is also reused from their prebuilt versions and used for LLM, Embedding, and Reranker. The Intel microservices can be built from source. Documentation is provided to help users build these microservices from source. 
+All the 3rd party components are not built from source but instead the respective pre-built images are pulled from their artefactory (Docker hub for example) and used. The model serving is also reused from their prebuilt versions and used for LLM, Embedding, and Reranker. The Intel microservices can be built from source. Documentation is provided to help users build these microservices from source.
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture.md).
 
