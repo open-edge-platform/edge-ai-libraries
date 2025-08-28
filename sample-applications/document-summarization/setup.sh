@@ -12,9 +12,9 @@ export OTEL_SERVICE_NAME=document-summarization
 export OTEL_SERVICE_ENV=development
 export OTEL_SERVICE_VERSION=1.0.0 
 
-if [ ! -e "$VOLUME_OVMS/models/$LLM_MODEL/config.json" ]; then
-  docker run --rm -e http_proxy -e https_proxy -e no_proxy -e LLM_MODEL -e VOLUME_OVMS -e HF_TOKEN \
-    -v "$(pwd):$(pwd)" -w "$(pwd)" -i ubuntu:24.04 bash <<EOF
+[ -e "$VOLUME_OVMS/models/$LLM_MODEL/config.json" ] || docker run --rm \
+  -e http_proxy -e https_proxy -e no_proxy -e LLM_MODEL -e VOLUME_OVMS -e HF_TOKEN \
+  -v "$(pwd):$(pwd)" -w "$(pwd)" -i ubuntu:24.04 bash <<EOF
 apt-get update && DEBIAN_FRONTEND=noninteractive apt-get install --no-install-recommends -y python3-venv git curl
 
 # Create venv if it doesn't exist
@@ -36,7 +36,6 @@ python3 export_model.py text_generation --source_model $LLM_MODEL --weight-forma
 # Fix owner permission
 chown -R $(id -u):$(id -g) "$VOLUME_OVMS/models"
 EOF
-fi
 
 cat > .env <<EOF
 VOLUME_OVMS=$VOLUME_OVMS
