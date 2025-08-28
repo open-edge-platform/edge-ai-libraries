@@ -172,6 +172,8 @@ def read_latest_metrics(target_ns: int = None):
     ) = gpu_copy_0 = gpu_compute_0 = None
 
     for line in reversed(lines):
+        line = normalize_engine_names(line)
+
         if cpu_user is None and "cpu" in line:
             parts = line.split()
             if len(parts) > 1:
@@ -399,6 +401,21 @@ def read_latest_metrics(target_ns: int = None):
         gpu_copy_0,
         gpu_compute_0,
     ]
+
+
+def normalize_engine_names(line: str) -> str:
+    """
+    Class names for XE drivers: https://github.com/ulissesf/qmassa/blob/v1.0.1/src/drm_drivers/xe.rs#L79-L92
+    are different from those used in i915 drivers: https://github.com/intel/metrics-discovery/blob/master/external/drm/i915_drm.h
+    Normalize them to the i915 names.
+    """
+    return (
+        line.replace("engine=rcs", "engine=render")
+        .replace("engine=bcs", "engine=copy")
+        .replace("engine=ccs", "engine=compute")
+        .replace("engine=vcs", "engine=video")
+        .replace("engine=vecs", "engine=video-enhance")
+    )
 
 
 def create_empty_fig(title, y_axis_label):
