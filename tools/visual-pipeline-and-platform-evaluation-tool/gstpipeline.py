@@ -10,7 +10,6 @@ class GstPipeline:
     def __init__(self):
         self._diagram = Path("")
         self._bounding_boxes = []
-        pass
 
     def evaluate(
         self,
