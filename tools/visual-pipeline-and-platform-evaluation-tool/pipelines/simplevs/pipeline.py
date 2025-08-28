@@ -78,8 +78,11 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: list = [],
+        elements: list | None = None,
     ) -> str:
+        if elements is None:
+            elements = []
+
         # Set decoder element based on device
         _decoder_element = (
             "decodebin3 "
