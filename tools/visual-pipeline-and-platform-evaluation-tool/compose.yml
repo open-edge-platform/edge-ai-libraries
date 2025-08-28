@@ -24,7 +24,9 @@ x-vippet: &vippet
     PIPELINE: smartnvr
     http_proxy:
     https_proxy:
-    no_proxy:
+    http_proxy: ${http_proxy}
+    https_proxy: ${https_proxy}
+    no_proxy: ${no_proxy}
   env_file:
     - path: '.public_models_env'
       required: false
