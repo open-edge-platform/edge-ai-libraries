@@ -8,8 +8,8 @@ import yaml
 
 class GstPipeline:
     def __init__(self):
-        self._diagram = Path("")
-        self._bounding_boxes = []
+        self._diagram = None
+        self._bounding_boxes = None
 
     def evaluate(
         self,
@@ -24,9 +24,15 @@ class GstPipeline:
         )
 
     def diagram(self) -> Path:
+        if self._diagram is None:
+            raise ValueError("Diagram is not defined")
+
         return self._diagram
 
     def bounding_boxes(self) -> List:
+        if self._bounding_boxes is None:
+            raise ValueError("Bounding Boxes is not defined")
+
         return self._bounding_boxes
 
 
