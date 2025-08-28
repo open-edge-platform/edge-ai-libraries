@@ -18,6 +18,10 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         self._diagram = Path(os.path.dirname(__file__)) / "diagram.png"
 
+        self._bounding_boxes = [
+            (330, 110, 445, 170, "Inference", "Object Detection"),
+        ]
+
         self._inference_stream_decode_detect_track = (
             # Input
             "filesrc location={VIDEO_PATH} ! "
