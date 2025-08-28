@@ -24,7 +24,7 @@ python3 -m venv /venv
 source /venv/bin/activate
 
 # Set Hugging Face cache directory to a local, writable path
-export HF_HOME="/.hf_cache"
+export HF_HOME=/.hf_cache
 
 # Install requirements for model export
 pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/1/demos/common/export_models/requirements.txt
