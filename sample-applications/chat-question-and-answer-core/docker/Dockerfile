@@ -117,8 +117,6 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
 # Copy the poetry installation and the virtual env
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-# RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_token_id = tokenizer.eos_token_id/' \
-#     /opt/projsetup/.venv/lib/python3.11/site-packages/langchain_huggingface/llms/huggingface_pipeline.py
 
 # Prepare directories for model cache and config
 RUN mkdir -p /tmp/model_cache /tmp/model_config
