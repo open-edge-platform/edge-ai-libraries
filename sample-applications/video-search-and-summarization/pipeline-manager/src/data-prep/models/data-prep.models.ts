@@ -6,6 +6,7 @@ export interface DataPrepMinioDTO {
   video_name: string;
   chunk_duration?: number;
   clip_duration?: number;
+  tags?: string[];
 }
 
 export interface DataPrepSummaryDTO {
