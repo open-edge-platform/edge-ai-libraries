@@ -22,8 +22,6 @@ x-vippet: &vippet
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
     PIPELINE: smartnvr
-    http_proxy:
-    https_proxy:
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}
@@ -95,9 +93,6 @@ services:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
     environment:
-      http_proxy:
-      https_proxy:
-    environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
@@ -118,9 +113,9 @@ services:
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
     environment:
-      http_proxy:
-      https_proxy:
-      no_proxy:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
 
 volumes:
   collector-signals:
@@ -128,3 +123,4 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+
