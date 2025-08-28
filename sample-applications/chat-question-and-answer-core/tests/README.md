@@ -53,7 +53,7 @@ npm -v # Should print "10.9.2".
 
 ## Vitest installation
 ```bash
-npm install -D vitest@2.1.9
+npm install -D vitest@3.2.4
 ```
 ---
 
