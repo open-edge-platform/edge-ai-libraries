@@ -816,6 +816,9 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="ai_stream_rate",
     )
 
+    # Inference accordion
+    inference_accordion = gr.Accordion("Inference Parameters", open=True)
+
     # Get available and preferred devices for inference
     device_choices = [
         (device.full_device_name, device.device_name)
@@ -1029,6 +1032,13 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         """
         Components events handlers and interactions are defined here.
         """
+
+        # Handle click on the pipeline image
+        pipeline_image.select(
+            detect_click,
+            None,
+            [inference_accordion],
+        )
 
         # Handle changes on the input video player
         input_video_player.change(
@@ -1447,7 +1457,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 )
 
                         # Inference Parameters Accordion
-                        with gr.Accordion("Inference Parameters", open=True):
+                        inference_accordion.render()
+                        with inference_accordion:
                             # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()
