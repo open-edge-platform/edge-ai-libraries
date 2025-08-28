@@ -53,6 +53,16 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "queue ! "
         )
 
+        self._inference_stream_metadata_processing = (
+            "gvametaconvert "
+            "  format=json "
+            "  json-indent=4 "
+            "  source={VIDEO_PATH} ! "
+            "gvametapublish "
+            "  method=file "
+            "  file-path=/dev/null ! "
+        )
+
         self._inference_output_stream = (
             "{encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
         )
@@ -189,6 +199,12 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 and parameters["pipeline_video_enabled"]
             ):
                 streams += "gvawatermark ! "
+
+            # Metadata processing and publishing
+            streams += self._inference_stream_metadata_processing.format(
+                **parameters,
+                **constants,
+            )
 
             # Use video output for the first inference channel if enabled, otherwise use fakesink
             if i == 0 and (
