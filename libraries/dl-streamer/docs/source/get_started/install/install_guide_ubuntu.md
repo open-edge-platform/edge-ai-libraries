@@ -1,31 +1,29 @@
 # Install Guide Ubuntu
 
-The easiest way to install Intel® Deep Learning Streamer (Intel® DL
-Streamer) Pipeline Framework is installation
+The easiest way to install Deep Learning Streamer Pipeline Framework is installation
 [from Debian packages using APT repository](#option-1-install-intel-dl-streamer-pipeline-framework-from-debian-packages-using-apt-repository).
-If you prefer containerized environment based on Docker,
-the Intel® DL Streamer Pipeline Framework
-[Docker image](#option-2-install-docker-image-from-docker-hub-and-run-it) is available as
-well as Dockerfile to build runtime Docker image. Regardless of chosen
-installations process, please follow
-[prerequisites](#prerequisites).
 
-For detailed description of installation process, including the option
-with building Intel® DL Streamer Pipeline Framework from the source code
+If you prefer containerized environment based on Docker, use the
+[Docker image](#option-2-install-docker-image-from-docker-hub-and-run-it) as
+well as the Dockerfile to build runtime Docker image. Regardless of a chosen
+installation path, make sure to set up [the prerequisites](#prerequisites) first.
+
+For a detailed description of installation process, including the option
+with building Deep Learning Streamer Pipeline Framework from the source code
 provided in
 [Open Edge Platform repository](https://github.com/open-edge-platform/edge-ai-libraries.git),
-please follow the [instructions](../../dev_guide/advanced_install/advanced_install_guide_prebuilt.md).
+follow the [instructions](../../dev_guide/advanced_install/advanced_install_guide_prebuilt.md).
 
 ## Prerequisites
 
-To use GPU and/or NPU as an inference devices or to use graphics
-hardware encoding/decoding capabilities, it is required to install
-appropriate drivers. Please use the script below to detect available
-device(s) and install these drivers. Please also pay attention to
-displayed information while the script has references to other Intel®
+To use GPU and/or NPU as an inference device or to use graphics
+hardware encoding/decoding capabilities, you need to install
+appropriate drivers. Use the script below to detect available
+device(s) and install the drivers. Also, pay attention to the
+displayed information, as the script uses multiple references to other Intel®
 resources when additional configuration is required.
 
-### Step 1: Download the prerequisites installation script
+### Step 1: Download the installation script
 
 ```bash
 mkdir -p ~/intel/dlstreamer_gst
@@ -39,8 +37,7 @@ wget -O DLS_install_prerequisites.sh https://raw.githubusercontent.com/open-edge
 ./DLS_install_prerequisites.sh
 ```
 
-The script installs all the essential packages needed for most Intel®
-Client GPU users, including the following packages:
+The essential packages needed for most Intel® Client GPU users are installed:
 
 ```bash
 GPU:
@@ -58,17 +55,17 @@ NPU:
    level-zero
 ```
 
-More details about the packages can be found in the following driver
-links respectively:
-[Intel® Client GPU](https://dgpu-docs.intel.com/driver/client/overview.html#installing-gpu-packages),
-[Media](https://github.com/intel/media-driver/releases),
-[NPU](https://github.com/intel/linux-npu-driver/releases/tag/v1.13.0).
+More details about the packages can be found in:
 
-Running DL Streamer on Intel® Data Center GPU (Flex) requires specific
-drivers. In such case, please follow drivers installing instruction on
+- [Intel® Client GPU](https://dgpu-docs.intel.com/driver/client/overview.html#installing-gpu-packages),
+- [Media](https://github.com/intel/media-driver/releases),
+- [NPU](https://github.com/intel/linux-npu-driver/releases/tag/v1.13.0).
+
+Running Deep Learning Streamer on Intel® Data Center GPU (Flex) requires specific
+drivers, and you need to follow the instructions on
 [Intel® Data Center GPU website](https://dgpu-docs.intel.com/driver/installation.html#installing-data-center-gpu-lts-releases).
 
-## Option #1: Install Intel® DL Streamer Pipeline Framework from Debian packages using APT repository
+## Option #1: Install Deep Learning Streamer Pipeline Framework from Debian packages using APT repository
 
 This option provides the simplest installation flow using apt-get
 install command.
@@ -87,17 +84,19 @@ drivers. For more details see [prerequisites](#prerequisites).
 - **In Ubuntu 22**
 
   ```bash
-  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/  keyrings/dls-archive-keyring.gpg > /dev/null
-  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/  ubuntu22 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
-  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/  openvino/2025 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
+  sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/keyrings/dls-archive-keyring.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/ubuntu22 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu22 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
   ```
 
 - **Ubuntu 24**
 
   ```bash
-  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/  keyrings/dls-archive-keyring.gpg > /dev/null
-  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/  ubuntu24 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
-  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/  openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
+  sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
+  sudo -E wget -O- https://apt.repos.intel.com/edgeai/dlstreamer/GPG-PUB-KEY-INTEL-DLS.gpg | sudo tee /usr/share/keyrings/dls-archive-keyring.gpg > /dev/null
+  echo "deb [signed-by=/usr/share/keyrings/dls-archive-keyring.gpg] https://apt.repos.intel.com/edgeai/dlstreamer/ubuntu24 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-dlstreamer.list
+  sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
   ```
 
   > **NOTE:** If you have OpenVINO™ installed in a version different from 2025.2.0,
@@ -108,7 +107,7 @@ drivers. For more details see [prerequisites](#prerequisites).
   sudo apt-get autoremove
   ```
 
-### Step 3: Install Intel® DL Streamer Pipeline Framework
+### Step 3: Install Deep Learning Streamer Pipeline Framework
 
 > **NOTE:** This step will also install the required dependencies, including
 > OpenVINO™ Toolkit and GStreamer.
@@ -118,7 +117,7 @@ sudo apt update
 sudo apt-get install intel-dlstreamer
 ```
 
-**Congratulations! Intel® DL Streamer is now installed and ready for
+**Congratulations! Deep Learning Streamer is now installed and ready for
 use!**
 
 To see the full list of installed components check the
@@ -126,10 +125,10 @@ To see the full list of installed components check the
 
 ### [Optional] Step 4: Python dependencies
 
-The Python packages required to run Intel® DL Streamer python elements
+The Python packages required to run Deep Learning Streamer python elements
 or samples are not installed by default. You can install them using
 commands from
-[Advanced Install Guide Compilation / Install Python dependencies](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-6-install-python-dependencies)
+[Advanced Install Guide Compilation / Install Python dependencies](../../dev_guide/advanced_install/advanced_install_guide_compilation.html#step-6-install-python-dependencies)
 
 ### [Optional] Step 5: Post installation steps
 
@@ -160,7 +159,7 @@ export MODELS_PATH=/home/${USER}/models
 ```
 
 The `hello_dlstreamer.sh` will set up the required environment
-variables and runs a sample pipeline to confirm that Intel® DL Streamer
+variables and runs a sample pipeline to confirm that Deep Learning Streamer
 is installed correctly. To run the `hello_dlstreamer.sh` script, execute the
 following command:
 
@@ -175,13 +174,13 @@ following command:
 
   ```bash
   export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/streamer/lib/
-  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/streamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
   export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
   export GST_VA_ALL_DRIVERS=1
   export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
   export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
   ```
 
 - **Ubuntu 22**
@@ -189,26 +188,26 @@ following command:
   ```bash
 
   export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/streamer/lib/
-  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/streamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/sr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka
   export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
   export GST_VA_ALL_DRIVERS=1
   export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
   export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
   ```
 
 - **Fedora 41**
 
   ```bash
   export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/  dlstreamer/gstreamer/lib/
-  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/  gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/  rdkafka:/opt/ffmpeg
+  export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
+  export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib:/opt/opencv:/opt/rdkafka:/opt/ffmpeg
   export LIBVA_DRIVERS_PATH=/usr/lib64/dri-nonfree
   export GST_VA_ALL_DRIVERS=1
   export PATH=/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
   export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.  0
+  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
   ```
 
   or run:
@@ -276,9 +275,9 @@ setfacl -m user:1000:r ~/.Xauthority
 > **NOTE**: If you want to build Docker image from DLStreamer Dockerfiles, please
 > follow [the instructions](../../dev_guide/advanced_install/advanced_build_docker_image.md).
 
-### Step 4: Pull the Intel® DL Streamer Docker image from Docker Hub
+### Step 4: Pull the Deep Learning Streamer Docker image from Docker Hub
 
-Visit [Intel® DL Streamer image docker hub](https://hub.docker.com/r/intel/dlstreamer) to
+Visit [Deep Learning Streamer image docker hub](https://hub.docker.com/r/intel/dlstreamer) to
 select the most appropriate version. By default , the latest docker image points to Ubuntu
 24 version.
 
@@ -298,7 +297,7 @@ For **Ubuntu 24.04** please use **latest** tag or specified version e.g.
   docker pull intel/dlstreamer:latest
   ```
 
-### Step 5: Run Intel® DL Streamer Pipeline Framework container
+### Step 5: Run Deep Learning Streamer Pipeline Framework container
 
 To confirm that your installation is completed successfully, please run
 a container
@@ -316,7 +315,7 @@ a container
   ```
 
 In the container, please run the `gst-inspect-1.0 gvadetect` to confirm
-that GStreamer and Intel® DL Streamer are running
+that GStreamer and Deep Learning Streamer are running
 
 ```bash
 gst-inspect-1.0 gvadetect
@@ -329,7 +328,7 @@ installation process is completed.
 
 ## Next Steps
 
-You are ready to use Intel® DL Streamer. For further instructions to run
+You are ready to use Deep Learning Streamer. For further instructions to run
 sample pipeline(s), please go to the [tutorial](../tutorial.md).
 
 ------------------------------------------------------------------------

@@ -16,12 +16,9 @@ import sys
 import socket
 import logging
 import shutil
-from threading import Thread
-import tomlkit
 import select
 import threading
-import os.path
-import threading
+import tomlkit
 from influxdb import InfluxDBClient
 from mr_interface import MRHandler
 
@@ -36,7 +33,9 @@ KAPACITOR_NAME = 'kapacitord'
 
 mrHandlerObj = None
 
-def KapacitorDaemonLogs(logger):
+def kapacitor_daemon_logs(logger):
+    """Read the kapacitor logs and print it to stdout
+    """
     kapacitor_log_file = "/tmp/log/kapacitor/kapacitor.log"
     while True:
         if os.path.isfile(kapacitor_log_file):
@@ -61,15 +60,13 @@ class KapacitorClassifier():
         self.kapacitor_proc = None
 
     def write_cert(self, file_name, cert):
-        """Write certificate to given file path
-        """
+        """Write certificate to given file path"""
         try:
             shutil.copy(cert, file_name)
             os.chmod(file_name, 0o400)
         except (OSError, IOError) as err:
-            self.logger.debug("Failed creating file: {}, Error: {} ".format(
-                file_name, err))
-    
+            self.logger.debug("Failed creating file: %s, Error: %s ", file_name, err)
+
     def check_udf_package(self, config, dir_name):
         """ Check if UDF deployment package is present in the container
         """
@@ -85,12 +82,18 @@ class KapacitorClassifier():
 
 
         if not os.path.isdir(path):
-            self.logger.error(f"UDF deployment package directory {udf_name} does not exist. Please check and upload/copy the UDF deployment package.")
+            self.logger.error(
+                "UDF deployment package directory %s does not exist. "
+                "Please check and upload/copy the UDF deployment package.",
+                udf_name
+            )
             return False
-        if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir, config['udfs']["name"] + ".py")):
+        if os.path.isdir(udf_dir) and os.path.isfile(os.path.join(udf_dir,
+                                                                  config['udfs']["name"] + ".py")):
             found_udf = True
 
-        if os.path.isdir(tick_scripts_dir) and os.path.isfile(os.path.join(tick_scripts_dir, config['udfs']["name"] + ".tick")):
+        tick_script_path = os.path.join(tick_scripts_dir, config['udfs']["name"] + ".tick")
+        if os.path.isdir(tick_scripts_dir) and os.path.isfile(tick_script_path):
             found_tick_scripts = True
 
         # model file is optional
@@ -114,11 +117,12 @@ class KapacitorClassifier():
                 missing_items.append(f"tick script for task {config['udfs']['name']}")
                 self.logger.warning("Missing tick script")
             self.logger.error(
-                "Missing " + ", ".join(missing_items) + ". Please check and upload/copy the UDF deployment package."
+                "Missing " + ", ".join(missing_items) + 
+                ". Please check and upload/copy the UDF deployment package."
             )
             return False
         else:
-            self.logger.info(f"UDF deployment package {path} exists.")
+            self.logger.info("UDF deployment package %s exists.", path)
             return True
 
     def install_udf_package(self, dir_name):
@@ -127,9 +131,20 @@ class KapacitorClassifier():
 
         python_package_requirement_file = "/tmp/" + dir_name + "/udfs/requirements.txt"
         python_package_installation_path = "/tmp/py_package"
-        subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
+        status = subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
+        if status.returncode != SUCCESS:
+            self.logger.error("Failed to create directory %s for installing python packages.",
+                              python_package_installation_path)
+            return False
         if os.path.isfile(python_package_requirement_file):
-            subprocess.run(["pip3", "install", "-r", python_package_requirement_file, "--target", python_package_installation_path], check=False)
+            status = subprocess.run([
+                "pip3", "install", "-r", python_package_requirement_file,
+                "--target", python_package_installation_path
+            ], check=False)
+            if status.returncode != SUCCESS:
+                self.logger.error("Failed to install python packages from %s",
+                                  python_package_requirement_file)
+                return False
 
     def start_kapacitor(self,
                         kapacitor_url_hostname,
@@ -172,10 +187,10 @@ class KapacitorClassifier():
                 try:
                     proc.wait()
                     logger.info("Kapacitor daemon process has exited and was reaped.")
-                except Exception as e:
-                    logger.error(f"Error while reaping kapacitor process: {e}")
-
-            threading.Thread(target=reap_kapacitor_proc, args=(self.kapacitor_proc, self.logger), daemon=True).start()
+                except (subprocess.SubprocessError, OSError) as e:
+                    logger.error("Error while reaping kapacitor process: %s", e)
+            threading.Thread(target=reap_kapacitor_proc, args=(self.kapacitor_proc, self.logger),
+                                    daemon=True).start()
             self.logger.info("Started kapacitor Successfully...")
             return True
         except subprocess.CalledProcessError as err:
@@ -233,11 +248,12 @@ class KapacitorClassifier():
             self.logger.error(message)
         sys.exit(FAILURE)
 
-    def enable_classifier_task(self,
-                               host_name,
-                               tick_script,
-                               dir_name,
-                               task_name):
+    def enable_classifier_task(
+            self,
+            host_name,
+            tick_script,
+            dir_name,
+            task_name):
         """Enable the classifier TICK Script using the kapacitor CLI
         """
         retry_count = 5
@@ -252,7 +268,7 @@ class KapacitorClassifier():
                 os._exit(1)
 
         self.logger.info("Kapacitor Port is Open for Communication....")
- 
+
         path = "/tmp/" + dir_name + "/tick_scripts/"
         while retry < retry_count:
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
@@ -301,12 +317,11 @@ class KapacitorClassifier():
         task_name = config['udfs']['name']
 
         if kapacitor_started:
-            self.logger.info("Enabling {0}".format(tick_script))
+            self.logger.info("Enabling %s", tick_script)
             self.enable_classifier_task(kapacitor_url_hostname,
                                         tick_script,
                                         dir_name,
                                         task_name)
-
         while True:
             time.sleep(1)
 
@@ -332,30 +347,48 @@ def delete_old_subscription(secure_mode):
         influx_password = os.getenv('KAPACITOR_INFLUXDB_0_PASSWORD')
         influx_db = os.getenv('INFLUXDB_DBNAME')
         if secure_mode:
-            client = InfluxDBClient(host=influx_host, port=8086, username=influx_username, password=influx_password,ssl=True, database=influx_db)
+            client = InfluxDBClient(
+                host=influx_host,
+                port=8086,
+                username=influx_username,
+                password=influx_password,
+                ssl=True,
+                database=influx_db
+            )
         else:
-            client = InfluxDBClient(host=influx_host, port=8086, username=influx_username, password=influx_password, database=influx_db)
+            client = InfluxDBClient(
+                host=influx_host,
+                port=8086,
+                username=influx_username,
+                password=influx_password,
+                database=influx_db
+            )
 
         # Query to list subscriptions
         query = 'SHOW SUBSCRIPTIONS'
 
         try:
             results = client.query(query)
-            subscriptions = list(results.get_points())            
+            subscriptions = list(results.get_points())
             # Print the subscriptions
             for subscription in subscriptions:
                 if subscription['name'].startswith("kapacitor-"):
-                    logger.debug(f"Retention Policy: {subscription['retention_policy']}, Name: {subscription['name']}, Mode: {subscription['mode']}, Destinations: {subscription['destinations']}")
+                    logger.debug("Retention Policy: %s, Name: %s, Mode: %s, Destinations: %s",
+                                  subscription['retention_policy'],
+                                  subscription['name'],
+                                  subscription['mode'],
+                                  subscription['destinations']
+                    )
                     drop_query = "DROP SUBSCRIPTION \""+subscription['name']+"\" ON "+ influx_db+".autogen"
-                    logger.info(f"Deleting subscription: {subscription['name']}")
+                    logger.info("Deleting subscription: %s", subscription['name'])
                     client.query(drop_query)
         except Exception as e:
-            print(f"Failed to list subscriptions: {e}")
+            print("Failed to list subscriptions: %s", e)
 
         # Close the connection
         client.close()
     except Exception as e:
-        logger.exception("Deleting old subscription failed, Error: {}".format(e))
+        logger.exception("Deleting old subscription failed, Error: %s", e)
 
 def classifier_startup(config):
     """Main to start kapacitor service
@@ -374,39 +407,47 @@ def classifier_startup(config):
     # Copy the kapacitor conf file to the /tmp directory
     shutil.copy("/app/config/" + conf_file, "/tmp/" + conf_file)
     # Read the existing configuration
-    with open("/tmp/" + conf_file, 'r') as file:
+    with open("/tmp/" + conf_file, 'r', encoding='utf-8') as file:
         config_data = tomlkit.parse(file.read())
     udf_name = config['udfs']['name']
     dir_name = udf_name
     if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
         dir_name = mrHandlerObj.unique_id
         if dir_name is None or dir_name == "":
-            logger.error(f"Please check the UDF name:{mrHandlerObj.config['udfs']['name']} and version: {mrHandlerObj.config['model_registry']['version']} in the config.")
+            logger.error("Please check the UDF name:%s "
+                         "and version: %s "
+                         "in the config.",
+                         mrHandlerObj.config['udfs']['name'],
+                         mrHandlerObj.config['model_registry']['version'])
             return
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
 
     udf_section[udf_name]['prog'] = 'python3'
-    
+
     udf_section[udf_name]['args'] = ["-u", "/tmp/"+ dir_name +"/udfs/" + udf_name + ".py"]
-    
+
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
-        'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:"
+        'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
+        "ONEAPI_DEVICE_SELECTOR": "level_zero:gpu",
+        "SYCL_DEVICE_FILTER": "level_zero:gpu"
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
         mqtt_url = config_data["mqtt"][0]["url"]
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST", config["alerts"]["mqtt"]["mqtt_broker_host"])
-        mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT", str(config["alerts"]["mqtt"]["mqtt_broker_port"]))
+        mqtt_url = mqtt_url.replace("MQTT_BROKER_HOST",
+                                    config["alerts"]["mqtt"]["mqtt_broker_host"])
+        mqtt_url = mqtt_url.replace("MQTT_BROKER_PORT",
+                                    str(config["alerts"]["mqtt"]["mqtt_broker_port"]))
         config_data["mqtt"][0]["url"] = mqtt_url
     else:
         config_data["mqtt"][0]["enabled"] = False
-    
+
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
         config_data["influxdb"][0]["enabled"] = True
     # Write the updated configuration back to the file
-    with open("/tmp/" + conf_file, 'w') as file:
+    with open("/tmp/" + conf_file, 'w', encoding='utf-8') as file:
         file.write(tomlkit.dumps(config_data, sort_keys=False))
 
     # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
@@ -456,7 +497,6 @@ def classifier_startup(config):
 
 kapacitor_classifier = KapacitorClassifier(logger)
 
-t1 = threading.Thread(target=KapacitorDaemonLogs, args=[logger])
+t1 = threading.Thread(target=kapacitor_daemon_logs, args=[logger])
 t1.daemon = True
 t1.start()
-

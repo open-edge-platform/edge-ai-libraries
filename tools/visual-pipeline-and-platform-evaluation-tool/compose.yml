@@ -1,5 +1,5 @@
 x-vippet: &vippet
-  image: docker.io/intel/vippet-app:v1.2
+  image: docker.io/intel/vippet-app:${DOCKER_TAG}
   build:
     context: .
     dockerfile: Dockerfile.vippet
@@ -71,7 +71,7 @@ services:
       - "/dev/accel:/dev/accel"
     profiles: [npu]
   collector:
-    image: docker.io/intel/vippet-collector:v1.2
+    image: docker.io/intel/vippet-collector:${DOCKER_TAG}
     build:
       context: ./collector
       dockerfile: Dockerfile
@@ -98,7 +98,7 @@ services:
       no_proxy: ${no_proxy}
   videogenerator:
     profiles: [do-not-start]
-    image: docker.io/intel/vippet-videogenerator:v1.2
+    image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
     build:
       context: video_generator
       dockerfile: Dockerfile
