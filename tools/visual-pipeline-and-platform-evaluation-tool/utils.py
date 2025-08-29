@@ -12,7 +12,7 @@ import threading
 import time
 from itertools import product
 from subprocess import Popen, PIPE
-from typing import List, Dict
+from typing import List, Dict, Any
 
 import cv2
 import numpy as np
@@ -29,7 +29,7 @@ VIDEO_STREAM_META_PATH = "/tmp/shared_memory/video_stream.meta"
 
 
 def prepare_video_and_constants(
-    **kwargs: dict[str, any],
+    **kwargs: dict[str, Any],
 ):
     """
     Prepares the video output path, constants, and parameter grid for the pipeline.
@@ -44,16 +44,16 @@ def prepare_video_and_constants(
     """
 
     # Collect parameters from kwargs
-    input_video_player = kwargs.get("input_video_player", "")
+    input_video_player = str(kwargs.get("input_video_player", ""))
     object_detection_model = kwargs.get("object_detection_model", "")
-    object_detection_device = kwargs.get("object_detection_device", "")
+    object_detection_device = str(kwargs.get("object_detection_device", ""))
     object_detection_batch_size = kwargs.get("object_detection_batch_size", 1)
     object_detection_inference_interval = kwargs.get(
         "object_detection_inference_interval", 0.0
     )
     object_detection_nireq = kwargs.get("object_detection_nireq", 1)
     object_classification_model = kwargs.get("object_classification_model", "")
-    object_classification_device = kwargs.get("object_classification_device", "")
+    object_classification_device = str(kwargs.get("object_classification_device", ""))
     object_classification_batch_size = kwargs.get("object_classification_batch_size", 1)
     object_classification_inference_interval = kwargs.get(
         "object_classification_inference_interval", 0.0
@@ -144,7 +144,7 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/yolov10s/FP16/yolov10s.xml"
             )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = None
+            constants["OBJECT_DETECTION_MODEL_PROC"] = ""
         case "YOLO v10m 640x640 (FP16)":
             if object_detection_device == "NPU":
                 raise ValueError(
@@ -154,7 +154,7 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/yolov10m/FP16/yolov10m.xml"
             )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = None
+            constants["OBJECT_DETECTION_MODEL_PROC"] = ""
         case "YOLO v8 License Plate Detector (FP32)":
             if object_detection_device == "NPU":
                 raise ValueError(
@@ -164,7 +164,7 @@ def prepare_video_and_constants(
             constants["OBJECT_DETECTION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/yolov8_license_plate_detector/FP32/yolov8_license_plate_detector.xml"
             )
-            constants["OBJECT_DETECTION_MODEL_PROC"] = None
+            constants["OBJECT_DETECTION_MODEL_PROC"] = ""
         case _:
             raise ValueError("Unrecognized Object Detection Model")
 
@@ -202,7 +202,7 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/public/ch_PP-OCRv4_rec_infer/FP32/ch_PP-OCRv4_rec_infer.xml"
             )
-            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = None
+            constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = ""
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
                 f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"

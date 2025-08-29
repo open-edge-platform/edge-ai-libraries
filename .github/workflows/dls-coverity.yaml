@@ -130,5 +130,5 @@ jobs:
                --form email=${{ secrets.DLS_COVERITY_EMAIL }} \
                --form file=@coverity-output.tgz \
                --form version="$GIT_BRANCH-`date +%Y%m%d%H%M%S`" \
-               --form description="GitHub Action upload" \
+               --form description="GA scan $GIT_BRANCH-`date +%Y%m%d%H%M%S`" \
                https://scan.coverity.com/builds?project=${{ secrets.DLS_COVERITY_PROJECT }}
