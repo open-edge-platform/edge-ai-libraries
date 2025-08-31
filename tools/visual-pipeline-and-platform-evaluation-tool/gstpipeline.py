@@ -8,13 +8,8 @@ import yaml
 
 class GstPipeline:
     def __init__(self):
-        pass
-
-    def pipeline(self) -> str:
-        if not hasattr(self, "_pipeline"):
-            raise ValueError("Pipeline is not defined")
-
-        return self._pipeline
+        self._diagram = None
+        self._bounding_boxes = None
 
     def evaluate(
         self,
@@ -29,13 +24,13 @@ class GstPipeline:
         )
 
     def diagram(self) -> Path:
-        if not hasattr(self, "_diagram"):
+        if self._diagram is None:
             raise ValueError("Diagram is not defined")
 
         return self._diagram
 
     def bounding_boxes(self) -> List:
-        if not hasattr(self, "_bounding_boxes"):
+        if self._bounding_boxes is None:
             raise ValueError("Bounding Boxes is not defined")
 
         return self._bounding_boxes
