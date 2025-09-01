@@ -11,6 +11,7 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 from pydantic import BaseModel, Field, ValidationError
 from huggingface_hub import snapshot_download
 from .logger import logger
+from .vlm_utils import vlm_compress_model, CompressionRequest
 
 app = FastAPI(root_path="/api/v1", title="Model Download Service", version="1.0.0")
 auth_token = HTTPBearer(auto_error=False)
@@ -208,6 +209,7 @@ def download_and_process_model(
         OSError: If directory creation fails
         HTTPException: If model download or OVMS conversion fails
     """
+    model_downloaded_path = None  # Ensure variable is always defined
     try:
         logger.info(f"Starting download for model: {model.name}")
 
@@ -222,13 +224,13 @@ def download_and_process_model(
             )
 
         # Create model-specific directory
-        model_specific_path = os.path.join(
+        model_downloaded_path = os.path.join(
             model_path, "huggingface_models", model.name.replace("/", "_")
         )
         try:
-            os.makedirs(model_specific_path, exist_ok=True)
+            os.makedirs(model_downloaded_path, exist_ok=True)
         except OSError as e:
-            logger.error(f"Failed to create directory {model_specific_path}: {str(e)}")
+            logger.error(f"Failed to create directory {model_downloaded_path}: {str(e)}")
             return ModelResult(
                 status="error",
                 model_name=model.name,
@@ -240,7 +242,7 @@ def download_and_process_model(
         try:
             
             # Convert if OVMS is requested and model type is provided
-            if model.is_ovms and model.type:
+            if model.is_ovms and model.type != "vlm":
                 logger.info(f"Starting OVMS conversion for model: {model.name}")
 
                 # Use model-specific OVMS config if provided, otherwise initialize default settings
@@ -299,12 +301,22 @@ def download_and_process_model(
                         error=f"OVMS conversion failed: {str(e)}",
                         is_ovms=None,
                     )
+            
+            if model.type == "vlm":
+                # Compress the vlm model
+                vlm_compress_model(req=CompressionRequest(
+                    model_name=model.name,
+                    weight_format=model.config.precision.value if model.config else "int8", 
+                    hf_token=hf_token,
+                    model_path=model_downloaded_path
+                ))
+                logger.info(f"Model compression completed for: {model.name}")
             else:
                 # Download model from Hugging Face
                 model_downloaded_path = snapshot_download(
                     repo_id=model.name,
                     token=hf_token,
-                    local_dir=model_specific_path,
+                    local_dir=model_downloaded_path,
                     revision=model.revision if model.revision else None,
                 )
                 logger.info(f"Model download completed: {model.name}")
@@ -337,7 +349,8 @@ def download_and_process_model(
         )
 
     finally:
-        cleanup_model_directory(model_specific_path)
+        if model_downloaded_path is not None:
+            cleanup_model_directory(model_downloaded_path)
 
 
 def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
@@ -362,18 +375,19 @@ def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
             "Ollama models do not support OVMS conversion at this time."
         )
 
+    model_downloaded_path = None
     try:
         # Create model-specific directory
-        model_specific_path = os.path.join(
+        model_downloaded_path = os.path.join(
             model_path, "ollama_models", model.name.replace("/", "_")
         )
-        os.environ["OLLAMA_MODELS"] = model_specific_path
+        os.environ["OLLAMA_MODELS"] = model_downloaded_path
 
-        logger.info(f"Directory for Ollama model: {model_specific_path}")
+        logger.info(f"Directory for Ollama model: {model_downloaded_path}")
         try:
-            os.makedirs(model_specific_path, exist_ok=True)
+            os.makedirs(model_downloaded_path, exist_ok=True)
         except OSError as e:
-            logger.error(f"Failed to create directory {model_specific_path}: {str(e)}")
+            logger.error(f"Failed to create directory {model_downloaded_path}: {str(e)}")
             return ModelResult(
                 status="error",
                 model_name=model.name,
@@ -395,7 +409,7 @@ def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
         return ModelResult(
             status="success",
             model_name=model.name,
-            model_path=model_specific_path,
+            model_path=model_downloaded_path,
             error=None,
             is_ovms=model.is_ovms,
         )
@@ -409,11 +423,11 @@ def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
             error=f"Failed to download Ollama model: {str(e)}",
             is_ovms=False,
         )
-
     finally:
         logger.info("Stopping ollama server")
         process.terminate()
-        cleanup_model_directory(model_specific_path)
+        if model_downloaded_path is not None:
+            cleanup_model_directory(model_downloaded_path)
 
 
 def convert_to_ovms_format(

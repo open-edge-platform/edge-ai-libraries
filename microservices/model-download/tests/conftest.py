@@ -37,10 +37,11 @@ def single_model_request(test_model_path):
     return {
         "models": [
             {
-                "name": "bert-base-uncased",
+                "name": "Intel/neural-chat-7b-v3-3",
+                "hub": "huggingface",
                 "type": "llm",
                 "is_ovms": True,
-                "ovms_config": {
+                "config": {
                     "precision": "int8",
                     "device": "CPU",
                     "cache_size": 10
@@ -56,20 +57,22 @@ def multi_model_request():
     return {
         "models": [
             {
-                "name": "bert-base-uncased",
+                "name": "Intel/neural-chat-7b-v3-3",
+                "hub": "huggingface",
                 "type": "llm",
                 "is_ovms": True,
-                "ovms_config": {
+                "config": {
                     "precision": "int8",
                     "device": "CPU",
                     "cache_size": 10
                 }
             },
             {
-                "name": "sentence-transformers/all-mpnet-base-v2",
+                "name": "BAAI/bge-small-en-v1.5",
+                "hub": "huggingface",
                 "type": "embeddings",
                 "is_ovms": True,
-                "ovms_config": {
+                "config": {
                     "precision": "fp16",
                     "device": "GPU",
                     "cache_size": 20
@@ -85,21 +88,23 @@ def invalid_model_requests():
     return {
         "empty_models": {"models": []},
         "missing_name": {
-            "models": [{"type": "llm", "is_ovms": True}]
+            "models": [{"hub": "huggingface", "type": "llm", "is_ovms": True}]
         },
         "invalid_type": {
             "models": [{
-                "name": "bert-base-uncased",
+                "name": "Intel/neural-chat-7b-v3-3",
+                "hub": "huggingface",
                 "type": "invalid",
                 "is_ovms": True
             }]
         },
-        "invalid_ovms_config": {
+        "invalid_config": {
             "models": [{
-                "name": "bert-base-uncased",
+                "name": "Intel/neural-chat-7b-v3-3",
+                "hub": "huggingface",
                 "type": "llm",
                 "is_ovms": True,
-                "ovms_config": {
+                "config": {
                     "precision": "invalid",
                     "device": "invalid",
                     "cache_size": -1
@@ -108,9 +113,81 @@ def invalid_model_requests():
         },
         "invalid_revision": {
             "models": [{
-                "name": "bert-base-uncased",
+                "name": "Intel/neural-chat-7b-v3-3",
+                "hub": "huggingface",
                 "revision": 123,  # Should be string
                 "is_ovms": True
             }]
         }
+    }
+
+@pytest.fixture
+def vlm_compression_request():
+    """Fixture for a valid VLM compression request"""
+    return {
+        "model_name": "microsoft/Phi-3.5-mini-instruct",
+        "weight_format": "int8",
+        "hf_token": "test_hf_token",
+        "model_path": "/test/model/path"
+    }
+
+@pytest.fixture
+def vlm_compression_request_no_token():
+    """Fixture for VLM compression request without HF token"""
+    return {
+        "model_name": "microsoft/Phi-3.5-mini-instruct",
+        "weight_format": "fp16",
+        "hf_token": None,
+        "model_path": "/test/model/path"
+    }
+
+@pytest.fixture
+def vlm_model_request(test_model_path):
+    """Fixture for a valid VLM model request"""
+    return {
+        "models": [
+            {
+                "name": "microsoft/Phi-3.5-mini-instruct",
+                "hub": "huggingface",
+                "type": "vlm",
+                "is_ovms": False,
+                "config": {
+                    "precision": "int8",
+                    "device": "CPU",
+                    "cache_size": 10
+                }
+            }
+        ],
+        "parallel_downloads": False
+    }
+
+@pytest.fixture
+def multi_vlm_model_request():
+    """Fixture for multiple VLM models request"""
+    return {
+        "models": [
+            {
+                "name": "Qwen/Qwen2.5-VL-7B-Instruct",
+                "hub": "huggingface",
+                "type": "vlm",
+                "is_ovms": False,
+                "config": {
+                    "precision": "int8",
+                    "device": "CPU",
+                    "cache_size": 10
+                }
+            },
+            {
+                "name": "microsoft/Phi-3.5-vision-instruct",
+                "hub": "huggingface",
+                "type": "vlm",
+                "is_ovms": False,
+                "config": {
+                    "precision": "fp16",
+                    "device": "GPU",
+                    "cache_size": 20
+                }
+            }
+        ],
+        "parallel_downloads": True
     }

@@ -27,7 +27,7 @@ cd microservices/model-download
 
 2. Setup the directory for storing the downloaded models with appropriate permissions
 ```bash
-source setup_model_path.sh
+source scripts/setup_model_path.sh
 ```
 3. Start the service using Docker Compose:
 ```bash
