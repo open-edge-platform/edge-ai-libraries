@@ -2,7 +2,9 @@
 
 This section shows how to build the Video Search and Summary sample application from source.
 
-> **Note:** The dependent microservices must be built separately from their respective microservice folders.
+> **Note:** 
+> - The dependent microservices can be built separately from their respective microservice folders which is recommended. There is an option provided to build dependencies along with sample application if required.
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported either for the sample application or the dependent microservices on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
 
 ## Prerequisites
 
@@ -37,7 +39,7 @@ This section shows how to build the Video Search and Summary sample application 
       export TAG=<your-tag>                                # e.g. "rc4" or "latest"
       ```
 
-    > **_IMPORTANT:_** These variables control how image names are constructed. If `REGISTRY_URL` is **docker.io/username/** and `PROJECT_NAME` is **video-search-and-summarization**, an image would be pulled or built as **docker.io/username/video-search-and-summarization/<application-name>:tag**. The `<application-name>` is hardcoded in _image_ field of each service in all docker compose files. If `REGISTRY_URL` or `PROJECT_NAME` are not set, blank string will be used to construct the image name. If `TAG` is not set, **latest** will be used by default.
+    > **_IMPORTANT:_** These variables control how image names are constructed. If `REGISTRY_URL` is **docker.io/username/** and `PROJECT_NAME` is **video-search-and-summarization**, an image would be pulled or built as **docker.io/username/video-search-and-summarization/\<application-name>:tag**. The `<application-name>` is hardcoded in _image_ field of each service in all docker compose files. If `REGISTRY_URL` or `PROJECT_NAME` are not set, blank string will be used to construct the image name. If `TAG` is not set, **latest** will be used by default.
 
     ### 🔨 Building Images
 
@@ -72,7 +74,7 @@ This section shows how to build the Video Search and Summary sample application 
 
 5. 🌐 Accessing the Application
 
-    After successfully starting the application, open a browser and go to http://<host-ip>:12345 to access the application dashboard.
+    After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
 ## Verification
 
@@ -81,6 +83,16 @@ This section shows how to build the Video Search and Summary sample application 
   docker ps
   ```
 - Access the application dashboard and verify that it is functioning as expected.
+
+## Building with Copyleft Sources
+
+If you need to include copyleft sources in your build, you can set the following environment variable:
+
+```bash
+export ADD_COPYLEFT_SOURCES=true
+```
+
+When this environment variable is set to `true`, it allows the Dockerfiles to conditionally include copyleft sources when needed.
 
 ## Troubleshooting
 

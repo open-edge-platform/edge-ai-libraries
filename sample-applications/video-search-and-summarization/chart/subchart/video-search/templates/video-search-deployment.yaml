@@ -69,8 +69,8 @@ spec:
               value: {{ .Values.global.env.VCLIP_ENDPOINT | quote }}
             - name: INDEX_NAME
               value: {{ .Values.global.env.VS_INDEX_NAME | quote }}
-            - name: DATAPREP_UPLOAD_URL
-              value: {{ .Values.videosearch.env.VDMS_DATAPREP_UPLOAD }}
+            - name: VIDEO_UPLOAD_ENDPOINT
+              value: {{ .Values.videosearch.env.VIDEO_UPLOAD_ENDPOINT }}
             - name: VDMS_BUCKET
               value: "{{ .Values.videosearch.env.VDMS_BUCKET }}"
             - name: CHUNK_DURATION

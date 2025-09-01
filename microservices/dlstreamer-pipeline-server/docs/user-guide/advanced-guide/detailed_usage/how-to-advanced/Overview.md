@@ -9,7 +9,6 @@ This section refers to few advanced features and tutorials provided by DL Stream
 - [Multistream pipelines with shared model instance](#multistream-pipelines-with-shared-model-instance)
 - [Cross stream batching](#cross-stream-batching)
 - [Enable Open Telemetry](#enable-open-telemetry)
-- [WebRTC Frame Streaming](#webrtc-frame-streaming)
 - [Working with other services](#working-with-other-services)
 
 ## Model Update
@@ -36,9 +35,6 @@ To learn about cross stream batching feature, refer this [doc](./cross-stream-ba
 ## Enable Open Telemetry
 To enable Open Telemetry and capture various runtime statistics, refer this [doc](./enable-open-telemetry.md)
 
-## WebRTC Frame Streaming
-To learn how to stream frames over WebRTC protocol, refer this [doc](./webrtc-frame-streaming.md)
-
 ## Working with other services
 To learn how DL Streamer Pipeline Server interacts with other microservices such as Model Registry, refer this [doc](./work-with-other-services.md)
 
@@ -53,6 +49,5 @@ get-tensor-vector-data.md
 multistream-pipelines.md
 cross-stream-batching.md
 enable-open-telemetry.md
-webrtc-frame-streaming.md
 work-with-other-services.md
 ```

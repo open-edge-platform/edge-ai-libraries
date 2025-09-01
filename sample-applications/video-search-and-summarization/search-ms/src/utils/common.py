@@ -59,17 +59,16 @@ class Settings(BaseSettings):
     WATCH_DIRECTORY_CONTAINER_PATH: str = Field(
         default="/tmp/watcher-dir", validation_alias="WATCH_DIRECTORY_CONTAINER_PATH"
     )
-    DEBOUNCE_TIME: int = Field(default=5, validation_alias="DEBOUNCE_TIME")
-    DATAPREP_UPLOAD_URL: str = Field(default="", validation_alias="DATAPREP_UPLOAD_URL")
-    VS_INITIAL_DUMP: bool = Field(default=False, validation_alias="VS_INITIAL_DUMP")
-    DELETE_PROCESSED_FILES: bool = Field(default=False, validation_alias="DELETE_PROCESSED_FILES")
-    MINIO_API_PORT: str = Field(default="", validation_alias="MINIO_API_PORT")
-    MINIO_HOST: str = Field(default="", validation_alias="MINIO_HOST")
-    MINIO_ROOT_USER: str = Field(default="", validation_alias="MINIO_ROOT_USER")
-    MINIO_ROOT_PASSWORD: str = Field(default="", validation_alias="MINIO_ROOT_PASSWORD")
-    VDMS_BUCKET: str = Field(default="", validation_alias="VDMS_BUCKET")
-    CHUNK_DURATION: int = Field(default=10, validation_alias="CHUNK_DURATION")
-
+    DEBOUNCE_TIME: int = Field(default=5, env="DEBOUNCE_TIME")
+    VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
+    VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
+    DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
+    MINIO_API_PORT: str = Field(default="", env="MINIO_API_PORT")
+    MINIO_HOST: str = Field(default="", env="MINIO_HOST")
+    MINIO_ROOT_USER: str = Field(default="", env="MINIO_ROOT_USER")
+    MINIO_ROOT_PASSWORD: str = Field(default="", env="MINIO_ROOT_PASSWORD")
+    VDMS_BUCKET: str = Field(default="", env="VDMS_BUCKET")
+    CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
 
 settings = Settings()
 logger.debug(f"Settings: {settings.model_dump()}")

@@ -15,10 +15,10 @@ class TestSanity:
     # Configurations
     HOST = get_ip_address()
     DOCUMENT_URL = f"http://{HOST}:8000/documents"
-    STEAM_LOG_URL = f"http://{HOST}:8100/stream_log"
+    STEAM_LOG_URL = f"http://{HOST}:8100/chat"
     DATA_STORE_URL = f"http://{HOST}:8200/data"
 
-    HELM_STREAM_LOG = f"http://{HOST}:8080/stream_log"
+    HELM_CHAT = f"http://{HOST}:8080/chat"
     HELM_DATA_STORE_URL = f"http://{HOST}:8005/data"
 
     # Testdata
@@ -300,7 +300,7 @@ class TestSanity:
     @pytest.mark.helm
     def test_helm_stream_log_post(self, check_chatqna_helm_status):
         if check_chatqna_helm_status:
-            url = self.HELM_STREAM_LOG
+            url = self.HELM_CHAT
             payload = json.dumps(self.PAYLOAD)            
             stream_response = self.make_request(url, "POST", payload, stream=True)
             actual_answer = self.get_streaming_data(stream_response)

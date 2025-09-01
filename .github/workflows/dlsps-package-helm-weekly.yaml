@@ -1,0 +1,57 @@
+
+name: "[DLSPS] Package helm charts weekly "
+run-name: "[DLSPS] Package helm charts weekly"
+on:
+  workflow_dispatch:
+    inputs:
+      helm-chart-tag:
+        description: 'Helm chart tag'
+        required: true
+        type: string
+      
+permissions: {}
+jobs:
+  publish-helm:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      packages: write
+      id-token: write
+    strategy:
+      fail-fast: false
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        path: edge-ai-libraries-repo
+        persist-credentials: false
+    - name: Install Helm
+      uses: azure/setup-helm@v4
+      with:
+        version: v3.15.2  
+    - name: Log in to GitHub Container Registry
+      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      with:
+        registry: ghcr.io
+        username: ${{ github.actor }}
+        password: ${{ secrets.GITHUB_TOKEN }}
+
+    - name: Package Helm Chart
+      run: |
+        cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/helm  
+        helm package . --version ${{ inputs.helm-chart-tag }} --app-version ${{ inputs.helm-chart-tag }}
+    - name: Push to GHCR
+      run: |
+        CHART_PACKAGE=$(ls edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/helm/dlstreamer-pipeline-server-${{ inputs.helm-chart-tag }}.tgz)
+        helm push $CHART_PACKAGE oci://ghcr.io/${{ github.repository }}/
+        
+    - name: Update Github Summary
+      run: |
+        echo "### ✅ DLStreamerPipelineServer helm chart published to github container registry" >> $GITHUB_STEP_SUMMARY
+          echo "- Registry: \`oci://ghcr.io/${{ github.repository }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Version: \`${{ inputs.helm-chart-tag }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "- Pull command: \`helm pull oci://ghcr.io/${{ github.repository }}/dlstreamer-pipeline-server --version ${{ inputs.helm-chart-tag }}\`" >> $GITHUB_STEP_SUMMARY 
+    - name: Clean up
+      if: always()
+      run: |
+        rm -rf edge-ai-libraries-repo

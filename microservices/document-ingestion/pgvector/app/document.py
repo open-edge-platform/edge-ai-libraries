@@ -6,16 +6,17 @@ from fastapi import UploadFile, HTTPException
 from http import HTTPStatus
 from pathlib import Path
 from typing import Optional
-from langchain_community.document_loaders import UnstructuredFileLoader
-from langchain_community.document_loaders import PyPDFLoader
 from langchain_core.documents import Document
-from langchain.text_splitter import RecursiveCharacterTextSplitter
+from langchain.text_splitter import TokenTextSplitter
 from langchain_openai import OpenAIEmbeddings
 from langchain_postgres.vectorstores import PGVector
+import pdfplumber
+from docx import Document as DocxDocument
+from docx.text.paragraph import Paragraph
+from docx.table import Table
 from .logger import logger
 from .config import Settings
 from .db_config import pool_execution
-from .utils import get_separators
 
 config = Settings()
 
@@ -86,6 +87,21 @@ async def get_documents_embeddings() -> list:
 
     return file_list
 
+def parse_paragraph(document: Document, para: Paragraph):
+    return para.text
+
+def parse_table(table: Table):
+    table_extracted = []
+
+    for row in table.rows:
+        row_data = []
+        for cell in row.cells:
+            row_data.append(cell.text)
+        joined_row_data = "|".join(row_data)
+        table_extracted.append("|" + joined_row_data + "|")
+    table_string = "\n".join(table_extracted)
+
+    return table_string
 
 def ingest_to_pgvector(doc_path: Path, bucket: str):
     """
@@ -103,16 +119,74 @@ def ingest_to_pgvector(doc_path: Path, bucket: str):
 
 
     try:
-        if doc_path.suffix.lower() == ".pdf":
-            loader = PyPDFLoader(doc_path)
-        else:
-            loader = UnstructuredFileLoader(doc_path, mode="paged", strategy="fast")
-
-        text_splitter = RecursiveCharacterTextSplitter(
-            chunk_size=config.CHUNK_SIZE, chunk_overlap=config.CHUNK_OVERLAP, add_start_index=True,separators=get_separators()
+        chunks = []
+        # Create one chunk per page or split the whole text
+        # Set chunk size to max tokens for your model (e.g., 512)
+        text_splitter = TokenTextSplitter(
+            chunk_size=config.CHUNK_SIZE,
+            chunk_overlap=config.CHUNK_OVERLAP,  # Use some overlap if needed
+            encoding_name="cl100k_base",  # Use the encoding for your model
         )
 
-        chunks = loader.load_and_split(text_splitter)
+        if doc_path.suffix.lower() == ".pdf":
+            # Use pdfplumber to extract text
+            with pdfplumber.open(doc_path) as pdf:
+                texts = []
+                for i, page in enumerate(pdf.pages):
+                    page_text = page.extract_text() or ""
+                    if page_text.strip():
+                        texts.append((i, page_text))
+            if not texts:
+                raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="No text found in the PDF for ingestion.")
+                        
+            for page_num, page_text in texts:
+                page_chunks = text_splitter.create_documents([page_text])
+                for chunk in page_chunks:
+                    if not hasattr(chunk, "metadata") or not isinstance(chunk.metadata, dict):
+                        chunk.metadata = {}
+                    chunk.metadata.update({
+                        "page": page_num,
+                        "source": str(doc_path)  # or doc_path.name if you want only filename
+                    })
+                    chunks.append(chunk)
+        elif doc_path.suffix.lower() == ".docx":
+            doc = DocxDocument(doc_path)
+            summary = []
+            for child in doc.iter_inner_content():
+                if isinstance(child, Paragraph):
+                    summary.append(parse_paragraph(doc, child))
+                elif isinstance(child, Table):
+                    summary.append(parse_table(child))
+
+            full_text = ""
+            for content in summary:
+                full_text += content + "\n"
+            if not full_text.strip():
+                raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="No text found in the DOCX for ingestion.")
+
+            docx_chunks = text_splitter.create_documents([full_text])
+            for chunk in docx_chunks:
+                if not hasattr(chunk, "metadata") or not isinstance(chunk.metadata, dict):
+                    chunk.metadata = {}
+                chunk.metadata.update({
+                    "source": str(doc_path)
+                })
+                chunks.append(chunk)
+        elif doc_path.suffix.lower() == ".txt":
+            with open(doc_path, "r", encoding="utf-8") as f:
+                full_text = f.read()
+            if not full_text.strip():
+                raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="No text found in the TXT file for ingestion.")
+
+            txt_chunks = text_splitter.create_documents([full_text])
+            for chunk in txt_chunks:
+                if not hasattr(chunk, "metadata") or not isinstance(chunk.metadata, dict):
+                    chunk.metadata = {}
+                chunk.metadata.update({
+                    "source": str(doc_path)
+                })
+                chunks.append(chunk)
+               
         if not chunks:
             raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail="No text found in the document for ingestion.")
 

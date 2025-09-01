@@ -1,50 +1,50 @@
 apiVersion: v2
 name: video-search-and-summarization
 description: A helm chart for deploying Intel Video Search and Summarization sample application
-version: 1.1.2
+version: 1.2.0
 dependencies:
   - name: ovms
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/ovms"
     condition: ovms.enabled
   - name: minioServer
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/minio-server"
   - name: audioanalyzer
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/audio-analyzer/"
     condition: audioanalyzer.enabled
   - name: postgresql
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/postgresql/"
   - name: rabbitmq
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/rabbitmq/"
     condition: rabbitmq.enabled
   - name: videoingestion
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/video-ingestion/"
     condition: videoingestion.enabled
   - name: videosummaryui
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/video-summary-ui/"
   - name: vlminference
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/vlm-inference/"
     condition: vlminference.enabled
   - name: videosearch
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/video-search/"
     condition: videosearch.enabled
   - name: vdmsvectordb
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/vdms-vectordb/"
     condition: vdmsvectordb.enabled
   - name: vdmsdataprep
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/vdms-dataprep/"
     condition: vdmsdataprep.enabled
   - name: multimodalembeddingms
-    version: 0.1.0
+    version: 1.2.0
     repository: "file://subchart/multimodal-embedding-ms/"
     condition: multimodalembeddingms.enabled

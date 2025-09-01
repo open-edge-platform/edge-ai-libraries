@@ -26,7 +26,7 @@ spec:
             - containerPort: {{ .Values.vlminference.service.targetPort }}
           env:
             - name: VLM_MODEL_NAME
-              value: {{ .Values.vlminference.env.VLM_MODEL_NAME | quote }}
+              value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
             - name: VLM_COMPRESSION_WEIGHT_FORMAT
               value: {{ .Values.vlminference.env.VLM_COMPRESSION_WEIGHT_FORMAT | quote }}
             - name: VLM_DEVICE

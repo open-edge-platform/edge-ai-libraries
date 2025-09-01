@@ -5,7 +5,10 @@ global:
     no_proxy: 
     http_proxy: 
     https_proxy:
-  LLM_MODEL: Intel/neural-chat-7b-v3-3
+
+  # llmName is the Large Language Model used by OVMS
+  llmName: ""
+
   egai_ovms_pvc:
     size: 40Gi
     

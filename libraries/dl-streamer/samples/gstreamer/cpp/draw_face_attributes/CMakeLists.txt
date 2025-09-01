@@ -21,14 +21,21 @@ file (GLOB MAIN_SRC *.cpp)
 file (GLOB MAIN_HEADERS *.h)
 
 set(GSTREAMER_INCLUDE_DIR /opt/intel/dlstreamer/gstreamer/include/gstreamer-1.0)
-set(OPENCV_INCLUDE_DIR /opt/opencv/include)
+set(OPENCV_INCLUDE_DIR /usr/include/opencv4)
 set(DLSTREAMER_INCLUDE_DIRS /opt/intel/dlstreamer/include)
-link_directories(${TARGET_NAME} /opt/intel/dlstreamer/build/intel64/Release/lib
+link_directories(${TARGET_NAME} /opt/intel/dlstreamer/lib
         /opt/intel/dlstreamer/gstreamer/lib
-        /opt/opencv
+        /usr/lib/x86_64-linux-gnu
 )
 
 add_executable(${TARGET_NAME} ${MAIN_SRC} ${MAIN_HEADERS})
+
+include(CheckCCompilerFlag)
+check_c_compiler_flag(-Wno-deprecated-enum-enum-conversion HAVE_SIGN_CONVERSION)
+
+if (HAVE_SIGN_CONVERSION)
+    target_compile_options(${TARGET_NAME} PRIVATE -Wno-deprecated-enum-enum-conversion)
+endif (HAVE_SIGN_CONVERSION)
 
 set_target_properties(${TARGET_NAME} PROPERTIES CMAKE_CXX_STANDARD 23)
 

@@ -23,7 +23,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 import openlit
-from transformers import AutoTokenizer
 
 set_verbose(True)
 
@@ -33,13 +32,15 @@ logging.basicConfig(level=logging.INFO)
 otlp_endpoint = os.environ.get("OTLP_ENDPOINT", False)
 
 # Initialize OpenTelemetry
-if not isinstance(trace.get_tracer_provider(), TracerProvider):    
+if not isinstance(trace.get_tracer_provider(), TracerProvider):
     tracer_provider = TracerProvider()
     trace.set_tracer_provider(tracer_provider)
 
     # Set up OTLP exporter and span processor
     if not otlp_endpoint:
-        logging.warning("No OTLP endpoint provided - Telemetry data will not be collected.")
+        logging.warning(
+            "No OTLP endpoint provided - Telemetry data will not be collected."
+        )
     else:
         otlp_exporter = OTLPSpanExporter()
         span_processor = BatchSpanProcessor(otlp_exporter)
@@ -51,24 +52,33 @@ if not isinstance(trace.get_tracer_provider(), TracerProvider):
             environment=os.environ.get("OTEL_SERVICE_ENV", "chatqna"),
         )
 
-        logging.info(f"Tracing enabled: OpenTelemetry configured using OTLP endpoint at {otlp_endpoint}")
+        logging.info(
+            f"Tracing enabled: OpenTelemetry configured using OTLP endpoint at {otlp_endpoint}"
+        )
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
-MODEL_NAME = os.getenv("EMBEDDING_MODEL","BAAI/bge-small-en-v1.5")
-EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL","http://localhost:6006")
+MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL", "http://localhost:6006")
 COLLECTION_NAME = os.getenv("INDEX_NAME")
 FETCH_K = os.getenv("FETCH_K")
 
 engine = create_async_engine(PG_CONNECTION_STRING)
 
 # Init Embeddings via Intel Edge GenerativeAI Suite
-embedder = EGAIEmbeddings(
-            openai_api_key="EMPTY",
-            openai_api_base="{}".format(EMBEDDING_ENDPOINT_URL),
-            model=MODEL_NAME,
-            tiktoken_enabled=False
-        )
-
+try:
+    embedder = EGAIEmbeddings(
+        openai_api_key="EMPTY",
+        openai_api_base="{}".format(EMBEDDING_ENDPOINT_URL),
+        model=MODEL_NAME,
+        request_timeout=30,  # Add timeout
+        max_retries=3,  # Add retries
+    )
+    logging.info(
+        f"Embeddings initialized with endpoint configured in EMBEDDING_ENDPOINT_URL"
+    )
+except Exception as e:
+    logging.error(f"Failed to initialize embeddings: {str(e)}")
+    raise
 
 knowledge_base = EGAIVectorDB(
     embeddings=embedder,
@@ -80,6 +90,7 @@ retriever = EGAIVectorStoreRetriever(
     search_type="mmr",
     search_kwargs={"k": 1, "fetch_k": FETCH_K},
 )
+
 
 # Define our prompt
 template = """
@@ -118,30 +129,37 @@ logging.info(f"Using LLM inference backend: {LLM_BACKEND}")
 LLM_MODEL = os.getenv("LLM_MODEL", "Intel/neural-chat-7b-v3-3")
 RERANKER_ENDPOINT = os.getenv("RERANKER_ENDPOINT", "http://localhost:9090/rerank")
 callbacks = [streaming_stdout.StreamingStdOutCallbackHandler()]
-tokenizer = AutoTokenizer.from_pretrained(LLM_MODEL)
 
-async def process_chunks(question_text,max_tokens):
+async def process_chunks(question_text, max_tokens):
+    if not question_text or not question_text.strip():
+        raise ValueError("Question text cannot be empty")
+
     if LLM_BACKEND in ["vllm", "unknown"]:
         seed_value = None
+        model = EGAIModelServing(
+            openai_api_key="EMPTY",
+            openai_api_base="{}".format(ENDPOINT_URL),
+            model_name=LLM_MODEL,
+            top_p=0.99,
+            temperature=0.01,
+            streaming=True,
+            callbacks=callbacks,
+            stop=["\n\n"],
+        )
     else:
         seed_value = int(os.getenv("SEED", 42))
-    tokens = tokenizer.tokenize(str(prompt))
-    num_tokens = len(tokens)
-    logging.info(f"Prompt tokens for model {LLM_MODEL}: {num_tokens}")
-    output_tokens = max_tokens - num_tokens
-    logging.info(f"Output tokens for model {LLM_MODEL}: {output_tokens}")
-    model = EGAIModelServing(
-        openai_api_key="EMPTY",
-        openai_api_base="{}".format(ENDPOINT_URL),
-        model_name=LLM_MODEL,
-        top_p=0.99,
-        temperature=0.01,
-        streaming=True,
-        callbacks=callbacks,
-        seed=seed_value,
-        max_tokens=max_tokens,
-        stop=["\n\n"]
-    )
+        model = EGAIModelServing(
+            openai_api_key="EMPTY",
+            openai_api_base="{}".format(ENDPOINT_URL),
+            model_name=LLM_MODEL,
+            top_p=0.99,
+            temperature=0.01,
+            streaming=True,
+            callbacks=callbacks,
+            seed=seed_value,
+            max_tokens=max_tokens,
+            stop=["\n\n"],
+        )
 
     re_ranker = CustomReranker(reranking_endpoint=RERANKER_ENDPOINT)
     re_ranker_lambda = RunnableLambda(re_ranker.rerank)
@@ -154,6 +172,7 @@ async def process_chunks(question_text,max_tokens):
         | model
         | StrOutputParser()
     )
+
     # Run the chain with the question text
     async for log in chain.astream(question_text):
         yield f"data: {log}\n\n"

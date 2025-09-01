@@ -1,0 +1,57 @@
+name: Run Hadolint
+description: Lint Dockerfiles using Hadolint
+
+inputs:
+  dockerfile:
+    description: Path to Dockerfile
+    required: true
+  output-file:
+    description: Path to output file for lint results
+    required: true
+  name:
+    description: Name for the artifact
+    required: true
+  enable-reviewdog:
+    description: Enable ReviewDog PR comments
+    required: false
+    default: "false"
+  github_token:
+    description: GitHub token for ReviewDog
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install Hadolint
+      run: |
+        curl -sSL -o hadolint https://github.com/hadolint/hadolint/releases/download/v2.12.0/hadolint-Linux-x86_64
+        chmod +x hadolint
+        sudo mv hadolint /usr/local/bin/
+      shell: bash
+
+    - name: Run Hadolint
+      env: 
+        dockerfile: ${{ inputs.dockerfile }}
+        output-file: ${{ inputs.output-file }}
+      run: |
+        hadolint ${dockerfile} \
+          --format tty \
+          | tee ${output-file}
+      shell: bash
+      continue-on-error: true
+
+    - name: Upload Hadolint report as artifact
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: hadolint-report-${{ inputs.name }}
+        path: ${{ inputs.output-file }}
+
+    - name: Run ReviewDog (Hadolint)
+      if: ${{ inputs.enable-reviewdog == 'true' }}
+      uses: reviewdog/action-hadolint@fc7ee4a9f71e521bc43e370819247b70e5327540 # 1.50.2
+      with:
+        github_token: ${{ inputs.github_token }}
+        reporter: github-pr-review
+        level: warning
+        hadolint_flags: ${{ inputs.dockerfile }}

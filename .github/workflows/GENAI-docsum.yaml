@@ -1,0 +1,272 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: "[GEN-AI] Document-summarization-CI"
+run-name: "[GEN-AI-Document-summarization-CI] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  pull_request:
+    branches:
+      - main
+    paths:
+      - 'sample-applications/document-summarization/**'
+
+jobs:
+   
+  trivy-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+      
+      - name: Build Docker image
+        run: |
+          cd sample-applications/document-summarization/
+          
+          
+          # Build document summarization application (Poetry-based FastAPI + Gradio)
+          docker build -f ./Dockerfile -t docsummary-app:latest .
+          
+      - name: Verify Docker image
+        run: |
+          echo "=== Built Docker Image ==="
+          docker images | grep docsummary
+          echo "=== Image Build Verification Complete ==="
+      
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "sample-applications/document-summarization/"
+          report_suffix: "-fs-document-summary-CT7"
+      
+         
+      - name: Run trivy Scan - docsummary-app (HTML Report)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: docsummary-app-html
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "docsummary-app:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "table"
+          report_suffix: "-image-docsummary-app-html-CT248"
+          generate_sbom: "false"
+
+      - name: Run trivy Scan - docsummary-app (SPDX SBOM)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: docsummary-app-spdx
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "docsummary-app:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "spdx-json"
+          scanners: "vuln"
+          report_suffix: "-image-docsummary-app-spdx-CT248"
+          generate_sbom: "false"
+
+      - name: Scan Dockerfile with Trivy
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        with:
+          scan_type: "config"
+          scan_target: "sample-applications/document-summarization/"
+          severity: "HIGH,CRITICAL"
+          format: "json"
+          misconfig_scanners: "dockerfile"
+          report_suffix: "-config-docsummary-app-CT222"
+           
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-document-summary
+          path: security-results/trivy*
+
+  bandit-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Run Bandit Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        id: bandit
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "sample-applications/document-summarization/"
+          report_suffix: "-bandit-document-summary-CT161"
+          
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: bandit-report-document-summary
+          path: bandit-report-*.txt
+        
+
+  clamav-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Run ClamAV Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
+        id: clamav
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "sample-applications/document-summarization/"
+          exclude_dirs: ".git,venv,tests,.pytest_cache,__pycache__"
+          
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: clamav-report-document-summary
+          path: security-results/clamav*
+
+  # GitLeaks scanning job
+  gitleaks-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+          
+      - name: Install gitleaks
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        with:
+          bootstrap_tools: "gitleaks"
+          
+      - name: Get current timestamp
+        id: timestamp
+        run: echo "time=$(date +%s)" >> "$GITHUB_OUTPUT"
+        
+      - name: Clone CI repo
+        uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          repository: open-edge-platform/orch-ci
+          path: ci
+          persist-credentials: false
+          
+      - name: Scan for secrets
+        run: |
+          gitleaks dir "sample-applications/document-summarization/" -v -c ci/.gitleaks.toml --baseline-path ci/gitleaks_baselines/gitleaks-document-summary.json -r gitleaks-document-summary.json || true
+          
+      - name: Upload Gitleaks Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: gitleaks-report-document-summary-${{ steps.timestamp.outputs.time }}
+          path: gitleaks-document-summary.json
+
+  # Python linting with pylint - Document Summarization
+  pylint-scan-document-summarization:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Setup Python
+        uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065
+        with:
+          python-version: '3.12'
+      
+      - name: Install Poetry
+        run: |
+          pip install poetry==2.1.3
+          
+      - name: Install dependencies and pylint
+        run: |
+          cd sample-applications/document-summarization/
+          poetry install --with dev || true
+          poetry add --group dev pylint || true
+      
+      - name: Run pylint
+        run: |
+          cd sample-applications/document-summarization/
+          mkdir -p security-results
+          echo "=== Pylint Scan Results - Document Summarization ===" > security-results/pylint-report-document-summarization.txt
+          echo "Scan Date: $(date)" >> security-results/pylint-report-document-summarization.txt
+          echo "" >> security-results/pylint-report-document-summarization.txt
+          
+          # Create a basic pylint config
+          cat > .pylintrc << EOF
+          [MESSAGES CONTROL]
+          disable=C0111,C0103,R0903,R0913,W0613,W0622,R0801,R0902,R0914,R0915,R0912,C0301,C0302,R0801
+          
+          [FORMAT]
+          max-line-length=120
+          
+          [REPORTS]
+          output-format=text
+          reports=yes
+          EOF
+          
+          # Find all Python files and lint them
+          find app/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-document-summarization.txt 2>&1 || true
+          find ui/ -type f -name "*.py" -exec poetry run pylint --rcfile=.pylintrc {} + >> security-results/pylint-report-document-summarization.txt 2>&1 || true
+          
+          echo "Pylint scan completed"
+      
+      - name: Upload pylint Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: pylint-report-document-summarization
+          path: sample-applications/document-summarization/security-results/pylint-report-document-summarization.txt
+
+  # ShellCheck scanning job
+  shellcheck-scan:
+    runs-on: ubuntu-22.04-32core-128GB
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+      
+      - name: Setup environment with shellcheck
+        uses: open-edge-platform/orch-ci/.github/actions/bootstrap@5f1c7f544b235db6ded508b6b4c6a2d3a78a38be
+        with:
+          bootstrap_tools: "shellcheck"
+      
+      - name: Run ShellCheck
+        run: |
+          mkdir -p security-results
+          echo "=== ShellCheck Scan Results ===" > security-results/shellcheck-report-document-summary.txt
+          echo "Scan Date: $(date)" >> security-results/shellcheck-report-document-summary.txt
+          echo "" >> security-results/shellcheck-report-document-summary.txt
+          
+          # Find all shell scripts and check them
+          find sample-applications/document-summarization/ -type f \( -name "*.sh" -o -name "*.bash" \) -print0 | while IFS= read -r -d '' file; do
+            echo "Checking: $file" >> security-results/shellcheck-report-document-summary.txt
+            shellcheck "$file" >> security-results/shellcheck-report-document-summary.txt 2>&1 || true
+            echo "---" >> security-results/shellcheck-report-document-summary.txt
+          done
+          
+          echo "ShellCheck scan completed"
+      
+      - name: Upload ShellCheck Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: shellcheck-report-document-summary
+          path: security-results/shellcheck-report-document-summary.txt

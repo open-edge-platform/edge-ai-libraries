@@ -1,0 +1,44 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro" name="hiwin_robot" >
+    <xacro:arg name="prefix" default=""/>
+    <xacro:arg name="manipulator_model" default="ra605_710_gb"/>
+    <xacro:arg name="manipulator_name" default="manipulator/"/>
+    <xacro:arg name="gripper_model" default="xeg_16"/>
+    <xacro:arg name="gripper_name" default="gripper"/>
+    
+    <!-- Create the macro -->
+    <xacro:macro name="generic_manipulator" params="prefix manipulator_name manipulator_model gripper_model">
+        <!-- Load the robotic arm if any -->
+        <xacro:if value="$(eval '${manipulator_model}' != 'none')">
+            <xacro:include filename="$(find hiwin_${manipulator_model}_support)/urdf/${manipulator_model}_macro.xacro" />
+            <xacro:manipulator prefix="${prefix}${manipulator_name}"/>
+        </xacro:if>
+
+        <!-- Load the robot's end effector if any -->
+        <xacro:if value="$(eval '${gripper_model}' != 'none')">
+            <xacro:include filename="$(find hiwin_${gripper_model}_support)/urdf/${gripper_model}_macro.xacro" />
+            <xacro:gripper prefix="${prefix}eef_"/>
+        </xacro:if>
+
+        <link name="world"/>
+        <joint name="${prefix}${manipulator_name}flange_${prefix}eef_babse_link" type="fixed">
+            <origin xyz="0 0 0" rpy="0 0 0" />
+            <parent link="world" />
+            <child link="${prefix}${manipulator_name}base_link" />
+        </joint>
+
+
+        <!-- Attach the manipulator to the end effector -->
+        <xacro:if value="$(eval '${gripper_model}' != 'none')">
+            <joint name="${prefix}${manipulator_name}flange_${prefix}eef_base_link" type="fixed">
+                <origin xyz="0 0 0" rpy="0 0 0" />
+                <parent link="${prefix}${manipulator_name}flange" />
+                <child link="${prefix}eef_base_link" />
+            </joint>
+        </xacro:if>
+        <!-- todo -->
+
+    </xacro:macro>
+
+    <xacro:generic_manipulator prefix="$(arg prefix)" manipulator_name="$(arg manipulator_name)" manipulator_model="$(arg manipulator_model)" gripper_model="$(arg gripper_model)"/>
+</robot>

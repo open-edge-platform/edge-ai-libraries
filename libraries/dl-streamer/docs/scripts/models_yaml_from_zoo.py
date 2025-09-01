@@ -18,7 +18,7 @@ PIPELINE_ZOO_URL='https://github.com/dlstreamer/pipeline-zoo-models/tree/main/'
 
 dldt_str = 'dl' + 'dt'
 openvino_str = 'open' + 'vino'
-dlstreamer_name = 'Intel® ' + 'DL' + ' Streamer'
+dlstreamer_name = 'Deep ' + 'Learning' + ' Streamer'
 
 parser = ArgumentParser(add_help=False)
 _args = parser.add_argument_group('Options')
@@ -240,7 +240,7 @@ for key, value in models.items():
         tempv = tempv[0].get('source', '')
     value.pop('files', None)
 
-    models_filtered[key] = value 
+    models_filtered[key] = value
 
 with open(args.output, 'w') as file:
     yaml.dump(models_filtered, file)

@@ -58,7 +58,7 @@ spec:
             - containerPort: {{ .Values.videoSummaryManager.service.targetPort }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
@@ -98,7 +98,7 @@ spec:
             - name: LLM_SUMMARIZATION_DEVICE
               value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}"
             - name: LLM_MODEL_NAME
-              value: "{{ .Values.global.env.OVMS_LLM_MODEL_NAME }}"
+              value: "{{ .Values.global.llmName }}"
             - name: VLM_CAPTIONING_KEY
               value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_KEY }}"
             - name: VLM_CAPTIONING_API
@@ -106,7 +106,7 @@ spec:
             - name: VLM_CAPTIONING_DEVICE
               value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}"
             - name: VLM_MODEL_NAME
-              value: "{{ .Values.global.env.VLM_MODEL_NAME }}"
+              value: "{{ .Values.global.vlmName }}"
             - name: LLM_CONCURRENT
               value: "{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}"
             - name: VLM_CONCURRENT

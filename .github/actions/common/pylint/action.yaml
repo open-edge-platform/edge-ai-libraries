@@ -1,0 +1,61 @@
+name: Run Pylint
+description: Lint Python files using pylint
+
+inputs:
+  path:
+    description: Path to Python files or folder
+    required: true
+  output-file:
+    description: Path to store the pylint output
+    required: true
+  name:
+    description: Name of the artifact
+    required: true
+  enable-reviewdog:
+    description: Enable ReviewDog PR comments
+    required: false
+    default: "false"
+  github_token:
+    description: GitHub token for ReviewDog
+    required: false
+
+runs:
+  using: "composite"
+  steps:
+    - name: Set up Python
+      uses: actions/setup-python@a26af69be951a213d495a4c3e4e4022e16d87065 #v5.6.0
+      with:
+        python-version: '3.11'
+
+    - name: Install Pylint
+      run: |
+        python -m pip install --upgrade pip
+        pip install pylint
+      shell: bash
+
+    - name: Run pylint
+      env:
+        path: ${{ inputs.path }}
+        output-file: ${{ inputs.output-file }}
+      run: |
+        find ${path} -name "*.py" -not -path "*/venv/*" \
+          | xargs pylint | tee ${output-file}
+      shell: bash
+      continue-on-error: true
+
+    - name: Upload Pylint report
+      if: always()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+      with:
+        name: pylint-report-${{ inputs.name }}
+        path: ${{ inputs.output-file }}
+
+    - name: Run ReviewDog (Pylint)
+      if: ${{ inputs.enable-reviewdog == 'true' }}
+      uses: dciborow/action-pylint@cf6c9bcd79e4aa70e2fbeaf6332d741eb1e0bff8 #0.1.1
+      with:
+        github_token: ${{ inputs.github_token }}
+        reporter: github-pr-review
+        level: warning
+        workdir: ${{ inputs.path }}
+

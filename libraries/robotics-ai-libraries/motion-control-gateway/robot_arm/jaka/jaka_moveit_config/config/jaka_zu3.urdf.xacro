@@ -1,0 +1,12 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jaka_zu3">
+    <xacro:arg name="initial_positions_file" default="initial_positions.yaml" />
+
+    <!-- Import jaka urdf file -->
+    <xacro:include filename="$(find jaka_description)/urdf/jaka_zu3.urdf" />
+
+    <!-- Import jaka ros2_control description -->
+    <xacro:include filename="jaka_zu3.ros2_control.xacro" />
+
+    <xacro:jaka_zu3_ros2_control name="JAKAFakeSystem" initial_positions_file="$(arg initial_positions_file)"/>
+</robot>

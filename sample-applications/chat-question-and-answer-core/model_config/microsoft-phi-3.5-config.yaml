@@ -1,0 +1,28 @@
+model_settings:
+  EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
+  RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
+  LLM_MODEL_ID: "microsoft/Phi-3.5-mini-instruct"
+  PROMPT_TEMPLATE: >
+    <|system|>
+    Use the following pieces of context from retrieved
+    dataset to answer the question. Do not make up an answer if there is no
+    context provided to help answer it.<|end|>
+
+    <|context|>
+    Context:
+    ---------
+    {context}
+    <|end|>
+
+    <|user|>
+    ---------
+    Question: {question}
+    ---------
+    <|end|>
+
+    <|assistant|>
+    Answer:
+device_settings:
+  EMBEDDING_DEVICE: "CPU"
+  RERANKER_DEVICE: "CPU"
+  LLM_DEVICE: "CPU"

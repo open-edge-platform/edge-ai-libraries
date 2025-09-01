@@ -1,0 +1,23 @@
+{
+    "dlsps001": {
+       "source_conifg": "gstreamer",
+       "type_r": "autosource",
+       "instance": "auto_source_gvadetect",
+       "check_logs" : "dlstreamer-pipeline-server",
+       "dlsps_log_param" : ["bounding_box","detection","confidence"]
+    },
+    "dlsps002": {
+       "type_r": "autosource",
+       "instance": "auto_source_gvadetect_rtsp",
+       "source_conifg": "gstreamer",
+       "check_logs" : "dlstreamer-pipeline-server",
+       "dlsps_log_param" : ["bounding_box","detection","confidence"]
+    },
+    "dlsps003": {
+       "type_r": "autosource_destination",
+       "instance": "auto_source_gvadetect",
+       "source_conifg": "gstreamer",
+       "check_logs" : "dlstreamer-pipeline-server",
+       "dlsps_log_param" : ["number-streams=1","fps"]
+    }
+ }

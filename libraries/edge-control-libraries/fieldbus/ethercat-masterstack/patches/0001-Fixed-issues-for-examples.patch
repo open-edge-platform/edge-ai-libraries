@@ -1,0 +1,43 @@
+From 7ee76c51a1a5e21312fd576df810cbaf545ec3f4 Mon Sep 17 00:00:00 2001
+From: zhangw2 <wei.e.zhang@intel.com>
+Date: Tue, 10 Sep 2024 09:37:10 +0800
+Subject: [PATCH] Fixed issues for examples
+
+1. missed header file for debug example
+2. add voilate to avoid no output as high-level optimization from compiler.
+
+Signed-off-by: zhangw2 <wei.e.zhang@intel.com>
+---
+ examples/debug/main.c     | 2 ++
+ examples/ecatmotor/main.c | 2 +-
+ 2 files changed, 3 insertions(+), 1 deletion(-)
+
+diff --git a/examples/debug/main.c b/examples/debug/main.c
+index 26e80de2..eb2544b1 100644
+--- a/examples/debug/main.c
++++ b/examples/debug/main.c
+@@ -35,6 +35,8 @@
+ #include <sys/mman.h>
+ #include "ecrt.h"
+ 
++#include <getopt.h>
++
+ static volatile int run = 1;
+ static ec_master_t *master = NULL;
+ static int master_id = 0;
+diff --git a/examples/ecatmotor/main.c b/examples/ecatmotor/main.c
+index c85bfa1a..0634ae2e 100644
+--- a/examples/ecatmotor/main.c
++++ b/examples/ecatmotor/main.c
+@@ -71,7 +71,7 @@ static volatile int sem_update = 0;
+ int64_t latency_min_ns = 1000000, latency_sum_ns = 0, latency_max_ns = -1000000;
+ int64_t exec_min_ns = 1000000, exec_sum_ns = 0, exec_max_ns = -1000000;
+ int32_t dc_diff_min=0x7fffffff, dc_diff_max = 0;
+-uint64_t count = 0;
++volatile uint64_t count = 0;
+ 
+ const static ec_pdo_entry_reg_t inov_is620n_regs[] = {
+     // Inovance IS620N CoE EtherCAT Slave ID = 0
+-- 
+2.34.1
+

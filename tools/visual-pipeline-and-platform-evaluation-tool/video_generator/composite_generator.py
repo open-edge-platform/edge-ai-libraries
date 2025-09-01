@@ -3,7 +3,7 @@ import math
 import os
 import random
 
-from PIL import Image, ImageOps, ImageSequence
+from PIL import Image, ImageSequence
 
 # Configure logging (INFO for important steps, DEBUG for in-depth tracking)
 logging.basicConfig(
@@ -166,7 +166,6 @@ def create_composite_frames(
         background = zoomed_bg.crop((left, top, left + frame_width, top + frame_height))
 
         # Process and place each object
-        EPSILON = 0.001  # Small buffer to prevent instant reversals
 
         for obj in objects:
             with Image.open(obj["image"]) as img:

@@ -5,6 +5,8 @@
 - [Recommendations](#recommendations)
 - [Known Issues](#known-issues)
 
+## Pre-requisites
+Before proceeding, make sure you understand how to run pipelines that include the UDFLoader element. Refer to this [guide](../../../../how-to-run-udf-pipelines.md) for more information.
 
 ## Object tracking
 Object tracking is supported by DL Streamer through `gvatrack` element which assigns ids to each uniquely identified objects. It is typically inserted into a video pipeline after `gvadetect` element. 

@@ -1,0 +1,12 @@
+<launch>
+  <node name="agvm_plcshm_node" pkg="agvm_plcshm" exec="agvm_plcshm_node" output="screen">
+    <param name="agvm_plcshm_ctrl_addr" value="100"/>
+    <param name="agvm_plcshm_agvminfo_addr" value="200"/>
+    <param name="agvm_plcshm_axis1_addr" value="10100"/>
+    <param name="agvm_plcshm_axis2_addr" value="10100"/>
+    <param name="agvm_plcshm_axis3_addr" value="10100"/>
+    <param name="agvm_plcshm_axis4_addr" value="10100"/>
+    <param name="agvm_odom_frame" value="odom"/>
+    <param name="agvm_base_frame" value="base_footprint"/>
+  </node>
+</launch>

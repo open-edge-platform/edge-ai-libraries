@@ -234,21 +234,21 @@ Accepted values: any
 ###### application/json
 
 ##### Example
-```json
+```text
 {
-	"metadata": {
-		"height": 480,
-		"width": 820,
-		"channels": 4,
-		"source_path": "file:///root/image-examples/example.png",
-		"caps": "video/x-raw, width=(int)820, height=(int)468",
-		"my_id": 100,
-		"series_name": "DLStreamerPipelineServer1",
-		"OTHER_METADATA": {
-			"other": "additional pipeline meta data"
-		}
-	},
-	"blobs": "=8HJLhxhj77XHMHxilNKjbjhBbnkjkjBhbjLnjbKJ80n0090u9lmlnBJoiGjJKBK=76788GhjbhjK"
+  "metadata": {
+    "height": 480,
+    "width": 820,
+    "channels": 4,
+    "source_path": "file:///root/image-examples/example.png",
+    "caps": "video/x-raw, width=(int)820, height=(int)468",
+    ...
+        
+        <other pipeline metadata>
+        
+    ...
+  },
+  "blobs": "=8HJLhxhj77XHMHxilNKjbjhBbnkjkjBhbjLnjbKJ80n0090u9lmlnBJoiGjJKBK=76788GhjbhjK"
 }
 ```
 

@@ -3,6 +3,9 @@
 # Copyright (C) 2024 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
+import gi
+gi.require_version('Gst', '1.0')
+from gi.repository import Gst
 
 from src.server.webrtc.gstreamer_webrtc_stream import GStreamerWebRTCStream
 from src.server.common.utils import logging
@@ -16,6 +19,17 @@ class GStreamerWebRTCManager:
     _WebRTCVideoPipeline_jpeg = " ! jpegdec ! videoconvert ! gvawatermark " \
                 " ! x264enc speed-preset=ultrafast name=h264enc " \
                 " ! video/x-h264,profile=baseline " \
+                " ! whipclientsink signaller::whip-endpoint="
+    
+    # GPU pipeline variants for hardware-accelerated buffers
+    _WebRTCVideoPipeline_VAMemory = " ! videoconvert ! gvawatermark " \
+                " ! vah264enc name=h264enc " \
+                " ! h264parse  " \
+                " ! whipclientsink signaller::whip-endpoint="
+                
+    _WebRTCVideoPipeline_jpeg_VAMemory = " ! vajpegdec ! videoconvert ! gvawatermark " \
+                " ! vah264enc name=h264enc " \
+                " ! h264parse  " \
                 " ! whipclientsink signaller::whip-endpoint="
 
     def __init__(self, whip_endpoint):
@@ -50,12 +64,43 @@ class GStreamerWebRTCManager:
                     new_caps.append(cap)
         return new_caps
 
+    def _is_gpu_buffer(self, caps):
+        """
+        Check if the caps indicate a GPU buffer type.
+        """
+        caps_string = ','.join(caps)
+        if "memory:VASurface" in caps_string:
+            return True, "VASurface"
+        elif "memory:DMABuf" in caps_string:
+            return True, "DMABuf"
+        elif "memory:VAMemory" in caps_string:
+            return True, "VAMemory"
+        return False, None
+
     def _get_launch_string(self, stream_caps, peer_id,overlay):
         s_src = "{} caps=\"{}\"".format(self._source_mediamtx, ','.join(stream_caps))
+        
+        is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
+        
+        # Look for vah264enc element. Reported in some Xeon platforms as missing.
+        # When incoming buffers are from GPU and vah264enc is not present, 
+        # we will use the software encoder to ensure that the pipeline can still function without it.
+        vah264enc_present = Gst.ElementFactory.find("vah264enc")
+        
         if "image/jpeg" in stream_caps:
-            video_pipeline = self._WebRTCVideoPipeline_jpeg
+            if is_gpu and buffer_type == "VAMemory" and vah264enc_present:
+                video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory
+            else:
+                if is_gpu and buffer_type == "VAMemory" and not vah264enc_present:  # warn if GPU buffer and no vah264enc
+                    self._logger.warning("vah264enc not found, using software encoding")
+                video_pipeline = self._WebRTCVideoPipeline_jpeg
         else:
-            video_pipeline = self._WebRTCVideoPipeline
+            if is_gpu and buffer_type == "VAMemory" and vah264enc_present:
+                video_pipeline = self._WebRTCVideoPipeline_VAMemory
+            else:
+                if is_gpu and buffer_type == "VAMemory" and not vah264enc_present:  # warn if GPU buffer and no vah264enc
+                    self._logger.warning("vah264enc not found, using software encoding")
+                video_pipeline = self._WebRTCVideoPipeline
         if overlay is False:
             video_pipeline = video_pipeline.replace("! gvawatermark ", "")
         elif overlay is True:

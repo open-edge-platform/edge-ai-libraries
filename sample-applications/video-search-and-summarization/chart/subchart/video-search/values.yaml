@@ -14,10 +14,10 @@ videosearch:
     VCLIP_DEVICE: "cpu"
     VCLIP_HOST: "multimodal-embedding-ms"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
-    VS_DEBOUNCE_TIME: "2"
+    VS_DEBOUNCE_TIME: "1"
     VS_DELETE_PROCESSED_FILES: "false"
     VS_INITIAL_DUMP: "false"  # Set to true if you want to dump existing videos on startup
-    VDMS_DATAPREP_UPLOAD: "http://vdms-dataprep:8000/upload"
+    VIDEO_UPLOAD_ENDPOINT: "http://pipeline-manager:3000"
     VDMS_BUCKET: "video-summary"
     VS_DEFAULT_CLIP_DURATION: "15"  # Default chunk duration in seconds
   service:

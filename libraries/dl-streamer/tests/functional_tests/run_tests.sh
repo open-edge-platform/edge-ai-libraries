@@ -197,15 +197,16 @@ if [[ "$RUN_LOCAL_APTGET" = true ]]; then
     export GST_VA_ALL_DRIVERS=1
     export LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
     export TERM=xterm
-    export GST_PLUGIN_PATH=/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
-    export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib:$LD_LIBRARY_PATH
+    export GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/    
+    export LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/usr/lib:/opt/intel/dlstreamer/lib:/opt/opencv:/opt/openh264:/opt/rdkafka:/opt/ffmpeg:/usr/local/lib/gstreamer-1.0:/usr/local/lib
     export PYTHONPATH=/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:$HOME_DIR/python:/opt/intel/dlstreamer/gstreamer/lib/python3/dist-packages:
-    export PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/build/intel64/Release/bin:$PATH
+    export PATH=/python3venv/bin:/opt/intel/dlstreamer/gstreamer/bin:/opt/intel/dlstreamer/bin:$PATH
     export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0
     export LABELS_PATH=$HOME_DIR/samples/labels
     export MODEL_PROC_PATH=$HOME_DIR/samples/gstreamer/model_proc
     export MODEL_PROCS_PATH=$HOME_DIR/samples/gstreamer/model_proc
     export MODELS_PATH=$MODELS_PATH
+    export ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so
     echo "LIBVA_DRIVER_NAME: ${LIBVA_DRIVER_NAME}"
     echo "GST_PLUGIN_PATH: ${GST_PLUGIN_PATH}"
     echo "LD_LIBRARY_PATH: ${LD_LIBRARY_PATH}"
@@ -251,7 +252,7 @@ else
         -e MODELS_PATH=/tmp/models \
         -e MODEL_PROCS_PATH=$HOME_DIR/samples/gstreamer/model_proc \
         -e LABELS_PATH=$HOME_DIR/samples/labels \
-        -e ZE_ENABLE_ALT_DRIVERS=libze_intel_vpu.so \
+        -e ZE_ENABLE_ALT_DRIVERS=libze_intel_npu.so \
         $EXTRA_PARAMS \
         $IMAGE_NAME \
         $RUN_CMD

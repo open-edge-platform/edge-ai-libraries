@@ -1,0 +1,32 @@
+name: SIV Weekly Build Tagging
+
+on:
+  schedule:
+    - cron: '0 15 * * 2'  # Every Tuesday at 15:00 UTC
+  workflow_dispatch:
+
+permissions: {}
+
+jobs:
+  create-tag:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+
+    steps:
+    - name: Checkout repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # 4.2.2
+      with:
+        token: ${{ secrets.SIV_USER_TOKEN_GH }}
+
+    - name: Set up Git
+      run: |
+        git config user.name "${{ vars.SIV_USER }}"
+        git config user.email "${{ vars.SIV_USER_EMAIL }}"
+
+    - name: Create and push tag
+      run: |
+        TAG_NAME="${{ vars.SIV_WEEKLY_BUILD_PREFIX }}-$(date +'%Y%m%d')"
+        git tag "$TAG_NAME"
+        git push https://${{ secrets.SIV_USER_TOKEN_GH }}@github.com/${{ github.repository }} "$TAG_NAME"
+        

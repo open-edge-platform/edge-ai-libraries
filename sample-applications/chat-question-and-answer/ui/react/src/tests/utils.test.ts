@@ -107,13 +107,13 @@ describe('Utility Functions test suite', () => {
   describe('extractBetweenDotsWithExtension function test suite', () => {
     it('should extract the filename correctly with dot separator', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.filename.osodkaxu.txt'),
+        extractBetweenDotsWithExtension('appuser.filename.osodkaxu.txt'),
       ).toBe('filename.txt');
     });
 
     it('should extract the filename correctly with underscore separator', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.filename_osodkaxu.txt'),
+        extractBetweenDotsWithExtension('appuser.filename_osodkaxu.txt'),
       ).toBe('filename.txt');
     });
 
@@ -129,43 +129,43 @@ describe('Utility Functions test suite', () => {
 
     it('should handle input with multiple dots', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.file.osodkaxu.txt'),
+        extractBetweenDotsWithExtension('appuser.file.osodkaxu.txt'),
       ).toBe('file.txt');
     });
 
     it('should handle input with single space without random suffix', () => {
-      expect(extractBetweenDotsWithExtension('intelgai.file name.txt')).toBe(
+      expect(extractBetweenDotsWithExtension('appuser.file name.txt')).toBe(
         'file name.txt',
       );
     });
 
     it('should handle input with single space with random suffix', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.file name.osodhcxu.txt'),
+        extractBetweenDotsWithExtension('appuser.file name.osodhcxu.txt'),
       ).toBe('file name.txt');
     });
 
     it('should handle input with multiple hyphens without random suffix', () => {
-      expect(extractBetweenDotsWithExtension('intelgai.file - name.txt')).toBe(
+      expect(extractBetweenDotsWithExtension('appuser.file - name.txt')).toBe(
         'file - name.txt',
       );
     });
 
     it('should handle input with multiple hyphens with random suffix', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.file - name.osofjdls.txt'),
+        extractBetweenDotsWithExtension('appuser.file - name.osofjdls.txt'),
       ).toBe('file - name.txt');
     });
 
     it('should handle input with underscores as separators', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.file_name_osodkaxu.txt'),
+        extractBetweenDotsWithExtension('appuser.file_name_osodkaxu.txt'),
       ).toBe('file_name.txt');
     });
 
     it('should handle input with mixed separators', () => {
       expect(
-        extractBetweenDotsWithExtension('intelgai.file_name.osodkaxu.txt'),
+        extractBetweenDotsWithExtension('appuser.file_name.osodkaxu.txt'),
       ).toBe('file.txt');
     });
 

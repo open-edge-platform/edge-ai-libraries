@@ -450,7 +450,7 @@ Parameters default value in pipeline definitions can be set in section in one of
     }
     ```
 
-1. **Read default value from environment variable**
+2. **Read default value from environment variable**
 
     A default value can be set using environment variable for the element property using `default` key.
 
@@ -475,10 +475,6 @@ Parameters default value in pipeline definitions can be set in section in one of
     }
     ```
 
-    Set `DETECTION_DEVICE` environment variable at Pipeline Server start.
-    ```bash
-    ./docker/run.sh -e DETECTION_DEVICE=GPU
-    ```
 
 #### Parameters and FFmpeg Filters
 

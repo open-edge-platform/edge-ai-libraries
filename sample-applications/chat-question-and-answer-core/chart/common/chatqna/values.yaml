@@ -1,6 +1,6 @@
 image:
   registry: "intel/"
-  uiTag: "core_1.1.2"
+  uiTag: "core_1.2.2"
   pullPolicy: IfNotPresent
 
 global:
@@ -11,4 +11,5 @@ global:
 
 uiService:
   type: ClusterIP
-  port: 80
+  port: 8102
+  targetPort: 8102

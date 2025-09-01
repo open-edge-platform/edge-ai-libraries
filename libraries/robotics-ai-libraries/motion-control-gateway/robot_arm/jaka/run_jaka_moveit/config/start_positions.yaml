@@ -1,0 +1,19 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+fake_joint_driver_node:
+  ros__parameters:
+    start_position:
+      joints:
+        - joint_1
+        - joint_2
+        - joint_3
+        - joint_4
+        - joint_5
+        - joint_6
+      values:
+        - 0.0
+        - 0.0
+        - 0.0
+        - 0.0
+        - -1.52
+        - 0.0

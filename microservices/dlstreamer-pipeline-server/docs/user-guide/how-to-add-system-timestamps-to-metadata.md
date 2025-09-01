@@ -19,7 +19,7 @@ This tutorial will help you add timestamp to metadata of each frame. This tutori
 | keep | Keep upstream timecodes and only set if no upstream timecode |
 | always | Always set timecode and remove upstream timecode |
 
-Ensure that the changes made to the config.json are reflected in the container by volume mounting it as mentioned in this [tutorial](../../../how-to-change-dlstreamer-pipeline.md#how-to-change-deep-learning-streamer-pipeline)
+Ensure that the changes made to the config.json are reflected in the container by volume mounting it as mentioned in this [tutorial](./how-to-change-dlstreamer-pipeline.md)
 
 2. Start the DLStreamer pipeline server
 ```sh

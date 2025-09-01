@@ -1,15 +1,13 @@
 import os
-from .config import Settings
+from .config import config
 from .logger import logger
 from pathlib import Path
 from fastapi import UploadFile
 from langchain_community.document_loaders import (
-    UnstructuredFileLoader,
     PyPDFLoader,
+    Docx2txtLoader,
+    TextLoader
 )
-
-
-config = Settings()
 
 
 def validate_document(file_object: UploadFile):
@@ -45,7 +43,7 @@ async def save_document(file_object: UploadFile):
                If the file is saved successfully, the error will be None. If an error occurs, the path will be None.
     """
 
-    tmp_path = Path(config.TMP_FILE_PATH) / file_object.filename
+    tmp_path = Path(config._TMP_FILE_PATH) / file_object.filename
     if not tmp_path.parent.exists():
         tmp_path.parent.mkdir(parents=True, exist_ok=True)
 
@@ -76,9 +74,11 @@ def load_file_document(file_path):
 
     if file_path.suffix.lower() == ".pdf":
         loader = PyPDFLoader(file_path)
+    elif file_path.suffix.lower() == ".docx":
+        loader = Docx2txtLoader(file_path)
     else:
-        loader = UnstructuredFileLoader(
-            file_path=file_path, mode="paged", strategy="fast"
+        loader = TextLoader(
+            file_path=file_path
         )
 
     docs = loader.load()

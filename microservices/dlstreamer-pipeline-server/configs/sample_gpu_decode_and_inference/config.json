@@ -1,0 +1,24 @@
+{
+    "config": {
+        "pipelines": [
+            {
+                "name": "pallet_defect_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source ! parsebin ! vah264dec ! vapostproc ! video/x-raw(memory:VAMemory) ! queue ! gvadetect name=detection model-instance-id=inst0 device=GPU pre-process-backend=va-surface-sharing ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! queue ! gvafpscounter ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
+                        }
+                    }
+                },
+                "auto_start": false
+            }
+        ]
+    }
+}

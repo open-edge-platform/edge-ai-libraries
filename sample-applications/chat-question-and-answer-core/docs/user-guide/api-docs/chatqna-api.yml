@@ -271,7 +271,7 @@ paths:
               summary: Curl example
               value: |
                 curl -X GET "http://localhost:8888/devices/device1"
-  /stream_log:
+  /chat:
     post:
       tags:
         - Chat API
@@ -321,7 +321,7 @@ paths:
             curl:
               summary: Curl example
               value: |
-                curl -X POST "http://localhost:8888/stream_log" -H "Content-Type: application/json" -d '{"input": "what is load_chain?"}'
+                curl -X POST "http://localhost:8888/chat" -H "Content-Type: application/json" -d '{"input": "what is load_chain?"}'
 components:
   schemas:
     HTTPValidationError:

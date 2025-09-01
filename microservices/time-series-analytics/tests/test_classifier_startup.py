@@ -14,11 +14,26 @@ import classifier_startup as cs
 class DummyLogger:
     def __init__(self):
         self.messages = []
-    def info(self, msg): self.messages.append(('info', msg))
-    def error(self, msg): self.messages.append(('error', msg))
-    def warning(self, msg): self.messages.append(('warning', msg))
-    def debug(self, msg): self.messages.append(('debug', msg))
-    def exception(self, msg): self.messages.append(('exception', msg))
+    def info(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('info', msg))
+    def error(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('error', msg))
+    def warning(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('warning', msg))
+    def debug(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('debug', msg))
+    def exception(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('exception', msg))
 
 @pytest.fixture
 def kapacitor_classifier():
@@ -61,12 +76,21 @@ def test_check_udf_package_missing_udf(kapacitor_classifier):
         assert any("Missing udf" in m[1] for m in kapacitor_classifier.logger.messages if m[0] == "warning")
 
 def test_install_udf_package_runs_pip(monkeypatch, kapacitor_classifier):
-    called = {}
-    monkeypatch.setattr(os, "system", lambda cmd: called.setdefault("cmd", cmd))
+    called = []
+    def fake_run(cmd, check=False, **kwargs):
+        called.append(cmd)
+        class Dummy:
+            pass
+        return Dummy()
+    monkeypatch.setattr("subprocess.run", fake_run)
     monkeypatch.setattr(os.path, "isfile", lambda p: True)
     kapacitor_classifier.install_udf_package("somedir")
     # Accept either pip3 install or mkdir -p, depending on implementation
-    assert any(cmd in called["cmd"] for cmd in ["pip3 install", "mkdir -p"])
+    assert any(
+        (isinstance(cmd, list) and (cmd[:2] == ["mkdir", "-p"] or ("pip3" in cmd and "install" in cmd)))
+        for cmd in called
+    )
+
 
 def test_start_kapacitor_success(monkeypatch, kapacitor_classifier):
     monkeypatch.setitem(os.environ, "KAPACITOR_URL", "http://localhost:9092")
@@ -388,7 +412,7 @@ def test_KapacitorDaemonLogs_waits_for_file_and_reads_lines(monkeypatch):
     logger.info = info_patch
 
     with pytest.raises(Exception) as excinfo:
-        cs.KapacitorDaemonLogs(logger)
+        cs.kapacitor_daemon_logs(logger)
     assert "break" in str(excinfo.value)
     # Should have waited for file, polled, and read a line
     assert calls["sleep"] >= 2
@@ -416,7 +440,7 @@ def test_KapacitorDaemonLogs_handles_no_file(monkeypatch):
     monkeypatch.setattr(time, "sleep", fake_sleep)
 
     with pytest.raises(Exception) as excinfo:
-        cs.KapacitorDaemonLogs(logger)
+        cs.kapacitor_daemon_logs(logger)
     assert "break" in str(excinfo.value)
     assert sleep_calls["count"] > 0
 

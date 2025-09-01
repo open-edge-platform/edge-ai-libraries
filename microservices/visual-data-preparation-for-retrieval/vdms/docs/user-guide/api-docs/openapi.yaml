@@ -1,591 +1,725 @@
 openapi: 3.1.0
 info:
-  title: Model Registry
-  description: |
-
-    The Model Registry microservice offers a robust suite of endpoints designed to manage machine learning models within a locally deployed environment.
-
-    Additionally, this microservice allows users to access metadata for Intel® Geti hosted resources, such as projects and models.
-
-    It also facilitates the storage of models, making them readily available for downstream applications and services.
-  
-  version: 1.0.3
+  title: GenAI Multimodal DataPrep Microservice (VDMS Based)
+  description: 'A microservice for data preparation from text, video and image sources'
+  version: 0.1.0
+servers:
+  - url: /v1/dataprep
 paths:
   /health:
     get:
-      summary: Health Check.
-      description: Get the health status of the service.
-      operationId: health_check_health_get
+      tags:
+        - Status APIs
+      summary: Check the health of the API service
+      description: >-
+        Health API endpoint to check whether API Server is reachable and
+        responding.
+      operationId: check_health_health_get
       responses:
         '200':
           description: Successful Response
           content:
             application/json:
               schema: {}
-  /models:
-    get:
+  /videos:
+    post:
       tags:
-        - models
-      summary: Get all registered model(s)
-      description: Get all registered model(s).
-      operationId: get_registered_models_models_get
+        - Data Preparation APIs
+      summary: (Legacy Endpoint) Process video parameters for DataPrep service.
+      description: >-
+        ### Legacy Endpoint: Please use /videos/upload to create embeddings by
+        uploading videos or /videos/minio to create embeddings by getting videos
+        from MINIO storage.
+
+
+        ## Processes videos stored in Minio using the provided parameters or
+        directly from an uploaded file. (DEPRECATED)
+
+
+        You can either upload a video file directly or provide Minio parameters
+        to process an existing video.
+
+        If both are provided, the uploaded file takes precedence.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional) :** The bucket name where the video is
+        stored (If not provided, a default bucket name will be used based on
+        application config.)
+
+        - **video_id (str, optional) :** The video ID (directory) containing the
+        video (required if no file is uploaded)
+
+        - **video_name (str, optional) :** The video filename within the
+        video_id directory (if omitted, first video found is used)
+
+        - **chunk_duration (int, optional) :** Interval of time in seconds for
+        video chunking (default: 30)
+
+        - **clip_duration (int, optional) :** Length of clip in seconds for
+        embedding selection (default: 10)
+
+
+        #### File Upload:
+
+        - **file (UploadFile, optional) :** Video file to upload (MP4 format
+        only, max size 500MB)
+          When a file is uploaded, Minio parameters (bucket_name, video_id) are optional. Uploaded files are
+          processed and then stored in Minio with an object name format of `{request_id}/{filename}` for future reference.
+
+        #### Raises:
+
+        - **400 Bad Request :** If video files are not .mp4 or fail any
+        validation error.
+
+        - **413 Request Entity Too Large :** If uploaded file exceeds the 500MB
+        limit.
+
+        - **502 Bad Gateway :** When Something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: prep_data_videos_post
+      deprecated: true
       parameters:
-        - name: name
+        - name: bucket_name
           in: query
           required: false
           schema:
             anyOf:
               - type: string
-            title: Name
-        - name: project_name
+              - type: 'null'
+            description: The bucket name where the video is stored
+            title: Bucket Name
+          description: The bucket name where the video is stored
+        - name: video_id
           in: query
           required: false
           schema:
             anyOf:
               - type: string
-            title: Project Name
-        - name: category
+              - type: 'null'
+            description: The video ID (directory) containing the video
+            title: Video Id
+          description: The video ID (directory) containing the video
+        - name: video_name
           in: query
           required: false
           schema:
             anyOf:
               - type: string
-            title: Category
-        - name: version
+              - type: 'null'
+            description: >-
+              The video filename within the video_id directory (if omitted,
+              first video found is used)
+            title: Video Name
+          description: >-
+            The video filename within the video_id directory (if omitted, first
+            video found is used)
+        - name: chunk_duration
           in: query
           required: false
           schema:
             anyOf:
-              - type: string
-            title: Version
-        - name: architecture
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Interval of time in seconds for video chunking
+            title: Chunk Duration
+          description: Interval of time in seconds for video chunking
+        - name: clip_duration
           in: query
           required: false
           schema:
             anyOf:
-              - type: string
-            title: Architecture
-        - name: precision
-          in: query
-          required: false
-          schema:
-            anyOf:
-              - type: string
-            title: Precision
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Length of clip in seconds for embedding selection
+            title: Clip Duration
+          description: Length of clip in seconds for embedding selection
+      requestBody:
+        content:
+          multipart/form-data:
+            schema:
+              $ref: '#/components/schemas/Body_prep_data_videos_post'
       responses:
-        '200':
+        '201':
           description: Successful Response
           content:
             application/json:
               schema:
-                type: array
-                items:
-                  $ref: '#/components/schemas/RegisteredModelOut'
-                title: Response Get Registered Models Models Get
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: Get list of videos from Minio storage.
+      description: >-
+        ### Get list of available videos from Minio storage.
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional):** The bucket name to list videos from.
+        If not provided, default bucket will be used.
+
+
+        #### Raises:
+
+        - **502 Bad Gateway:** When something goes wrong with Minio storage
+        access.
+
+        - **500 Internal Server Error:** When some internal error occurs at the
+        API server.
+
+
+        #### Returns:
+
+        - **response (json):** A JSON response containing list of videos with
+        details like video_id, video_name, video_path, and creation timestamp.
+      operationId: get_video_files_list_videos_get
+      parameters:
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            type: string
+            description: >-
+              The bucket name to list videos from. If not provided, default
+              bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name to list videos from. If not provided, default bucket
+            will be used.
+      responses:
+        '200':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BucketVideoListResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/minio:
     post:
       tags:
-        - models
-      summary: Store the metadata and artifacts for a model into the registry.
-      description: Store the metadata and artifacts for a model.
-      operationId: store_model_models_post
+        - Data Preparation APIs
+      summary: Process video from Minio storage for embedding generation.
+      description: >-
+        ### Processes videos stored in Minio using the provided parameters.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        ***For example:** Given a video of 30s in total length, with
+        chunk_duration = 10 and clip_duration = 5,
+
+        embeddings will be created for uniformly sampled frames from first 5 sec
+        clip (defined by clip_duration)
+
+        in each of the three chunks. Three chunks would be created because total
+        length of video is 30s and duration
+
+        of every chunk is 10s (defined by chunk_duration). **Number of chunks =
+        int(total length of video in sec / chunk_duration)***
+
+
+        #### Body Params:
+
+        - **video_request (VideoRequest) :** Contains processing parameters:
+           - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
+           - **video_id (str) :** The video ID (directory) containing the video (required)
+           - **video_name (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the directory will be used automatically)
+           - **chunk_duration (int) :** Interval of time in seconds for video chunking (default: 30)
+           - **clip_duration (int) :** Length of clip in seconds for embedding selection (default: 10)
+
+        #### Raises:
+
+        - **400 Bad Request :** If required parameters are missing or invalid.
+
+        - **404 Not Found :** If the specified video cannot be found in Minio or
+        no videos exist in the specified directory.
+
+        - **502 Bad Gateway :** When something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: process_minio_video_videos_minio_post
+      requestBody:
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VideoRequest'
+              description: Video processing parameters
+        required: true
+      responses:
+        '201':
+          description: Successful Response
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  /videos/upload:
+    post:
+      tags:
+        - Data Preparation APIs
+      summary: Upload and process a video file for embedding generation.
+      description: >-
+        ### Upload and process a video file for embedding generation.
+
+
+        This endpoint accepts an MP4 video file upload, stores it in Minio, and
+        generates embeddings.
+
+
+        Video is divided into different chunks having length equal to
+        chunk_duration value. Embeddings are
+
+        created and stored for uniformly sampled frames inside a clip (having
+        length equal to clip_duration),
+
+        occurring in each chunk.
+
+
+        ***For example:** Given a video of 30s in total length, with
+        chunk_duration = 10 and clip_duration = 5,
+
+        embeddings will be created for uniformly sampled frames from first 5 sec
+        clip (defined by clip_duration)
+
+        in each of the three chunks. Three chunks would be created because total
+        length of video is 30s and duration
+
+        of every chunk is 10s (defined by chunk_duration). **Number of chunks =
+        int(total length of video in sec / chunk_duration)***
+
+
+        #### File Upload:
+
+        - **file (UploadFile, required) :** Video file to upload (MP4 format
+        only, max size 500MB)
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional) :** The bucket name to store the video
+        in. If not provided, default bucket will be used.
+
+        - **chunk_duration (int, optional) :** Interval of time in seconds for
+        video chunking (default: 30)
+
+        - **clip_duration (int, optional) :** Length of clip in seconds for
+        embedding selection (default: 10)
+
+
+        #### Raises:
+
+        - **400 Bad Request :** If the video file is not an MP4 or fails
+        validation.
+
+        - **413 Request Entity Too Large :** If the uploaded file exceeds the
+        500MB limit.
+
+        - **502 Bad Gateway :** When something unpleasant happens at Minio
+        storage.
+
+        - **500 Internal Server Error :** When some internal error occurs at
+        DataPrep API server.
+
+
+        Returns:
+
+        - **response (json) :** A response JSON containing status and message.
+      operationId: upload_and_process_video_videos_upload_post
+      parameters:
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name to store the video in. If not provided, default
+              bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name to store the video in. If not provided, default
+            bucket will be used.
+        - name: chunk_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Interval of time in seconds for video chunking
+            title: Chunk Duration
+          description: Interval of time in seconds for video chunking
+        - name: clip_duration
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: integer
+                minimum: 3
+              - type: 'null'
+            description: Length of clip in seconds for embedding selection
+            title: Clip Duration
+          description: Length of clip in seconds for embedding selection
       requestBody:
         required: true
         content:
           multipart/form-data:
             schema:
-              $ref: '#/components/schemas/Body_store_model_models_post'
+              $ref: >-
+                #/components/schemas/Body_upload_and_process_video_videos_upload_post
       responses:
         '201':
-          description: Created
-          content:
-            text/plain:
-              schema:
-                type: string
-              example: model_id
-        '409':
-          description: Conflict
-          content:
-            text/plain:
-              example: Model ID {id} is already in use.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
-  /models/{model_id}:
-    get:
-      tags:
-        - models
-      summary: Get a registered model by ID
-      description: Get a registered model by ID.
-      operationId: get_registered_model_by_id_models__model_id__get
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      responses:
-        '200':
           description: Successful Response
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/RegisteredModelOut'
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
+                $ref: '#/components/schemas/DataPrepResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-    put:
+  /videos/download:
+    get:
       tags:
-        - models
-      summary: Update the specified properties of a registered model.
-      description: |-
-        Update the specified properties of a registered model.
+        - Data Preparation APIs
+      summary: (Legacy Endpoint) Download a video from Minio storage
+      description: >-
+        ### Legacy Endpoint: Please use /{video_id}/{video_name} endpoint
+        instead.
 
-        The ability to update a model's stored compressed `file`, and `id` is not supported. 
+        ## Download a video file from Minio storage (DEPRECATED).
 
-        If you would like to update any of these properties, you will need to delete the existing model (`DELETE /models`) and submit a `POST /models` request to store a model with the desired properties.
-      operationId: update_model_models__model_id__put
+
+        #### Query Params:
+
+        - **video_id (str):** Directory/collection ID containing the video
+
+        - **video_name (str, optional):** Specific video filename to download.
+        If not provided, first video found is used.
+
+        - **bucket_name (str, optional):** The bucket name where the video is
+        stored. If not provided, default bucket will be used.
+
+
+        #### Headers:
+
+        - **Range (str, optional):** HTTP Range header for partial content
+        download
+
+
+        #### Returns:
+
+        - **File (binary):** Returns the video file as a streaming response.
+      operationId: download_video_file_legacy_videos_download_get
+      deprecated: true
       parameters:
-        - name: model_id
+        - name: video_id
+          in: query
+          required: true
+          schema:
+            type: string
+            minLength: 3
+            description: Directory on MINIO Server containing the video
+            title: Video Id
+          description: Directory on MINIO Server containing the video
+        - name: video_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              Specific video filename to download. If not provided, first video
+              found is used.
+            title: Video Name
+          description: >-
+            Specific video filename to download. If not provided, first video
+            found is used.
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name where the video is stored. If not provided,
+              default bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name where the video is stored. If not provided, default
+            bucket will be used.
+        - name: range
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Range
+      responses:
+        '200':
+          description: A downloadable video file.
+          content:
+            application/octet-stream: {}
+        '404':
+          description: File not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
+        '422':
+          description: Validation Error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HTTPValidationError'
+  '/{video_id}/{video_name}':
+    get:
+      tags:
+        - Data Preparation APIs
+      summary: Download a video from Minio storage
+      description: >-
+        ### Download a video file from Minio storage.
+
+
+        #### Path Params:
+
+        - **video_id (str):** Directory/collection ID containing the video
+
+        - **video_name (str):** Specific video filename to download
+
+
+        #### Query Params:
+
+        - **bucket_name (str, optional):** The bucket name where the video is
+        stored. If not provided, default bucket will be used.
+
+
+        #### Headers:
+
+        - **Range (str, optional):** HTTP Range header for partial content
+        download
+
+
+        #### Raises:
+
+        - **400 Bad Request:** When video_id or video_name are invalid according
+        to Minio naming rules.
+
+        - **404 Not Found:** When the requested video cannot be found.
+
+        - **502 Bad Gateway:** When something goes wrong with Minio storage
+        access.
+
+        - **500 Internal Server Error:** When some internal error occurs at the
+        API server.
+
+
+        #### Returns:
+
+        - **File (binary):** Returns the video file as a streaming response.
+      operationId: download_video_by_path__video_id___video_name__get
+      parameters:
+        - name: video_id
           in: path
           required: true
           schema:
-            title: Model Id
-      requestBody:
-        content:
-          application/x-www-form-urlencoded:
-            schema:
-              $ref: '#/components/schemas/Body_update_model_models__model_id__put'
+            type: string
+            minLength: 3
+            description: Directory/collection ID containing the video
+            title: Video Id
+          description: Directory/collection ID containing the video
+        - name: video_name
+          in: path
+          required: true
+          schema:
+            type: string
+            description: Specific video filename to download
+            title: Video Name
+          description: Specific video filename to download
+        - name: bucket_name
+          in: query
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            description: >-
+              The bucket name where the video is stored. If not provided,
+              default bucket will be used.
+            title: Bucket Name
+          description: >-
+            The bucket name where the video is stored. If not provided, default
+            bucket will be used.
+        - name: range
+          in: header
+          required: false
+          schema:
+            anyOf:
+              - type: string
+              - type: 'null'
+            title: Range
       responses:
         '200':
-          description: OK
+          description: A downloadable video file.
           content:
-            application/json:
-              schema: {}
-              example:
-                status: completed
+            application/octet-stream: {}
         '400':
-          description: Bad Request
+          description: Invalid parameters
           content:
             application/json:
-              example:
-                status: error
-                message: Invalid request. Check the request body and ensure at least 1 supported field is provided.
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
         '404':
-          description: Not Found
+          description: File not found
           content:
             application/json:
-              example:
-                status: error
-                message: Model not found.
+              schema:
+                $ref: '#/components/schemas/DataPrepErrorResponse'
         '422':
           description: Validation Error
           content:
             application/json:
               schema:
                 $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            application/json:
-              example:
-                status: error
-                message: string
-    delete:
-      tags:
-        - models
-      summary: Delete a registered model by ID
-      description: Delete a registered model by ID.
-      operationId: delete_registered_model_by_id_models__model_id__delete
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      responses:
-        '204':
-          description: No Content
-          content:
-            text/plain:
-              example: ''
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
-        '422':
-          description: Validation Error
+        '502':
+          description: Minio storage error
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /models/{model_id}/files:
-    get:
-      tags:
-        - models
-      summary: Get a ZIP file containing the artifacts (files) for a registered model
-      description: Get a ZIP file containing the artifacts (files) for a registered model.
-      operationId: get_zip_for_registered_model_by_id_models__model_id__files_get
-      parameters:
-        - name: model_id
-          in: path
-          required: true
-          schema:
-            title: Model Id
-      responses:
-        '200':
-          description: OK
-          content:
-            application/json:
-              schema: {}
-            application/zip:
-              example: ''
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Model not found.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
-  /projects:
-    get:
-      tags:
-        - projects
-      summary: Get projects in a remote Intel® Geti workspace
-      description: |-
-        Get projects in a remote Intel® Geti workspace.
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-      operationId: get_projects_projects_get
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                items:
-                  $ref: '#/components/schemas/ProjectOut'
-                type: array
-                title: Response Get Projects Projects Get
-  /projects/{project_id}:
-    get:
-      tags:
-        - projects
-      summary: Get a project by ID in a remote Intel® Geti workspace
-      description: |-
-        Get a project by ID in a remote Intel® Geti workspace.
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-      operationId: get_project_by_id_projects__project_id__get
-      parameters:
-        - name: project_id
-          in: path
-          required: true
-          schema:
-            title: Project Id
-      responses:
-        '200':
-          description: Successful Response
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/ProjectOut'
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Project not found
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /projects/{project_id}/geti-models/download:
-    post:
-      tags:
-        - projects
-      summary: Store the metadata and artifacts for 1 or more OpenVINO           optimized model(s) from a remote Intel® Geti workspace into the registry
-      description: |-
-        Store the metadata and artifacts for 1 or more OpenVINO optimized model(s) from a remote Intel® Geti workspace into the registry. 
-
-
-
-        In order to execute successful requests to this endpoint, the following environment variables are required to be set before starting the model registry microservice: `GETI_HOST`, `GETI_TOKEN`, `GETI_SERVER_API_VERSION`, `GETI_ORGANIZATION_ID`, and `GETI_WORKSPACE_ID`.
-
-
-
-        For more information about these environment variables, review the [get_server_details_from_env](https://github.com/openvinotoolkit/geti-sdk/blob/675d1e39c1bea7173934bb81db358efa2c40e813/geti_sdk/utils/credentials_helpers.py#L52C5-L52C32) function in the Intel® Geti™ SDK.
-
-        If the `models` object contains a list of contains 1 or more `{"id":"<model_identifier>", "group_id": "model_group_identifier"}`, 1 or more models
-          will be downloaded and registered.
-      operationId: save_project_and_models_by_ids_projects__project_id__geti_models_download_post
-      parameters:
-        - name: project_id
-          in: path
-          required: true
-          schema:
-            title: Project Id
-      requestBody:
-        required: true
-        content:
-          application/json:
-            schema:
-              $ref: '#/components/schemas/ModelIdentifiersIn'
-      responses:
-        '201':
-          description: Created
-          content:
-            text/plain:
-              schema:
-                type: string
-              example: |-
-                Model(s): 1, 2, 3 are registered.
-                Note: Only OpenVINO optimized active models are supported at this time.
-        '403':
-          description: Forbidden
-          content:
-            text/plain:
-              example: |-
-                Model(s): 0 can not be registered.
-                Note: Only OpenVINO optimized active models are supported at this time.
-        '404':
-          description: Not Found
-          content:
-            text/plain:
-              example: Project or model id not found. No model(s) registered.
-        '409':
-          description: Conflict
-          content:
-            text/plain:
-              example: |-
-                Model(s): 1 is already registered. No model(s) registered.
-                Tip: Delete the previously mentioned model(s) or remove the id(s) from the request body then try again.
-        '422':
-          description: Validation Error
-          content:
-            application/json:
-              schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-        '500':
-          description: Internal Server Error
-          content:
-            text/plain:
-              example: ''
+                $ref: '#/components/schemas/DataPrepErrorResponse'
 components:
   schemas:
-    Body_store_model_models_post:
+    Body_prep_data_videos_post:
+      properties:
+        file:
+          anyOf:
+            - type: string
+              format: binary
+            - type: string
+            - type: 'null'
+          title: File
+          description: Video file to upload (MP4 format only)
+      type: object
+      title: Body_prep_data_videos_post
+    Body_upload_and_process_video_videos_upload_post:
       properties:
         file:
           type: string
           format: binary
           title: File
-          description: The ZIP file containing model files and related artifacts.
-        name:
-          type: string
-          title: Name
-          description: The human-readable name of the model.
-        version:
-          type: string
-          title: Version
-          description: The version of the model (e.g., 1.0, 1A, v2).
-        target_device:
-          type: string
-          title: Target Device
-          description: The hardware platform the model is designed to run on (e.g., CPU, GPU, FPGA).
-        precision:
-          type: string
-          title: Precision
-          description: The precision of the model (e.g., FP32, FP16, INT8, INT4). Defaults to FP32.
-        format:
-          type: string
-          title: Format
-          description: The format of the model (e.g. openvino, pytorch).
-        score:
-          type: number
-          title: Score
-          description: A metric that represents the model's performance.
-        id:
-          type: string
-          title: Id
-          description: A unique identifier for the model.
-        created_date:
-          type: string
-          title: Created Date
-          description: The date and time the model was first created or trained. If empty, this will be the date and time the model was registered.(e.g. 2024-02-28 15:39:07.054000)
-        size:
-          type: integer
-          title: Size
-          description: The storage space occupied by the model files (e.g., in bytes).
-        origin:
-          type: string
-          title: Origin
-          description: The source of the model (e.g., geti), or where it was obtained from.
-        project_id:
-          type: string
-          title: Project Id
-          description: The unique identifier of the project the model belongs to, if applicable.
-        project_name:
-          type: string
-          title: Project Name
-          description: The human-readable name of the project the model belongs to, if applicable.
-        category:
-          type: string
-          title: Category
-          description: The category associated to the labels used by the model (e.g. Detection, Classification, etc.).
-        target_device_type:
-          type: string
-          title: Target Device Type
-          description: A more specific categorization of the target device (e.g., client, edge, cloud).
-        overview:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Overview
-          description: A general description of the model's purpose, function, and intended use cases. (e.g. {"description":"The description of the model"})
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Optimization Capabilities
-          description: If applicable, information about any specific optimizations made to the model, such as for speed, accuracy, or size reduction.
-        labels:
-          anyOf:
-            - type: string
-            - items: {}
-              type: array
-          title: Labels
-          description: A list of categories or classes the model can predict, if applicable.
-        architecture:
-          type: string
-          title: Architecture
-          description: The type of machine learning architecture used.
+          description: Video file to upload (MP4 format only)
       type: object
       required:
         - file
-        - name
-        - version
-      title: Body_store_model_models_post
-    Body_update_model_models__model_id__put:
+      title: Body_upload_and_process_video_videos_upload_post
+    BucketVideoListResponse:
       properties:
-        name:
-          type: string
-          title: Name
-          description: The human-readable name of the model.
-        version:
-          type: string
-          title: Version
-          description: The version of the model (e.g., 1.0, 1A, v2).
-        target_device:
-          type: string
-          title: Target Device
-          description: The hardware platform the model is designed to run on (e.g., CPU, GPU, FPGA).
-        precision:
-          type: string
-          title: Precision
-          description: The precision of the model (e.g., FP32, FP16, INT8, INT4).
-        format:
-          type: string
-          title: Format
-          description: The format of the model (e.g. openvino, pytorch).
-        score:
-          type: number
-          title: Score
-          description: A metric that represents the model's performance.
-        created_date:
-          type: string
-          title: Created Date
-          description: The date and time the model was first created or trained. If empty, this will be the date and time the model was registered.(e.g. 2024-02-28 15:39:07.054000)
-        size:
-          type: integer
-          title: Size
-          description: The storage space occupied by the model files (e.g., in bytes).
-        origin:
-          type: string
-          title: Origin
-          description: The source of the model (e.g., geti), or where it was obtained from.
-        project_id:
-          type: string
-          title: Project Id
-          description: The unique identifier of the project the model belongs to, if applicable.
-        project_name:
-          type: string
-          title: Project Name
-          description: The human-readable name of the project the model belongs to, if applicable.
-        category:
-          type: string
-          title: Category
-          description: The category associated to the labels used by the model (e.g. Detection, Classification, etc.).
-        target_device_type:
-          type: string
-          title: Target Device Type
-          description: A more specific categorization of the target device (e.g., client, edge, cloud).
-        overview:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
           anyOf:
             - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Overview
-          description: A general description of the model's purpose, function, and intended use cases. (e.g. {"description":"The description of the model"})
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - additionalProperties:
-                type: string
-              type: object
-          title: Optimization Capabilities
-          description: If applicable, information about any specific optimizations made to the model, such as for speed, accuracy, or size reduction.
-        labels:
-          anyOf:
-            - type: string
-            - items: {}
-              type: array
-          title: Labels
-          description: A list of categories or classes the model can predict, if applicable.
-        architecture:
+            - type: 'null'
+          title: Message
+        bucket_name:
           type: string
-          title: Architecture
-          description: The type of machine learning architecture used.
+          title: Bucket Name
+        videos:
+          items:
+            $ref: '#/components/schemas/VideoInfo'
+          type: array
+          title: Videos
+          description: List of video information objects containing video details
       type: object
-      title: Body_update_model_models__model_id__put
+      required:
+        - bucket_name
+      title: BucketVideoListResponse
+      description: Response model for list of videos in a bucket
+    DataPrepErrorResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: error
+        message:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Message
+      type: object
+      title: DataPrepErrorResponse
+      description: Response model for API Error Responses from DataStore service
+    DataPrepResponse:
+      properties:
+        status:
+          $ref: '#/components/schemas/StatusEnum'
+          default: success
+        message:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Message
+      type: object
+      title: DataPrepResponse
+      description: Response model for API Responses from DataStore service
     HTTPValidationError:
       properties:
         detail:
@@ -595,222 +729,12 @@ components:
           title: Detail
       type: object
       title: HTTPValidationError
-    ModelGroup:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        model_versions:
-          items:
-            $ref: '#/components/schemas/ModelVersion'
-          type: array
-          title: Model Versions
-      type: object
-      required:
-        - id
-        - name
-        - model_versions
-      title: ModelGroup
-      description: ModelGroup class
-    ModelIdentifier:
-      properties:
-        id:
-          type: string
-          title: Id
-        group_id:
-          type: string
-          title: Group Id
-      type: object
-      required:
-        - id
-        - group_id
-      title: ModelIdentifier
-      description: ModelIdentifier class
-    ModelIdentifiersIn:
-      properties:
-        models:
-          items:
-            $ref: '#/components/schemas/ModelIdentifier'
-          type: array
-          title: Models
-      type: object
-      required:
-        - models
-      title: ModelIdentifiersIn
-      description: Class used to capture active model ids sent in a HTTP request
-    ModelVersion:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        version:
-          type: integer
-          title: Version
-        openvino_models:
-          items:
-            $ref: '#/components/schemas/OptimizedModel'
-          type: array
-          title: Openvino Models
-          default: []
-      type: object
-      required:
-        - id
-        - name
-        - version
-      title: ModelVersion
-      description: ModelVersion class
-    OptimizedModel:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-      type: object
-      required:
-        - id
-        - name
-      title: OptimizedModel
-      description: OptimizedModel class
-    ProjectOut:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        creation_time:
-          type: string
-          title: Creation Time
-        model_groups:
-          items:
-            $ref: '#/components/schemas/ModelGroup'
-          type: array
-          title: Model Groups
-          default: []
-      type: object
-      required:
-        - id
-        - name
-        - creation_time
-      title: ProjectOut
-      description: Project class representation for HTTP Response
-    RegisteredModelOut:
-      properties:
-        id:
-          type: string
-          title: Id
-        name:
-          type: string
-          title: Name
-        target_device:
-          type: string
-          title: Target Device
-        created_date:
-          type: string
-          title: Created Date
-        last_updated_date:
-          type: string
-          title: Last Updated Date
-        precision:
-          anyOf:
-            - items:
-                type: string
-              type: array
-          title: Precision
-        size:
-          anyOf:
-            - type: integer
-          title: Size
-        version:
-          type: string
-          title: Version
-        format:
-          anyOf:
-            - type: string
-          title: Format
-        origin:
-          anyOf:
-            - type: string
-          title: Origin
-        file_url:
-          type: string
-          title: File Url
-        project_id:
-          anyOf:
-            - type: string
-          title: Project Id
-        project_name:
-          anyOf:
-            - type: string
-          title: Project Name
-        category:
-          anyOf:
-            - type: string
-          title: Category
-        target_device_type:
-          anyOf:
-            - type: string
-          title: Target Device Type
-        score:
-          anyOf:
-            - type: number
-          title: Score
-        overview:
-          anyOf:
-            - type: string
-            - type: object
-          title: Overview
-        optimization_capabilities:
-          anyOf:
-            - type: string
-            - type: object
-          title: Optimization Capabilities
-        labels:
-          anyOf:
-            - items:
-                type: string
-              type: array
-            - items:
-                type: object
-              type: array
-          title: Labels
-        architecture:
-          anyOf:
-            - type: string
-          title: Architecture
-      type: object
-      required:
-        - id
-        - name
-        - target_device
-        - created_date
-        - last_updated_date
-        - precision
-        - size
-        - version
-        - format
-        - origin
-        - file_url
-        - project_id
-        - project_name
-        - category
-        - target_device_type
-        - score
-        - overview
-        - optimization_capabilities
-        - labels
-        - architecture
-      title: RegisteredModelOut
-      description: RegisteredModel class representation for HTTP Response
+    StatusEnum:
+      type: string
+      enum:
+        - success
+        - error
+      title: StatusEnum
     ValidationError:
       properties:
         loc:
@@ -832,3 +756,68 @@ components:
         - msg
         - type
       title: ValidationError
+    VideoInfo:
+      properties:
+        video_id:
+          type: string
+          title: Video Id
+        video_name:
+          type: string
+          title: Video Name
+        video_path:
+          type: string
+          title: Video Path
+        creation_ts:
+          type: string
+          title: Creation Ts
+      type: object
+      required:
+        - video_id
+        - video_name
+        - video_path
+        - creation_ts
+      title: VideoInfo
+      description: Information about a video file in Minio storage
+    VideoRequest:
+      properties:
+        bucket_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Bucket Name
+          description: The bucket name where the video is stored
+        video_id:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Video Id
+          description: The video ID (directory) containing the video
+        video_name:
+          anyOf:
+            - type: string
+            - type: 'null'
+          title: Video Name
+          description: >-
+            The video filename within the video_id directory (if omitted, first
+            video found is used)
+        chunk_duration:
+          anyOf:
+            - type: integer
+              minimum: 3
+            - type: 'null'
+          title: Chunk Duration
+          description: >-
+            Interval of time in seconds to create different chunks of video.
+            Helps in frame sampling.
+        clip_duration:
+          anyOf:
+            - type: integer
+              minimum: 3
+            - type: 'null'
+          title: Clip Duration
+          description: >-
+            Length of clip in seconds, inside each of the video chunks. Frames
+            for embedding are selected from this interval.
+      type: object
+      title: VideoRequest
+      description: Request model for video processing from Minio storage

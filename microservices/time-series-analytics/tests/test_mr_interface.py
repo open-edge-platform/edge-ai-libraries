@@ -50,8 +50,8 @@ def test_init_model_registry_enabled_success(monkeypatch, mock_logger):
         handler = MRHandler(config, mock_logger)
         mock_logger.info.assert_called_once()
         mock_get_info.assert_called_once_with("test-model", "1.0")
-        mock_logger.debug.assert_called_once_with("Model id: abc123")
-        mock_download.assert_called_once_with("test-model", "abc123")
+        mock_logger.debug.assert_called_once_with("Model id: %s", "abc123")
+        mock_download.assert_called_once_with("abc123")
         assert handler.fetch_from_model_registry is True
         assert handler.unique_id is not None
 
@@ -147,7 +147,7 @@ def test_get_model_info_non_200(monkeypatch, mock_logger):
     with mock.patch("requests.get", return_value=mock_response):
         result = handler.get_model_info("test-model", "1.0")
         assert result is None
-        mock_logger.error.assert_called_once_with("Failed to retrieve model info. Status code: 404")
+        mock_logger.error.assert_called_once_with("Failed to retrieve model info. Status code: %s", 404)
 
 def test_get_model_info_request_exception(monkeypatch, mock_logger):
     config = {"udfs": {"name": "test-model"}}
@@ -156,5 +156,5 @@ def test_get_model_info_request_exception(monkeypatch, mock_logger):
         result = handler.get_model_info("test-model", "1.0")
         assert result is None
         assert mock_logger.error.call_count == 1
-        assert "An error occurred: fail" in str(mock_logger.error.call_args[0][0])
+        assert "An error occurred: %s" in str(mock_logger.error.call_args[0][0])
 
