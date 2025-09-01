@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/edge-video-analytics-microservice:2.4.0
+FROM intel/dlstreamer-pipeline-server:3.0.0
 
 COPY requirements.txt . 
 RUN pip install --no-cache-dir -r requirements.txt

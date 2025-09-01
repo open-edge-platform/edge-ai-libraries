@@ -43,24 +43,24 @@ Returns:
           content: 
             application/json: 
               schema: 
-  /stream_log: 
+  /chat: 
     post: 
       summary: "Query Chain"
-      description: "Handles POST requests to the /stream_log endpoint.
+      description: "Handles POST requests to the /chat endpoint.
 
 This endpoint receives a question in the form of a JSON payload, validates the input,
 and returns a streaming response with the processed chunks of the question text.
 
 Args:
     payload (QuestionRequest): The request payload containing the input question text.
-    MaX_TOKENS (int): The maximum number of tokens to process. Defaults to 512 if not provided or set to 4096 if provided.
+    max_tokens (int): The maximum number of tokens to process. Defaults to 512 if not provided or set to 4096 if provided.
     
 Returns:
     StreamingResponse: A streaming response with the processed chunks of the question text.
 
 Raises:
     HTTPException: If the input question text is empty or not provided, a 422 status code is returned."
-      operationId: "query_chain_stream_log_post"
+      operationId: "query_chain_chat/completions_post"
       requestBody: 
         content: 
           application/json: 

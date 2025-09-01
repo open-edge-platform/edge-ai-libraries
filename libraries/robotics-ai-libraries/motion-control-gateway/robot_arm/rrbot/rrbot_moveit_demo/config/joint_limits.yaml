@@ -1,0 +1,22 @@
+# SPDX-License-Identifier: Apache-2.0
+# Copyright (C) 2025 Intel Corporation
+# joint_limits.yaml allows the dynamics properties specified in the URDF to be overwritten or augmented as needed
+# Specific joint properties can be changed with the keys [max_position, min_position, max_velocity, max_acceleration]
+# Joint limits can be turned off with [has_velocity_limits, has_acceleration_limits]
+
+# As MoveIt! does not support jerk limits, the acceleration limits provided here are the highest values that guarantee
+# that no jerk limits will be violated. More precisely, applying Euler differentiation in the worst case (from min accel
+# to max accel in 1 ms) the acceleration limits are the ones that satisfy
+# max_jerk = (max_acceleration - min_acceleration) / 0.001
+
+joint_limits:
+  joint1:
+    has_velocity_limits: true
+    max_velocity: 0.872
+    has_acceleration_limits: true
+    max_acceleration: 1.745
+  joint2:
+    has_velocity_limits: true
+    max_velocity: 0.872
+    has_acceleration_limits: true
+    max_acceleration: 1.745

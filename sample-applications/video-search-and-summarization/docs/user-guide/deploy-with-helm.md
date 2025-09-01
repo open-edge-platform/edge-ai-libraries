@@ -8,6 +8,7 @@ Before you begin, ensure that you have the following:
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
 - Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
 - Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
+- Video Search and Summary requires PVC storage class to support `RWMany` mode. In case the default storage class used does not support it, consider using storage solution like [LongHorn](https://longhorn.io/docs/) that provides this support. Video Search and Summary intends to remove this prerequisite in future release and use only `RWOnce` mode. 
 
 ## Steps to deploy with Helm
 Do the following to deploy VSS using Helm chart. 
@@ -39,14 +40,16 @@ cd video-search-and-summarization
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the services credentials and proxy settings as required.
+Edit the `values.yaml` file to set the necessary environment variables. At minimum, ensure you set the services credentials, provide model details (LLM and VLM), and proxy settings as required.
 
 | Key | Description | Example Value |
 | --- | ----------- | ------------- |
 | `global.huggingface.apiToken` | Your Hugging Face API token | `<your-huggingface-token>` |
 | `global.proxy.http_proxy` | HTTP proxy if required | `http://proxy-example.com:000` |
 | `global.proxy.https_proxy` | HTTPS proxy if required | `http://proxy-example.com:000` |
-| `global.env.UI_NODEPORT` | UI service NodePort | `31998` |
+| `global.vlmName` | VLM model to be used by VLM Inference Microservice | `Qwen/Qwen2.5-VL-7B-Instruct` |
+| `global.llmName` | LLM model to be used by OVMS (used only when OVMS is enabled) | `Intel/neural-chat-7b-v3-3` |
+| `global.env.UI_NODEPORT` | UI service NodePort. Change the default value in case of port conflicts. | `31998` |
 | `global.env.POSTGRES_USER` | PostgreSQL user | `<your-postgres-user>` |
 | `global.env.POSTGRES_PASSWORD` | PostgreSQL password | `<your-postgres-password>` |
 | `global.env.POSTGRES_DB` | PostgreSQL database name | `video_summary_db` |
@@ -56,10 +59,9 @@ Edit the `values.yaml` file to set the necessary environment variables. At minim
 | `global.env.MINIO_BUCKET` | MinIO bucket name | `video-search-summary` |
 | `global.env.RABBITMQ_DEFAULT_USER` | RabbitMQ username | `<your-rabbitmq-username>` |
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
-| `global.env.VLM_MODEL_NAME` | VLM model to use | `Qwen/Qwen2.5-VL-7B-Instruct` |
-| `global.env.OVMS_LLM_MODEL_NAME` | OVMS LLM model (when using OVMS) | `Intel/neural-chat-7b-v3-3` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
+| `global.env.keeppvc` | Set true to persists the storage. Default is false | false |
 
 ### Option 2: Install from Source
 
@@ -106,10 +108,10 @@ helm uninstall vss -n <your-namespace>
 Deploy the Video Summary application:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -n <your-namespace>
 ```
 
-> Note delete the chart for installing the chart in other modes `helm uninstall vss -n <namespace>`
+> Note delete the chart for installing the chart in other modes `helm uninstall vss -n <your-namespace>`
 
 Replace `<your-namespace>` with your desired Kubernetes namespace.
 
@@ -120,7 +122,7 @@ Replace `<your-namespace>` with your desired Kubernetes namespace.
 If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
 
 ```bash
-helm install vss . --values values.yaml --values summary_override.yaml --values ovms_override.yaml -n <your-namespace>
+helm install vss . -f summary_override.yaml -f ovms_override.yaml -n <your-namespace>
 ```
 **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
@@ -129,7 +131,7 @@ helm install vss . --values values.yaml --values summary_override.yaml --values 
 To deploy only the Video Search functionality, use the search override values:
 
 ```bash
-helm install vss . --values values.yaml --values search_override.yaml -n <your-namespace>
+helm install vss . -f search_override.yaml -n <your-namespace>
 ```
 
 ### Step 6: Verify the Deployment
@@ -152,7 +154,7 @@ To access the vss-nginx service running in your Kubernetes cluster using NodePor
 
 Run the following command to get the service URL:
 ```bash
-echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":31998
+echo "http://$(kubectl get pods -l app=vss-nginx -n <your-namespace> -o jsonpath='{.items[0].status.hostIP}')":<ui-nodeport>
 ```
 
 Simply copy and paste the output into your browser to access the Video Summary application UI.
@@ -182,6 +184,8 @@ helm uninstall vss -n <your-namespace>
 
 ## Troubleshooting
 
+- If helm is not able to install because nginx is facing port conflicts, please try to increment the port number in `global.env.UI_NODEPORT` and re-try the helm installation.
+
 - If you encounter any issues during the deployment process, check the Kubernetes logs for errors:
   ```bash
   kubectl logs <pod-name> -n <your-namespace>
@@ -193,13 +197,7 @@ helm uninstall vss -n <your-namespace>
   - Database connection problems: Verify the PostgreSQL pod is running correctly
   - Storage issues: Check the MinIO server status and connectivity
 
-- The Persistent Volume Claims (PVCs) created during helm chart deployment will remain present until explicitly deleted:
-  ```bash
-  kubectl delete pvc <pvc-name> -n <namespace>
-  ```
-
 - If you're experiencing issues with the Hugging Face API, ensure your API token is valid and properly set in the values.yaml file.
 
 ## Related links
 - [How to Build from Source](./build-from-source.md)
-- [How to Test Performance](./how-to-performance.md)

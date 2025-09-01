@@ -1,0 +1,85 @@
+openapi: 3.0.3
+info:
+  title: Document Summarization API
+  version: "1.0"
+  description: API for uploading documents and receiving AI-generated summaries using LLM models.
+servers:
+  - url: http://localhost:8090/v1/docsum
+    description: Local development server
+paths:
+  /version:
+    get:
+      summary: Get API version
+      description: Returns the current version of the Document Summarization API.
+      responses:
+        '200':
+          description: Version information retrieved successfully.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  version:
+                    type: string
+                    description: The API version.
+                    example: "1.0"
+ 
+  /summarize/:
+    post:
+      summary: Summarize an uploaded document
+      description: |
+        Accepts a document file and an optional query, then returns a streaming summary.
+        Supported file formats: PDF (.pdf), Text (.txt), Word Documents (.docx).
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: |
+                    The document file to summarize. 
+                    Supported formats: .pdf, .txt, .docx
+                query:
+                  type: string
+                  description: |
+                    Optional query to guide the summarization process.
+                    Defaults to "Summarize the document" if not provided.
+                  default: "Summarize the document"
+                  example: "Provide a brief summary focusing on key points"
+              required:
+                - file
+      responses:
+        '200':
+          description: Summary generated successfully.
+          content:
+            text/event-stream:
+              schema:
+                type: string
+                description: Streaming response containing the generated summary.
+        '400':
+          description: |
+            Invalid input - missing file, unsupported file format, or other validation errors.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message describing the validation issue.
+                    example: "Only .pdf, .txt, .docx files are allowed to upload."
+        '500':
+          description: Internal server error during document processing.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    description: Error message describing the server issue.
+                    example: "Error processing document: Failed to load document"

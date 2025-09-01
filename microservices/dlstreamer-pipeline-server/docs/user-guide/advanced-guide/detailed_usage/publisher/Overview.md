@@ -39,7 +39,7 @@ To store frames from media source and publish the metadata to MQTT, refer to thi
 :maxdepth: 5
 :hidden:
 gvapython_mqtt_publish.md
-eis_mqtt_publish_doc.md
+mqtt_publish.md
 opcua_publish_doc.md
 s3_frame_storage.md
 ```

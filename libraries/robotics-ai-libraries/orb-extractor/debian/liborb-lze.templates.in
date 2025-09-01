@@ -1,0 +1,8 @@
+Template: liborb-lze/march
+Type: select
+Choices: @marchlist@
+Default: @marchdefault@
+Description: Select GPU Generation (1, 2, or 3):
+ Select the Intel integrated GPU present on this system.
+ Hint: In another terminal install 'intel-gpu-tools' (sudo apt install intel-gpu-tools),
+ then execute 'intel_gpu_top' to view CPU/GPU details (sudo intel_gpu_top -L)

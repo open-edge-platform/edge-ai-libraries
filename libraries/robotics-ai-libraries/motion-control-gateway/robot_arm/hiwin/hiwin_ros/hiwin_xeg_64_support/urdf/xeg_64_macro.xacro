@@ -1,0 +1,104 @@
+<?xml version="1.0"?>
+<robot xmlns:xacro="http://ros.org/wiki/xacro">
+
+  <xacro:macro name="gripper" params="prefix">
+
+    <!-- links: main serial chain -->
+    <link name="${prefix}base_link">
+        <visual>
+            <origin xyz="0 0.00625 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/visual/gripper_support.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="LightGrey">
+                <color rgba="0.7 0.7 0.7 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0 0.00625 0" rpy="0 0 ${pi}"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/collision/gripper_support.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <link name="${prefix}link_1" >
+        <visual>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/visual/wrist.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="LightGrey">
+                <color rgba="0.7 0.7 0.7 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/collision/wrist.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <link name="${prefix}finger_1" >
+        <visual>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/visual/finger_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="VeryDark">
+                <color rgba="0.1 0.1 0.1 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/collision/finger_1.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <link name="${prefix}finger_2" >
+        <visual>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/visual/finger_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+            <material name="VeryDark">
+                <color rgba="0.1 0.1 0.1 1.0"/>
+            </material>
+        </visual>
+        <collision>
+            <origin xyz="0.0 0.0 0.0" rpy="0 0 0"/>
+            <geometry>
+                <mesh filename="package://hiwin_xeg_64_support/meshes/collision/finger_2.stl" scale="0.001 0.001 0.001"/>
+            </geometry>
+        </collision>
+    </link>
+
+    <!-- joints: main serial chain -->
+    <joint name="${prefix}joint_1" type="fixed">
+        <origin xyz="0.0 0.049 0.0025" rpy="0.0 ${pi/2} 0.0" />
+        <parent link="${prefix}base_link" />
+        <child link="${prefix}link_1" />
+    </joint>
+
+    <joint name="${prefix}joint_finger_1" type="prismatic">
+      <origin xyz="0.0 0 0" rpy="0 0 0" />
+      <parent link="${prefix}link_1" />
+      <child link="${prefix}finger_1" />
+      <axis xyz="-1 0 0"/>
+      <limit lower="0.0" upper="0.032" effort="0" velocity="0.01"/>
+    </joint>
+
+    <joint name="${prefix}joint_finger_2" type="prismatic">
+      <origin xyz="0 0 0" rpy="0 0 0" />
+      <parent link="${prefix}link_1" />
+      <child link="${prefix}finger_2" />
+      <axis xyz="1 0 0"/>
+      <limit lower="0.0" upper="0.032" effort="0" velocity="0.01"/>
+    </joint>
+
+
+  </xacro:macro>
+</robot>

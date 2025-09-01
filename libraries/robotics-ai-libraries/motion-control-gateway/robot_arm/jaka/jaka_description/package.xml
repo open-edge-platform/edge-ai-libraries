@@ -1,0 +1,20 @@
+<?xml version="1.0"?>
+<package>
+  <name>jaka_description</name>
+  <version>1.0.1</version>
+  <description>The jaka robot ros description package</description>
+  
+  <author email="yu.yan@intel.com">Yan Yu</author>
+  <maintainer email="yu.yan@intel.com">Yan Yu</maintainer>
+  
+  <license>Apache 2.0</license>
+
+  <buildtool_depend>ament_cmake</buildtool_depend>
+
+  <run_depend>urdf</run_depend>
+  <run_depend>xacro</run_depend>
+
+  <export>
+      <build_type>ament_cmake</build_type>
+  </export>
+</package>

@@ -1,0 +1,197 @@
+<?xml version="1.0" ?>
+<robot xmlns:xacro="http://www.ros.org/wiki/xacro" name="jaka_zu3">
+
+  <xacro:arg name="prefix" default="" />
+
+  <!-- Import JAKA ros2_control description -->
+  <xacro:include filename="$(find jaka_description)/ros2_control/jaka_system_can.ros2_control.xacro" />
+
+  <!-- links: main serial chain -->
+  <link name="base_link">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/base_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.7 0.7 0.7 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 0"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/base_link.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link_1">
+    <visual>
+      <origin rpy="0 0 0" xyz="0 0 -0.0865"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0 0 -0.0865"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_1.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link> 
+  <link name="link_2">
+    <visual>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0505 0.0 -0.15055"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_2.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0.0 0.0 0.0" xyz="-0.0505 0.0 -0.15055"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_2.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link_3">
+    <visual>
+      <origin rpy="0 0 0" xyz="0.003 0 -0.39855"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_3.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="0.003 0 -0.39855"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_3.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link_4">
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.113 0 -0.62655"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_4.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.113 0 -0.62655"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_4.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link_5">
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.113 0 -0.74330"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_5.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.113 0 -0.74330"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_5.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <link name="link_6">
+    <visual>
+      <origin rpy="0 0 0" xyz="-0.008 0 -0.74405"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/visual/link_6.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+      <material name="LightGrey">
+        <color rgba="0.999 0.999 0.999 1.0"/>
+      </material>
+    </visual>
+    <collision>
+      <origin rpy="0 0 0" xyz="-0.008 0 -0.74405"/>
+      <geometry>
+        <mesh filename="package://jaka_description/meshes/collision/link_6.stl" scale="0.001 0.001 0.001"/>
+      </geometry>
+    </collision>
+  </link>
+  <!-- joints: main serial chain -->
+  <joint name="joint_1" type="revolute">
+    <origin rpy="0.0 0.0 1.5708" xyz="0.0 0.0 0.0865"/>
+    <parent link="base_link"/>
+    <child link="link_1"/>
+    <axis xyz="0 0 -1"/>
+    <limit effort="0" lower="-4.71239" upper="4.71239" velocity="3.14159"/>
+  </joint>
+  <joint name="joint_2" type="revolute">
+    <origin rpy="0.0 0.0 0.0" xyz="0.0505 0.0 0.0645"/>
+    <parent link="link_1"/>
+    <child link="link_2"/>
+    <axis xyz="-1 0 0"/>
+    <limit effort="0" lower="-1.48353" upper="4.62512" velocity="3.14159"/>
+  </joint>
+  <joint name="joint_3" type="revolute">
+    <origin rpy="0.0 0.0 0.0" xyz="-0.055 0 0.248"/>
+    <parent link="link_2"/>
+    <child link="link_3"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="0" lower="-3.05433" upper="3.05433" velocity="3.14159"/>
+  </joint> 
+  <joint name="joint_4" type="revolute">
+    <origin rpy="0 0.0 0.0" xyz="0.1175 0.0 0.228"/>
+    <parent link="link_3"/>
+    <child link="link_4"/>
+    <axis xyz="-1 0 0"/>
+    <limit effort="0" lower="-1.48353" upper="4.62512" velocity="3.14159"/>
+  </joint>
+  <joint name="joint_5" type="revolute">
+    <origin rpy="0.0 0.0 3.1415926" xyz="0.0 0.0 0.1175"/>
+    <parent link="link_4"/>
+    <child link="link_5"/>
+    <axis xyz="0 0 -1"/>
+    <limit effort="0" lower="-4.71239" upper="4.71239" velocity="3.14159"/>
+  </joint>
+  <joint name="joint_6" type="revolute">
+    <origin rpy="-1.5708 0.0 0.0" xyz="-0.105 0.0 0.0"/>
+    <parent link="link_5"/>
+    <child link="link_6"/>
+    <axis xyz="1 0 0"/>
+    <limit effort="0" lower="-4.71239" upper="4.71239" velocity="3.14159"/>
+  </joint>
+  <!-- ROS-Industrial 'base' frame: base_link to HIWIN World Coordinates transform -->
+  <link name="base"/>
+  <joint name="base_link-base" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <parent link="base_link"/>
+    <child link="base"/>
+  </joint>
+  <!-- ROS-Industrial 'flange' frame: attachment point for EEF models -->
+  <link name="flange"/>
+  <joint name="joint_6-flange" type="fixed">
+    <origin rpy="0 0 0" xyz="0 0 0"/>
+    <parent link="link_6"/>
+    <child link="flange"/>
+  </joint>
+  <!-- ROS-Industrial 'tool0' frame: all-zeros tool frame -->
+  <link name="tool0"/>
+  <joint name="link_6-tool0" type="fixed">
+    <origin rpy="0.0 -1.5707963267948966 0.0" xyz="0 0 0"/>
+    <parent link="link_6"/>
+    <child link="tool0"/>
+  </joint>
+
+  <xacro:jaka_ros2_control
+  name="JAKA" prefix="$(arg prefix)" />
+
+</robot>

@@ -1,0 +1,330 @@
+From 64879317c8a5156087922bf597097859c53ae542 Mon Sep 17 00:00:00 2001
+From: yichongt <yichong.tang@intel.com>
+Date: Mon, 12 Feb 2024 11:29:50 +0800
+Subject: [PATCH 1/2] Update fly tirgger example
+
+Add TGPIO support in fly trigger example.
+
+Signed-off-by: yichongt <yichong.tang@intel.com>
+---
+ examples/fly_trigger_poc/main.c | 196 ++++++++++++++++++++++++++++----
+ examples/fly_trigger_poc/main.h |   9 +-
+ 2 files changed, 181 insertions(+), 24 deletions(-)
+
+diff --git a/examples/fly_trigger_poc/main.c b/examples/fly_trigger_poc/main.c
+index a364dbde..87a50216 100644
+--- a/examples/fly_trigger_poc/main.c
++++ b/examples/fly_trigger_poc/main.c
+@@ -48,11 +48,47 @@
+ #include "main.h"
+ #include <getopt.h>
+ 
+-#define ROUND_TRIGGER 10 // every ROUND_TRIGGER rounds, the camera will be triggered once 
++#ifdef INTEL_TGPIO_USED
++
++#include <linux/ptp_clock.h>
++
++#define TGPIO_DEVICE "/dev/ptp3"
++struct settings_t
++{
++	unsigned int pin;
++	unsigned int channel;
++	const char* device;
++	uint64_t start;
++};
++static int tgpio_fd = -1;
++static struct settings_t tgpio_settings = {.pin = 1, .channel = 1, .device = TGPIO_DEVICE, .start = 0};
++
++#define TCC_NSEC_PER_SEC (1000000000U)
++
++#ifndef PTP_PEROUT_REQUEST2
++#define PTP_PEROUT_REQUEST2 _IOW(PTP_CLK_MAGIC, 12, struct ptp_perout_request)
++#endif
++#ifndef PTP_PIN_SETFUNC2
++#define PTP_PIN_SETFUNC2    _IOW(PTP_CLK_MAGIC, 16, struct ptp_pin_desc)
++#endif
++#ifndef PTP_SYS_OFFSET_PRECISE2
++#define PTP_SYS_OFFSET_PRECISE2 \
++	        _IOWR(PTP_CLK_MAGIC, 17, struct ptp_sys_offset_precise)
++#endif
++#ifndef PTP_PEROUT_ONE_SHOT
++#define PTP_PEROUT_ONE_SHOT             (1<<0)
++#endif
++#endif
++
++#define ROUND_TRIGGER 1 // every ROUND_TRIGGER rounds, the camera will be triggered once 
+ 
+ static pthread_t cyclic_thread;
+ static volatile int run = 1;
+ 
++int64_t max_latency_ns = 0;
++int64_t latency_ns = 0;
++struct timespec timer_start, timer_trigger;
++
+ static ec_master_t *master = NULL;
+ static ec_master_state_t master_state = {};
+ 
+@@ -185,17 +221,93 @@ static uint8_t is_vel_uniform()
+ 	    return 0;
+ }
+ 
++#ifdef INTEL_TGPIO_USED
++__attribute__((const)) uint64_t ptptime2ns(struct ptp_clock_time time)
++{
++    return time.sec * TCC_NSEC_PER_SEC + time.nsec;
++}
++
++__attribute__((const)) struct ptp_clock_time ns2ptptime(uint64_t nsec)
++{
++    return (struct ptp_clock_time) {
++        nsec / TCC_NSEC_PER_SEC,                  // seconds
++        (unsigned int)(nsec % TCC_NSEC_PER_SEC),  // nanoseconds
++        0                                         // reserved
++    };
++}
++
++static int tgpio_init(struct settings_t* setting)
++{
++    int fd;
++    if (!setting) {
++        return -1;
++    }
++
++    fd = open(setting->device, O_RDWR);
++    if (fd < 0) {
++        fprintf(stderr, "Unable to open device %s: %s\n", setting->device, strerror(errno));
++        return -1;
++    }
++
++    /* Set up pin's channel and output mode */
++    struct ptp_pin_desc desc = {0};
++    desc.index = setting->pin;
++    desc.func = 2;
++    desc.chan = setting->channel;
++    ioctl(fd, PTP_PIN_SETFUNC2, &desc);
++    return fd;
++}
++
++static int tgpio_timestamp(int fd, uint64_t* ts)
++{
++    struct ptp_sys_offset_precise cur_offset = {0};
++    if ((fd < 0)||(!ts))
++        return -1;
++
++    /* Read current timestamp */
++    ioctl(fd, PTP_SYS_OFFSET_PRECISE2, &cur_offset);
++
++    /* Convert the ART timestamp to nanoseconds for
++     * setting up single shot output request */
++    *ts = ptptime2ns(cur_offset.device);
++
++    return 0;
++}
++
++static int tgpio_oneshot(int fd, struct settings_t* setting, bool level, uint64_t ts)
++{
++    if ((fd < 0) ||(!setting))
++        return -1;
++
++    /* Set up oneshot for this channel */
++    struct ptp_perout_request request = {0};
++    if (ts == 0) {
++        tgpio_timestamp(fd, &ts);
++    }
++    request.start = ns2ptptime(ts);
++    request.index = setting->channel;
++    request.flags = PTP_PEROUT_ONE_SHOT;  // Set mode flag to one shot
++    if (ioctl(fd, PTP_PEROUT_REQUEST2, &request) == -1) {
++        fprintf(stderr, "Failed to start signal generation: %d.\n",errno);
++        close(fd);
++        fd = -1;
++        return -1;
++    }
++    return 0;
++}
++#endif
++
+ static void fly_trigger_proc(uint64_t ts)
+ {
+-	static uint8_t tc= 2;
++    static uint8_t tc = 0;
+     uint64_t timeoffset;
+     servo.targetvel = default_speed*PER_CIRCLE_ENCODER;
+     if ((is_vel_uniform() == 1) && (servo.actualvel))
+     {
+ 	if (servo.actualpos >= 0)
+-            timeoffset = (int64_t)(servo.actualpos%(PER_CIRCLE_ENCODER*ROUND_TRIGGER))*NSEC_PER_SEC/servo.actualvel;
++            timeoffset = (int64_t)((PER_CIRCLE_ENCODER>>2) - servo.actualpos%((int64_t)(PER_CIRCLE_ENCODER>>2)))*NSEC_PER_SEC/servo.actualvel;
+ 	else
+-            timeoffset = (int64_t)(PER_CIRCLE_ENCODER*ROUND_TRIGGER + servo.actualpos%(PER_CIRCLE_ENCODER*ROUND_TRIGGER))*NSEC_PER_SEC/servo.actualvel;
++            timeoffset = (int64_t)(-servo.actualpos%(PER_CIRCLE_ENCODER>>2))*NSEC_PER_SEC/servo.actualvel;
+ #ifdef OMRON_IO_USED
+         if (timeoffset < 2*PERIOD_NS) {
+ 	    io.trigger = 0;
+@@ -203,22 +315,20 @@ static void fly_trigger_proc(uint64_t ts)
+ 	    io.timestamp = ts + timeoffset;
+ 	    EC_WRITE_U8(domain_pd+io.triggeroffset, io.trigger);
+ 	    EC_WRITE_U64(domain_pd+io.timestampoffset, io.timestamp);
+-	} else {
+-	    if (io.trigger == 0) {
+-		    if (tc == 2) {
+-			io.trigger = 0;
+-			tc=0;
+-		    }
+-		    else
+-	          	io.trigger = 0x1;
+-	     
++	    } else {
++            if (io.trigger == 0) {
++                if (tc == 2) {
++                io.trigger = 0;
++                tc=0;
++                }
++                else
++                    io.trigger = 0x1;
+ 
+ 	        io.timestamp = 0;
+-		//printf("trigger\n");
+-		EC_WRITE_U8(domain_pd+io.triggeroffset, io.trigger);
+-		EC_WRITE_U64(domain_pd+io.timestampoffset, io.timestamp);
+-	    }
+-	}
++            EC_WRITE_U8(domain_pd+io.triggeroffset, io.trigger);
++            EC_WRITE_U64(domain_pd+io.timestampoffset, io.timestamp);
++            }
++        }
+ #endif
+ #ifdef ITEG_IO_USED
+         if (timeoffset < PERIOD_NS) {
+@@ -227,10 +337,36 @@ static void fly_trigger_proc(uint64_t ts)
+ 	} else {
+ 	    if (io.trigger == 0) {
+ 	        io.trigger = 1;
+-		//printf("trigger\n");
+ 		EC_WRITE_U8(domain_pd+io.triggeroffset, io.trigger);
+ 	    }
+ 	}
++#endif
++#ifdef INTEL_TGPIO_USED
++        if (timeoffset < 2*PERIOD_NS && tc == 0) {
++            io.trigger = 0x2;
++            tc = 2;
++            io.timestamp = ts + timeoffset;
++            tgpio_oneshot(tgpio_fd, &tgpio_settings, io.trigger==0?false:true, io.timestamp);
++            clock_gettime(CLOCK_MONOTONIC, &timer_trigger);
++            latency_ns = DIFF_NS(timer_start, timer_trigger);
++        } else {
++            if (io.trigger == 0x2) {
++                if (tc == 2) {
++                    io.trigger = 0x2;
++                    tc=0;
++                } else {
++                    io.trigger = 0;
++                    io.timestamp = ts + PERIOD_NS;
++                    tgpio_oneshot(tgpio_fd, &tgpio_settings, io.trigger==0?false:true, io.timestamp);
++                    clock_gettime(CLOCK_MONOTONIC, &timer_trigger);
++                    latency_ns = DIFF_NS(timer_start, timer_trigger);
++                }
++            }
++        }
++        // if (latency_ns > max_latency_ns) {
++        //     max_latency_ns = latency_ns;
++        //     printf("Max latency refresh: %f\n", (float)max_latency_ns / 1000);
++        // }
+ #endif
+     }
+     EC_WRITE_S32(domain_pd+servo.targetveloffset, servo.targetvel);
+@@ -243,7 +379,9 @@ void *my_thread(void *arg)
+     struct timespec next_period = {0, 0};
+     struct timespec dc_period = {0, 0};
+     unsigned int cycle_counter = 0;
+-
++#ifdef INTEL_TGPIO_USED
++    uint64_t tgpio_cur_ts;
++#endif
+     struct sched_param param = {.sched_priority = 99};
+     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+     clock_gettime(CLOCK_MONOTONIC, &next_period);
+@@ -255,6 +393,10 @@ void *my_thread(void *arg)
+             next_period.tv_sec++;
+         }
+         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_period, NULL);
++        clock_gettime(CLOCK_MONOTONIC, &timer_start);
++#ifdef INTEL_TGPIO_USED
++        tgpio_timestamp(tgpio_fd, &tgpio_cur_ts);
++#endif
+         cycle_counter++;
+         ecrt_master_receive(master);
+         ecrt_domain_process(domain);
+@@ -268,7 +410,11 @@ void *my_thread(void *arg)
+ 
+ 	servo.ctrlword = coe_cia402_statemachine(servo.statusword);
+ 	if (servo.ctrlword == 0x1f) {
++#ifdef INTEL_TGPIO_USED
++            fly_trigger_proc(tgpio_cur_ts);
++#else
+             fly_trigger_proc(TIMESPEC2NS(next_period));
++#endif
+ 	} else {
+ 	    EC_WRITE_U16(domain_pd+servo.ctrlwordoffset, servo.ctrlword);
+ 	}
+@@ -375,11 +521,13 @@ int main(int argc, char *argv[])
+         return -1;
+     }
+ 
++#ifndef INTEL_TGPIO_USED
+     io_sc = ecrt_master_slave_config(master, IO_POS, IO_ID);
+     if (!io_sc) {
+         printf("Slave0 sc is NULL \n");
+         return -1;
+     }
++#endif
+     servo_sc = ecrt_master_slave_config(master, SERVO_POS, SERVO_ID);
+     if (!servo_sc) {
+         printf("Servo sc is NULL \n");
+@@ -393,6 +541,9 @@ int main(int argc, char *argv[])
+     	fprintf(stderr, "Failed to configure PDOs.\n");
+ 	return -1;
+     }
++#endif
++#ifdef INTEL_TGPIO_USED
++    tgpio_fd = tgpio_init(&tgpio_settings);
+ #endif
+     if (ecrt_slave_config_pdos(servo_sc, EC_END, servo_syncs)) {
+     	fprintf(stderr, "Failed to configure PDOs.\n");
+@@ -446,6 +597,11 @@ int main(int argc, char *argv[])
+ 	    sched_yield();
+ 
+     pthread_join(cyclic_thread, NULL);
++#ifdef INTEL_TGPIO_USED
++    if (tgpio_fd >= 0) {
++        close(tgpio_fd);
++    }
++#endif
+ 
+     ecrt_slave_config_sdo32(servo_sc, 0x6040, 0x00, 0x0100);
+     ecrt_release_master(master);
+diff --git a/examples/fly_trigger_poc/main.h b/examples/fly_trigger_poc/main.h
+index 3e694377..bbbcd42f 100644
+--- a/examples/fly_trigger_poc/main.h
++++ b/examples/fly_trigger_poc/main.h
+@@ -4,11 +4,12 @@
+ #include <stdio.h>
+ #include "ecrt.h"
+ 
+-//#define PANASONIC_USED
+-#define INOVANCE_USED
++#define PANASONIC_USED
++// #define INOVANCE_USED
+ 
+-//#define OMRON_IO_USED
+-#define ITEG_IO_USED
++// #define OMRON_IO_USED
++// #define ITEG_IO_USED
++#define INTEL_TGPIO_USED
+ 
+ #define CYCLE_US    			1000
+ #define PERIOD_NS   			(CYCLE_US*1000)
+-- 
+2.34.1
+

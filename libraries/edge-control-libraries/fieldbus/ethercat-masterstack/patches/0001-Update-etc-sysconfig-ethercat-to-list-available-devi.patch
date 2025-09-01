@@ -1,0 +1,26 @@
+From 0a932ec88f5414cf445bc1037c22948f10af59ed Mon Sep 17 00:00:00 2001
+From: Jeremy Ouillette <jeremy.ouillette@intel.com>
+Date: Mon, 24 Mar 2025 09:59:06 -0700
+Subject: [PATCH] Update /etc/sysconfig/ethercat to list available devices.
+
+---
+ script/sysconfig/ethercat | 3 ++-
+ 1 file changed, 2 insertions(+), 1 deletion(-)
+
+diff --git a/script/sysconfig/ethercat b/script/sysconfig/ethercat
+index 933512fb..6db43b61 100644
+--- a/script/sysconfig/ethercat
++++ b/script/sysconfig/ethercat
+@@ -45,7 +45,8 @@ MASTER0_DEVICE=""
+ # the EtherCAT-capable ones. If a certain (EtherCAT-capable) driver is not
+ # found, a warning will appear.
+ #
+-# Possible values: 8139too, e100, e1000, e1000e, r8169, generic, ccat, igb.
++# Possible values: 8139too, e100, e1000, e1000e, r8169, generic, ccat, igb, igc,
++# stmmac, dwmac_intel.
+ # Separate multiple drivers with spaces.
+ #
+ # Note: The e100, e1000, e1000e, r8169, ccat and igb drivers are not built by
+-- 
+2.30.2
+

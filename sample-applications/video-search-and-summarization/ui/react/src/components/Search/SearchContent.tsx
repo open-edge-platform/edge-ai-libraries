@@ -1,9 +1,9 @@
 import { FC } from 'react';
 import styled from 'styled-components';
-import { useAppSelector } from '../../redux/store';
+import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Tooltip } from '@carbon/react';
-import { SearchSelector } from '../../redux/search/searchSlice';
+import { Slider, Tooltip } from '@carbon/react';
+import { SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
 
@@ -59,6 +59,10 @@ const QueryHeader = styled.div`
   }
 `;
 
+const SliderLabel = styled.div`
+  margin-right: 1rem;
+`;
+
 export const statusClassName = {
   [StateActionStatus.NA]: 'gray',
   [StateActionStatus.READY]: 'purple',
@@ -80,6 +84,7 @@ const NothingSelectedWrapper = styled.div`
 
 export const SearchContent: FC = () => {
   const { selectedQuery, selectedResults } = useAppSelector(SearchSelector);
+  const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
   const NoQuerySelected = () => {
@@ -97,6 +102,20 @@ export const SearchContent: FC = () => {
           <span className='query-title'>{selectedQuery?.query}</span>
         </Tooltip>
         <span className='spacer'></span>
+        {selectedQuery && (
+          <>
+            <SliderLabel>{t('topK')}</SliderLabel>
+            <Slider
+              min={1}
+              max={20}
+              step={1}
+              value={selectedQuery.topK}
+              onChange={({ value }) => {
+                dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
+              }}
+            />
+          </>
+        )}
       </QueryHeader>
     );
   };

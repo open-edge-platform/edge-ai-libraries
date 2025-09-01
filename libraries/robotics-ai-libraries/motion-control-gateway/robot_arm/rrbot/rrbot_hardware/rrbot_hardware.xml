@@ -1,0 +1,9 @@
+<library path="rrbot_hardware">
+  <class name="rrbot_hardware/RRBotSystemIghHardware"
+         type="rrbot_hardware::RRBotSystemIghHardware"
+         base_class_type="hardware_interface::SystemInterface">
+    <description>
+      RRBot hardware interface.
+    </description>
+  </class>
+</library>

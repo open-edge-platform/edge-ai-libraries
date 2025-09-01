@@ -1,0 +1,24 @@
+# VScode files
+.vscode
+
+# Build files
+build/*
+librtm_algo_pri.so*
+librtm_fb_pri.so*
+
+# Image files
+*.png
+
+# Generated documentation files
+doc
+
+# Eigen files
+*Eigen
+
+# Patch files
+*.patch
+
+coverage_report/*
+
+# Yaml files
+*.yaml

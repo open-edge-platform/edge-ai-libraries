@@ -1,0 +1,49 @@
+name: "[Time Series Analytics] Run weekly functional tests"
+run-name: "[Time Series Analytics] Run weekly functional tests"
+on:
+  schedule:
+    - cron: '0 14 * * 5' # 14:00 UTC
+  workflow_dispatch:
+  workflow_call:
+    inputs:
+      test_pattern:
+        description: 'Pytest pattern for tests to run (default: all tests)'
+        required: false
+        type: string
+        default: '.'
+permissions: {}
+
+jobs:
+  timeseries-weekly-functional-tests:
+    name: Weekly-Run TimeSeries Analytics Microservice tests
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: read
+      packages: read
+    strategy:
+      fail-fast: false
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@v1
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Run time-series-analytics-microservices function tests
+      run: |
+        cd "${{ github.workspace }}"
+        cd ./microservices/time-series-analytics/tests-functional
+        curl -sfL https://get.k3s.io | INSTALL_K3S_SELINUX_WARN=true INSTALL_K3S_VERSION=${K3S_VERSION} \
+        sh -s - --disable=traefik --write-kubeconfig-mode=644
+        export KUBECONFIG=/etc/rancher/k3s/k3s.yaml
+        echo "Running function tests"
+        pip3 install -r requirements.txt
+        rm -rf /tmp/test_report/report.html
+        pytest -q -vv --self-contained-html --html=/tmp/test_report/report.html ${{ inputs.test_pattern || '.' }}
+    - name: Upload HTML  test report to Github
+      uses: actions/upload-artifact@v4
+      with:
+        name: function-test-report
+        path: /tmp/test_report
+
+    

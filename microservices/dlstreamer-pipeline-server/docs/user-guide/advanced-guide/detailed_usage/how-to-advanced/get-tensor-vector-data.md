@@ -28,20 +28,12 @@ Follow the below steps to publish tensor vector data along with other metadata v
 
     `NOTE` By default, DL Streamer Pipeline Server provides a MQTT broker as part of the docker compose file. In case, the user wants to use a different broker please update the above variables accordingly. 
 
-4. Allow DL Streamer Pipeline Server to read the above modified configuration. We do this by volume mounting the modified default config.json in `docker-compose.yml` file. To learn more, refer [here](../../../how-to-change-dlstreamer-pipeline.md).
-    ```yaml
-    services:
-        dlstreamer-pipeline-server:
-            volumes:
-                - "../configs/default/config.json:/home/pipeline-server/config.json"
-    ```
-
-5. Start DL Streamer Pipeline Server.
+4. Start DL Streamer Pipeline Server.
     ```sh
     docker compose up -d
     ```
 
-6. Once started, send the following curl command to launch the pipeline
+5. Once started, send the following curl command to launch the pipeline
     ```sh
     curl localhost:8080/pipelines/user_defined_pipelines/pallet_defect_detection -X POST -H 'Content-Type: application/json' -d '{
         "source": {
@@ -51,7 +43,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
     }'
     ```
 
-7. You can check the vector output by subscribing to mqtt. You can check this [document](./../../detailed_usage/publisher/eis_mqtt_publish_doc.md#start-mqtt-subscriber) on how to configure and start mqtt subscriber.
+6. You can check the vector output by subscribing to mqtt. You can check this [document](./../../detailed_usage/publisher/eis_mqtt_publish_doc.md#start-mqtt-subscriber) on how to configure and start mqtt subscriber.
 
     Here's what a sample metadata for a frame looks like (some data deleted to keep size small).
     ```sh
@@ -161,7 +153,7 @@ Follow the below steps to publish tensor vector data along with other metadata v
         "timestamp": 0
     }
     ```
-8. To stop DL Streamer Pipeline Server and other services, run the following.
+7. To stop DL Streamer Pipeline Server and other services, run the following.
     ```sh
     docker compose down
     ```

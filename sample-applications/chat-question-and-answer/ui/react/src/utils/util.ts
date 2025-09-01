@@ -61,8 +61,8 @@ export const extractBetweenDotsWithExtension = (input: string): string => {
   if (!input) {
     return '';
   }
-  if (input.startsWith('intelgai')) {
-    input = input.slice('intelgai'.length + 1);
+  if (input.startsWith('appuser')) {
+    input = input.slice('appuser'.length + 1);
   }
 
   const firstDotIndex = input.indexOf('.');

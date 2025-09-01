@@ -1,0 +1,26 @@
+<launch>
+    <arg name="robot_name" default="robot01"/>
+    <arg name="manipulator_model" default="ra605_710_gb"/>
+    <arg name="manipulator_name" default="manipulator"/>
+    <arg name="gripper_model" default="none"/>
+    <arg name="gripper_name" default="gripper"/>
+
+    <!-- load the robot_description parameter before launching ROS-I nodes -->
+    <include file="$(find hiwin_robot_moveit_config)/launch/planning_context.launch" >
+        <arg name="load_robot_description" value="true" />
+        <arg name="manipulator_model" value="$(arg manipulator_model)"/>
+        <arg name="robot_description" value="robot_description"/>
+        <arg name="gripper_model" value="$(arg gripper_model)"/>
+    </include>
+
+    <include file="$(find hiwin_robot_moveit_config)/launch/move_group.launch">
+        <arg name="publish_monitored_planning_scene" value="true" />
+        <arg name="robot_description" value="robot_description"/>
+    </include>
+
+    <include file="$(find hiwin_robot_moveit_config)/launch/rviz.launch">
+    </include>
+
+  <node name="robot_state_publisher" pkg="robot_state_publisher" type="robot_state_publisher" />
+
+</launch>

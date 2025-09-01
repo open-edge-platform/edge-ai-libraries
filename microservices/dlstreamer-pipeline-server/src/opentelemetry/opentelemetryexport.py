@@ -10,10 +10,15 @@ import psutil
 import threading
 import requests
 from opentelemetry import metrics
+from opentelemetry import _logs
 from opentelemetry.sdk.metrics import MeterProvider
 from opentelemetry.sdk.resources import Resource
 from opentelemetry.exporter.otlp.proto.http.metric_exporter import OTLPMetricExporter
 from opentelemetry.sdk.metrics.export import PeriodicExportingMetricReader
+from opentelemetry.sdk._logs import LoggerProvider, LoggingHandler
+from opentelemetry.sdk._logs.export import BatchLogRecordProcessor
+from opentelemetry.exporter.otlp.proto.http._log_exporter import OTLPLogExporter
+
 from src.common.log import get_logger
 
 class OpenTelemetryExporter:
@@ -25,9 +30,10 @@ class OpenTelemetryExporter:
         service_name = os.getenv("SERVICE_NAME", "dlstreamer-pipeline-server")
         collector_host = os.getenv("OTEL_COLLECTOR_HOST", "otel-collector")
         collector_port = os.getenv("OTEL_COLLECTOR_PORT", "4318")
-        self.collector_url = f"http://{collector_host}:{collector_port}/v1/metrics"
+        self.metrics_collector_url = f"http://{collector_host}:{collector_port}/v1/metrics"
+        self.logs_collector_url = f"http://{collector_host}:{collector_port}/v1/logs"
 
-        self.log.debug(f"Collector URL: {self.collector_url}")
+        self.log.debug(f"Collector URL: {self.metrics_collector_url}")
 
         api_host = os.getenv("PIPELINE_API_HOST", "localhost")
         api_port = os.getenv("REST_SERVER_PORT", "8080")
@@ -41,11 +47,13 @@ class OpenTelemetryExporter:
         resource = Resource(attributes={"service.name": service_name})
 
         # Create the OTLP Metric Exporter
-        self.otlp_exporter = OTLPMetricExporter(endpoint=self.collector_url)
-        
+        self.otlp_metrics_exporter = OTLPMetricExporter(endpoint=self.metrics_collector_url)
+        # Create the OTLP Log Exporter
+        self.otlp_logs_exporter = OTLPLogExporter(endpoint=self.logs_collector_url)
+
         # Set up the PeriodicExportingMetricReader, which sends metrics to the OTLP exporter
         metric_reader = PeriodicExportingMetricReader(
-            exporter=self.otlp_exporter, 
+            exporter=self.otlp_metrics_exporter, 
             export_interval_millis=otel_export_interval_millis
         )
         
@@ -60,8 +68,24 @@ class OpenTelemetryExporter:
         
         # Create a Meter object to capture metrics
         self.meter = meter_provider.get_meter("container-metrics")
-        # self.meter = metrics.get_meter_provider().get_meter("container-metrics")
         
+        # Set up LoggerProvider with resource info
+        logger_provider = LoggerProvider(resource=resource)
+
+        # Set it as the global logger provider
+        _logs.set_logger_provider(logger_provider)
+
+        # Add OTLP log exporter processor
+        logger_provider.add_log_record_processor(
+            BatchLogRecordProcessor(self.otlp_logs_exporter)
+        )
+
+        # Attach OpenTelemetry logging handler to root logger
+        import logging
+        otel_log_level = os.getenv("LOG_LEVEL", "INFO").upper()
+        otel_logging_handler = LoggingHandler(level=getattr(logging, otel_log_level, logging.DEBUG))
+        logging.getLogger().addHandler(otel_logging_handler)
+
         # Create gauges to track CPU and memory usage
         self.cpu_usage = self.meter.create_gauge(
             "cpu_usage_percentage",

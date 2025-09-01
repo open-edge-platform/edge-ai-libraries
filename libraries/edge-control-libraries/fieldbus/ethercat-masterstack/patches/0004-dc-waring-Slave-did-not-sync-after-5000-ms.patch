@@ -1,0 +1,273 @@
+From bd124caf12eb9bb7259b61bcfa062387cc9d21f9 Mon Sep 17 00:00:00 2001
+From: zhangw2 <wei.e.zhang@intel.com>
+Date: Tue, 18 Jun 2024 14:41:12 +0800
+Subject: [PATCH 4/8] dc waring: Slave did not sync after 5000 ms.
+
+Signed-off-by: zhangw2 <wei.e.zhang@intel.com>
+---
+ master/datagram.c   |  1 +
+ master/datagram.h   |  1 +
+ master/fsm_master.c | 51 +++++++++++++++++----------------------------
+ master/master.c     | 26 ++++++++++++++++-------
+ master/master.h     |  1 +
+ 5 files changed, 40 insertions(+), 40 deletions(-)
+
+diff --git a/master/datagram.c b/master/datagram.c
+index a76bb49e..13802601 100644
+--- a/master/datagram.c
++++ b/master/datagram.c
+@@ -112,6 +112,7 @@ void ec_datagram_init(ec_datagram_t *datagram /**< EtherCAT datagram. */)
+     datagram->cycles_sent = 0;
+ #endif
+     datagram->jiffies_sent = 0;
++    datagram->app_time_sent = 0;
+ #ifdef EC_HAVE_CYCLES
+     datagram->cycles_received = 0;
+ #endif
+diff --git a/master/datagram.h b/master/datagram.h
+index a2921578..18bd9bd6 100644
+--- a/master/datagram.h
++++ b/master/datagram.h
+@@ -101,6 +101,7 @@ typedef struct {
+     cycles_t cycles_sent; /**< Time, when the datagram was sent. */
+ #endif
+     unsigned long jiffies_sent; /**< Jiffies, when the datagram was sent. */
++    uint64_t app_time_sent; /**< App time, when the datagram was sent. */
+ #ifdef EC_HAVE_CYCLES
+     cycles_t cycles_received; /**< Time, when the datagram was received. */
+ #endif
+diff --git a/master/fsm_master.c b/master/fsm_master.c
+index bbc7ac57..b734bcbf 100644
+--- a/master/fsm_master.c
++++ b/master/fsm_master.c
+@@ -439,6 +439,7 @@ void ec_fsm_master_state_broadcast(
+         // application applied configurations
+         if (master->config_changed) {
+             master->config_changed = 0;
++            master->dc_offset_valid = 0;
+ 
+             EC_MASTER_DBG(master, 1, "Configuration changed.\n");
+ 
+@@ -713,6 +714,7 @@ void ec_fsm_master_action_configure(
+ 
+     if (master->config_changed) {
+         master->config_changed = 0;
++        master->dc_offset_valid = 0;
+ 
+         // abort iterating through slaves,
+         // first compensate DC system time offsets,
+@@ -1021,6 +1023,7 @@ void ec_fsm_master_state_scan_slave(
+ 
+     if (master->slave_count) {
+         master->config_changed = 0;
++        master->dc_offset_valid = 0;
+ 
+         fsm->slave = master->slaves; // begin with first slave
+         ec_fsm_master_enter_write_system_times(fsm);
+@@ -1090,6 +1093,7 @@ void ec_fsm_master_enter_write_system_times(
+             fsm->state = ec_fsm_master_state_dc_read_offset;
+             return;
+         }
++        master->dc_offset_valid = 1;
+ 
+     } else {
+         if (master->active) {
+@@ -1115,30 +1119,23 @@ u64 ec_fsm_master_dc_offset32(
+         ec_fsm_master_t *fsm, /**< Master state machine. */
+         u64 system_time, /**< System time register. */
+         u64 old_offset, /**< Time offset register. */
+-        unsigned long jiffies_since_read /**< Jiffies for correction. */
++        u64 app_time_sent /**< Master app time by reading. */
+         )
+ {
+     ec_slave_t *slave = fsm->slave;
+-    u32 correction, system_time32, old_offset32, new_offset;
++    u32 system_time32, old_offset32, new_offset;
+     s32 time_diff;
+ 
+     system_time32 = (u32) system_time;
+     old_offset32 = (u32) old_offset;
+ 
+-    // correct read system time by elapsed time since read operation
+-#ifdef EC_USERMODE
+-    correction = jiffies_since_read * 1000 / NSEC_PER_SEC * 1000000;
+-#else
+-    correction = jiffies_since_read * 1000 / HZ * 1000000;
+-#endif
+-    system_time32 += correction;
+-    time_diff = (u32) slave->master->app_time - system_time32;
++    time_diff = (u32) app_time_sent - system_time32;
+ 
+     EC_SLAVE_DBG(slave, 1, "DC 32 bit system time offset calculation:"
+-            " system_time=%u (corrected with %u),"
++            " system_time=%u,"
+             " app_time=%llu, diff=%i\n",
+-            system_time32, correction,
+-            slave->master->app_time, time_diff);
++            system_time32,
++            app_time_sent, time_diff);
+ 
+     if (EC_ABS(time_diff) > EC_SYSTEM_TIME_TOLERANCE_NS) {
+         new_offset = time_diff + old_offset32;
+@@ -1161,27 +1158,20 @@ u64 ec_fsm_master_dc_offset64(
+         ec_fsm_master_t *fsm, /**< Master state machine. */
+         u64 system_time, /**< System time register. */
+         u64 old_offset, /**< Time offset register. */
+-        unsigned long jiffies_since_read /**< Jiffies for correction. */
++        u64 app_time_sent /**< Master app time by reading. */
+         )
+ {
+     ec_slave_t *slave = fsm->slave;
+-    u64 new_offset, correction;
++    u64 new_offset;
+     s64 time_diff;
+ 
+-    // correct read system time by elapsed time since read operation
+-#ifdef EC_USERMODE
+-    correction = jiffies_since_read * 1000 / NSEC_PER_SEC * 1000000;
+-#else
+-    correction = (u64) (jiffies_since_read * 1000 / HZ) * 1000000;
+-#endif
+-    system_time += correction;
+-    time_diff = fsm->slave->master->app_time - system_time;
++    time_diff = app_time_sent - system_time;
+ 
+     EC_SLAVE_DBG(slave, 1, "DC 64 bit system time offset calculation:"
+-            " system_time=%llu (corrected with %llu),"
++            " system_time=%llu,"
+             " app_time=%llu, diff=%lli\n",
+-            system_time, correction,
+-            slave->master->app_time, time_diff);
++            system_time,
++            app_time_sent, time_diff);
+ 
+     if (EC_ABS(time_diff) > EC_SYSTEM_TIME_TOLERANCE_NS) {
+         new_offset = time_diff + old_offset;
+@@ -1204,6 +1194,7 @@ void ec_fsm_master_state_dc_read_offset(
+         )
+ {
+     ec_datagram_t *datagram = fsm->datagram;
++
+     ec_slave_t *slave = fsm->slave;
+     u64 system_time, old_offset, new_offset;
+     unsigned long jiffies_since_read;
+@@ -1229,17 +1220,13 @@ void ec_fsm_master_state_dc_read_offset(
+ 
+     system_time = EC_READ_U64(datagram->data);     // 0x0910
+     old_offset = EC_READ_U64(datagram->data + 16); // 0x0920
+-#ifdef EC_USERMODE
+-    uint64_t jiffies = get_jiffies();
+-#endif
+-    jiffies_since_read = jiffies - datagram->jiffies_sent;
+ 
+     if (slave->base_dc_range == EC_DC_32) {
+         new_offset = ec_fsm_master_dc_offset32(fsm,
+-                system_time, old_offset, jiffies_since_read);
++                system_time, old_offset, datagram->app_time_sent);
+     } else {
+         new_offset = ec_fsm_master_dc_offset64(fsm,
+-                system_time, old_offset, jiffies_since_read);
++                system_time, old_offset, datagram->app_time_sent);
+     }
+ 
+     // set DC system time offset and transmission delay
+diff --git a/master/master.c b/master/master.c
+index 745e1792..103e4f74 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -1256,6 +1256,7 @@ void ec_master_send_datagrams(
+             datagram->cycles_sent = cycles_sent;
+ #endif
+             datagram->jiffies_sent = jiffies_sent;
++            datagram->app_time_sent = master->app_time;
+             list_del_init(&datagram->sent); // empty list of sent datagrams
+         }
+ 
+@@ -1419,14 +1420,17 @@ void ec_master_receive_datagrams(
+         datagram->working_counter = EC_READ_U16(cur_data);
+         cur_data += EC_DATAGRAM_FOOTER_SIZE;
+ 
+-        // dequeue the received datagram
+-        datagram->state = EC_DATAGRAM_RECEIVED;
+ #ifdef EC_HAVE_CYCLES
+         datagram->cycles_received =
+             master->devices[EC_DEVICE_MAIN].cycles_poll;
+ #endif
+         datagram->jiffies_received =
+             master->devices[EC_DEVICE_MAIN].jiffies_poll;
++#ifndef EC_USERMODE
++        barrier(); /* reordering might lead to races */
++#endif
++        // dequeue the received datagram
++        datagram->state = EC_DATAGRAM_RECEIVED;
+         list_del_init(&datagram->queue);
+     }
+ }
+@@ -2661,6 +2665,7 @@ int ecrt_master_activate(ec_master_t *master)
+ 
+     // notify state machine, that the configuration shall now be applied
+     master->config_changed = 1;
++    master->dc_offset_valid = 0;
+ 
+     return 0;
+ }
+@@ -2717,6 +2722,12 @@ int ecrt_master_deactivate(ec_master_t *master)
+ 
+     master->app_time = 0ULL;
+     master->dc_ref_time = 0ULL;
++    master->dc_offset_valid = 0;
++
++    /* Disallow scanning to get into the same state like after a master
++     * request (after ec_master_enter_operation_phase() is called). */
++    master->allow_scan = 0;
++    master->active = 0;
+ 
+ #ifdef EC_EOE
+     if (eoe_was_running) {
+@@ -2728,11 +2739,6 @@ int ecrt_master_deactivate(ec_master_t *master)
+         EC_MASTER_WARN(master, "Failed to restart master thread!\n");
+     }
+ 
+-    /* Disallow scanning to get into the same state like after a master
+-     * request (after ec_master_enter_operation_phase() is called). */
+-    master->allow_scan = 0;
+-
+-    master->active = 0;
+     return 0;
+ }
+ 
+@@ -3207,6 +3213,10 @@ int ecrt_master_reference_clock_time(const ec_master_t *master,
+         return -EIO;
+     }
+ 
++    if (!master->dc_offset_valid) {
++        return -EAGAIN;
++    }
++
+     // Get returned datagram time, transmission delay removed.
+     *time = EC_READ_U32(master->sync_datagram.data) -
+         master->dc_ref_clock->transmission_delay;
+@@ -3218,7 +3228,7 @@ int ecrt_master_reference_clock_time(const ec_master_t *master,
+ 
+ int ecrt_master_sync_reference_clock(ec_master_t *master)
+ {
+-    if (master->dc_ref_clock) {
++    if ((master->dc_ref_clock) && (master->dc_offset_valid)) {
+         EC_WRITE_U32(master->ref_sync_datagram.data, master->app_time);
+         ec_master_queue_datagram(master, &master->ref_sync_datagram);
+     } else {
+diff --git a/master/master.h b/master/master.h
+index 56f91c77..f8f329d6 100644
+--- a/master/master.h
++++ b/master/master.h
+@@ -249,6 +249,7 @@ struct ec_master {
+ 
+     u64 app_time; /**< Time of the last ecrt_master_sync() call. */
+     u64 dc_ref_time; /**< Common reference timestamp for DC start times. */
++    u8 dc_offset_valid; /**< DC slaves have valid system time offsets. */
+     ec_datagram_t ref_sync_datagram; /**< Datagram used for synchronizing the
+                                        reference clock to the master clock. */
+     ec_datagram_t sync_datagram; /**< Datagram used for DC drift
+-- 
+2.45.2
+

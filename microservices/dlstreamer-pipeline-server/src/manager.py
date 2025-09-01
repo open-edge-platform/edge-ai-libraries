@@ -33,8 +33,6 @@ class PipelineInstance:
                  name:str, 
                  version:str, 
                  config: Dict[str, Any], 
-                 publisher_config:List[Any], 
-                 subscriber_config: Dict[str, Any], 
                  subscriber_topic: str, 
                  publish_frame: bool, 
                  request:Optional[Dict[str,Any]]) -> None:
@@ -44,8 +42,6 @@ class PipelineInstance:
             name (str): name of the pipeline
             version (str): version of the pipeline
             config (Dict[str, Any]): pipeline config
-            publisher_config (List[Any]): list of EdgeGrpcPublisher config
-            subscriber_config (Dict[str, Any]): subscriber config
             subscriber_topic (str): subscriber topic
             publish_frame (bool): whether to publish frame
             request (Dict[str,Any], optional): start pipeline request typically via REST call. Defaults to None.
@@ -54,8 +50,6 @@ class PipelineInstance:
         self.name = name
         self.version = version
         self.config = config
-        self.pub_cfg = publisher_config
-        self.sub_cfg = subscriber_config
         self.sub_topic = subscriber_topic
         self.publish_frame = publish_frame
         self.source_type = config.get("source")
@@ -126,7 +120,7 @@ class PipelineInstance:
             raise RuntimeError(f'Unsupported source: {self.source_type}')
         
         request_cpy = copy.deepcopy(self.request)   # keep a copy of request to update instance summary
-        self.publisher = Publisher(self.config, self.pub_cfg, self.output_queue,request=self._request)
+        self.publisher = Publisher(self.config, self.output_queue,request=self._request)
 
         # add imagepublisher for source= "image_ingestor"
         if self.source_type == "image_ingestor":
@@ -286,7 +280,7 @@ class PipelineInstance:
             ERR = None
         except queue.Full:
             ERR = "Could not execute requeust due to timeout."
-            self.log.error(MSG_PREFIX, ERR)
+            self.log.error("{} {}".format(MSG_PREFIX, ERR))
             return DATA, ERR
         
         if not self.is_async:
@@ -294,7 +288,7 @@ class PipelineInstance:
             if not isinstance(self.publisher.image_publisher,ImagePublisher):
                 ERR = "Invalid publisher type for image ingestor"
                 DATA=None
-                self.log.error(MSG_PREFIX, ERR)
+                self.log.error("{} {}".format(MSG_PREFIX, ERR))
             else:
                 try:
                     RESPONSE_TIMEOUT = 5
@@ -315,7 +309,7 @@ class PipelineInstance:
                 except queue.Empty:
                     DATA= None
                     ERR= "Request execution timed out"
-                    self.log.error(MSG_PREFIX, ERR)
+                    self.log.error("{} {}".format(MSG_PREFIX, ERR))
         return DATA, ERR
 
     def get_status(self):
@@ -348,8 +342,6 @@ class Pipeline:
                  root_dir:str,
                  pipeline_name: str, 
                  pipeline_config: Dict[str,Any], 
-                 publisher_config: List[Any], 
-                 subscriber_config: Dict[str, Any], 
                  subscriber_topic:str, 
                  publish_frame:bool=False):
         """Intializes a pipeline.
@@ -358,8 +350,6 @@ class Pipeline:
             root_dir (str): path to all the pipelines
             pipeline_name (str): name of pipeline
             pipeline_config (Dict[str,Any]): pipeline configuration dict
-            publisher_config (List[Any]): list of publishers configuration
-            subscriber_config (Dict[str, Any]): subscriber configuration
             subscriber_topic (str): subscriber topic
             publish_frame (bool, optional): whether to publish frame. Defaults to False.
 
@@ -369,8 +359,6 @@ class Pipeline:
         self.pipeline_name = pipeline_name
         self.pipeline_config = pipeline_config
         self.pipeline_version = pipeline_config["name"]
-        self.pub_cfg = publisher_config # list of publishers
-        self.sub_cfg = subscriber_config
         self.sub_topic = subscriber_topic
         self.publish_frame = publish_frame
         self.instance_refcount = 0
@@ -411,9 +399,7 @@ class Pipeline:
         """
         pinstance = PipelineInstance(self.pipeline_name, 
                                      self.pipeline_version, 
-                                     self.pipeline_config, 
-                                     self.pub_cfg, 
-                                     self.sub_cfg, 
+                                     self.pipeline_config,  
                                      self.sub_topic, 
                                      self.publish_frame, 
                                      request)
@@ -480,29 +466,17 @@ class PipelineServerManager:
         for i, pipeline_cfg in enumerate(pipeline_configs):
             #TODO: add camera serial check
             pipeline_version = pipeline_cfg['name']
-            sub_cfg = None
-            pub_cfg = None
             sub_topic = None
-
-            if pipeline_cfg['source'] == "grpc":
-                subscribers = self.config.get_subscribers()
-                if len(subscribers)!=1:
-                    raise ValueError("Only single subscriber is supported.")
-                if not subscribers[0].is_emb_subscriber():
-                    raise ValueError("Subsciber must be an edge grpc subscriber")
-                            
-                sub_cfg = subscribers[0]    # TODO  enable multi-subscriber ?
-                sub_topic = sub_cfg.get_topics()[i]
 
             publish_frame = pipeline_cfg.get('publish_frame', False)
 
-            if publishers:  # only in EIS deployment, for standard, publisher info is inside pipeline cfg
-                pub_cfg = publishers
+            #if publishers:  # only in EIS deployment, for standard, publisher info is inside pipeline cfg
+            #    pub_cfg = publishers
                     
             # initialize pipeline
-            pipeline = Pipeline(self.pipeline_root, self.pipeline_name, pipeline_cfg, pub_cfg, sub_cfg, sub_topic, publish_frame)
+            pipeline = Pipeline(self.pipeline_root, self.pipeline_name, pipeline_cfg, sub_topic, publish_frame)
             self._PIPELINES[pipeline_version] = pipeline
-            self.log.info("Initialized pipeline: {} with publishers: {}".format(pipeline_version, pub_cfg))
+            self.log.info("Initialized pipeline: {}".format(pipeline_version))
 
     def start(self)->None:
         """Start Pipeline Server and autostart enabled pipelines """
@@ -599,7 +573,6 @@ class PipelineServerManager:
                        request:Dict[str, Any]=None)->Tuple[Union[str, None], Union[None, str]]:
         """POST /pipelines/{name}/{version}"""
         try:
-            self.log.info(self._PIPELINES)
             pipeline = self._PIPELINES[version]
         except KeyError:
             errmsg = "Pipeline not found"

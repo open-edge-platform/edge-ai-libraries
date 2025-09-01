@@ -1,3 +1,48 @@
+apiVersion: v1
+kind: ConfigMap
+metadata:
+  name: {{ include "nginx.fullname" . }}-config
+data:
+  nginx.conf: |
+    pid /tmp/nginx.pid;
+
+    events{}
+
+    http {
+      server {
+        listen 8102;
+        listen [::]:8102;
+
+        client_max_body_size 500M;
+        proxy_read_timeout 300;
+        proxy_connect_timeout 300;
+        proxy_send_timeout 300;
+
+        location / {
+              proxy_pass http://{{ index .Values "uiService" "name" }}:{{ index .Values "uiService" "port" }};
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "Upgrade";
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_cache_bypass $http_upgrade;
+        }
+        location /v1/chatqna {
+              proxy_pass http://{{ index .Values "chatqna" "name" }}:{{ index .Values "chatqna" "service" "port" }};
+              proxy_http_version 1.1;
+              proxy_set_header Upgrade $http_upgrade;
+              proxy_set_header Connection "Upgrade";
+              proxy_set_header Host $host;
+              proxy_set_header X-Real-IP $remote_addr;
+              proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+              proxy_set_header X-Forwarded-Proto $scheme;
+              proxy_cache_bypass $http_upgrade;
+        }
+      }
+    }
+---
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -14,13 +59,14 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginx:1.27.1 
+          image: nginxinc/nginx-unprivileged:1.27.4
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: 80
+            - containerPort: 8102
           volumeMounts:
             - name: nginx-config
-              mountPath: /etc/nginx/conf.d
+              mountPath: /etc/nginx/nginx.conf
+              subPath: nginx.conf
       volumes:
         - name: nginx-config
           configMap:
@@ -35,46 +81,7 @@ spec:
     app: {{ include "nginx.fullname" . }}
   ports:
     - protocol: TCP
-      port: 80
-      targetPort: 80
+      port: 8102
+      targetPort: 8102
       nodePort: {{ .Values.global.UI_NODEPORT }}
   type: NodePort
----
-apiVersion: v1
-kind: ConfigMap
-metadata:
-  name: {{ include "nginx.fullname" . }}-config
-data:
-  nginx.conf: |
-    server {
-      listen 80;
-      listen [::]:80;
-
-      client_max_body_size 500M;
-      proxy_read_timeout 300;
-      proxy_connect_timeout 300;
-      proxy_send_timeout 300; 
-
-      location / {
-            proxy_pass http://{{ index .Values "uiService" "name" }}:{{ index .Values "uiService" "port" }};
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "Upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_cache_bypass $http_upgrade;
-      }
-      location /v1/chatqna {
-            proxy_pass http://{{ index .Values "chatqna" "name" }}:{{ index .Values "chatqna" "service" "port" }};
-            proxy_http_version 1.1;
-            proxy_set_header Upgrade $http_upgrade;
-            proxy_set_header Connection "Upgrade";
-            proxy_set_header Host $host;
-            proxy_set_header X-Real-IP $remote_addr;
-            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
-            proxy_set_header X-Forwarded-Proto $scheme;
-            proxy_cache_bypass $http_upgrade;
-      }
-    }

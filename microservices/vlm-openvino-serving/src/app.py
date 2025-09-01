@@ -237,12 +237,15 @@ def initialize_model():
 
     try:
         model_config = load_model_config(model_name.split("/")[-1].lower())
+        ov_config = settings.get_ov_config_dict()
+        logger.debug(f"Using OpenVINO configuration: {ov_config}")
         if ModelNames.PHI in model_name.lower():
             pipe = OVModelForVisualCausalLM.from_pretrained(
                 model_dir,
                 device=settings.VLM_DEVICE.upper(),
                 trust_remote_code=True,
                 use_cache=False,
+                ov_config=ov_config
             )
             processor = AutoProcessor.from_pretrained(
                 model_name, trust_remote_code=True
@@ -255,6 +258,7 @@ def initialize_model():
                 device=settings.VLM_DEVICE.upper(),
                 trust_remote_code=True,
                 use_cache=False,
+                ov_config=ov_config
             )
             processor = AutoProcessor.from_pretrained(
                 model_dir,
@@ -263,7 +267,7 @@ def initialize_model():
                 max_pixels=int(eval(model_config.get("max_pixels"))),
             )
         else:
-            pipe = ov_genai.VLMPipeline(model_dir, device=settings.VLM_DEVICE.upper())
+            pipe = ov_genai.VLMPipeline(model_dir, device=settings.VLM_DEVICE.upper(), **ov_config)
             processor = None  # No processor needed for this case
         model_ready = is_model_ready(model_dir)
         logger.debug("Model is ready")

@@ -5,3 +5,5 @@ omit =
     *__main__*
     grpc/*
     udfs/python/anomalib_udf
+    config.py
+    config-3.py

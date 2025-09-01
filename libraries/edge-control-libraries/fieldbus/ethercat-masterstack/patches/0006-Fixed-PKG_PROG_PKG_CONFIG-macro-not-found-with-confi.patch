@@ -1,0 +1,42 @@
+From 03879d86794b37ef7439b07a31768aa9f94b6134 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Wed, 19 Jun 2024 08:51:05 +0800
+Subject: [PATCH 6/8] Fixed PKG_PROG_PKG_CONFIG macro not found with configure
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ configure.ac | 9 ++++-----
+ 1 file changed, 4 insertions(+), 5 deletions(-)
+
+diff --git a/configure.ac b/configure.ac
+index 492e5a10..44e072e5 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -39,10 +39,8 @@ AC_CONFIG_HEADERS([config.h])
+ AC_CONFIG_SRCDIR([config.h.in])
+ AC_CONFIG_MACRO_DIR([m4])
+ AC_PROG_SED
+-PKG_PROG_PKG_CONFIG
+-PKG_INSTALLDIR()
+ 
+-#CFLAGS="${CFLAGS} -g"
++# CFLAGS="${CFLAGS} -g"
+ #-----------------------------------------------------------------------------
+ # Global
+ #-----------------------------------------------------------------------------
+@@ -116,9 +114,10 @@ fi
+ AM_CONDITIONAL(ENABLE_USERMODE, test "x${usermode}" = "x1")
+ AC_SUBST(ENABLE_USERMODE,[${usermode}])
+ 
+-if test "x$usermode" = "x1"; then
++if test "x${usermode}" = "x1"; then
++PKG_PROG_PKG_CONFIG
++PKG_INSTALLDIR()
+ PKG_CHECK_MODULES([DPDK], [libdpdk])
+-#DPDK support
+ AC_ARG_ENABLE(dpdk,
+     AS_HELP_STRING([--enable-dpdk], [Enable DPDK support [default=no]]),
+                   [enable_dpdk=$enableval],[enable_dpdk=no])
+-- 
+2.45.2
+

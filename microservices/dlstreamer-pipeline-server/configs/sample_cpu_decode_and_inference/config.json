@@ -1,0 +1,24 @@
+{
+    "config": {
+        "pipelines": [
+            {
+                "name": "pallet_defect_detection",
+                "source": "gstreamer",
+                "queue_maxsize": 50,
+                "pipeline": "{auto_source} name=source ! parsebin ! avdec_h264 ! videoconvert ! video/x-raw ! queue ! gvadetect name=detection model-instance-id=inst0 device=CPU pre-process-backend=opencv ! gvametaconvert add-empty-results=true name=metaconvert ! gvametapublish name=destination ! queue ! gvafpscounter ! appsink name=appsink",
+                "parameters": {
+                    "type": "object",
+                    "properties": {
+                        "detection-properties": {
+                             "element": {
+                                "name": "detection",
+                                "format": "element-properties"
+                              }
+                        }
+                    }
+                },
+                "auto_start": false
+            }
+        ]
+    }
+}

@@ -1,7 +1,7 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { HEALTH_CHECK_URL, MODEL_URL } from '../config';
+import { HEALTH_CHECK_URL, MODEL_URL } from '../config.ts';
 import client from './client.ts';
 
 export const getCurrentTimeStamp = () => {
@@ -76,39 +76,19 @@ export const capitalize = (input: string): string => {
 export const checkHealth = async () => {
   try {
     const response = await client.get(HEALTH_CHECK_URL);
-    if (response.status === 200) {
-      return { status: response.status };
-    } else {
-      return {
-        status: response.status,
-        message:
-          'LLM model server is not ready to accept connections. Please try after a few minutes.',
-      };
-    }
+    return { status: response.status };
   } catch (error) {
-    return {
-      status: 503,
-      message:
-        'LLM model server is not ready to accept connections. Please try after a few minutes.',
-    };
+    return { status: 503 };
   }
 };
 
 export const fetchModelName = async () => {
   try {
-    const response = await client.get(MODEL_URL);
-    if (response.status === 200) {
-      return { status: 200, llmModel: response.data.llm_model };
-    } else {
-      return {
-        status: response.status,
-        message: 'LLM Model is not set',
-      };
-    }
-  } catch (error) {
-    return {
-      status: 503,
-      message: 'LLM Model is not set',
-    };
+    const { status, data } = await client.get(MODEL_URL);
+    return status === 200
+      ? { status, llmModel: data.llm_model }
+      : { status, message: 'LLM Model is not set' };
+  } catch {
+    return { status: 503, message: 'LLM Model is not set' };
   }
 };

@@ -1,0 +1,58 @@
+From a882442d9da21ac62575a1e5418f0b21af3c2f32 Mon Sep 17 00:00:00 2001
+From: Zhang Wei E <wei.e.zhang@intel.com>
+Date: Thu, 15 Aug 2024 13:09:22 +0800
+Subject: [PATCH] Remove get/set preempt parameters from ethtool
+
+Just remove get/set preempt parameters from ethtool to comppatible with
+non-rt linux kernel, which haven't defined both parameters in ops
+struct.
+
+Signed-off-by: Zhang Wei E <wei.e.zhang@intel.com>
+---
+ devices/igc/igc_ethtool-5.10-ethercat.c | 2 --
+ devices/igc/igc_ethtool-5.4-ethercat.c  | 2 --
+ devices/igc/igc_ethtool-6.1-ethercat.c  | 2 --
+ 3 files changed, 6 deletions(-)
+
+diff --git a/devices/igc/igc_ethtool-5.10-ethercat.c b/devices/igc/igc_ethtool-5.10-ethercat.c
+index 478a3499..72ce684e 100644
+--- a/devices/igc/igc_ethtool-5.10-ethercat.c
++++ b/devices/igc/igc_ethtool-5.10-ethercat.c
+@@ -1998,8 +1998,6 @@ static const struct ethtool_ops igc_ethtool_ops = {
+ 	.get_ts_info		= igc_ethtool_get_ts_info,
+ 	.get_channels		= igc_ethtool_get_channels,
+ 	.set_channels		= igc_ethtool_set_channels,
+-	.get_preempt		= igc_ethtool_get_preempt,
+-	.set_preempt		= igc_ethtool_set_preempt,
+ 	.get_priv_flags		= igc_ethtool_get_priv_flags,
+ 	.set_priv_flags		= igc_ethtool_set_priv_flags,
+ 	.get_eee		= igc_ethtool_get_eee,
+diff --git a/devices/igc/igc_ethtool-5.4-ethercat.c b/devices/igc/igc_ethtool-5.4-ethercat.c
+index 84240744..349249d5 100644
+--- a/devices/igc/igc_ethtool-5.4-ethercat.c
++++ b/devices/igc/igc_ethtool-5.4-ethercat.c
+@@ -1991,8 +1991,6 @@ static const struct ethtool_ops igc_ethtool_ops = {
+ 	.get_ts_info		= igc_ethtool_get_ts_info,
+ 	.get_channels		= igc_ethtool_get_channels,
+ 	.set_channels		= igc_ethtool_set_channels,
+-	.get_preempt		= igc_ethtool_get_preempt,
+-	.set_preempt		= igc_ethtool_set_preempt,
+ 	.get_priv_flags		= igc_ethtool_get_priv_flags,
+ 	.set_priv_flags		= igc_ethtool_set_priv_flags,
+ 	.get_eee		= igc_ethtool_get_eee,
+diff --git a/devices/igc/igc_ethtool-6.1-ethercat.c b/devices/igc/igc_ethtool-6.1-ethercat.c
+index 006bef66..4b4b69e2 100644
+--- a/devices/igc/igc_ethtool-6.1-ethercat.c
++++ b/devices/igc/igc_ethtool-6.1-ethercat.c
+@@ -2038,8 +2038,6 @@ static const struct ethtool_ops igc_ethtool_ops = {
+ 	.get_ts_info		= igc_ethtool_get_ts_info,
+ 	.get_channels		= igc_ethtool_get_channels,
+ 	.set_channels		= igc_ethtool_set_channels,
+-	.get_preempt		= igc_ethtool_get_preempt,
+-	.set_preempt		= igc_ethtool_set_preempt,
+ 	.get_priv_flags		= igc_ethtool_get_priv_flags,
+ 	.set_priv_flags		= igc_ethtool_set_priv_flags,
+ 	.get_eee		= igc_ethtool_get_eee,
+-- 
+2.46.0
+

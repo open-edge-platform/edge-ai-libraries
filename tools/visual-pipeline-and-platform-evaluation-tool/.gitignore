@@ -8,3 +8,4 @@ turbostat_output.log
 videos/
 models/*
 .coverage
+.public_models_env

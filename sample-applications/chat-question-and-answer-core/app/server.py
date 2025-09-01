@@ -8,7 +8,7 @@ from fastapi.responses import StreamingResponse, JSONResponse
 from http import HTTPStatus
 from pydantic import BaseModel
 from typing import Annotated
-from .config import Settings
+from .config import config
 from .logger import logger
 from .chain import (
     create_faiss_vectordb,
@@ -21,9 +21,7 @@ from .chain import (
 from .document import validate_document, save_document
 from .utils import get_available_devices, get_device_property
 
-app = FastAPI(root_path="/v1/chatqna")
-
-config = Settings()
+app = FastAPI(title="Chat Question and Answer Core", root_path="/v1/chatqna")
 
 app.add_middleware(
     CORSMiddleware,
@@ -279,7 +277,7 @@ async def delete_embedding(document: str = "", delete_all: bool = False):
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
 
-@app.post("/stream_log", tags=["Chat API"], summary="Get chat response")
+@app.post("/chat", tags=["Chat API"], summary="Get chat response")
 async def query_chat(request: ChatRequest):
     """
     Handles a chat request by processing the query through a series of models and returning the response.

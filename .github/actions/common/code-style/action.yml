@@ -1,0 +1,34 @@
+name: "Code Style Check"
+description: "Reusable action to check C/C++ code style with clang-format"
+inputs:
+  target_dir:
+    description: "Directory to check for C/C++ files"
+    required: false
+    default: "."
+
+runs:
+  using: "composite"
+  steps:
+    - name: Install dependencies
+      run: |
+        sudo apt-get update
+        sudo apt-get install --no-install-recommends -y clang-format curl ca-certificates build-essential
+        curl -fsSL https://deb.nodesource.com/setup_18.x | sudo -E bash -
+        sudo apt-get install -y nodejs
+        npm install -g diff2html-cli
+      shell: bash
+
+    - name: Run code style check
+      env:
+        target_dir: ${{ inputs.target_dir }}
+      run: |
+        chmod +x .github/actions/common/code-style/entrypoint.sh 
+        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}"
+      shell: bash
+
+    - name: Upload clang-format report on failure
+      if: failure()
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+      with:
+        name: code-style-report
+        path: _output/diff.html

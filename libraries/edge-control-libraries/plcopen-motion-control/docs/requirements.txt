@@ -1,0 +1,47 @@
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Sphinx
+sphinx~=7.4.7
+
+# Themes
+pydata-sphinx-theme~=0.16.1
+
+# Extensions
+sphinx_design~=0.6.1
+sphinx-copybutton~=0.5.2
+sphinx-favicon~=1.0.1
+sphinx-sitemap~=2.6.0
+sphinxcontrib-images~=0.9.4
+sphinxcontrib-jquery~=4.1
+sphinxcontrib-mermaid~=1.0.0
+sphinxcontrib-openapi~=0.8.4
+sphinxcontrib-spelling~=8.0.0
+sphinxcontrib.asciinema~=0.4.2
+sphinx-autobuild~=2024.10.3
+
+# documentation linting
+doc8~=1.1.2
+
+# license check
+reuse~=5.0.2
+
+# autogeneration
+ruamel.yaml~=0.18.10
+jinja2~=3.1.6
+
+# linting and formatting
+pylint~=3.3.4
+black~=25.1.0
+yamllint~=1.35.1
+
+# local files
+./docs/docconf
+
+# Used by "simple" documentation config
+myst-parser~=3.0.1
+sphinxcontrib-contentui~=0.2.5
+sphinxcontrib-video~=0.4.1
+sphinx-tabs~=3.4.7
+swagger-plugin-for-sphinx~=5.1.0
+

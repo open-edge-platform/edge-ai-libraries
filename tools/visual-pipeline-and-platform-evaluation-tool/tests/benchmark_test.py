@@ -5,7 +5,8 @@ from unittest.mock import patch
 
 sys.path.append(str(Path(__file__).resolve().parent.parent))
 from benchmark import Benchmark
-from pipeline import GstPipeline
+from gstpipeline import GstPipeline
+
 
 class TestPipeline(GstPipeline):
     def __init__(self):
@@ -19,7 +20,9 @@ class TestPipeline(GstPipeline):
             "fakesink"
         )
 
-    def evaluate(self, constants, parameters, inference_channels, regular_channels):
+    def evaluate(
+        self, constants, parameters, regular_channels, inference_channels, elements
+    ):
         return "gst-launch-1.0 -q " + " ".join(
             [self._pipeline.format(**parameters, **constants)]
             * (inference_channels + regular_channels)
@@ -32,7 +35,7 @@ class TestBenchmark(unittest.TestCase):
         self.pipeline_cls = TestPipeline
         self.fps_floor = 30.0
         self.rate = 50
-        self.parameters = {"object_detection_device": "cpu"}
+        self.parameters = {"object_detection_device": ["cpu"]}
         self.constants = {"const1": "value1"}
         self.elements = [("element1", "type1", "name1")]
         self.benchmark = Benchmark(
@@ -44,6 +47,7 @@ class TestBenchmark(unittest.TestCase):
             constants=self.constants,
             elements=self.elements,
         )
+
     def test_run_successful_scaling(self):
         with patch.object(Benchmark, "_run_pipeline_and_extract_metrics") as mock_run:
             mock_run.side_effect = [
@@ -77,7 +81,7 @@ class TestBenchmark(unittest.TestCase):
                         "num_streams": 5,
                     }
                 ],
-                []
+                [],
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (5, 3, 2, 31))
@@ -95,7 +99,7 @@ class TestBenchmark(unittest.TestCase):
                         "num_streams": 1,
                     }
                 ],
-                []
+                [],
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
@@ -113,7 +117,7 @@ class TestBenchmark(unittest.TestCase):
                         "num_streams": 1,
                     }
                 ],
-                []
+                [],
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
@@ -151,11 +155,11 @@ class TestBenchmark(unittest.TestCase):
                         "num_streams": 5,
                     }
                 ],
-                []
+                [],
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
-    
+
     def test_pipeline_crash(self):
         with patch.object(Benchmark, "_run_pipeline_and_extract_metrics") as mock_run:
             mock_run.side_effect = [
@@ -169,16 +173,14 @@ class TestBenchmark(unittest.TestCase):
                         "num_streams": 1,
                     }
                 ],
-                []
+                [],
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
-    
+
     def test_pipeline_returns_none(self):
         with patch.object(Benchmark, "_run_pipeline_and_extract_metrics") as mock_run:
-            mock_run.side_effect = [
-                [None]
-            ]
+            mock_run.side_effect = [[None]]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
 
@@ -197,6 +199,7 @@ class TestBenchmark(unittest.TestCase):
             ]
             result = self.benchmark.run()
             self.assertEqual(result, (0, 0, 0, 0.0))
+
 
 if __name__ == "__main__":
     unittest.main()
