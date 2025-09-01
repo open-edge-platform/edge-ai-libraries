@@ -40,7 +40,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "   nireq={object_detection_nireq} ! "
             "queue ! "
             "gvatrack "
-            "  tracking-type=short-term-imageless ! "
+            "  tracking-type={tracking_type} ! "
             "queue ! "
         )
 

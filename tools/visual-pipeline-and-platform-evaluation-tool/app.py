@@ -796,6 +796,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         elem_id="recording_channels",
     )
 
+    # Tracking type
+    tracking_type = gr.Dropdown(
+        label="Object Tracking Type",
+        choices=["short-term-imageless", "zero-term", "zero-term-imageless"],
+        value="short-term-imageless",
+        elem_id="tracking_type",
+    )
+
     # FPS floor
     fps_floor = gr.Number(
         label="Set FPS Floor",
@@ -1010,6 +1018,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(best_config_textbox)
     components.add(inferencing_channels)
     components.add(recording_channels)
+    components.add(tracking_type)
     components.add(fps_floor)
     components.add(ai_stream_rate)
     components.add(object_detection_model)
@@ -1424,6 +1433,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                     ],
                                 )
 
+                            # Render tracking_type dropdown
+                            tracking_type.render()
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
                             # Render live_preview_enabled checkbox
