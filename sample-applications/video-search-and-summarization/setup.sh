@@ -14,17 +14,30 @@ export CONFIG_DIR=${PWD}/config
 export NGINX_CONFIG=${CONFIG_DIR}/nginx.conf
 export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 
+# Function to stop Docker containers
+stop_containers() {
+    echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
+    return 0
+}
+
 # Setting command usage and invalid arguments handling before the actual setup starts
 if [ "$#" -eq 0 ] ||  ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     # If no valid argument is passed, print usage information
     echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --clean | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
     echo -e  "${YELLOW}"
     echo -e  "  --setenv:     Set environment variables without starting any containers"
     echo -e  "  --summary:    Configure and bring up Video Summarization application"
     echo -e  "  --search:     Configure and bring up Video Search application"
     echo -e  "  --all:        Configure and bring up both Video Summarization and Video Search applications"
     echo -e  "  --down:       Bring down all the docker containers for the application which was brought up."
+    echo -e  "  --clean:      Bring down all the docker containers and remove all docker volumes created by the application."
     echo -e  "  --help:       Show this help message"
     echo -e  "  config:       Optional argument (only works with --summary, --search, or --all) to print the final"
     echo -e  "                compose configuration with all variables resolved without starting containers${NC}"
@@ -36,7 +49,7 @@ elif [ "$#" -gt 2 ]; then
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
 
-elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ]; then
+elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ] && [ "$1" != "--clean" ]; then
     # Default case for unrecognized first option
     echo -e "${RED}Unknown option: $1 ${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
@@ -56,13 +69,27 @@ elif [ "$#" -eq 2 ] && [ "$2" = "config" ] && [ "$1" != "--summary" ] && [ "$1" 
 
 elif [ "$1" = "--down" ]; then
     # If --down is passed, bring down the Docker containers
-    echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    stop_containers
+    return $?
+
+elif [ "$1" = "--clean" ]; then
+    # If --clean is passed, bring down the Docker containers and remove volumes
+    stop_containers
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
     fi
-    echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
+    
+    echo -e "${YELLOW}Removing Docker volumes created by the application... ${NC}"
+
+    # Remove volumes 
+    docker volume rm docker_minio_data docker_pg_data docker_vdms-db  2>/dev/null || true
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}All volumes were successfully removed. ${NC}"
+    else
+        echo -e "${YELLOW}Note: Some volumes may not have existed or were already removed. ${NC}"
+    fi
+    echo -e "${GREEN}Clean operation completed successfully! ${NC}"
     return 0
 fi
 
@@ -246,8 +273,8 @@ echo -e "${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $
 echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
 
-# Verify if required environment variables are set in current shell, only when container down is not requested.
-if [ "$1" != "--down" ] && [ "$2" != "config" ]; then
+# Verify if required environment variables are set in current shell, only when container down or clean is not requested.
+if [ "$1" != "--down" ] && [ "$1" != "--clean" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return
