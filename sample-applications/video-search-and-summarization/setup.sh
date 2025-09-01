@@ -30,14 +30,14 @@ stop_containers() {
 if [ "$#" -eq 0 ] ||  ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     # If no valid argument is passed, print usage information
     echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --clean | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --clean-data | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
     echo -e  "${YELLOW}"
     echo -e  "  --setenv:     Set environment variables without starting any containers"
     echo -e  "  --summary:    Configure and bring up Video Summarization application"
     echo -e  "  --search:     Configure and bring up Video Search application"
     echo -e  "  --all:        Configure and bring up both Video Summarization and Video Search applications"
     echo -e  "  --down:       Bring down all the docker containers for the application which was brought up."
-    echo -e  "  --clean:      Bring down all the docker containers and remove all docker volumes created by the application."
+    echo -e  "  --clean-data: Bring down all the docker containers and remove all docker volumes for the user data."
     echo -e  "  --help:       Show this help message"
     echo -e  "  config:       Optional argument (only works with --summary, --search, or --all) to print the final"
     echo -e  "                compose configuration with all variables resolved without starting containers${NC}"
@@ -49,7 +49,7 @@ elif [ "$#" -gt 2 ]; then
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
 
-elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ] && [ "$1" != "--clean" ]; then
+elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ] && [ "$1" != "--clean-data" ]; then
     # Default case for unrecognized first option
     echo -e "${RED}Unknown option: $1 ${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
@@ -72,8 +72,8 @@ elif [ "$1" = "--down" ]; then
     stop_containers
     return $?
 
-elif [ "$1" = "--clean" ]; then
-    # If --clean is passed, bring down the Docker containers and remove volumes
+elif [ "$1" = "--clean-data" ]; then
+    # If --clean-data is passed, bring down the Docker containers and remove volumes
     stop_containers
     if [ $? -ne 0 ]; then
         return 1
@@ -274,7 +274,7 @@ echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL
 
 
 # Verify if required environment variables are set in current shell, only when container down or clean is not requested.
-if [ "$1" != "--down" ] && [ "$1" != "--clean" ] && [ "$2" != "config" ]; then
+if [ "$1" != "--down" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return

@@ -323,8 +323,7 @@ For alternative ways to set up the sample application, see:
 - You can try resetting the volume storage, by deleting the previously created volumes using following commands:
 
   ```bash
-  source setup.sh --down
-  docker volume rm docker_vdms-db docker_data-prep docker_audio_analyzer_data docker_data-prep docker_pg_data docker_vdms-db
+  source setup.sh --clean-data
   ```
   
   > **_NOTE :_** This step does not apply when you are setting up the application for the first time.
