@@ -207,6 +207,8 @@ Follow these steps to run the application:
    source setup.sh --down
    ```
 
+   > **💡 Clean Up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
+
 - **To run Video Summary only:**
 
     ```bash
