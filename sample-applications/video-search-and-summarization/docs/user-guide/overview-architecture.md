@@ -9,9 +9,9 @@ VSS foundational application provides three distinct modes in which its capabili
 ## Next Steps
 - [Get Started](./get-started.md)
 
+:::{toctree}
+:hidden:
 
-.. toctree::
-   :hidden:
-
-   overview-architecture-search
-   overview-architecture-summary
+overview-architecture-search
+overview-architecture-summary
+:::

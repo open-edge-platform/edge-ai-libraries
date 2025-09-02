@@ -1,6 +1,6 @@
 # ① Memory Interop and C++ abstract interfaces
 
-Intel® DL Streamer provides independent sub-component for zero-copy
+Deep Learning Streamer provides independent sub-component for zero-copy
 buffer sharing and memory interop between various frameworks and memory
 handles on CPU and GPU
 
@@ -51,7 +51,7 @@ refer to same physical memory block. Thus writing data into one memory
 handle makes the data available in all other memory handles, assuming
 proper synchronization between write and read operations.
 
-Below is reference to some low-level interfaces used by Intel® DL
+Below is reference to some low-level interfaces used by Deep Learning
 Streamer memory interop sub-components for zero-copy buffer sharing
 between media frameworks and OpenCL/SYCL
 
@@ -62,9 +62,9 @@ between media frameworks and OpenCL/SYCL
 3.  [OpenCL extension
     cl_khr_external_memory](https://registry.khronos.org/OpenCL/specs/3.0-unified/html/OpenCL_API.html#cl_khr_external_memory)
 
-## Memory interop in a few lines - using Intel® DL Streamer
+## Memory interop in a few lines - using Deep Learning Streamer
 
-Intel® DL Streamer hides complexity of dealing with low-level interfaces
+Deep Learning Streamer hides complexity of dealing with low-level interfaces
 and greatly simplifies memory interop by defining abstract interfaces
 [Tensor](./api_ref/class_dlstreamer_Tensor.md) and [MemoryMapper](./api_ref/class_dlstreamer_MemoryMapper.md),
 and providing header-only implementation of the `Tensor` interface for various frameworks and
@@ -80,17 +80,17 @@ framework `BBB` internally casts input pointer to specific class `AAA`
 Tensor / `AAA` Frame and creates output as specific class `BBB` Tensor /
 `BBB` Frame, see table below for each supported framework/library:
 
-  Framework / Library   Native memory object   Class implementing [Tensor](./api_ref/class_dlstreamer_Tensor)    Class implementing [Frame](./api_ref/class_dlstreamer_Frame)
-  --------------------- ---------------------- ---------------------------------------------------------------------------------------------- -------------------------------------------------------------------------------------------
-  CPU (no framework)    void\*                 [CPUTensor](./api_ref/class_dlstreamer_CPUTensor)                 [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
-  FFmpeg                AVFrame                                                                                                               [FFmpegFrame](./api_ref/class_dlstreamer_FFmpegFrame)
-  GStreamer             GstMemory, GstBuffer   [GSTTensor](./api_ref/class_dlstreamer_GSTTensor)                 [GSTFrame](./api_ref/class_dlstreamer_GSTFrame)
-  Level-zero            void\*                 [USMTensor](./api_ref/class_dlstreamer_USMTensor)                 [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
-  OpenCL                cl_mem                 [OpenCLTensor](./api_ref/class_dlstreamer_OpenCLTensor)           [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
-  OpenCV                cv::Mat                [OpenCVTensor](./api_ref/class_dlstreamer_OpenCVTensor)           [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
-  OpenCV                cv::UMat               [OpenCVUMatTensor](./api_ref/class_dlstreamer_OpenCVUMatTensor)   [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
-  OpenVINO™             ov::Tensor             [OpenVINOTensor](./api_ref/class_dlstreamer_OpenVINOTensor)       [OpenVINOFrame](./api_ref/class_dlstreamer_OpenVINOFrame)
-  SYCL                  void\*                 [SYCLUSMTensor](./api_ref/class_dlstreamer_SYCLUSMTensor)         [BaseFrame](./api_ref/class_dlstreamer_BaseFrame)
+  | Framework / Library | Native memory object | Class implementing [Tensor](./api_ref/class_dlstreamer_Tensor) |  Class implementing [Frame](./api_ref/class_dlstreamer_Frame) |
+  | --- | --- | --- | --- |
+  |CPU (no framework)|void\*|[CPUTensor](./api_ref/class_dlstreamer_CPUTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
+  |FFmpeg|AVFrame| |[FFmpegFrame](./api_ref/class_dlstreamer_FFmpegFrame)|
+  |GStreamer|GstMemory, GstBuffer|[GSTTensor](./api_ref/class_dlstreamer_GSTTensor)|[GSTFrame](./api_ref/class_dlstreamer_GSTFrame)|
+  |Level-zero|void\*|[USMTensor](./api_ref/class_dlstreamer_USMTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
+  |OpenCL|cl_mem|[OpenCLTensor](./api_ref/class_dlstreamer_OpenCLTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
+  |OpenCV|cv::Mat|[OpenCVTensor](./api_ref/class_dlstreamer_OpenCVTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
+  |OpenCV|cv::UMat|[OpenCVUMatTensor](./api_ref/class_dlstreamer_OpenCVUMatTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
+  |OpenVINO™|ov::Tensor|[OpenVINOTensor](./api_ref/class_dlstreamer_OpenVINOTensor)|[OpenVINOFrame](./api_ref/class_dlstreamer_OpenVINOFrame)|
+  |SYCL|void\*|[SYCLUSMTensor](./api_ref/class_dlstreamer_SYCLUSMTensor)|[BaseFrame](./api_ref/class_dlstreamer_BaseFrame)|
 
 Application can create `Tensor` and `Frame` objects by either passing
 pre-allocated native memory object to C++ constructor (wrap already
@@ -120,7 +120,7 @@ and GStreamer to OpenCV UMat is chain of the following mappers:
 
 ## Abstract interfaces for C++ elements
 
-Additionally, this Intel® DL Streamer sub-component defines abstract
+Additionally, this Deep Learning Streamer sub-component defines abstract
 interfaces [Source](./api_ref/class_dlstreamer_Source) ,
 [Transform](./api_ref/class_dlstreamer_Transform) and [Sink](./api_ref/class_dlstreamer_Sink) used as base interfaces for all C++ and GStreamer elements.
 These interfaces take unified pointers to
@@ -131,7 +131,7 @@ and [Frame](./api_ref/class_dlstreamer_Frame) objects as input and output parame
 
 ## How to use in CMake build system
 
-If application uses Intel® DL Streamer memory interop library and
+If application uses Deep Learning Streamer memory interop library and
 application based on cmake build system, add `pkg_check_modules` and
 `include_directories` statements like below:
 

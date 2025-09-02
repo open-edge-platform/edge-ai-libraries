@@ -18,7 +18,7 @@ Key components of the **Edge AI Libraries**:
 |:----------|:---------|:------------|:-----------------|
 | [Anomalib](https://github.com/open-edge-platform/anomalib) | Library | [Link](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-introduction) | [API Reference](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-training) |
 | [Dataset Management Framework (Datumaro)](https://github.com/open-edge-platform/datumaro)[`*`](#license) | Library | [Link](https://github.com/open-edge-platform/datumaro?tab=readme-ov-file#features) | [API Reference](https://open-edge-platform.github.io/datumaro/latest/docs/reference/datumaro_module.html) |
-| [Deep Learning Streamer](libraries/dl-streamer) | Library | [Link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
+| [Deep Learning Streamer](libraries/dl-streamer) | Library | [Link](./libraries/dl-streamer/docs/source/get_started/get_started_index.md) | [API Reference](./libraries/dl-streamer/docs/source/elements/elements.md) |
 | [ECAT EnableKit](libraries/edge-control-libraries/fieldbus/ecat-enablekit) | Library | [Link](libraries/edge-control-libraries/fieldbus/ecat-enablekit/README.md) | [API Reference](libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/ecat_intro.md) |
 | [EtherCAT Masterstack w/Intel silicon support](libraries/edge-control-libraries/fieldbus/ethercat-masterstack) | Library | [Link](libraries/edge-control-libraries/fieldbus/ethercat-masterstack/README.md) | [API Reference](https://docs.etherlab.org/ethercat/1.6/pdf/ethercat_doc.pdf) |
 | [FLANN optimized with oneAPI DPC++](libraries/robotics-ai-libraries/flann) | Library | [Link](libraries/robotics-ai-libraries/flann/README.md) | [API Reference](https://www.cs.ubc.ca/research/flann/uploads/FLANN/flann_manual-1.8.4.pdf) |
@@ -34,7 +34,7 @@ Key components of the **Edge AI Libraries**:
 | [RTmotion](libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion) | Library | [Link](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html) | [API Reference](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html#rtmotion-function-blocks) |
 | [Audio Intelligence](microservices/audio-intelligence) | Microservice | [Link](microservices/audio-intelligence/docs/user-guide/get-started.md) | [API Reference](microservices/audio-intelligence/docs/user-guide/api-reference.md) |
 | [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) | Microservice | [Link](microservices/dlstreamer-pipeline-server#quick-try-out) | [API Reference](microservices/dlstreamer-pipeline-server/docs/user-guide/api-docs/pipeline-server.yaml) |
-| [Document Ingestion](microservices/document-ingestion) | Microservice | [Link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
+| [Document Ingestion](microservices/document-ingestion/pgvector/README.md) | Microservice | [Link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
 | [Model Registry](microservices/model-registry) | Microservice | [Link](microservices/model-registry/docs/user-guide/get-started.md) | [API Reference](microservices/model-registry/docs/user-guide/api-docs/openapi.yaml) |
 | [Multimodal Embedding Serving](microservices/multimodal-embedding-serving) | Microservice | [Link](microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) | [API Reference](microservices/multimodal-embedding-serving/docs/user-guide/api-docs/openapi.yaml) |
 | [Time Series Analytics Microservice](microservices/time-series-analytics) | Microservice |  [Link](microservices/time-series-analytics/docs/user-guide/Overview.md) | [API Reference](microservices/time-series-analytics/docs/user-guide/api-reference.md), [Usage](microservices/time-series-analytics/docs/user-guide/get-started.md) |
@@ -79,5 +79,3 @@ The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE) li
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
 | Intel® SceneScape | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/scenescape/blob/main/LICENSE) |
-
-

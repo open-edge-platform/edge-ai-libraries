@@ -26,9 +26,9 @@ RECORDING_AND_INFERENCING_CHANNELS_LABEL = "Number of Recording + Inferencing ch
 with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
     css_code = f.read()
 
-theme = gr.themes.Default(
+theme = gr.themes.Default(  # pyright: ignore[reportPrivateImportUsage]
     primary_hue="blue",
-    font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],
+    font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],  # pyright: ignore[reportPrivateImportUsage]
 )
 
 # Initialize the pipeline based on the PIPELINE environment variable
@@ -91,7 +91,9 @@ chart_titles = [t for i, t in enumerate(all_chart_titles) if i not in indices_to
 y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
 
 # Create a dataframe for each chart
-stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
+stream_dfs = [
+    pd.DataFrame(columns=pd.Index(["x", "y"])) for _ in range(len(chart_titles))
+]
 figs = [
     go.Figure().update_layout(
         title=chart_titles[i], xaxis_title="Time", yaxis_title=y_labels[i]
@@ -142,7 +144,7 @@ def detect_click(evt: gr.SelectData):
     return gr.update(open=False)
 
 
-def read_latest_metrics(target_ns: int = None):
+def read_latest_metrics(target_ns: int | None = None):
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
             lines = [line.strip() for line in f.readlines()[-500:]]
@@ -474,14 +476,9 @@ def generate_stream_data(i, timestamp_ns=None):
             "Total Power": gpu_power,
         }
         if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
+            stream_dfs[i] = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
         stream_dfs[i] = pd.concat(
-            [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
-                pd.DataFrame([new_row]),
-            ],
+            [stream_dfs[i], pd.DataFrame([{"x": new_x, **metrics}])],
             ignore_index=True,
         ).tail(50)
         fig = figs[i]
@@ -505,14 +502,9 @@ def generate_stream_data(i, timestamp_ns=None):
         }
         # Prepare or update the DataFrame for this chart
         if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
+            stream_dfs[i] = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
         stream_dfs[i] = pd.concat(
-            [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
-                pd.DataFrame([new_row]),
-            ],
+            [stream_dfs[i], pd.DataFrame([{"x": new_x, **metrics}])],
             ignore_index=True,
         ).tail(50)
         fig = figs[i]
@@ -530,14 +522,9 @@ def generate_stream_data(i, timestamp_ns=None):
             "Total Power": gpu_power_0,
         }
         if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
+            stream_dfs[i] = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
         stream_dfs[i] = pd.concat(
-            [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
-                pd.DataFrame([new_row]),
-            ],
+            [stream_dfs[i], pd.DataFrame([{"x": new_x, **metrics}])],
             ignore_index=True,
         ).tail(50)
         fig = figs[i]
@@ -564,14 +551,9 @@ def generate_stream_data(i, timestamp_ns=None):
         }
         # Prepare or update the DataFrame for this chart
         if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
+            stream_dfs[i] = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
         stream_dfs[i] = pd.concat(
-            [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
-                pd.DataFrame([new_row]),
-            ],
+            [stream_dfs[i], pd.DataFrame([{"x": new_x, **metrics}])],
             ignore_index=True,
         ).tail(50)
         fig = figs[i]
@@ -584,10 +566,10 @@ def generate_stream_data(i, timestamp_ns=None):
             )
         return fig
 
-    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
-    stream_dfs[i] = pd.concat(
-        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], ignore_index=True
-    ).tail(50)
+    new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
+    base = stream_dfs[i] if not stream_dfs[i].empty else None
+    objs = [df for df in [base, new_row] if df is not None]
+    stream_dfs[i] = pd.concat(objs, ignore_index=True).tail(50)
 
     fig = figs[i]
     fig.data = []  # clear previous trace
@@ -775,7 +757,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
     # Pipeline diagram image
     pipeline_image = gr.Image(
-        value=current_pipeline[0].diagram(),
+        value=str(current_pipeline[0].diagram()),
         label="Pipeline Diagram",
         elem_id="pipeline_image",
         interactive=False,
@@ -795,7 +777,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Inferencing channels
     inferencing_channels = gr.Slider(
         minimum=0,
-        maximum=30,
+        maximum=64,
         value=8,
         step=1,
         label="Number of Recording + Inferencing channels",
@@ -806,7 +788,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Recording channels
     recording_channels = gr.Slider(
         minimum=0,
-        maximum=30,
+        maximum=64,
         value=8,
         step=1,
         label="Number of Recording only channels",
@@ -1099,7 +1081,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             lambda: (
                 globals().update(
                     stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
+                        pd.DataFrame(columns=pd.Index(["x", "y"]))
                         for _ in range(len(chart_titles))
                     ]
                 )
@@ -1164,7 +1146,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             lambda: (
                 globals().update(
                     stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
+                        pd.DataFrame(columns=pd.Index(["x", "y"]))
                         for _ in range(len(chart_titles))
                     ]
                 )
@@ -1340,7 +1322,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 lambda: (
                                     globals().update(
                                         stream_dfs=[
-                                            pd.DataFrame(columns=["x", "y"])
+                                            pd.DataFrame(columns=pd.Index(["x", "y"]))
                                             for _ in range(len(chart_titles))
                                         ]
                                     )
@@ -1475,7 +1457,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 )
 
                         # Inference Parameters Accordion
-                        with inference_accordion.render():
+                        inference_accordion.render()
+                        with inference_accordion:
                             # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()

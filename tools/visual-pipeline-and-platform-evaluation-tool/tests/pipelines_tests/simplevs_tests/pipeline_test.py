@@ -78,6 +78,10 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
         # Check that opencv is used for pre-processing
         self.assertIn("pre-process-backend=opencv", result)
 
+        # Check that gvametaconvert and gvametapublish are used for metadata processing
+        self.assertIn("gvametaconvert", result)
+        self.assertIn("gvametapublish", result)
+
         # Check that output is set
         self.output_present_check(result)
 
