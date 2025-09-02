@@ -24,9 +24,9 @@ class Benchmark:
         pipeline_cls,
         fps_floor: float,
         rate: int,
-        parameters: Dict[str, str],
+        parameters: Dict[str, List[str]],
         constants: Dict[str, str],
-        elements: List[tuple[str, str, str]] = None,
+        elements: List[tuple[str, str, str]] | None = None,
     ):
         self.video_path = video_path
         self.pipeline_cls = pipeline_cls
@@ -44,7 +44,7 @@ class Benchmark:
         self,
         pipeline_cls,
         constants: Dict[str, str],
-        parameters: Dict[str, str],
+        parameters: Dict[str, List[str]],
         channels: Tuple[int, int],
         elements: List[tuple[str, str, str]],
     ) -> List[Dict[str, float]]:

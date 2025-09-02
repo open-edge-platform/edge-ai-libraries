@@ -5,6 +5,7 @@ import unittest
 from unittest.mock import MagicMock, patch
 import itertools
 
+from gstpipeline import GstPipeline
 import utils
 from utils import (
     prepare_video_and_constants,
@@ -33,18 +34,20 @@ class TestUtils(unittest.TestCase):
     ):
         mock_exists.return_value = True
         output_path, constants, param_grid = prepare_video_and_constants(
-            input_video_player=self.input_video,
-            object_detection_model="SSDLite MobileNet V2 (INT8)",
-            object_detection_device="CPU",
-            object_detection_batch_size=1,
-            object_detection_nireq=1,
-            object_detection_inference_interval=1,
-            object_classification_model="ResNet-50 TF (INT8)",
-            object_classification_device="CPU",
-            object_classification_batch_size=1,
-            object_classification_nireq=1,
-            object_classification_inference_interval=1,
-            object_classification_reclassify_interval=1,
+            **{
+                "input_video_player": self.input_video,
+                "object_detection_model": "SSDLite MobileNet V2 (INT8)",
+                "object_detection_device": "CPU",
+                "object_detection_batch_size": 1,
+                "object_detection_nireq": 1,
+                "object_detection_inference_interval": 1,
+                "object_classification_model": "ResNet-50 TF (INT8)",
+                "object_classification_device": "CPU",
+                "object_classification_batch_size": 1,
+                "object_classification_nireq": 1,
+                "object_classification_inference_interval": 1,
+                "object_classification_reclassify_interval": 1,
+            }
         )
         mock_remove.assert_called_once()
         self.assertTrue(output_path.endswith(".mp4"))
@@ -58,8 +61,15 @@ class TestUtils(unittest.TestCase):
     @patch("utils.select.select")
     def test_run_pipeline_and_extract_metrics(self, mock_select, mock_ps, mock_popen):
         # Mock pipeline command
-        class DummyPipeline:
-            def evaluate(self, *_):
+        class DummyPipeline(GstPipeline):
+            def evaluate(
+                self,
+                constants,
+                parameters,
+                regular_channels,
+                inference_channels,
+                elements,
+            ):
                 return "gst-launch-1.0 videotestsrc ! fakesink"
 
         # Mock process
@@ -107,8 +117,15 @@ class TestUtils(unittest.TestCase):
     @patch("utils.Popen")
     def test_stop_pipeline(self, mock_popen):
         # Mock pipeline command
-        class DummyPipeline:
-            def evaluate(self, *_):
+        class DummyPipeline(GstPipeline):
+            def evaluate(
+                self,
+                constants,
+                parameters,
+                regular_channels,
+                inference_channels,
+                elements,
+            ):
                 return "gst-launch-1.0 videotestsrc ! fakesink"
 
         # Mock process

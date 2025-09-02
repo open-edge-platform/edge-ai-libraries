@@ -18,6 +18,10 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         self._diagram = Path(os.path.dirname(__file__)) / "diagram.png"
 
+        self._bounding_boxes = [
+            (330, 110, 445, 170, "Inference", "Object Detection"),
+        ]
+
         self._inference_stream_decode_detect_track = (
             # Input
             "filesrc location={VIDEO_PATH} ! "
@@ -88,8 +92,11 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: list = None,
+        elements: list | None = None,
     ) -> str:
+        if elements is None:
+            elements = []
+
         # Set decoder element based on device
         _decoder_element = (
             "decodebin3 "
@@ -148,6 +155,8 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         streams = ""
 
         # Prepare shmsink and meta if live_preview_enabled
+        width = 0
+        height = 0
         if parameters["live_preview_enabled"]:
             # Get resolution using get_video_resolution
             video_path = constants.get("VIDEO_PATH", "")
