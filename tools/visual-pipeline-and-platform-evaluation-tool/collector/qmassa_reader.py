@@ -62,27 +62,27 @@ def load_log_file():
     sys.exit(1)
 
 
-def emit_engine_usage(eng_usage, gpu_id, ts):
+def emit_engine_usage(eng_usage, gpu_id, dev_nodes, ts):
     for eng, vals in eng_usage.items():
         if vals:
             print(
-                f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id} usage={vals[-1]} {ts}"
+                f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} usage={vals[-1]} {ts}"
             )
 
 
-def emit_frequency(freqs, gpu_id, ts):
+def emit_frequency(freqs, gpu_id, dev_nodes, ts):
     if freqs and isinstance(freqs[-1], list):
         freq_entry = freqs[-1][0]
         if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
             print(
-                f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id={gpu_id} value={freq_entry['cur_freq']} {ts}"
+                f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} value={freq_entry['cur_freq']} {ts}"
             )
 
 
-def emit_power(power, gpu_id, ts):
+def emit_power(power, gpu_id, dev_nodes, ts):
     if power:
         for key, val in power[-1].items():
-            print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}")
+            print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} value={val} {ts}")
 
 
 def process_device_metrics(dev, gpu_id, current_ts_ns):
@@ -90,10 +90,11 @@ def process_device_metrics(dev, gpu_id, current_ts_ns):
     eng_usage = dev_stats.get("eng_usage", {})
     freqs = dev_stats.get("freqs", [])
     power = dev_stats.get("power", [])
+    dev_nodes = f'"{dev.get("dev_nodes", "")}"'
 
-    emit_engine_usage(eng_usage, gpu_id, current_ts_ns)
-    emit_frequency(freqs, gpu_id, current_ts_ns)
-    emit_power(power, gpu_id, current_ts_ns)
+    emit_engine_usage(eng_usage, gpu_id, dev_nodes, current_ts_ns)
+    emit_frequency(freqs, gpu_id, dev_nodes, current_ts_ns)
+    emit_power(power, gpu_id, dev_nodes, current_ts_ns)
 
 
 def process_states(data):
@@ -105,20 +106,14 @@ def process_states(data):
 
         current_ts_ns = int(time.time() * 1e9)
 
-        # Use the last state from 2 iterations, to get the non-zero power values
         devs_state = states[-1].get("devs_state", [])
         if not devs_state:
             logging.warning("No devs_state found in the log file")
             return
 
-        # If there are multiple devices, process the last two
-        if len(devs_state) >= 2:
-            for gpu_id, dev in enumerate(devs_state[-2:]):
-                process_device_metrics(dev, gpu_id, current_ts_ns)
-        else:
-            # If only one device, process it
-            dev = devs_state[-1]
-            process_device_metrics(dev, 0, current_ts_ns)
+        # Process all devices in devs_state
+        for gpu_id, dev in enumerate(devs_state):
+            process_device_metrics(dev, gpu_id, current_ts_ns)
     except Exception as e:
         logging.error(f"Error processing log file: {e}")
 
