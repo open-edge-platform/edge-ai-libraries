@@ -2,7 +2,7 @@ LICENSE             @xwu2intel
 CONTRIBUTING.md     @xwu2intel
 CODE_OF_CONDUCT.md  @xwu2intel
 SECURITY.md         @xwu2intel
-README.md           @xwu2intel  @open-edge-platform/open-edge-platform-docs-write
+README.md           @xwu2intel
 
 /.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
 
@@ -14,9 +14,9 @@ README.md           @xwu2intel  @open-edge-platform/open-edge-platform-docs-writ
 
 # microservices
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey
-/microservices/dlstreamer-pipeline-server/             @rrajore @sajeevrajput @ajagadi1
+/microservices/dlstreamer-pipeline-server/             @sajeevrajput @ajagadi1
 /microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
-/microservices/model-registry/                         @rrajore @elroyashjr
+# lack of owners - /microservices/model-registry/
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe
 /microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
@@ -74,16 +74,15 @@ README.md           @xwu2intel  @open-edge-platform/open-edge-platform-docs-writ
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/jaka/run_jaka_plc/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/robotics-ai-libraries/motion-control-gateway/robot_arm/utils/pykdl_utils/README.md                @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 
-
 # documentation content: microservices
 /microservices/audio-analyzer/docs/                             @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey              @open-edge-platform/open-edge-platform-docs-write
 /microservices/audio-analyzer/README.md                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey              @open-edge-platform/open-edge-platform-docs-write
-/microservices/dlstreamer-pipeline-server/docs/                 @rrajore @sajeevrajput @ajagadi1                                @open-edge-platform/open-edge-platform-docs-write
-/microservices/dlstreamer-pipeline-server/README.md             @rrajore @sajeevrajput @ajagadi1                                @open-edge-platform/open-edge-platform-docs-write
+# commented out due to the three-owner minimum rule - /microservices/dlstreamer-pipeline-server/docs/                 @sajeevrajput @ajagadi1                                @open-edge-platform/open-edge-platform-docs-write
+# commented out due to the three-owner minimum rule - /microservices/dlstreamer-pipeline-server/README.md             @sajeevrajput @ajagadi1                                @open-edge-platform/open-edge-platform-docs-write
 /microservices/document-ingestion/docs/                         @bharagha @madhuri-rai07 @yogeshmpandey                         @open-edge-platform/open-edge-platform-docs-write
 /microservices/document-ingestion/README.md                     @bharagha @madhuri-rai07 @yogeshmpandey                         @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-registry/docs/                             @rrajore @elroyashjr                                            @open-edge-platform/open-edge-platform-docs-write
-/microservices/model-registry/README.md                         @rrajore @elroyashjr                                            @open-edge-platform/open-edge-platform-docs-write
+# lack of owners - /microservices/model-registry/docs/
+# lack of owners - /microservices/model-registry/README.md
 /microservices/multimodal-embedding-serving/docs/               @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
 /microservices/multimodal-embedding-serving/README.md           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
 /microservices/time-series-analytics/docs/                      @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe     @open-edge-platform/open-edge-platform-docs-write
@@ -95,7 +94,6 @@ README.md           @xwu2intel  @open-edge-platform/open-edge-platform-docs-writ
 /microservices/vlm-openvino-serving/docs/                       @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
 /microservices/vlm-openvino-serving/README.md                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60                @open-edge-platform/open-edge-platform-docs-write
 
-
 # documentation content: sample-applications
 /sample-applications/chat-question-and-answer/docs/             @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/chat-question-and-answer/README.md         @bharagha @yogeshmpandey @madhuri-rai07             @open-edge-platform/open-edge-platform-docs-write
@@ -105,7 +103,6 @@ README.md           @xwu2intel  @open-edge-platform/open-edge-platform-docs-writ
 /sample-applications/plcopen-databus/README.md                  @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz   @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/video-search-and-summarization/docs/       @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
 /sample-applications/video-search-and-summarization/README.md   @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
-
 
 # documentation content: tools
 /tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
