@@ -412,6 +412,8 @@ def classifier_startup(config):
     udf_name = config['udfs']['name']
     if "models" in config['udfs'].keys():
         model_name = config['udfs']['models']
+    else:
+        model_name = ""
 
     if os.getenv("SAMPLE_APP") is not None:
         dir_name = os.getenv("SAMPLE_APP")
@@ -437,7 +439,7 @@ def classifier_startup(config):
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
         'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
-        'MODEL_PATH': "/tmp/" + dir_name + "/models/" + model_name
+        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name)
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
