@@ -89,7 +89,7 @@ class SmartNVRPipeline(GstPipeline):
             "  nireq={object_detection_nireq} ! "
             "queue2 ! "
             "gvatrack "
-            "  tracking-type=short-term-imageless ! "
+            "  tracking-type={tracking_type} ! "
             "queue2 ! "
         )
 

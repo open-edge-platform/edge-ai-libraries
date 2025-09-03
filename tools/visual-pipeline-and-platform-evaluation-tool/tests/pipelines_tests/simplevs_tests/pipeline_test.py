@@ -26,6 +26,9 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
         # Check that input is set
         self.assertIn("location=input.mp4", result)
 
+        # Check that tracking is set to short-term-imageless
+        self.assertIn("tracking-type=short-term-imageless", result)
+
         # Check that the number of inference channels is correct
         self.assertEqual(result.count("gvadetect"), self.inference_channels)
         self.assertEqual(result.count("gvaclassify"), self.inference_channels)
@@ -51,6 +54,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": True,
                 "pipeline_video_enabled": True,
                 "live_preview_enabled": False,
@@ -98,6 +102,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": True,
                 "pipeline_video_enabled": True,
                 "live_preview_enabled": False,
@@ -150,6 +155,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": True,
                 "pipeline_video_enabled": True,
                 "live_preview_enabled": False,
@@ -186,6 +192,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": False,
                 "pipeline_video_enabled": True,
                 "live_preview_enabled": False,
@@ -220,6 +227,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": False,
                 "pipeline_video_enabled": False,
                 "live_preview_enabled": False,
@@ -254,6 +262,7 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
                 "object_classification_inference_interval": 1,
                 "object_classification_nireq": 0,
                 "object_classification_reclassify_interval": 1,
+                "tracking_type": "short-term-imageless",
                 "pipeline_watermark_enabled": True,
                 "pipeline_video_enabled": False,
                 "live_preview_enabled": False,
