@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime
-from typing import Dict, Tuple
+from typing import Dict, List, Tuple
 
 import gradio as gr
 import pandas as pd
@@ -10,6 +10,7 @@ import requests
 
 import utils
 from benchmark import Benchmark
+from chart import Chart, create_charts
 from device import DeviceDiscovery
 from explore import GstInspector
 from optimize import PipelineOptimizer
@@ -35,70 +36,15 @@ theme = gr.themes.Default(
 current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
     os.environ.get("PIPELINE", "").lower()
 )
-device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
+device_discovery = DeviceDiscovery()
 
-# Get available and preferred devices for inference
+# Device detection and chart title logic
 device_choices = [
     (device.full_device_name, device.device_name)
     for device in device_discovery.list_devices()
 ]
-
-# Device detection and chart title logic (move here, fix indentation)
-has_igpu = any("iGPU" in name or "igpu" in name for name, _ in device_choices)
-has_dgpu = any(
-    "dGPU" in name or "dgpu" in name or "Discrete" in name or "discrete" in name
-    for name, _ in device_choices
-)
-
-all_chart_titles = [
-    "Pipeline Throughput [FPS]",
-    "CPU Utilization [%]",
-    "Integrated GPU Engine Utilization [%]",
-    "Discrete GPU Engine Utilization [%]",
-    "Memory Utilization [%]",
-    "Integrated GPU Power Usage [W] (Package & Total)",
-    "Integrated GPU Frequency [MHz]",
-    "Discrete GPU Power Usage [W] (Package & Total)",
-    "Discrete GPU Frequency [MHz]",
-    "CPU Frequency [KHz]",
-    "CPU Temperature [C°]",
-]
-all_y_labels = [
-    "Throughput",
-    "Utilization",
-    "Utilization",
-    "Utilization",
-    "Utilization",
-    "Power",
-    "Frequency",
-    "Power",
-    "Frequency",
-    "Frequency",
-    "Temperature",
-]
-
-igpu_indices = [2, 5, 6]
-dgpu_indices = [3, 7, 8]
-
-indices_to_remove = []
-if not has_igpu:
-    indices_to_remove += igpu_indices
-if not has_dgpu:
-    indices_to_remove += dgpu_indices
-
-chart_titles = [t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove]
-y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
-
-# Create a dataframe for each chart
-stream_dfs = [pd.DataFrame(columns=["x", "y"]) for _ in range(len(chart_titles))]
-figs = [
-    go.Figure().update_layout(
-        title=chart_titles[i], xaxis_title="Time", yaxis_title=y_labels[i]
-    )
-    for i in range(len(chart_titles))
-]
-
+charts: List[Chart] = create_charts(device_choices)
 
 # Download File
 def download_file(url, local_filename):
@@ -418,19 +364,8 @@ def normalize_engine_names(line: str) -> str:
     )
 
 
-def create_empty_fig(title, y_axis_label):
-    fig = go.Figure()
-    fig.update_layout(title=title, xaxis_title="Time", yaxis_title=y_axis_label)
-    return fig
-
-
-# Store figures globally
-figs = [
-    create_empty_fig(chart_titles[i], y_labels[i]) for i in range(len(chart_titles))
-]
-
-
 def generate_stream_data(i, timestamp_ns=None):
+    chart = charts[i]
     new_x = (
         datetime.now()
         if timestamp_ns is None
@@ -462,19 +397,15 @@ def generate_stream_data(i, timestamp_ns=None):
         gpu_compute_0,
     ) = read_latest_metrics(timestamp_ns)
 
+    latest_fps = 0
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
             lines = [line.strip() for line in f.readlines()[-500:]]
             latest_fps = float(lines[-1])
-
-    except FileNotFoundError:
+    except (FileNotFoundError, IndexError):
         latest_fps = 0
 
-    except IndexError:
-        latest_fps = 0
-
-    title = chart_titles[i]
-
+    title = chart.title
     if title == "Pipeline Throughput [FPS]":
         new_y = latest_fps
     elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
@@ -490,26 +421,23 @@ def generate_stream_data(i, timestamp_ns=None):
             "Package Power": gpu_package_power,
             "Total Power": gpu_power,
         }
-        if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        if chart.df.empty:
+            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
         new_row = {"x": new_x}
         new_row.update(metrics)
-        stream_dfs[i] = pd.concat(
+        chart.df = pd.concat(
             [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
+                chart.df if not chart.df.empty else None,
                 pd.DataFrame([new_row]),
             ],
             ignore_index=True,
         ).tail(50)
-        fig = figs[i]
-        fig.data = []
+        chart.fig.data = []
         for key in metrics.keys():
-            fig.add_trace(
-                go.Scatter(
-                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
-                )
+            chart.fig.add_trace(
+                go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
             )
-        return fig
+        return chart.fig
     elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
         new_y = gpu_freq
     elif title == "Discrete GPU Engine Utilization [%]":
@@ -521,51 +449,49 @@ def generate_stream_data(i, timestamp_ns=None):
             "Compute": gpu_compute,
         }
         # Prepare or update the DataFrame for this chart
-        if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        if chart.df.empty:
+            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
         new_row = {"x": new_x}
         new_row.update(metrics)
-        stream_dfs[i] = pd.concat(
+        chart.df = pd.concat(
             [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
+                chart.df if not chart.df.empty else None,
                 pd.DataFrame([new_row]),
             ],
             ignore_index=True,
         ).tail(50)
-        fig = figs[i]
-        fig.data = []
+        chart.fig.data = []
         for key in metrics.keys():
-            fig.add_trace(
+            chart.fig.add_trace(
                 go.Scatter(
-                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
                 )
             )
-        return fig
+        return chart.fig
     elif title == "Integrated GPU Power Usage [W] (Package & Total)":
         metrics = {
             "Package Power": gpu_package_power_0,
             "Total Power": gpu_power_0,
         }
-        if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        if chart.df.empty:
+            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
         new_row = {"x": new_x}
         new_row.update(metrics)
-        stream_dfs[i] = pd.concat(
+        chart.df = pd.concat(
             [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
+                chart.df if not chart.df.empty else None,
                 pd.DataFrame([new_row]),
             ],
             ignore_index=True,
         ).tail(50)
-        fig = figs[i]
-        fig.data = []
+        chart.fig.data = []
         for key in metrics.keys():
-            fig.add_trace(
+            chart.fig.add_trace(
                 go.Scatter(
-                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
                 )
             )
-        return fig
+        return chart.fig
     elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
         new_y = gpu_freq_0
     # Consolidated GPU 0 Engine Utilization chart
@@ -580,37 +506,35 @@ def generate_stream_data(i, timestamp_ns=None):
             "Compute": gpu_compute_0,
         }
         # Prepare or update the DataFrame for this chart
-        if stream_dfs[i].empty:
-            stream_dfs[i] = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+        if chart.df.empty:
+            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
         new_row = {"x": new_x}
         new_row.update(metrics)
-        stream_dfs[i] = pd.concat(
+        chart.df = pd.concat(
             [
-                stream_dfs[i] if not stream_dfs[i].empty else None,
+                chart.df if not chart.df.empty else None,
                 pd.DataFrame([new_row]),
             ],
             ignore_index=True,
         ).tail(50)
-        fig = figs[i]
-        fig.data = []
+        chart.fig.data = []
         for key in metrics.keys():
-            fig.add_trace(
+            chart.fig.add_trace(
                 go.Scatter(
-                    x=stream_dfs[i]["x"], y=stream_dfs[i][key], mode="lines", name=key
+                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
                 )
             )
-        return fig
+        return chart.fig
 
     new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
-    stream_dfs[i] = pd.concat(
-        [stream_dfs[i] if not stream_dfs[i].empty else None, new_row], ignore_index=True
+    chart.df = pd.concat(
+        [chart.df if not chart.df.empty else None, new_row], ignore_index=True
     ).tail(50)
 
-    fig = figs[i]
-    fig.data = []  # clear previous trace
-    fig.add_trace(go.Scatter(x=stream_dfs[i]["x"], y=stream_dfs[i]["y"], mode="lines"))
+    chart.fig.data = []  # clear previous trace
+    chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
 
-    return fig
+    return chart.fig
 
 
 def on_run(data):
@@ -855,14 +779,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     inference_accordion = gr.Accordion("Inference Parameters", open=True)
 
     # Get available and preferred devices for inference
-    device_choices = [
+    devices = [
         (device.full_device_name, device.device_name)
         for device in device_discovery.list_devices()
     ]
 
     preferred_device = next(
-        ("GPU" for device_name in device_choices if "GPU" in device_name),
-        ("CPU"),
+        ("GPU" for device_name in devices if "GPU" in device_name),
+        "CPU",
     )
 
     # Object detection model
@@ -885,7 +809,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object detection device
     object_detection_device = gr.Dropdown(
         label="Object Detection Device",
-        choices=device_choices,
+        choices=devices,
         value=preferred_device,
         elem_id="object_detection_device",
     )
@@ -942,7 +866,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Object classification device
     object_classification_device = gr.Dropdown(
         label="Object Classification Device",
-        choices=device_choices + ["Disabled"],
+        choices=devices + ["Disabled"],
         value=preferred_device,
         elem_id="object_classification_device",
     )
@@ -1021,12 +945,12 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Metrics plots
     plots = [
         gr.Plot(
-            value=create_empty_fig(chart_titles[i], y_labels[i]),
-            label=chart_titles[i],
+            value=charts[i].create_empty_fig(),
+            label=charts[i].title,
             min_width=500,
             show_label=False,
         )
-        for i in range(len(chart_titles))
+        for i in range(len(charts))
     ]
 
     # Timer for stream data
@@ -1097,7 +1021,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
         # Handle timer ticks
         timer.tick(
-            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            lambda: [generate_stream_data(i) for i in range(len(charts))],
             outputs=plots,
         )
 
@@ -1114,12 +1038,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         ).then(
             # Reset the telemetry plots
             lambda: (
-                globals().update(
-                    stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
-                        for _ in range(len(chart_titles))
-                    ]
-                )
+                [c.reset() for c in charts]
                 or [
                     plots[i].value.update(data=[])
                     for i in range(len(plots))
@@ -1145,7 +1064,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             outputs=timer,
         ).then(
             # Generate the persistent telemetry data
-            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            lambda: [generate_stream_data(i) for i in range(len(charts))],
             inputs=None,
             outputs=plots,
         ).then(
@@ -1179,12 +1098,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         ).then(
             # Reset the telemetry plots
             lambda: (
-                globals().update(
-                    stream_dfs=[
-                        pd.DataFrame(columns=["x", "y"])
-                        for _ in range(len(chart_titles))
-                    ]
-                )
+                [c.reset() for c in charts]
                 or [
                     plots[i].value.update(data=[])
                     for i in range(len(plots))
@@ -1210,7 +1124,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             outputs=timer,
         ).then(
             # Generate the persistent telemetry data
-            lambda: [generate_stream_data(i) for i in range(len(chart_titles))],
+            lambda: [generate_stream_data(i) for i in range(len(charts))],
             inputs=None,
             outputs=plots,
         ).then(
@@ -1355,12 +1269,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                             ).then(
                                 # Reset the telemetry plots
                                 lambda: (
-                                    globals().update(
-                                        stream_dfs=[
-                                            pd.DataFrame(columns=["x", "y"])
-                                            for _ in range(len(chart_titles))
-                                        ]
-                                    )
+                                    [c.reset() for c in charts]
                                     or [
                                         plots[i].value.update(data=[])
                                         for i in range(len(plots))
