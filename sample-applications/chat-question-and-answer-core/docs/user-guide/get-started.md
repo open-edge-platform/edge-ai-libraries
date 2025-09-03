@@ -56,7 +56,7 @@ By following this guide, you will learn how to:
 
      ```bash
      export REGISTRY="intel/"
-     export UI_TAG=core_1.2.2
+     export UI_TAG=core_1.3.0
 
      # If you prefer to use the default CPU device, set the following:
      export BACKEND_TAG=core_1.3.0
