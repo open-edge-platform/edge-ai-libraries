@@ -88,7 +88,6 @@ Update or edit the values in YAML file as follows:
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
-| `videoSummaryManager.appNodePort` | port at which we access the application | `31998` |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `multimodalembeddingms.textEmbeddingModel` | Embedding model name used in unified video search and summary | `Qwen/Qwen3-Embedding-0.6B` |
@@ -100,7 +99,7 @@ Update or edit the values in YAML file as follows:
 Navigate to the chart directory and build the Helm dependencies using the following command:
 
 ```bash
-helm dependency build
+helm dependency update
 ```
 
 ## 4. Set and Create a Namespace
@@ -219,8 +218,6 @@ helm uninstall vss -n $my_namespace
 - Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
 
 ## Troubleshooting
-
-- If helm is not able to install because nginx is facing port conflicts, please try to increment the port number in `videoSummaryManager.appNodePort` and re-try the helm installation.
 
 - **Pods not coming in Ready or Running state for a long time.**
 

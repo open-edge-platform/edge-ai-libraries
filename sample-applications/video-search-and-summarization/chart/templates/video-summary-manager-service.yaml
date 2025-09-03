@@ -10,6 +10,5 @@ spec:
     - port: {{ .Values.videoSummaryManager.service.port }}
       targetPort: {{ .Values.videoSummaryManager.containerPortName }}
       protocol: TCP
-      name: {{ .Values.videoSummaryManager.service.portName }}
   selector:
     app: {{ .Values.videoSummaryManager.name }}

@@ -29,3 +29,6 @@ postgresql:
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+podSecurityContext: {}
+containerSecurityContext: {}

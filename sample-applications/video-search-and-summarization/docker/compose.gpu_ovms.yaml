@@ -7,4 +7,4 @@ services:
     devices:
       - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     group_add:
-      - ${RENDER_DEVICE_GID:-0} 
+      - ${RENDER_DEVICE_GID:-0}

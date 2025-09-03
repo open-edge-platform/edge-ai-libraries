@@ -105,7 +105,7 @@ def _setup_vdms_client(
                 model = Qwen3(config["embeddings"])
                 _model_cache[model_key] = model
 
-            # Setup the embedding service corresponding to the model    
+            # Setup the embedding service corresponding to the model
             embedding_service = QwenEmbeddings(model=model)
         else:
             logger.error(

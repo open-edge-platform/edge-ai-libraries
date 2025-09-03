@@ -70,7 +70,9 @@ class Qwen3(nn.Module):
             logger.debug(f"Input text shape: {input_tokens['input_ids'].shape}")
             logger.debug(f"Output shape: {output.last_hidden_state.shape}")
 
-            embeddings = self._last_token_pool(output.last_hidden_state, input_tokens["attention_mask"])
+            embeddings = self._last_token_pool(
+                output.last_hidden_state, input_tokens["attention_mask"]
+            )
             logger.debug(f"Embeddings shape: {embeddings.shape}")
             logger.debug(f"Embeddings: {embeddings}")
 

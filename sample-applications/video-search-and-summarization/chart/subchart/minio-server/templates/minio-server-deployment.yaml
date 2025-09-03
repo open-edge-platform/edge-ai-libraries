@@ -1,30 +1,30 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "minioServer.fullname" . }}
+  name: {{ include "minioserver.fullname" . }}
   labels:
-    app: {{ include "minioServer.name" . }}
+    app: {{ include "minioserver.name" . }}
 spec:
-  replicas: {{ .Values.minioServer.replicaCount | default 1 }}
+  replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: {{ .Values.minioServer.name }}
+      app: {{ .Values.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.minioServer.name }}
+        app: {{ .Values.name }}
     spec:
       containers:
-        - name: {{ include "minioServer.name" . }}
-          image: "{{ .Values.minioServer.image.repository }}:{{ .Values.minioServer.image.tag }}"
-          imagePullPolicy: {{ .Values.minioServer.image.pullPolicy }}
+        - name: {{ include "minioserver.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: {{ .Values.minioServer.apiPortName }}
-              containerPort: {{ .Values.minioServer.apiPort }}
-            - name: {{ .Values.minioServer.consolePortName }}
-              containerPort: {{ .Values.minioServer.consolePort }}
+            - name: {{ .Values.containerApiPortName }}
+              containerPort: 9000
+            - name: {{ .Values.containerConsolePortName }}
+              containerPort: 9001
           volumeMounts:
-            - mountPath: /mnt/miniodata
+            - mountPath: /data
               name: minio-data
               subPath: miniodata
           env:

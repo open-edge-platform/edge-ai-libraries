@@ -55,7 +55,7 @@ spec:
           image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
           imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.videoSummaryManager.containerPort }}
+            - containerPort: 3000
               name: {{ .Values.videoSummaryManager.containerPortName }}
           env:
             - name: no_proxy
@@ -67,9 +67,9 @@ spec:
             - name: MINIO_PROTOCOL
               value: {{ .Values.videoSummaryManager.minioProtocol | quote }}
             - name: MINIO_HOST
-              value: {{ include "minioServer.name" .Subcharts.minioServer }}
+              value: {{ include "minioserver.name" .Subcharts.minioserver }}
             - name: MINIO_PORT
-              value: {{ .Values.minioServer.service.port | quote }}
+              value: {{ .Values.minioserver.service.apiPort | quote }}
             - name: MINIO_ROOT_USER
               value: {{ required "Value for MINIO_ROOT_USER is required and cannot be empty!" .Values.global.env.MINIO_ROOT_USER | quote }}
             - name: MINIO_ROOT_PASSWORD
