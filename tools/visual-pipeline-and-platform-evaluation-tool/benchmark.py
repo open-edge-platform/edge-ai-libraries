@@ -106,13 +106,23 @@ class Benchmark:
 
             self.logger.info(
                 "n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
-                n_streams, total_fps, per_stream_fps, exponential, lower_bound, higher_bound
+                n_streams,
+                total_fps,
+                per_stream_fps,
+                exponential,
+                lower_bound,
+                higher_bound,
             )
 
             # increase number of streams exponentially until we drop below fps_floor
             if exponential:
                 if per_stream_fps >= self.fps_floor:
-                    best_config = (n_streams, ai_streams, non_ai_streams, per_stream_fps)
+                    best_config = (
+                        n_streams,
+                        ai_streams,
+                        non_ai_streams,
+                        per_stream_fps,
+                    )
                     n_streams *= 2
                 else:
                     exponential = False
@@ -122,7 +132,12 @@ class Benchmark:
             # use bisecting search for fine tune maximum number of streams
             else:
                 if per_stream_fps >= self.fps_floor:
-                    best_config = (n_streams, ai_streams, non_ai_streams, per_stream_fps)
+                    best_config = (
+                        n_streams,
+                        ai_streams,
+                        non_ai_streams,
+                        per_stream_fps,
+                    )
                     lower_bound = n_streams + 1
                 else:
                     higher_bound = n_streams - 1
