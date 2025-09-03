@@ -50,6 +50,7 @@ export class VideoService {
       bucket_name: video.dataStore.bucket,
       video_id: video.dataStore?.objectName,
       video_name: video.dataStore?.fileName,
+      tags: video.tags || [],
     };
 
     return await lastValueFrom(this.$dataprep.createEmbeddings(videoData));
