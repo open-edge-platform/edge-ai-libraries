@@ -27,9 +27,9 @@ RECORDING_AND_INFERENCING_CHANNELS_LABEL = "Number of Recording + Inferencing ch
 with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
     css_code = f.read()
 
-theme = gr.themes.Default(
+theme = gr.themes.Default(  # pyright: ignore[reportPrivateImportUsage]
     primary_hue="blue",
-    font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],
+    font=[gr.themes.GoogleFont("Montserrat"), "ui-sans-serif", "sans-serif"],  # pyright: ignore[reportPrivateImportUsage]
 )
 
 # Initialize the pipeline based on the PIPELINE environment variable
@@ -705,7 +705,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
     # Pipeline diagram image
     pipeline_image = gr.Image(
-        value=current_pipeline[0].diagram(),
+        value=str(current_pipeline[0].diagram()),
         label="Pipeline Diagram",
         elem_id="pipeline_image",
         interactive=False,
@@ -742,6 +742,14 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
         label="Number of Recording only channels",
         interactive=True,
         elem_id="recording_channels",
+    )
+
+    # Tracking type
+    tracking_type = gr.Dropdown(
+        label="Object Tracking Type",
+        choices=["short-term-imageless", "zero-term", "zero-term-imageless"],
+        value="short-term-imageless",
+        elem_id="tracking_type",
     )
 
     # FPS floor
@@ -958,6 +966,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     components.add(best_config_textbox)
     components.add(inferencing_channels)
     components.add(recording_channels)
+    components.add(tracking_type)
     components.add(fps_floor)
     components.add(ai_stream_rate)
     components.add(object_detection_model)
@@ -1357,6 +1366,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                     ],
                                 )
 
+                            # Render tracking_type dropdown
+                            tracking_type.render()
                             # Whether to overlay result with watermarks
                             pipeline_watermark_enabled.render()
                             # Render live_preview_enabled checkbox
@@ -1390,7 +1401,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 )
 
                         # Inference Parameters Accordion
-                        with inference_accordion.render():
+                        inference_accordion.render()
+                        with inference_accordion:
                             # Object Detection Parameters
                             object_detection_model.render()
                             object_detection_device.render()
