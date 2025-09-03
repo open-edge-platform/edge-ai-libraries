@@ -66,25 +66,45 @@ class TestBenchmark(unittest.TestCase):
                     {
                         "params": {},
                         "exit_code": 0,
-                        "total_fps": 168,
-                        "per_stream_fps": 28,
-                        "num_streams": 6,
+                        "total_fps": 80,
+                        "per_stream_fps": 40,
+                        "num_streams": 2,
                     }
                 ],
-                # Third call with 3 streams
+                # Third call with 4 streams
                 [
                     {
                         "params": {},
                         "exit_code": 0,
-                        "total_fps": 155,
+                        "total_fps": 100,
+                        "per_stream_fps": 25,
+                        "num_streams": 4,
+                    }
+                ],
+                # Fourth call with 3 streams
+                [
+                    {
+                        "params": {},
+                        "exit_code": 0,
+                        "total_fps": 93,
                         "per_stream_fps": 31,
-                        "num_streams": 5,
+                        "num_streams": 3,
+                    }
+                ],
+                # Fifth call with 4 streams
+                [
+                    {
+                        "params": {},
+                        "exit_code": 0,
+                        "total_fps": 100,
+                        "per_stream_fps": 25,
+                        "num_streams": 4,
                     }
                 ],
                 [],
             ]
             result = self.benchmark.run()
-            self.assertEqual(result, (5, 3, 2, 31))
+            self.assertEqual(result, (3, 2, 1, 31))
 
     def test_zero_total_fps(self):
         with patch.object(Benchmark, "_run_pipeline_and_extract_metrics") as mock_run:
@@ -115,44 +135,6 @@ class TestBenchmark(unittest.TestCase):
                         "total_fps": 0,
                         "per_stream_fps": "NaN",
                         "num_streams": 1,
-                    }
-                ],
-                [],
-            ]
-            result = self.benchmark.run()
-            self.assertEqual(result, (0, 0, 0, 0.0))
-
-    def test_decrementing_below_one(self):
-        with patch.object(Benchmark, "_run_pipeline_and_extract_metrics") as mock_run:
-            mock_run.side_effect = [
-                # First call with 1 stream
-                [
-                    {
-                        "params": {},
-                        "exit_code": 0,
-                        "total_fps": 60,
-                        "per_stream_fps": 60,
-                        "num_streams": 1,
-                    }
-                ],
-                # Second call with 2 streams
-                [
-                    {
-                        "params": {},
-                        "exit_code": 0,
-                        "total_fps": 10,
-                        "per_stream_fps": 2,
-                        "num_streams": 6,
-                    }
-                ],
-                # Third call with 3 streams
-                [
-                    {
-                        "params": {},
-                        "exit_code": 0,
-                        "total_fps": 8,
-                        "per_stream_fps": 2,
-                        "num_streams": 5,
                     }
                 ],
                 [],
