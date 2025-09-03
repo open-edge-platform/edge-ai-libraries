@@ -410,18 +410,7 @@ def generate_stream_data():
                 "Package Power": gpu_package_power,
                 "Total Power": gpu_power,
             }
-            if chart.df.empty:
-                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-            chart.df = pd.concat(
-                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
-                ignore_index=True,
-            ).tail(50)
-            chart.fig.data = []
-            for key in metrics.keys():
-                chart.fig.add_trace(
-                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-                )
-            figs.append(chart.fig)
+            figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
         elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
             new_y = gpu_freq
@@ -433,44 +422,18 @@ def generate_stream_data():
                 "Copy": gpu_copy,
                 "Compute": gpu_compute,
             }
-            # Prepare or update the DataFrame for this chart
-            if chart.df.empty:
-                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-            chart.df = pd.concat(
-                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
-                ignore_index=True,
-            ).tail(50)
-            chart.fig.data = []
-            for key in metrics.keys():
-                chart.fig.add_trace(
-                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-                )
-            figs.append(chart.fig)
+            figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
         elif title == "Integrated GPU Power Usage [W] (Package & Total)":
             metrics = {
                 "Package Power": gpu_package_power_0,
                 "Total Power": gpu_power_0,
             }
-            if chart.df.empty:
-                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-            chart.df = pd.concat(
-                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
-                ignore_index=True,
-            ).tail(50)
-            chart.fig.data = []
-            for key in metrics.keys():
-                chart.fig.add_trace(
-                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-                )
-            figs.append(chart.fig)
+            figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
         elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
             new_y = gpu_freq_0
-        # Consolidated GPU 0 Engine Utilization chart
         elif title == "Integrated GPU Engine Utilization [%]":
-            # Each line is a metric, so we store all 5 in the same DataFrame
-            # We'll use a wide DataFrame for this chart
             metrics = {
                 "Render": gpu_render_0,
                 "Video Enhance": gpu_ve_0,
@@ -478,19 +441,7 @@ def generate_stream_data():
                 "Copy": gpu_copy_0,
                 "Compute": gpu_compute_0,
             }
-            # Prepare or update the DataFrame for this chart
-            if chart.df.empty:
-                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-            chart.df = pd.concat(
-                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
-                ignore_index=True,
-            ).tail(50)
-            chart.fig.data = []
-            for key in metrics.keys():
-                chart.fig.add_trace(
-                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-                )
-            figs.append(chart.fig)
+            figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
 
         new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
@@ -504,6 +455,24 @@ def generate_stream_data():
         figs.append(chart.fig)
 
     return figs
+
+
+def update_multi_metric_chart(chart, metrics, new_x):
+    """
+    Update chart DataFrame and figure for charts with multiple metrics.
+    """
+    if chart.df.empty:
+        chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
+    chart.df = pd.concat(
+        [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
+        ignore_index=True,
+    ).tail(50)
+    chart.fig.data = []
+    for key in metrics.keys():
+        chart.fig.add_trace(
+            go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
+        )
+    return chart.fig
 
 
 def on_run(data):
