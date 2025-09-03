@@ -73,5 +73,5 @@ startupProbe:
     path: /health
     port: vs-port
   initialDelaySeconds: 10
-  periodSeconds: 10
-  failureThreshold: 6
+  periodSeconds: 20
+  failureThreshold: 12

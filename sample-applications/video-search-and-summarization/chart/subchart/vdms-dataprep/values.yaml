@@ -52,6 +52,13 @@ readinessProbe:
   initialDelaySeconds: 10
   periodSeconds: 20
   failureThreshold: 6
+startupProbe:
+  httpGet:
+    path: /health
+    port: dataprep-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  failureThreshold: 6
 
 nodeSelector: {}
 tolerations: []
