@@ -132,7 +132,7 @@ services:
       USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
       DEBUG_MODE: ${DEBUG_MODE:-False}
     devices:
-      - ${DRI_MOUNT_PATH}:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     group_add:
       - ${USER_GROUP_ID:-1000}
       - ${VIDEO_GROUP_ID:-44}
