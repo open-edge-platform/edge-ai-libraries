@@ -72,7 +72,7 @@ class Benchmark:
         exponential = True
         lower_bound = 1
         # We'll set this once we fall below the fps_floor
-        higher_bound = None
+        higher_bound = -1
         best_config = (0, 0, 0, 0.0)
 
         while True:
