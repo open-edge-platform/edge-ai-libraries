@@ -20,12 +20,7 @@ def vdms_client(mocker, tmp_path):
     mock_vdms.add_videos.return_value = None
     mocker.patch("src.core.db.VDMS", return_value=mock_vdms)
 
-    client = VDMSClient(
-        host="localhost",
-        port=22222,
-        collection_name="test-index",
-        embedder=object
-    )
+    client = VDMSClient(host="localhost", port=22222, collection_name="test-index", embedder=object)
 
     assert client.client == None
     assert client.video_db == mock_vdms

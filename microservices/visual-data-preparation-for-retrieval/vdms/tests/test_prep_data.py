@@ -11,7 +11,7 @@ from requests.exceptions import HTTPError
 
 import src.core.util
 from src.common import settings
-from src.core.util import read_config, store_video_metadata, save_video_to_temp
+from src.core.util import read_config, save_video_to_temp, store_video_metadata
 
 
 def mock_upload_and_write_temp_file(mocker):
