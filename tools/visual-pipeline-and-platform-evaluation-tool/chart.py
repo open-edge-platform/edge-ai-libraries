@@ -1,14 +1,30 @@
 from typing import List
+from enum import Enum, auto
 
 import pandas as pd
 import plotly.graph_objects as go
 
 
+class ChartType(Enum):
+    PIPELINE_THROUGHPUT = auto()
+    CPU_UTILIZATION = auto()
+    IGPU_ENGINE_UTILIZATION = auto()
+    DGPU_ENGINE_UTILIZATION = auto()
+    MEMORY_UTILIZATION = auto()
+    IGPU_POWER = auto()
+    IGPU_FREQUENCY = auto()
+    DGPU_POWER = auto()
+    DGPU_FREQUENCY = auto()
+    CPU_FREQUENCY = auto()
+    CPU_TEMPERATURE = auto()
+
+
 # Chart class to manage individual charts
 class Chart:
-    def __init__(self, title: str, y_label: str):
+    def __init__(self, title: str, y_label: str, type_: ChartType):
         self.title = title
         self.y_label = y_label
+        self.type = type_
         self.df = pd.DataFrame(columns=["x", "y"])
         self.fig = self.create_empty_fig()
 
@@ -57,6 +73,19 @@ def create_charts(devices) -> List[Chart]:
         "Frequency",
         "Temperature",
     ]
+    all_types = [
+        ChartType.PIPELINE_THROUGHPUT,
+        ChartType.CPU_UTILIZATION,
+        ChartType.IGPU_ENGINE_UTILIZATION,
+        ChartType.DGPU_ENGINE_UTILIZATION,
+        ChartType.MEMORY_UTILIZATION,
+        ChartType.IGPU_POWER,
+        ChartType.IGPU_FREQUENCY,
+        ChartType.DGPU_POWER,
+        ChartType.DGPU_FREQUENCY,
+        ChartType.CPU_FREQUENCY,
+        ChartType.CPU_TEMPERATURE,
+    ]
 
     igpu_indices = [2, 5, 6]
     dgpu_indices = [3, 7, 8]
@@ -71,5 +100,8 @@ def create_charts(devices) -> List[Chart]:
         t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove
     ]
     y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
+    types = [t for i, t in enumerate(all_types) if i not in indices_to_remove]
 
-    return [Chart(chart_titles[i], y_labels[i]) for i in range(len(chart_titles))]
+    return [
+        Chart(chart_titles[i], y_labels[i], types[i]) for i in range(len(chart_titles))
+    ]

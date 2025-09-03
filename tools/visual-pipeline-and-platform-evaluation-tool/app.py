@@ -10,11 +10,11 @@ import requests
 
 import utils
 from benchmark import Benchmark
-from chart import Chart, create_charts
+from chart import Chart, ChartType, create_charts
 from device import DeviceDiscovery
 from explore import GstInspector
 from optimize import PipelineOptimizer
-from gstpipeline import PipelineLoader, GstPipeline
+from gstpipeline import GstPipeline, PipelineLoader
 from utils import prepare_video_and_constants
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
@@ -392,29 +392,28 @@ def generate_stream_data():
 
     figs = []
     for chart in charts:
-        title = chart.title
         new_y = 0
 
-        if title == "Pipeline Throughput [FPS]":
+        if chart.type == ChartType.PIPELINE_THROUGHPUT:
             new_y = latest_fps
-        elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
+        elif chart.type == ChartType.CPU_FREQUENCY and cpu_freq is not None:
             new_y = cpu_freq
-        elif title == "CPU Utilization [%]" and cpu_val is not None:
+        elif chart.type == ChartType.CPU_UTILIZATION and cpu_val is not None:
             new_y = cpu_val
-        elif title == "CPU Temperature [C°]" and core_temp is not None:
+        elif chart.type == ChartType.CPU_TEMPERATURE and core_temp is not None:
             new_y = core_temp
-        elif title == "Memory Utilization [%]" and mem_val is not None:
+        elif chart.type == ChartType.MEMORY_UTILIZATION and mem_val is not None:
             new_y = mem_val
-        elif title == "Discrete GPU Power Usage [W] (Package & Total)":
+        elif chart.type == ChartType.DGPU_POWER:
             metrics = {
                 "Package Power": gpu_package_power,
                 "Total Power": gpu_power,
             }
             figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
-        elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
+        elif chart.type == ChartType.DGPU_FREQUENCY and gpu_freq is not None:
             new_y = gpu_freq
-        elif title == "Discrete GPU Engine Utilization [%]":
+        elif chart.type == ChartType.DGPU_ENGINE_UTILIZATION:
             metrics = {
                 "Render": gpu_render,
                 "Video Enhance": gpu_ve,
@@ -424,16 +423,16 @@ def generate_stream_data():
             }
             figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
-        elif title == "Integrated GPU Power Usage [W] (Package & Total)":
+        elif chart.type == ChartType.IGPU_POWER:
             metrics = {
                 "Package Power": gpu_package_power_0,
                 "Total Power": gpu_power_0,
             }
             figs.append(update_multi_metric_chart(chart, metrics, new_x))
             continue
-        elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
+        elif chart.type == ChartType.IGPU_FREQUENCY and gpu_freq_0 is not None:
             new_y = gpu_freq_0
-        elif title == "Integrated GPU Engine Utilization [%]":
+        elif chart.type == ChartType.IGPU_ENGINE_UTILIZATION:
             metrics = {
                 "Render": gpu_render_0,
                 "Video Enhance": gpu_ve_0,
