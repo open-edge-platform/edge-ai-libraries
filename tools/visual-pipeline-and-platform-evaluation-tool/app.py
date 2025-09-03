@@ -46,6 +46,7 @@ device_choices = [
 ]
 charts: List[Chart] = create_charts(device_choices)
 
+
 # Download File
 def download_file(url, local_filename):
     # Send a GET request to the URL
@@ -88,24 +89,13 @@ def detect_click(evt: gr.SelectData):
     return gr.update(open=False)
 
 
-def read_latest_metrics(target_ns: int = None):
+def read_latest_metrics():
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
             lines = [line.strip() for line in f.readlines()[-500:]]
 
     except FileNotFoundError:
         return [None] * 20  # 12 original + 8 extra for GPU 0
-
-    if target_ns is not None:
-        # Filter only lines near the target timestamp
-        surrounding_lines = [
-            line
-            for line in lines
-            if line.split()
-            and line.split()[-1].isdigit()
-            and abs(int(line.split()[-1]) - target_ns) < 1e9
-        ]
-        lines = surrounding_lines if surrounding_lines else []
 
     cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
     gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = (
@@ -364,16 +354,10 @@ def normalize_engine_names(line: str) -> str:
     )
 
 
-def generate_stream_data(i, timestamp_ns=None):
-    chart = charts[i]
-    new_x = (
-        datetime.now()
-        if timestamp_ns is None
-        else datetime.fromtimestamp(timestamp_ns / 1e9)
-    )
+def generate_stream_data():
+    new_x = datetime.now()
 
-    new_y = 0
-    # Unpack all returned values, but only use the first 13 for current charts
+    # Read metrics once
     (
         cpu_val,
         mem_val,
@@ -395,8 +379,9 @@ def generate_stream_data(i, timestamp_ns=None):
         gpu_video_0,
         gpu_copy_0,
         gpu_compute_0,
-    ) = read_latest_metrics(timestamp_ns)
+    ) = read_latest_metrics()
 
+    # Read FPS once
     latest_fps = 0
     try:
         with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
@@ -405,136 +390,140 @@ def generate_stream_data(i, timestamp_ns=None):
     except (FileNotFoundError, IndexError):
         latest_fps = 0
 
-    title = chart.title
-    if title == "Pipeline Throughput [FPS]":
-        new_y = latest_fps
-    elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
-        new_y = cpu_freq
-    elif title == "CPU Utilization [%]" and cpu_val is not None:
-        new_y = cpu_val
-    elif title == "CPU Temperature [C°]" and core_temp is not None:
-        new_y = core_temp
-    elif title == "Memory Utilization [%]" and mem_val is not None:
-        new_y = mem_val
-    elif title == "Discrete GPU Power Usage [W] (Package & Total)":
-        metrics = {
-            "Package Power": gpu_package_power,
-            "Total Power": gpu_power,
-        }
-        if chart.df.empty:
-            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
-        chart.df = pd.concat(
-            [
-                chart.df if not chart.df.empty else None,
-                pd.DataFrame([new_row]),
-            ],
-            ignore_index=True,
-        ).tail(50)
-        chart.fig.data = []
-        for key in metrics.keys():
-            chart.fig.add_trace(
-                go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-            )
-        return chart.fig
-    elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
-        new_y = gpu_freq
-    elif title == "Discrete GPU Engine Utilization [%]":
-        metrics = {
-            "Render": gpu_render,
-            "Video Enhance": gpu_ve,
-            "Video": gpu_video,
-            "Copy": gpu_copy,
-            "Compute": gpu_compute,
-        }
-        # Prepare or update the DataFrame for this chart
-        if chart.df.empty:
-            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
-        chart.df = pd.concat(
-            [
-                chart.df if not chart.df.empty else None,
-                pd.DataFrame([new_row]),
-            ],
-            ignore_index=True,
-        ).tail(50)
-        chart.fig.data = []
-        for key in metrics.keys():
-            chart.fig.add_trace(
-                go.Scatter(
-                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
-                )
-            )
-        return chart.fig
-    elif title == "Integrated GPU Power Usage [W] (Package & Total)":
-        metrics = {
-            "Package Power": gpu_package_power_0,
-            "Total Power": gpu_power_0,
-        }
-        if chart.df.empty:
-            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
-        chart.df = pd.concat(
-            [
-                chart.df if not chart.df.empty else None,
-                pd.DataFrame([new_row]),
-            ],
-            ignore_index=True,
-        ).tail(50)
-        chart.fig.data = []
-        for key in metrics.keys():
-            chart.fig.add_trace(
-                go.Scatter(
-                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
-                )
-            )
-        return chart.fig
-    elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
-        new_y = gpu_freq_0
-    # Consolidated GPU 0 Engine Utilization chart
-    elif title == "Integrated GPU Engine Utilization [%]":
-        # Each line is a metric, so we store all 5 in the same DataFrame
-        # We'll use a wide DataFrame for this chart
-        metrics = {
-            "Render": gpu_render_0,
-            "Video Enhance": gpu_ve_0,
-            "Video": gpu_video_0,
-            "Copy": gpu_copy_0,
-            "Compute": gpu_compute_0,
-        }
-        # Prepare or update the DataFrame for this chart
-        if chart.df.empty:
-            chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-        new_row = {"x": new_x}
-        new_row.update(metrics)
-        chart.df = pd.concat(
-            [
-                chart.df if not chart.df.empty else None,
-                pd.DataFrame([new_row]),
-            ],
-            ignore_index=True,
-        ).tail(50)
-        chart.fig.data = []
-        for key in metrics.keys():
-            chart.fig.add_trace(
-                go.Scatter(
-                    x=chart.df["x"], y=chart.df[key], mode="lines", name=key
-                )
-            )
-        return chart.fig
+    figs = []
+    for chart in charts:
+        title = chart.title
+        new_y = 0
 
-    new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
-    chart.df = pd.concat(
-        [chart.df if not chart.df.empty else None, new_row], ignore_index=True
-    ).tail(50)
+        if title == "Pipeline Throughput [FPS]":
+            new_y = latest_fps
+        elif title == "CPU Frequency [KHz]" and cpu_freq is not None:
+            new_y = cpu_freq
+        elif title == "CPU Utilization [%]" and cpu_val is not None:
+            new_y = cpu_val
+        elif title == "CPU Temperature [C°]" and core_temp is not None:
+            new_y = core_temp
+        elif title == "Memory Utilization [%]" and mem_val is not None:
+            new_y = mem_val
+        elif title == "Discrete GPU Power Usage [W] (Package & Total)":
+            metrics = {
+                "Package Power": gpu_package_power,
+                "Total Power": gpu_power,
+            }
+            if chart.df.empty:
+                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+            new_row = {"x": new_x}
+            new_row.update(metrics)
+            chart.df = pd.concat(
+                [
+                    chart.df if not chart.df.empty else None,
+                    pd.DataFrame([new_row]),
+                ],
+                ignore_index=True,
+            ).tail(50)
+            chart.fig.data = []
+            for key in metrics.keys():
+                chart.fig.add_trace(
+                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
+                )
+            figs.append(chart.fig)
+            continue
+        elif title == "Discrete GPU Frequency [MHz]" and gpu_freq is not None:
+            new_y = gpu_freq
+        elif title == "Discrete GPU Engine Utilization [%]":
+            metrics = {
+                "Render": gpu_render,
+                "Video Enhance": gpu_ve,
+                "Video": gpu_video,
+                "Copy": gpu_copy,
+                "Compute": gpu_compute,
+            }
+            # Prepare or update the DataFrame for this chart
+            if chart.df.empty:
+                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+            new_row = {"x": new_x}
+            new_row.update(metrics)
+            chart.df = pd.concat(
+                [
+                    chart.df if not chart.df.empty else None,
+                    pd.DataFrame([new_row]),
+                ],
+                ignore_index=True,
+            ).tail(50)
+            chart.fig.data = []
+            for key in metrics.keys():
+                chart.fig.add_trace(
+                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
+                )
+            figs.append(chart.fig)
+            continue
+        elif title == "Integrated GPU Power Usage [W] (Package & Total)":
+            metrics = {
+                "Package Power": gpu_package_power_0,
+                "Total Power": gpu_power_0,
+            }
+            if chart.df.empty:
+                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+            new_row = {"x": new_x}
+            new_row.update(metrics)
+            chart.df = pd.concat(
+                [
+                    chart.df if not chart.df.empty else None,
+                    pd.DataFrame([new_row]),
+                ],
+                ignore_index=True,
+            ).tail(50)
+            chart.fig.data = []
+            for key in metrics.keys():
+                chart.fig.add_trace(
+                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
+                )
+            figs.append(chart.fig)
+            continue
+        elif title == "Integrated GPU Frequency [MHz]" and gpu_freq_0 is not None:
+            new_y = gpu_freq_0
+        # Consolidated GPU 0 Engine Utilization chart
+        elif title == "Integrated GPU Engine Utilization [%]":
+            # Each line is a metric, so we store all 5 in the same DataFrame
+            # We'll use a wide DataFrame for this chart
+            metrics = {
+                "Render": gpu_render_0,
+                "Video Enhance": gpu_ve_0,
+                "Video": gpu_video_0,
+                "Copy": gpu_copy_0,
+                "Compute": gpu_compute_0,
+            }
+            # Prepare or update the DataFrame for this chart
+            if chart.df.empty:
+                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
+            new_row = {"x": new_x}
+            new_row.update(metrics)
+            chart.df = pd.concat(
+                [
+                    chart.df if not chart.df.empty else None,
+                    pd.DataFrame([new_row]),
+                ],
+                ignore_index=True,
+            ).tail(50)
+            chart.fig.data = []
+            for key in metrics.keys():
+                chart.fig.add_trace(
+                    go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
+                )
+            figs.append(chart.fig)
+            continue
 
-    chart.fig.data = []  # clear previous trace
-    chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
+        new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
+        chart.df = pd.concat(
+            [chart.df if not chart.df.empty else None, new_row], ignore_index=True
+        ).tail(50)
 
-    return chart.fig
+        chart.fig.data = []  # clear previous trace
+        chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
+
+        figs.append(chart.fig)
+
+    return figs
 
 
 def on_run(data):
@@ -1021,7 +1010,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
 
         # Handle timer ticks
         timer.tick(
-            lambda: [generate_stream_data(i) for i in range(len(charts))],
+            generate_stream_data,
             outputs=plots,
         )
 
@@ -1064,7 +1053,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             outputs=timer,
         ).then(
             # Generate the persistent telemetry data
-            lambda: [generate_stream_data(i) for i in range(len(charts))],
+            generate_stream_data,
             inputs=None,
             outputs=plots,
         ).then(
@@ -1124,7 +1113,7 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
             outputs=timer,
         ).then(
             # Generate the persistent telemetry data
-            lambda: [generate_stream_data(i) for i in range(len(charts))],
+            generate_stream_data,
             inputs=None,
             outputs=plots,
         ).then(

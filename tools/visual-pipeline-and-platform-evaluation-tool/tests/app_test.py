@@ -58,9 +58,13 @@ class TestApp(unittest.TestCase):
 
     def test_generate_stream_data(self):
         mock_data = [1.0 for _ in range(20)]
-        with mock.patch("app.read_latest_metrics", return_value=mock_data):
-            for i in range(len(charts)):
-                stream = generate_stream_data(i)
+        with (
+            mock.patch("app.read_latest_metrics", return_value=mock_data),
+            mock.patch("builtins.open", mock.mock_open(read_data="1.0\n")),
+        ):
+            streams = generate_stream_data()
+            self.assertEqual(len(streams), len(charts))
+            for stream in streams:
                 self.assertIsNotNone(stream)
 
 

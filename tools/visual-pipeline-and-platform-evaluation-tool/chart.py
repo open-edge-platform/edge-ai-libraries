@@ -3,6 +3,7 @@ from typing import List
 import pandas as pd
 import plotly.graph_objects as go
 
+
 # Chart class to manage individual charts
 class Chart:
     def __init__(self, title: str, y_label: str):
@@ -13,12 +14,15 @@ class Chart:
 
     def create_empty_fig(self):
         fig = go.Figure()
-        fig.update_layout(title=self.title, xaxis_title="Time", yaxis_title=self.y_label)
+        fig.update_layout(
+            title=self.title, xaxis_title="Time", yaxis_title=self.y_label
+        )
         return fig
 
     def reset(self):
         self.df = pd.DataFrame(columns=["x", "y"])
         self.fig = self.create_empty_fig()
+
 
 def create_charts(devices) -> List[Chart]:
     has_igpu = any("iGPU" in name or "igpu" in name for name, _ in devices)
@@ -63,7 +67,9 @@ def create_charts(devices) -> List[Chart]:
     if not has_dgpu:
         indices_to_remove += dgpu_indices
 
-    chart_titles = [t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove]
+    chart_titles = [
+        t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove
+    ]
     y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
 
     return [Chart(chart_titles[i], y_labels[i]) for i in range(len(chart_titles))]
