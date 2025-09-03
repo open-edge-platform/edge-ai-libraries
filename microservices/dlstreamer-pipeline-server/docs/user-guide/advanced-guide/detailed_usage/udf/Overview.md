@@ -17,7 +17,7 @@ The `udfloader` element has a single configurable property with the name `config
 
 **Sample UDF config**</br>
 
-The UDF config should be passed to the `udfs` key in the EIS config file. The below example configures the `udfloader` element to load and execute a single UDF, which in this case happens to be the `geti_udf`.
+The UDF config should be passed to the `udfs` key in the config file. The below example configures the `udfloader` element to load and execute a single UDF, which in this case happens to be the `geti_udf`.
 
   ```json
   {
@@ -33,7 +33,7 @@ The UDF config should be passed to the `udfs` key in the EIS config file. The be
         ]
   }
   ```
-  In order to chain multiple UDFs, simply provide the configs for UDFs as additional entries in the `udfs` array in the EIS config file as shown below
+  In order to chain multiple UDFs, simply provide the configs for UDFs as additional entries in the `udfs` array in the config file as shown below
   ``` json
     {
         "udfs": [

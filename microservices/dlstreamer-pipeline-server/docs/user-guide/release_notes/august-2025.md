@@ -1,4 +1,4 @@
-# August 2025 (Upcoming release)
+# August 2025
 
 ## v3.1.0
 
@@ -17,8 +17,9 @@
 - Cleanup: Remove confidential info such as email and gitlab links. Removed unused model downloader tool, gRPC interface
 - Bug in appsink synchronization behavior not being consistent with gstreamer/DL Streamer
 - Bug in appsink destination and publisher configurations
+- WebRTC with GPU inferencing falls back to CPU if vah264enc is missing.
 
 ### Updates
-- DL Streamer updated to TBD
+- DL Streamer updated to 2025.1.2
 - Interface to Model registry updated with environment variables instead of config.json
 - Documentation updates: Cross stream batching, latency tracing, tutorial on launching and managing pipelines

@@ -2,6 +2,20 @@
 
 
 ## Current Release
+
+**Version**: 1.0.1
+**Release Date**: 19 Aug 2025
+
+- Fix issue where document summary fails due to missing `nltk` package
+
+**Known Issues/Behaviour:**
+
+- EMF Deployment package is not supported yet
+- Summary time depends on the size and complexity (image, tables, cross references) of the document
+- Helm and docker compose deployment has been validated on EMT 3.0
+
+## Previous Releases
+
 **Version**: 1.0.0
 **Release Date**: 25 July 2025
 

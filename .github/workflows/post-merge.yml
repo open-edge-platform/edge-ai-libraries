@@ -23,7 +23,6 @@ jobs:
       document-ingestion_changed: ${{ steps.filter.outputs.document-ingestion }}
       document-summarization_changed: ${{ steps.filter.outputs.document-summarization }}
       model-registry_changed: ${{ steps.filter.outputs.model-registry }}
-      object-store_changed: ${{ steps.filter.outputs.object-store }}
       chat-question-and-answer_changed: ${{ steps.filter.outputs.chat-question-and-answer }}
       visual-pipeline-platform-tool_changed: ${{ steps.filter.outputs.visual-pipeline-platform-tool }}
       chat-question-and-answer-core_changed: ${{ steps.filter.outputs.chat-question-and-answer-core }}
@@ -42,13 +41,11 @@ jobs:
             dlstreamer-pipeline-server:
               - 'microservices/dlstreamer-pipeline-server/docs/**'
             document-ingestion:
-              - 'microservices/document-ingestion/docs/**'
+              - 'microservices/document-ingestion/pgvector/docs/**'
             document-summarization:
               - 'sample-applications/document-summarization/docs/**'
             model-registry:
               - 'microservices/model-registry/docs/**'
-            object-store:
-              - 'microservices/object-store/docs/**'
             chat-question-and-answer:
               - 'sample-applications/chat-question-and-answer/docs/**'
             visual-pipeline-platform-tool:
@@ -90,7 +87,7 @@ jobs:
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
-      docs_directory: microservices/document-ingestion
+      docs_directory: microservices/document-ingestion/pgvector
 
   build_document-summarization:
     permissions:
@@ -122,21 +119,6 @@ jobs:
       DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
     with:
       docs_directory: microservices/model-registry
-
-  build_object-store:
-    permissions:
-      contents: read          # needed for actions/checkout
-      pull-requests: read     # needed for gh pr list
-      issues: write           # needed to post PR comment
-    needs: filter
-    if: ${{ needs.filter.outputs.object-store_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/publish-documentation.yml@a77655e8fbb08f0d8e500a451aa0025bec249803
-    secrets:
-      SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
-      DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
-      DOC_AWS_SECRET_ACCESS_KEY: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
-    with:
-      docs_directory: microservices/object-store
 
   build_chat-question-and-answer:
     permissions:

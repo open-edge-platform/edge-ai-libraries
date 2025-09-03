@@ -14,11 +14,26 @@ import classifier_startup as cs
 class DummyLogger:
     def __init__(self):
         self.messages = []
-    def info(self, msg): self.messages.append(('info', msg))
-    def error(self, msg): self.messages.append(('error', msg))
-    def warning(self, msg): self.messages.append(('warning', msg))
-    def debug(self, msg): self.messages.append(('debug', msg))
-    def exception(self, msg): self.messages.append(('exception', msg))
+    def info(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('info', msg))
+    def error(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('error', msg))
+    def warning(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('warning', msg))
+    def debug(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('debug', msg))
+    def exception(self, msg, *args):
+        if args:
+            msg = msg % args
+        self.messages.append(('exception', msg))
 
 @pytest.fixture
 def kapacitor_classifier():
@@ -397,7 +412,7 @@ def test_KapacitorDaemonLogs_waits_for_file_and_reads_lines(monkeypatch):
     logger.info = info_patch
 
     with pytest.raises(Exception) as excinfo:
-        cs.KapacitorDaemonLogs(logger)
+        cs.kapacitor_daemon_logs(logger)
     assert "break" in str(excinfo.value)
     # Should have waited for file, polled, and read a line
     assert calls["sleep"] >= 2
@@ -425,7 +440,7 @@ def test_KapacitorDaemonLogs_handles_no_file(monkeypatch):
     monkeypatch.setattr(time, "sleep", fake_sleep)
 
     with pytest.raises(Exception) as excinfo:
-        cs.KapacitorDaemonLogs(logger)
+        cs.kapacitor_daemon_logs(logger)
     assert "break" in str(excinfo.value)
     assert sleep_calls["count"] > 0
 

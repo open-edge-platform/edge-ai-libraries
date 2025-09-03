@@ -16,7 +16,7 @@ ______________________________________________________________________
 
 ______________________________________________________________________
 
-### Configuration Parameters
+## Configuration Parameters
 
 The program uses a config.json file to customize the video generation process. Below is an example configuration:
 
@@ -73,7 +73,7 @@ The program uses a config.json file to customize the video generation process. B
 
 - **`swap_interval`**: Frequency of image swapping within frames (in seconds).
 
-# Supported Encodings and Video Formats
+### Supported Encodings and Video Formats
 
 | **Encoding**  | **Video Format** |
 |---------------|------------------|
@@ -86,8 +86,7 @@ The program uses a config.json file to customize the video generation process. B
 | **ProRes**    | .mov             |
 | **Theora**    | .ogg             |
 
-
-### Usage:
+## Usage
 
 ```bash
 mkdir videos
@@ -98,6 +97,7 @@ docker compose run --rm videogenerator
 
 The video will be generated in the `videos` directory with the specified file name.
 
-##  Note on Image Naming Convention
+## Note on Image Naming Convention
 
-For consistency and organization, please ensure all image files in this folder are named using a sequential format such as `1.png`, `2.png`, `3.png`, etc. Avoid using random or unrelated names for images. 
+For consistency and organization, please ensure all image files in this folder are named using a sequential format
+such as `1.png`, `2.png`, `3.png`, etc. Avoid using random or unrelated names for images.

@@ -89,7 +89,7 @@ class SmartNVRPipeline(GstPipeline):
             "  nireq={object_detection_nireq} ! "
             "queue2 ! "
             "gvatrack "
-            "  tracking-type=short-term-imageless ! "
+            "  tracking-type={tracking_type} ! "
             "queue2 ! "
         )
 
@@ -132,8 +132,11 @@ class SmartNVRPipeline(GstPipeline):
         parameters: dict,
         regular_channels: int,
         inference_channels: int,
-        elements: list = None,
+        elements: list | None = None,
     ) -> str:
+        if elements is None:
+            elements = []
+
         # Set pre process backed for object detection
         parameters["object_detection_pre_process_backend"] = (
             "opencv"
@@ -273,7 +276,9 @@ class SmartNVRPipeline(GstPipeline):
 
             # Set inference config parameter for GPU if using YOLOv10
             ie_config_parameter = ""
-            if parameters["object_detection_device"] == "GPU" and is_yolov10_model(constants['OBJECT_DETECTION_MODEL_PATH']):
+            if parameters["object_detection_device"] == "GPU" and is_yolov10_model(
+                constants["OBJECT_DETECTION_MODEL_PATH"]
+            ):
                 ie_config_parameter = "ie-config=GPU_DISABLE_WINOGRAD_CONVOLUTION=YES"
 
             streams += self._inference_stream_decode_detect_track.format(

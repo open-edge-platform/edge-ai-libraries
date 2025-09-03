@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer-pipeline-server:20250805_EAL1.2-ubuntu22
+ARG BASE_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-ubuntu22
 
 FROM ${BASE_IMAGE} 
 

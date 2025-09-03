@@ -1,8 +1,8 @@
 # How to Create Model-proc File
 
 In this tutorial you will learn how to create model-proc file for your
-own CNN model that can be processed by Intel® Deep Learning Streamer
-(Intel® DL Streamer) Pipeline Framework.
+own CNN model that can be processed by Deep Learning Streamer
+Pipeline Framework.
 
 Please refer to the [model-proc documentation](./model_proc_file.md)
 before going through this tutorial.
@@ -322,7 +322,7 @@ Let's start with an empty template:
 }
 ```
 
-#### Defining "input_preproc"
+#### Define "input_preproc"
 
 The selected model has one input layer and it does not require a special
 pre-processing algorithm -resize without aspect-ratio preservation is
@@ -330,7 +330,7 @@ enough. Therefore, we can leave this field empty: *"input_preproc": []*.
 However, you are free to experiment and configure pre-processing
 as you wish.
 
-#### Defining "output_postproc"
+#### Define "output_postproc"
 
 To begin with, we will determine which layers are the output ones.
 Let's turn to the description of [Output of converted
@@ -427,7 +427,7 @@ result in your task.
 Thus, we have defined all the fields necessary for the *yolo_v3*
 converter.
 
-#### Result
+#### The Result
 
 ``` javascript
 // yolo-v4-tiny-tf.json

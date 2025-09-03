@@ -18,7 +18,7 @@ spec:
         app: dlstreamer-pipeline-server
     spec:
       securityContext:
-        supplementalGroups: [109,110]
+        supplementalGroups: [109,110,992]
       {{- if and $.Values.DOCKER_USERNAME $.Values.DOCKER_PASSWORD }}
       imagePullSecrets:
       - name: registryauth
@@ -49,7 +49,7 @@ spec:
           value: {{ $.Values.env.no_proxy }}
         securityContext:
           runAsNonRoot: true
-          runAsUser: 1000
+          runAsUser: 1999
           allowPrivilegeEscalation: false
           readOnlyRootFilesystem: true
           capabilities:
@@ -78,6 +78,7 @@ spec:
             drop:
               - ALL
         {{- end }}
+        terminationMessagePath: /tmp/termination-log
         {{- if $.Values.gpu.enabled }}
         resources:
           limits:
