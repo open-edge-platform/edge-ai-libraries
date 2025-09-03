@@ -411,14 +411,9 @@ def generate_stream_data():
                 "Total Power": gpu_power,
             }
             if chart.df.empty:
-                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-            new_row = {"x": new_x}
-            new_row.update(metrics)
+                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
             chart.df = pd.concat(
-                [
-                    chart.df if not chart.df.empty else None,
-                    pd.DataFrame([new_row]),
-                ],
+                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
                 ignore_index=True,
             ).tail(50)
             chart.fig.data = []
@@ -440,14 +435,9 @@ def generate_stream_data():
             }
             # Prepare or update the DataFrame for this chart
             if chart.df.empty:
-                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-            new_row = {"x": new_x}
-            new_row.update(metrics)
+                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
             chart.df = pd.concat(
-                [
-                    chart.df if not chart.df.empty else None,
-                    pd.DataFrame([new_row]),
-                ],
+                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
                 ignore_index=True,
             ).tail(50)
             chart.fig.data = []
@@ -463,14 +453,9 @@ def generate_stream_data():
                 "Total Power": gpu_power_0,
             }
             if chart.df.empty:
-                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-            new_row = {"x": new_x}
-            new_row.update(metrics)
+                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
             chart.df = pd.concat(
-                [
-                    chart.df if not chart.df.empty else None,
-                    pd.DataFrame([new_row]),
-                ],
+                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
                 ignore_index=True,
             ).tail(50)
             chart.fig.data = []
@@ -495,14 +480,9 @@ def generate_stream_data():
             }
             # Prepare or update the DataFrame for this chart
             if chart.df.empty:
-                chart.df = pd.DataFrame(columns=["x"] + list(metrics.keys()))
-            new_row = {"x": new_x}
-            new_row.update(metrics)
+                chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
             chart.df = pd.concat(
-                [
-                    chart.df if not chart.df.empty else None,
-                    pd.DataFrame([new_row]),
-                ],
+                [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
                 ignore_index=True,
             ).tail(50)
             chart.fig.data = []
@@ -513,10 +493,10 @@ def generate_stream_data():
             figs.append(chart.fig)
             continue
 
-        new_row = pd.DataFrame([[new_x, new_y]], columns=["x", "y"])
-        chart.df = pd.concat(
-            [chart.df if not chart.df.empty else None, new_row], ignore_index=True
-        ).tail(50)
+        new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
+        base = chart.df if not chart.df.empty else None
+        objs = [df for df in [base, new_row] if df is not None]
+        chart.df = pd.concat(objs, ignore_index=True).tail(50)
 
         chart.fig.data = []  # clear previous trace
         chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
