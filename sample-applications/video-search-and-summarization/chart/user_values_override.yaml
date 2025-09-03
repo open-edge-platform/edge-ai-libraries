@@ -12,6 +12,11 @@ global:
   # Update huggingfaceToken if access to gated models is required. (This is needed in case OVMS is used for final summarization)
   huggingfaceToken: ""
 
+  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  vlmName: ""
+  # llmName is Large Language Model Name used by OVMS service
+  llmName: ""
+
   # Update http_proxy and https_proxy with appropriate values if a proxy is required for external access.
   proxy:
     http_proxy: ""
@@ -26,17 +31,10 @@ global:
     RABBITMQ_DEFAULT_USER: ""
     RABBITMQ_DEFAULT_PASS: ""
 
-    # Update following model names with the model name of you choice. Refer to docs for sample values.
-    vlmName: ""
-    llmName: ""
 
     # Update these values for telemetry if required. Leave empty if telemetry is not used.
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
-
-videoSummaryManager:
-  # Update this port in case of port conflict or other reasons. This is the port where we access the entire application.
-  appNodePort: 31998
 
 videoingestion:
   # odModelName defines the name of Object Detection Model
