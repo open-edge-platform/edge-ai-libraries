@@ -17,7 +17,7 @@ data:
     pip3 install -U huggingface_hub[hf_xet]
 
     # Log in to Hugging Face using the provided token
-    huggingface-cli login --token $2
+    hf auth login --token $2
 
     # Check if the login was successful
     if [ $? -eq 0 ]; then

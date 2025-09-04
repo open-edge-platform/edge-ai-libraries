@@ -93,19 +93,41 @@ fi
 
 #Create virtual env and install dependencies
 if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
-        if [ ! -d .venv ]; then
-                python3 -m venv .venv
+        # Check for Python first
+        if ! command -v python3 >/dev/null 2>&1; then
+                echo "Error: Python 3 is required but not found"
+                exit 1
         fi
-        source .venv/bin/activate
         
-        if ! pip3 list | grep -q "openvino"; then
-                pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/requirements.txt
+        # Check if we need to create or recreate the venv
+        if [ ! -d .venv ] || [ "${REBUILD_VENV:-false}" = "true" ]; then
+                # Deactivate if there's an active venv (works in both bash and sh)
+                command -v deactivate >/dev/null 2>&1 && deactivate
+                # Remove old venv if exists
+                [ -d .venv ] && rm -rf .venv
+                echo "Creating new virtual environment..."
+                python3 -m venv .venv || { echo "Failed to create virtual environment"; exit 1; }
+        fi
+        
+        # Activate the virtual environment - compatible with different shells
+        if [ -f .venv/bin/activate ]; then
+                . .venv/bin/activate || { echo "Failed to activate virtual environment"; exit 1; }
+        else
+                echo "Virtual environment activation script not found"; exit 1
+        fi
+        
+        if ! python3 -m pip show openvino >/dev/null 2>&1; then
+                echo "Installing OpenVINO and required dependencies..."
+                python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/requirements.txt
+                python3 -m pip install -U "huggingface_hub[hf_xet]"
         fi
         mkdir -p ./ovms/models
-        cd ovms
-        pip3 install -U huggingface_hub[hf_xet]
-        huggingface-cli login --token $HUGGINGFACEHUB_API_TOKEN
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
+        cd ovms || { echo "Failed to change to ovms directory"; exit 1; }
+        if [ -n "$HUGGINGFACEHUB_API_TOKEN" ]; then
+                python3 -m huggingface_hub.cli login --token "$HUGGINGFACEHUB_API_TOKEN"
+        fi
+        curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
+        echo "OpenVINO and required dependencies installed."
         cd ..
 fi
 
