@@ -1,7 +1,7 @@
 import logging
 import os
 from datetime import datetime
-from typing import Dict, List, Tuple
+from typing import Dict, List, Optional, Tuple
 
 import gradio as gr
 import pandas as pd
@@ -86,253 +86,171 @@ def detect_click(evt: gr.SelectData):
 
 
 def read_latest_metrics():
-    try:
-        with open("/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r") as f:
-            lines = [line.strip() for line in f.readlines()[-500:]]
-
-    except FileNotFoundError:
-        return [None] * 20  # 12 original + 8 extra for GPU 0
-
-    cpu_user = mem_used_percent = gpu_package_power = core_temp = gpu_power = None
-    gpu_freq = cpu_freq = gpu_render = gpu_ve = gpu_video = gpu_copy = gpu_compute = (
-        None
+    # Get all gpu_ids present in charts
+    gpu_ids_in_charts = set(
+        chart.gpu_id for chart in charts if chart.gpu_id is not None
     )
 
-    # GPU 0 variables (do not change existing ones for gpu_1)
-    gpu_package_power_0 = gpu_power_0 = gpu_freq_0 = gpu_render_0 = gpu_ve_0 = (
-        gpu_video_0
-    ) = gpu_copy_0 = gpu_compute_0 = None
+    # Prepare metrics map with all keys set to None
+    metrics: dict[str, Optional[float]] = {
+        "cpu_user": None,
+        "mem_used_percent": None,
+        "core_temp": None,
+        "cpu_freq": None,
+    }
+    # For each GPU id, add all relevant metrics keys
+    gpu_metric_keys = [
+        "gpu_package_power",
+        "gpu_power",
+        "gpu_freq",
+        "gpu_render",
+        "gpu_ve",
+        "gpu_video",
+        "gpu_copy",
+        "gpu_compute",
+    ]
+    for gpu_id in gpu_ids_in_charts:
+        for key in gpu_metric_keys:
+            metrics[f"{key}_{gpu_id}"] = None
+
+    try:
+        with open(
+            "/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r"
+        ) as metrics_file:
+            lines = [line.strip() for line in metrics_file.readlines()[-500:]]
+    except FileNotFoundError:
+        return metrics
 
     for line in reversed(lines):
         line = normalize_engine_names(line)
 
-        if cpu_user is None and "cpu" in line:
+        # CPU metrics
+        if metrics["cpu_user"] is None and "cpu" in line:
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
                     if field.startswith("usage_user="):
                         try:
-                            cpu_user = float(field.split("=")[1])
+                            metrics["cpu_user"] = float(field.split("=")[1])
                         except (ValueError, IndexError):
                             pass
 
-        if mem_used_percent is None and "mem" in line:
+        if metrics["mem_used_percent"] is None and "mem" in line:
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
                     if field.startswith("used_percent="):
                         try:
-                            mem_used_percent = float(field.split("=")[1])
+                            metrics["mem_used_percent"] = float(field.split("=")[1])
                         except (ValueError, IndexError):
                             pass
 
-        # Only consider GPU-related metrics for gpu_id=1
-        if gpu_package_power is None and "pkg_cur_power" in line and "gpu_id=1" in line:
-            parts = line.split()
-            try:
-                gpu_package_power = float(parts[1].split("=")[1])
-            except (ValueError, IndexError):
-                pass
-
-        if gpu_power is None and "gpu_cur_power" in line and "gpu_id=1" in line:
-            parts = line.split()
-            try:
-                gpu_power = float(parts[1].split("=")[1])
-            except (ValueError, IndexError):
-                pass
-
-        if core_temp is None and "temp" in line:
+        if metrics["core_temp"] is None and "temp" in line:
             parts = line.split()
             if len(parts) > 1:
                 for field in parts[1].split(","):
                     if "temp" in field:
                         try:
-                            core_temp = float(field.split("=")[1])
+                            metrics["core_temp"] = float(field.split("=")[1])
                         except (ValueError, IndexError):
                             pass
 
-        if gpu_freq is None and "gpu_frequency" in line and "gpu_id=1" in line:
-            for part in line.split():
-                if part.startswith("value="):
-                    try:
-                        gpu_freq = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if cpu_freq is None and "cpu_frequency_avg" in line:
+        if metrics["cpu_freq"] is None and "cpu_frequency_avg" in line:
             try:
                 parts = [part for part in line.split() if "frequency=" in part]
                 if parts:
-                    cpu_freq = float(parts[0].split("=")[1])
+                    metrics["cpu_freq"] = float(parts[0].split("=")[1])
             except (ValueError, IndexError):
                 pass
 
-        if gpu_render is None and "engine=render" in line and "gpu_id=1" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_render = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
+        # GPU metrics for all detected gpu_ids
+        for gpu_id in gpu_ids_in_charts:
+            id_str = f"gpu_id={gpu_id}"
+            # Package Power
+            key = f"gpu_package_power_{gpu_id}"
+            if metrics[key] is None and "pkg_cur_power" in line and id_str in line:
+                parts = line.split()
+                try:
+                    metrics[key] = float(parts[1].split("=")[1])
+                except (ValueError, IndexError):
+                    pass
+            # Total Power
+            key = f"gpu_power_{gpu_id}"
+            if metrics[key] is None and "gpu_cur_power" in line and id_str in line:
+                parts = line.split()
+                try:
+                    metrics[key] = float(parts[1].split("=")[1])
+                except (ValueError, IndexError):
+                    pass
+            # Frequency
+            key = f"gpu_freq_{gpu_id}"
+            if metrics[key] is None and "gpu_frequency" in line and id_str in line:
+                for part in line.split():
+                    if part.startswith("value="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
+            # Render
+            key = f"gpu_render_{gpu_id}"
+            if metrics[key] is None and "engine=render" in line and id_str in line:
+                for part in line.split():
+                    if part.startswith("usage="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
+            # Copy
+            key = f"gpu_copy_{gpu_id}"
+            if metrics[key] is None and "engine=copy" in line and id_str in line:
+                for part in line.split():
+                    if part.startswith("usage="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
+            # Video Enhance
+            key = f"gpu_ve_{gpu_id}"
+            if (
+                metrics[key] is None
+                and "engine=video-enhance" in line
+                and id_str in line
+            ):
+                for part in line.split():
+                    if part.startswith("usage="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
+            # Video
+            key = f"gpu_video_{gpu_id}"
+            if (
+                metrics[key] is None
+                and "engine=video" in line
+                and "engine=video-enhance" not in line
+                and id_str in line
+            ):
+                for part in line.split():
+                    if part.startswith("usage="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
+            # Compute
+            key = f"gpu_compute_{gpu_id}"
+            if metrics[key] is None and "engine=compute" in line and id_str in line:
+                for part in line.split():
+                    if part.startswith("usage="):
+                        try:
+                            metrics[key] = float(part.split("=")[1])
+                        except (ValueError, IndexError):
+                            pass
 
-        if gpu_copy is None and "engine=copy" in line and "gpu_id=1" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_copy = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_ve is None and "engine=video-enhance" in line and "gpu_id=1" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_ve = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if (
-            gpu_video is None
-            and "engine=video" in line
-            and "engine=video-enhance" not in line
-            and "gpu_id=1" in line
-        ):
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_video = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_compute is None and "engine=compute" in line and "gpu_id=1" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_compute = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        # GPU 0 metrics (new variables)
-        if (
-            gpu_package_power_0 is None
-            and "pkg_cur_power" in line
-            and "gpu_id=0" in line
-        ):
-            parts = line.split()
-            try:
-                gpu_package_power_0 = float(parts[1].split("=")[1])
-            except (ValueError, IndexError):
-                pass
-
-        if gpu_power_0 is None and "gpu_cur_power" in line and "gpu_id=0" in line:
-            parts = line.split()
-            try:
-                gpu_power_0 = float(parts[1].split("=")[1])
-            except (ValueError, IndexError):
-                pass
-
-        if gpu_freq_0 is None and "gpu_frequency" in line and "gpu_id=0" in line:
-            for part in line.split():
-                if part.startswith("value="):
-                    try:
-                        gpu_freq_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_render_0 is None and "engine=render" in line and "gpu_id=0" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_render_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_copy_0 is None and "engine=copy" in line and "gpu_id=0" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_copy_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_ve_0 is None and "engine=video-enhance" in line and "gpu_id=0" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_ve_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if (
-            gpu_video_0 is None
-            and "engine=video" in line
-            and "engine=video-enhance" not in line
-            and "gpu_id=0" in line
-        ):
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_video_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if gpu_compute_0 is None and "engine=compute" in line and "gpu_id=0" in line:
-            for part in line.split():
-                if part.startswith("usage="):
-                    try:
-                        gpu_compute_0 = float(part.split("=")[1])
-                    except (ValueError, IndexError):
-                        pass
-
-        if all(
-            v is not None
-            for v in [
-                cpu_user,
-                mem_used_percent,
-                gpu_package_power,
-                core_temp,
-                gpu_power,
-                gpu_freq,
-                gpu_render,
-                gpu_ve,
-                gpu_video,
-                gpu_copy,
-                cpu_freq,
-                gpu_compute,
-                gpu_package_power_0,
-                gpu_power_0,
-                gpu_freq_0,
-                gpu_render_0,
-                gpu_ve_0,
-                gpu_video_0,
-                gpu_copy_0,
-                gpu_compute_0,
-            ]
-        ):
+        # Early exit if all metrics are filled
+        if all(v is not None for v in metrics.values()):
             break
 
-    return [
-        cpu_user,
-        mem_used_percent,
-        gpu_package_power,
-        core_temp,
-        gpu_power,
-        gpu_freq,
-        gpu_render,
-        gpu_ve,
-        gpu_video,
-        gpu_copy,
-        cpu_freq,
-        gpu_compute,
-        gpu_package_power_0,
-        gpu_power_0,
-        gpu_freq_0,
-        gpu_render_0,
-        gpu_ve_0,
-        gpu_video_0,
-        gpu_copy_0,
-        gpu_compute_0,
-    ]
+    return metrics
 
 
 def normalize_engine_names(line: str) -> str:
@@ -354,28 +272,7 @@ def generate_stream_data():
     new_x = datetime.now()
 
     # Read metrics once
-    (
-        cpu_val,
-        mem_val,
-        gpu_package_power,
-        core_temp,
-        gpu_power,
-        gpu_freq,
-        gpu_render,
-        gpu_ve,
-        gpu_video,
-        gpu_copy,
-        cpu_freq,
-        gpu_compute,
-        gpu_package_power_0,
-        gpu_power_0,
-        gpu_freq_0,
-        gpu_render_0,
-        gpu_ve_0,
-        gpu_video_0,
-        gpu_copy_0,
-        gpu_compute_0,
-    ) = read_latest_metrics()
+    metrics = read_latest_metrics()
 
     # Read FPS once
     latest_fps = 0
@@ -392,51 +289,66 @@ def generate_stream_data():
 
         if chart.type == ChartType.PIPELINE_THROUGHPUT:
             new_y = latest_fps
-        elif chart.type == ChartType.CPU_FREQUENCY and cpu_freq is not None:
-            new_y = cpu_freq
-        elif chart.type == ChartType.CPU_UTILIZATION and cpu_val is not None:
-            new_y = cpu_val
-        elif chart.type == ChartType.CPU_TEMPERATURE and core_temp is not None:
-            new_y = core_temp
-        elif chart.type == ChartType.MEMORY_UTILIZATION and mem_val is not None:
-            new_y = mem_val
-        elif chart.type == ChartType.DGPU_POWER:
-            metrics = {
-                "Package Power": gpu_package_power,
-                "Total Power": gpu_power,
+        elif chart.type == ChartType.CPU_FREQUENCY and metrics["cpu_freq"] is not None:
+            new_y = metrics["cpu_freq"]
+        elif (
+            chart.type == ChartType.CPU_UTILIZATION and metrics["cpu_user"] is not None
+        ):
+            new_y = metrics["cpu_user"]
+        elif (
+            chart.type == ChartType.CPU_TEMPERATURE and metrics["core_temp"] is not None
+        ):
+            new_y = metrics["core_temp"]
+        elif (
+            chart.type == ChartType.MEMORY_UTILIZATION
+            and metrics["mem_used_percent"] is not None
+        ):
+            new_y = metrics["mem_used_percent"]
+        elif chart.type == ChartType.DGPU_POWER and chart.gpu_id is not None:
+            metrics_dict = {
+                "Package Power": metrics.get(f"gpu_package_power_{chart.gpu_id}"),
+                "Total Power": metrics.get(f"gpu_power_{chart.gpu_id}"),
             }
-            figs.append(update_multi_metric_chart(chart, metrics, new_x))
+            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
             continue
-        elif chart.type == ChartType.DGPU_FREQUENCY and gpu_freq is not None:
-            new_y = gpu_freq
-        elif chart.type == ChartType.DGPU_ENGINE_UTILIZATION:
-            metrics = {
-                "Render": gpu_render,
-                "Video Enhance": gpu_ve,
-                "Video": gpu_video,
-                "Copy": gpu_copy,
-                "Compute": gpu_compute,
+        elif chart.type == ChartType.DGPU_FREQUENCY and chart.gpu_id is not None:
+            freq = metrics.get(f"gpu_freq_{chart.gpu_id}")
+            if freq is not None:
+                new_y = freq
+        elif (
+            chart.type == ChartType.DGPU_ENGINE_UTILIZATION and chart.gpu_id is not None
+        ):
+            metrics_dict = {
+                "Render": metrics.get(f"gpu_render_{chart.gpu_id}"),
+                "Video Enhance": metrics.get(f"gpu_ve_{chart.gpu_id}"),
+                "Video": metrics.get(f"gpu_video_{chart.gpu_id}"),
+                "Copy": metrics.get(f"gpu_copy_{chart.gpu_id}"),
+                "Compute": metrics.get(f"gpu_compute_{chart.gpu_id}"),
             }
-            figs.append(update_multi_metric_chart(chart, metrics, new_x))
+            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
             continue
-        elif chart.type == ChartType.IGPU_POWER:
-            metrics = {
-                "Package Power": gpu_package_power_0,
-                "Total Power": gpu_power_0,
+        elif chart.type == ChartType.IGPU_POWER and chart.gpu_id is not None:
+            metrics_dict = {
+                "Package Power": metrics.get(f"gpu_package_power_{chart.gpu_id}"),
+                "Total Power": metrics.get(f"gpu_power_{chart.gpu_id}"),
             }
-            figs.append(update_multi_metric_chart(chart, metrics, new_x))
+            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
             continue
-        elif chart.type == ChartType.IGPU_FREQUENCY and gpu_freq_0 is not None:
-            new_y = gpu_freq_0
-        elif chart.type == ChartType.IGPU_ENGINE_UTILIZATION:
-            metrics = {
-                "Render": gpu_render_0,
-                "Video Enhance": gpu_ve_0,
-                "Video": gpu_video_0,
-                "Copy": gpu_copy_0,
-                "Compute": gpu_compute_0,
+        elif chart.type == ChartType.IGPU_FREQUENCY and chart.gpu_id is not None:
+            freq = metrics.get(f"gpu_freq_{chart.gpu_id}")
+            if freq is not None:
+                new_y = freq
+        elif (
+            chart.type == ChartType.IGPU_ENGINE_UTILIZATION and chart.gpu_id is not None
+        ):
+            metrics_dict = {
+                "Render": metrics.get(f"gpu_render_{chart.gpu_id}"),
+                "Video Enhance": metrics.get(f"gpu_ve_{chart.gpu_id}"),
+                "Video": metrics.get(f"gpu_video_{chart.gpu_id}"),
+                "Copy": metrics.get(f"gpu_copy_{chart.gpu_id}"),
+                "Compute": metrics.get(f"gpu_compute_{chart.gpu_id}"),
             }
-            figs.append(update_multi_metric_chart(chart, metrics, new_x))
+            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
             continue
 
         new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
@@ -724,7 +636,6 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # 2. If any GPU, pick the one with the smallest gpu_id
     # 3. Else pick NPU
     # 4. Else pick CPU
-    preferred_device = "CPU"
     device_list = device_discovery.list_devices()
     # Find discrete GPUs
     discrete_gpus = [
