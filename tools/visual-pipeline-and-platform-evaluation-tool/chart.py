@@ -1,8 +1,13 @@
 from typing import List
 from enum import Enum, auto
+import logging
 
 import pandas as pd
 import plotly.graph_objects as go
+
+from device import DeviceInfo
+
+logger = logging.getLogger("chart")
 
 
 class ChartType(Enum):
@@ -40,11 +45,22 @@ class Chart:
         self.fig = self.create_empty_fig()
 
 
-def create_charts(devices) -> List[Chart]:
-    has_igpu = any("iGPU" in name or "igpu" in name for name, _ in devices)
+def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
+    # Log all information about all devices
+    logger.info("Devices information:")
+    for device in devices:
+        logger.info(f"Device: {device}")
+
+    has_igpu = any(
+        "iGPU" in device.device_name or "igpu" in device.device_name
+        for device in devices
+    )
     has_dgpu = any(
-        "dGPU" in name or "dgpu" in name or "Discrete" in name or "discrete" in name
-        for name, _ in devices
+        "dGPU" in device.device_name
+        or "dgpu" in device.device_name
+        or "Discrete" in device.device_name
+        or "discrete" in device.device_name
+        for device in devices
     )
 
     all_chart_titles = [

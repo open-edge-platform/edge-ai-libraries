@@ -40,11 +40,7 @@ gst_inspector = GstInspector()
 device_discovery = DeviceDiscovery()
 
 # Device detection and chart title logic
-device_choices = [
-    (device.full_device_name, device.device_name)
-    for device in device_discovery.list_devices()
-]
-charts: List[Chart] = create_charts(device_choices)
+charts: List[Chart] = create_charts(device_discovery.list_devices())
 
 
 # Download File
