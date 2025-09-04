@@ -177,7 +177,9 @@ class DeviceDiscovery:
                 )
 
             # Add "GPU.<gpu_id>" to full_device_name if there are multiple GPUs
-            gpu_devices = [d for d in self.devices if d.device_family == DeviceFamily.GPU]
+            gpu_devices = [
+                d for d in self.devices if d.device_family == DeviceFamily.GPU
+            ]
             if len(gpu_devices) > 1:
                 for d in gpu_devices:
                     d.full_device_name += f" ({d.device_name})"

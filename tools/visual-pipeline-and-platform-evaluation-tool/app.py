@@ -11,7 +11,7 @@ import requests
 import utils
 from benchmark import Benchmark
 from chart import Chart, ChartType, create_charts
-from device import DeviceDiscovery
+from device import DeviceDiscovery, DeviceFamily, DeviceType
 from explore import GstInspector
 from optimize import PipelineOptimizer
 from gstpipeline import GstPipeline, PipelineLoader
@@ -719,16 +719,40 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Inference accordion
     inference_accordion = gr.Accordion("Inference Parameters", open=True)
 
-    # Get available and preferred devices for inference
-    devices = [
-        (device.full_device_name, device.device_name)
-        for device in device_discovery.list_devices()
+    # Select preferred device for inference
+    # 1. If any discrete GPU, pick the one with the smallest gpu_id
+    # 2. If any GPU, pick the one with the smallest gpu_id
+    # 3. Else pick NPU
+    # 4. Else pick CPU
+    preferred_device = "CPU"
+    device_list = device_discovery.list_devices()
+    # Find discrete GPUs
+    discrete_gpus = [
+        d
+        for d in device_list
+        if d.device_family == DeviceFamily.GPU and d.device_type == DeviceType.DISCRETE
     ]
+    if discrete_gpus:
+        # Pick discrete GPU with smallest gpu_id
+        preferred_device = min(discrete_gpus, key=lambda d: d.gpu_id).device_name
+    else:
+        # Find any GPU
+        gpus = [d for d in device_list if d.device_family == DeviceFamily.GPU]
+        if gpus:
+            # Pick GPU with smallest gpu_id
+            preferred_device = min(gpus, key=lambda d: d.gpu_id).device_name
+        else:
+            # Find NPU
+            npus = [d for d in device_list if d.device_family == DeviceFamily.NPU]
+            if npus:
+                # Pick first NPU
+                preferred_device = npus[0].device_name
+            else:
+                # Default to CPU
+                preferred_device = "CPU"
 
-    preferred_device = next(
-        ("GPU" for device_name in devices if "GPU" in device_name),
-        "CPU",
-    )
+    # Get available devices for inference
+    devices = [(device.full_device_name, device.device_name) for device in device_list]
 
     # Object detection model
     # Mapping of these choices to actual model path in utils.py
