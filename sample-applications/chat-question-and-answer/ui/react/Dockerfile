@@ -40,7 +40,7 @@ RUN ["npm", "run", "build"]
 FROM nginxinc/nginx-unprivileged:1.29-alpine
 
 # Copy the built app from the previous stage
-COPY --from=vite-app /user/app/dist /usr/share/nginx/html
+COPY --from=vite-app /user/app/dist /opt/share/nginx/html
 
 # Copy environment script and custom Nginx configuration
 COPY ./env.sh /docker-entrypoint.d/env.sh
