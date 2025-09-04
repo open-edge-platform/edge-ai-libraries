@@ -256,7 +256,7 @@ def read_latest_metrics():
 def normalize_engine_names(line: str) -> str:
     """
     Class names for XE drivers: https://github.com/ulissesf/qmassa/blob/v1.0.1/src/drm_drivers/xe.rs#L79-L92
-    are different from those used in i915 drivers: https://github.com/intel/metrics-discovery/blob/master/external/drm/i915_drm.h
+    are different from those used in i915 drivers: https://github.com/ulissesf/qmassa/blob/v1.0.1/src/drm_drivers/i915.rs#L100-L113
     Normalize them to the i915 names.
     """
     return (

@@ -62,29 +62,27 @@ def load_log_file():
     sys.exit(1)
 
 
-def emit_engine_usage(eng_usage, gpu_id, dev_nodes, ts):
+def emit_engine_usage(eng_usage, gpu_id, ts):
     for eng, vals in eng_usage.items():
         if vals:
             print(
-                f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} usage={vals[-1]} {ts}"
+                f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id} usage={vals[-1]} {ts}"
             )
 
 
-def emit_frequency(freqs, gpu_id, dev_nodes, ts):
+def emit_frequency(freqs, gpu_id, ts):
     if freqs and isinstance(freqs[-1], list):
         freq_entry = freqs[-1][0]
         if isinstance(freq_entry, dict) and "cur_freq" in freq_entry:
             print(
-                f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} value={freq_entry['cur_freq']} {ts}"
+                f"gpu_frequency,type=cur_freq,host={HOSTNAME},gpu_id={gpu_id} value={freq_entry['cur_freq']} {ts}"
             )
 
 
-def emit_power(power, gpu_id, dev_nodes, ts):
+def emit_power(power, gpu_id, ts):
     if power:
         for key, val in power[-1].items():
-            print(
-                f"power,type={key},host={HOSTNAME},gpu_id={gpu_id},dev_nodes={dev_nodes} value={val} {ts}"
-            )
+            print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}")
 
 
 def process_device_metrics(dev, gpu_id, current_ts_ns):
@@ -92,13 +90,10 @@ def process_device_metrics(dev, gpu_id, current_ts_ns):
     eng_usage = dev_stats.get("eng_usage", {})
     freqs = dev_stats.get("freqs", [])
     power = dev_stats.get("power", [])
-    dev_nodes = (
-        dev.get("dev_nodes", "").replace(" ", "").replace(",", ";")
-    )  # Read dev_nodes in format "card0, renderD128", remove spaces and change comma to semicolon
 
-    emit_engine_usage(eng_usage, gpu_id, dev_nodes, current_ts_ns)
-    emit_frequency(freqs, gpu_id, dev_nodes, current_ts_ns)
-    emit_power(power, gpu_id, dev_nodes, current_ts_ns)
+    emit_engine_usage(eng_usage, gpu_id, current_ts_ns)
+    emit_frequency(freqs, gpu_id, current_ts_ns)
+    emit_power(power, gpu_id, current_ts_ns)
 
 
 def process_states(data):
