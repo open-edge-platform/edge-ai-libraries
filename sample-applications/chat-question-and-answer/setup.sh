@@ -4,7 +4,7 @@
 export model_cache_path=~/.cache/huggingface
 export SSL_CERTIFICATES_PATH=/etc/ssl/certs
 export CA_CERTIFICATES_PATH=/opt/share/ca-certificates
-export VOLUME_OVMS=${PWD}/ovms_config
+export VOLUME_OVMS=${PWD}/ovms
 
 # Setup the PG Vector DB Connection configuration
 export PGVECTOR_HOST=pgvector_db
@@ -101,11 +101,11 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         if ! pip3 list | grep -q "openvino"; then
                 pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/requirements.txt
         fi
-        cd ./ovms_config
+        mkdir -p ./ovms/models
+        cd ovms
         pip3 install -U huggingface_hub[hf_xet]
         huggingface-cli login --token $HUGGINGFACEHUB_API_TOKEN
         curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
-        mkdir -p models
         cd ..
 fi
 
@@ -127,7 +127,7 @@ setup_inference() {
                                 export COMPOSE_PROFILES=OVMS
 
                         fi
-                        cd ./ovms_config
+                        cd ./ovms
                         python3 export_model.py text_generation --source_model $LLM_MODEL --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --cache_size $OVMS_CACHE_SIZE --overwrite_models
                         cd ..
                         ;;
@@ -157,7 +157,7 @@ setup_embedding() {
                                 export COMPOSE_PROFILES=$COMPOSE_PROFILES,OVMS
 
                         fi
-                        cd ./ovms_config
+                        cd ./ovms
                         python3 export_model.py embeddings_ov --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
                         cd ..
                         ;;
