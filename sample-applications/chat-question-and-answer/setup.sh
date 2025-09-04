@@ -91,6 +91,24 @@ if compgen -G "/dev/dri/render*" > /dev/null; then
 
 fi
 
+#Create virtual env and install dependencies
+if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
+        if [ ! -d .venv ]; then
+                python3 -m venv .venv
+        fi
+        source .venv/bin/activate
+        
+        if ! pip3 list | grep -q "openvino"; then
+                pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/requirements.txt
+        fi
+        cd ./ovms_config
+        pip3 install -U huggingface_hub[hf_xet]
+        huggingface-cli login --token $HUGGINGFACEHUB_API_TOKEN
+        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
+        mkdir -p models
+        cd ..
+fi
+
 setup_inference() {
         local service=$1
         case "${service,,}" in
@@ -140,7 +158,7 @@ setup_embedding() {
 
                         fi
                         cd ./ovms_config
-                        python3 export_model.py embeddings --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
+                        python3 export_model.py embeddings_ov --source_model $EMBEDDING_MODEL_NAME --weight-format $WEIGHT_FORMAT --config_file_path models/config.json --model_repository_path models --target_device $DEVICE --overwrite_models
                         cd ..
                         ;;
                 *)

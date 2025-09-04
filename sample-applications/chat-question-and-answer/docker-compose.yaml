@@ -217,7 +217,7 @@ services:
     shm_size: "1g"
 
   ovms-service:
-    image: openvino/model_server:2025.0
+    image: openvino/model_server:2025.2
     container_name: ovms-service
     profiles:
       - OVMS
@@ -263,7 +263,7 @@ services:
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
 
   ovms-service-gpu:
-    image: openvino/model_server:2025.0-gpu
+    image: openvino/model_server:2025.2-gpu
     container_name: ovms-service
     profiles:
       - GPU-OVMS
