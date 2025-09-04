@@ -160,7 +160,9 @@ class DeviceDiscovery:
             self.core = ov.Core()
             self.devices = []
             for device in self.core.available_devices:
-                full_device_name = str(self.core.get_property(device, "FULL_DEVICE_NAME"))
+                full_device_name = str(
+                    self.core.get_property(device, "FULL_DEVICE_NAME")
+                )
                 device_type = self.parse_device_type(device)
                 device_family = self.parse_device_family(device)
                 gpu_id = self.parse_gpu_id(device)

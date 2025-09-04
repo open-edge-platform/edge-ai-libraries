@@ -5,7 +5,7 @@ import logging
 import pandas as pd
 import plotly.graph_objects as go
 
-from device import DeviceInfo
+from device import DeviceFamily, DeviceInfo, DeviceType
 
 logger = logging.getLogger("chart")
 
@@ -26,10 +26,13 @@ class ChartType(Enum):
 
 # Chart class to manage individual charts
 class Chart:
-    def __init__(self, title: str, y_label: str, type_: ChartType):
+    def __init__(
+        self, title: str, y_label: str, type_: ChartType, gpu_id: int | None = None
+    ):
         self.title = title
         self.y_label = y_label
         self.type = type_
+        self.gpu_id = gpu_id
         self.df = pd.DataFrame(columns=["x", "y"])
         self.fig = self.create_empty_fig()
 
@@ -46,78 +49,97 @@ class Chart:
 
 
 def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
-    # Log all information about all devices
     logger.info("Devices information:")
     for device in devices:
         logger.info(f"Device: {device}")
 
-    has_igpu = any(
-        "iGPU" in device.device_name or "igpu" in device.device_name
-        for device in devices
+    # FPS and CPU Utilization charts
+    charts: List[Chart] = [
+        Chart("Pipeline Throughput [FPS]", "Throughput", ChartType.PIPELINE_THROUGHPUT),
+        Chart("CPU Utilization [%]", "Utilization", ChartType.CPU_UTILIZATION),
+    ]
+
+    # Find all GPUs
+    igpus = [
+        d
+        for d in devices
+        if d.device_family == DeviceFamily.GPU
+        and d.device_type == DeviceType.INTEGRATED
+    ]
+    dgpus = [
+        d
+        for d in devices
+        if d.device_family == DeviceFamily.GPU and d.device_type == DeviceType.DISCRETE
+    ]
+
+    # Integrated GPU Engine Utilization charts
+    for igpu in igpus:
+        charts.append(
+            Chart(
+                f"Integrated {igpu.device_name} Engine Utilization [%]",
+                "Utilization",
+                ChartType.IGPU_ENGINE_UTILIZATION,
+                gpu_id=igpu.gpu_id,
+            )
+        )
+
+    # Discrete GPU Engine Utilization charts
+    for dgpu in dgpus:
+        charts.append(
+            Chart(
+                f"Discrete {dgpu.device_name} Engine Utilization [%]",
+                "Utilization",
+                ChartType.DGPU_ENGINE_UTILIZATION,
+                gpu_id=dgpu.gpu_id,
+            )
+        )
+
+    charts.append(
+        Chart("Memory Utilization [%]", "Utilization", ChartType.MEMORY_UTILIZATION)
     )
-    has_dgpu = any(
-        "dGPU" in device.device_name
-        or "dgpu" in device.device_name
-        or "Discrete" in device.device_name
-        or "discrete" in device.device_name
-        for device in devices
+
+    # Integrated GPU Power/Freq charts
+    for igpu in igpus:
+        charts.append(
+            Chart(
+                f"Integrated {igpu.device_name} Power Usage [W] (Package & Total)",
+                "Power",
+                ChartType.IGPU_POWER,
+                gpu_id=igpu.gpu_id,
+            )
+        )
+        charts.append(
+            Chart(
+                f"Integrated {igpu.device_name} Frequency [MHz]",
+                "Frequency",
+                ChartType.IGPU_FREQUENCY,
+                gpu_id=igpu.gpu_id,
+            )
+        )
+
+    # Discrete GPU Power/Freq charts
+    for dgpu in dgpus:
+        charts.append(
+            Chart(
+                f"Discrete {dgpu.device_name} Power Usage [W] (Package & Total)",
+                "Power",
+                ChartType.DGPU_POWER,
+                gpu_id=dgpu.gpu_id,
+            )
+        )
+        charts.append(
+            Chart(
+                f"Discrete {dgpu.device_name} Frequency [MHz]",
+                "Frequency",
+                ChartType.DGPU_FREQUENCY,
+                gpu_id=dgpu.gpu_id,
+            )
+        )
+
+    # CPU Frequency & Temperature charts
+    charts.append(Chart("CPU Frequency [KHz]", "Frequency", ChartType.CPU_FREQUENCY))
+    charts.append(
+        Chart("CPU Temperature [C°]", "Temperature", ChartType.CPU_TEMPERATURE)
     )
 
-    all_chart_titles = [
-        "Pipeline Throughput [FPS]",
-        "CPU Utilization [%]",
-        "Integrated GPU Engine Utilization [%]",
-        "Discrete GPU Engine Utilization [%]",
-        "Memory Utilization [%]",
-        "Integrated GPU Power Usage [W] (Package & Total)",
-        "Integrated GPU Frequency [MHz]",
-        "Discrete GPU Power Usage [W] (Package & Total)",
-        "Discrete GPU Frequency [MHz]",
-        "CPU Frequency [KHz]",
-        "CPU Temperature [C°]",
-    ]
-    all_y_labels = [
-        "Throughput",
-        "Utilization",
-        "Utilization",
-        "Utilization",
-        "Utilization",
-        "Power",
-        "Frequency",
-        "Power",
-        "Frequency",
-        "Frequency",
-        "Temperature",
-    ]
-    all_types = [
-        ChartType.PIPELINE_THROUGHPUT,
-        ChartType.CPU_UTILIZATION,
-        ChartType.IGPU_ENGINE_UTILIZATION,
-        ChartType.DGPU_ENGINE_UTILIZATION,
-        ChartType.MEMORY_UTILIZATION,
-        ChartType.IGPU_POWER,
-        ChartType.IGPU_FREQUENCY,
-        ChartType.DGPU_POWER,
-        ChartType.DGPU_FREQUENCY,
-        ChartType.CPU_FREQUENCY,
-        ChartType.CPU_TEMPERATURE,
-    ]
-
-    igpu_indices = [2, 5, 6]
-    dgpu_indices = [3, 7, 8]
-
-    indices_to_remove = []
-    if not has_igpu:
-        indices_to_remove += igpu_indices
-    if not has_dgpu:
-        indices_to_remove += dgpu_indices
-
-    chart_titles = [
-        t for i, t in enumerate(all_chart_titles) if i not in indices_to_remove
-    ]
-    y_labels = [y for i, y in enumerate(all_y_labels) if i not in indices_to_remove]
-    types = [t for i, t in enumerate(all_types) if i not in indices_to_remove]
-
-    return [
-        Chart(chart_titles[i], y_labels[i], types[i]) for i in range(len(chart_titles))
-    ]
+    return charts
