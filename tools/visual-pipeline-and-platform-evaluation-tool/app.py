@@ -352,9 +352,14 @@ def generate_stream_data():
             continue
 
         new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
+        # Only include non-empty DataFrames in concat to avoid FutureWarning
         base = chart.df if not chart.df.empty else None
-        objs = [df for df in [base, new_row] if df is not None]
-        chart.df = pd.concat(objs, ignore_index=True).tail(50)
+        objs = [df for df in [base, new_row] if df is not None and not df.empty]
+        if not objs:
+            # If both are empty, just use new_row
+            chart.df = new_row
+        else:
+            chart.df = pd.concat(objs + [new_row], ignore_index=True).tail(50)
 
         chart.fig.data = []  # clear previous trace
         chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
@@ -370,10 +375,14 @@ def update_multi_metric_chart(chart, metrics, new_x):
     """
     if chart.df.empty:
         chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-    chart.df = pd.concat(
-        [chart.df, pd.DataFrame([{"x": new_x, **metrics}])],
-        ignore_index=True,
-    ).tail(50)
+    new_row = pd.DataFrame([{"x": new_x, **metrics}])
+    # Only include non-empty DataFrames in concat to avoid FutureWarning
+    base = chart.df if not chart.df.empty else None
+    objs = [df for df in [base, new_row] if df is not None and not df.empty]
+    if not objs:
+        chart.df = new_row
+    else:
+        chart.df = pd.concat(objs + [new_row], ignore_index=True).tail(50)
     chart.fig.data = []
     for key in metrics.keys():
         chart.fig.add_trace(
