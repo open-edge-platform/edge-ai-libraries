@@ -12,6 +12,10 @@ on:
         required: false
         default: 'json'
         type: string
+      trivy-config-path:
+        description: 'Path to custom Trivy config file'
+        required: false
+        type: string
       severity-levels:
         description: 'Severity levels to check (comma-separated, e.g. LOW,MEDIUM,HIGH,CRITICAL)'
         required: false
@@ -36,6 +40,10 @@ on:
         description: 'Trivy report format (e.g. json, table, sarif)'
         required: false
         default: 'json'
+        type: string
+      trivy-config-path:
+        description: 'Path to custom Trivy config file'
+        required: false
         type: string
       severity-levels:
         description: 'Severity levels to check (comma-separated, e.g. LOW,MEDIUM,HIGH,CRITICAL)'
@@ -87,14 +95,22 @@ jobs:
           output_report_path: ${{ inputs.output-report-path }}
           severity_levels: ${{ inputs.severity-levels }}
           trivy_report_format: ${{ inputs.trivy-report-format }}
+          trivy_config_path: ${{ inputs.trivy-config-path }}
         run: |
           echo "🔍 Scanning: ${dockerfile_path}"
           echo "📁 Saving report to: ${output_report_path}"
-          trivy config \
-            --severity "${severity_levels}" \
-            --format "${trivy_report_format}" \
-            --output "${output_report_path}" \
-            "${dockerfile_path}"
+          trivy_cmd="trivy config \
+            --severity \"${severity_levels}\" \
+            --format \"${trivy_report_format}\" \
+            --output \"${output_report_path}\" \
+            \"${dockerfile_path}\""
+          
+          # Add Trivy config path if provided
+          if [ -n "$trivy_config_path" ]; then
+            trivy_cmd="$trivy_cmd --config \"$trivy_config_path\""
+          fi
+          
+          eval $trivy_cmd
 
           echo "📄 Report preview:"
           head -n 100 "${output_report_path}"
@@ -103,7 +119,7 @@ jobs:
         env:
           output_report_path: ${{ inputs.output-report-path }}
         run: |
-          FAILURE_COUNT=$(jq '.Results[].MisconfSummary.Failures' "${output_report_path}")
+          FAILURE_COUNT=$(jq '[.Results[].MisconfSummary.Failures] | add' "${output_report_path}")
           echo "Failures found: $FAILURE_COUNT"
 
           if [ "$FAILURE_COUNT" -gt 0 ]; then
