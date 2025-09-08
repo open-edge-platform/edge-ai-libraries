@@ -1,12 +1,13 @@
 #!/usr/bin/env python3
 
+import fcntl
 import json
 import logging
-import subprocess
-import time
-import fcntl
-import sys
 import os
+import re
+import subprocess
+import sys
+import time
 
 # === Constants ===
 LOG_FILE = "/app/qmassa_log.json"
@@ -111,7 +112,18 @@ def process_states(data):
             return
 
         # Process all devices in devs_state
-        for gpu_id, dev in enumerate(devs_state):
+        for dev in devs_state:
+            dev_nodes = dev.get("dev_nodes", "")
+            match = re.search(r"renderD(\d+)", dev_nodes)
+            if not match:
+                continue  # no renderD<number> found, skip this device
+
+            number = int(match.group(1))
+            if number < 128:
+                logging.warning(f"renderD{number} in dev_nodes '{dev_nodes}' is less than 128, skipping device")
+                continue
+
+            gpu_id = number - 128
             process_device_metrics(dev, gpu_id, current_ts_ns)
     except Exception as e:
         logging.error(f"Error processing log file: {e}")
