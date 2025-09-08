@@ -1,12 +1,12 @@
 x-nginx-common: &nginx-common
-  image: nginxinc/nginx-unprivileged:1.27.4
+  image: nginxinc/nginx-unprivileged:1.29.1
   container_name: chatqna-core-nginx
   ports:
     - "8102:8102"
   volumes:
     - ../nginx_config/nginx.conf:/etc/nginx/nginx.conf:ro
 
-x-chatqna-core-common : &chatqna-core-common
+x-chatqna-core-common: &chatqna-core-common
   image: ${REGISTRY:-}chatqna:${BACKEND_TAG:-latest}
   build:
     context: ../
