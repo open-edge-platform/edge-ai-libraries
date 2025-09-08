@@ -49,9 +49,9 @@ class Chart:
 
 
 def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
-    logger.info("Devices information:")
+    logger.debug("Devices information:")
     for device in devices:
-        logger.info(f"Device: {device}")
+        logger.debug(f"\tDevice: {device}")
 
     # FPS and CPU Utilization charts
     charts: List[Chart] = [
