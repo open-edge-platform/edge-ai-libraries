@@ -120,7 +120,9 @@ def process_states(data):
 
             number = int(match.group(1))
             if number < 128:
-                logging.warning(f"renderD{number} in dev_nodes '{dev_nodes}' is less than 128, skipping device")
+                logging.warning(
+                    f"renderD{number} in dev_nodes '{dev_nodes}' is less than 128, skipping device"
+                )
                 continue
 
             gpu_id = number - 128

@@ -76,7 +76,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
     for igpu in igpus:
         charts.append(
             Chart(
-                f"Integrated {igpu.device_name} Engine Utilization [%]",
+                f"{igpu.device_name} Engine Utilization [%] (integrated)",
                 "Utilization",
                 ChartType.IGPU_ENGINE_UTILIZATION,
                 gpu_id=igpu.gpu_id,
@@ -87,7 +87,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
     for dgpu in dgpus:
         charts.append(
             Chart(
-                f"Discrete {dgpu.device_name} Engine Utilization [%]",
+                f"{dgpu.device_name} Engine Utilization [%] (discrete)",
                 "Utilization",
                 ChartType.DGPU_ENGINE_UTILIZATION,
                 gpu_id=dgpu.gpu_id,
@@ -102,7 +102,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
     for igpu in igpus:
         charts.append(
             Chart(
-                f"Integrated {igpu.device_name} Power Usage [W] (Package & Total)",
+                f"{igpu.device_name} Power Usage [W] (Package & Total) (integrated)",
                 "Power",
                 ChartType.IGPU_POWER,
                 gpu_id=igpu.gpu_id,
@@ -110,7 +110,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
         )
         charts.append(
             Chart(
-                f"Integrated {igpu.device_name} Frequency [MHz]",
+                f"{igpu.device_name} Frequency [MHz] (integrated)",
                 "Frequency",
                 ChartType.IGPU_FREQUENCY,
                 gpu_id=igpu.gpu_id,
@@ -121,7 +121,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
     for dgpu in dgpus:
         charts.append(
             Chart(
-                f"Discrete {dgpu.device_name} Power Usage [W] (Package & Total)",
+                f"{dgpu.device_name} Power Usage [W] (Package & Total) (discrete)",
                 "Power",
                 ChartType.DGPU_POWER,
                 gpu_id=dgpu.gpu_id,
@@ -129,7 +129,7 @@ def create_charts(devices: List[DeviceInfo]) -> List[Chart]:
         )
         charts.append(
             Chart(
-                f"Discrete {dgpu.device_name} Frequency [MHz]",
+                f"{dgpu.device_name} Frequency [MHz] (discrete)",
                 "Frequency",
                 ChartType.DGPU_FREQUENCY,
                 gpu_id=dgpu.gpu_id,
