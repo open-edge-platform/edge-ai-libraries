@@ -21,6 +21,9 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 TEMP_DIR = "/tmp/"
 
+METRICS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/metrics.txt"
+FPS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/fps.txt"
+
 INFERENCING_CHANNELS_LABEL = "Number of Inferencing channels"
 RECORDING_AND_INFERENCING_CHANNELS_LABEL = "Number of Recording + Inferencing channels"
 
@@ -114,9 +117,7 @@ def read_latest_metrics():
             metrics[f"{key}_{gpu_id}"] = None
 
     try:
-        with open(
-            "/home/dlstreamer/vippet/.collector-signals/metrics.txt", "r"
-        ) as metrics_file:
+        with open(METRICS_FILE_PATH, "r") as metrics_file:
             lines = [line.strip() for line in metrics_file.readlines()[-500:]]
     except FileNotFoundError:
         return metrics
@@ -277,8 +278,8 @@ def generate_stream_data():
     # Read FPS once
     latest_fps = 0
     try:
-        with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "r") as f:
-            lines = [line.strip() for line in f.readlines()[-500:]]
+        with open(FPS_FILE_PATH, "r") as fps_file:
+            lines = [line.strip() for line in fps_file.readlines()[-500:]]
             latest_fps = float(lines[-1])
     except (FileNotFoundError, IndexError):
         latest_fps = 0
