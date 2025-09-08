@@ -33,7 +33,7 @@ class Chart:
         self.y_label = y_label
         self.type = type_
         self.gpu_id = gpu_id
-        self.df = pd.DataFrame(columns=["x", "y"])
+        self.df = pd.DataFrame(columns=pd.Index(["x", "y"]))
         self.fig = self.create_empty_fig()
 
     def create_empty_fig(self):
@@ -44,7 +44,7 @@ class Chart:
         return fig
 
     def reset(self):
-        self.df = pd.DataFrame(columns=["x", "y"])
+        self.df = pd.DataFrame(columns=pd.Index(["x", "y"]))
         self.fig = self.create_empty_fig()
 
 
