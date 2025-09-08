@@ -35,6 +35,53 @@ jobs:
       run_reuse_check: false
       project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
       trivy_config_path: 'tools/visual-pipeline-and-platform-evaluation-tool/trivy.yaml'
+  filter-docker-related-changes:
+    permissions:
+      contents: read
+    name: Detect Dockerfile changes
+    runs-on: ubuntu-latest
+    outputs:
+      docker_changed: ${{ steps.check.outputs.docker_changed }}
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+          fetch-depth: 0
+
+      - name: Fetch main branch for comparison
+        run: git fetch origin main
+
+      - id: check
+        name: Detect changes in docker directory
+        run: |
+          echo "🔍 Checking for changes in 'tools/visual-pipeline-and-platform-evaluation-tool/'..."
+          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
+          echo "📄 Changed files:"
+          echo "$CHANGED_FILES"
+          if echo "$CHANGED_FILES" | grep -q '^tools/visual-pipeline-and-platform-evaluation-tool/.*Dockerfile'; then
+            echo "docker_changed=true" >> "$GITHUB_OUTPUT"
+            echo "🟡 Docker-related changes detected."
+          else
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
+            echo "✅ No docker-related changes."
+          fi
+  trivy-config-scan:
+    permissions:
+      contents: read
+    needs: [ filter-docker-related-changes ]
+    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: Trivy Dockerfiles Scan
+    strategy:
+      fail-fast: false
+    uses: ./.github/workflows/trivy-config-mode.yaml
+    with:
+      dockerfile-path: 'tools/visual-pipeline-and-platform-evaluation-tool/'
+      trivy-config-path: 'tools/visual-pipeline-and-platform-evaluation-tool/trivy.yaml'
+      trivy-report-format: 'json'
+      severity-levels: 'HIGH,CRITICAL'
+      output-report-path: vippet-trivy-dockerfiles.json
+      name: vippet-dockerfiles-scan
   final-check:
     permissions:
       contents: read
