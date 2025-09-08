@@ -237,14 +237,14 @@ jobs:
       run: |
         models=$models_to_download
         event_name: ${{ github.event_name }}
-        if [[ "$models" == "public" || "$models" == "all" || "$models" == "event" ]]; then
+        if [[ "$models" == "public" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] && mv "${{ env.MODELS_PATH }}/public_old_old" "${{ env.MODELS_PATH }}/public_old"
           echo "Old public models restored" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "event" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel" ] && rm -rf "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old" ] && mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] && mv "${{ env.MODELS_PATH }}/intel_old_old" "${{ env.MODELS_PATH }}/intel_old"
