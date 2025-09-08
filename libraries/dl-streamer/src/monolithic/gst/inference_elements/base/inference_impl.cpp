@@ -256,7 +256,7 @@ bool IsPreprocSupported(ImagePreprocessorType preproc,
     case ImagePreprocessorType::VAAPI_SYSTEM:
         return IsModelProcSupportedForVaapi(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::VAAPI_SURFACE_SHARING:
-        return !isNpu && IsModelProcSupportedForVaapiSurfaceSharing(model_input_processor_info, input_video_info);
+        return IsModelProcSupportedForVaapiSurfaceSharing(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::OPENCV:
         return true;
     case ImagePreprocessorType::AUTO:

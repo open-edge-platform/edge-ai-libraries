@@ -1306,13 +1306,22 @@ class OpenVinoNewApiImpl {
         return _device.find("GPU") != std::string::npos;
     }
 
+    bool is_device_npu() const {
+        return _device.find("NPU") != std::string::npos;
+     }
+
     bool is_device_multi() const {
         return _device.find("MULTI") != std::string::npos;
     }
 
     dlstreamer::ContextPtr create_remote_context() {
-        // FIXME: invert to reduce nesting
-        if (is_device_gpu() && !is_device_multi() &&
+        
+        // multi device-inference does not support remote context
+        if (is_device_multi()) {
+            // do nothing, no remote context
+        }
+        // use VAAPI display context as remote GPU context
+        else if (is_device_gpu() &&
             (_memory_type == MemoryType::VAAPI || _memory_type == MemoryType::SYSTEM)) {
             if (_app_context) {
                 try {
@@ -1327,6 +1336,16 @@ class OpenVinoNewApiImpl {
                 throw std::runtime_error("Display must be provided for GPU device with vaapi-surface-sharing backend");
             }
         }
+        // use default plugin context as NPU remote context
+        else if (is_device_npu()) {
+            try {
+                _openvino_context = std::make_shared<dlstreamer::OpenVINOContext>(core(), _device);
+            } catch (std::exception &e) {
+                GVA_ERROR("Exception occurred when creating OpenVINO™ toolkit remote context: %s", e.what());
+                std::throw_with_nested(std::runtime_error("couldn't create OV remote context for NPU device"));
+            }
+        }
+
         return _openvino_context;
     }
 };
