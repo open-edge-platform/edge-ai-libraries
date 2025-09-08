@@ -1308,21 +1308,20 @@ class OpenVinoNewApiImpl {
 
     bool is_device_npu() const {
         return _device.find("NPU") != std::string::npos;
-     }
+    }
 
     bool is_device_multi() const {
         return _device.find("MULTI") != std::string::npos;
     }
 
     dlstreamer::ContextPtr create_remote_context() {
-        
+
         // multi device-inference does not support remote context
         if (is_device_multi()) {
             // do nothing, no remote context
         }
         // use VAAPI display context as remote GPU context
-        else if (is_device_gpu() &&
-            (_memory_type == MemoryType::VAAPI || _memory_type == MemoryType::SYSTEM)) {
+        else if (is_device_gpu() && (_memory_type == MemoryType::VAAPI || _memory_type == MemoryType::SYSTEM)) {
             if (_app_context) {
                 try {
                     dlstreamer::VAAPIContextPtr vaapi_ctx = dlstreamer::VAAPIContext::create(_app_context);
