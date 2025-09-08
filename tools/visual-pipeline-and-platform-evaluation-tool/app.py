@@ -353,13 +353,10 @@ def generate_stream_data():
 
         new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
         # Only include non-empty DataFrames in concat to avoid FutureWarning
-        base = chart.df if not chart.df.empty else None
-        objs = [df for df in [base, new_row] if df is not None and not df.empty]
-        if not objs:
-            # If both are empty, just use new_row
+        if chart.df.empty:
             chart.df = new_row
         else:
-            chart.df = pd.concat(objs, ignore_index=True).tail(50)
+            chart.df = pd.concat([chart.df, new_row], ignore_index=True).tail(50)
 
         chart.fig.data = []  # clear previous trace
         chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))

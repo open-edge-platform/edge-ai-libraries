@@ -98,7 +98,8 @@ class TestApp(unittest.TestCase):
                     "gpu_compute",
                 ]:
                     metrics[f"{key}_{chart.gpu_id}"] = 1.0
-            # Always present keys
+
+        # Always present keys
         for key in ["cpu_user", "mem_used_percent", "core_temp", "cpu_freq"]:
             metrics[key] = 1.0
 
