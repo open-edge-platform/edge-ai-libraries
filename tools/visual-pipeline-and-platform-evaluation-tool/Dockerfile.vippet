@@ -39,13 +39,14 @@ RUN \
 COPY --chown=dlstreamer:dlstreamer \
     app.py \
     app.css \
-    optimize.py \
-    gstpipeline.py \
+    benchmark.py \
+    chart.py \
+    cleanup_models.sh \
     device.py \
     explore.py \
-    benchmark.py \
+    gstpipeline.py \
+    optimize.py \
     utils.py \
-    cleanup_models.sh \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines
