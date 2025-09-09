@@ -100,9 +100,6 @@ class PeltChunking(BaseChunking):
             if not frames:
                 break
             self.update(frames, timestamps)
-            
-        # debug
-        self.video_input = video_input
         
         # Achieve end of video, start to detect change points
         # return all micro chunks
@@ -246,7 +243,7 @@ class PeltChunking(BaseChunking):
             'origin': frame,
             'hsv_histogram': hsv_histogram,
             'gray': gray_frame,
-            'lbp_histogram': hsv_histogram
+            'lbp_histogram': lbp_histogram
         }
         '''
         

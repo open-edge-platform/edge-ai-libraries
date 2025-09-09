@@ -53,6 +53,7 @@ Key components of the **Edge AI Libraries**:
 | [Video Search and Summarization](sample-applications/video-search-and-summarization) | Sample Application | [Link](sample-applications/video-search-and-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/video-search-and-summarization/docs/user-guide/build-from-source.md) instructions |
 | [Optimized Isolation Forest Classifier Training and Inference Microservice](https://github.com/intel/isolation-forest-microservice) | Microservice| [Link](https://github.com/intel/isolation-forest-microservice/blob/main/README.md)| [Build](https://github.com/intel/isolation-forest-microservice/blob/main/README.md) |
 | [Optimizied Random Forest Training and Inference Microservice](https://github.com/intel/random-forest-microservice) | Microservice | [Link](https://github.com/intel/random-forest-microservice/blob/main/README.md) | [Build](https://github.com/intel/random-forest-microservice/blob/main/README.md) |
+| [Video Chunking Utils](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils) | Library | [Link](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils/README.md) | [Usage](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/video-chunking-utils/README.md) |
 
 > Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
 
