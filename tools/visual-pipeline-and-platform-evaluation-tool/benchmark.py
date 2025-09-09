@@ -69,8 +69,10 @@ class Benchmark:
     def run(self) -> Tuple[int, int, int, float]:
         """Run the benchmark and return the best configuration."""
         n_streams = 1
-        increments = 1
-        incrementing = True
+        exponential = True
+        lower_bound = 1
+        # We'll set this once we fall below the fps_floor
+        higher_bound = -1
         best_config = (0, 0, 0, 0.0)
 
         while True:
@@ -103,30 +105,31 @@ class Benchmark:
                 return (0, 0, 0, 0.0)
 
             self.logger.info(
-                "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
+                "n_streams=%d, total_fps=%f, per_stream_fps=%f, exponential=%s, lower_bound=%d, higher_bound=%s",
                 n_streams,
                 total_fps,
                 per_stream_fps,
-                increments,
-                incrementing,
+                exponential,
+                lower_bound,
+                higher_bound,
             )
 
-            if incrementing:
+            # increase number of streams exponentially until we drop below fps_floor
+            if exponential:
                 if per_stream_fps >= self.fps_floor:
-                    increments = int(per_stream_fps / self.fps_floor)
-                    self.logger.info(
-                        "n_streams=%d, total_fps=%f, per_stream_fps=%f, increments=%d, incrementing=%s",
+                    best_config = (
                         n_streams,
-                        total_fps,
+                        ai_streams,
+                        non_ai_streams,
                         per_stream_fps,
-                        increments,
-                        incrementing,
                     )
-                    if increments <= 1:
-                        increments = 5
+                    n_streams *= 2
                 else:
-                    incrementing = False
-                    increments = -1
+                    exponential = False
+                    higher_bound = n_streams
+                    lower_bound = n_streams // 2
+                    n_streams = (lower_bound + higher_bound) // 2
+            # use bisecting search for fine tune maximum number of streams
             else:
                 if per_stream_fps >= self.fps_floor:
                     best_config = (
@@ -135,13 +138,15 @@ class Benchmark:
                         non_ai_streams,
                         per_stream_fps,
                     )
-                    break  # Success
+                    lower_bound = n_streams + 1
                 else:
-                    if n_streams <= 1:
-                        self.logger.info("Failed to find a valid configuration.")
-                        break  # Fail
+                    higher_bound = n_streams - 1
 
-            n_streams += increments
+                if lower_bound > higher_bound:
+                    break  # Binary search complete
+
+                n_streams = (lower_bound + higher_bound) // 2
+
             if n_streams <= 0:
                 n_streams = 1  # Prevent N from going below 1
 
