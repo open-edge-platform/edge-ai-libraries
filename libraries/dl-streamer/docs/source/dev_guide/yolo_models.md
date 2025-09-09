@@ -1,7 +1,7 @@
 # YOLO Models
 
 This page illustrates how to prepare models from the **YOLO** family for
-integration with the Intel® DL Streamer pipeline.
+integration with the Deep Learning Streamer pipeline.
 
 > **NOTE:** The instructions provided below are comprehensive, but for convenience,
 >  it is recommended to use the
@@ -13,10 +13,10 @@ integration with the Intel® DL Streamer pipeline.
 
 ## 1. Set up the framework
 
-The instructions assume Intel® DL Streamer framework is installed on the
+The instructions assume Deep Learning Streamer framework is installed on the
 local system along with Intel® OpenVINO™ model downloader and converter
 tools, as described here:
-[Tutorial](https://dlstreamer.github.io/get_started/tutorial.html#tutorial-setup).
+[Tutorial](../get_started/tutorial.md#setup).
 
 For YOLOv5, YOLOv8, YOLOv9, YOLOv10, YOLO11 models it is also necessary
 to install the Ultralytics Python package:
@@ -130,5 +130,5 @@ ovc yolox_s.onnx --compress_to_fp16=False
 
 See
 [Samples](https://github.com/dlstreamer/dlstreamer/tree/master/samples/gstreamer/gst_launch/detection_with_yolo)
-for detailed examples of Intel® DL Streamer pipelines using different
+for detailed examples of Deep Learning Streamer pipelines using different
 Yolo models.

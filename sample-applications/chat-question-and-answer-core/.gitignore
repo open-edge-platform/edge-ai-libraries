@@ -10,3 +10,4 @@ coverage
 *.lock
 !poetry.lock
 .vscode
+nginx_config/*.conf

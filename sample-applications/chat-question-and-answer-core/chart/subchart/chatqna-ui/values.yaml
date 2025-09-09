@@ -1,7 +1,9 @@
 image:
   registry: "intel/"
-  uiTag: "core_1.2.2"
   pullPolicy: IfNotPresent
+  tags:
+    ui: "core_1.3.0"
+
 
 global:
   http_proxy: ""

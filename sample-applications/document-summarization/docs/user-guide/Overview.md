@@ -6,13 +6,14 @@ advanced language models (LLMs) to deliver high-quality summaries.
 
 ![Document Summarization web interface](./images/docSum-web.png)
 
+## Key Features
 
-# Key Features
 - **Efficient Summarization**: Quickly generate summaries from large volumes of text, saving time and enhancing productivity.
 - **Scalable Microservices Architecture**: Designed to handle varying workloads, ensuring consistent performance and reliability.
 - **Advanced Language Model Integration**: Utilizes state-of-the-art LLMs to produce accurate and contextually relevant summaries.
 
-# Advantages of Using LlamaIndex Document Summary Index
+## Advantages of Using LlamaIndex Document Summary Index
+
 - **Enhanced Accuracy and Relevance**: LlamaIndex Document Summary Index can produce summaries that are
    concise, accurate, and relevant. By focusing on key information and context, it ensures that the generated summaries
    retain the essence of the original document.
@@ -26,8 +27,9 @@ advanced language models (LLMs) to deliver high-quality summaries.
 - **Customization and Flexibility**: LlamaIndex framework offers flexibility in summary generation, allowing users to customize the level of detail
   and focus according to their specific requirements. This adaptability makes it suitable for a wide range of applications and industries.
 
-  # Technical Architecture:
-  The Document Summarization Sample Application includes the following components:
+## Technical Architecture:
+
+The Document Summarization Sample Application includes the following components:
 
 - **LLM inference microservice**: Intel's optimized [OpenVINO™ Model Server](https://github.com/openvinotoolkit/model_server) runs LLMs on Intel® hardware efficiently. Developers have other model serving options if required.
 - **Document Summary API Service**: A FastAPI service that exposes the API to summarize the uploaded document. The service ingests each document and uses a LLM to generate the summary. It splits the file into text chunks (nodes). The summary and nodes are stored within the Document Store abstraction. The application maintains the mapping from the summary to the source document.

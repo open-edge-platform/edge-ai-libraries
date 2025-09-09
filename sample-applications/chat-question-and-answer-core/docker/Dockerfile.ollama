@@ -1,0 +1,114 @@
+# Copyright (C) 2024 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+FROM python:3.11-slim AS python-base
+
+ARG UID=1000
+ARG GID=1000
+
+# Setting env vars for python, pip and poetry
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    PIP_NO_CACHE_DIR=off \
+    PIP_DISABLE_PIP_VERSION_CHECK=on \
+    PIP_DEFAULT_TIMEOUT=100 \
+    POETRY_VERSION=1.8.3 \
+    # Poetry installation location
+    POETRY_HOME="/opt/poetry" \
+    # Create the virtual environment dir .venv in the project's root
+    POETRY_VIRTUALENVS_IN_PROJECT=true \
+    # Disable interactive prompts
+    POETRY_NO_INTERACTION=1 \
+    # Location where packages gets installed
+    SETUP_PATH="/opt/projsetup" \
+    # Location where virtual env is created
+    VENV_PATH="/opt/projsetup/.venv"
+
+# Add poetry and venv to path
+ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
+
+# Upgrade pip and setuptools to the latest version to fix vuln
+RUN /usr/local/bin/pip install --upgrade --no-cache-dir pip setuptools
+
+# Create a non-root user
+RUN groupadd -g ${GID} appuser && \
+    useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser && \
+    chown -R appuser:appuser $HOME
+
+
+FROM python-base AS builder-base
+RUN apt-get update && apt-get install --no-install-recommends -y curl rsync build-essential
+
+# Install poetry. Installs in $POETRY_HOME with version $POETRY_VERSION
+RUN curl -sSL https://install.python-poetry.org | python -
+
+WORKDIR $SETUP_PATH
+COPY poetry.lock pyproject.toml ./
+# Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
+RUN poetry install --with ollama --without dev --without openvino
+
+# Install ollama and exclude nvidia gpu-related packages
+RUN curl -fsSL https://ollama.com/install.sh | sh - \
+    && mkdir -p /tmp/ollama_lib \
+    && rsync -av \
+    --exclude='libggml-cuda.so' \
+    --exclude='libcudart*' \
+    --exclude='libcublas*' \
+    /usr/local/lib/ollama/ /tmp/ollama_lib/
+
+
+# `dev` image is used during development / testing
+FROM python-base AS dev
+ENV FASTAPI_ENV=development
+
+WORKDIR $SETUP_PATH
+
+# Copy the poetry installation and the virtual env to current image
+COPY --from=builder-base $POETRY_HOME $POETRY_HOME
+COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+
+# Install dev dependencies. Prod dependencies are already installed.
+RUN poetry install --with dev,openvino,ollama
+
+# Source code will be mounted here
+WORKDIR /app
+
+USER appuser
+
+EXPOSE 8888
+
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8888", "--reload"]
+
+
+# `prod` image used for runtime
+FROM python-base AS prod
+ENV FASTAPI_ENV=production
+
+WORKDIR /my-app
+
+RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
+    libmagic-dev && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Copy the poetry installation and the virtual env
+COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+
+# Copy ollama bin and lib
+COPY --from=builder-base /usr/local/bin/ollama /usr/local/bin/ollama
+COPY --from=builder-base /tmp/ollama_lib/ /usr/local/lib/ollama
+
+# Prepare directories for model cache and config
+RUN mkdir -p /tmp/model_cache /tmp/model_config
+
+# Copy application code and model config
+COPY app ./app
+COPY model_config/sample/ollama_template.yaml /tmp/model_config/default_model.yaml
+
+# Set ownership to appuser
+RUN chown -R appuser:appuser /my-app /tmp/model_cache /tmp/model_config
+
+USER appuser
+
+EXPOSE 8888
+
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8888"]

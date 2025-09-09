@@ -242,9 +242,7 @@ describe('Utility Functions test suite', () => {
       const result = await checkHealth();
 
       expect(result).toEqual({
-        status: 500,
-        message:
-          'LLM model server is not ready to accept connections. Please try after a few minutes.',
+        status: 500
       });
     });
 
@@ -254,9 +252,7 @@ describe('Utility Functions test suite', () => {
       const result = await checkHealth();
 
       expect(result).toEqual({
-        status: 503,
-        message:
-          'LLM model server is not ready to accept connections. Please try after a few minutes.',
+        status: 503
       });
     });
   });

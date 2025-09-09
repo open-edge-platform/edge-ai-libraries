@@ -6,8 +6,7 @@
 > to prevent dealing with a legacy solution. It will be maintained for
 > some time to ensure backwards compatibility, but you should not use it
 > in modern applications. The new method of model preparation is described
-> in [Model Info
-> Section](https://dlstreamer.github.io/dev_guide/model_info_xml.html)
+> in [Model Info Section](../dev_guide/model_info_xml.md)
 
 ## Table of Contents
 
@@ -64,8 +63,8 @@ models.
 
 This file has specific fields:
 
-- `json_schema_version`. Service information needed by Intel® Deep
-  Learning Streamer (Intel® DL Streamer) Pipeline Framework. **The
+- `json_schema_version`. Service information needed by Deep
+  Learning Streamer Pipeline Framework. **The
   latest version should be used: 2.2.0**.
 - `input_preproc`. Describes how to process an input tensor before
   inference.

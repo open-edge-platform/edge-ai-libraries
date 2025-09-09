@@ -8,6 +8,8 @@ cmake_minimum_required(VERSION 3.20)
 
 project(DL_Streamer C CXX)
 
+include_directories("${CMAKE_BINARY_DIR}/deps/install/include;${CMAKE_BINARY_DIR}/deps/gstreamer-bin/include;${CMAKE_BINARY_DIR}/deps/opencv-bin/include")
+
 if (WIN32)
     add_compile_options("$<$<C_COMPILER_ID:MSVC>:/utf-8>")
     add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/utf-8>")
@@ -41,10 +43,10 @@ set(PLUGIN_VERSION ${PRODUCT_VERSION})
 
 add_definitions(-DPLUGIN_VERSION="${PLUGIN_VERSION}")
 add_definitions(-DPACKAGE="dlstreamer")
-add_definitions(-DPACKAGE_NAME="Intel® DL Streamer elements")
+add_definitions(-DPACKAGE_NAME="Deep Learning Streamer elements")
 add_definitions(-DGST_PACKAGE_ORIGIN="https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer")
 add_definitions(-DPLUGIN_LICENSE="MIT/X11")
-add_definitions(-DPRODUCT_FULL_NAME="Intel® DL Streamer")
+add_definitions(-DPRODUCT_FULL_NAME="Deep Learning Streamer")
 
 # Helper macros and functions
 

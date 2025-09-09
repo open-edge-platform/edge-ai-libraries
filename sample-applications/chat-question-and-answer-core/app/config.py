@@ -1,5 +1,6 @@
 from pydantic import PrivateAttr
 from pydantic_settings import BaseSettings
+from typing import Union
 from os.path import dirname, abspath
 from .prompt import get_prompt_template
 import os
@@ -8,34 +9,45 @@ import yaml
 class Settings(BaseSettings):
     """
     Settings class for configuring the Chatqna-Core application.
-    This class manages application-wide configuration, including model settings, device preferences,
-    supported file formats, and paths for caching and configuration files. It loads additional
-    configuration from a YAML file if provided, and updates its attributes accordingly.
+    This class manages application settings, including model backend selection,
+    model IDs, device configurations, prompt templates, and various internal paths.
+    It loads configuration from a YAML file, validates backend-specific requirements,
+    and ensures prompt templates contain required placeholders.
 
     Attributes:
         APP_DISPLAY_NAME (str): Display name of the application.
         BASE_DIR (str): Base directory of the application.
-        SUPPORTED_FORMATS (set): Supported document file formats.
-        DEBUG (bool): Flag to enable or disable debug mode.
-        HF_ACCESS_TOKEN (str): Hugging Face access token for model downloads.
-        EMBEDDING_MODEL_ID (str): Model ID for embeddings.
-        RERANKER_MODEL_ID (str): Model ID for reranker.
-        LLM_MODEL_ID (str): Model ID for large language model.
-        PROMPT_TEMPLATE (str): Prompt template for the LLM.
-        EMBEDDING_DEVICE (str): Device to run embedding model on.
-        RERANKER_DEVICE (str): Device to run reranker model on.
-        LLM_DEVICE (str): Device to run LLM on.
+        SUPPORTED_FORMATS (set): Supported file formats for input documents.
+        DEBUG (bool): Debug mode flag.
+        HF_ACCESS_TOKEN (str): Hugging Face access token.
+        MODEL_BACKEND (str): Backend to use for models ('openvino' or 'ollama').
+        EMBEDDING_MODEL_ID (str): Identifier for the embedding model.
+        RERANKER_MODEL_ID (str): Identifier for the reranker model.
+        LLM_MODEL_ID (str): Identifier for the large language model.
+        PROMPT_TEMPLATE (str): Prompt template string for the LLM.
+        EMBEDDING_DEVICE (str): Device for embedding model ('CPU', etc.).
+        RERANKER_DEVICE (str): Device for reranker model ('CPU', etc.).
+        LLM_DEVICE (str): Device for LLM ('CPU', etc.).
         MAX_TOKENS (int): Maximum number of tokens for LLM responses.
-        ENABLE_RERANK (bool): Flag to enable or disable reranking.
-        _CACHE_DIR (str): Directory for model cache (private).
-        _HF_DATASETS_CACHE (str): Directory for Hugging Face datasets cache (private).
-        _TMP_FILE_PATH (str): Temporary file path for documents (private).
-        _DEFAULT_MODEL_CONFIG (str): Path to default model configuration YAML (private).
-        _MODEL_CONFIG_PATH (str): Path to user-provided model configuration YAML (private).
+        KEEP_ALIVE (Union[str, int, None]): Keep-alive setting for the application.
+
+    Private Attributes:
+        _ENABLE_RERANK (bool): Whether reranking is enabled.
+        _SEARCH_METHOD (str): Search method used for retrieval.
+        _FETCH_K (int): Number of documents to fetch during retrieval.
+        _CACHE_DIR (str): Directory for model cache.
+        _HF_DATASETS_CACHE (str): Directory for Hugging Face datasets cache.
+        _TMP_FILE_PATH (str): Temporary file path for documents.
+        _DEFAULT_MODEL_CONFIG (str): Path to the default model configuration YAML.
+        _MODEL_CONFIG_PATH (str): Path to the user-provided model configuration YAML.
 
     Methods:
-        __init__(**kwargs): Initializes the Settings object, loads configuration from YAML file,
-            and updates attributes accordingly.
+        __init__(**kwargs): Initializes settings, loads configuration from YAML, and validates settings.
+        _validate_backend_settings(): Validates backend-specific settings and required model IDs.
+        _check_and_validate_prompt_template(): Ensures the prompt template is set and contains required placeholders.
+
+    Raises:
+        ValueError: If required settings are missing or invalid, or if unsupported backend is specified.
     """
 
     APP_DISPLAY_NAME: str = "Chatqna-Core"
@@ -44,6 +56,7 @@ class Settings(BaseSettings):
     DEBUG: bool = False
 
     HF_ACCESS_TOKEN: str = ""
+    MODEL_BACKEND: str = ""
     EMBEDDING_MODEL_ID: str = ""
     RERANKER_MODEL_ID: str = ""
     LLM_MODEL_ID: str = ""
@@ -52,9 +65,12 @@ class Settings(BaseSettings):
     RERANKER_DEVICE: str = "CPU"
     LLM_DEVICE: str = "CPU"
     MAX_TOKENS: int = 1024
-    ENABLE_RERANK: bool = True
+    KEEP_ALIVE: Union[str, int, None] = None
 
     # These fields will not be affected by environment variables
+    _ENABLE_RERANK: bool = PrivateAttr(True)
+    _SEARCH_METHOD: str = PrivateAttr("mmr")
+    _FETCH_K: int = PrivateAttr(10)
     _CACHE_DIR: str = PrivateAttr("/tmp/model_cache")
     _HF_DATASETS_CACHE: str = PrivateAttr("/tmp/model_cache")
     _TMP_FILE_PATH: str = PrivateAttr("/tmp/chatqna/documents")
@@ -64,13 +80,6 @@ class Settings(BaseSettings):
 
     def __init__(self, **kwargs):
         super().__init__(**kwargs)
-
-        # The RUN_TEST flag is used to bypass the model config loading during pytest unit testing.
-        # If RUN_TEST is set to "True", the model config loading is skipped.
-        # This flag is set in the conftest.py file before running the tests.
-        if os.getenv("RUN_TEST", "").lower() == "true":
-            print("INFO - Skipping model config loading in test mode.")
-            return
 
         config_file = self._MODEL_CONFIG_PATH if os.path.isfile(self._MODEL_CONFIG_PATH) else self._DEFAULT_MODEL_CONFIG
 
@@ -89,15 +98,58 @@ class Settings(BaseSettings):
                 if hasattr(self, key):
                     setattr(self, key, value)
 
-        self._validate_model_ids()
-
+        self._validate_backend_settings()
         self._check_and_validate_prompt_template()
 
-    def _validate_model_ids(self):
-        for model_name in ["EMBEDDING_MODEL_ID", "RERANKER_MODEL_ID", "LLM_MODEL_ID"]:
-            model_id = getattr(self, model_name)
-            if not model_id:
-                raise ValueError(f"{model_name} must not be an empty string.")
+
+    def _validate_backend_settings(self):
+        if self.MODEL_BACKEND:
+            self.MODEL_BACKEND = self.MODEL_BACKEND.lower()
+        else:
+            raise ValueError("MODEL_BACKEND must not be an empty string.")
+
+        if self.MODEL_BACKEND == "openvino":
+            self._ENABLE_RERANK = True
+
+            # Validate Huggingface token
+            if not self.HF_ACCESS_TOKEN:
+                raise ValueError("HF_ACCESS_TOKEN must not be an empty string for 'openvino' backend.")
+
+            # Validate required model IDs
+            for model_name in ["EMBEDDING_MODEL_ID", "RERANKER_MODEL_ID", "LLM_MODEL_ID"]:
+                model_id = getattr(self, model_name)
+                if not model_id:
+                    raise ValueError(f"{model_name} must not be an empty string for 'openvino' backend.")
+
+        elif self.MODEL_BACKEND == "ollama":
+            self._ENABLE_RERANK = False
+
+            # Validate that all devices are set to "CPU" as ollama currently only enabled for CPU
+            invalid_devices = [
+                attr for attr in ["EMBEDDING_DEVICE", "RERANKER_DEVICE", "LLM_DEVICE"]
+                if getattr(self, attr, "") != "CPU"
+            ]
+
+            if invalid_devices:
+                raise ValueError(
+                    f"When MODEL_BACKEND is 'ollama', the following devices must be set to 'CPU': {', '.join(invalid_devices)}"
+                )
+
+            # Handle RERANKER_MODEL_ID
+            if self.RERANKER_MODEL_ID:
+                print("WARNING - RERANKER_MODEL_ID is ignored when MODEL_BACKEND is 'ollama'. Setting it to empty.")
+                self.RERANKER_MODEL_ID = ""
+            else:
+                print("INFO - MODEL_BACKEND is 'ollama'. Reranker model is not supported.")
+
+            # Validate required model IDs (excluding reranker)
+            for model_name in ["EMBEDDING_MODEL_ID", "LLM_MODEL_ID"]:
+                model_id = getattr(self, model_name)
+                if not model_id:
+                    raise ValueError(f"{model_name} must not be an empty string for 'ollama' backend.")
+
+        else:
+            raise ValueError(f"Unsupported MODEL_BACKEND '{self.MODEL_BACKEND}'. Only 'openvino' and 'ollama' are supported.")
 
     def _check_and_validate_prompt_template(self):
         if not self.PROMPT_TEMPLATE:
