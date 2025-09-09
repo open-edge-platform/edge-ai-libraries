@@ -124,7 +124,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         mkdir -p ./ovms/models
         cd ovms || { echo "Failed to change to ovms directory"; exit 1; }
         if [ -n "$HUGGINGFACEHUB_API_TOKEN" ]; then
-                python3 -m huggingface_hub.cli login --token "$HUGGINGFACEHUB_API_TOKEN"
+                hf auth login --token "$HUGGINGFACEHUB_API_TOKEN"
         fi
         curl -s https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/2/demos/common/export_models/export_model.py -o export_model.py
         echo "OpenVINO and required dependencies installed."
