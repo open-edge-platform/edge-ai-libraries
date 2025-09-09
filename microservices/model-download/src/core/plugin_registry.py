@@ -1,0 +1,1 @@
+# Plugin discovery and management
