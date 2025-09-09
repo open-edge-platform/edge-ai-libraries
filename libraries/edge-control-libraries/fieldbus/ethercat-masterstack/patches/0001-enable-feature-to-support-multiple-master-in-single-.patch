@@ -1,0 +1,2091 @@
+From 14fe18e6164deae64c08958ae864d89818be5377 Mon Sep 17 00:00:00 2001
+From: Zhang Wei <wei.e.zhang@intel.com>
+Date: Wed, 19 Feb 2025 10:19:14 +0800
+Subject: [PATCH] enable feature to support multiple master in single
+ application.
+
+Signed-off-by: Zhang Wei <wei.e.zhang@intel.com>
+---
+ configure.ac                                  |   1 +
+ dpdk/ec_dpdk.c                                |  84 ++-
+ dpdk/ecdev.h                                  |   4 +-
+ examples/Makefile.am                          |   2 +
+ examples/debug/main.c                         |   4 +
+ examples/dual_master/Makefile.am              |  55 ++
+ examples/dual_master/main.c                   | 650 ++++++++++++++++++
+ examples/dual_master/main.h                   | 124 ++++
+ include/ecrt.h                                |  25 +-
+ ipc/ipc_ctrl.c                                |  12 +-
+ ipc/ipc_ctrl.h                                |   4 +-
+ ipc/ipc_iface.c                               |  15 +-
+ ipc/ipc_iface.h                               |   4 +-
+ lib/common.c                                  |   3 +-
+ lib/master.c                                  |   2 +-
+ lib/master.h                                  |   1 +
+ master/device.c                               |   4 +-
+ master/ecrt_config.c                          | 192 ++++--
+ master/ecrt_config.h                          |  16 +-
+ master/ethercatd.c                            | 159 ++---
+ master/ioctl.c                                |   7 +-
+ master/master.c                               |   5 +-
+ master/master.h                               |   2 -
+ script/sysconfig/ecrt.conf                    |  15 +-
+ .../multiple_master_ecrt.conf.template        |  11 +
+ tool/MasterDevice.cpp                         |   2 +-
+ 26 files changed, 1162 insertions(+), 241 deletions(-)
+ create mode 100644 examples/dual_master/Makefile.am
+ create mode 100644 examples/dual_master/main.c
+ create mode 100644 examples/dual_master/main.h
+ create mode 100644 script/sysconfig/multiple_master_ecrt.conf.template
+
+diff --git a/configure.ac b/configure.ac
+index fc18fb69..906e6e00 100644
+--- a/configure.ac
++++ b/configure.ac
+@@ -1633,6 +1633,7 @@ AC_CONFIG_FILES([
+         examples/multi_axis/Makefile
+         examples/soe_axis/Makefile
+         examples/debug/Makefile
++        examples/dual_master/Makefile
+         examples/ecatmotor/Makefile
+         include/Makefile
+         lib/Makefile
+diff --git a/dpdk/ec_dpdk.c b/dpdk/ec_dpdk.c
+index f3d971dd..ad1ca67c 100644
+--- a/dpdk/ec_dpdk.c
++++ b/dpdk/ec_dpdk.c
+@@ -59,7 +59,6 @@ static struct rte_mempool *mbuf_pool;
+ /*****************************************************************************/
+ 
+ /** \cond */
+-
+ /** \endcond */
+ typedef struct {
+     struct dpdk_dev *dpdkdev;
+@@ -124,7 +123,7 @@ lsi_event_callback(uint16_t port_id, enum rte_eth_event_type type, void *param,
+ 
+ /* Main functional part of port initialization. 8< */
+ static inline int
+-ec_dpdk_port_init(struct dpdk_dev *dev, struct rte_mempool *mbuf_pool)
++ec_dpdk_port_init(struct dpdk_dev *dev, struct rte_mempool *buf_pool)
+ {
+     struct rte_eth_conf port_conf;
+     const uint16_t rx_rings = 1, tx_rings = 1;
+@@ -163,7 +162,7 @@ ec_dpdk_port_init(struct dpdk_dev *dev, struct rte_mempool *mbuf_pool)
+     /* Allocate and set up 1 RX queue per Ethernet port. */
+     for (q = 0; q < rx_rings; q++) {
+         retval = rte_eth_rx_queue_setup(dev->portid, q, nb_rxd,
+-                rte_eth_dev_socket_id(dev->portid), NULL, mbuf_pool);
++                rte_eth_dev_socket_id(dev->portid), NULL, buf_pool);
+         if (retval < 0)
+             return retval;
+     }
+@@ -238,28 +237,15 @@ static void ec_dpdk_dump_data(const uint8_t *data, /**< pointer to data */
+  */
+ int ec_dpdk_device_open(struct dpdk_dev *dev)
+ {
+-    int nb_ports = 1;
+-    struct rte_mbuf* txbuf;
++    struct rte_mempool *ptr;
+ 
+     if (!dev) {
+         return 0;
+     }
+-    /* Allocates mempool to hold the mbufs. 8< */
+-    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
+-        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, rte_socket_id());
+-    /* >8 End of allocating mempool to hold mbuf. */
+ 
+-    if (mbuf_pool == NULL)
+-        rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
++    ptr = rte_mempool_lookup("MBUF_POOL");
+ 
+-    txbuf = rte_pktmbuf_alloc(mbuf_pool);
+-    if(txbuf == NULL)
+-    {
+-        printf("txbuf allocate failed\n");
+-        return 0;
+-    }
+-    dev->txbuf = (uint8_t*)txbuf;
+-    int retval = ec_dpdk_port_init(dev, mbuf_pool);
++    int retval = ec_dpdk_port_init(dev, ptr);
+     if (retval < 0)
+         return retval;
+     /*
+@@ -299,10 +285,6 @@ int ec_dpdk_device_stop(struct dpdk_dev *dev)
+         rte_eth_dev_stop(dev->portid);
+         priv->ecdev = NULL;
+     }
+-    if (dev->txbuf){
+-        rte_pktmbuf_free(dev->txbuf);
+-	dev->txbuf = NULL;
+-    }
+     return 0;
+ }
+ 
+@@ -318,8 +300,10 @@ copy_buf_to_pkt(void* buf, unsigned len, struct rte_mbuf *pkt, unsigned offset)
+     {
+         rte_memcpy(rte_pktmbuf_mtod_offset(pkt, char *, offset), buf, (size_t) len);
+         return;
+-    }else
++    }else {
+         printf("pkg too small(%d:%d)\n", len, pkt->data_len);
++	return;
++    }
+ }
+ 
+ int ec_dpdk_device_start_xmit(struct dpdk_dev *dev,
+@@ -337,9 +321,7 @@ int ec_dpdk_device_start_xmit(struct dpdk_dev *dev,
+ 	return 0;
+     }
+ 
+-    if (!dev->txbuf)
+-        return 0;
+-    tx_buff = (struct rte_mbuf*)dev->txbuf;
++    tx_buff = rte_pktmbuf_alloc(mbuf_pool);
+     tx_buff->data_len = len;
+     tx_buff->l2_len = sizeof(struct rte_ether_addr);
+     tx_buff->nb_segs = 1;
+@@ -373,13 +355,13 @@ void ec_dpdk_device_poll(struct dpdk_dev *dev)
+     }
+     do {
+         nb_rx = rte_eth_rx_burst(dev->portid, 0, &bufs, 1);
+-
+         if (nb_rx > 0) {
+ #ifdef EC_BENCHMARK
+             dev->dpdk_rx_hw_end_time = bufs->ec_dpdk_time.rx_hw_end_time;
+ #endif
+             priv->rx_buf = rte_pktmbuf_mtod_offset(bufs, char *, 0);
+             ecdev_receive(priv->ecdev, priv->rx_buf, bufs->data_len);
++            rte_pktmbuf_free(bufs);
+         } else if (nb_rx < 0) {
+             printf("no recv\n");
+             break;
+@@ -401,26 +383,16 @@ static inline int ec_dpdk_is_same_addr(unsigned char *mac, struct rte_ether_addr
+ }
+ 
+ #define MAX_ARGS_COUNT (100)
+-/*****************************************************************************/
+ 
+-/** Module initialization.
+- *
+- * Initializes \a master_count masters.
+- * \return 0 on success, else < 0
+- */
+-int ec_dpdk_bind(unsigned char *mac, char* argv)
++int ec_dpdk_init(char* argv, unsigned int count)
+ {
++    int nb_ports = count;
+     int ret = 0;
+-    uint8_t port;
+-    struct dpdk_dev *dpdkdev;
+-    ec_dpdk_device_t *dev;
+-    struct rte_ether_addr addr;
+-
+-    char *arguments = argv;
+     uint8_t argc = 0;
+     const char* dpdk_drv = "ec_dpdk";
+     char *arg[MAX_ARGS_COUNT];
+ 
++    char *arguments = argv;
+     arg[0] = dpdk_drv;
+     argc++;
+     if (arguments != NULL) {
+@@ -440,6 +412,32 @@ int ec_dpdk_bind(unsigned char *mac, char* argv)
+         rte_exit(EXIT_FAILURE, "Cannot init EAL: %s\n",
+                 rte_strerror(rte_errno));
+     }
++
++    /* Allocates mempool to hold the mbufs. 8< */
++    mbuf_pool = rte_pktmbuf_pool_create("MBUF_POOL", NUM_MBUFS * nb_ports,
++        MBUF_CACHE_SIZE, 0, RTE_MBUF_DEFAULT_BUF_SIZE, SOCKET_ID_ANY);
++    /* >8 End of allocating mempool to hold mbuf. */
++
++    if (mbuf_pool == NULL)
++        rte_exit(EXIT_FAILURE, "Cannot create mbuf pool\n");
++    return ret;
++}
++
++/*****************************************************************************/
++
++/** Module initialization.
++ *
++ * Initializes \a master_count masters.
++ * \return 0 on success, else < 0
++ */
++int ec_dpdk_bind(unsigned char *mac, char* argv)
++{
++    int ret = 0;
++    uint8_t port;
++    struct dpdk_dev *dpdkdev;
++    ec_dpdk_device_t *dev;
++    struct rte_ether_addr addr;
++
+     RTE_ETH_FOREACH_DEV(port) {
+         if (rte_eth_macaddr_get(port, &addr) != 0)
+         {
+@@ -463,7 +461,7 @@ int ec_dpdk_bind(unsigned char *mac, char* argv)
+         }
+         dpdkdev->portid = port;
+         dpdkdev->dpdk_ops = &ec_dpdk_device_ops;
+-	memcpy(dpdkdev->mac, mac, ETH_ALEN);
++        memcpy(dpdkdev->dev_addr, mac, ETH_ALEN);
+         dpdkdev->priv = dev;
+         dev->dpdkdev = dpdkdev;
+         dev->ecdev = NULL;
+@@ -491,7 +489,7 @@ int ec_dpdk_bind(unsigned char *mac, char* argv)
+ void ec_dpdk_cleanup(void)
+ {
+ #ifdef EC_ETHERCAT_COMM_DEBUG
+-	printf("ec_dpdk_cleanup: Enter\n");
++    printf("ec_dpdk_cleanup: Enter\n");
+ #endif
+ }
+ 
+diff --git a/dpdk/ecdev.h b/dpdk/ecdev.h
+index dce5bd46..720dba11 100644
+--- a/dpdk/ecdev.h
++++ b/dpdk/ecdev.h
+@@ -47,9 +47,8 @@ typedef struct ec_dpdk_ops {
+ 
+ typedef struct dpdk_dev {
+     uint16_t portid;
+-    uint8_t *mac[ETH_ALEN];
++    uint8_t dev_addr[ETH_ALEN];
+     void *priv;
+-    uint8_t *txbuf;
+     struct ec_dpdk_ops *dpdk_ops;
+ #ifdef EC_BENCHMARK
+     uint64_t dpdk_tx_sw_end_time;
+@@ -71,6 +70,7 @@ typedef void (*ec_pollfunc_t)(struct dpdk_dev *);
+ ec_device_t *ecdev_offer(struct dpdk_dev *dpdk_dev, ec_pollfunc_t poll);
+ void ecdev_withdraw(ec_device_t *device);
+ 
++int ec_dpdk_init(char* argv, unsigned int count);
+ int ec_dpdk_bind(unsigned char *mac, char* argv);
+ /******************************************************************************
+  * Device methods
+diff --git a/examples/Makefile.am b/examples/Makefile.am
+index a6789c44..a5c037ac 100644
+--- a/examples/Makefile.am
++++ b/examples/Makefile.am
+@@ -58,6 +58,8 @@ if !ENABLE_DAEMON
+ SUBDIRS += \
+ 	debug
+ endif
++SUBDIRS += \
++	dual_master
+ endif
+ 
+ # Here DIST_SUBDIRS needs to be explicitely defined because
+diff --git a/examples/debug/main.c b/examples/debug/main.c
+index eb2544b1..143289d5 100644
+--- a/examples/debug/main.c
++++ b/examples/debug/main.c
+@@ -38,6 +38,7 @@
+ #include <getopt.h>
+ 
+ static volatile int run = 1;
++static ec_master_t *masters = NULL;
+ static ec_master_t *master = NULL;
+ static int master_id = 0;
+ 
+@@ -88,6 +89,9 @@ int main(int argc, char *argv[])
+     mlockall(MCL_CURRENT | MCL_FUTURE);
+ 
+     printf("Requesting master...\n");
++#if !EC_ENABLE_DAEMON
++    masters = ecrt_masters_create(0);
++#endif
+     master = ecrt_request_master(master_id);
+     if (!master) {
+         return -1;
+diff --git a/examples/dual_master/Makefile.am b/examples/dual_master/Makefile.am
+new file mode 100644
+index 00000000..0ab8a205
+--- /dev/null
++++ b/examples/dual_master/Makefile.am
+@@ -0,0 +1,55 @@
++#------------------------------------------------------------------------------
++#
++#  $Id$
++#
++#  Copyright (C) 2006-2012  Florian Pose, Ingenieurgemeinschaft IgH
++#
++#  This file is part of the IgH EtherCAT Master.
++#
++#  The IgH EtherCAT Master is free software; you can redistribute it and/or
++#  modify it under the terms of the GNU General Public License version 2, as
++#  published by the Free Software Foundation.
++#
++#  The IgH EtherCAT Master is distributed in the hope that it will be useful,
++#  but WITHOUT ANY WARRANTY; without even the implied warranty of
++#  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU General
++#  Public License for more details.
++#
++#  You should have received a copy of the GNU General Public License along with
++#  the IgH EtherCAT Master; if not, write to the Free Software Foundation,
++#  Inc., 51 Franklin St, Fifth Floor, Boston, MA  02110-1301  USA
++#
++#  ---
++#
++#  The license mentioned above concerns the source code only. Using the
++#  EtherCAT technology and brand is only permitted in compliance with the
++#  industrial property and similar rights of Beckhoff Automation GmbH.
++#
++#------------------------------------------------------------------------------
++
++noinst_PROGRAMS = ec_dualmaster_example
++
++ec_dualmaster_example_SOURCES = main.c
++
++ec_dualmaster_example_CFLAGS = \
++	-Wall \
++	-lm  \
++	-I$(top_srcdir)/include
++
++ec_dualmaster_example_LDFLAGS = \
++	-lrt \
++	-lpthread
++if ENABLE_DAEMON
++ec_dualmaster_example_CFLAGS += \
++	-DEC_ENABLE_DAEMON=1
++
++ec_dualmaster_example_LDFLAGS += \
++        -L${top_builddir}/lib/.libs \
++	-lethercat \
++	-DEC_ENABLE_DAEMON=1
++else
++ec_dualmaster_example_LDFLAGS += \
++	-L$(top_builddir)/master/.libs -lethercatd
++endif
++
++#------------------------------------------------------------------------------
+diff --git a/examples/dual_master/main.c b/examples/dual_master/main.c
+new file mode 100644
+index 00000000..9db41c4a
+--- /dev/null
++++ b/examples/dual_master/main.c
+@@ -0,0 +1,650 @@
++/******************************************************************************
++ *
++ *  $Id$
++ *
++ *  Copyright (C)      2011  IgH Andreas Stewering-Bone
++ *                     2012  Florian Pose <fp@igh-essen.com>
++ *
++ *  This file is part of the IgH EtherCAT master
++ *
++ *  The IgH EtherCAT Master is free software; you can redistribute it and/or
++ *  modify it under the terms of the GNU General Public License version 2, as
++ *  published by the Free Software Foundation.
++ *
++ *  The IgH EtherCAT master is distributed in the hope that it will be useful,
++ *  but WITHOUT ANY WARRANTY; without even the implied warranty of
++ *  MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE. See the GNU General
++ *  Public License for more details.
++ *
++ *  You should have received a copy of the GNU General Public License along
++ *  with the IgH EtherCAT master. If not, see <http://www.gnu.org/licenses/>.
++ *
++ *  ---
++ *
++ *  The license mentioned above concerns the source code only. Using the
++ *  EtherCAT technology and brand is only permitted in compliance with the
++ *  industrial property and similar rights of Beckhoff Automation GmbH.
++ *
++ *****************************************************************************/
++#define _GNU_SOURCE
++#include <errno.h>
++#include <signal.h>
++#include <stdio.h>
++#include <stdlib.h>
++#include <stdbool.h>
++#include <string.h>
++#include <unistd.h>
++#include <sys/mman.h>
++#include <sys/types.h>
++#include <sched.h>
++#include "ecrt.h"
++#include "main.h"
++
++#include <pthread.h>
++#include <getopt.h>
++
++static volatile int run = 1;
++static ec_master_t *masters = NULL;
++static ec_master_t *master0 = NULL;
++static ec_master_t *master1 = NULL;
++static int master_id = 0;
++
++static Master_Data master0_data;
++static Master_Data master1_data;
++
++static pthread_t cyclic_thread0;
++static pthread_t cyclic_thread1;
++
++static double set_tar_vel = 1.0;
++
++static int slave_id = 0;
++static int operation_mode = MODE_CSP;
++static int slave_decord_per_cycle;
++
++const static ec_pdo_entry_reg_t inov_master0_is620n_regs[] = {
++    // Inovance IS620N CoE EtherCAT Slave ID = 0
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6040, 0x00, &master0_data.slave.ctrl_word, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x607a, 0x00, &master0_data.slave.tar_pos, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x60FF, 0x00, &master0_data.slave.tar_vel, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6060, 0x00, &master0_data.slave.mode_sel, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6041, 0x00, &master0_data.slave.status_word, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6064, 0x00, &master0_data.slave.act_pos, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x606c, 0x00, &master0_data.slave.act_vel, NULL},
++    {}
++};
++
++const static ec_pdo_entry_reg_t hiwin_master0_d2_regs[] = {
++    // Hiwin D2 CoE EtherCAT Slave ID = 1
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6040, 0x00, &master0_data.slave.ctrl_word, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x607a, 0x00, &master0_data.slave.tar_pos, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x60FF, 0x00, &master0_data.slave.tar_vel, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6041, 0x00, &master0_data.slave.status_word, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6064, 0x00, &master0_data.slave.act_pos, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x606c, 0x00, &master0_data.slave.act_vel, NULL},
++    {}
++};
++
++const static ec_pdo_entry_reg_t inov_master1_is620n_regs[] = {
++    // Inovance IS620N CoE EtherCAT Slave ID = 0
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6040, 0x00, &master1_data.slave.ctrl_word, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x607a, 0x00, &master1_data.slave.tar_pos, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x60FF, 0x00, &master1_data.slave.tar_vel, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6060, 0x00, &master1_data.slave.mode_sel, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6041, 0x00, &master1_data.slave.status_word, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x6064, 0x00, &master1_data.slave.act_pos, NULL},
++    {INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID, 0x606c, 0x00, &master1_data.slave.act_vel, NULL},
++    {}
++};
++
++const static ec_pdo_entry_reg_t hiwin_master1_d2_regs[] = {
++    // Hiwin D2 CoE EtherCAT Slave ID = 1
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6040, 0x00, &master1_data.slave.ctrl_word, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x607a, 0x00, &master1_data.slave.tar_pos, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x60FF, 0x00, &master1_data.slave.tar_vel, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6041, 0x00, &master1_data.slave.status_word, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x6064, 0x00, &master1_data.slave.act_pos, NULL},
++    {HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID, 0x606c, 0x00, &master1_data.slave.act_vel, NULL},
++    {}
++};
++
++
++static void data_init(Master_Data *data)
++{
++    if (data == NULL) {
++        memset(data,0,sizeof(Master_Data));
++    }
++}
++
++static void ec_slave_config_init(ec_slave_config_t *sc)
++{
++    /* Clear RxPDO */
++    ecrt_slave_config_sdo8(sc, 0x1C12, 0, 0); /*clear sm pdo 0x1c12*/
++    ecrt_slave_config_sdo8(sc, 0x1600, 0, 0); /*clear sm pdo 0x1600*/
++    /* Clear TxPDO */
++    ecrt_slave_config_sdo8(sc, 0x1C13, 0, 0); /*clear sm pdo 0x1600*/
++    ecrt_slave_config_sdo8(sc, 0x1A00, 0, 0); /*clear sm pdo 0x1A00*/
++}
++
++void rt_check_master_state(Master_Data * master_data)
++{
++    ec_master_state_t ms;
++    ec_master_state_t master_state = {};
++    if (master_data == NULL)
++        return;
++    ecrt_master_state(master_data->master, &ms);
++    if (ms.slaves_responding != master_state.slaves_responding)
++        printf("%u slave(s).\n", ms.slaves_responding);
++    if (ms.al_states != master_state.al_states)
++        printf("AL states: 0x%02X.\n", ms.al_states);
++    master_state = ms;
++}
++
++static uint16_t coe_cia402_statemachine(uint16_t status)
++{
++    if ((status&0x4F) == 0x0) {         // Not ready to Switch on
++        return 0x80;
++    } else if ((status&0x4F) == 0x40) { // Switch on Disabled
++        return 0x6;
++    } else if ((status&0x6F) == 0x21) { // Ready to Switch on
++        return 0x7;
++    } else if ((status&0x6F) == 0x23) { // Switch on
++        return 0xF;
++    } else if ((status&0x6F) == 0x27) { // Operation enabled
++        return 0x1F;
++    } else if ((status&0x6F) == 0x07) { // Quick stop active
++        return 0x0;
++    } else if ((status&0x4F) == 0x0F) { // Fault reaction active
++        return 0x80;
++    } else if ((status&0x4F) == 0x08) { // Fault
++        return 0x80;
++    }
++    return 0x80;
++}
++
++static void ec_readmotordata(Master_Data *master_data, Ctl_Data* ec_motor)
++{
++    ec_motor->statusword 	= EC_READ_U16(master_data->domain_pd + master_data->slave.status_word);
++    ec_motor->actualpos  	= EC_READ_S32(master_data->domain_pd + master_data->slave.act_pos);
++    ec_motor->actualvel  	= EC_READ_S32(master_data->domain_pd + master_data->slave.act_vel);
++
++    ec_motor->controlword = coe_cia402_statemachine(ec_motor->statusword);
++}
++
++static void ec_writemotordata(Master_Data * master_data, Ctl_Data* ec_motor)
++{
++    if (operation_mode == MODE_CSP) {
++        EC_WRITE_S32(master_data->domain_pd+master_data->slave.tar_pos, ec_motor->targetpos );
++        if (slave_id == 0) {
++            EC_WRITE_U8(master_data->domain_pd+master_data->slave.mode_sel, MODE_CSP);
++        }
++    } else if (operation_mode == MODE_CSV) {
++        EC_WRITE_S32(master_data->domain_pd+master_data->slave.tar_vel, ec_motor->targetvel );
++        if (slave_id == 0) {
++            EC_WRITE_U8(master_data->domain_pd+master_data->slave.mode_sel, MODE_CSV);
++        }
++    }
++    EC_WRITE_U16(master_data->domain_pd+master_data->slave.ctrl_word, ec_motor->controlword );
++    ec_motor->prevel = ec_motor->actualvel;
++    ec_motor->prevpos = ec_motor->actualpos;
++}
++
++void signal_handler(int sig)
++{
++    run = 0;
++}
++
++static void getOptions(int argc, char **argv)
++{
++    int index;
++    static struct option longOptions[] = {
++        //name		has_arg				flag	val
++        {"master",required_argument,	NULL,	'm'},
++        {"help",	no_argument,		NULL,	'h'},
++        {}
++    };
++    do{
++        index = getopt_long(argc, argv, "m:h", longOptions, NULL);
++	      switch(index){
++        case 'h':
++            printf("Global options:\n");
++            printf("  --master -m  Set master id. default is %d \n", master_id);
++            printf("  --help     -h  Show this help.\n");
++            exit(0);
++            break;
++        case 'm':
++            master_id = atoi(optarg);
++            if (master_id > 1)
++                master_id = 0;
++            break;
++        default:
++            break;
++        }
++    }
++    while(index != -1);
++}
++
++void *my_thread(void *arg)
++{
++    struct timespec next_period, dc_period, exec_start, exec_end;
++    unsigned int cycle_counter = 0;
++    static bool init_pos_flag = 0;
++    int32_t dc_diff = 0;
++    int64_t latency_ns = 0, exec_ns = 0;
++    Master_Data* master_data=(Master_Data*)arg;
++
++    master_data->latency_min_ns = 1000000;
++    master_data->latency_sum_ns = 0;
++    master_data->latency_max_ns = -1000000;
++    master_data->exec_max_ns = -1000000;
++    master_data->exec_min_ns = 1000000;
++    master_data->exec_sum_ns = 0;
++    master_data->dc_diff_min=0x7fffffff;
++    master_data->dc_diff_max = 0;
++
++    struct sched_param param = {.sched_priority = 99};
++    pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
++    clock_gettime(CLOCK_MONOTONIC, &next_period);
++    memset(&master_data->ec_motor,0,sizeof(Ctl_Data));
++
++    while (run) {
++        next_period.tv_nsec += CYCLE_US * 1000;
++        while (next_period.tv_nsec >= NSEC_PER_SEC) {
++            next_period.tv_nsec -= NSEC_PER_SEC;
++            next_period.tv_sec++;
++        }
++        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_period, NULL);
++        cycle_counter++;
++        master_data->count++;
++        clock_gettime(CLOCK_MONOTONIC, &dc_period);
++        latency_ns = DIFF_NS(next_period, dc_period);
++        if (latency_ns > master_data->latency_max_ns)
++            master_data->latency_max_ns = latency_ns;
++        if (latency_ns < master_data->latency_min_ns)
++            master_data->latency_min_ns = latency_ns;
++        master_data->latency_sum_ns += latency_ns;
++
++        if ((cycle_counter%CYCLE_COUNTER_PERSEC)==0) {
++            master_data->sem_update = 1;
++        }
++        clock_gettime(CLOCK_MONOTONIC, &exec_start);
++        ecrt_master_receive(master_data->master);
++        ecrt_domain_process(master_data->domain);
++        if (cycle_counter > 6000)
++            dc_diff = ecrt_master_sync_monitor_process(master_data->master);
++        else
++            dc_diff = 0;
++        if (dc_diff == 0xffffffff)
++            dc_diff = 0;
++        //if (!(cycle_counter % CYCLE_COUNTER_PERSEC)) {
++        //    rt_check_master_state(master_data);
++        //}
++        ec_readmotordata(master_data,&master_data->ec_motor);
++
++        switch(master_data->ec_motor.controlword)
++        {
++            case 0x1F:
++                if (operation_mode == MODE_CSP) {
++                    if(!init_pos_flag){
++                        init_pos_flag = 1;
++                        master_data->ec_motor.targetpos = master_data->ec_motor.actualpos;
++                    }else
++                        master_data->ec_motor.targetpos = master_data->ec_motor.targetpos + set_tar_vel* slave_decord_per_cycle/CYCLE_COUNTER_PERSEC;
++                } else if (operation_mode == MODE_CSV) {
++                    master_data->ec_motor.targetvel = set_tar_vel * slave_decord_per_cycle;
++                }
++                ec_writemotordata(master_data,&master_data->ec_motor);
++                if(dc_diff > master_data->dc_diff_max) {
++                    master_data->dc_diff_max = dc_diff;
++                }
++                if(dc_diff < master_data->dc_diff_min) {
++                    master_data->dc_diff_min = dc_diff;
++                }
++                break;
++            case 0x06:
++            case 0x07:
++            case 0x0F:
++            case 0x80:
++                EC_WRITE_U16(master_data->domain_pd+master_data->slave.ctrl_word, master_data->ec_motor.controlword );
++                break;
++        }
++
++        clock_gettime(CLOCK_MONOTONIC, &dc_period);
++        ecrt_master_application_time(master_data->master, TIMESPEC2NS(dc_period));
++        ecrt_master_sync_reference_clock(master_data->master);
++        ecrt_master_sync_slave_clocks(master_data->master);
++        ecrt_master_sync_monitor_queue(master_data->master);
++        ecrt_domain_queue(master_data->domain);
++        ecrt_master_send(master_data->master);
++        clock_gettime(CLOCK_MONOTONIC, &exec_end);
++        exec_ns = TIMESPEC2NS(exec_end) - TIMESPEC2NS(exec_start);
++        if (exec_ns > master_data->exec_max_ns)
++            master_data->exec_max_ns = exec_ns;
++        if (exec_ns < master_data->exec_min_ns)
++            master_data->exec_min_ns = exec_ns;
++        master_data->exec_sum_ns += exec_ns;
++    }
++    return NULL;
++}
++
++
++void *my_thread1(void *arg)
++{
++    struct timespec next_period, dc_period, exec_start, exec_end;
++    unsigned int cycle_counter = 0;
++    static bool init_pos_flag = 0;
++    int32_t dc_diff = 0;
++    int64_t latency_ns = 0, exec_ns = 0;
++    Master_Data* master_data=(Master_Data*)arg;
++
++    master_data->latency_min_ns = 1000000;
++    master_data->latency_sum_ns = 0;
++    master_data->latency_max_ns = -1000000;
++    master_data->exec_max_ns = -1000000;
++    master_data->exec_min_ns = 1000000;
++    master_data->exec_sum_ns = 0;
++    master_data->dc_diff_min=0x7fffffff;
++    master_data->dc_diff_max = 0;
++
++    struct sched_param param = {.sched_priority = 99};
++    pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
++    clock_gettime(CLOCK_MONOTONIC, &next_period);
++    memset(&master_data->ec_motor,0,sizeof(Ctl_Data));
++
++    while (run) {
++        next_period.tv_nsec += CYCLE_US * 1000;
++        while (next_period.tv_nsec >= NSEC_PER_SEC) {
++            next_period.tv_nsec -= NSEC_PER_SEC;
++            next_period.tv_sec++;
++        }
++        clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next_period, NULL);
++        cycle_counter++;
++        master_data->count++;
++        clock_gettime(CLOCK_MONOTONIC, &dc_period);
++        latency_ns = DIFF_NS(next_period, dc_period);
++        if (latency_ns > master_data->latency_max_ns)
++            master_data->latency_max_ns = latency_ns;
++        if (latency_ns < master_data->latency_min_ns)
++            master_data->latency_min_ns = latency_ns;
++        master_data->latency_sum_ns += latency_ns;
++
++        if ((cycle_counter%CYCLE_COUNTER_PERSEC)==0) {
++            master_data->sem_update = 1;
++        }
++        clock_gettime(CLOCK_MONOTONIC, &exec_start);
++        ecrt_master_receive(master_data->master);
++        ecrt_domain_process(master_data->domain);
++        if (cycle_counter > 6000)
++            dc_diff = ecrt_master_sync_monitor_process(master_data->master);
++        else
++            dc_diff = 0;
++        if (dc_diff == 0xffffffff)
++            dc_diff = 0;
++        //if (!(cycle_counter % CYCLE_COUNTER_PERSEC)) {
++        //    rt_check_master_state(master_data);
++        //}
++        ec_readmotordata(master_data,&master_data->ec_motor);
++
++        switch(master_data->ec_motor.controlword)
++        {
++            case 0x1F:
++                if (operation_mode == MODE_CSP) {
++                    if(!init_pos_flag){
++                        init_pos_flag = 1;
++                        master_data->ec_motor.targetpos = master_data->ec_motor.actualpos;
++                    }else
++                        master_data->ec_motor.targetpos = master_data->ec_motor.targetpos + set_tar_vel* slave_decord_per_cycle/CYCLE_COUNTER_PERSEC;
++                } else if (operation_mode == MODE_CSV) {
++                    master_data->ec_motor.targetvel = set_tar_vel * slave_decord_per_cycle;
++                }
++                ec_writemotordata(master_data,&master_data->ec_motor);
++                if(dc_diff > master_data->dc_diff_max) {
++                    master_data->dc_diff_max = dc_diff;
++                }
++                if(dc_diff < master_data->dc_diff_min) {
++                    master_data->dc_diff_min = dc_diff;
++                }
++                break;
++            case 0x06:
++            case 0x07:
++            case 0x0F:
++            case 0x80:
++                EC_WRITE_U16(master_data->domain_pd+master_data->slave.ctrl_word, master_data->ec_motor.controlword );
++                break;
++        }
++
++        clock_gettime(CLOCK_MONOTONIC, &dc_period);
++        ecrt_master_application_time(master_data->master, TIMESPEC2NS(dc_period));
++        ecrt_master_sync_reference_clock(master_data->master);
++        ecrt_master_sync_slave_clocks(master_data->master);
++        ecrt_master_sync_monitor_queue(master_data->master);
++        ecrt_domain_queue(master_data->domain);
++        ecrt_master_send(master_data->master);
++        clock_gettime(CLOCK_MONOTONIC, &exec_end);
++        exec_ns = TIMESPEC2NS(exec_end) - TIMESPEC2NS(exec_start);
++        if (exec_ns > master_data->exec_max_ns)
++            master_data->exec_max_ns = exec_ns;
++        if (exec_ns < master_data->exec_min_ns)
++            master_data->exec_min_ns = exec_ns;
++        master_data->exec_sum_ns += exec_ns;
++    }
++    return NULL;
++}
++
++static int ec_master_pre_configuration(Master_Data *master_data)
++{
++    int ret;
++#if !EC_ENABLE_DAEMON
++    ec_slave_info_t slave_info;
++    ec_master_state_t master_state = {};
++#endif
++    ec_slave_config_t *sc;
++    ec_sync_info_t* servo_syncs;
++    ec_pdo_entry_reg_t* domain_regs;
++    struct timespec dc_period;
++    if (master_data == NULL) {
++        return -1;
++    }
++#if !EC_ENABLE_DAEMON
++    printf("Getting master state...\n");
++    ecrt_master_state(master_data->master, &master_state);
++    while (1){
++        ecrt_master_state(master_data->master, &master_state);
++	if ((master_state.slaves_responding == 1)&&(master_state.al_states&0x0E))
++            break;
++        sleep(0.01);
++    };
++    printf("Getting slave0 info...\n");
++    while(1)
++    {
++	ret = ecrt_master_get_slave(master_data->master, 0, &slave_info);
++	if (ret != 0) {
++	    //printf("Error in getting slave info\n");
++	} else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
++	    //printf("slave info state=%d\n",slave_info.al_state);
++	    break;
++	}
++        sleep(0.01);
++    };
++#endif
++    printf("Creating domain for master0 ...\n");
++    master_data->domain = ecrt_master_create_domain(master_data->master);
++    if (!master_data->domain){
++	return -1;
++    }
++
++    switch(slave_id) {
++        case 0:
++            sc = ecrt_master_slave_config(master_data->master, INOV_IS620N_SLAVE00_POS, INOV_IS620N_SLAVE00_ID);
++            servo_syncs = inov_is620n_syncs;
++            slave_decord_per_cycle = (1 << INOV_IS620N_DECODER_BITS);
++	    if (master_data->master_id == 0)
++                domain_regs = inov_master0_is620n_regs;
++	    else
++                domain_regs = inov_master1_is620n_regs;
++            break;
++        case 1:
++            sc = ecrt_master_slave_config(master_data->master, HIWIN_D2_SLAVE00_POS, HIWIN_D2_SLAVE00_ID);
++            servo_syncs = hiwin_d2_syncs;
++            slave_decord_per_cycle = (1 << HIWIN_D2_DECODER_BITS);
++	    if (master_data->master_id == 0)
++	        domain_regs = hiwin_master0_d2_regs;
++	    else
++	        domain_regs = hiwin_master1_d2_regs;
++            break;
++    }
++    if (!sc) {
++        printf("Slave sc is NULL \n");
++        return -1;
++    }
++    printf("Creating slave configurations...\n");
++
++    if (ecrt_slave_config_pdos(sc, EC_END, servo_syncs)) {
++        fprintf(stderr, "Failed to configure PDOs.  1 \n");
++        return -1;
++    }
++
++    ecrt_master_set_send_interval(master_data->master, CYCLE_US);
++
++    if (ecrt_domain_reg_pdo_entry_list(master_data->domain, domain_regs)) {
++        fprintf(stderr, "PDO entry registration failed!\n");
++        return -1;
++    }
++
++    if (slave_id == 1) {
++        ecrt_slave_config_sdo32(sc, 0x6081, 0x00, 0x6AAAA);  /* profile vel */
++        ecrt_slave_config_sdo32(sc, 0x6083, 0x00, 0x42AAAA); /* profile acc */
++        ecrt_slave_config_sdo32(sc, 0x6084, 0x00, 0x42AAAA); /* profile dcc */
++    }
++
++    ecrt_slave_config_sdo8(sc, 0x6060, 0x00, operation_mode);
++
++    /*Configuring DC signal*/
++    ecrt_slave_config_dc(sc, 0x0300, PERIOD_NS, PERIOD_NS/2, 0, 0);
++    /* Set the initial master time and select a slave to use as the DC
++     * reference clock, otherwise pass NULL to auto select the first capable
++     * slave. Note: This can be used whether the master or the ref slave will
++     * be used as the systems master DC clock
++    */
++    clock_gettime(CLOCK_MONOTONIC, &dc_period);
++
++    /* Attention: The initial application time is also used for phase
++     * calcuation for the SYNC0/1 interrupts. Please be sure to call it at
++     * the correct phase to the realtime cycle
++    */
++    ecrt_master_application_time(master_data->master, TIMESPEC2NS(dc_period));
++
++    ret = ecrt_master_select_reference_clock(master_data->master, sc);
++    if (ret < 0) {
++        fprintf(stderr, "Failed to select reference clock: %s\n",strerror(-ret));
++        return ret;
++    }
++    return ret;
++}
++
++static void ec_master_perf_console(Master_Data *master_data)
++{
++    if (master_data->sem_update&&master_data->count) {
++        printf("Master%d:\n", master_data->master_id);
++        printf("latency(us):  %10.3f ... %10.3f ... %10.3f\n", (float)(master_data->latency_min_ns)/1000, (float)(master_data->latency_sum_ns)/master_data->count/1000, (float)(master_data->latency_max_ns)/1000);
++            printf("DCM(ns)    :  %10d ... %10d\n", master_data->dc_diff_min, master_data->dc_diff_max);
++            printf("exec(us)   :  %10.3f ... %10.3f ... %10.3f\n", (float)(master_data->exec_min_ns)/1000, (float)(master_data->exec_sum_ns/master_data->count)/1000, (float)(master_data->exec_max_ns)/1000);
++            master_data->sem_update = 0;
++        }
++
++}
++
++/****************************************************************************
++ * Main function
++ ***************************************************************************/
++int main(int argc, char *argv[])
++{
++#if !EC_ENABLE_DAEMON
++    ec_slave_info_t slave_info;
++    ec_master_state_t master_state = {};
++#endif
++
++    getOptions(argc,argv);
++    signal(SIGTERM, signal_handler);
++    signal(SIGINT, signal_handler);
++    mlockall(MCL_CURRENT | MCL_FUTURE);
++
++    data_init(&master0_data);
++    data_init(&master1_data);
++    printf("Requesting master...\n");
++#if !EC_ENABLE_DAEMON
++    masters = ecrt_masters_create(0);
++#endif
++    master0_data.master = ecrt_request_master(0);
++    if (!master0_data.master) {
++        return -1;
++    }
++    master0_data.master_id = 0;
++    master1_data.master = ecrt_request_master(1);
++    if (!master1_data.master) {
++        return -1;
++    }
++    master1_data.master_id = 1;
++    ec_master_pre_configuration(&master0_data);
++    ec_master_pre_configuration(&master1_data);
++
++    if (ecrt_master_activate(master0_data.master)) {
++        return -1;
++    }
++    printf("activated master 0\n");
++    if (!(master0_data.domain_pd = ecrt_domain_data(master0_data.domain))) {
++        fprintf(stderr, "Failed to get domain data pointer.\n");
++        return -1;
++    }
++    /* Create cyclic RT-thread */
++    pthread_attr_t thattr;
++    pthread_attr_init(&thattr);
++    pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
++    /* set cpu affinity for each rt thread*/
++    cpu_set_t cpuset, cpuset1;
++    CPU_ZERO(&cpuset);
++    CPU_ZERO(&cpuset1);
++    CPU_SET(1, &cpuset);
++    CPU_SET(3, &cpuset1);
++
++    if (pthread_create(&cyclic_thread0, &thattr, &my_thread, &master0_data)) {
++        fprintf(stderr, "pthread_create cyclic task failed\n");
++		return 1;
++    }
++
++    if (pthread_setaffinity_np(cyclic_thread0, sizeof(cpu_set_t), &cpuset) != 0) {
++        perror("pthread_setaffinity_np");
++        exit(EXIT_FAILURE);
++    }
++
++    if (ecrt_master_activate(master1_data.master)) {
++        return -1;
++    }
++
++    if (!(master1_data.domain_pd = ecrt_domain_data(master1_data.domain))) {
++        fprintf(stderr, "Failed to get domain data pointer.\n");
++        return -1;
++    }
++    printf("activated master 1\n");
++    if (pthread_create(&cyclic_thread1, &thattr, &my_thread1, &master1_data)) {
++        fprintf(stderr, "pthread_create cyclic task failed\n");
++		return 1;
++    }
++    
++    if (pthread_setaffinity_np(cyclic_thread1, sizeof(cpu_set_t), &cpuset1) != 0) {
++        perror("pthread_setaffinity_np");
++        exit(EXIT_FAILURE);
++    }
++
++    while (run) {
++        ec_master_perf_console(&master0_data);
++        ec_master_perf_console(&master1_data);
++    }
++
++    pthread_join(cyclic_thread0, NULL);
++    pthread_join(cyclic_thread1, NULL);
++    ecrt_release_master(master1_data.master);
++    ecrt_release_master(master0_data.master);
++    return 0;
++}
++
++/****************************************************************************/
+diff --git a/examples/dual_master/main.h b/examples/dual_master/main.h
+new file mode 100644
+index 00000000..3b40bea8
+--- /dev/null
++++ b/examples/dual_master/main.h
+@@ -0,0 +1,124 @@
++#ifndef __ETHERCAT_MOTOR_MAIN_H__
++#define __ETHERCAT_MOTOR_MAIN_H__
++
++#include <stdio.h>
++#include "ecrt.h"
++
++#define CYCLE_US    			250
++#define PERIOD_NS   			(CYCLE_US*1000)
++#define NSEC_PER_SEC    		(1000000000L)
++#define TIMESPEC2NS(T)  		((uint64_t) (T).tv_sec * NSEC_PER_SEC + (T).tv_nsec)
++#define DIFF_NS(A,B)    		(((B).tv_sec - (A).tv_sec)*NSEC_PER_SEC + ((B).tv_nsec)-(A).tv_nsec)
++#define CYCLE_COUNTER_PERSEC            (NSEC_PER_SEC/PERIOD_NS)
++
++enum{
++	MODE_PP     = 1,
++	MODE_PV     = 3,
++	MODE_PT     = 4,
++	MODE_NULL   = 5,
++	MODE_HM     = 6,
++	MODE_IP     = 7,
++	MODE_CSP    = 8,
++	MODE_CSV    = 9,
++	MODE_CST    = 10
++};
++
++typedef struct{
++    ec_slave_config_t *sc;
++    unsigned int status_word;
++    unsigned int ctrl_word;
++    unsigned int tar_pos;
++    unsigned int act_pos;
++    unsigned int tar_vel;
++    unsigned int act_vel;
++    unsigned char mode_sel;
++}Slave_Data;
++
++typedef struct{
++    unsigned short statusword;
++    unsigned short controlword;
++    unsigned long prevpos;
++    unsigned long actualpos;
++    unsigned long targetpos;
++    int prevel;
++    int actualvel;
++    int targetvel;
++}Ctl_Data;
++
++typedef struct{
++    ec_master_t *master;
++    uint16_t master_id;
++    ec_domain_t *domain;
++    uint8_t *domain_pd;
++    ec_slave_config_t *sc;
++    Slave_Data slave;
++    Ctl_Data ec_motor;
++    /*perf monitor*/
++    volatile int sem_update;
++    volatile uint64_t count;
++    int64_t latency_min_ns;
++    int64_t latency_sum_ns;
++    int64_t latency_max_ns;
++    int64_t exec_min_ns;
++    int64_t exec_sum_ns;
++    int64_t exec_max_ns;
++    int32_t dc_diff_min;
++    int32_t dc_diff_max;
++}Master_Data;
++/* Inovance IS620N CoE EtherCAT Servo*/
++#define INOV_IS620N_SLAVE00_POS  			0, 0
++#define INOV_IS620N_SLAVE00_ID   			0x00100000, 0x000c0108
++#define INOV_IS620N_DECODER_BITS                           23
++ec_pdo_entry_info_t inov_is620n_pdo_entries[] = {
++  {0x6040, 0x00, 16},
++  {0x6060, 0x00, 8},
++  {0x607A, 0x00, 32},
++  {0x60FF, 0x00, 32},
++  {0x6041, 0x00, 16},
++  {0x6061, 0x00, 8},
++  {0x6064, 0x00, 32},
++  {0x606C, 0x00, 32},
++  {0x60F4, 0x00, 32},
++};
++
++ec_pdo_info_t inov_is620n_pdos[] = {
++   {0x1600, 4, inov_is620n_pdo_entries + 0},
++   {0x1a00, 5, inov_is620n_pdo_entries + 4},
++};
++
++ec_sync_info_t inov_is620n_syncs[] = {
++   {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
++   {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
++   {2, EC_DIR_OUTPUT, 1, inov_is620n_pdos + 0, EC_WD_ENABLE},
++   {3, EC_DIR_INPUT, 1, inov_is620n_pdos + 1, EC_WD_DISABLE},
++   {0xff}
++};
++
++/* Hiwin D2 CoE EtherCAT Servo*/
++#define HIWIN_D2_SLAVE00_POS  			        0, 0
++#define HIWIN_D2_SLAVE00_ID   			        0x0000aaaa, 0x00000003
++#define HIWIN_D2_DECODER_BITS                           17
++ec_pdo_entry_info_t hiwin_d2_pdo_entries[] = {
++	{0x6040, 0x00, 16},
++	{0x607A, 0x00, 32},
++	{0x60FF, 0x00, 32},
++	{0x6041, 0x00, 16},
++	{0x6064, 0x00, 32},
++	{0x606C, 0x00, 32},
++};
++
++ec_pdo_info_t hiwin_d2_pdos[] = {
++   {0x1600, 3, hiwin_d2_pdo_entries + 0},
++   {0x1a00, 3, hiwin_d2_pdo_entries + 3},
++};
++
++ec_sync_info_t hiwin_d2_syncs[] = {
++   {0, EC_DIR_OUTPUT, 0, NULL, EC_WD_DISABLE},
++   {1, EC_DIR_INPUT, 0, NULL, EC_WD_DISABLE},
++   {2, EC_DIR_OUTPUT, 1, hiwin_d2_pdos + 0, EC_WD_DISABLE},
++   {3, EC_DIR_INPUT, 1, hiwin_d2_pdos + 1, EC_WD_DISABLE},
++   {0xff}
++};
++
++#endif
++
+diff --git a/include/ecrt.h b/include/ecrt.h
+index 3ab462fb..14fb41c3 100644
+--- a/include/ecrt.h
++++ b/include/ecrt.h
+@@ -653,8 +653,31 @@ EC_PUBLIC_API unsigned int ecrt_version_magic(void);
+  * \return Pointer to the reserved master, otherwise \a NULL.
+  */
+ EC_PUBLIC_API ec_master_t *ecrt_request_master(
+-        unsigned int master_index /**< Index of the master to request. */
++        unsigned int node_id /**< ID of the master node to request. */
++        );
++
++#ifdef EC_USERMODE
++/** Create an EtherCAT master array for realtime operation.
++ *
++ * Before an application can access an EtherCAT master, it has to reserve one
++ * for exclusive use.
++ *
++ * In userspace, this is a convenience function for ecrt_open_master() and
++ * ecrt_master_reserve().
++ *
++ * This function has to be the first function an application has to call to
++ * use EtherCAT. The function takes the index of the master as its argument.
++ * The first master has index 0, the n-th master has index n - 1. The number
++ * of masters has to be specified when loading the master module.
++ *
++ * \apiusage{master_idle,blocking}
++ *
++ * \return Pointer to the reserved master, otherwise \a NULL.
++ */
++EC_PUBLIC_API ec_master_t *ecrt_masters_create(
++        unsigned int size /**< Size of the master array. */
+         );
++#endif
+ 
+ #ifndef __KERNEL__
+ 
+diff --git a/ipc/ipc_ctrl.c b/ipc/ipc_ctrl.c
+index e0851d85..d6c34806 100644
+--- a/ipc/ipc_ctrl.c
++++ b/ipc/ipc_ctrl.c
+@@ -890,13 +890,17 @@ static unsigned char ipc_ctrl_get_clientid(char* p)
+     return 0;
+ }
+ 
+-void ipc_ctrl_init(char** p) {
+-    ipc_shm_generate(ECAT_IPC_SHM_NAME, ECAT_IPC_DEFAULT_SHM_SIZE, p);
++void ipc_ctrl_init(char** p, unsigned int index) {
++    char buff[30];
++    sprintf(buff, "%s-%d",ECAT_IPC_SHM_NAME, index);
++    ipc_shm_generate(buff, ECAT_IPC_DEFAULT_SHM_SIZE, p);
+     return 0;
+ }
+ 
+-void ipc_ctrl_mmap(char** p, size_t size) {
+-    ipc_shm_generate(ECAT_IPC_MMAP_SHM_NAME, size, p);
++void ipc_ctrl_mmap(char** p, size_t size, unsigned int index) {
++    char buff[30];
++    sprintf(buff, "%s-%d",ECAT_IPC_MMAP_SHM_NAME, index);
++    ipc_shm_generate(buff, size, p);
+ }
+ 
+ void ipc_ctrl_unmap(char* p) {
+diff --git a/ipc/ipc_ctrl.h b/ipc/ipc_ctrl.h
+index 06c3b9d7..71359522 100644
+--- a/ipc/ipc_ctrl.h
++++ b/ipc/ipc_ctrl.h
+@@ -35,8 +35,8 @@
+ extern "C" {
+ #include "../master/ioctl.h"
+ int ipc_ctrl_ioctl(char*, unsigned int, ...);
+-void ipc_ctrl_init(char**);
+-void ipc_ctrl_mmap(char**, size_t);
++void ipc_ctrl_init(char**, unsigned int);
++void ipc_ctrl_mmap(char**, size_t, unsigned int);
+ void ipc_ctrl_release(char*);
+ }
+ #endif
+diff --git a/ipc/ipc_iface.c b/ipc/ipc_iface.c
+index f0c10c22..3eff17da 100644
+--- a/ipc/ipc_iface.c
++++ b/ipc/ipc_iface.c
+@@ -48,14 +48,21 @@ char* ipc_iface_atomic_create(char* p) {
+     return (char*)ipc_atomic_create(p, IPC_ATOMIC_SERVER_FLAG);
+ }
+ 
+-int ipc_iface_init(char **p) {
+-    int id = ipc_shm_generate(ECAT_IPC_SHM_NAME, ECAT_IPC_DEFAULT_SHM_SIZE, p);
++int ipc_iface_init(char **p, unsigned int index) {
++    char buff[30];
++    int id;
++    sprintf(buff, "%s-%d",ECAT_IPC_SHM_NAME, index);
++    printf("%s: %s\n", __func__, buff);
++    id = ipc_shm_generate(buff, ECAT_IPC_DEFAULT_SHM_SIZE, p);
+ 
+     return id;
+ }
+ 
+-void ipc_iface_mmap(char **p, size_t size) {
+-    ipc_shm_generate(ECAT_IPC_MMAP_SHM_NAME, size, p);
++void ipc_iface_mmap(char **p, size_t size, unsigned int index) {
++    char buff[30];
++    sprintf(buff, "%s-%d",ECAT_IPC_MMAP_SHM_NAME, index);
++    printf("%s: %s\n", __func__, buff);
++    ipc_shm_generate(buff, size, p);
+ }
+ 
+ void ipc_iface_unmap(char * p) {
+diff --git a/ipc/ipc_iface.h b/ipc/ipc_iface.h
+index cc0743b3..94056d7e 100644
+--- a/ipc/ipc_iface.h
++++ b/ipc/ipc_iface.h
+@@ -34,8 +34,8 @@
+ void ipc_iface_atomic_notify(char*);
+ int ipc_iface_atomic_wait(char*);
+ char* ipc_iface_atomic_create(char*);
+-int ipc_iface_init(char **);
+-void ipc_iface_mmap(char **, size_t);
++int ipc_iface_init(char **, unsigned int);
++void ipc_iface_mmap(char **, size_t, unsigned int);
+ void ipc_iface_release(int, char *);
+ 
+ #endif
+diff --git a/lib/common.c b/lib/common.c
+index 75ad919a..f4af87d9 100644
+--- a/lib/common.c
++++ b/lib/common.c
+@@ -82,7 +82,8 @@ ec_master_t *ecrt_open_master(unsigned int master_index)
+     master->first_config = NULL;
+ 
+ #ifdef EC_USERMODE
+-    ipc_ctrl_init(&master->ipcs);
++    ipc_ctrl_init(&master->ipcs, master_index);
++    master->index = master_index;
+ #else
+     snprintf(path, MAX_PATH_LEN - 1,
+ #if defined(USE_RTDM)
+diff --git a/lib/master.c b/lib/master.c
+index 774de8de..7760b3f1 100644
+--- a/lib/master.c
++++ b/lib/master.c
+@@ -662,7 +662,7 @@ int ecrt_master_activate(ec_master_t *master)
+ 
+     if (master->process_data_size) {
+ #ifdef EC_USERMODE
+-	ipc_ctrl_mmap(&master->process_data, master->process_data_size);
++	ipc_ctrl_mmap(&master->process_data, master->process_data_size, master->index);
+ #else
+ #ifdef USE_RTDM
+         /* memory-mapping was already done in kernel. The user-space addess is
+diff --git a/lib/master.h b/lib/master.h
+index c2dcfd33..9b4cf95e 100644
+--- a/lib/master.h
++++ b/lib/master.h
+@@ -27,6 +27,7 @@
+ struct ec_master {
+ #ifdef EC_USERMODE
+     char* ipcs;
++    unsigned int index;
+ #else
+     int fd;
+ #endif
+diff --git a/master/device.c b/master/device.c
+index 731bc670..18c08e69 100644
+--- a/master/device.c
++++ b/master/device.c
+@@ -239,7 +239,7 @@ void ec_device_attach(
+ #ifdef EC_USERMODE
+ 	struct sk_buff *p = (struct sk_buff *)device->tx_skb[i];
+         eth = (struct ethhdr *) (p->data);
+-        memcpy(eth->h_source, dpdk_dev->mac, ETH_ALEN);
++        memcpy(eth->h_source, dpdk_dev->dev_addr, ETH_ALEN);
+ #else
+         device->tx_skb[i]->dev = net_dev;
+         eth = (struct ethhdr *) (device->tx_skb[i]->data);
+@@ -629,9 +629,7 @@ void ecdev_withdraw(ec_device_t *device /**< EtherCAT device */)
+     ec_master_t *master = device->master;
+     char dev_str[20], mac_str[20];
+ 
+-#ifndef EC_USERMODE
+     ec_mac_print(device->dev->dev_addr, mac_str);
+-#endif
+ 
+     if (device == &master->devices[EC_DEVICE_MAIN]) {
+         sprintf(dev_str, "main");
+diff --git a/master/ecrt_config.c b/master/ecrt_config.c
+index 46caaa07..51f5d4eb 100644
+--- a/master/ecrt_config.c
++++ b/master/ecrt_config.c
+@@ -43,6 +43,22 @@ static ecrt_config_t * ecrt_config_initial_alloc()
+     return config;
+ }
+ 
++static ecrt_device_config_t * ecrt_device_config_initial_alloc()
++{
++    ecrt_device_config_t *config = NULL;
++
++    config = malloc(sizeof(ecrt_device_config_t));
++    if (config == NULL)
++        return NULL;
++
++    INIT_LIST_HEAD(&config->list);
++    memset (config->mac, 0xFF, ETH_ALEN);
++    memset (config->backup_mac, 0xFF, ETH_ALEN);
++
++    return config;
++}
++
++
+ static ecrt_node_t * ecrt_config_node_initial()
+ {
+     ecrt_node_t *node = NULL;
+@@ -54,8 +70,8 @@ static ecrt_node_t * ecrt_config_node_initial()
+ 
+     /* Initial struct */
+     INIT_LIST_HEAD(&node->list);
+-    node->master_id = ECRT_INVALID_MASTER_ID;
+-    memset (node->master_mac, 0xFF, ETH_ALEN);
++    INIT_LIST_HEAD(&node->mac_list);
++    node->node_id = ECRT_INVALID_MASTER_ID;
+     node->drv_argv = NULL;
+     node->debug_level = 0;
+ 
+@@ -198,33 +214,53 @@ static char* ecrt_config_parse_str(const char *value, size_t *len)
+     return NULL;
+ }
+ 
+-static int ecrt_config_validate_node(ecrt_node_t *node, int line)
++static int ecrt_config_validate_mac(unsigned char* mac)
++{
++    int errors = 0;
++    if(mac == NULL)
++        return 0;
++    if (mac[0]&0x02) {
++        errors++;
++    } else if (mac[0] == 0 &&
++               mac[1] == 0 &&
++               mac[2] == 0 &&
++               mac[3] == 0 &&
++               mac[4] == 0 &&
++               mac[5] == 0 ) {
++	errors++;
++    } else if (mac[0] == 0xFF &&
++               mac[1] == 0xFF &&
++               mac[2] == 0xFF &&
++               mac[3] == 0xFF &&
++               mac[4] == 0xFF &&
++               mac[5] == 0xFF ) {
++	errors++;
++    }
++
++    return errors;
++}
++
++static int ecrt_config_validate_node(ecrt_node_t *node)
+ {
+     int errors = 0;
++    ecrt_device_config_t* config;
+ 
+     if (node == NULL)
+         return 1;
+     /* Valid master id valid */
+-    if (node->master_id == ECRT_INVALID_MASTER_ID)
++    if (node->node_id == ECRT_INVALID_MASTER_ID)
+         errors++;
+     /* Valid MAC address valid*/
+-    if (node->master_mac[0]&0x02) {
+-        errors++;
+-    } else if (node->master_mac[0] == 0 && 
+-               node->master_mac[1] == 0 &&
+-               node->master_mac[2] == 0 &&
+-               node->master_mac[3] == 0 &&
+-               node->master_mac[4] == 0 &&
+-               node->master_mac[5] == 0 ) {
+-	errors++;
+-    } else if (node->master_mac[0] == 0xFF && 
+-               node->master_mac[1] == 0xFF &&
+-               node->master_mac[2] == 0xFF &&
+-               node->master_mac[3] == 0xFF &&
+-               node->master_mac[4] == 0xFF &&
+-               node->master_mac[5] == 0xFF ) {
+-	errors++;
++    if (list_empty(&node->mac_list)) {
++        return errors;
+     }
++    list_for_each_entry(config, &node->mac_list, list) {
++        if (config == NULL) {
++	    return errors;
++	}
++	errors += ecrt_config_validate_mac(config->mac);
++    }
++
+     return errors;
+ }
+ 
+@@ -270,6 +306,32 @@ static void ecrt_config_free_node(ecrt_node_t *node)
+     }
+ }
+ 
++static ecrt_device_config_t * ecrt_config_read_mac_list(FILE *filenode, int *line, struct list_head * list)
++{
++    char buff[512], *pos, *pos2;
++    int errors = 0;
++    int end = 0;
++    int len = 0;
++    if ((filenode == NULL) || (line == NULL) ||(list == NULL))
++        return NULL;
++    while (ecrt_config_read_line(buff, sizeof(buff), filenode, line, &pos)) {
++        if (strcmp(pos, "}") == 0) {
++            end = 1;
++	    break;
++        }
++        char* mac = ecrt_config_parse_str(pos, &len);
++        ecrt_device_config_t * new_config = ecrt_device_config_initial_alloc();
++        if (new_config) {
++	    if (ecrt_mac_parse(new_config->mac, mac, 0) != 0) {
++	        free(new_config);
++	        new_config = NULL;
++	    } else {
++                list_add_tail(&new_config->list, list);
++	    }
++        }
++    }
++}
++
+ static ecrt_node_t * ecrt_config_read_node(FILE *filenode, int *line, ecrt_node_t * node)
+ {
+    char buff[512], *pos, *pos2;
+@@ -299,11 +361,10 @@ static ecrt_node_t * ecrt_config_read_node(FILE *filenode, int *line, ecrt_node_
+ 	   }
+        }
+ 
+-       if (strcmp(pos, "master_id") == 0) {
+-           node->master_id = ecrt_config_parse_int(pos2);
++       if (strcmp(pos, "node_id") == 0) {
++           node->node_id = ecrt_config_parse_int(pos2);
+        } else if (strcmp(pos, "master_mac") == 0) {
+-           char* mac = ecrt_config_parse_str(pos2, &len);
+-	   ecrt_mac_parse(node->master_mac, mac, 0);
++           ecrt_config_read_mac_list(filenode, line, &node->mac_list);
+        } else if (strcmp(pos, "debug_level") == 0) {
+            node->debug_level = ecrt_config_parse_int(pos2);
+        } else if (strcmp(pos, "drv_argv") == 0) {
+@@ -315,8 +376,9 @@ static ecrt_node_t * ecrt_config_read_node(FILE *filenode, int *line, ecrt_node_
+        errors++;
+    }
+ 
+-   errors += ecrt_config_validate_node(node, *line);
++   errors += ecrt_config_validate_node(node);
+    if (errors) {
++       printf("validate node parse error:%d\n",errors);
+        ecrt_config_free_node(node);
+        node = NULL;
+    }
+@@ -360,46 +422,84 @@ static ecrt_config_t * ecrt_config_read(const char *name)
+     return config;
+ }
+ 
+-ecrt_node_t * ecrt_config_get_node_by_id(ec_master_t *master, int id)
++ecrt_device_config_t* ecrt_node_get_mac_by_index(ecrt_node_t * node, int index)
+ {
+-    ecrt_node_t *node;
+-    ecrt_config_t *conf;
+-    if (master == NULL)
++    ecrt_device_config_t* config;
++    int idx = 0;
++    if (node == NULL) {
+         return NULL;
+-    else if(master->ecrt_conf == NULL) {
+-        if (ecrt_load_configuration(master) != 0)
++    }
++    if (list_empty(&node->mac_list)) {
++        return NULL;
++    }
++    list_for_each_entry(config, &node->mac_list, list) {
++        if (config == NULL) {
++	    return NULL;
++	}
++	if (idx == index) {
++            return config;
++	}
++	idx++;
++    }
++    return NULL;
++}
++
++int ecrt_config_get_master_count_by_id(ecrt_config_t * conf, int id)
++{
++    int count = 0;
++    ecrt_device_config_t* config;
++    ecrt_node_t *node;
++    if ((conf == NULL)||(id == ECRT_INVALID_MASTER_ID))
++        return 0;
++    node = ecrt_config_get_node_by_id(conf, id);
++    if (node != NULL) {
++        if (list_empty(&node->mac_list)) {
++            return 0;
++        }
++        list_for_each_entry(config, &node->mac_list, list) {
++            if (config == NULL) {
++                return count;
++            }
++            count++;
++        }
++    }
++    return count;
++}
++
++ecrt_node_t * ecrt_config_get_node_by_id(ecrt_config_t * conf, int id)
++{
++    ecrt_node_t *node;
++
++    if(conf == NULL) {
++        conf = ecrt_load_configuration(NULL);
++        if (conf == NULL)
+             return NULL;
+     }
+     if (id == ECRT_INVALID_MASTER_ID)
+         return NULL;
+-    conf = master->ecrt_conf;
+     list_for_each_entry(node, &conf->list, list) {
+         if (node == NULL) {
+             return NULL;
+ 	}
+-        if (node->master_id == id) {
++        if (node->node_id == id) {
+             return node;
+-	 }
++	}
+     }
+     return NULL;
+ }
+ 
+-int ecrt_load_configuration(ec_master_t *master)
++ecrt_config_t * ecrt_load_configuration(char* name)
+ {
+-    ecrt_config_t *conf;
+-
+-    if(!master)
+-        return -1;
++    ecrt_config_t *conf = NULL;
+ 
+-    if (master->confname == NULL)
++    if (name == NULL)
+         conf = ecrt_config_read(ECRT_DEFAULT_CONFIG);
+     else
+-        conf = ecrt_config_read(master->confname);
++        conf = ecrt_config_read(name);
+     if (conf == NULL) {
+-        EC_MASTER_ERR(master, "Failed to parse the configuration of EtherCAT(%s)", \
+-			((master->confname == NULL)?ECRT_DEFAULT_CONFIG:master->confname));
+-        return -1;
++        printf("Failed to parse the configuration of EtherCAT(%s)", \
++			((name == NULL)?ECRT_DEFAULT_CONFIG:name));
++        return NULL;
+     }
+-    master->ecrt_conf = conf;
+-    return 0;
++    return conf;
+ }
+diff --git a/master/ecrt_config.h b/master/ecrt_config.h
+index b52f0e38..52c38150 100644
+--- a/master/ecrt_config.h
++++ b/master/ecrt_config.h
+@@ -40,14 +40,22 @@ typedef struct ecrt_config {
+     struct list_head list;
+ } ecrt_config_t;
+ 
++typedef struct ecrt_device_config {
++    struct list_head list;
++    unsigned char mac[ETH_ALEN];
++    unsigned char backup_mac[ETH_ALEN];
++} ecrt_device_config_t;
++
+ typedef struct ecrt_node {
+     struct list_head list;
+-    int master_id;
+-    unsigned char master_mac[ETH_ALEN];
++    int node_id;
++    struct list_head mac_list;
+     int debug_level;
+     char* drv_argv;
+ } ecrt_node_t;
+ 
+-ecrt_node_t * ecrt_config_get_node_by_id(ec_master_t *, int);
+-int ecrt_load_configuration(ec_master_t *master);
++int ecrt_config_get_master_count_by_id(ecrt_config_t *, int);
++ecrt_device_config_t* ecrt_node_get_mac_by_index(ecrt_node_t *, int);
++ecrt_node_t * ecrt_config_get_node_by_id(ecrt_config_t * conf, int id);
++ecrt_config_t * ecrt_load_configuration(char * name);
+ #endif
+diff --git a/master/ethercatd.c b/master/ethercatd.c
+index 52da964a..febcc174 100644
+--- a/master/ethercatd.c
++++ b/master/ethercatd.c
+@@ -49,25 +49,19 @@
+ 
+ /*****************************************************************************/
+ 
+-static int ec_mac_parse(uint8_t *, const char *, int);
+ 
+-static char* dpdk_argv;
+ /*****************************************************************************/
+ 
+-static char *main_devices[MAX_MASTERS]; /**< Main devices parameter. */
+ static unsigned int master_count; /**< Number of masters. */
+-static char *backup_devices[MAX_MASTERS]; /**< Backup devices parameter. */
+ static unsigned int backup_count; /**< Number of backup devices. */
+-static unsigned int debug_level = 0;  /**< Debug level parameter. */
+-static unsigned int master_id= 0;
+ 
++#if EC_ENABLE_DAEMON
++static unsigned int node_id= 0;
++#endif
+ static ec_master_t *masters; /**< Array of masters. */
+ static ec_lock_t master_sem; /**< Master semaphore. */
+ 
+ dev_t device_number; /**< Device number for master cdevs. */
+-struct class *class; /**< Device class. */
+-
+-static uint8_t macs[MAX_MASTERS][2][ETH_ALEN]; /**< MAC addresses. */
+ 
+ char *ec_master_version_str = EC_MASTER_VERSION; /**< Version string. */
+ 
+@@ -106,7 +100,7 @@ static void ec_ipc_process(ec_master_t *master) {
+ static void ec_master_ipc_thread(ec_master_t *master) {
+ #else
+ static int terminal = 1;
+-static void ec_master_ipc_run(ec_master_t *master) {
++static void ec_master_ipc_thread(ec_master_t *master) {
+ #endif
+     char* guard = ipc_iface_atomic_create(master->ipcs);
+     master->ctx.writable = 1;
+@@ -123,24 +117,9 @@ static void ec_master_ipc_run(ec_master_t *master) {
+             ipc_iface_atomic_notify(guard);
+ 	}
+     }
+-    printf("ipc thread stopped\n");
+-}
+-
+-static int ec_mac_process(uint8_t *main, uint8_t *backup){
+-    int i, ret = 0;
+-    // zero MAC addresses
+-    memset(macs, 0x00, sizeof(uint8_t) * MAX_MASTERS * 2 *ETH_ALEN);
+-    //process MAC parameters
+-    for (i = 0; i < master_count; i++) {
+-        if (main == NULL)
+-            break;
+-	memcpy(macs[i][0], main, ETH_ALEN);
+-	if (backup == NULL)
+-            continue;
+-    }
+-    return 0;
+ }
+ 
++#if EC_ENABLE_DAEMON
+ static void getOptions(int argc, char**argv){
+     int index;
+     uint8_t *main = NULL, *backup = NULL;
+@@ -154,7 +133,7 @@ static void getOptions(int argc, char**argv){
+         index = getopt_long(argc, argv, "m:h", longOptions, NULL);
+         switch(index) {
+             case 'm':
+-                master_id = atoi(optarg);
++                node_id = atoi(optarg);
+                 break;
+             case 'h':
+                 printf("Global options:\n");
+@@ -173,8 +152,8 @@ static void getOptions(int argc, char**argv){
+             }
+         } while(index != -1);
+ }
+-
+-#if !EC_ENABLE_DAEMON
++#endif
++//#if !EC_ENABLE_DAEMON
+ static void ethercatd_ipc_start(ec_master_t *master)
+ {
+     int ret;
+@@ -219,7 +198,7 @@ static void ethercatd_ipc_stop(ec_master_t *master)
+     if (master->ipc_thread) {
+         EC_MASTER_INFO(master, "Stopping IPC thread.\n");
+ 	master->ipc_thread_status = 0;
+-	ipc_ctrl_atomic_exit(master->ipcs);
++	//ipc_iface_atomic_exit(master->ipcs);
+ 	if (master->ipc_thread) {
+             pthread_cancel(*master->ipc_thread);
+             pthread_join(*master->ipc_thread, NULL);
+@@ -229,7 +208,7 @@ static void ethercatd_ipc_stop(ec_master_t *master)
+ 	EC_MASTER_INFO(master, "IPC thread exited.\n");
+     }
+ }
+-#endif
++//#endif
+ /** Ethercatd Entry
+  *
+  * Initialize \a master_count masters.
+@@ -238,17 +217,14 @@ static void ethercatd_ipc_stop(ec_master_t *master)
+ #if EC_ENABLE_DAEMON
+ int main(int argc, char **argv)
+ #else
+-int ethercatd_master_init(int master_index)
++int ethercatd_master_init(unsigned int node_id)
+ #endif
+ {
+     int i, ret = 0;
+     ecrt_node_t *node;
++    ecrt_config_t *conf;
+ 
+     EC_INFO("Master driver %s\n", EC_MASTER_VERSION);
+-#ifdef EC_RTDM
+-    if (!realtime_core_enabled())
+-        return 0;
+-#endif
+     master_count = 1;
+     backup_count = 0;
+     sem_init(&master_sem, 0, 1);
+@@ -256,6 +232,12 @@ int ethercatd_master_init(int master_index)
+ #if EC_ENABLE_DAEMON
+     getOptions(argc, argv);
+ #endif
++
++    conf = ecrt_load_configuration(NULL);
++    if (conf != NULL) {
++        master_count = ecrt_config_get_master_count_by_id(conf, node_id);
++    }
++
+     // initialize static master variables
+     ec_master_init_static();
+     if (master_count) {
+@@ -267,36 +249,40 @@ int ethercatd_master_init(int master_index)
+         }
+         memset (masters, 0, sizeof(ec_master_t) * master_count);
+     }
+-#if EC_ENABLE_DAEMON
+-    node = ecrt_config_get_node_by_id(masters, master_id);
+-#else
+-    node = ecrt_config_get_node_by_id(masters, master_index);
+-#endif
+-    if (ec_mac_process(node->master_mac, NULL))
+-        exit(0);
++    node = ecrt_config_get_node_by_id(conf, node_id);
++    if (!node) {
++        EC_ERR("Failed to find EtherCAT node Configuration, please double check ecrt_config.\n");
++	return -1;
++    }
++    ec_dpdk_init(node->drv_argv, master_count);
++
+     for (i = 0; i < master_count; i++) {
+-        ret = ec_master_init(&masters[i], i, macs[i][0], macs[i][1], node->debug_level, node->drv_argv);
++        ecrt_device_config_t *config;
++        config = ecrt_node_get_mac_by_index(node, i);
++        if (config == NULL) {
++            EC_ERR("Master%d: Failed to find mac address in ecrt_config\n",i);
++            ret = -1;
++            goto out_free_masters;
++        }
++        ret = ec_master_init(&masters[i], i, config->mac, config->backup_mac, node->debug_level, node->drv_argv);
+         if (ret)
+             goto out_free_masters;
++        ethercatd_ipc_start(&masters[i]);
+     }
+-    EC_INFO("%u master%s waiting for devices.\n",
+-            master_count, (master_count == 1 ? "" : "s"));
++
+ #if EC_ENABLE_DAEMON
+-    ec_master_ipc_run(&masters[0]);
+-    ipc_iface_release(masters[0].seg_id, masters[0].ipcs);
+-    goto out_free_masters;
+-#else
+-    ethercatd_ipc_start(&masters[0]);
++    while(1);
+ #endif
++    EC_INFO("%u master%s waiting for devices.\n",
++            master_count, (master_count == 1 ? "" : "s"));
+     return ret;
+ 
+ out_free_masters:
+     for (i--; i >= 0; i--)
+         ec_master_clear(&masters[i]);
+     if (masters)
+-    	free(masters);
++        free(masters);
+ out_class:
+-out_return:
+     return ret;
+ }
+ 
+@@ -398,47 +384,6 @@ int ec_mac_is_broadcast(
+ 
+ /*****************************************************************************/
+ 
+-/** Parse a MAC address from a string.
+- *
+- * The MAC address must match the regular expression
+- * "([0-9a-fA-F]{2}:){5}[0-9a-fA-F]{2}".
+- *
+- * \return 0 on success, else < 0
+- */
+-static int ec_mac_parse(uint8_t *mac, const char *src, int allow_empty)
+-{
+-    unsigned int i, value;
+-    const char *orig = src;
+-    char *rem;
+-
+-    if (!strlen(src)) {
+-        if (allow_empty){
+-            return 0;
+-        } else {
+-            EC_ERR("MAC address may not be empty.\n");
+-            return -EINVAL;
+-        }
+-    }
+-
+-    for (i = 0; i < ETH_ALEN; i++) {
+-        value = strtoul(src, &rem, 16);
+-        if (rem != src + 2
+-                || value > 0xFF
+-                || (i < ETH_ALEN - 1 && *rem != ':')) {
+-            EC_ERR("Invalid MAC address \"%s\".\n", orig);
+-            return -EINVAL;
+-        }
+-        mac[i] = value;
+-        if (i < ETH_ALEN - 1) {
+-            src = rem + 1; // skip colon
+-        }
+-    }
+-
+-    return 0;
+-}
+-
+-/*****************************************************************************/
+-
+ /** Outputs frame contents for debugging purposes.
+  * If the data block is larger than 256 bytes, only the first 128
+  * and the last 128 bytes will be shown
+@@ -585,7 +530,7 @@ ec_device_t *ecdev_offer(
+     unsigned int i, dev_idx;
+     for (i = 0; i < master_count; i++) {
+         master = &masters[i];
+-        //ec_mac_print(net_dev->dev_addr, str);
++        ec_mac_print(dpdk_dev->dev_addr, str);
+ 
+         if (ec_lock_down_interruptible(&master->device_sem)) {
+             EC_MASTER_WARN(master, "%s() interrupted!\n", __func__);
+@@ -594,12 +539,10 @@ ec_device_t *ecdev_offer(
+ 
+         for (dev_idx = EC_DEVICE_MAIN;
+                 dev_idx < ec_master_num_devices(master); dev_idx++) {
+-            //if (!master->devices[dev_idx].dev
+-            //    && (ec_mac_equal(master->macs[dev_idx], net_dev->dev_addr)
+-            //        || ec_mac_is_broadcast(master->macs[dev_idx]))) {
+ 
+             if (!master->devices[dev_idx].dev
+-                    || ec_mac_is_broadcast(master->macs[dev_idx])) {
++                && (ec_mac_equal(master->macs[dev_idx], dpdk_dev->dev_addr)
++                    || ec_mac_is_broadcast(master->macs[dev_idx]))) {
+                 EC_INFO("Accepting %s as %s device for master %u.\n",
+                         str, ec_device_names[dev_idx != 0], master->index);
+ 
+@@ -690,7 +633,7 @@ ec_master_t *ecrt_request_master_err(
+ 
+     ec_lock_up(&master->device_sem);
+ #if !EC_ENABLE_DAEMON
+-    sleep(10);
++    sleep(5);
+ #endif
+     if (ec_master_enter_operation_phase(master)) {
+         EC_MASTER_ERR(master, "Failed to enter OPERATION phase!\n");
+@@ -717,9 +660,6 @@ ec_master_t *ecrt_request_master_err(
+ 
+ ec_master_t *ecrt_request_master(unsigned int master_index)
+ {
+-#if !EC_ENABLE_DAEMON
+-    ethercatd_master_init(master_index);
+-#endif
+     ec_master_t *master = ecrt_request_master_err(master_index);
+     return IS_ERR(master) ? NULL : master;
+ }
+@@ -728,7 +668,6 @@ ec_master_t *ecrt_request_master(unsigned int master_index)
+ 
+ void ecrt_release_master(ec_master_t *master)
+ {
+-    unsigned int dev_idx;
+ 
+     EC_MASTER_INFO(master, "Releasing master...\n");
+ 
+@@ -744,14 +683,22 @@ void ecrt_release_master(ec_master_t *master)
+     ec_master_leave_operation_phase(master);
+     master->reserved = 0;
+ #if !EC_ENABLE_DAEMON
+-    ec_master_clear(master);
+-    if (master) {
++    if (master->index == 0) {
++        ec_master_clear(master);
+         free(master);
+     }
+ #endif
+     EC_MASTER_INFO(master, "Released.\n");
+ }
+ 
++#if !EC_ENABLE_DAEMON
++ec_master_t *ecrt_masters_create(unsigned int node_id) {
++    ethercatd_master_init(node_id);
++
++    return masters;
++}
++#endif
++
+ /*****************************************************************************/
+ 
+ unsigned int ecrt_version_magic(void)
+diff --git a/master/ioctl.c b/master/ioctl.c
+index 4107d235..ce307912 100644
+--- a/master/ioctl.c
++++ b/master/ioctl.c
+@@ -197,13 +197,8 @@ static ATTRIBUTES int ec_ioctl_master(
+         ec_device_t *device = &master->devices[dev_idx];
+ 
+         if (device->dev) {
+-#ifdef EC_USERMODE
+-            memcpy(io.devices[dev_idx].address, device->dev->mac,
+-                    ETH_ALEN);
+-#else
+             memcpy(io.devices[dev_idx].address, device->dev->dev_addr,
+                     ETH_ALEN);
+-#endif
+         } else {
+             memcpy(io.devices[dev_idx].address, master->macs[dev_idx],
+                     ETH_ALEN);
+@@ -2390,7 +2385,7 @@ static ATTRIBUTES int ec_ioctl_activate(
+ 
+     if (ctx->process_data_size) {
+ #ifdef EC_USERMODE
+-            ipc_iface_mmap(&ctx->process_data,ctx->process_data_size);
++        ipc_iface_mmap(&ctx->process_data,ctx->process_data_size, master->index);
+ #else
+         ctx->process_data = vmalloc(ctx->process_data_size);
+ #endif
+diff --git a/master/master.c b/master/master.c
+index 67b05718..45936c28 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -378,7 +378,7 @@ int ec_master_init(ec_master_t *master, /**< EtherCAT master */
+     init_irq_work(&master->sc_reset_work_kicker, sc_reset_task_kicker);
+ #endif
+ #ifdef EC_USERMODE
+-    master->seg_id = ipc_iface_init(&master->ipcs);
++    master->seg_id = ipc_iface_init(&master->ipcs, master->index);
+ #else
+     // init character device
+     ret = ec_cdev_init(&master->cdev, master, device_number);
+@@ -796,7 +796,6 @@ int ec_master_enter_idle_phase(
+             "EtherCAT-IDLE");
+     if (ret)
+         master->phase = EC_ORPHANED;
+-
+     return ret;
+ }
+ 
+@@ -1816,7 +1815,7 @@ static int ec_master_idle_thread(void *priv_data)
+             ec_master_nanosleep(sent_bytes * EC_BYTE_TRANSMISSION_TIME_NS);
+ #else
+ #ifdef EC_USERMODE
+-	          sched_yield();
++            sched_yield();
+ #else
+             schedule();
+ #endif
+diff --git a/master/master.h b/master/master.h
+index f8f329d6..e3055c3f 100644
+--- a/master/master.h
++++ b/master/master.h
+@@ -303,10 +303,8 @@ struct ec_master {
+ #ifdef EC_USERMODE
+     pthread_t* thread; /**< Master thread. */
+     unsigned char thread_status; /* Master thread status*/
+-#if !EC_ENABLE_DAEMON
+     pthread_t* ipc_thread; /**< IPC thread. */
+     unsigned char ipc_thread_status; /* IPC thread status*/
+-#endif
+ #else
+     struct task_struct *thread; /**< Master thread. */
+ #endif
+diff --git a/script/sysconfig/ecrt.conf b/script/sysconfig/ecrt.conf
+index 4731b500..25fb65b1 100644
+--- a/script/sysconfig/ecrt.conf
++++ b/script/sysconfig/ecrt.conf
+@@ -1,15 +1,10 @@
+ # test
+ ethercat={
+-	master_id=0
+-	master_mac="xx:xx:xx:xx:xx:xx"
++	node_id=0
++	master_mac={
++            "xx:xx:xx:xx:xx:xx"
++        }
+ 	debug_level=0
+-	drv_argv="--lcores 3"
+-}
+-
+-ethercat={
+-	master_id=1
+-	master_mac="xx:xx:xx:xx:xx:xx"
+-	debug_level=0
+-	drv_argv="--lcores 3"
++	drv_argv="--lcores 3 -a 0000:02:00.0"
+ }
+ 
+diff --git a/script/sysconfig/multiple_master_ecrt.conf.template b/script/sysconfig/multiple_master_ecrt.conf.template
+new file mode 100644
+index 00000000..86c4a363
+--- /dev/null
++++ b/script/sysconfig/multiple_master_ecrt.conf.template
+@@ -0,0 +1,11 @@
++# test
++ethercat={
++	node_id=0
++	master_mac={
++            "xx:xx:xx:xx:xx:xx"
++            "xx:xx:xx:xx:xx:xx"
++        }
++	debug_level=0
++	drv_argv="-a 0000:02:00.0 -a 0000:03:00.0"
++}
++
+diff --git a/tool/MasterDevice.cpp b/tool/MasterDevice.cpp
+index 0feb023d..67bd794c 100644
+--- a/tool/MasterDevice.cpp
++++ b/tool/MasterDevice.cpp
+@@ -72,7 +72,7 @@ void MasterDevice::open(Permissions perm)
+ #ifdef EC_USERMODE
+     if (ipcs == NULL) { // not already open
+         ec_ioctl_module_t module_data;
+-       	ipc_ctrl_init(&ipcs);
++        ipc_ctrl_init(&ipcs, index);
+ #else
+     if (fd == -1) { // not already open
+         ec_ioctl_module_t module_data;
+-- 
+2.34.1
+

@@ -22,3 +22,9 @@
 0003-update-EtherCAT-stmmac-driver-for-Kernel-6.12.patch
 0001-use-min-to-replace-MIN-in-kernel-mode.patch
 0001-Update-etc-sysconfig-ethercat-to-list-available-devi.patch
+0001-enable-dpdk-rebind-script-to-check-if-iommu-enable.patch
+0001-enable-feature-to-support-multiple-master-in-single-.patch
+0002-enable-time-sync-for-dual-master-example.patch
+0003-add-ecrt_master_wait_for_slave-api-to-check-master-s.patch
+0004-Add-domain-process-with-enable-daemon.patch
+0001-fix-compilation-issue-with-different-options.patch
