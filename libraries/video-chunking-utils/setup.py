@@ -8,7 +8,6 @@ setup(
     install_requires=[
         'typing',
         'ruptures',
-        'ffmpeg-python',
         'opencv-python',
         'numpy',
         'scikit-image',
@@ -22,7 +21,7 @@ setup(
     # url='https://github.com/.../video_chunking',
     # classifiers=[
     #     'Programming Language :: Python :: 3',
-    #     'License :: OSI Approved :: MIT License',
+    #     'License :: OSI Approved :: Apache Software License',
     #     'Operating System :: OS Independent',
     # ],
     python_requires='>=3.6',

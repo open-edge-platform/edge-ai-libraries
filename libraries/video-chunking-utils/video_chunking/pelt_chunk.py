@@ -9,10 +9,6 @@ from video_chunking.base_chunk import BaseChunking
 
 logger = logging.getLogger(__name__)
 
-# Debug
-import os
-PELT_DATA_VIS_PATH = os.getenv("PELT_DATA_VIS_PATH", None)
-
 class PeltChunking(BaseChunking):
     
     METHOD_NAME = "pelt"
@@ -151,30 +147,6 @@ class PeltChunking(BaseChunking):
         
         # Combine features
         combined = self._normalize_and_combine(self.diff_scores)
-            
-        # Debug
-        if PELT_DATA_VIS_PATH is not None:
-            import matplotlib.pyplot as plt
-            filename = os.path.basename(self.video_input)
-            video_name, _ = os.path.splitext(filename)
-            color_diffs = [_[0] for _ in self.diff_scores]
-            flow_diffs = [_[1] for _ in self.diff_scores]
-            texture_diffs = [_[2] for _ in self.diff_scores]
-            norm_corlor_diff = self._normalize(color_diffs)
-            norm_flow_diff = self._normalize(flow_diffs)
-            norm_texture_diff = self._normalize(texture_diffs)
-            # Visualize
-            fig, axs = plt.subplots(4, 1, figsize=(10, 11), sharey=True)
-            self._plot_score_curve(norm_corlor_diff, plt=axs[0], sampling_interval=1, prefix="color")
-            self._plot_score_curve(norm_flow_diff, plt=axs[1], sampling_interval=1, prefix="flow")
-            self._plot_score_curve(norm_texture_diff, plt=axs[2], sampling_interval=1, prefix="texture")
-            self._plot_score_curve(combined, plt=axs[3], sampling_interval=1, prefix="combine")        
-            # Save the plot if save_path is provided
-            save_to = os.path.join(PELT_DATA_VIS_PATH+f"-fps{self.sample_fps}", f"{video_name}_score_for_pelt.jpg")
-            os.makedirs(os.path.dirname(save_to), exist_ok=True)
-            plt.tight_layout()
-            plt.savefig(save_to)
-            print(f"{save_to} saved.")
         
         # Automatically adjust pen value
         pen = self.initial_pen
@@ -200,16 +172,6 @@ class PeltChunking(BaseChunking):
             # Calculate segment durations
             durations = [segments[i+1]-segments[i] for i in range(len(segments)-1)]
             avg_duration = np.mean(durations) if durations else 0
-            
-            ## Debug
-            if PELT_DATA_VIS_PATH is not None:
-                rpt.display(combined, [_ * self.sample_fps for _ in segments])
-                plt.title("Change Point Detection: Pelt Method")
-                # Save the plot if save_path is provided
-                save_folder = os.path.join(PELT_DATA_VIS_PATH, f"pelt-min{self.min_chunk_duration}s")
-                save_to = os.path.join(save_folder, f"{video_name}_try{i}_{len(segments)-1}chunks_avg{avg_duration:.2f}s.jpg")
-                os.makedirs(os.path.dirname(save_to), exist_ok=True)
-                plt.savefig(save_to)
 
             logger.debug(f"Trying pen={pen:.1f}, average segment duration={avg_duration:.2f}s, "
                          f"num segments: {len(durations)}")
@@ -319,59 +281,4 @@ class PeltChunking(BaseChunking):
     def _reset(self):
         self.pre_frame = None
         self.timestamps = []
-        self.diff_scores = []  
-
-    # debug
-    def _plot_score_curve(self, data, sampling_interval=1, prefix='', plt=None):
-        """
-        Plot a curve of the given data array, allowing control of the x-axis points via sampling interval.
-
-        Parameters:
-        data (numpy.ndarray): A numpy array with shape [N, 1].
-        sampling_interval (int): Sampling interval, default is 1.
-        """
-        if PELT_DATA_VIS_PATH is None:
-            return
-        import matplotlib.pyplot as plt
-        if not isinstance(data, np.ndarray):
-            raise ValueError("Input data must be a numpy array")
-        
-        data = data.reshape(-1,1)
-        
-        # Extract data
-        y = data.flatten()
-        N = len(y)
-        
-        # Generate x-axis data based on sampling interval
-        x = np.arange(0, N, sampling_interval)
-        # Extract corresponding y-axis data
-        y_sampled = y[x]
-        
-        # Plot the curve
-        if plt is None:
-            plt.figure(figsize=(10, 2))
-            plt.plot(x, y_sampled)
-        else:
-            plt.plot(x, y_sampled)
-            plt.set_ylabel(prefix)
-        
-        # Find out points with highest value
-        top_15_indices = np.argsort(y_sampled)[-15:]
-        top_15_x = x[top_15_indices]
-        top_15_y = y[top_15_indices]
-        plt.scatter(top_15_x, top_15_y, color='red', s=50, zorder=5)
-        for i, txt in enumerate(zip(top_15_x, top_15_y)):
-            seconds = int(txt[0] / self.sample_fps)
-            mins = int(seconds // 60)
-            secs = int(seconds % 60 )
-            plt.annotate(f'({mins:02d}m{secs:02d}s)', (top_15_x[i], top_15_y[i]), textcoords="offset points", xytext=(0,10), ha='center')
-        
-        # plt.tight_layout()
-        # plt.title('Curve Plot with Top 15 Highlights')
-        
-        if plt is None:
-            # Save the plot if save_path is provided
-            save_to = os.path.join(PELT_DATA_VIS_PATH, f"{prefix}_score_for.jpg")
-            os.makedirs(os.path.dirname(save_to), exist_ok=True)
-            plt.savefig(save_to)
-            print(f"{save_to} saved.")
+        self.diff_scores = []
