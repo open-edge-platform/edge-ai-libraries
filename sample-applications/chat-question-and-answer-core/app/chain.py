@@ -17,18 +17,18 @@ vectorstore = None
 # If RUN_TEST is set to "True", the model download and conversion steps are skipped.
 # This flag is set in the conftest.py file before running the tests.
 if os.getenv("RUN_TEST", "").lower() != "true":
-    if config.MODEL_BACKEND == "openvino":
-        backend_module = importlib.import_module("app.openvino_backend")
-        backend_instance = backend_module.OpenVINOBackend()
+    if config.MODEL_RUNTIME == "openvino":
+        runtime_module = importlib.import_module("app.openvino_backend")
+        runtime_instance = runtime_module.OpenVINOBackend()
 
-    elif config.MODEL_BACKEND == "ollama":
-        backend_module = importlib.import_module("app.ollama_backend")
-        backend_instance = backend_module.OllamaBackend()
+    elif config.MODEL_RUNTIME == "ollama":
+        runtime_module = importlib.import_module("app.ollama_backend")
+        runtime_instance = runtime_module.OllamaBackend()
 
     else:
-        raise ValueError(f"Unsupported model backend: {config.MODEL_BACKEND}")
+        raise ValueError(f"Unsupported model runtime: {config.MODEL_RUNTIME}")
 
-    embedding, llm, reranker = backend_instance.init_models()
+    embedding, llm, reranker = runtime_instance.init_models()
 
     template = config.PROMPT_TEMPLATE
 
@@ -62,6 +62,7 @@ def get_retriever():
     """
 
     enable_rerank = config._ENABLE_RERANK
+    logger.info(f"Reranker enabled: {enable_rerank}")
     search_method = config._SEARCH_METHOD
     fetch_k = config._FETCH_K
 

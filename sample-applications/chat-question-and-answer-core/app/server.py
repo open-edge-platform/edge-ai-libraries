@@ -47,11 +47,11 @@ class ChatRequest(BaseModel):
 
 
 # Conditionally include OpenVINO routes
-if config.MODEL_BACKEND == "openvino":
+if config.MODEL_RUNTIME == "openvino":
     from .openvino_routes import router as openvino_router
     app.include_router(openvino_router)
 
-elif config.MODEL_BACKEND == "ollama":
+elif config.MODEL_RUNTIME == "ollama":
     from .ollama_routes import router as ollama_router
     app.include_router(ollama_router)
 

@@ -1,5 +1,5 @@
 global:
-  MODEL_BACKEND: "ollama"
+  MODEL_RUNTIME: "ollama"
   EMBEDDING_MODEL:
   LLM_MODEL:
   KEEP_ALIVE: -1

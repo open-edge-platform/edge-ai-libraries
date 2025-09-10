@@ -8,7 +8,7 @@ os.environ['RUN_TEST'] = "True"
 
 def pytest_addoption(parser):
     parser.addoption(
-        "--model-backend",
+        "--model-runtime",
         action="store",
         default="default",
         help="Specify the model backend to use (e.g., openvino, ollama)"
@@ -16,19 +16,19 @@ def pytest_addoption(parser):
 
 @pytest.fixture
 def skip_if_not_ollama(request):
-    if request.config.getoption("--model-backend") != "ollama":
+    if request.config.getoption("--model-runtime") != "ollama":
         pytest.skip("Only valid for ollama backend")
 
 @pytest.fixture
 def skip_if_not_openvino(request):
-    if request.config.getoption("--model-backend") != "openvino":
+    if request.config.getoption("--model-runtime") != "openvino":
         pytest.skip("Only valid for openvino backend")
 
 @pytest.fixture(scope="session", autouse=True)
 def setup_dummy_config(request):
     # Get model backend from CLI
-    model_backend = request.config.getoption("--model-backend")
-    os.environ['MODEL_BACKEND'] = model_backend
+    model_runtime = request.config.getoption("--model-runtime")
+    os.environ['MODEL_RUNTIME'] = model_runtime
 
     # Create dummy config
     config_dir = "/tmp/model_config"
@@ -38,10 +38,10 @@ def setup_dummy_config(request):
         os.makedirs(config_dir, exist_ok=True)
         dummy_config = {
             "model_settings": {
-                "MODEL_BACKEND": model_backend,
-                "EMBEDDING_MODEL_ID": f"{model_backend}/embedding-model",
-                "RERANKER_MODEL_ID": f"{model_backend}/reranker-model",
-                "LLM_MODEL_ID": f"{model_backend}/llm-model"
+                "MODEL_RUNTIME": model_runtime,
+                "EMBEDDING_MODEL_ID": f"{model_runtime}/embedding-model",
+                "RERANKER_MODEL_ID": f"{model_runtime}/reranker-model",
+                "LLM_MODEL_ID": f"{model_runtime}/llm-model"
             },
             "device_settings": {
                 "EMBEDDING_DEVICE": "CPU",
@@ -51,7 +51,7 @@ def setup_dummy_config(request):
         }
         with open(config_file, "w") as f:
             yaml.dump(dummy_config, f, default_flow_style=False)
-        print(f"Created dummy config at {config_file} for backend '{model_backend}'")
+        print(f"Created dummy config at {config_file} for backend runtime '{model_runtime}'")
 
     yield
 

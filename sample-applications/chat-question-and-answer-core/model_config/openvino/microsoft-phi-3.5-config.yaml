@@ -1,5 +1,5 @@
 model_settings:
-  MODEL_BACKEND: "openvino"
+  MODEL_RUNTIME: "openvino"
   EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
   RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
   LLM_MODEL_ID: "microsoft/Phi-3.5-mini-instruct"

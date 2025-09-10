@@ -1,7 +1,7 @@
 global:
   huggingface:
     apiToken:
-  MODEL_BACKEND: "openvino"
+  MODEL_RUNTIME: "openvino"
   EMBEDDING_MODEL:
   LLM_MODEL:
   RERANKER_MODEL:

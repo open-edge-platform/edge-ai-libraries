@@ -124,12 +124,12 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
     Use the `pytest` command to run the tests, with support for different model backends.
 
-    You can specify a model backend using the `--model-backend` option. This allows test to dynamically configure dummy model settings and skip non-related tests when neccessary.
+    You can specify a model backend using the `--model-runtime` option. This allows test to dynamically configure dummy model settings and skip non-related tests when neccessary.
 
     For more detailed output—including the names of individual tests and their statuses—you can use the --verbose flag:
     ```bash
     # To run openvino-related tests
-    pytest --model-backend=openvino --verbose
+    pytest --model-runtime=openvino --verbose
 
     # Expected output
     ============================================================================================== test session starts ==============================================================================================
@@ -161,7 +161,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
     ========================================================================================= 12 passed, 4 skipped in 6.01s =========================================================================================
 
     # To run ollama-related tests
-    pytest --model-backend=ollama --verbose
+    pytest --model-runtime=ollama --verbose
 
     # Expected output
     ============================================================================================== test session starts ==============================================================================================
@@ -193,7 +193,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
     ========================================================================================= 12 passed, 4 skipped in 1.19s =========================================================================================
     ```
 
-    Some tests are designed to run only for specific backends. Hence, these test cases will get triggered based on `--model-backend` configured.
+    Some tests are designed to run only for specific backends. Hence, these test cases will get triggered based on `--model-runtime` configured.
 
 9. **Deactivate Virtual Environment**
 
@@ -256,16 +256,16 @@ If you prefer not to use virtual environment, please follow these steps:
 
 5. **Run the Tests**
 
-    Use the `poetry run pytest` command with `--model-backend` option to run the tests with support of different model backends.
+    Use the `poetry run pytest` command with `--model-runtime` option to run the tests with support of different model backends.
 
     This allows test to dynamically configure dummy model settings and skip non-related tests when neccessary.
 
     ```bash
     # To run openvino-related tests
-    poetry run pytest --model-backend=openvino --verbose
+    poetry run pytest --model-runtime=openvino --verbose
 
     # To run ollama-related tests
-    poetry run pytest --model-backend=ollama --verbose
+    poetry run pytest --model-runtime=ollama --verbose
     ```
 
     This ensures pytest runs within the virtual environment without needing to activate it separately.
@@ -278,10 +278,10 @@ If you prefer not to use virtual environment, please follow these steps:
 
     # run the tests
     # run openvino-related tests
-    pytest --model-backend=openvino --verbose
+    pytest --model-runtime=openvino --verbose
 
     # run ollama-related tests
-    pytest --model-backend=ollama --verbose
+    pytest --model-runtime=ollama --verbose
 
     # deactivate the environment after running the tests
     deactivate

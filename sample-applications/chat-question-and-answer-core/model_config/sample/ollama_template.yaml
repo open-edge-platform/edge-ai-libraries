@@ -1,7 +1,7 @@
 model_settings:
-  # Backend for model serving.
+  # Runtime for model serving.
   # Options: "ollama", "openvino"
-  MODEL_BACKEND: "ollama"
+  MODEL_RUNTIME: "ollama"
 
   # Embedding model used for vectorizing input text.
   # Example: "qllama/bge-small-en-v1.5"
