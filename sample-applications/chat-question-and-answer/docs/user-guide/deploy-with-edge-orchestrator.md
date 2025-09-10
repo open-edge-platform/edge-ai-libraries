@@ -18,9 +18,9 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 
 ### Prerequisites
 
-1. Access to the web interface of the Edge Orchestrator with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard.html>) to the Edge Orchestrator.
+1. Access to the web interface of the Edge Orchestrator with one or more [Edge Nodes Onboarded](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/edge_node_onboard/index.html>) to the Edge Orchestrator.
 
-1. Clusters with a [privilege template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/additional_howtos/set_up_a_cluster_template.html>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/create_clusters.html#create-cluster>).
+1. Clusters with a [privilege template](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/advanced_functionality/set_up_a_cluster_template.html>) have been created on the needed Edge Nodes following the procedures described in [Create Cluster](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/clusters/create_clusters.html#create-cluster>).
 
 ### Making the Deployment Package Available
 
@@ -79,7 +79,7 @@ For more information on setting up a deployment, see [Set up a Deployment](<http
 
 ### Access the **ChatQ&A** AI-Suite
 
-1. Download the kubeconfig of the cluster of the Edge Node on which the Application has been deployed. Refer [Kubeconfig Download](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/accessing_clusters.html#organize-cluster-access-with-a-kubeconfig-file>).
+1. Download the kubeconfig of the cluster of the Edge Node on which the Application has been deployed. Refer [Kubeconfig Download](<https://docs.openedgeplatform.intel.com/edge-manage-docs/main/user_guide/set_up_edge_infra/clusters/accessing_clusters.html>).
 
 1. Follow the steps described in the **ChatQ&A** [Documentation](<deploy-with-helm.md>) on usage of the application.
 
