@@ -1,0 +1,56 @@
+# Traffic Camera Video Analysis Configuration
+
+# Core processing settings
+chunkDuration: 3         # Duration of each video chunk in seconds
+samplingFrame: 6          # Frame sampling rate (analyze every Nth frame)
+
+# Advanced override settings
+overlapOverride: 2         # Seconds of overlap between consecutive video chunks
+multiFrameOverride: 8     # Number of frames to process together for multi-frame analysis, Sum of samplingFrame and overlapOverride. This is dependent on VSS Setup and models used.
+
+# Prompt for analyzing individual frames in the traffic video
+framePromptOverride: |
+  You are a traffic monitoring analyst. Describe this traffic camera frame in detail. Include information about any potential accidents. Focus on objective observations relevant to traffic management and road safety.
+
+# Prompt for summarizing mapped video segments (segment-level summary)
+mapPromptOverride: |
+  You are provided with summaries of video segments of single video. Your task is to generate a detailed and concise summary of the entire video. Ensure that the summary:
+  - Clearly describes key actions, interactions, and notable details.
+  - Highlights important objects, people, and contextual information.
+  - Avoids unnecessary repetition and maintains coherence.
+  Don't treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.
+  Video Segments:
+
+  %data%
+
+# Prompt for reducing multiple segment summaries into a single narrative
+reducePromptOverride: |
+  You are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:
+
+  - Accurately describe the key activities, events, interactions, and notable details observed across the entire video.
+  - Maintain temporal continuity to reflect the progression of events logically.
+  - Highlight significant details while avoiding redundancy or unnecessary repetition.
+  - Focus on capturing the most important and relevant information from the provided summaries.
+
+  %data%
+
+# Prompt for condensing the final summary into a shorter version
+singlePromptOverride: |
+  Condense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:
+
+  %data%
+
+# Override for the EVAM pipeline (e.g., object detection or video_ingestion)
+evamPipelineOverride: "object_detection" 
+
+# Audio transcription model to use (e.g. tiny.en, small.en or medium.en )
+# audioModelOverride: "medium.en"   
+
+# Path to the retail store video file to be analyzed
+videoPath: "resources/<add-traffic-videos-here>.mp4"
+
+# Backend endpoint for video processing
+backendEndpoint: "http://localhost:12345"  
+
+# Enable debug mode for detailed logging
+debug: true
