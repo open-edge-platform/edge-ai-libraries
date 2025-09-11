@@ -4,8 +4,7 @@
 import pathlib
 from typing import Any
 
-from langchain_community.vectorstores import VDMS
-from langchain_community.vectorstores.vdms import VDMS_Client
+from langchain_vdms.vectorstores import VDMS, VDMS_Client
 
 from src.common import Strings, logger
 from src.core.util import read_config
