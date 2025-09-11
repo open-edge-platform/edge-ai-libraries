@@ -13,7 +13,9 @@ The key features include:
 - **Model Registry Support**: Dynamically fetch and deploy UDF scripts, machine learning models, and TICKscripts from the Model Registry microservice, enabling rapid customization and iteration.
 - **Versatile Use Cases**: Ideal for anomaly detection, alerting, and advanced time series analytics in industrial, IoT, and enterprise environments.
 
-For more information on creating custom UDFs, see the [Kapacitor Anomaly Detection Guide](https://docs.influxdata.com/kapacitor/v1/guides/anomaly_detection/)
+For more information on creating custom UDFs, see the
+`Kapacitor Anomaly Detection Guide <https://docs.influxdata.com/kapacitor/v1/guides/anomaly_detection/>`__
+
 
 .. toctree::
    :hidden:
