@@ -16,8 +16,6 @@ export enum MuxFeatures {
 export interface UISliceState {
   promptEditing: PromptEditing | null;
   selectedMux: MuxFeatures;
-  groupByTag: boolean;
-  showVideoGroups: boolean;
 }
 export interface OpenPromptModal {
   heading: string;

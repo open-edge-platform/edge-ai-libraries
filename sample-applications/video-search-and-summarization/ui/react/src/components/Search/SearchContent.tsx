@@ -4,12 +4,11 @@ import { FC } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tag, Tooltip, Button } from '@carbon/react';
+import { IconButton, Slider, Tag, Tooltip } from '@carbon/react';
 import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
-import { UIActions, uiSelector } from '../../redux/ui/ui.slice';
-import VideoGroupsView from '../VideoGroups/VideoGroupsView';
+import { Trigger } from '@carbon/react/icons';
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -137,80 +136,10 @@ const ErrorMessageWrapper = styled.div`
   }
 `;
 
-export const QueryHeading: FC = () => {
-  const { selectedQuery, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
-  const dispatch = useAppDispatch();
-  const { t } = useTranslation();
-
-  const refetchQuery = () => {
-    if (selectedQuery) {
-      dispatch(RerunSearch(selectedQuery.queryId));
-    }
-  };
-
-  return (
-    <QueryHeader>
-      <Tooltip align='bottom' label={selectedQuery?.query}>
-        <span className='query-title'>{selectedQuery?.query}</span>
-      </Tooltip>
-      {selectedQuery && selectedQuery?.tags.length > 0 && (
-        <TagsContainer>
-          {selectedQuery.tags.map((tag, index) => (
-            <Tag key={index} size='sm' type='high-contrast'>
-              {tag}
-            </Tag>
-          ))}
-        </TagsContainer>
-      )}
-      <span className='spacer'></span>
-      {isSelectedInProgress && (
-        <Tag size='sm' type='blue'>
-          {t('searchInProgress')}
-        </Tag>
-      )}
-      {isSelectedHasError && (
-        <Tag size='sm' type='red'>
-          {t('searchError')}
-        </Tag>
-      )}
-      {selectedQuery && (
-        <>
-          <SliderLabel>{t('topK')}</SliderLabel>
-          <Slider
-            min={1}
-            max={20}
-            step={1}
-            value={selectedQuery.topK}
-            onChange={({ value }) => {
-              dispatch(SearchActions.updateTopK({ queryId: selectedQuery.queryId, topK: value }));
-            }}
-          />
-        </>
-      )}
-      <Button
-        kind='ghost'
-        size='sm'
-        onClick={() => {
-          // toggle the grouped video view on/off
-          // eslint-disable-next-line no-console
-          console.log('Group by Tag button clicked (toggle)');
-          dispatch(UIActions.toggleVideoGroups());
-        }}
-      >
-        {t('GroupByTag')}
-      </Button>
-      <Button kind='ghost' size='sm' onClick={refetchQuery}>
-        Re-run Search
-      </Button>
-    </QueryHeader>
-  );
-};
-
 export const SearchContent: FC = () => {
   const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
-  const { showVideoGroups } = useAppSelector(uiSelector);
-  const { t } = useTranslation();
   const dispatch = useAppDispatch();
+  const { t } = useTranslation();
 
   const NoQuerySelected = () => {
     return (
@@ -266,19 +195,9 @@ export const SearchContent: FC = () => {
             />
           </>
         )}
-        <Button
-          kind='ghost'
-          size='sm'
-          onClick={() => {
-            console.log('Group by Tag button clicked (toggle)');
-            dispatch(UIActions.toggleVideoGroups());
-          }}
-        >
-          {t('GroupByTag')}
-        </Button>
-        <Button kind='ghost' size='sm' onClick={refetchQuery}>
-          Re-run Search
-        </Button>
+        <IconButton label={t('SearchRerun')} autoAlign onClick={refetchQuery} kind='ghost'>
+          <Trigger />
+        </IconButton>
       </QueryHeader>
     );
   };
@@ -334,11 +253,7 @@ export const SearchContent: FC = () => {
         {selectedQuery && (
           <>
             <QueryHeading />
-            {showVideoGroups ? (
-              <VideoGroupsView />
-            ) : (
-              isSelectedHasError ? <ErrorMessage /> : <VideosContainer />
-            )}
+            {isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
           </>
         )}
       </QueryContentWrapper>
