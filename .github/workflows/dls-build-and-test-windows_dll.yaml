@@ -26,7 +26,6 @@ jobs:
     - name: Checkout repository
       uses: actions/checkout@v4.2.0
       with:
-        persist-credentials: false
         path: edge-ai-libraries-repo
         persist-credentials: false
         submodules: false
