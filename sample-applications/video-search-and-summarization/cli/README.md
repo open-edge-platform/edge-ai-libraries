@@ -18,6 +18,9 @@ This CLI tool provides a terminal-based-ui interface to connect to video search 
 
 This CLI is a real-time terminal UI for video analysis and summarization. All parameters (video path, chunk duration, prompts, etc.) are read from a YAML config file. The CLI automatically uploads the video, tracks progress, and displays results.
 
+![TUI Screenshot](../docs/user-guide/images/TUI_Screenshot.png)
+> CLI Screenshot running generic usecase yaml. 
+
 ## Project Structure
 
 ```
