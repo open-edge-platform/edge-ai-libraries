@@ -29,25 +29,6 @@ cmake -DBUILD_TESTS=OFF -DBUILD_PERF_TESTS=OFF -DBUILD_EXAMPLES=OFF -DBUILD_open
 
 Download pre-built Debian packages:
 
-<!--
-- **Ubuntu 24.04**
-
-  ```bash
-  mkdir -p ~/intel/dlstreamer_gst
-  cd ~/intel/dlstreamer_gst
-  wget $(wget -q -O - https://api.github.com/repos/dlstreamer/dlstreamer/releases/latest | \
-    jq -r '.assets[] | select(.name | contains ("ubuntu_24.04_amd64.deb")) | .browser_download_url')
-  ```
-
-- **Ubuntu 22.04**
-
-  ```bash
-  cd ~/intel/dlstreamer_gst
-  wget $(wget -q -O - https://api.github.com/repos/dlstreamer/dlstreamer/releases/latest | \
-    jq -r '.assets[] | select(.name | contains ("ubuntu_22.04_amd64.deb")) | .browser_download_url')
-  ```
--->
-
 ::::{tab-set}
 :::{tab-item} Ubuntu 24.04
 :sync: tab1

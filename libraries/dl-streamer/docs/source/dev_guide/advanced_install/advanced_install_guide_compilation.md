@@ -293,48 +293,6 @@ git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 
 ## Step 8: Install OpenVINO™ Toolkit
 
-<!--
-- **Ubuntu/Fedora**
-
-  Download and install OpenVINO™ Toolkit:
-
-  ```bash
-  cd ~/edge-ai-libraries/libraries/dl-streamer
-  sudo ./scripts/install_dependencies/install_openvino.sh
-  ```
-
-  In case of any problems with the installation scripts, [Follow OpenVINO™
-  Toolkit instruction guide
-  here](https://docs.openvino.ai/2025/get-started/install-openvino/install-openvino-archive-linux.html)
-  to install OpenVINO™ on Linux.
-
-  - Environment: **Runtime**
-  - Operating System: **Linux**
-  - Version: **Latest**
-  - Distribution: **OpenVINO™ Archives**
-
-  After successful OpenVINO™ Toolkit package installation, run the
-  following commands to install OpenVINO™ Toolkit dependencies and enable
-  OpenVINO™ Toolkit development environment:
-
-  ```bash
-  sudo -E /opt/intel/openvino_2025/install_dependencies/install_openvino_dependencies.sh
-  source /opt/intel/openvino_2025/setupvars.sh
-  ```
-
-- **EMT**
-
-  ```bash
-  wget https://storage.openvinotoolkit.org/repositories/openvino/packages/2025.2/linux/openvino_toolkit_ubuntu24_2025.2.0.19140 c01cd93e24d_x86_64.tgz
-  tar -xvzf openvino_toolkit_ubuntu24_2025.2.0.19140.c01cd93e24d_x86_64.tgz
-  sudo mv openvino_toolkit_ubuntu24_2025.2.0.19140.c01cd93e24d_x86_64 /opt/intel/openvino_2025.2.0
-  cd /opt/intel/openvino_2025.2.0/
-  sudo -E python3 -m pip install -r ./python/requirements.txt
-  cd /opt/intel
-  sudo ln -s openvino_2025.2.0 openvino_2025
-  ```
--->
-
 ::::{tab-set}
 :::{tab-item} Ubuntu/Fedora
 :sync: tab1
@@ -440,60 +398,6 @@ git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 ## Step 10: Set up environment
 
 Set up the required environment variables:
-
-<!--
-- **Ubuntu**
-
-  ```bash
-  export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-  export LD_LIBRARY_PATH="/opt/intel/dlstreamer/gstreamer/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
-  export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
-  export GST_VA_ALL_DRIVERS="1"
-  export PATH="/opt/intel/dlstreamer/gstreamer/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
-  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
-  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  export GI_TYPELIB_PATH=/opt/intel/dlstreamer/gstreamer/lib/girepository-1.0:/usr/lib/x86_64-linux-gnu/girepository-1.0gi
-  ```
-
-- **Fedora**
-
-  ```bash
-  export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib64/gstreamer-1.0"
-  export LD_LIBRARY_PATH="/opt/intel/dlstreamer/gstreamer/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
-  export LIBVA_DRIVERS_PATH="/usr/lib64/dri-nonfree"
-  export GST_VA_ALL_DRIVERS="1"
-  export PATH="/opt/intel/dlstreamer/gstreamer/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
-  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:/usr/lib64/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
-  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  ```
-
-- **EMT**
-
-  Enable `i915` graphics driver in the system:
-
-  ```bash
-  sudo vim /etc/default/grub
-  ### Extend the GRUB_CMDLINE_LINUX with i915.force_probe=* ###
-  sudo grub2-mkconfig -o /boot/grub2/grub.cfg "$@"
-  sudo reboot
-  ```
-
-  After a reboot, before trying the Deep Learning Streamer pipelines, you can `export` the
-  following environment variables for the current terminal session (temporary solution):
-
-  ```bash
-  export LIBVA_DRIVER_NAME=iHD
-  export GST_PLUGIN_PATH="$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/usr/lib64/gstreamer-1.0"
-  export LD_LIBRARY_PATH="/opt/intel/dlstreamer/gstreamer/lib:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
-  export LIBVA_DRIVERS_PATH="/usr/lib/dri"
-  export GST_VA_ALL_DRIVERS="1"
-  export PATH="/opt/intel/dlstreamer/gstreamer/bin:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
-  export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/pkgconfig:/usr/lib64/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
-  export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-  ```
--->
 
 ::::{tab-set}
 :::{tab-item} Ubuntu
