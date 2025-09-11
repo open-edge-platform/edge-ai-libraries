@@ -5,8 +5,8 @@ chunkDuration: 3         # Duration of each video chunk in seconds
 samplingFrame: 6          # Frame sampling rate (analyze every Nth frame)
 
 # Advanced override settings
-overlapOverride: 2         # Seconds of overlap between consecutive video chunks
-multiFrameOverride: 8     # Number of frames to process together for multi-frame analysis, Sum of samplingFrame and overlapOverride. This is dependent on VSS Setup and models used.
+overlapOverride: 0         # Seconds of overlap between consecutive video chunks
+multiFrameOverride: 6     # Number of frames to process together for multi-frame analysis, Sum of samplingFrame and overlapOverride. This is dependent on VSS Setup and models used.
 
 # Prompt for analyzing individual frames in the traffic video
 framePromptOverride: |
@@ -46,11 +46,11 @@ evamPipelineOverride: "object_detection"
 # Audio transcription model to use (e.g. tiny.en, small.en or medium.en )
 # audioModelOverride: "medium.en"   
 
-# Path to the retail store video file to be analyzed
-videoPath: "resources/<add-traffic-videos-here>.mp4"
+# absolute video path (mp4 streamable) to the video file to be analyzed
+videoPath: "resources/ceramic_store.mp4"
 
 # Backend endpoint for video processing
-backendEndpoint: "http://localhost:12345"  
+backendEndpoint: "http://10.223.23.199:12345"  
 
 # Enable debug mode for detailed logging
 debug: true
