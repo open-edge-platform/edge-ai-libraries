@@ -10,6 +10,11 @@
 - Update openvino/model_server to 2025.2 version 
 - Update nginxinc/nginx-unprivileged to 1.29.1 version
 
+## Known Issues/Behaviour (Consolidated):
+- Application running into Model Type issue on EMT 3.1 - Closed
+- EMF Deployment package is not supported. - Open
+- Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
+
 ## Previous Releases
 
 **Version**: 1.0.1
@@ -28,7 +33,3 @@
 - **Telemetry:** OpenTelemetry instrumentation provides the application insights and API traces
 - **Streamlined Build, Deployment and Documentation:** Added setup script to simplify service build and deployment processes and several other [user guide](../user-guide)  All supporting documents have been added.
 - **Deployment:** Helm and docker compose deployment has been validated on EMT 3.0.
- 
-## Known Issues/Behaviour (Consolidated):
-- EMF Deployment package is not supported. - Open
-- Summary time depends on the size and complexity (image, tables, cross references) of the document - Open
