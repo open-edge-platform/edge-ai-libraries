@@ -389,7 +389,7 @@ export class LlmService {
     ) as APIPromise<Stream<ChatCompletionChunk>>);
 
     for await (const chunk of completionQuery) {
-      if (chunk.choices && chunk.choices.length > 0) {
+      if (chunk.choices && chunk.choices.length > 0 && chunk.choices[0].delta) {
         const content = chunk.choices[0].delta.content;
         if (content) {
           streamer.next(content);
