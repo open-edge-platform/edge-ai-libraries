@@ -1025,7 +1025,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		}
 		return m, pollStatusCmd(m.stateID)
 
-		// ...rest of the existing code...
 	}
 
 	return m, nil
