@@ -136,7 +136,9 @@ if (-Not (Get-Command py -errorAction SilentlyContinue)) {
 
 if (-Not (Get-ChildItem -Path "C:\libva" -Filter "Microsoft.Direct3D.VideoAccelerationCompatibilityPack*" -ErrorAction SilentlyContinue)) {
 	Write-Host "####################################### Installing LIBVA #######################################"
-	mkdir C:\libva
+	if (-Not (Test-Path "C:\\libva")) {
+		mkdir C:\libva
+	}
 	Set-Location -Path "C:\libva"
 	Invoke-WebRequest -OutFile "nuget.exe" -Uri https://dist.nuget.org/win-x86-commandline/latest/nuget.exe
 	Start-Process -Wait -FilePath ".\nuget.exe" -ArgumentList "install", "Microsoft.Direct3D.VideoAccelerationCompatibilityPack" -NoNewWindow
