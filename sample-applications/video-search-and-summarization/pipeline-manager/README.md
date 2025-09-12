@@ -44,6 +44,19 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 - `RABBITMQ_AMQP_PORT`: RabbitMQ AMQP port
 - `VLM_CAPTIONING_DEVICE`: VLM captioning device
 
+## Testing
+
+### Test Commands
+- `npm test`: Run all tests
+- `npm run test:cov`: Run tests with coverage (src folder only)
+- `npm run test:watch`: Run tests in watch mode
+- `npm run test:e2e`: Run end-to-end tests
+
+### Coverage
+- Coverage is collected from `src/**/*.ts` files only
+- Test files and declaration files are excluded
+- Coverage reports are generated in `./coverage` directory
+
 ## Usage
 - Upload videos through the UI
 - Monitor the processing state

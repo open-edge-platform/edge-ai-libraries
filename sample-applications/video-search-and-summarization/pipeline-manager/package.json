@@ -103,7 +103,10 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.ts",
+      "!src/**/*.spec.ts",
+      "!src/**/*.test.ts",
+      "!src/**/*.d.ts"
     ]
   }
 }
