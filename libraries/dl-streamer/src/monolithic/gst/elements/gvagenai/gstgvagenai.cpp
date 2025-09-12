@@ -7,7 +7,9 @@
 #include "gstgvagenai.h"
 
 #include <gst/video/video.h>
-#include <gva_json_meta.h>
+
+#include "gva_caps.h"
+#include "gva_json_meta.h"
 
 #include "genai.hpp"
 
@@ -29,13 +31,14 @@ enum {
 };
 
 // Pad templates
+#define GVAGENAI_SYSTEM_MEM_CAPS GST_VIDEO_CAPS_MAKE("{ RGB, RGBA, RGBx, BGR, BGRA, BGRx, NV12, I420 }") "; "
 static GstStaticPadTemplate sink_template =
     GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ RGB, RGBA, RGBx, BGR, BGRA, BGRx, NV12, I420 }")));
+                            GST_STATIC_CAPS(GVAGENAI_SYSTEM_MEM_CAPS DMA_BUFFER_CAPS VASURFACE_CAPS VAMEMORY_CAPS));
 
 static GstStaticPadTemplate src_template =
     GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS(GST_VIDEO_CAPS_MAKE("{ RGB, RGBA, RGBx, BGR, BGRA, BGRx, NV12, I420 }")));
+                            GST_STATIC_CAPS(GVAGENAI_SYSTEM_MEM_CAPS DMA_BUFFER_CAPS VASURFACE_CAPS VAMEMORY_CAPS));
 
 // Class initialization
 G_DEFINE_TYPE(GstGvaGenAI, gst_gvagenai, GST_TYPE_BASE_TRANSFORM);
@@ -349,13 +352,11 @@ static gboolean gst_gvagenai_set_caps(GstBaseTransform *base, GstCaps *incaps, G
     }
 
     // Check if the format is supported
-    if (GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_RGB && GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_RGBA &&
-        GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_RGBx && GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_BGR &&
-        GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_BGRA &&
-        GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_BGRx &&
-        GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_NV12 &&
-        GST_VIDEO_INFO_FORMAT(&info) != GST_VIDEO_FORMAT_I420) {
-        GST_ERROR_OBJECT(base, "Unsupported format");
+    GstVideoFormat format = GST_VIDEO_INFO_FORMAT(&info);
+    if (format != GST_VIDEO_FORMAT_RGB && format != GST_VIDEO_FORMAT_RGBA && format != GST_VIDEO_FORMAT_RGBx &&
+        format != GST_VIDEO_FORMAT_BGR && format != GST_VIDEO_FORMAT_BGRA && format != GST_VIDEO_FORMAT_BGRx &&
+        format != GST_VIDEO_FORMAT_NV12 && format != GST_VIDEO_FORMAT_I420) {
+        GST_ERROR_OBJECT(base, "Unsupported video format: %s", gst_video_format_to_string(format));
         return FALSE;
     }
 

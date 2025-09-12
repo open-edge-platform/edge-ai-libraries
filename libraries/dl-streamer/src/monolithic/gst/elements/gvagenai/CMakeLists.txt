@@ -36,6 +36,7 @@ target_link_libraries(${TARGET_NAME}
     ${GSTREAMER_VIDEO_LIBRARIES}
     openvino::genai
     ${OpenCV_LIBS}
+    common
     dlstreamer_gst_meta
     json-hpp
 )
