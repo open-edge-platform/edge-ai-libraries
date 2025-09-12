@@ -1,3 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
 package main
 
 import "github.com/charmbracelet/bubbles/progress"
@@ -11,7 +14,7 @@ type Config struct {
 	MapPromptOverride    string `yaml:"mapPromptOverride"`
 	ReducePromptOverride string `yaml:"reducePromptOverride"`
 	SinglePromptOverride string `yaml:"singlePromptOverride"`
-	EvamPipelineOverride string `yaml:"evamPipelineOverride"`
+	IngestionPipelineOverride string `yaml:"ingestionPipelineOverride"`
 	AudioModelOverride   string `yaml:"audioModelOverride"`
 	VideoPath            string `yaml:"videoPath"`
 	Debug                bool   `yaml:"debug"`           // Field to control debug logs

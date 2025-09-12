@@ -1,10 +1,12 @@
-# Video Summarization CLI Makefile
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+#Video Summarization CLI Makefile
 
 # Variables
-BINARY_NAME=video-summarizer
+BINARY_NAME=video-summarizer-cli
 SRC_DIR=src
 BUILD_DIR=.
-GO_MODULE=video-summarizer-cli
 MIN_GO_VERSION=1.23.0
 
 # Check Go version
@@ -36,13 +38,6 @@ build: check-go-version
 	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./$(SRC_DIR)
 	@echo "Build complete: $(BINARY_NAME)"
 
-# Build from project root (outside the CLI directory)
-.PHONY: build-from-root
-build-from-root: check-go-version
-	@echo "Building $(BINARY_NAME) from project root..."
-	go build -o $(BUILD_DIR)/$(BINARY_NAME) ./$(SRC_DIR)
-	@echo "Build complete: $(BINARY_NAME)"
-
 # Clean build artifacts
 .PHONY: clean
 clean:
@@ -58,30 +53,12 @@ deps: check-go-version
 	go mod tidy
 	@echo "Dependencies updated"
 
-# Run tests (if any test files exist)
-.PHONY: test
-test:
-	@echo "Running tests..."
-	go test ./$(SRC_DIR)/...
-
 # Install the binary to GOPATH/bin or GOBIN
 .PHONY: install
 install: check-go-version
 	@echo "Installing $(BINARY_NAME)..."
 	go install ./$(SRC_DIR)
 	@echo "Installation complete"
-
-# Run the CLI with default config
-.PHONY: run
-run: build
-	@echo "Running $(BINARY_NAME) with default config..."
-	./$(BINARY_NAME)
-
-# Run the CLI with a specific config
-.PHONY: run-config
-run-config: build
-	@echo "Running $(BINARY_NAME) with config: $(CONFIG)"
-	./$(BINARY_NAME) --config=$(CONFIG)
 
 # Display help information
 .PHONY: help
@@ -91,17 +68,17 @@ help:
 	@echo "Available targets:"
 	@echo "  check-go-version   Check if Go $(MIN_GO_VERSION) or later is installed"
 	@echo "  build              Build the CLI binary"
-	@echo "  build-from-root    Build from project root directory"
 	@echo "  clean              Remove build artifacts"
 	@echo "  deps               Download and tidy Go dependencies"
-	@echo "  test               Run tests"
 	@echo "  install            Install binary to GOPATH/bin"
-	@echo "  run                Build and run with default config"
-	@echo "  run-config         Build and run with specific config (use CONFIG=path)"
 	@echo "  help               Show this help message"
+	@echo ""
+	@echo "After building, you can run the CLI with:"
+	@echo "  ./video-summarizer-cli                           # Using default config"
+	@echo "  ./video-summarizer-cli --config=./config/retail.yaml  # Using retail config"
+	@echo "  ./video-summarizer-cli --video=/path/to/video.mp4     # Override video path"
 	@echo ""
 	@echo "Examples:"
 	@echo "  make build"
-	@echo "  make build-from-root"
-	@echo "  make run"
-	@echo "  make run-config CONFIG=./config/retail.yaml"
+	@echo "  make deps"
+	@echo "  make install"

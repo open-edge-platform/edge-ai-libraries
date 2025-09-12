@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
@@ -173,8 +175,8 @@ func uploadVideoCmd(videoPath string, chunkDuration int, samplingFrame int) tea.
 				FrameOverlap:  appConfig.OverlapOverride,
 				MultiFrame:    appConfig.MultiFrameOverride,
 			},
-			EVAM: SummaryPipelineEvam{
-				EVAMPipeline: EVAMPipelines(appConfig.EvamPipelineOverride),
+			VideoIngestion: SummaryPipelineEvam{
+				EVAMPipeline: EVAMPipelines(appConfig.IngestionPipelineOverride),
 			},
 			Prompts: &SummaryPipelinePrompts{
 				FramePrompt:         &appConfig.FramePromptOverride,

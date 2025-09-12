@@ -1,6 +1,6 @@
 # Video Analysis & Summarization CLI
 
-This CLI tool provides a terminal-based-ui interface to connect to video search and summarization sample application. The tool helps in uploading videos, tracking analysis and summarization progress, and displaying results.
+This CLI tool provides a terminal-based-ui interface to connect to video summarization sample application. The tool helps in uploading videos, tracking analysis and summarization progress, and displaying results.
 
 ## Features
 
@@ -41,6 +41,7 @@ cli/
 ├── go.mod           # Go module definition
 ├── go.sum           # Go module checksums
 └── README.md        # This file
+└── CONFIGURATION.md # Configuration documentation
 ```
 
 ## Prerequisites
@@ -136,7 +137,7 @@ framePromptOverride: "Describe the scene in detail"  # Prompt for frame analysis
 mapPromptOverride: "Summarize these frame descriptions"  # Prompt for map phase
 reducePromptOverride: "Create a cohesive summary from these chunks"  # Prompt for reduce phase
 singlePromptOverride: "Create a concise video summary"  # Prompt for single summary
-evamPipelineOverride: "object_detection"  # EVAM pipeline to use
+ingestionPipelineOverride: "object_detection"  # Video Ingestion pipeline to use
 audioModelOverride: "base.en"  # Audio model to use
 videoPath: "/path/to/video.mp4"  # Path to the video file
 debug: true                  # Enable debug logging
@@ -166,6 +167,8 @@ To create a custom configuration:
    ```bash
    ./video-summarizer --config=./config/my-usecase.yaml
    ```
+
+> NOTE : For more details on the configuration parameters, please refer to the [Configuration Documentation](./CONFIGURATION.md).
 
 ## Output Files
 

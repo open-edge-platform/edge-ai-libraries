@@ -16,7 +16,6 @@ The detailed documentation to help you get started, configure, and deploy the sa
 
 - **Getting Started**
   - [Get Started](docs/user-guide/get-started.md): Step-by-step guide to get started with the sample application.
-  - [CLI Usage](cli/README.md): Guide for using the application from a text user interface (terminal-based UI).
   - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
 
 - **Deployment**

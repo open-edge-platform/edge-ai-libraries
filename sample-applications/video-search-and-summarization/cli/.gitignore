@@ -1,5 +1,5 @@
 # Binaries
-video-summarizer
+video-summarizer-cli
 go.sum
 *.exe
 *.out

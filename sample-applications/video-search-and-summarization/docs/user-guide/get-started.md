@@ -303,6 +303,10 @@ ENABLE_EMBEDDING_GPU=true source setup.sh --search config
 
 After successfully starting the application, open a browser and go to `http://<host-ip>:12345` to access the application dashboard.
 
+## 💻 CLI Usage
+
+Refer to [CLI Usage](../../cli/README.md) for details on using the application from a text user interface (terminal-based UI).
+
 ## ☸️ Running in Kubernetes
 
 Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.

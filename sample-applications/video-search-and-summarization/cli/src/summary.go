@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 package main
 
 import (
@@ -30,10 +32,10 @@ type SummaryPipelineAudio struct {
 	AudioModel string `json:"audioModel"`
 }
 
-// EVAMPipelines represents the enum for EVAM pipelines
+// EVAMPipelines represents the enum for VideoIngestion pipelines
 type EVAMPipelines string
 
-// SummaryPipelineEvam represents the EVAM pipeline configuration
+// SummaryPipelineEvam represents the VideoIngestion pipeline configuration
 type SummaryPipelineEvam struct {
 	EVAMPipeline EVAMPipelines `json:"evamPipeline"`
 }
@@ -50,7 +52,7 @@ type SummaryPipelineDTO struct {
 	Video    *Video                  `json:"video,omitempty"`
 	Title    string                  `json:"title"`
 	Sampling SummaryPipelineSampling `json:"sampling"`
-	EVAM     SummaryPipelineEvam     `json:"evam"`
+	VideoIngestion     SummaryPipelineEvam     `json:"evam"`
 	Prompts  *SummaryPipelinePrompts `json:"prompts,omitempty"`
 	Audio    *SummaryPipelineAudio   `json:"audio,omitempty"`
 }
