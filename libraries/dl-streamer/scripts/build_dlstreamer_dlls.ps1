@@ -134,7 +134,7 @@ if (-Not (Get-Command py -errorAction SilentlyContinue)) {
 	py --version
 }
 
-if (-Not (Test-Path "C:\\libva")) {
+if (-Not (Get-ChildItem -Path "C:\libva" -Filter "Microsoft.Direct3D.VideoAccelerationCompatibilityPack*" -ErrorAction SilentlyContinue)) {
 	Write-Host "####################################### Installing LIBVA #######################################"
 	mkdir C:\libva
 	Set-Location -Path "C:\libva"
