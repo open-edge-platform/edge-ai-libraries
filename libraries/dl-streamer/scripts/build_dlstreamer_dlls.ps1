@@ -4,12 +4,12 @@
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
-
-$DLSTREAMER_TMP = "C:\\dlstreamer_tmp"
-
 param(
 	[switch]$useInternalProxy
 )
+
+$DLSTREAMER_TMP = "C:\\dlstreamer_tmp"
+
 if ($useInternalProxy) {
 	$env:HTTP_PROXY="http://proxy-dmz.intel.com:911"
 	$env:HTTPS_PROXY="http://proxy-dmz.intel.com:912"
