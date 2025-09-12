@@ -128,7 +128,6 @@ The following [example YAML configurations](./config/) illustrate how to set par
 - Start from the profile that best matches your use case. Run a representative test video and measure:
   - End-to-end runtime (wall-clock).
   - CPU/GPU utilization on backend.
-  - Number of API calls and tokens billed (if using LLM/STT services).
   - Qualitative accuracy (did the summary miss events?).
 
 - Change one parameter at a time (e.g., `samplingFrame`, `overlap`, `chunkDuration`) and rerun. Keep a small table with results to discover trade-offs.

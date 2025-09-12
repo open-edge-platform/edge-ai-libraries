@@ -34,6 +34,8 @@ type model struct {
 	videoID        string
 	err            error        // Any error encountered during processing
 	status         statusResult // Store the latest statusResult for display
+	jsonLogPath    string // Path to saved JSON log file (set when processing completes)
+	markdownPath   string // Path to saved Markdown summary file (set when processing completes)
 
 	// Add a progress bar to the model
 	progressBar progress.Model
@@ -106,4 +108,6 @@ type pollMsg struct {
 	Status      *statusResult // Embed the latest status for display
 	completeLog bool          // Flag to indicate when log has been saved
 	backoffTime int           // Time to wait before next poll (in seconds)
+	jsonLogPath  string       // Path to JSON log file when done
+	markdownPath string       // Path to Markdown summary file when done
 }

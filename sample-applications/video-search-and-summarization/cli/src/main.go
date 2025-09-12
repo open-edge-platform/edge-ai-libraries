@@ -586,17 +586,26 @@ func (m model) View() string {
 	if m.err != nil {
 		statusOutput.WriteString(fmt.Sprintf("❌ Error: %v\n", m.err))
 	} else if m.processingDone {
+		// Display output artifact locations if available
+		if m.jsonLogPath != "" || m.markdownPath != "" {
+			statusOutput.WriteString("\n📁 Output files generated:\n")
+			if m.jsonLogPath != "" {
+				statusOutput.WriteString(fmt.Sprintf("   • JSON log: %s\n", m.jsonLogPath))
+			}
+			if m.markdownPath != "" {
+				statusOutput.WriteString(fmt.Sprintf("   • Markdown summary: %s\n", m.markdownPath))
+			}
+			statusOutput.WriteString("\nYou can re-run the CLI with the same config to process another video.\n")
+		}
+		
 		if m.askToExit {
 			statusOutput.WriteString("✅ Processing complete! Do you want to exit? (y/n)\n")
 		} else {
 			statusOutput.WriteString("✅ Processing complete! Press 'q' to exit.\n")
 		}
 	} else {
-		statusOutput.WriteString("⏳ Processing in progress... (Press 'q' to exit)\n")
+		statusOutput.WriteString("⏳ Processing in progress... (Press 'q' to exit) | Use ↑/↓ to scroll\n")
 	}
-
-	// Scrolling help
-	statusOutput.WriteString("Use ↑/↓ to scroll or Home/End to jump to top/bottom\n")
 
 	// Get heights for layout calculations
 	headerHeight := strings.Count(headerOutput.String(), "\n") + 1
@@ -799,35 +808,12 @@ func pollStatusCmd(stateID string) tea.Cmd {
 			}
 
 			// Return with completeLog flag to trigger exit
-			return pollMsg{progress: 100, done: true, summary: status.Summary, err: nil, Status: &status, completeLog: true}
+			return pollMsg{progress: 100, done: true, summary: status.Summary, err: nil, Status: &status, completeLog: true, jsonLogPath: jsonLogFile, markdownPath: mdFile}
 		}
 
 		// Return normal poll message with 3 second poll interval
-		return pollMsg{
-			progress:    progress,
-			done:        status.Done,
-			summary:     status.Summary,
-			err:         nil,
-			Status:      &status,
-			backoffTime: 3, // Default poll interval in seconds
-		}
+		return pollMsg{progress: progress, done: status.Done, summary: status.Summary, err: nil, Status: &status, backoffTime: 3}
 	}
-}
-
-// max returns the maximum of two integers
-func max(a, b int) int {
-	if a > b {
-		return a
-	}
-	return b
-}
-
-// min returns the minimum of two integers
-func min(a, b int) int {
-	if a < b {
-		return a
-	}
-	return b
 }
 
 // Update the Update function to handle our new message types
@@ -873,46 +859,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 				logDebug("Scrolled down to position %d (max: %d)", m.scrollPosition, maxScroll)
 			}
 			return m, nil
-
-		case "home":
-			// Scroll to top with debug logging
-			m.scrollPosition = 0
-			logDebug("Scrolled to top (position 0)")
-			return m, nil
-
-		case "end":
-			// Scroll to bottom with improved calculation and debug logging
-			m.scrollPosition = m.calculateBottomPosition()
-			logDebug("Scrolled to bottom (position %d)", m.scrollPosition)
-			return m, nil
-
-		case "pageup":
-			// Scroll up a page with improved calculation
-			headerHeight := 5
-			statusHeight := 10
-			pageSize := max(1, m.termHeight-headerHeight-statusHeight)
-
-			m.scrollPosition -= pageSize
-			if m.scrollPosition < 0 {
-				m.scrollPosition = 0
-			}
-			logDebug("Page up to position %d", m.scrollPosition)
-			return m, nil
-
-		case "pagedown":
-			// Scroll down a page with improved calculation
-			headerHeight := 5
-			statusHeight := 10
-			pageSize := max(1, m.termHeight-headerHeight-statusHeight)
-
-			m.scrollPosition += pageSize
-			maxScroll := max(0, m.contentHeight-1)
-			if m.scrollPosition > maxScroll {
-				m.scrollPosition = maxScroll
-			}
-
-			logDebug("Page down to position %d (max: %d)", m.scrollPosition, maxScroll)
-			return m, nil
 		}
 
 	case tea.WindowSizeMsg:
@@ -928,7 +874,6 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 		return m, nil
 
-	// ...existing code for other message types...
 	case uploadMsg:
 		if msg.err != nil {
 			logError("Upload failed: %v", msg.err)
@@ -1003,6 +948,13 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.processingDone = true
 			m.summary = msg.summary
 			m.uploadProgress = 100 // Ensure 100% when done
+			// Capture output file paths if provided
+			if msg.jsonLogPath != "" {
+				m.jsonLogPath = msg.jsonLogPath
+			}
+			if msg.markdownPath != "" {
+				m.markdownPath = msg.markdownPath
+			}
 
 			// If the completeLog flag is set, ask the user if they want to exit
 			if msg.completeLog {
