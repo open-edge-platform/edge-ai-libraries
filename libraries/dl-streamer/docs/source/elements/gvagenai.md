@@ -176,6 +176,9 @@ Element Properties:
   prompt              : Text prompt for the GenAI model
                         flags: readable, writable
                         String. Default: null
+  prompt-path         : Path to text prompt file for the GenAI model
+                        flags: readable, writable
+                        String. Default: null
   qos                 : Handle Quality-of-Service events
                         flags: readable, writable
                         Boolean. Default: false

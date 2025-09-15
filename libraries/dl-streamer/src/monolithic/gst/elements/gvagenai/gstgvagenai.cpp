@@ -6,6 +6,7 @@
 
 #include "gstgvagenai.h"
 
+#include <fstream>
 #include <gst/video/video.h>
 
 #include "gva_caps.h"
@@ -22,6 +23,7 @@ enum {
     PROP_DEVICE,
     PROP_MODEL_PATH,
     PROP_PROMPT,
+    PROP_PROMPT_PATH,
     PROP_GENERATION_CONFIG,
     PROP_SCHEDULER_CONFIG,
     PROP_MODEL_CACHE_PATH,
@@ -53,6 +55,9 @@ static gboolean gst_gvagenai_start(GstBaseTransform *base);
 static gboolean gst_gvagenai_stop(GstBaseTransform *base);
 static GstFlowReturn gst_gvagenai_transform_ip(GstBaseTransform *base, GstBuffer *buf);
 static gboolean gst_gvagenai_set_caps(GstBaseTransform *base, GstCaps *incaps, GstCaps *outcaps);
+
+// Utility functions
+static gboolean load_effective_prompt(GstGvaGenAI *gvagenai);
 
 // Initialize the element class
 static void gst_gvagenai_class_init(GstGvaGenAIClass *klass) {
@@ -89,6 +94,11 @@ static void gst_gvagenai_class_init(GstGvaGenAIClass *klass) {
     g_object_class_install_property(
         gobject_class, PROP_PROMPT,
         g_param_spec_string("prompt", "Prompt", "Text prompt for the GenAI model", NULL, G_PARAM_READWRITE));
+
+    g_object_class_install_property(gobject_class, PROP_PROMPT_PATH,
+                                    g_param_spec_string("prompt-path", "Prompt Path",
+                                                        "Path to text prompt file for the GenAI model", NULL,
+                                                        G_PARAM_READWRITE));
 
     g_object_class_install_property(gobject_class, PROP_GENERATION_CONFIG,
                                     g_param_spec_string("generation-config", "Generation Config",
@@ -128,6 +138,7 @@ static void gst_gvagenai_init(GstGvaGenAI *gvagenai) {
     gvagenai->device = g_strdup("CPU");
     gvagenai->model_path = NULL;
     gvagenai->prompt = NULL;
+    gvagenai->prompt_path = NULL;
     gvagenai->generation_config = NULL;
     gvagenai->scheduler_config = NULL;
     gvagenai->model_cache_path = g_strdup("ov_cache");
@@ -135,7 +146,54 @@ static void gst_gvagenai_init(GstGvaGenAI *gvagenai) {
     gvagenai->chunk_size = 1;   // Process one frame at a time by default
     gvagenai->metrics = FALSE;
     gvagenai->frame_counter = 0;
+    gvagenai->prompt_string = NULL;
     gvagenai->openvino_context = NULL;
+}
+
+// Function to load effective prompt and set prompt_string
+static gboolean load_effective_prompt(GstGvaGenAI *gvagenai) {
+    // Validate prompt or prompt-path
+    gboolean has_prompt = (gvagenai->prompt && strlen(gvagenai->prompt) > 0);
+    gboolean has_prompt_path = (gvagenai->prompt_path && strlen(gvagenai->prompt_path) > 0);
+    if (!has_prompt && !has_prompt_path) {
+        GST_ERROR_OBJECT(gvagenai, "Either 'prompt' or 'prompt-path' property must be specified");
+        return FALSE;
+    }
+    if (has_prompt && has_prompt_path) {
+        GST_ERROR_OBJECT(gvagenai, "Both 'prompt' and 'prompt-path' properties are set. Please specify only one.");
+        return FALSE;
+    }
+
+    g_free(gvagenai->prompt_string);
+    if (has_prompt) {
+        gvagenai->prompt_string = g_strdup(gvagenai->prompt);
+    } else if (has_prompt_path) {
+        try {
+            std::ifstream file(gvagenai->prompt_path);
+            if (!file.is_open()) {
+                GST_ERROR_OBJECT(gvagenai, "Failed to open prompt file: %s", gvagenai->prompt_path);
+                return FALSE;
+            }
+
+            auto content = std::string((std::istreambuf_iterator<char>(file)), std::istreambuf_iterator<char>());
+            file.close();
+
+            if (content.empty()) {
+                GST_WARNING_OBJECT(gvagenai, "Prompt file is empty: %s", gvagenai->prompt_path);
+                return FALSE;
+            }
+
+            gvagenai->prompt_string = g_strdup(content.c_str());
+        } catch (const std::exception &e) {
+            GST_ERROR_OBJECT(gvagenai, "Error reading prompt file %s: %s", gvagenai->prompt_path, e.what());
+            return FALSE;
+        }
+    } else {
+        return FALSE;
+    }
+
+    GST_INFO_OBJECT(gvagenai, "Using prompt: %s", gvagenai->prompt_string);
+    return TRUE;
 }
 
 static void gst_gvagenai_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec) {
@@ -153,6 +211,10 @@ static void gst_gvagenai_set_property(GObject *object, guint prop_id, const GVal
     case PROP_PROMPT:
         g_free(gvagenai->prompt);
         gvagenai->prompt = g_value_dup_string(value);
+        break;
+    case PROP_PROMPT_PATH:
+        g_free(gvagenai->prompt_path);
+        gvagenai->prompt_path = g_value_dup_string(value);
         break;
     case PROP_GENERATION_CONFIG:
         g_free(gvagenai->generation_config);
@@ -195,6 +257,9 @@ static void gst_gvagenai_get_property(GObject *object, guint prop_id, GValue *va
     case PROP_PROMPT:
         g_value_set_string(value, gvagenai->prompt);
         break;
+    case PROP_PROMPT_PATH:
+        g_value_set_string(value, gvagenai->prompt_path);
+        break;
     case PROP_GENERATION_CONFIG:
         g_value_set_string(value, gvagenai->generation_config);
         break;
@@ -225,11 +290,13 @@ static void gst_gvagenai_finalize(GObject *object) {
     g_free(gvagenai->device);
     g_free(gvagenai->model_path);
     g_free(gvagenai->prompt);
+    g_free(gvagenai->prompt_path);
     g_free(gvagenai->generation_config);
     g_free(gvagenai->scheduler_config);
     g_free(gvagenai->model_cache_path);
 
     // Clean up context
+    g_free(gvagenai->prompt_string);
     if (gvagenai->openvino_context) {
         delete static_cast<genai::OpenVINOGenAIContext *>(gvagenai->openvino_context);
         gvagenai->openvino_context = NULL;
@@ -246,8 +313,8 @@ static gboolean gst_gvagenai_start(GstBaseTransform *base) {
         return FALSE;
     }
 
-    if (!gvagenai->prompt) {
-        GST_ERROR_OBJECT(gvagenai, "Prompt not specified");
+    if (!load_effective_prompt(gvagenai)) {
+        GST_ERROR_OBJECT(gvagenai, "Failed to load effective prompt");
         return FALSE;
     }
 
@@ -320,7 +387,7 @@ static GstFlowReturn gst_gvagenai_transform_ip(GstBaseTransform *base, GstBuffer
     // Only process if we've accumulated enough tensors
     if (context->get_tensor_vector_size() >= gvagenai->chunk_size) {
         // Process tensor vector
-        if (!context->inference_tensor_vector(gvagenai->prompt)) {
+        if (!context->inference_tensor_vector(gvagenai->prompt_string)) {
             GST_ERROR_OBJECT(gvagenai, "Failed to inference tensor vector");
             return GST_FLOW_ERROR;
         }
