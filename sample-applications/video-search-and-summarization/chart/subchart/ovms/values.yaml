@@ -1,8 +1,12 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/ovms"
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
+  volumeHostPath: ""
+  
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
   
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""

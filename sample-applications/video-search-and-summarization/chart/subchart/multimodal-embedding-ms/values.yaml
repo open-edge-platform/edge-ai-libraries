@@ -1,3 +1,24 @@
+
+global:
+    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+    volumeHostPath: ""
+
+    # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+    usePvc: false
+
+    # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+    keepPvc: false
+
+    # Common release tags to be used for several dependencies
+    commonTag: ""
+
+    proxy:
+    # setup proxy settings
+        no_proxy: ""
+        http_proxy: ""
+        https_proxy: ""
+
+
 replicaCount: 1
 
 image:
@@ -77,6 +98,16 @@ nodeSelector: {}
 tolerations: []
 
 affinity: {}
+# Deploy this on the node where vdms-dataprep runs
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+              - vdmsdataprep
+      topologyKey: "kubernetes.io/hostname"
 
 # Environment variables
 imageEmbeddingModel: ""
@@ -97,25 +128,4 @@ gpu:
     renderGroupID: 109  # Replace with actual group ID
     group_add: []  # Add additional groups if required
 
-global:
-    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-    volumeHostPath: "/mnt/embeddingms"
-
-    # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-    pvcName: ""
-    
-    # Nodes on which pods using the PV will be scheduled
-    storageNodeAffinity: []
-
-    # Common release tags to be used for several dependencies
-    commonTag: ''
-
-    proxy:
-    # setup proxy settings
-        no_proxy: ''
-        http_proxy: ''
-        https_proxy: ''
-
-# Node affinity to schedule pods on specific nodes only
-nodeAffinity: {}
 

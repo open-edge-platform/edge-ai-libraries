@@ -1,8 +1,12 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/audioanalyzer"
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
+  volumeHostPath: ""
+  
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
   
   proxy:
     http_proxy: 
@@ -72,3 +76,17 @@ startupProbe:
 
 # Node affinity to schedule pods on specific nodes only
 nodeAffinity: {}
+
+securityContext:
+  fsGroup: 1000
+  runAsUser: 1000
+  runAsGroup: 1000
+
+containerSecurityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
