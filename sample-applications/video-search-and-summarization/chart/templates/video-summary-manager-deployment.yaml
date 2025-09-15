@@ -15,20 +15,20 @@ spec:
         app: {{ .Values.videoSummaryManager.name }}
     spec:
       initContainers:
-        {{- if .Values.vlminference.enabled }}
-        - name: wait-for-vlm
+        {{- if .Values.videosearch.enabled }}
+        - name: wait-for-videosearch
           image: curlimages/curl:latest
           command: 
             - sh
             - -c
             - |
-              echo "Waiting for VLM service to be ready..."
-              until curl -s -f http://{{ .Values.vlminference.name }}:8000/health; do
-                echo "VLM service is not ready yet, waiting..."
+              echo "Waiting for Video Search service to be ready..."
+              until curl -s -f http://{{ include "videosearch.name" .Subcharts.videosearch  }}:{{ .Values.videosearch.service.port }}/health; do
+                echo "Video Search service is not ready yet, waiting..."
                 sleep 10
               done
-              echo "VLM service is ready!"
-        {{ end }}
+              echo "Video Search service is ready!"
+        {{- end }}
         {{- if .Values.ovms.enabled }}
         - name: wait-for-ovms
           image: curlimages/curl:latest
@@ -50,8 +50,22 @@ spec:
               done
               echo "OVMS service is ready!"
         {{- end }}
+        {{- if .Values.vlminference.enabled }}
+        - name: wait-for-vlm
+          image: curlimages/curl:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for VLM service to be ready..."
+              until curl -s -f http://{{ .Values.vlminference.name }}:8000/health; do
+                echo "VLM service is not ready yet, waiting..."
+                sleep 10
+              done
+              echo "VLM service is ready!"
+        {{ end }}
       containers:
-        - name: {{ .Values.videoSummaryManager.name }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
           imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
           ports:

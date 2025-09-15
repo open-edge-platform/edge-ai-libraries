@@ -19,10 +19,18 @@ spec:
         nodeAffinity:
           {{- toYaml . | nindent 10 }}
       {{- end }}
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
-        - name: {{ .Values.audioanalyzer.name }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.audioanalyzer.image.repository }}:{{ .Values.audioanalyzer.image.tag }}"
           imagePullPolicy: {{ .Values.audioanalyzer.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.audioanalyzer.containerPort }}
               name: {{ .Values.audioanalyzer.containerPortName }}
@@ -62,17 +70,13 @@ spec:
             - name: no_proxy
               value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
           volumeMounts:
-            - name: data-volume
-              mountPath: /home/appuser/data
-              subPath: audioanalyzer/data
-            - name: data-volume
-              mountPath: /home/appuser/models
-              subPath: audioanalyzer/models
+            - name: audio-volume
+              mountPath: /data
       volumes:
-        - name: data-volume
-          {{- if .Values.global.pvcName }}
+        - name: audio-volume
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ include "audioanalyzer.fullname" . }}-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

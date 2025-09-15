@@ -14,8 +14,21 @@ spec:
       labels:
         app: {{ include "videosearch.name" . }}
     spec:
+      initContainers:
+        - name: wait-for-vdms
+          image: busybox:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for VDMS VectorDB service to be ready..."
+              until nc -z {{ .Values.videosearch.env.VDMS_VDB_HOST }} {{ .Values.videosearch.env.VDMS_VDB_PORT }}; do
+                echo "VDMS VectorDB service is not ready yet, waiting..."
+                sleep 10
+              done
+              echo "VDMS VectorDB service is ready!"
       containers:
-        - name: videosearch
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.videosearch.image.repository }}:{{ .Values.videosearch.image.tag }}"
           imagePullPolicy: "{{ .Values.videosearch.image.pullPolicy }}"
           ports:
