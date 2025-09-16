@@ -17,7 +17,11 @@ global:
     no_proxy: 
     http_proxy: 
     https_proxy:
-    
+
+# claimSize is the storage size claimed by PVC if usePvc is set to true.
+# claimSize should be set based on the size of models and files expected to be stored.
+claimSize: ""
+
 ovms:
   name: ovms
   image:

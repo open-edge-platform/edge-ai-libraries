@@ -162,7 +162,7 @@ WORKDIR /app
 # Copy the application code for production
 COPY . .
 
-USER appuserss
+USER appuser
 
 # Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
 RUN echo '#!/bin/bash\n\

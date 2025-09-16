@@ -9,7 +9,7 @@ global:
   keepPvc: false
 
   # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
-  sharedPvcName: ""
+  sharedPvcName: "vss-shared-pvc"
 
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
@@ -38,6 +38,9 @@ global:
     OTLP_ENDPOINT_TRACE: ""
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
+# sharedClaimSize is the storage size claimed by shared PVC used by VDMS Dataprep and Multimodal-Embedding-MS subcharts.
+sharedClaimSize: "7Gi"
+
 rabbitmq:
   enabled: false
   name: rabbitmq
@@ -50,6 +53,7 @@ rabbitmq:
     mqttPort: 1883
 
 minioserver:
+  claimSize: "5Gi"
   service:
     apiPort: 9000
 
@@ -88,6 +92,7 @@ videoSummaryManager:
 audioanalyzer:
   enabled: false
   name: audioanalyzer
+  claimSize: "3Gi"
   service:
     port: 8000
     targetPort: 8000
@@ -98,6 +103,7 @@ videoingestion:
   name: videoingestion
   fullnameOverride: videoingestion
   fullname: videoingestion
+  claimSize: "2Gi"
   # odModelName defines the name of Object Detection Model
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
@@ -109,12 +115,14 @@ videoingestion:
 ovms:
   name: ovms
   enabled: false
+  claimSize: "6Gi"
   service:
     port: 8300
 
 vlminference:
   enabled: false
   name: vlm-inference-microservice
+  claimSize: "40Gi"
 
 # Add nginx configuration
 nginx:
@@ -136,6 +144,7 @@ nginx:
 postgresql:
   name: postgresql
   fullname: postgresql
+  claimSize: "5Gi"
   service:
     type: ClusterIP
     port: 5432
@@ -163,6 +172,7 @@ vdmsdataprep:
 vdmsvectordb:
   enabled: false
   name: vdms-vectordb
+  claimSize: "8Gi"
   service:
     type: ClusterIP
     port: 55555

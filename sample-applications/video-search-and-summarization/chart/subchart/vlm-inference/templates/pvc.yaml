@@ -13,5 +13,5 @@ spec:
     - ReadWriteMany
   resources:
     requests:
-      storage: "40Gi"
+      storage: {{ .Values.claimSize | default "10Gi" }}
 {{- end }}

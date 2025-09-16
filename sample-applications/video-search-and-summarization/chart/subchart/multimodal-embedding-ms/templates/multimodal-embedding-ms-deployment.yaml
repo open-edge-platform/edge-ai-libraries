@@ -94,7 +94,7 @@ spec:
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: vss-shared-pvc
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

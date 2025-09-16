@@ -17,6 +17,11 @@ global:
     MINIO_ROOT_PASSWORD:
 
 name: minio-server
+
+# claimSize is the storage size claimed by PVC if usePvc is set to true.
+# claimSize should be set based on the size of models and files expected to be stored.
+claimSize: ""
+
 image:
   repository: minio/minio
   tag: RELEASE.2025-02-07T23-21-09Z-cpuv1
