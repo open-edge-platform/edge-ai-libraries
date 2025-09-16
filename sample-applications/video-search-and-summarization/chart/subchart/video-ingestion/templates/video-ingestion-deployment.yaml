@@ -112,7 +112,7 @@ spec:
           - name: tmp
             mountPath: /tmp
           - name: var-tmp
-            mountPath: /var/tmpss
+            mountPath: /var/tmp
           - name: run-udev
             mountPath: /run/udev
           - name: models-volume
