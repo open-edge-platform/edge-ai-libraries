@@ -28,6 +28,7 @@ RUN apt-get update && \
     apt-get purge -y --auto-remove && \
     rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
 
+
 # Copy kapacitor Python UDF agent files from builder image
 COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
 
@@ -50,6 +51,13 @@ RUN export no_proxy= && \
     va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
+
+RUN wget -qO /etc/apt/trusted.gpg.d/intel-oneapi.asc \
+    https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB && \
+    echo "deb https://apt.repos.intel.com/oneapi all main" \
+    | tee /etc/apt/sources.list.d/intel-oneapi.list && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends intel-oneapi-compiler-dpcpp-cpp-runtime
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
