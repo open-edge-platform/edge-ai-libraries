@@ -41,6 +41,13 @@ Run the following packages to install dependence packages for building in Ubuntu
 
 ### Installing Patches (Oneshot Time)
 
+Firstly, pull submodule locally using ``git``:
+
+```shell
+    git submodule init
+    git submodule update
+```
+
 Run the script ``install_etherlab_patched.sh`` to apply optimizated patches in ``ighethercat`` folder, the patch list is defined in ``patches/ighethercat.scc``.
 
 ```shell
@@ -202,5 +209,5 @@ Provided below are some Makefile templates for EtherCAT application. These templ
 
 ### License
 
-The EtherCAT master stack by IgH* source code is licensed under the GPL v2. See [COPYING](COPYING)
+The source code is licensed under the GPL v2. See [COPYING](COPYING) file for details.
 To allow dynamic linking of userspace application against the master's application interface, the userspace library is licensed under the LGPL v2.1. See [COPYING.LESSER](COPYING.LESSER)

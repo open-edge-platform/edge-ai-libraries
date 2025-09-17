@@ -11,6 +11,7 @@ README.md           @xwu2intel
 /libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
+/libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60
 
 # microservices
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey

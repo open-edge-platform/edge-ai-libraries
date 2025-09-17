@@ -410,7 +410,16 @@ def classifier_startup(config):
     with open("/tmp/" + conf_file, 'r', encoding='utf-8') as file:
         config_data = tomlkit.parse(file.read())
     udf_name = config['udfs']['name']
-    dir_name = udf_name
+    if "models" in config['udfs'].keys():
+        model_name = config['udfs']['models']
+    else:
+        model_name = ""
+
+    if os.getenv("SAMPLE_APP") is not None:
+        dir_name = os.getenv("SAMPLE_APP")
+    else:
+        dir_name = udf_name
+
     if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
         dir_name = mrHandlerObj.unique_id
         if dir_name is None or dir_name == "":
@@ -430,8 +439,7 @@ def classifier_startup(config):
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
         'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
-        "ONEAPI_DEVICE_SELECTOR": "level_zero:gpu",
-        "SYCL_DEVICE_FILTER": "level_zero:gpu"
+        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name)
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]

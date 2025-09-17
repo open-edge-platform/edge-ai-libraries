@@ -1,0 +1,81 @@
+From e39d8f7afdcf7a95b91ce6bb4b67ca50a40da872 Mon Sep 17 00:00:00 2001
+From: Zhang Wei <wei.e.zhang@intel.com>
+Date: Fri, 14 Mar 2025 13:03:58 +0800
+Subject: [PATCH 2/4] enable time sync for dual master example
+
+Signed-off-by: Zhang Wei <wei.e.zhang@intel.com>
+---
+ examples/dual_master/main.c | 24 +++++++++++++-----------
+ 1 file changed, 13 insertions(+), 11 deletions(-)
+
+diff --git a/examples/dual_master/main.c b/examples/dual_master/main.c
+index 9db41c4a..60ded6b1 100644
+--- a/examples/dual_master/main.c
++++ b/examples/dual_master/main.c
+@@ -430,7 +430,7 @@ void *my_thread1(void *arg)
+     return NULL;
+ }
+ 
+-static int ec_master_pre_configuration(Master_Data *master_data)
++static int ec_master_pre_configuration(Master_Data *master_data, uint64_t dc_ref_init_time)
+ {
+     int ret;
+ #if !EC_ENABLE_DAEMON
+@@ -440,7 +440,6 @@ static int ec_master_pre_configuration(Master_Data *master_data)
+     ec_slave_config_t *sc;
+     ec_sync_info_t* servo_syncs;
+     ec_pdo_entry_reg_t* domain_regs;
+-    struct timespec dc_period;
+     if (master_data == NULL) {
+         return -1;
+     }
+@@ -520,18 +519,12 @@ static int ec_master_pre_configuration(Master_Data *master_data)
+ 
+     /*Configuring DC signal*/
+     ecrt_slave_config_dc(sc, 0x0300, PERIOD_NS, PERIOD_NS/2, 0, 0);
+-    /* Set the initial master time and select a slave to use as the DC
+-     * reference clock, otherwise pass NULL to auto select the first capable
+-     * slave. Note: This can be used whether the master or the ref slave will
+-     * be used as the systems master DC clock
+-    */
+-    clock_gettime(CLOCK_MONOTONIC, &dc_period);
+ 
+     /* Attention: The initial application time is also used for phase
+      * calcuation for the SYNC0/1 interrupts. Please be sure to call it at
+      * the correct phase to the realtime cycle
+     */
+-    ecrt_master_application_time(master_data->master, TIMESPEC2NS(dc_period));
++    ecrt_master_application_time(master_data->master, dc_ref_init_time);
+ 
+     ret = ecrt_master_select_reference_clock(master_data->master, sc);
+     if (ret < 0) {
+@@ -562,6 +555,8 @@ int main(int argc, char *argv[])
+     ec_slave_info_t slave_info;
+     ec_master_state_t master_state = {};
+ #endif
++    struct timespec dc_period;
++    uint64_t dc_ref_init_time;
+ 
+     getOptions(argc,argv);
+     signal(SIGTERM, signal_handler);
+@@ -584,8 +579,15 @@ int main(int argc, char *argv[])
+         return -1;
+     }
+     master1_data.master_id = 1;
+-    ec_master_pre_configuration(&master0_data);
+-    ec_master_pre_configuration(&master1_data);
++    /* Set the initial master time and select a slave to use as the DC
++     * reference clock, otherwise pass NULL to auto select the first capable
++     * slave. Note: This can be used whether the master or the ref slave will
++     * be used as the systems master DC clock
++    */
++    clock_gettime(CLOCK_MONOTONIC, &dc_period);
++    dc_ref_init_time = TIMESPEC2NS(dc_period);
++    ec_master_pre_configuration(&master0_data, dc_ref_init_time);
++    ec_master_pre_configuration(&master1_data, dc_ref_init_time);
+ 
+     if (ecrt_master_activate(master0_data.master)) {
+         return -1;
+-- 
+2.34.1
+

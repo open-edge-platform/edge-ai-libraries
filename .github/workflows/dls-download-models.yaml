@@ -216,13 +216,15 @@ jobs:
       if: ${{ inputs.models_to_download != 'specific_model' && steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success' }}
       env:
         models_to_download: ${{ inputs.models_to_download }}
+        event_name: ${{ github.event_name }}
       run: |
         models=$models_to_download
-        if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
+        event=$event_name
+        if [[ "$models" == "public" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/public_old_old"
           echo "New public models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
-        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "schedule" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] &&  rm -rf "${{ env.MODELS_PATH }}/intel_old_old"
           echo "New Open Model Zoo models set up ✅" >> $GITHUB_STEP_SUMMARY
         fi
@@ -231,16 +233,18 @@ jobs:
       if: ${{ always() && inputs.models_to_download != 'specific_model' && !(steps.verify-omz.outcome == 'success' && steps.verify-public.outcome == 'success' && steps.download-public.outcome == 'success' && steps.download-omz.outcome == 'success') }}
       env:
         models_to_download: ${{ inputs.models_to_download }}
+        event_name: ${{ github.event_name }}
       run: |
         models=$models_to_download
-        if [[ "$models" == "public" || "$models" == "all" || "$models" == "schedule" ]]; then
+        event_name: ${{ github.event_name }}
+        if [[ "$models" == "public" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old_old" ] && mv "${{ env.MODELS_PATH }}/public_old_old" "${{ env.MODELS_PATH }}/public_old"
           echo "Old public models restored" >> $GITHUB_STEP_SUMMARY
         fi
 
-        if [[ "$models" == "omz" || "$models" == "all" || "$models" == "schedule" ]]; then
+        if [[ "$models" == "omz" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/intel" ] && rm -rf "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old" ] && mv "${{ env.MODELS_PATH }}/intel_old" "${{ env.MODELS_PATH }}/intel"
           [ -d "${{ env.MODELS_PATH }}/intel_old_old" ] && mv "${{ env.MODELS_PATH }}/intel_old_old" "${{ env.MODELS_PATH }}/intel_old"
