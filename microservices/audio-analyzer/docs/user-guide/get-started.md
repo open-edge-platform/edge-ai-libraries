@@ -142,39 +142,23 @@ The service uses pywhispercpp with the following optimizations for CPU transcrip
 
 ## Running Tests
 
-The project uses `pytest` for testing. After installing and setting up the application on host, we can run tests as follows:
+We can run unit tests and generate coverage by running following command in the application's directory :
 
 ```bash
-# Run all tests
-poetry run pytest
+# Switch to application directory (assuming you are in cloned repo's root dir)
+cd microservices/audio-analyzer
 
-# Run tests with verbose output
-poetry run pytest -v
+poetry lock --no-update
+poetry install --with dev
+# set a required env var to set model name : required due to compliance issue
+export ENABLED_WHISPER_MODELS=tiny.en
 
-# Run tests by type (unit or api)
-poetry run pytest -m unit
-poetry run pytest -m api
+# Run tests
+poetry run coverage run -m pytest ./tests
 
-# Run tests for a specific module (eg. utils/hardware_utils.py)
-poetry run pytest tests/test_utils/test_hardware_utils.py
+# Generate Coverage report
+poetry run coverage report -m
 ```
-
-### Generate Test Coverage Reports
-
-To generate a coverage report:
-
-```bash
-# Run tests with coverage
-poetry run pytest --cov=audio_analyzer
-
-# Generate detailed HTML coverage report
-poetry run pytest --cov=audio_analyzer --cov-report=html
-
-# Open the HTML report
-xdg-open htmlcov/index.html  
-```
-
-Make sure `xdg-open` is installed on the host machine. The coverage report helps identify which parts of the codebase are well tested and which may need additional test coverage.
 
 ## API Documentation
 
