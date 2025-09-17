@@ -65,7 +65,6 @@ ExternalProject_Add(
     	                -Dgst-plugins-bad:bs2b=disabled 
     	                -Dgst-plugins-bad:flite=disabled 
     	                -Dgst-plugins-bad:rtmp=disabled 
-						-Dgst-plugins-bad:opencv=enabled
     	                -Dgst-plugins-bad:sbc=disabled 
     	                -Dgst-plugins-bad:teletext=disabled 
     	                -Dgst-plugins-bad:hls-crypto=openssl 
