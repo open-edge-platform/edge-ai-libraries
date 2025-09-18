@@ -57,7 +57,7 @@ if not isinstance(trace.get_tracer_provider(), TracerProvider):
         )
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+MODEL_NAME = os.getenv("EMBEDDING_MODEL", "nomic-ai/nomic-embed-text-v1.5")
 EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL", "http://localhost:6006")
 COLLECTION_NAME = os.getenv("INDEX_NAME")
 FETCH_K = os.getenv("FETCH_K")
