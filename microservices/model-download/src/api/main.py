@@ -39,6 +39,23 @@ async def download_models(
     download_path: Optional[str] = None,
     Authorization: Optional[HTTPAuthorizationCredentials] = Depends(auth_token),
 ):
+    """
+    Unified endpoint to download one or more models from Hugging Face or Ollama.
+
+    Args:
+        request: ModelDownloadRequest containing models to download and configuration
+        download_path: Base directory for model downloads
+        Authorization: Hugging Face API token (required only for Hugging Face models)
+
+    Returns:
+        dict: Response containing download status and results for each model
+
+    Raises:
+        HTTPException:
+            - 401: If authorization token is missing for Hugging Face models
+            - 422: If request validation fails
+            - 400: If model download process fails
+    """
     try:
         if any(model.hub not in {"huggingface", "ollama"} for model in request.models):
             raise HTTPException(
