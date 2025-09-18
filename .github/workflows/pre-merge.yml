@@ -36,7 +36,7 @@ jobs:
           persist-credentials: false
       - name: Set paths filter
         id: filter
-        uses: dorny/paths-filter@4512585405083f25c027a35db413c2b3b9006d50
+        uses: dorny/paths-filter@b14b0105bf312a2c98457dd021622de4c14f6bff
         with:
           filters: |
             audio-analyzer:
