@@ -18,30 +18,31 @@ class UltralyticsDownloader(ModelDownloadPlugin):
     def plugin_type(self) -> str:
         return "downloader"
     
-    def can_handle(self, model_name: str, **kwargs) -> bool:
+    def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         """Check if this plugin can handle the given model"""
-        if model_name.startswith("ultralytics:"):
+        # Case-insensitive check for the hub name
+        if hub.lower() == "ultralytics":
             return True
         
         # Check if the model is in the list of supported models
         try:
             supported_models = self.get_supported_models()
-            model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
-            return model_without_prefix in supported_models or model_without_prefix == "all"
+            #model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
+            return model_name in supported_models or model_name == "all"
         except:
             return False
     
     def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
         """Download the model using the bash script"""
         # Remove prefix if present
-        model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
+        #model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
         
         # Extract quantization from kwargs
         quantize = kwargs.get("quantize", "")
         
         # Call the download script
-        return_code = self._call_bash_script(model=model_without_prefix, quantize=quantize, models_path=output_dir)
-        
+        return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=output_dir)
+
         if return_code != 0:
             raise RuntimeError(f"Failed to download Ultralytics model {model_name}")
         
@@ -120,16 +121,17 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         # Prepare environment with MODELS_PATH
         env = os.environ.copy()
-        if models_path:
-            env["MODELS_PATH"] = models_path
-            logger.info(f"Using MODELS_PATH={models_path}")
-        elif "MODELS_PATH" not in env:
-            # Default to models/ directory in the current working directory
-            default_models_path = str(Path.cwd() / "models")
-            env["MODELS_PATH"] = default_models_path
-            logger.info(f"MODELS_PATH not set, using default: {default_models_path}")
+        # if models_path:
+        #     env["MODELS_PATH"] = models_path
+        #     logger.info(f"Using MODELS_PATH={models_path}")
+        # elif "MODELS_PATH" not in env:
+        #     # Default to models/ directory in the current working directory
+        #     default_models_path = str(Path.cwd() / "models")
+        #     env["MODELS_PATH"] = default_models_path
+        #     logger.info(f"MODELS_PATH not set, using default: {default_models_path}")
 
         # Execute the bash script and capture output
+        logger.info("Command to be executed: " + ' '.join(cmd))
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
@@ -156,3 +158,23 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             logger.error(f"Script execution failed with return code {return_code}")
 
         return return_code
+        
+    def download_task(self, task: DownloadTask, output_dir: str, **kwargs) -> str:
+        """
+        Download a specific file for Ultralytics models.
+        Note: This method is required for parallel downloading but Ultralytics typically uses
+        a single script download rather than per-file downloads.
+        """
+        raise NotImplementedError("Ultralytics plugin does not support individual file downloads")
+    
+    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+        """
+        Post-process the downloaded files.
+        For Ultralytics, this is usually handled by the download script directly.
+        """
+        return {
+            "model_name": model_name,
+            "source": "ultralytics",
+            "download_path": output_dir,
+            "success": True
+        }

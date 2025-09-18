@@ -3,12 +3,15 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+    container_name: model_download
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
+      - LOG_LEVEL=INFO
+      - MODELS_PATH=~/models
     ports:
-      - "8200:8000"  # Map container port 8000 to host port 8000
+      - "8200:8000"  # Map container port 8000 to host port 8200
     volumes:
-      # Mount a volume for caching Hugging Face/Ollama models
+      # Mount volumes for models and caching
       - ~/.cache/huggingface:/home/appuser/.cache/huggingface
       - ~/models:/app/models
     group_add:

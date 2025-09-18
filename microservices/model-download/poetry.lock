@@ -1085,6 +1085,27 @@ files = [
 ]
 
 [[package]]
+name = "hf-xet"
+version = "1.1.10"
+description = "Fast transfer of large files with the Hugging Face Hub."
+optional = false
+python-versions = ">=3.8"
+groups = ["main"]
+files = [
+    {file = "hf_xet-1.1.10-cp37-abi3-macosx_10_12_x86_64.whl", hash = "sha256:686083aca1a6669bc85c21c0563551cbcdaa5cf7876a91f3d074a030b577231d"},
+    {file = "hf_xet-1.1.10-cp37-abi3-macosx_11_0_arm64.whl", hash = "sha256:71081925383b66b24eedff3013f8e6bbd41215c3338be4b94ba75fd75b21513b"},
+    {file = "hf_xet-1.1.10-cp37-abi3-manylinux_2_17_x86_64.manylinux2014_x86_64.whl", hash = "sha256:6b6bceb6361c80c1cc42b5a7b4e3efd90e64630bcf11224dcac50ef30a47e435"},
+    {file = "hf_xet-1.1.10-cp37-abi3-manylinux_2_28_aarch64.whl", hash = "sha256:eae7c1fc8a664e54753ffc235e11427ca61f4b0477d757cc4eb9ae374b69f09c"},
+    {file = "hf_xet-1.1.10-cp37-abi3-musllinux_1_2_aarch64.whl", hash = "sha256:0a0005fd08f002180f7a12d4e13b22be277725bc23ed0529f8add5c7a6309c06"},
+    {file = "hf_xet-1.1.10-cp37-abi3-musllinux_1_2_x86_64.whl", hash = "sha256:f900481cf6e362a6c549c61ff77468bd59d6dd082f3170a36acfef2eb6a6793f"},
+    {file = "hf_xet-1.1.10-cp37-abi3-win_amd64.whl", hash = "sha256:5f54b19cc347c13235ae7ee98b330c26dd65ef1df47e5316ffb1e87713ca7045"},
+    {file = "hf_xet-1.1.10.tar.gz", hash = "sha256:408aef343800a2102374a883f283ff29068055c111f003ff840733d3b715bb97"},
+]
+
+[package.extras]
+tests = ["pytest"]
+
+[[package]]
 name = "httpcore"
 version = "0.17.3"
 description = "A minimal low-level HTTP client."
@@ -1146,6 +1167,7 @@ files = [
 filelock = "*"
 fsspec = ">=2023.5.0"
 hf-transfer = {version = ">=0.1.4", optional = true, markers = "extra == \"hf-transfer\""}
+hf-xet = {version = ">=0.1.4", optional = true, markers = "extra == \"hf-xet\""}
 packaging = ">=20.9"
 pyyaml = ">=5.1"
 requests = "*"
@@ -4443,4 +4465,4 @@ propcache = ">=0.2.1"
 [metadata]
 lock-version = "2.1"
 python-versions = ">=3.10,<=3.13"
-content-hash = "a646068a3911dc30307845e3f87edbdf542deaa55180ade3d83bac3d10c8ba09"
+content-hash = "16485ceadb390fd456b5a77559d0f07f1f355b1ded9d595bd799524c27d05902"

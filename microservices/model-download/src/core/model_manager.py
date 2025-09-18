@@ -42,6 +42,7 @@ class ModelManager:
         self,
         operation_type: str,  # New parameter to distinguish job types
         model_name: str,
+        hub: str,
         output_dir: Optional[str] = None,
         plugin_name: Optional[str] = None,
     ) -> str:
@@ -62,8 +63,8 @@ class ModelManager:
         # Resolve the output directory
         if output_dir is None:
             # Create a safe directory name from the model name
-            safe_name = model_name.replace("/", "_").replace(":", "_")
-            output_dir = os.path.join(self.default_dir, safe_name)
+            safe_name = model_name.replace("/", "_")
+            output_dir = os.path.join(self.default_dir, hub, safe_name)
 
         output_dir = os.path.abspath(output_dir)
         os.makedirs(output_dir, exist_ok=True)
@@ -73,6 +74,7 @@ class ModelManager:
             "id": job_id,
             "operation_type": operation_type,  # Store operation type
             "model_name": model_name,
+            "hub": hub,
             "output_dir": output_dir,
             "status": "queued",
             "start_time": datetime.now().isoformat(),
@@ -85,6 +87,7 @@ class ModelManager:
             job_id=job_id,
             operation_type=operation_type,
             model_name=model_name,
+            hub=hub
         )
         return job_id
 
@@ -109,6 +112,7 @@ class ModelManager:
         self,
         job_id: str,
         model_name: str,
+        hub: str,
         output_dir: Optional[str] = None,
         downloader: Optional[str] = None,
         **kwargs,
@@ -119,6 +123,7 @@ class ModelManager:
         Args:
             job_id: ID of the job to process
             model_name: Name of the model to download
+            hub: From which hub model needs to be downloaded
             output_dir: Directory to save the model
             downloader: Specific downloader plugin to use
             **kwargs: Additional parameters for the download
@@ -129,14 +134,15 @@ class ModelManager:
         try:
             # Update job status
             self._jobs[job_id]["status"] = "downloading"
-
+            logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
             # Create progress callback
             def progress_callback(model_name, current, total):
                 self.update_progress(job_id, current, total)
-
+            logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
             # Find appropriate downloader plugin
             download_plugin = None
             if downloader:
+                logger.info(f"Request details: {downloader},{model_name}, {hub}, {kwargs}")
                 # User specifically requested a downloader
                 download_plugin = self.registry.get_plugin("downloader", downloader)
                 if not download_plugin:
@@ -147,8 +153,9 @@ class ModelManager:
                     raise ValueError(err_msg)
             else:
                 # Auto-detect appropriate downloader
+                logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
                 download_plugin = self.registry.find_plugin_for_model(
-                    "downloader", model_name, **kwargs
+                    "downloader", model_name, hub, **kwargs
                 )
 
             if not download_plugin:
@@ -162,7 +169,7 @@ class ModelManager:
             self._jobs[job_id]["plugin"] = download_plugin.plugin_name
 
             # Check if the plugin supports parallel downloading via tasks
-            use_parallel = kwargs.pop("use_parallel", True)
+            use_parallel = kwargs.pop("parallel_downloads", True)
             max_workers = kwargs.pop("max_workers", 4)
 
             if use_parallel:
@@ -178,7 +185,7 @@ class ModelManager:
                             job_id=job_id,
                             plugin=download_plugin,
                             model_name=model_name,
-                            output_dir=output_dir,
+                            model_path=output_dir,
                             tasks=download_tasks,
                             max_workers=max_workers,
                             progress_callback=progress_callback,
@@ -240,6 +247,7 @@ class ModelManager:
         self,
         job_id: str,
         model_path: str,
+        hub: str,
         output_dir: Optional[str] = None,
         converter: Optional[str] = None,
         **kwargs,
@@ -250,6 +258,7 @@ class ModelManager:
         Args:
             job_id: ID of the job to process
             model_path: Path to the model to convert
+            hub: Model downloaded from the hub
             output_dir: Directory to save the converted model
             converter: Specific converter plugin to use
             **kwargs: Additional parameters for the conversion
@@ -382,7 +391,7 @@ class ModelManager:
                 try:
                     # Check if job has been canceled
                     if self._jobs.get(job_id, {}).get("status") == "canceled":
-                        logger.info("download_task_canceled", task=task.file_path)
+                        logger.info("download_task_canceled", task=task.destination)
                         raise InterruptedError("Download was canceled")
 
                     # Call the plugin to download this task
@@ -396,7 +405,7 @@ class ModelManager:
                     return path
                 except Exception as e:
                     logger.error(
-                        "task_download_error", task=task.file_path, error=str(e)
+                        "task_download_error", task=task.destination, error=str(e)
                     )
                     raise
 
@@ -411,11 +420,11 @@ class ModelManager:
                 try:
                     path = future.result()
                     downloaded_paths.append(path)
-                    logger.debug("task_downloaded", file=task.file_path, path=path)
+                    logger.debug("task_downloaded", file=task.destination, path=path)
                 except Exception as e:
                     # If any task fails, we cancel pending tasks and fail the job
                     if self._jobs[job_id]["status"] != "canceled":
-                        logger.error("task_failure", task=task.file_path, error=str(e))
+                        logger.error("task_failure", task=task.destination, error=str(e))
                         raise
 
             # All tasks completed successfully, perform any post-processing
@@ -475,6 +484,7 @@ class ModelManager:
     def download_model(
         self,
         model_name: str,
+        hub: str,
         output_dir: Optional[str] = None,
         downloader: Optional[str] = None,
         **kwargs,
@@ -495,7 +505,7 @@ class ModelManager:
         """
         job_id = self.register_job("download", model_name, output_dir, downloader)
         return self.process_download(
-            job_id, model_name, output_dir, downloader, **kwargs
+            job_id, model_name,hub, output_dir, downloader, **kwargs
         )
 
     def convert_model(

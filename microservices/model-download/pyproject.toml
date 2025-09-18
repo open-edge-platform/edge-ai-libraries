@@ -8,7 +8,7 @@ packages = [{ include = "app" }]
 [tool.poetry.dependencies]
 einops = "^0.8.1"
 fastapi = "0.115.4"
-huggingface-hub = { version = "^0.30.0", extras = ["hf-transfer"] }
+huggingface-hub = { version = "^0.30.0", extras = ["hf-transfer","hf-xet"] }
 nncf = "2.16.0"
 openvino = "2025.2.0"
 openvino-tokenizers = { version = "2025.2.0", extras = ["transformers"] }
