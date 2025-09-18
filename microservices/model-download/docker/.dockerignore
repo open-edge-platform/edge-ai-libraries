@@ -18,3 +18,7 @@ dist/
 build/
 tests/
 docs/
+models/
+**/.cache
+**/.coverage
+**/.DS_Store
