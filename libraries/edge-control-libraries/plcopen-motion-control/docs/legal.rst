@@ -5,7 +5,7 @@
 .. _gsg_legal_disclaimers:
 
 Notices and Disclaimers |gsgs_legal|
-=====================================
+====================================
 
 
 You may not use or facilitate the use of this document in connection

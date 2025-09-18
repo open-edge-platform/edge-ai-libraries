@@ -17,7 +17,7 @@ The following microservices will be deployed with each dedicated to providing a 
 - **Embedding microservice**: This provides the embedding service, optimizing the model used for creating and storing embeddings in the vectorDB. OpenAI API is used for creating the embeddings.
 - **data store microservice**: This microservice is essentially the 3rd party solution provider. In this implementation, minIO is used as the data store. Standard API provided by minIO (AWS S3) is used for interacting with the microservice.
 
-### Prerequisites
+## Prerequisites
 
 Before you begin, ensure the following prerequisites are addressed. Note that these pre-requisites are superceded by the prerequisites listed in respective application using this microservice.
 

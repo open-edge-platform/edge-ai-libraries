@@ -1,9 +1,11 @@
+:orphan:
+
 This section explains the procedure to configure the APT package manager to use the hosted ECI APT repository.
 
 Make sure that you have :ref:`OS Setup <Os_Setup>`.
 
 Setup ECI APT Repository
-^^^^^^^^^^^^^^^^^^^^^^^^^
+------------------------
 
 #. Open a terminal prompt which will be used to execute the remaining steps.
 
