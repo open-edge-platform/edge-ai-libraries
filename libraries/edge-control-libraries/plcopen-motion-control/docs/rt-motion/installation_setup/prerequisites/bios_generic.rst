@@ -1,6 +1,8 @@
-.. tabs::
+:orphan:
 
-   .. group-tab:: Real-time Optimization
+.. tab-set::
+
+   .. tab-item:: Real-time Optimization
 
       .. list-table::
          :widths: 25 10 40
@@ -70,7 +72,7 @@
            - Enabled
            - Intel Advanced Menu ⟶ PCH-IO Configuration
 
-   .. group-tab:: Generic(None Real-time)
+   .. tab-item:: Generic(None Real-time)
 
       .. list-table::
          :widths: 25 10 40
@@ -139,3 +141,5 @@
          * - Legacy IO Low Latency
            - Disabled
            - Intel Advanced Menu ⟶ PCH-IO Configuration
+
+
