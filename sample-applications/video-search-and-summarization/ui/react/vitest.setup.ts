@@ -33,20 +33,24 @@ vi.mock('axios', () => ({
 
 // Mock styled-components globally
 vi.mock('styled-components', () => {
+  // Helper function to filter out styled-component internal props
+  const filterProps = (props: any) => {
+    const { children, ...otherProps } = props;
+    return Object.keys(otherProps).reduce((acc: any, key) => {
+      if (!key.startsWith('$')) {
+        acc[key] = otherProps[key];
+      }
+      return acc;
+    }, {});
+  };
+
   const mockStyled = new Proxy(() => {}, {
-    get: (target, prop) => {
+    get: (target: any, prop: any) => {
       if (typeof prop === 'string') {
-        return (templateStrings, ...args) => {
-          const MockComponent = (props) => {
-            const { children, ...otherProps } = props;
-            // Filter out styled-component internal props that start with $
-            const filteredProps = Object.keys(otherProps).reduce((acc, key) => {
-              if (!key.startsWith('$')) {
-                acc[key] = otherProps[key];
-              }
-              return acc;
-            }, {});
-            return React.createElement(prop, filteredProps, children);
+        return () => {
+          const MockComponent = (props: any) => {
+            const filteredProps = filterProps(props);
+            return React.createElement(prop, filteredProps, props.children);
           };
           MockComponent.displayName = `styled.${prop}`;
           return MockComponent;
@@ -54,28 +58,16 @@ vi.mock('styled-components', () => {
       }
       return target[prop];
     },
-    apply: (target, thisArg, argumentsList) => {
+    apply: (target: any, thisArg: any, argumentsList: any[]) => {
       const [Component] = argumentsList;
-      if (typeof Component === 'string') {
-        return (templateStrings, ...args) => {
-          const MockComponent = (props) => {
-            const { children, ...otherProps } = props;
-            // Filter out styled-component internal props that start with $
-            const filteredProps = Object.keys(otherProps).reduce((acc, key) => {
-              if (!key.startsWith('$')) {
-                acc[key] = otherProps[key];
-              }
-              return acc;
-            }, {});
-            return React.createElement(Component, filteredProps, children);
-          };
-          MockComponent.displayName = `styled(${Component})`;
-          return MockComponent;
+      return () => {
+        const MockComponent = (props: any) => {
+          if (typeof Component === 'string') {
+            const filteredProps = filterProps(props);
+            return React.createElement(Component, filteredProps, props.children);
+          }
+          return React.createElement(Component, props);
         };
-      }
-      // For component styled(Component)
-      return (templateStrings, ...args) => {
-        const MockComponent = (props) => React.createElement(Component, props);
         MockComponent.displayName = `styled(${Component.displayName || Component.name || 'Component'})`;
         return MockComponent;
       };
@@ -92,16 +84,3 @@ vi.mock('styled-components', () => {
 // Make sure React is available for the styled-components mock
 import React from 'react';
 global.React = React;
-
-// Mock component for Carbon components
-const MockComponent2 = React.forwardRef<any, any>((props: any, ref: any) => {
-  const { children, ...otherProps } = props;
-  // Filter out styled-component internal props that start with $
-  const filteredProps = Object.keys(otherProps).reduce((acc, key) => {
-    if (!key.startsWith('$')) {
-      acc[key] = otherProps[key];
-    }
-    return acc;
-  }, {});
-  return React.createElement('div', { ...filteredProps, ref }, children);
-});

@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
 import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
@@ -16,6 +15,10 @@ vi.mock('../config', () => ({
 
 const createTestStore = (initialState: any = {}) => {
   return configureStore({
+
+
+
+    
     reducer: {
       videoFrames: VideoFrameReducer,
     },

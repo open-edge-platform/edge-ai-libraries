@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { describe, it, expect, vi } from 'vitest';
 import axios from 'axios';
 import client from '../utils/client';

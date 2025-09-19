@@ -1,6 +1,6 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest';
-
-// Mock socket.ts before any other imports using factory
 vi.mock('../socket.ts', () => {
   const mockSocket = {
     emit: vi.fn(),

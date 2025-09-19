@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { describe, it, expect } from 'vitest';
 import { enTranslations } from '../utils/i18n/translations/en';
 

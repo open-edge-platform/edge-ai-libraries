@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { render, screen } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { vi, describe, it, expect, beforeEach } from 'vitest';

@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { render, screen, act } from '@testing-library/react';
 import { vi, beforeEach, describe, it, expect, afterEach } from 'vitest';
 import Typing from '../components/Typing/Typing';

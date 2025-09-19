@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { describe, it, expect, beforeEach, vi, afterEach } from 'vitest';
 import { configureStore, combineReducers } from '@reduxjs/toolkit';
 import store, { loadFromLocalStorage, saveToLocalStorage, useAppDispatch, useAppSelector } from '../redux/store';
