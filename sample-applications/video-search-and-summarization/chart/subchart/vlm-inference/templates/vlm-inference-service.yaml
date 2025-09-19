@@ -3,11 +3,11 @@ kind: Service
 metadata:
   name: {{ .Values.vlminference.name }}
 spec:
-  type: {{ .Values.vlminference.service.type }}
+  type: {{ .Values.service.type }}
   ports:
-    - port: {{ .Values.vlminference.service.port }}
-      targetPort: {{ .Values.vlminference.service.targetPort }}
+    - port: {{ .Values.service.port }}
+      targetPort: {{ .Values.containerPortName }}
       protocol: TCP
-      name: http
+      name: {{ .Values.service.portName }}
   selector:
     app: {{ .Values.vlminference.name }}

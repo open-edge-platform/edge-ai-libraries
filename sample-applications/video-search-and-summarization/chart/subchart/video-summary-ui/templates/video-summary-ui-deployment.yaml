@@ -19,7 +19,8 @@ spec:
           image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.service.targetPort }}
+            - containerPort: 8080
+              name: {{ .Values.containerPortName }}
           env:
             - name: APP_ENDPOINT_URL
               value: "{{ .Values.global.env.APP_ENDPOINT_URL }}"

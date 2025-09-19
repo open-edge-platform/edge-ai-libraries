@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { FrameMetadata } from 'src/evam/models/message-broker.model';
 import {
   FrameSummary,
@@ -8,7 +7,7 @@ import {
   StateActionStatus,
 } from './state.model';
 import { SystemConfig } from 'src/video-upload/models/upload.model';
-import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
+import { SummaryPipelineSampling } from 'src/summary/models/summary-pipeline.model';
 
 export type CountStatus = Record<StateActionStatus, number>;
 

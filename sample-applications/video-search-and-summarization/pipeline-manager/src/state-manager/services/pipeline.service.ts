@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import { StateService } from './state.service';
 import { DatastoreService } from 'src/datastore/services/datastore.service';
@@ -23,7 +22,6 @@ import { LocalstoreService } from 'src/datastore/services/localstore.service';
 import { unlinkSync } from 'fs';
 import { AudioQueueService } from '../queues/audio-queue.service';
 import { AudioService } from 'src/audio/services/audio.service';
-import { Span, TraceService } from 'nestjs-otel';
 
 @Injectable()
 export class PipelineService {
@@ -36,7 +34,6 @@ export class PipelineService {
     private $audio: AudioService,
     private $chunking: ChunkingService,
     private $audioQueue: AudioQueueService,
-    private $trace: TraceService,
   ) {}
 
   @OnEvent(PipelineEvents.CHUNKING_COMPLETE)
@@ -68,6 +65,39 @@ export class PipelineService {
     }
   }
 
+  // @OnEvent(PipelineEvents.UPLOAD_TO_DATASTORE)
+  // async startPipeline(payload: PipelineUploadToDS) {
+  //   const state = this.$state.fetch(payload.stateId);
+  //   if (state) {
+  //     this.$state.updateDataStoreUploadStatus(
+  //       payload.stateId,
+  //       StateActionStatus.IN_PROGRESS,
+  //     );
+
+  //     try {
+  //       const { stateId, fileInfo } = payload;
+
+  //       const { objectPath, fileExtn } = this.$dataStore.getObjectName(
+  //         stateId,
+  //         fileInfo.originalname,
+  //       );
+
+  //       const res = await this.$dataStore.uploadFile(objectPath, fileInfo.path);
+  //       console.log('uploaded to datastore', res);
+
+  //       this.$state.updateDataStoreUploadStatus(
+  //         stateId,
+  //         StateActionStatus.COMPLETE,
+  //       );
+
+  //       this.$event.emit(PipelineEvents.UPLOAD_TO_DATASTORE_COMPLETE, stateId);
+  //       this.$state.updateChunkingStatus(stateId, StateActionStatus.READY);
+  //     } catch (error) {
+  //       console.log(PipelineEvents.UPLOAD_TO_DATASTORE, 'ERROR', error);
+  //     }
+  //   }
+  // }
+
   @OnEvent(PipelineEvents.CHUNKING_TRIGGERED)
   chunkingTriggered({ stateId }: { stateId: string }) {
     this.$state.updateChunkingStatus(stateId, StateActionStatus.IN_PROGRESS);
@@ -75,10 +105,6 @@ export class PipelineService {
 
   @OnEvent(PipelineEvents.SUMMARY_PIPELINE_START)
   async triggerChunking(stateId: string) {
-    const span = this.$trace.startSpan(`Summary_${stateId}`);
-
-    console.log(span.spanContext().traceId, 'Summary Pipeline Start', stateId);
-
     const state = this.$state.fetch(stateId);
 
     if (state && state.video.dataStore) {
@@ -144,6 +170,13 @@ export class PipelineService {
       StateActionStatus.COMPLETE,
       caption,
     );
+
+    // const anyIncomplete = this.$chunking.hasProcessing(stateId);
+    // console.log(`anyIncomplete:${anyIncomplete}`)
+
+    // if (!anyIncomplete) {
+    //   this.$event.emit(PipelineEvents.SUMMARY_TRIGGER, { stateId });
+    // }
   }
 
   @OnEvent(PipelineEvents.SUMMARY_TRIGGER)

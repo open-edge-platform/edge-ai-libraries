@@ -7,7 +7,7 @@ dependencies:
     version: 1.2.0
     repository: "file://subchart/ovms"
     condition: ovms.enabled
-  - name: minioServer
+  - name: minioserver
     version: 1.2.0
     repository: "file://subchart/minio-server"
   - name: audioanalyzer

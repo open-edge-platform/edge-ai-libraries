@@ -8,12 +8,9 @@ coverage
 .coverage
 virtual_env
 workspace
-ov_models
 .vscode
 .venv
 .coverage-report/
-**/models
-*data/
 **/ovms_config
 **/ov_models
 *.lock

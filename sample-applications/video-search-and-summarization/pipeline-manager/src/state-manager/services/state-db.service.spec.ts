@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Test, TestingModule } from '@nestjs/testing';
 import { StateDbService } from './state-db.service';
 import { getRepositoryToken } from '@nestjs/typeorm';

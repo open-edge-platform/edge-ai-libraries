@@ -39,11 +39,11 @@ class DebouncedHandler(FileSystemEventHandler):
     def _debounce(self):
         if self.first_event_time is None:
             self.first_event_time = datetime.now()
-            self.timer = Timer(self.debounce_time * 60, self._process_files)
+            self.timer = Timer(self.debounce_time, self._process_files)
             self.timer.start()
         else:
             elapsed_time = (datetime.now() - self.first_event_time).total_seconds()
-            if elapsed_time >= self.debounce_time * 60:
+            if elapsed_time >= self.debounce_time:
                 self._process_files()
 
     def _process_files(self):
@@ -71,15 +71,28 @@ class DebouncedHandler(FileSystemEventHandler):
 def upload_initial_videos(path):
     global initial_upload_status
     logger.debug(f"Starting initial upload of videos from {path}")
-    # Add all initial files that are .mp4 and size > 0.5 MB
-    video_files = [
-        os.path.join(path, f)
-        for f in os.listdir(path)
-        if f.endswith(".mp4") and os.path.getsize(os.path.join(path, f)) > 524288
-    ]
+    
+    video_files = []
+    if settings.WATCH_DIRECTORY_RECURSIVE:
+        # Recursively find all MP4 files in subdirectories
+        for root, dirs, files in os.walk(path):
+            for f in files:
+                if f.endswith(".mp4"):
+                    file_path = os.path.join(root, f)
+                    if os.path.getsize(file_path) > 524288:
+                        video_files.append(file_path)
+        logger.debug(f"Recursive scan found {len(video_files)} video files for initial upload")
+    else:
+        # Only scan the top-level directory
+        video_files = [
+            os.path.join(path, f)
+            for f in os.listdir(path)
+            if f.endswith(".mp4") and os.path.getsize(os.path.join(path, f)) > 524288
+        ]
+        logger.debug(f"Top-level scan found {len(video_files)} video files for initial upload")
+    
     initial_upload_status["total"] = len(video_files)
     initial_upload_status["pending"] = len(video_files)
-    logger.debug(f"Found {len(video_files)} video files for initial upload")
 
     def upload_batch(batch):
         global initial_upload_status
@@ -124,10 +137,11 @@ def start_watcher():
 
     event_handler = DebouncedHandler(debounce_time, upload_videos_to_dataprep)
     observer = Observer()
-    observer.schedule(event_handler, path, recursive=False)
+    recursive = settings.WATCH_DIRECTORY_RECURSIVE
+    observer.schedule(event_handler, path, recursive=recursive)
     observer.start()
     logger.info(
-        f"Started directory watcher on {path} with debounce time of {debounce_time} minutes."
+        f"Started directory watcher on {path} with debounce time of {debounce_time} seconds. Recursive: {recursive}"
     )
 
     try:

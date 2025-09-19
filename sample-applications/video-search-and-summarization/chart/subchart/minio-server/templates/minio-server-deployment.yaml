@@ -1,31 +1,32 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ include "minioServer.fullname" . }}
+  name: {{ include "minioserver.fullname" . }}
   labels:
-    app: {{ include "minioServer.name" . }}
+    app: {{ include "minioserver.name" . }}
 spec:
-  replicas: {{ .Values.minioServer.replicaCount | default 1 }}
+  replicas: {{ .Values.replicaCount | default 1 }}
   selector:
     matchLabels:
-      app: {{ .Values.minioServer.name }}
+      app: {{ .Values.name }}
   template:
     metadata:
       labels:
-        app: {{ .Values.minioServer.name }}
+        app: {{ .Values.name }}
     spec:
       containers:
-        - name: {{ include "minioServer.name" . }}
-          image: "{{ .Values.minioServer.image.repository }}:{{ .Values.minioServer.image.tag }}"
-          imagePullPolicy: {{ .Values.minioServer.image.pullPolicy }}
+        - name: {{ include "minioserver.name" . }}
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: api
-              containerPort: {{ .Values.minioServer.service.port}}
-            - name: console
-              containerPort: {{ .Values.minioServer.service.consolePort }}
+            - name: {{ .Values.containerApiPortName }}
+              containerPort: 9000
+            - name: {{ .Values.containerConsolePortName }}
+              containerPort: 9001
           volumeMounts:
-            - mountPath: /mnt/miniodata
+            - mountPath: /data
               name: minio-data
+              subPath: miniodata
           env:
             - name: MINIO_ROOT_USER
               value: {{ .Values.global.env.MINIO_ROOT_USER }}
@@ -42,5 +43,13 @@ spec:
           command: ["minio","server", "/data", "--address", ":9000", "--console-address", ":9001"]
       volumes:
         - name: minio-data
+          {{- if .Values.global.pvcName }}
           persistentVolumeClaim:
-            claimName: {{ .Values.minioServer.volumeMounts.pvcName }}
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

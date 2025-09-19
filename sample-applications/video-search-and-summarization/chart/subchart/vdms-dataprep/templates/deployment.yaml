@@ -44,13 +44,15 @@ spec:
           image: "{{ .Values.image.repository }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
-            - name: {{ .Values.service.name }}
-              containerPort: 8000
+            - name: {{ .Values.containerPortName }}
+              containerPort: {{ .Values.containerPort }}
               protocol: TCP
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -60,7 +62,7 @@ spec:
               mountPath: /tmp
             - name: volume-data
               mountPath: /root/.cache
-              subPath: vss-cache
+              subPath: dataprep-cache
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: dataprep
@@ -68,13 +70,13 @@ spec:
         - name: tmp
           emptyDir: {}
         - name:  volume-data
-          {{- if .Values.global.volumeHostPath }}
+          {{- if .Values.global.pvcName }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}
             type: DirectoryOrCreate
-          {{- else if .Values.global.pvcName }}
-          persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
           {{- else }}
           emptyDir: {}
           {{- end }}

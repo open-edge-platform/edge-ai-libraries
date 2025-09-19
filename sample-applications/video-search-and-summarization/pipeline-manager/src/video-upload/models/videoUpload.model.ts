@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { ApiProperty } from '@nestjs/swagger';
 import { VideoUploadDTO } from './upload.model';
 import { EVAMPipelines } from 'src/evam/models/evam.model';

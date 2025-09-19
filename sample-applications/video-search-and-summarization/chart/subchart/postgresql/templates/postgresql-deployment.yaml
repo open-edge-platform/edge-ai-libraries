@@ -14,15 +14,26 @@ spec:
       labels:
         app: {{ include "postgresql.name" . }}
     spec:
+      {{- with .Values.podSecurityContext }}
+      securityContext:
+        {{- toYaml . | nindent 8 }}
+      {{- end }}
       containers:
         - name: {{ include "postgresql.name" . }}
           image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
-            - containerPort: {{ .Values.postgresql.service.port }}
+            - containerPort: {{ .Values.postgresql.containerPort }}
+              name: {{ .Values.postgresql.containerPortName }}
+              protocol: TCP
           volumeMounts:
             - name: postgresql-data
               mountPath: /var/lib/postgresql/data/
+              subPath: pgdata
           env:
             - name: HTTP_PROXY
               value: {{ .Values.global.proxy.http_proxy }}
@@ -41,8 +52,16 @@ spec:
           resources: {{ toYaml .Values.postgresql.resources | nindent 12 }}
       volumes:
         - name: postgresql-data
+          {{- if .Values.global.pvcName }}
           persistentVolumeClaim:
-            claimName: {{ .Values.postgresql.volumeMounts.pvcName }}
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       nodeSelector: {{ toYaml .Values.postgresql.nodeSelector | nindent 8 }}
       tolerations: {{ toYaml .Values.postgresql.tolerations | nindent 8 }}
       affinity: {{ toYaml .Values.postgresql.affinity | nindent 8 }}

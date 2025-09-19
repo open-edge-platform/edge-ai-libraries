@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import {
   Injectable,
   Logger,
@@ -19,6 +18,7 @@ import { TemplateService } from './template.service';
 import { OpenaiHelperService } from './openai-helper.service';
 import { FeaturesService } from 'src/features/features.service';
 import { CONFIG_STATE } from 'src/features/features.model';
+import { InferenceCountService } from './inference-count.service';
 
 interface ModelConfigResponse {
   [key: string]: {
@@ -44,6 +44,7 @@ export class LlmService {
     private $feature: FeaturesService,
     private $template: TemplateService,
     private $openAiHelper: OpenaiHelperService,
+    private $inferenceCount: InferenceCountService,
   ) {
     if (this.$feature.hasFeature('summary')) {
       this.initialize().catch((error) => {
@@ -129,6 +130,10 @@ export class LlmService {
       if (usingOVMS === CONFIG_STATE.ON && configUrl) {
         await this.fetchModelsFromConfig(configUrl, fetchOptions);
         this.serviceReady = true;
+        this.$inferenceCount.setLlmConfig({
+          model: this.model,
+          ip: baseURL,
+        });
       } else {
         throw new Error('Config URL is not available');
       }
@@ -139,8 +144,12 @@ export class LlmService {
         if (!this.client) {
           throw new Error('Client is not initialized');
         }
-        this.fetchModelsFromOpenai();
+        await this.fetchModelsFromOpenai();
         this.serviceReady = true;
+        this.$inferenceCount.setLlmConfig({
+          model: this.model,
+          ip: baseURL,
+        });
       } catch (error) {
         Logger.error(error);
         throw new ServiceUnavailableException('Open AI fetch models failed');

@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 // export const CaptionsSummarizeTemplate = `
 // You will be given captions from sequential clips of a video. Group the captions based on whether they are related to one another or create a continuous scene:
 

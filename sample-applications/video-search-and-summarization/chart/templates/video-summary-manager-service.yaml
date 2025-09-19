@@ -8,8 +8,7 @@ spec:
   type: {{ .Values.videoSummaryManager.service.type }}
   ports:
     - port: {{ .Values.videoSummaryManager.service.port }}
-      targetPort: {{ .Values.videoSummaryManager.service.targetPort }}
+      targetPort: {{ .Values.videoSummaryManager.containerPortName }}
       protocol: TCP
-      name: http
   selector:
     app: {{ .Values.videoSummaryManager.name }}

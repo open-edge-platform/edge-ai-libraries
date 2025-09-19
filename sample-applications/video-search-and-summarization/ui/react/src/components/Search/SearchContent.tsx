@@ -1,11 +1,14 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC } from 'react';
 import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { useTranslation } from 'react-i18next';
-import { Slider, Tooltip } from '@carbon/react';
-import { SearchActions, SearchSelector } from '../../redux/search/searchSlice';
+import { IconButton, Slider, Tag, Tooltip } from '@carbon/react';
+import { RerunSearch, SearchActions, SearchSelector } from '../../redux/search/searchSlice';
 import { StateActionStatus } from '../../redux/summary/summary';
 import { VideoTile } from '../../redux/search/VideoTile';
+import { Trigger } from '@carbon/react/icons';
 
 const QueryContentWrapper = styled.div`
   display: flex;
@@ -82,8 +85,59 @@ const NothingSelectedWrapper = styled.div`
   padding: 0 2rem;
 `;
 
+const TagsContainer = styled.div`
+  display: flex;
+  flex-flow: row wrap;
+  align-items: center;
+  justify-content: flex-start;
+  margin-left: 1rem;
+  .cds--tag {
+    margin: 0.25rem;
+  }
+`;
+
+const ErrorMessageWrapper = styled.div`
+  padding: 1.5rem;
+  background-color: #fdf2f2;
+  border: 1px solid #da1e28;
+  border-radius: 0.5rem;
+  margin: 1rem;
+  display: flex;
+  align-items: flex-start;
+  gap: 1rem;
+  
+  .error-icon {
+    font-size: 1.5rem;
+    flex-shrink: 0;
+  }
+  
+  .error-content {
+    flex: 1;
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+  }
+  
+  .error-title {
+    font-weight: 600;
+    color: #da1e28;
+    font-size: 1.1rem;
+  }
+  
+  .error-text {
+    color: #525252;
+    line-height: 1.4;
+  }
+  
+  .error-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+  }
+`;
+
 export const SearchContent: FC = () => {
-  const { selectedQuery, selectedResults } = useAppSelector(SearchSelector);
+  const { selectedQuery, selectedResults, isSelectedInProgress, isSelectedHasError } = useAppSelector(SearchSelector);
   const dispatch = useAppDispatch();
   const { t } = useTranslation();
 
@@ -95,13 +149,38 @@ export const SearchContent: FC = () => {
     );
   };
 
+  const refetchQuery = () => {
+    if (selectedQuery) {
+      dispatch(RerunSearch(selectedQuery.queryId));
+    }
+  };
+
   const QueryHeading = () => {
     return (
       <QueryHeader>
         <Tooltip align='bottom' label={selectedQuery?.query}>
           <span className='query-title'>{selectedQuery?.query}</span>
         </Tooltip>
+        {selectedQuery && selectedQuery?.tags.length > 0 && (
+          <TagsContainer>
+            {selectedQuery.tags.map((tag, index) => (
+              <Tag key={index} size='sm' type='high-contrast'>
+                {tag}
+              </Tag>
+            ))}
+          </TagsContainer>
+        )}
         <span className='spacer'></span>
+        {isSelectedInProgress && (
+          <Tag size='sm' type='blue'>
+            {t('searchInProgress')}
+          </Tag>
+        )}
+        {isSelectedHasError && (
+          <Tag size='sm' type='red'>
+            {t('searchError')}
+          </Tag>
+        )}
         {selectedQuery && (
           <>
             <SliderLabel>{t('topK')}</SliderLabel>
@@ -116,24 +195,53 @@ export const SearchContent: FC = () => {
             />
           </>
         )}
+        <IconButton label={t('SearchRerun')} autoAlign onClick={refetchQuery} kind='ghost'>
+          <Trigger />
+        </IconButton>
       </QueryHeader>
     );
   };
 
   const VideosContainer = () => {
+    if (selectedResults.length === 0 && selectedQuery && !isSelectedInProgress && !isSelectedHasError) {
+      return (
+        <div style={{ 
+          padding: '2rem', 
+          textAlign: 'center', 
+          color: '#525252',
+          fontStyle: 'italic'
+        }}>
+          <p>{t('noSearchResults', 'No videos found matching your search query.')}</p>
+          <p>{t('tryDifferentSearch', 'Try using different keywords or check if videos have been uploaded.')}</p>
+        </div>
+      );
+    }
+
     return (
       <>
         <div className='videos-container'>
-          {selectedResults.map((curr) => (
+          {selectedResults.map((_, index) => (
             <VideoTile
-              key={curr.metadata.id}
-              videoId={curr.metadata.video_id}
-              relevance={curr.metadata.relevance_score ?? null}
-              startTime={curr.metadata.timestamp}
+              key={`result-${index}`}
+              resultIndex={index}
             />
           ))}
         </div>
       </>
+    );
+  };
+
+  const ErrorMessage = () => {
+    if (!selectedQuery?.errorMessage) return null;
+    
+    return (
+      <ErrorMessageWrapper>
+        <div className='error-icon'>⚠️</div>
+        <div className='error-content'>
+          <div className='error-title'>{t('searchErrorTitle', 'Search Failed')}</div>
+          <div className='error-text'>{selectedQuery.errorMessage}</div>
+        </div>
+      </ErrorMessageWrapper>
     );
   };
 
@@ -145,7 +253,7 @@ export const SearchContent: FC = () => {
         {selectedQuery && (
           <>
             <QueryHeading />
-            <VideosContainer />
+            {isSelectedHasError ? <ErrorMessage /> : <VideosContainer />}
           </>
         )}
       </QueryContentWrapper>
