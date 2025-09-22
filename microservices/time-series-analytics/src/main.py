@@ -60,7 +60,7 @@ class DataPoint(BaseModel):
 class Config(BaseModel):
     """Configuration model for the service."""
     model_registry: dict = {"enable": False, "version": "1.0"}
-    udfs: dict = {"name": "udf_name"}
+    udfs: dict = {"name": "udf_name", "device": "cpu/gpu"}
     alerts: Optional[dict] = {}
 
 
@@ -392,7 +392,8 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     },
                     "udfs": {
                         "name": "udf_name",
-                        "model": "model_name"}
+                        "model": "model_name",
+                        "device": "cpu or gpu"}
                     "alerts": {
                     }
     responses:
@@ -453,6 +454,12 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             raise HTTPException(
             status_code=422,
             detail="Missing key 'name' in udfs"
+            )
+        if "device" in udfs and udfs["device"] not in ["cpu", "gpu"]:
+            logger.error("Invalid value for 'device' in udfs: %s, must be 'cpu' or 'gpu'", udfs["device"])
+            raise HTTPException(
+            status_code=422,
+            detail="Invalid value for 'device' in udfs, must be 'cpu' or 'gpu'"
             )
 
         config["model_registry"] = {}

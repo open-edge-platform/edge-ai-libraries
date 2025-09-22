@@ -414,6 +414,15 @@ def classifier_startup(config):
         model_name = config['udfs']['models']
     else:
         model_name = ""
+    device = "auto"
+    device_config = config['udfs'].get("device", None)
+    if device_config:
+        device = device_config.lower()
+        if device == "cpu":
+            device = "auto"
+        elif device != "gpu":
+            logger.error("Invalid value for 'device' in udfs: %s, must be 'cpu' or 'gpu'", device_config)
+            return
 
     if os.getenv("SAMPLE_APP") is not None:
         dir_name = os.getenv("SAMPLE_APP")
@@ -439,7 +448,8 @@ def classifier_startup(config):
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
         'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
-        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name)
+        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name),
+        'DEVICE': device
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]
