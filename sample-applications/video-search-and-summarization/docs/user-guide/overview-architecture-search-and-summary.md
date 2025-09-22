@@ -1,4 +1,4 @@
-# Video Search and Summary Architecture Overview
+# Video Search and Summary Architecture Overview (to be updated)
 
 The Video Search and Summary pipeline allows developers to deploy video summary capability in an on-prem environment and feeding on the private video. The application is built on a modular microservices approach and is intended to be scalable and customizable across multiple industry segment specific deployments. This page provides a technical overview of the application’s architecture, components, and extensibility.
 

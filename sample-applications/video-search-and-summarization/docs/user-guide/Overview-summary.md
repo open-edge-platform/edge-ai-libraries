@@ -6,10 +6,6 @@ Video Summary provides a rich pipeline with a host of capabilities aiding qualit
 
 ![Video Summary web interface](./images/VideoSumm_Webpage.png)
 
-## Table of Contents
-1. [Purpose](#purpose)
-2. [How to Use the Application](#how-to-use-the-application-effectively)
-
 ## Purpose
 
 This implementation of Video Summary pipeline is intended to address a broad set of industry segment specific requirements on video summarization targeting required accuracy - performance tradeoff. The implementation will be a composable pipeline of capabilities that help with video summarization accuracy while providing an insight into required compute for the chosen pipeline configuration. In essence, what the implementation provides is a means to realize different video summarization pipelines at certain performance and accuracy tradeoff. The figure below shows an example set of pipeline configurations corresponding to different compute requirements.
