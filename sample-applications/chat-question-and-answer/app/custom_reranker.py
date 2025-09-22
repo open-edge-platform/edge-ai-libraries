@@ -53,13 +53,17 @@ class CustomReranker:
             headers={"Content-Type": "application/json"},
         )
         if response.status_code == 200:
-            logging.info(response.json())
-
             res = response.json()
-            maxRank = max(res, key=lambda x: x["score"])
+            # Sort results by score in descending order
+            sorted_results = sorted(res, key=lambda x: x["score"], reverse=True)
+            # Take top 3 results or all if less than 3
+            top_k = min(3, len(sorted_results))
+            reranked_context = [
+                retrieved_docs["context"][item["index"]] for item in sorted_results[:top_k]
+            ]            
             return {
                 "question": retrieved_docs["question"],
-                "context": [retrieved_docs["context"][maxRank["index"]]],
+                "context": reranked_context,
             }
         else:
             raise Exception(f"Error: {response.status_code}, {response.text}")
