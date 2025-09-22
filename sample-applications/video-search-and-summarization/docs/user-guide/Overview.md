@@ -4,7 +4,7 @@ VSS foundational application provides three distinct modes in which its capabili
 
 1. [Video Summary](Overview-summary.md)
 2. [Video Search](Overview-search.md)
-3. [Video Search and Summary](Overview-seach-and-summary.md)
+3. [Video Search and Summary](Overview-search-and-summary.md)
 
 ## Other references
 
