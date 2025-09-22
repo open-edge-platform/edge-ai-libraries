@@ -1,7 +1,5 @@
 :prev_page: None
 
-.. _introduction:
-
 |top_name|
 ==========
 

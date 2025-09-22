@@ -1,5 +1,3 @@
-.. _Target_System:
-
 System Requirements
 ===================
 

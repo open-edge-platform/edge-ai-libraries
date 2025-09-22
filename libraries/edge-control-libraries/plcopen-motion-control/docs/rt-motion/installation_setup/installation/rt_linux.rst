@@ -141,4 +141,4 @@ On a **realtime-enabled** system, the result might be similar to the following:
 
 This result indicates an apparent short-term worst-case latency of 18 us. According to this, it is important to pay attention to the Max values as these are indicators of outliers. Even if the system has decent Avg (average) values, a single outlier as indicated by Max is enough to break or disturb a real-time system.
 
-If the real-time data is not good by default installation, please refer to :ref:`OS Setup <OS_Setup>` for BIOS optimization and `Optimize Performance <https://eci.intel.com/docs/3.3/development/performance.html>`_ to optimize Linux OS and application runtime on |Intel| Processors.
+If the real-time data is not good by default installation, please refer to :doc:`OS Setup <../prerequisites/os_setup>` for BIOS optimization and `Optimize Performance <https://eci.intel.com/docs/3.3/development/performance.html>`_ to optimize Linux OS and application runtime on |Intel| Processors.

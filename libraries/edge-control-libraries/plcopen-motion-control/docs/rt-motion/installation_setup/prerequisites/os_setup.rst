@@ -1,9 +1,7 @@
-.. _OS_Setup:
-
 OS Setup
 ========
 
-To leverage all |top_name| features, the target system should meet the :ref:`recommended system requirements <Target_System>`. Also, The target system must have a compatible OS (`Ubuntu 22.04 Desktop`) so that you can install Deb packages from SDK. This section explains the procedure to install a compatible OS on the target system.
+To leverage all |top_name| features, the target system should meet the :doc:`recommended system requirements <./system_requirement>`. Also, The target system must have a compatible OS (`Ubuntu 22.04 Desktop`) so that you can install Deb packages from SDK. This section explains the procedure to install a compatible OS on the target system.
 
 Do the following to prepare the target system:
 

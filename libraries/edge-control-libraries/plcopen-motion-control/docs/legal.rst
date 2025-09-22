@@ -2,7 +2,6 @@
    :width: 70
    :align: bottom
 
-.. _gsg_legal_disclaimers:
 
 Notices and Disclaimers |gsgs_legal|
 ====================================
