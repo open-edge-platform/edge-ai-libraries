@@ -8,7 +8,7 @@
 - Updated to OpenVINO™ model server version 2025.3.
 - Streamlined Docker-based application deployment steps.
 - Refreshed list of embedding models.
-- UI and NGINX containers now run with root privileges in Helm deployments.
+- UI and NGINX containers now run with non-root privileges in Helm deployments.
 - Various bug fixes.
 
 
