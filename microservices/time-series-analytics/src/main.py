@@ -455,7 +455,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             status_code=422,
             detail="Missing key 'name' in udfs"
             )
-        if "device" in udfs and udfs["device"] not in ["cpu", "gpu"]:
+        if "device" in udfs and udfs["device"].lower() not in ["cpu", "gpu"]:
             logger.error("Invalid value for 'device' in udfs: %s, must be 'cpu' or 'gpu'", udfs["device"])
             raise HTTPException(
             status_code=422,
