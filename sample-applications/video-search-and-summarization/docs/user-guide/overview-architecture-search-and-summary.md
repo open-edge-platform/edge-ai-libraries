@@ -69,9 +69,10 @@ The application flow involves the following steps for both search indexing and s
 6. **Observability dashboard**: 
    - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..   
 
-The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both search and summary capabilities.
+<!-- The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both search and summary capabilities.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
 *Figure 3: Dataflow for Video Search and Summary sample application
+-->
 
 ## Key Components and Their Roles
 <!--
