@@ -2,14 +2,25 @@
 
 The Video Search mode allows developers to customize and deploy the sample application in an on-premises environment and on their private video store without compromising on the accuracy of the responses. The application is built on a modular microservices approach using popular [LangChain\* framework](https://www.langchain.com/). This page provides a technical overview of the application’s architecture, components, and extensibility.
 
-## Purpose
+## Approach
+The Video Search sample application includes the following components:
 
-The Video Search pipeline is designed to:
-- Demonstrate how you can use Intel® Edge AI catalog of inference microservices to quickly build and deploy on Intel Edge AI systems' portfolio. 
-- Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Edge AI systems.
-- Showcase how popular frameworks like LangChain framework can be used to quickly implement or customize a video search pipeline and deploy the same on Intel Edge AI systems.
-- Showcase the competitiveness of Intel Edge AI systems to address varied deployment scenario requirements (edge-to-cloud).
-- Provide reference sample microservices for capabilities like video ingestion and UI frontend that reduces the effort to customize the application.
+- **Video Search UI**: Users can use the reference UI to interact with and use capabilities of the Video Search sample application. Queries are raised using the interface. Those queries that need to function in the background not just on current video corpus but all incoming videos can be marked as such in the UI. 
+
+- **Video ingestion microservice**: The sample video ingestion microservice allows ingestion of video from the object store. The ingestion process creates embeddings of the videos and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. The sample application uses [Visual Data Management System (VDMS)](https://github.com/IntelLabs/vdms) database. The raw videos are stored in the MinIO\* object store, which is also customizable.
+
+- **Video Search backend microservice**: The Video Search backend microservice handles the queries from the users. The backend microservice is responsible for embedding search; and generates the response using the VLM inference microservice.
+
+- **VLM inference microservice**: Intel's optimized [OpenVINO™ model server](https://github.com/openvinotoolkit/model_server) efficiently runs vision language models on Intel® harware. Developers have other model-serving options, too, if required.
+
+- **Embedding inference microservice**: The OpenVINO™ model server runs embedding models efficiently on the target Intel hardware.
+
+- **Reranking inference microservice**: Though an option, the reranker is currently not used in the pipeline. OpenVINO™ model server runs the reranker models.
+
+
+See details on the system architecture and customizable options [here](./overview-architecture-search.md).
+
+![System Architecture Diagram](./images/TEAI_VideoSearch.png)
 
 ## Detailed Architecture Overview
 <!--

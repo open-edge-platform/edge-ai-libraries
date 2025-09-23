@@ -2,31 +2,31 @@
 
 The page provides a technical overview of the Video Search and Summary application combined mode architecture, components, and extensibility. The documentation builds on top of the documentation of video search and video summarization capability in individual mode and highlights how the components are reused to realize the combined mode.
 
-## Architecture
-The system architecture diagram shows the Video Search and Summary pipeline and its constituent components. Following is a high-level overview of the components.
+## Approach
+The system architecture diagram shows the Video Search and Summary pipeline and its constituent components. All the components across video search and video summary is used to realize the combined mode. Following is a high-level overview of the components.
 
 1. **Video Search and Summary UI**: A reference UI is provided for users to interact with and exercise all capabilities of the video search and summary application, including video upload, search queries, and summary viewing.
 
-2. **Video Search and Summary pipeline manager**: The pipeline manager is the central orchestrator of both search and summary pipelines. It receives requests from the UI and coordinates the microservices to deliver unified search and summary capabilities. It provides asynchronous handling of video processing while simultaneously creating embeddings for search indexing.
+2. **Video pipeline manager**: The pipeline manager is the central orchestrator of both search and summary pipelines. It receives requests from the UI and coordinates the microservices to deliver unified search and summary capabilities. It provides asynchronous handling of video processing while simultaneously creating embeddings for search indexing.
 
-3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be both summarized and indexed for search. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.
+3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be both summarized and indexed for search. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server (DLSPS) to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.
 
-4. **Multimodal Embedding Generation**: The embedding microservice generates vector representations of video content (frames, captions, and audio transcriptions) that enable semantic search capabilities. These embeddings are created in parallel with the summary generation process and stored in a vector database for efficient retrieval.
+4. **Multimodal Embedding Generation**: The embedding microservice generates vector representations of video content - frames summary, captions summary, and audio transcriptions. The vector representations enables the semantic search capabilities. These embeddings are created in parallel with the summary generation process and stored in a vector database for efficient retrieval.
 
 5. **VLM as the captioning block**: The VLM microservice is responsible for generating captions for the specific video chunk. The VLM accepts prompts which also includes additional information from configured capabilities (like object detection) and generates the caption. The caption information is stored to the object store and also used for embedding generation.
 
-6. **LLM as the summarizer of captions**: The LLM microservice is used to generate the summary of the individual captions.
+6. **LLM as the summarizer of captions**: The LLM microservice is used to generate the summary of the individual captions. It is configurable if to use LLM or the VLM to generate such summaries.
 
 7. **Audio transcription**: The Audio transcription microservice helps create a transcription of the audio channel in the given video. The extracted audio transcription serves as another source of rich metadata that can be used both as an input to VLM and separately as text data to enrich the summary and search capabilities.
 
 8. **Vector Database and Search**: A vector database stores the multimodal embeddings and enables fast semantic search across the video collection. Users can search for videos using natural language queries that are matched against video content semantically.
 
-![System Architecture Diagram](./images/TEAI_VideoSumm.png)
+![System Architecture Diagram](./images/TEAI_VideoSearchSumm.png)
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture-summary.md).
 
 
-## Detailed Architecture Overview
+## Detailed Architecture
 <!--
 **User Stories Addressed**:
 - **US-7: Understanding the Architecture**  
