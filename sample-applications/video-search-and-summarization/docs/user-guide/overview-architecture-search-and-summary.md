@@ -22,8 +22,11 @@ The system architecture diagram shows the Video Search and Summary pipeline and 
 8. **Vector Database and Search**: A vector database stores the multimodal embeddings and enables fast semantic search across the video collection. Users can search for videos using natural language queries that are matched against video content semantically.
 
 ![System Architecture Diagram](./images/TEAI_VideoSearchSumm.png)
+*Figure 1: Architecture of video search and summary sample application
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture-summary.md).
+
+Note: In the figure, though Reranker is shown, the support for the same is a function of the VectorDB used. The default VSS pipeline uses VDMS VectorDB. Support for Reranker is not available with this VectorDB.
 
 
 ## Detailed Architecture
@@ -44,7 +47,7 @@ The VLM, LLM, and Embedding microservices are provided as part of Intel Edge AI 
 
 ### Architecture Diagram
 ![Technical Architecture Diagram of video search and summary](./images/TEAI_VideoSearchSumm_Arch.png)
-*Figure 2: Architecture of video search and summary sample application
+*Figure 2: Microservices used in video search and summary sample application
 
 ### Application Flow
 The application flow involves the following steps for both search indexing and summarization:

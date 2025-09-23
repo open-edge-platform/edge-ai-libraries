@@ -5,7 +5,7 @@ VSS foundational application provides three distinct modes in which its capabili
 
 1. :doc:`Video Summary <Overview-summary>`
 2. :doc:`Video Search <Overview-search>`
-3. Video Search and Summary
+3. :doc:`Video Search and Summary <Overview-search-summary>`
 
 Other references
 ################
@@ -25,6 +25,7 @@ To get started with the application, please refer to the :doc:`Get Started <./ge
    overview-architecture
    overview-architecture-search
    overview-architecture-summary
+   overview-architecture-search-summary
    system-requirements
    Get Started <get-started>
    build-from-source
