@@ -455,12 +455,16 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             status_code=422,
             detail="Missing key 'name' in udfs"
             )
-        if "device" in udfs and udfs["device"].lower() not in ["cpu", "gpu"]:
-            logger.error("Invalid value for 'device' in udfs: %s, must be 'cpu' or 'gpu'", udfs["device"])
-            raise HTTPException(
-            status_code=422,
-            detail="Invalid value for 'device' in udfs, must be 'cpu' or 'gpu'"
-            )
+        if "device" in udfs:
+            device_value = udfs["device"].lower()
+            is_valid = (device_value == "cpu" or 
+                       device_value == "gpu" or 
+                       (device_value.startswith("gpu:") and device_value.split(":")[1].isdigit()))
+            
+            if not is_valid:
+                error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
+                logger.error(error_msg)
+                raise HTTPException(status_code=422, detail=error_msg)
 
         config["model_registry"] = {}
         config["udfs"] = {}
