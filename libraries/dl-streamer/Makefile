@@ -6,17 +6,25 @@
 
 .DEFAULT_GOAL := help
 SHELL := /bin/bash
-nproc ?= 1
 
 PROJECT_DIRECTORY 			:= ${CURDIR}
 DLSTREAMER_INSTALL_PREFIX 	?= /opt/intel/dlstreamer
 DEPENDENCY_DIR				:= build/deps
-OPENVINO_DIR 				?= /opt/intel/openvino_2025/
+OPENVINO_DIR 				?= /opt/intel/openvino_2025
 
 DLSTREAMER_VERSION 	:= 0.0.0
 BUILD_TYPE 			?= Release
+ENABLE_GENAI        := OFF
 
 DOCKER_PRIVATE_REGISTRY := # Empty on purpose
+
+LINUX_DISTRIBUTION := $(shell lsb_release -ds | cut -d " " -f1)
+GENAI_DIR_SET := $(shell if [ -n "$$OpenVINOGenAI_DIR" ]; then echo true; else echo false; fi)
+ifeq ($(LINUX_DISTRIBUTION), Ubuntu)
+ifeq ($(GENAI_DIR_SET), true)
+	ENABLE_GENAI := ON
+endif
+endif
 
 export PATH 					:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/install/bin:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/bin:${HOME}/.local/bin:${HOME}/python3venv/bin:${PATH}
 export GST_PLUGIN_PATH 			:= ${PROJECT_DIRECTORY}/${DEPENDENCY_DIR}/gstreamer-bin/lib/gstreamer-1.0:${PROJECT_DIRECTORY}/build/intel64/${BUILD_TYPE}/lib:/usr/lib/x86_64-linux-gnu/gstreamer-1.0
@@ -34,7 +42,7 @@ dependencies:
 		-B build/deps \
 		-DCMAKE_BUILD_TYPE=${BUILD_TYPE} \
 		./dependencies
-	cmake --build build/deps
+	cmake --build build/deps -j$(shell nproc)
 
 .PHONY: build
 build: dependencies ## Compile Deep Learning Streamer
@@ -48,8 +56,9 @@ build: dependencies ## Compile Deep Learning Streamer
 		-DENABLE_RDKAFKA_INSTALLATION=ON \
 		-DENABLE_VAAPI=ON \
 		-DENABLE_SAMPLES=ON \
-		-DENABLE_TESTS=OFF 
-	cmake --build build
+		-DENABLE_GENAI=${ENABLE_GENAI} \
+		-DENABLE_TESTS=OFF; \
+	cmake --build build -j$(shell nproc)
 
 .PHONY: install
 install: build ## Build and install Deep Learning Streamer
