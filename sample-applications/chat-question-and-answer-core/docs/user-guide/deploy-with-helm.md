@@ -48,6 +48,8 @@ Next, choose the appropriate `values*.yaml` file based on the model framework yo
 
 - Ollama: Use `values-ollama.yaml`
 
+For OpenVINO framework, models (embedding, reranker and LLM) are downloaded from [HuggingFace Hub](https://huggingface.co/). For Ollama framework, models (embdding and LLM) are pulled from the [Ollama model registry](https://ollama.com/library).
+
 To enable GPU support, set the configuration parameter `gpu.enabled` to `true` and provide the corresponding `gpu.key` that assigned in your cluster node in the `values.yaml` file.
 
 GPU support only enabled for OpenVINO framework.
@@ -59,8 +61,8 @@ For detailed information on supported and validated hardware platforms and confi
 | --- | ----------- | ------------- | ------------- | ------------------- |
 | `configmap.enabled` | Enable use of ConfigMap for model configuration. Set to true to use ConfigMap; otherwise, defaults in the application are used. (true/false) | true | Always. Default to `true` in `values.yaml` | Both |
 | `global.huggingface.apiToken` | Hugging Face API token | `<your-huggingface-token>` | Always | OpenVINO |
-| `global.EMBEDDING_MODEL` | Embedding Model Name | BAAI/bge-small-en-v1.5 | If `configmap.enabled = true` | Both |
-| `global.LLM_MODEL	` | LLM model for OVMS | microsoft/Phi-3.5-mini-instruct | If `configmap.enabled = true` | Both |
+| `global.EMBEDDING_MODEL` | Embedding Model Name | OpenVINO:<br> - BAAI/bge-small-en-v1.5<br> <br> Ollama:<br> - bge-large | If `configmap.enabled = true` | Both |
+| `global.LLM_MODEL	` | LLM model for OVMS | OpenVINO:<br> - microsoft/Phi-3.5-mini-instruct<br> <br> Ollama:<br> - phi3 | If `configmap.enabled = true` | Both |
 | `global.RERANKER_MODEL` | Reranker model name	| BAAI/bge-reranker-base | If `configmap.enabled = true` | OpenVINO |
 | `global.PROMPT_TEMPLATE` | RAG template for formatting input to the LLM. Supports {context} and {question}. Leave empty to use default. | See `values.yaml` for example | Optional | Both |
 | `global.UI_NODEPORT` | Static port for UI service (30000–32767). Leave empty for automatic assignment. |  | Optional | Both |
