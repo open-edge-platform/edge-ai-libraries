@@ -40,7 +40,7 @@ LABEL description="This is the development image of Intel® Deep Learning Stream
 LABEL vendor="Intel Corporation"
 
 ARG GST_VERSION=1.26.4
-ARG OPENVINO_VERSION=2025.2.0
+ARG OPENVINO_VERSION=2025.3.0
 
 ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
@@ -95,7 +95,7 @@ RUN \
     libcairo2-dev=\* libxt-dev=\* libgirepository1.0-dev=\* libgles2-mesa-dev=\* wayland-protocols=\* \
     libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
     linux-libc-dev=\* libpmix2t64=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* \
-    ffmpeg=\* librdkafka-dev=\* libpaho-mqtt-dev=\* libopencv-dev=\* libpostproc-dev=\* libavfilter-dev=\* libavdevice-dev=\* \
+    ffmpeg=\* librdkafka-dev=\* libpaho-mqtt-dev=\* libopencv-dev=\* opencv-data=\* libpostproc-dev=\* libavfilter-dev=\* libavdevice-dev=\* \
     libswscale-dev=\* libswresample-dev=\* libavutil-dev=\* libavformat-dev=\* libavcodec-dev=\* libxml2-dev=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
@@ -191,6 +191,7 @@ RUN \
     -Dgst-plugins-bad:bs2b=disabled \
     -Dgst-plugins-bad:flite=disabled \
     -Dgst-plugins-bad:rtmp=disabled \
+    -Dgst-plugins-bad:opencv=enabled \
     -Dgst-plugins-bad:sbc=disabled \
     -Dgst-plugins-bad:teletext=disabled \
     -Dgst-plugins-bad:hls-crypto=openssl \
@@ -297,6 +298,12 @@ RUN \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# OpenVINO Gen AI
+ARG OPENVINO_GENAI_VER=openvino_genai_ubuntu24_${OPENVINO_VERSION}.0_x86_64
+ARG OPENVINO_GENAI_PKG=https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.3/linux/${OPENVINO_GENAI_VER}.tar.gz
+
+RUN curl -L ${OPENVINO_GENAI_PKG} | tar -xz && \
+    mv ${OPENVINO_GENAI_VER} /opt/intel/openvino_genai
 
 WORKDIR "$DLSTREAMER_DIR"
 
@@ -325,6 +332,7 @@ ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/pyth
 
 # Build DLStreamer
 RUN \
+    source /opt/intel/openvino_genai/setupvars.sh && \
     cmake \
        -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
        -DENABLE_PAHO_INSTALLATION=ON \
@@ -332,6 +340,7 @@ RUN \
        -DENABLE_VAAPI=ON \
        -DENABLE_SAMPLES=ON \
        -DENABLE_REALSENSE=ON \
+       -DENABLE_GENAI=ON \
        .. && \
        make -j "$(nproc)" && \
        usermod -a -G video dlstreamer && \
@@ -357,7 +366,9 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN \
+    mkdir -p /deb-pkg/usr/lib/ && \
     mkdir -p /deb-pkg/opt/intel/ && \
+    find /opt/intel/openvino_genai -regex '.*\/lib.*\(genai\|token\).*$' -exec cp -a {} /deb-pkg/usr/lib/ \; && \
     cp -r "${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}" /deb-pkg/opt/intel/dlstreamer && \
     cp -r "${DLSTREAMER_DIR}/samples/" /deb-pkg/opt/intel/dlstreamer/ && \
     cp -r "${DLSTREAMER_DIR}/python/" /deb-pkg/opt/intel/dlstreamer/ && \

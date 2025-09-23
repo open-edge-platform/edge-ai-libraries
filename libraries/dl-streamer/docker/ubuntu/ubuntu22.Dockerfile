@@ -40,7 +40,7 @@ LABEL description="This is the development image of Deep Learning Streamer (DL S
 LABEL vendor="Intel Corporation"
 
 ARG GST_VERSION=1.26.4
-ARG OPENVINO_VERSION=2025.2.0
+ARG OPENVINO_VERSION=2025.3.0
 
 ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
@@ -133,8 +133,43 @@ RUN \
 USER root
 
 ENV PATH="/python3venv/bin:${PATH}"
+# ==============================================================================
+FROM builder AS opencv-builder
 
-FROM builder AS gstreamer-builder
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
+# Build OpenCV
+WORKDIR /
+
+RUN \
+    curl -sSL -o opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip && \
+    curl -sSL -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.6.0.zip && \
+    unzip opencv.zip && \
+    unzip opencv_contrib.zip && \
+    rm opencv.zip opencv_contrib.zip && \
+    mv opencv-4.6.0 opencv && \
+    mv opencv_contrib-4.6.0 opencv_contrib && \
+    mkdir -p opencv/build
+
+WORKDIR /opencv/build
+
+RUN \
+    cmake \
+    -DBUILD_TESTS=OFF \
+    -DBUILD_PERF_TESTS=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_opencv_apps=OFF \
+    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
+    -DOPENCV_GENERATE_PKGCONFIG=YES \
+    -GNinja .. && \
+    ninja -j "$(nproc)" && \
+    ninja install
+
+WORKDIR /copy_libs
+RUN cp -a /usr/local/lib/libopencv* ./
+
+# ==============================================================================
+FROM opencv-builder AS gstreamer-builder
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
@@ -189,6 +224,7 @@ RUN \
     -Dgst-plugins-bad:bs2b=disabled \
     -Dgst-plugins-bad:flite=disabled \
     -Dgst-plugins-bad:rtmp=disabled \
+    -Dgst-plugins-bad:opencv=enabled \
     -Dgst-plugins-bad:sbc=disabled \
     -Dgst-plugins-bad:teletext=disabled \
     -Dgst-plugins-bad:hls-crypto=openssl \
@@ -253,39 +289,6 @@ RUN \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
 
 # ==============================================================================
-FROM builder AS opencv-builder
-
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-# Build OpenCV
-WORKDIR /
-
-RUN \
-    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.6.0.zip && \
-    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.6.0.zip && \
-    unzip opencv.zip && \
-    unzip opencv_contrib.zip && \
-    rm opencv.zip opencv_contrib.zip && \
-    mv opencv-4.6.0 opencv && \
-    mv opencv_contrib-4.6.0 opencv_contrib && \
-    mkdir -p opencv/build
-
-WORKDIR /opencv/build
-
-RUN \
-    cmake \
-    -DBUILD_TESTS=OFF \
-    -DBUILD_PERF_TESTS=OFF \
-    -DBUILD_EXAMPLES=OFF \
-    -DBUILD_opencv_apps=OFF \
-    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
-    -GNinja .. && \
-    ninja -j "$(nproc)" && \
-    ninja install
-
-WORKDIR /copy_libs
-RUN cp -a /usr/local/lib/libopencv* ./
-
 FROM builder AS kafka-builder
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
@@ -325,6 +328,12 @@ RUN \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
+# OpenVINO Gen AI
+ARG OPENVINO_GENAI_VER=openvino_genai_ubuntu22_${OPENVINO_VERSION}.0_x86_64
+ARG OPENVINO_GENAI_PKG=https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.3/linux/${OPENVINO_GENAI_VER}.tar.gz
+
+RUN curl -L ${OPENVINO_GENAI_PKG} | tar -xz && \
+    mv ${OPENVINO_GENAI_VER} /opt/intel/openvino_genai
 
 WORKDIR "$DLSTREAMER_DIR"
 
@@ -353,12 +362,14 @@ ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/pyth
 
 # Build DLStreamer
 RUN \
+    source /opt/intel/openvino_genai/setupvars.sh && \
     cmake \
     -DCMAKE_BUILD_TYPE="${BUILD_ARG}" \
     -DENABLE_PAHO_INSTALLATION=ON \
     -DENABLE_RDKAFKA_INSTALLATION=ON \
     -DENABLE_VAAPI=ON \
     -DENABLE_SAMPLES=ON \
+    -DENABLE_GENAI=ON \
     .. && \
     make -j "$(nproc)" && \
     usermod -a -G video dlstreamer && \
@@ -380,9 +391,11 @@ RUN apt-get update && \
     rm -rf /var/lib/apt/lists/*
 
 RUN \
+    mkdir -p /deb-pkg/usr/lib/ && \
     mkdir -p /deb-pkg/opt/intel/ && \
     mkdir -p /deb-pkg/opt/opencv/include && \
     mkdir -p /deb-pkg/opt/rdkafka && \
+    find /opt/intel/openvino_genai -regex '.*\/lib.*\(genai\|token\).*$' -exec cp -a {} /deb-pkg/usr/lib/ \; && \
     cp -r "${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}" /deb-pkg/opt/intel/dlstreamer && \
     cp -r "${DLSTREAMER_DIR}/samples/" /deb-pkg/opt/intel/dlstreamer/ && \
     cp -r "${DLSTREAMER_DIR}/python/" /deb-pkg/opt/intel/dlstreamer/ && \

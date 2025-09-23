@@ -42,7 +42,7 @@ LABEL vendor="Intel Corporation"
 ARG GST_VERSION=1.26.4
 ARG FFMPEG_VERSION=6.1.1
 
-ARG OPENVINO_VERSION=2025.2.0
+ARG OPENVINO_VERSION=2025.3.0
 
 ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
@@ -142,7 +142,41 @@ RUN cp -a /usr/local/lib/libav* ./ && \
     cp -a /usr/local/lib/libswresample* ./
 
 # ==============================================================================
-FROM ffmpeg-builder AS gstreamer-builder
+FROM ffmpeg-builder AS opencv-builder
+# OpenCV
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
+WORKDIR /
+
+RUN \
+    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip && \
+    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.10.0.zip && \
+    unzip opencv.zip && \
+    unzip opencv_contrib.zip && \
+    rm opencv.zip opencv_contrib.zip && \
+    mv opencv-4.10.0 opencv && \
+    mv opencv_contrib-4.10.0 opencv_contrib && \
+    mkdir -p opencv/build
+
+WORKDIR /opencv/build
+
+RUN \
+    cmake \
+    -DBUILD_TESTS=OFF \
+    -DBUILD_PERF_TESTS=OFF \
+    -DBUILD_EXAMPLES=OFF \
+    -DBUILD_opencv_apps=OFF \
+    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
+    -DOPENCV_GENERATE_PKGCONFIG=YES \
+    -GNinja .. && \
+    ninja -j "$(nproc)" && \
+    ninja install
+
+WORKDIR /copy_libs
+RUN cp -a /usr/local/lib64/libopencv* ./
+
+# ==============================================================================
+FROM opencv-builder AS gstreamer-builder
 # Build GStreamer
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 WORKDIR /home/dlstreamer
@@ -195,6 +229,7 @@ RUN \
     -Dgst-plugins-bad:bs2b=disabled \
     -Dgst-plugins-bad:flite=disabled \
     -Dgst-plugins-bad:rtmp=disabled \
+    -Dgst-plugins-bad:opencv=enabled \
     -Dgst-plugins-bad:sbc=disabled \
     -Dgst-plugins-bad:teletext=disabled \
     -Dgst-plugins-bad:hls-crypto=openssl \
@@ -257,39 +292,6 @@ RUN \
     rustup self uninstall -y && \
     rm -rf ./* && \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
-
-# ==============================================================================
-FROM ffmpeg-builder AS opencv-builder
-# OpenCV
-SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-WORKDIR /
-
-RUN \
-    curl -sSL --insecure -o opencv.zip https://github.com/opencv/opencv/archive/4.10.0.zip && \
-    curl -sSL --insecure -o opencv_contrib.zip https://github.com/opencv/opencv_contrib/archive/4.10.0.zip && \
-    unzip opencv.zip && \
-    unzip opencv_contrib.zip && \
-    rm opencv.zip opencv_contrib.zip && \
-    mv opencv-4.10.0 opencv && \
-    mv opencv_contrib-4.10.0 opencv_contrib && \
-    mkdir -p opencv/build
-
-WORKDIR /opencv/build
-
-RUN \
-    cmake \
-    -DBUILD_TESTS=OFF \
-    -DBUILD_PERF_TESTS=OFF \
-    -DBUILD_EXAMPLES=OFF \
-    -DBUILD_opencv_apps=OFF \
-    -DOPENCV_EXTRA_MODULES_PATH=/opencv_contrib/modules \
-    -GNinja .. && \
-    ninja -j "$(nproc)" && \
-    ninja install
-
-WORKDIR /copy_libs
-RUN cp -a /usr/local/lib64/libopencv* ./
 
 # ==============================================================================
 FROM builder AS kafka-builder
