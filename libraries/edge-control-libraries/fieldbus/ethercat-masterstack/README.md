@@ -19,9 +19,8 @@ For User-space EtherCAT Master Stack, please visit [Userspace EtherCAT Master St
 
 The architecture is as following:
 
-<p>
-    <img src="docs/images/igh_arch.png" alt="EtherCAT Master Stack Architecture" title="EtherCAT Master Stack Architecture" style="height:65%;width:65%;">
-</p>
+!["EtherCAT Master Stack Architecture"](docs/images/igh_arch.png)
+
 
 Three key blocks have been introduced to support the core architecture:
 * **Master Module** is as Kernel module containing one or more EtherCAT master instances, the 'Device interface' and the 'Application Interface'.
@@ -102,22 +101,16 @@ The below commands have to entered as root, which will install the EtherCAT head
 A mandatory ``ethercat`` file installed in ``/etc/sysconfig/``. The ``ethercat`` file contains the configuration variables needed to operate one or more masters. 
 Do the following to configure it:
 
-<p>
-    <img src="docs/images/ethercat_sysconfig.png" style="height:45%;width:45%;">
-</p>
+![Ethernet SysConfig](docs/images/ethercat_sysconfig.png)
 
 * Set **REBIND_NICS**. Use ``lspci`` to query net devices. One of the devices might be specified as an EtherCAT network interface.
 
-<p>
-    <img src="docs/images/lspci.png" style="height:45%;width:45%;">
-</p>
+![lspci](docs/images/lspci.png)
 
 * Fill the MAC address for **MASTER0_DEVICE**.
 Get the MAC address of the Network Interface Controllers (NICs) selected for EtherCAT.
 
-<p>
-    <img src="docs/images/ifconfig.png" style="height:45%;width:45%;">
-</p>
+![ifconfig](docs/images/ifconfig.png)
 
 **Note:** EtherCAT Master Stack supports dual master configuration. To configure a secondary master, fill the MAC address for **MASTER1_DEVICE** and add PCI address in **REBIND_NICS**.
 
@@ -159,7 +152,6 @@ After the ``init`` script and the ``sysconfig`` file are ready to configure, and
 | Status of EtherCAT Master  | ```/etc/init.d/ethercat status```            |
 
 ### Makefile Template for EtherCAT application
--------------------------------------------
 
 Provided below are some Makefile templates for EtherCAT application. These templates are provided to build EtherCAT application without ``Makefile.am``.
 
