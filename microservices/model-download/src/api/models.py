@@ -1,5 +1,5 @@
 from enum import Enum
-from typing import List, Optional, TypedDict
+from typing import List, Optional, TypedDict, Dict, Any
 from pydantic import BaseModel, Field
 
 class ModelPrecision(str, Enum):
@@ -12,6 +12,10 @@ class DeviceType(str, Enum):
     CPU = "CPU"
     GPU = "GPU"
 
+class ModelHub(Enum):
+    HUGGINGFACE = "huggingface"
+    ULTRALYTICS = "ultralytics"
+    OLLAMA = "ollama"
 
 class Config(BaseModel):
     precision: ModelPrecision = ModelPrecision.INT8
@@ -20,11 +24,17 @@ class Config(BaseModel):
 
 
 class ModelResult(TypedDict):
-    status: str
+    status: str  # 'success' or 'error'
     model_name: str
     model_path: Optional[str]
     error: Optional[str]
     is_ovms: Optional[bool]
+
+
+class DownloadResponse(BaseModel):
+    message: str
+    results: List[Dict[str, Any]]
+    model_path: Optional[str] = None
 
 
 class ModelRequest(BaseModel):
