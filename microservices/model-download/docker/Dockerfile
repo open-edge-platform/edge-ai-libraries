@@ -6,6 +6,8 @@ WORKDIR /app
 
 # Install system dependencies required for Poetry and the application
 RUN apt-get update && apt-get install -y \
+    libgl1 \
+    libsm6 \
     curl \
     git \
     build-essential \
@@ -34,6 +36,12 @@ ARG GID=1000
 
 RUN apt-get update && apt-get install -y \
     curl \
+    libmagic-dev \
+    libgl1 \
+    libsm6 \
+    libglib2.0-0 \
+    git \
+    build-essential \
     && rm -rf /var/lib/apt/lists/*
     
 # Create a non-root user

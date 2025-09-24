@@ -88,7 +88,7 @@ async def download_models(
                 
                 extra_kwargs["token"] = Authorization.credentials if Authorization else None
                 download_path = os.path.join(
-                    "models", download_path, model.hub, model.name.replace("/", "_")
+                    "models", download_path, model.hub
                 )
                 # First, register download job
                 download_job_id = model_manager.register_job(

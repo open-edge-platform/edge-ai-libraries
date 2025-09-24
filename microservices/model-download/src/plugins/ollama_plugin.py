@@ -1,89 +1,97 @@
 
 import os
 import subprocess
-from typing import Optional
-from utils.helper import cleanup_model_directory
-from utils.logging import logger
-from src.api.models import ModelRequest, ModelResult
-from src.core.interfaces import ModelDownloadPlugin
+import time
+from typing import Optional, Dict, Any, List, Callable
+from pathlib import Path
+from src.utils.helper import cleanup_model_directory
+from src.utils.logging import logger
+from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 
 
 class OllamaPlugin(ModelDownloadPlugin):
-    def download(self, model: ModelRequest, model_path: str, hf_token: Optional[str] = None) -> ModelResult:
-        return download_ollama_model(model, model_path)
-
-def download_ollama_model(model: ModelRequest, model_path: str) -> ModelResult:
-    """
-    Download a model from Ollama.
-
-    Args:
-        model (ModelRequest): The Ollama model request object to download.
-        model_path: Base path for model downloads
-
-    Returns:
-        ModelResult: Result containing the status and details of the model processing.
-
-    Raises:
-        OSError: If directory creation fails
-        HTTPException: If model download fails
-    """
-    import time
-
-    if model.is_ovms:
-        raise NotImplementedError(
-            "Ollama models do not support OVMS conversion at this time."
-        )
-
-    model_downloaded_path = None
-    try:
-        # Create model-specific directory
-        model_downloaded_path = os.path.join(
-            model_path, "ollama_models", model.name.replace("/", "_")
-        )
-        os.environ["OLLAMA_MODELS"] = model_downloaded_path
-
-        logger.info(f"Directory for Ollama model: {model_downloaded_path}")
+    """Plugin for downloading Ollama models"""
+    
+    @property
+    def plugin_name(self) -> str:
+        return "ollama"
+    
+    @property
+    def plugin_type(self) -> str:
+        return "downloader"
+    
+    def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
+        """Check if this plugin can handle the given model"""
+        # Case-insensitive check for the hub name
+        if hub.lower() == "ollama":
+            return True
+        return False
+    
+    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+        """Download the Ollama model"""
+        process = None
+        model_downloaded_path = os.path.join(output_dir, model_name.replace("/", "_"))
+        
         try:
-            os.makedirs(model_downloaded_path, exist_ok=True)
-        except OSError as e:
-            logger.error(f"Failed to create directory {model_downloaded_path}: {str(e)}")
-            return ModelResult(
-                status="error",
-                model_name=model.name,
-                model_path=None,
-                error=f"Failed to create model directory: {str(e)}",
-                is_ovms=None,
-            )
+            
+            logger.info(f"Model will be downloaded to: {model_downloaded_path}")
+            
+            os.environ["OLLAMA_MODELS"] = model_downloaded_path
 
-        logger.info("Starting ollama server")
-        process = subprocess.Popen(["ollama", "serve"])
+            logger.info(f"Directory for Ollama model: {model_downloaded_path}")
+            try:
+                os.makedirs(model_downloaded_path, exist_ok=True)
+            except OSError as e:
+                logger.error(f"Failed to create directory {model_downloaded_path}: {str(e)}")
+                raise RuntimeError(f"Failed to create model directory: {str(e)}")
 
-        # Sleep for 1 second to allow the server to be start
-        time.sleep(1)
+            logger.info("Starting ollama server")
+            process = subprocess.Popen(["ollama", "serve"])
 
-        logger.info(f"Starting download for Ollama model: {model.name}")
-        subprocess.run(["ollama", "pull", model.name], check=True)
-        logger.info(f"Ollama model {model} downloaded successfully.")
+            # Sleep for 1 second to allow the server to be start
+            time.sleep(1)
 
-        return ModelResult(
-            status="success",
-            model_name=model.name,
-            model_path=model_downloaded_path,
-            error=None,
-            is_ovms=model.is_ovms,
-        )
+            logger.info(f"Starting download for Ollama model: {model_name}")
+            subprocess.run(["ollama", "pull", model_name], check=True)
+            logger.info(f"Ollama model {model_name} downloaded successfully.")
 
-    except subprocess.CalledProcessError as e:
-        logger.error(f"Failed to download Ollama model {model}: {str(e)}")
-        return ModelResult(
-            status="error",
-            model_name=model.name,
-            model_path=None,
-            error=f"Failed to download Ollama model: {str(e)}",
-            is_ovms=False,
-        )
-    finally:
-        logger.info("Stopping ollama server")
-        process.terminate()
-        if model_downloaded_path is not None:
-            cleanup_model_directory(model_downloaded_path)
+            return {
+                "model_name": model_name,
+                "source": "ollama",
+                "download_path": model_downloaded_path,
+                "success": True
+            }
+        
+        except subprocess.CalledProcessError as e:
+            logger.error(f"Failed to download Ollama model {model_name}: {str(e)}")
+            raise RuntimeError(f"Failed to download Ollama model: {str(e)}")
+        finally:
+            if process is not None:
+                logger.info("Stopping ollama server")
+                process.terminate()
+    
+    def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
+        """
+        Get list of download tasks for a model.
+        Ollama does not support task-based downloading.
+        """
+        raise NotImplementedError("Ollama plugin does not support task-based downloading")
+    
+    def download_task(self, task: DownloadTask, output_dir: str, **kwargs) -> str:
+        """
+        Download a single task file.
+        Ollama does not support task-based downloading.
+        """
+        raise NotImplementedError("Ollama plugin does not support task-based downloading")
+    
+    def post_process(self, model_name: str, output_dir: str, downloaded_paths: List[str], **kwargs) -> Dict[str, Any]:
+        """
+        Post-process the downloaded files.
+        For Ollama, this is usually handled by the download process directly.
+        """
+        return {
+            "model_name": model_name,
+            "source": "ollama",
+            "download_path": output_dir,
+            "success": True
+        }
