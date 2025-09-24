@@ -2,7 +2,7 @@
 
 This section shows how to deploy the Video Search and Summary Sample Application using Helm chart.
 
-# Prerequisites
+## Prerequisites
 Before you begin, ensure that you have the following:
 - Kubernetes\* cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
@@ -11,17 +11,17 @@ Before you begin, ensure that you have the following:
 - **Storage Requirement :** Application requests for **50GiB** of storage in its default configuration. (This should change with choice of models and needs to be properly configured). Please make sure that required storage is available in you cluster.
 - Video Search and Summary requires PVC storage class to support `RWMany` mode. In case the default storage class used does not support it, consider using storage solution like [LongHorn](https://longhorn.io/docs/) that provides this support. Video Search and Summary intends to remove this prerequisite in future release and use only `RWOnce` mode. 
 
-# Helm Chart Installation
+## Helm Chart Installation
 
 In order to setup the end-to-end application, we need to acquire the charts and install it with optimal values and configurations. Subsequent sections will provide step by step details for the same.
 
-## 1. Acquire the helm chart
+### 1. Acquire the helm chart
 
 There are 2 options to get the charts in your workspace:
 
-### Option 1: Get the charts from Docker Hub
+#### Option 1: Get the charts from Docker Hub
 
-#### Step 1: Pull the Specific Chart
+##### Step 1: Pull the Specific Chart
 
 Use the following command to pull the Helm chart from Docker Hub:
 ```bash
@@ -30,7 +30,7 @@ helm pull oci://registry-1.docker.io/intel/video-search-and-summarization --vers
 
 Refer to the release notes for details on the latest version number to use for the sample application.
 
-#### Step 2: Extract the `.tgz` File
+##### Step 2: Extract the `.tgz` File
 
 After pulling the chart, extract the `.tgz` file:
 ```bash
@@ -43,16 +43,16 @@ This will create a directory named `video-search-and-summarization` containing t
 cd video-search-and-summarization
 ```
 
-### Option 2: Install from Source
+#### Option 2: Install from Source
 
-#### Step 1: Clone the Repository
+##### Step 1: Clone the Repository
 
 Clone the repository containing the Helm chart:
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 ```
 
-#### Step 2: Change to the Chart Directory
+##### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
 
@@ -61,7 +61,7 @@ cd edge-ai-libraries/sample-applications/video-search-and-summarization/chart
 ```
 
 
-## 2. Configure Required Values
+### 2. Configure Required Values
 
 The application requires several values to be set by user in order to work. To make it easier, we have included a `user_values_override.yaml` file, which contains only the values that user needs to tweak. Open the file in your favorite editor or use nano:
 
@@ -94,7 +94,7 @@ Update or edit the values in YAML file as follows:
 | `multimodalembeddingms.imageEmbeddingModel` | Embedding model name used in standalone video search application | `openai/clip-vit-base-patch32` |
 
 
-## 3. Build Helm Dependencies
+### 3. Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
 
@@ -102,7 +102,7 @@ Navigate to the chart directory and build the Helm dependencies using the follow
 helm dependency update
 ```
 
-## 4. Set and Create a Namespace
+### 4. Set and Create a Namespace
 
 We will install the helm chart in a new namespace. Create a shell variable to refer a new namespace and create it.
 
@@ -121,13 +121,13 @@ We will install the helm chart in a new namespace. Create a shell variable to re
 > **_NOTE :_** All subsequent steps assume that you have `my_namespace` variable set and accessible on your shell with the desired namespace as its value.
 
 
-## 5. Deploy the Helm Chart
+### 5. Deploy the Helm Chart
 
-At present, there are 6 use-cases for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the helm chart.
+At present, there are 4 use-cases for **Video Search and Summarization Application**. We will learn how to deploy each use-case using the helm chart.
 
 > **_NOTE :_** Before switching to a different use-case always stop the current running use-case's application stack (if any) by uninstalling the chart : `helm uninstall vss -n $my_namespace`. This is not required if you are installing the helm chart for the first time.
 
-### **Use Case 1: Video Summarization Only (Using VLM Microservice)**
+#### **Use Case 1: Video Summarization Only (Using VLM Microservice)**
 
 Deploy the Video Summarization application:
 
@@ -137,7 +137,7 @@ helm install vss . -f summary_override.yaml -f user_values_override.yaml -n $my_
 
 > **_NOTE :_** Delete the chart for installing the chart in other modes `helm uninstall vss -n $my_namespace`
 
-### **Use Case 2: Video Summarization with OVMS Microservice (OpenVINO Model Serving)**
+#### **Use Case 2: Video Summarization with OVMS Microservice (OpenVINO Model Serving)**
 
 If you want to use OVMS for LLM Summarization, deploy with the OVMS override values:
 
@@ -146,7 +146,7 @@ helm install vss . -f summary_override.yaml -f ovms_override.yaml -f user_values
 ```
 **Note:** When deploying OVMS, the OVMS service may take more time to start due to model conversion.
 
-### **Use Case 3: Video Search Only**
+#### **Use Case 3: Video Search Only**
 
 To deploy only the Video Search functionality, use the search override values:
 
@@ -154,7 +154,7 @@ To deploy only the Video Search functionality, use the search override values:
 helm install vss . -f search_override.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-### **Use Case 4: Unified Video Search and Summarization**
+#### **Use Case 4: Unified Video Search and Summarization**
 
 To deploy only the Video Search functionality, use the search override values:
 

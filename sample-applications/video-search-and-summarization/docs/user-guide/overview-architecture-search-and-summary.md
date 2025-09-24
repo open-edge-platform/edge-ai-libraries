@@ -1,39 +1,35 @@
 # Video Search and Summary Architecture Overview
 
-The Video Search and Summary pipeline allows developers to deploy video summary capability in an on-prem environment and feeding on the private video. The application is built on a modular microservices approach and is intended to be scalable and customizable across multiple industry segment specific deployments. This page provides a technical overview of the application’s architecture, components, and extensibility.
+The page provides a technical overview of the Video Search and Summary application combined mode architecture, components, and extensibility. The documentation builds on top of the documentation of video search and video summarization capability in individual mode and highlights how the components are reused to realize the combined mode.
 
-   - **What it is**: The UI microservice allows the user to interact with the sample application. It allows the user to configure the capabilities required on both search and summary pipelines, configure the input video details, trigger the processing pipeline, and perform semantic searches across the processed video collection.
-   - **How it's used**: UI interface should be used by the user to interact with this microservice for both uploading videos for processing and searching through the video collection.
-   - **Benefits**: This microservice should be treated as a sample reference implementation that demonstrates the unified search and summary capabilities.earch and Summary Pipeline manager microservice**:
-   - **What it is**: This microservice is the heart of the video search and summary sample application as it orchestrates both pipelines as per user configuration. The pipeline manager uses a message bus to coordinate across different microservices and also provides performance motivated capabilities like batching and parallel handling of multiple operations for both search indexing and summarization.
-   - **How it's used**: A REST API endpoint is provided which is used by the UI frontend to send user queries, trigger the summary pipeline, and perform semantic searches across the video collection.
-   - **Benefits**: The microservice provides a reference of how the different microservices have to be orchestrated for both video search and summary pipelines.lopers to deploy both video search and summary capabilities in an on-prem environment, feeding on private video collections. The application provides a unified workflow where videos are simultaneously processed for summarization and indexed for semantic search through multimodal embeddings. Built on a modular microservices approach, it is intended to be scalable and customizable across multiple industry segment specific deployments. This page provides a technical overview of the application's architecture, components, and extensibility.ideo Summary Architecture Overview
-
-## Architecture
-The system architecture diagram shows the Video Search and Summary pipeline and its constituent components. Following is a high-level overview of the components.
+## Approach
+The system architecture diagram shows the Video Search and Summary pipeline and its constituent components. All the components across video search and video summary is used to realize the combined mode. Following is a high-level overview of the components.
 
 1. **Video Search and Summary UI**: A reference UI is provided for users to interact with and exercise all capabilities of the video search and summary application, including video upload, search queries, and summary viewing.
 
-2. **Video Search and Summary pipeline manager**: The pipeline manager is the central orchestrator of both search and summary pipelines. It receives requests from the UI and coordinates the microservices to deliver unified search and summary capabilities. It provides asynchronous handling of video processing while simultaneously creating embeddings for search indexing.
+2. **Video pipeline manager**: The pipeline manager is the central orchestrator of both search and summary pipelines. It receives requests from the UI and coordinates the microservices to deliver unified search and summary capabilities. It provides asynchronous handling of video processing while simultaneously creating embeddings for search indexing.
 
-3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be both summarized and indexed for search. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.
+3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be both summarized and indexed for search. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server (DLSPS) to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.
 
-4. **Multimodal Embedding Generation**: The embedding microservice generates vector representations of video content (frames, captions, and audio transcriptions) that enable semantic search capabilities. These embeddings are created in parallel with the summary generation process and stored in a vector database for efficient retrieval.
+4. **Multimodal Embedding Generation**: The embedding microservice generates vector representations of video content - frames summary, captions summary, and audio transcriptions. The vector representations enables the semantic search capabilities. These embeddings are created in parallel with the summary generation process and stored in a vector database for efficient retrieval.
 
 5. **VLM as the captioning block**: The VLM microservice is responsible for generating captions for the specific video chunk. The VLM accepts prompts which also includes additional information from configured capabilities (like object detection) and generates the caption. The caption information is stored to the object store and also used for embedding generation.
 
-6. **LLM as the summarizer of captions**: The LLM microservice is used to generate the summary of the individual captions.
+6. **LLM as the summarizer of captions**: The LLM microservice is used to generate the summary of the individual captions. It is configurable if to use LLM or the VLM to generate such summaries.
 
 7. **Audio transcription**: The Audio transcription microservice helps create a transcription of the audio channel in the given video. The extracted audio transcription serves as another source of rich metadata that can be used both as an input to VLM and separately as text data to enrich the summary and search capabilities.
 
 8. **Vector Database and Search**: A vector database stores the multimodal embeddings and enables fast semantic search across the video collection. Users can search for videos using natural language queries that are matched against video content semantically.
 
-![System Architecture Diagram](./images/TEAI_VideoSumm.png)
+![System Architecture Diagram](./images/TEAI_VideoSearchSumm.png)
+*Figure 1: Architecture of video search and summary sample application
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture-summary.md).
 
+Note: In the figure, though Reranker is shown, the support for the same is a function of the VectorDB used. The default VSS pipeline uses VDMS VectorDB. Support for Reranker is not available with this VectorDB.
 
-## Detailed Architecture Overview
+
+## Detailed Architecture
 <!--
 **User Stories Addressed**:
 - **US-7: Understanding the Architecture**  
@@ -50,8 +46,8 @@ Video Search and Summary application is a unified pipeline that provides both se
 The VLM, LLM, and Embedding microservices are provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs like [Hugging Face OpenVINO](https://huggingface.co/OpenVINO). The video ingestion microservice provides capability to ingest common video formats, chunk the video, feed the extracted frames to configurable capabilities like object detection, and provide the output to both the VLM microservice for captioning and the embedding microservice for search indexing. The individual captions are then summarized by the LLM microservice to provide the final summary, while simultaneously being converted to embeddings and stored in a vector database for semantic search. The audio transcription microservice provides ability to transcribe the audio using Whisper model, contributing to both summary generation and search capabilities. An object store is used to save the raw videos, frames, and generated metadata, while a vector database stores the embeddings for fast semantic search.
 
 ### Architecture Diagram
-![Technical Architecture Diagram of video search and summary](./images/TEAI_VideoSumm_Arch.png)
-*Figure 2: Architecture of video search and summary sample application
+![Technical Architecture Diagram of video search and summary](./images/TEAI_VideoSearchSumm_Arch.png)
+*Figure 2: Microservices used in video search and summary sample application
 
 ### Application Flow
 The application flow involves the following steps for both search indexing and summarization:
@@ -76,9 +72,10 @@ The application flow involves the following steps for both search indexing and s
 6. **Observability dashboard**: 
    - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..   
 
-The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both search and summary capabilities.
+<!-- The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both search and summary capabilities.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
 *Figure 3: Dataflow for Video Search and Summary sample application
+-->
 
 ## Key Components and Their Roles
 <!--
