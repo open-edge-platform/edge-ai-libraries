@@ -26,6 +26,7 @@ Learn how to structure and set parameters for your pipelines using JSON files [h
 
 Learn how to tailor your pipeline requests to meet specific requirements [here](./customizing_pipeline_requests.md).
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -33,4 +34,4 @@ restapi_reference_guide.md
 defining_pipelines.md
 customizing_pipeline_requests.md
 ```
-   
+hide_directive-->
