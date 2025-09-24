@@ -1,3 +1,5 @@
 # Import all plugins so they can be discovered
 from src.plugins.ultralytics_plugin import UltralyticsDownloader
+#from src.plugins.huggingface_plugin import HuggingFacePlugin
+from src.plugins.ollama_plugin import OllamaPlugin  
 # Add any other plugins here

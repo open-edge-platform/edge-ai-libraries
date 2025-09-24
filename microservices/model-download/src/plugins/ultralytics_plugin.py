@@ -121,22 +121,17 @@ class UltralyticsDownloader(ModelDownloadPlugin):
 
         # Prepare environment with MODELS_PATH
         env = os.environ.copy()
-        # if models_path:
-        #     env["MODELS_PATH"] = models_path
-        #     logger.info(f"Using MODELS_PATH={models_path}")
-        # elif "MODELS_PATH" not in env:
-        #     # Default to models/ directory in the current working directory
-        #     default_models_path = str(Path.cwd() / "models")
-        #     env["MODELS_PATH"] = default_models_path
-        #     logger.info(f"MODELS_PATH not set, using default: {default_models_path}")
-
+        env['MODELS_PATH'] = models_path
+        logger.info(f"Setting MODELS_PATH to {models_path}")
         # Execute the bash script and capture output
+        logger.info(f"Starting download for Ultralytics model: {env}")    
         logger.info("Command to be executed: " + ' '.join(cmd))
         process = subprocess.Popen(
             cmd,
             stdout=subprocess.PIPE,
-            stderr=subprocess.PIPE,
+            stderr=subprocess.STDOUT,
             universal_newlines=True,
+            text=True,
             env=env
         )
         

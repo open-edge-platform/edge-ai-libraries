@@ -7,7 +7,6 @@ services:
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - LOG_LEVEL=INFO
-      - MODELS_PATH=~/models
     ports:
       - "8200:8000"  # Map container port 8000 to host port 8200
     volumes:
