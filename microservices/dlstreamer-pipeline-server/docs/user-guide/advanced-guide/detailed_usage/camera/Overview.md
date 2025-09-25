@@ -3,7 +3,7 @@
     - [RTSP Cameras](#rtsp-cameras)
     <!-- - [GenICam GigE or USB3 Cameras](#eis-genicam-gige-or-usb3-cameras)
     - [USB v4l2 Cameras](#usb-v4l2-cameras) -->
-    
+
 ## Camera configurations
 Following section describes different types of camera sources that are supported by DL Streamer Pipeline Server in a DL Streamer pipeline.
 
@@ -17,9 +17,10 @@ Refer to the [doc](genicam.md) for configuration details on GigE/USB3 cameras.
 Refer to the [doc](usb.md) for configuration details on the USB cameras. To dynamically specify the USB source via REST request, refer to this [section](../rest_api/customizing_pipeline_requests.md#web-camera-source). -->
 
 
-
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
 rtsp.md
 ```
+hide_directive-->

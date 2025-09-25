@@ -18,6 +18,7 @@ The Image ingestion feature is responsible for ingesting the images coming from 
 ### Multifilesrc usage
 Refer this [doc](./multifilesrc_doc.md) for more details.
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -25,3 +26,4 @@ image_ingestion.md
 video_ingestion.md
 multifilesrc_doc.md
 ```
+hide_directive-->
