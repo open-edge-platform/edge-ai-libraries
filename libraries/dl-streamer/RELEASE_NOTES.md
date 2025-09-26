@@ -47,7 +47,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Deep Scenario model support | Commercial 3D model support |
 | Anomaly model support | Added support for anomaly model, [sample](./samples/gstreamer/gst_launch/geti_deployment) added as reference, sample added as reference. |
 | RealSense element support | New [gvarealsense](./docs/source/elements/gvarealsense.md) element implementation providing basic integration with Intel RealSense cameras, enabling video and depth stream capture for use in GStreamer pipelines. |
-| OpenVINO 2025.2 version support | Support of recent OpenVINO version added. |
+| OpenVINO 2025.3 version support | Support of recent OpenVINO version added. |
 | GStreamer 1.26.4 version support | Support of recent GStreamer version added. |
 | NPU 1.19 version driver support | Support of recent NPU driver version added. |
 | Docker image size reduction | Reduction for all images, e.g., Ubuntu 24 Release image size reduced to 1.6GB from 2.6GB |
@@ -80,23 +80,23 @@ The complete solution leverages:
 
 | Element| Description|
 |--------|------------|
-| [gvadetect](https://dlstreamer.github.io/elements/gvadetect)| Performs object detection on a full-frame or region of interest (ROI) using object detection models such as YOLOv4-v11, MobileNet SSD, Faster-RCNN etc. Outputs the ROI for detected objects.  |
-| [gvaclassify](https://dlstreamer.github.io/elements/gvaclassify) | Performs object classification. Accepts the ROI as an input and outputs classification results with the ROI metadata.                                                                      |
-| [gvainference](https://dlstreamer.github.io/elements/gvainference) | Runs deep learning inference on a full-frame or ROI using any model with an RGB or BGR input.|
-| [gvatrack](https://dlstreamer.github.io/elements/gvatrack)| Performs object tracking using zero-term, or imageless tracking algorithms. Assigns unique object IDs to the tracked objects.                                                   |
-| [gvaaudiodetect](https://dlstreamer.github.io/elements/gvaaudiodetect) | Performs audio event detection using AclNet model. |
-| [gvaattachroi](https://dlstreamer.github.io/elements/gvaattachroi.html) | Adds user-defined regions of interest to perform inference on, instead of full frame.|
-| [gvafpscounter](https://dlstreamer.github.io/elements/gvafpscounter) | Measures frames per second across multiple streams in a single process. |
-| [gvametaaggregate](https://dlstreamer.github.io/elements/gvametaaggregate.html) | Aggregates inference results from multiple pipeline branches |
-| [gvametaconvert](https://dlstreamer.github.io/elements/gvametaconvert) | Converts the metadata structure to the JSON format.|
-| [gvametapublish](https://dlstreamer.github.io/elements/gvametapublish) | Publishes the JSON metadata to MQTT or Kafka message brokers or files. |
-| [gvapython](https://dlstreamer.github.io/elements/gvapython) | Provides a callback to execute user-defined Python functions on every frame. Can be used for metadata conversion, inference post-processing, and other tasks.|
-| [gvawatermark](https://dlstreamer.github.io/elements/gvawatermark) | Overlays the metadata on the video frame to visualize the inference results. |
+| [gvadetect](./docs/source/elements/gvadetect.md)| Performs object detection on a full-frame or region of interest (ROI) using object detection models such as YOLOv4-v11, MobileNet SSD, Faster-RCNN etc. Outputs the ROI for detected objects.  |
+| [gvaclassify](./docs/source/elements/gvaclassify.md) | Performs object classification. Accepts the ROI as an input and outputs classification results with the ROI metadata.                                                                      |
+| [gvainference](./docs/source/elements/gvainference.md) | Runs deep learning inference on a full-frame or ROI using any model with an RGB or BGR input.|
+| [gvatrack](./docs/source/elements/gvatrack.md)| Performs object tracking using zero-term, or imageless tracking algorithms. Assigns unique object IDs to the tracked objects.                                                   |
+| [gvaaudiodetect](./docs/source/elements/gvaaudiodetect.md) | Performs audio event detection using AclNet model. |
+| [gvaattachroi](./docs/source/elements/gvaattachroi.md) | Adds user-defined regions of interest to perform inference on, instead of full frame.|
+| [gvafpscounter](./docs/source/elements/gvafpscounter.md) | Measures frames per second across multiple streams in a single process. |
+| [gvametaaggregate](./docs/source/elements/gvametaaggregate.md) | Aggregates inference results from multiple pipeline branches |
+| [gvametaconvert](./docs/source/elements/gvametaconvert.md) | Converts the metadata structure to the JSON format.|
+| [gvametapublish](./docs/source/elements/gvametapublish.md) | Publishes the JSON metadata to MQTT or Kafka message brokers or files. |
+| [gvapython](./docs/source/elements/gvapython.md) | Provides a callback to execute user-defined Python functions on every frame. Can be used for metadata conversion, inference post-processing, and other tasks.|
+| [gvawatermark](./docs/source/elements/gvawatermark.md) | Overlays the metadata on the video frame to visualize the inference results. |
 
 
-For the details of supported platforms, please refer to [System Requirements](https://dlstreamer.github.io/get_started/system_requirements.html) section.
+For the details of supported platforms, please refer to [System Requirements](./docs/source/get_started/system_requirements.md) section.
 
-For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [DL Streamer Pipeline Framework installation guide](https://dlstreamer.github.io/get_started/install/install_guide_index.html)
+For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md)
 
 ## New in this Release
 
@@ -347,7 +347,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 
 ### System Requirements
 
-Please refer to [DL Streamer documentation](https://dlstreamer.github.io/get_started/system_requirements.html).
+Please refer to [DL Streamer documentation](./docs/source/get_started/system_requirements.md).
 
 ## Installation Notes
 
@@ -357,7 +357,7 @@ There are several installation options for Pipeline Framework:
 1. Build Docker image from docker file and run Docker image
 1. Build Pipeline Framework from source code
 
-For more detailed instructions please refer to [DL Streamer Pipeline Framework installation guide](https://dlstreamer.github.io/get_started/install/install_guide_index.html).
+For more detailed instructions please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md).
 
 ## Samples
 

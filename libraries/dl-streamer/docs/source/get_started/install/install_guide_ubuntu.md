@@ -99,7 +99,7 @@ drivers. For more details see [prerequisites](#prerequisites).
   sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
   ```
 
-  > **NOTE:** If you have OpenVINO™ installed in a version different from 2025.2.0,
+  > **NOTE:** If you have OpenVINO™ installed in a version different from 2025.3.0,
   > please uninstall the OpenVINO™ packages using the following commands.
 
   ```bash
@@ -128,7 +128,7 @@ To see the full list of installed components check the
 The Python packages required to run Deep Learning Streamer python elements
 or samples are not installed by default. You can install them using
 commands from
-[Advanced Install Guide Compilation / Install Python dependencies](../../dev_guide/advanced_install/advanced_install_guide_compilation.html#step-6-install-python-dependencies)
+[Advanced Install Guide Compilation / Install Python dependencies](../../dev_guide/advanced_install/advanced_install_guide_compilation.md#step-9-install-python-dependencies-optional).
 
 ### [Optional] Step 5: Post installation steps
 

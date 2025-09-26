@@ -1,7 +1,5 @@
-.. _Target_System:
-
-System Requirement
-=================================
+System Requirements
+===================
 
 This section outlines the system requirements for |top_name|, detailing the necessary hardware and software components to ensure functionality, compatibility and optimal performance.
 

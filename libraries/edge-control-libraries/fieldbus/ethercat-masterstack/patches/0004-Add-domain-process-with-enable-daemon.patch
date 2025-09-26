@@ -1,0 +1,226 @@
+From 7367c31053d29f560d078d56dc176398dadd9b2c Mon Sep 17 00:00:00 2001
+From: Zhang Wei <wei.e.zhang@intel.com>
+Date: Wed, 2 Jul 2025 13:48:16 +0800
+Subject: [PATCH 4/4] Add domain process with enable-daemon
+
+Signed-off-by: Zhang Wei <wei.e.zhang@intel.com>
+---
+ examples/dual_master/Makefile.am |  3 +--
+ examples/ecatdio/Makefile.am     |  6 ++++--
+ examples/ecatmotor/Makefile.am   |  6 ++++--
+ examples/multi_axis/Makefile.am  |  6 ++++--
+ include/ecrt.h                   |  2 ++
+ ipc/ipc_ctrl.c                   | 16 ++++++++--------
+ lib/master.c                     |  4 ++--
+ master/ethercatd.c               |  4 +++-
+ master/master.c                  |  2 +-
+ 9 files changed, 29 insertions(+), 20 deletions(-)
+
+diff --git a/examples/dual_master/Makefile.am b/examples/dual_master/Makefile.am
+index 0ab8a205..86a40478 100644
+--- a/examples/dual_master/Makefile.am
++++ b/examples/dual_master/Makefile.am
+@@ -45,8 +45,7 @@ ec_dualmaster_example_CFLAGS += \
+ 
+ ec_dualmaster_example_LDFLAGS += \
+         -L${top_builddir}/lib/.libs \
+-	-lethercat \
+-	-DEC_ENABLE_DAEMON=1
++	-lethercat
+ else
+ ec_dualmaster_example_LDFLAGS += \
+ 	-L$(top_builddir)/master/.libs -lethercatd
+diff --git a/examples/ecatdio/Makefile.am b/examples/ecatdio/Makefile.am
+index bce2b829..3cd379b5 100644
+--- a/examples/ecatdio/Makefile.am
++++ b/examples/ecatdio/Makefile.am
+@@ -53,15 +53,17 @@ ec_ecatdio_example_LDFLAGS = \
+ 	-lrt -lpthread -lmodbus
+ if ENABLE_USERMODE
+ if ENABLE_DAEMON
++ec_ecatdio_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_ecatdio_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ else
+ ec_ecatdio_example_LDFLAGS += \
+ 	-L$(top_builddir)/master/.libs -lethercatd
+ endif
+ else
++ec_ecatdio_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_ecatdio_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ endif
+ endif
+ 
+diff --git a/examples/ecatmotor/Makefile.am b/examples/ecatmotor/Makefile.am
+index e451d963..d644d552 100644
+--- a/examples/ecatmotor/Makefile.am
++++ b/examples/ecatmotor/Makefile.am
+@@ -52,15 +52,17 @@ ec_motor_example_LDFLAGS = \
+ 	-lrt -lpthread
+ if ENABLE_USERMODE
+ if ENABLE_DAEMON
++ec_motor_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_motor_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ else
+ ec_motor_example_LDFLAGS += \
+ 	-L$(top_builddir)/master/.libs -lethercatd
+ endif
+ else
++ec_motor_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_motor_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ endif
+ endif
+ 
+diff --git a/examples/multi_axis/Makefile.am b/examples/multi_axis/Makefile.am
+index 5078889f..74b6bd72 100644
+--- a/examples/multi_axis/Makefile.am
++++ b/examples/multi_axis/Makefile.am
+@@ -52,15 +52,17 @@ ec_multi_axis_example_LDFLAGS = \
+ 	-lrt -lpthread -lmodbus
+ if ENABLE_USERMODE
+ if ENABLE_DAEMON
++ec_multi_axis_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_multi_axis_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ else
+ ec_multi_axis_example_LDFLAGS += \
+ 	-L$(top_builddir)/master/.libs -lethercatd
+ endif
+ else
++ec_multi_axis_example_CFLAGS += -DEC_ENABLE_DAEMON=1
+ ec_multi_axis_example_LDFLAGS += \
+-	-L$(top_builddir)/lib/.libs -lethercat -DEC_ENABLE_DAEMON=1
++	-L$(top_builddir)/lib/.libs -lethercat
+ endif
+ endif
+ 
+diff --git a/include/ecrt.h b/include/ecrt.h
+index 8a35c325..cce02457 100644
+--- a/include/ecrt.h
++++ b/include/ecrt.h
+@@ -657,6 +657,7 @@ EC_PUBLIC_API ec_master_t *ecrt_request_master(
+         );
+ 
+ #ifdef EC_USERMODE
++#if !EC_ENABLE_DAEMON
+ /** Waiting EtherCAT Master state initial and slave status ready.
+  *
+  * This function waits for the EtherCAT master to be in the initial state and
+@@ -690,6 +691,7 @@ EC_PUBLIC_API ec_master_t *ecrt_masters_create(
+         unsigned int size /**< Size of the master array. */
+         );
+ #endif
++#endif
+ 
+ #ifndef __KERNEL__
+ 
+diff --git a/ipc/ipc_ctrl.c b/ipc/ipc_ctrl.c
+index d6c34806..76cf7388 100644
+--- a/ipc/ipc_ctrl.c
++++ b/ipc/ipc_ctrl.c
+@@ -86,6 +86,10 @@ static long ec_msg_payload_prepare(unsigned int cmd, void *dest, void *src)
+             }
+             break;
+         case EC_IOCTL_MASTER_DEBUG:
++        case EC_IOCTL_DOMAIN_QUEUE:
++        case EC_IOCTL_DOMAIN_PROCESS:
++        case EC_IOCTL_DOMAIN_OFFSET:
++        case EC_IOCTL_DOMAIN_SIZE:
+             size = sizeof(unsigned long);
+             memcpy(dest, src, size);
+             break;
+@@ -99,10 +103,6 @@ static long ec_msg_payload_prepare(unsigned int cmd, void *dest, void *src)
+         case EC_IOCTL_SYNC_SLAVES:
+         case EC_IOCTL_SYNC_MON_QUEUE:
+         case EC_IOCTL_RESET:
+-        case EC_IOCTL_DOMAIN_SIZE:
+-        case EC_IOCTL_DOMAIN_OFFSET:
+-        case EC_IOCTL_DOMAIN_PROCESS:
+-        case EC_IOCTL_DOMAIN_QUEUE:
+             size = 0;
+             break;
+         case EC_IOCTL_SLAVE_STATE:
+@@ -465,6 +465,10 @@ static long ec_msg_payload_process(unsigned int cmd, void *src, void *dest)
+             }
+             break;
+         case EC_IOCTL_MASTER_DEBUG:
++        case EC_IOCTL_DOMAIN_QUEUE:
++        case EC_IOCTL_DOMAIN_PROCESS:
++        case EC_IOCTL_DOMAIN_OFFSET:
++        case EC_IOCTL_DOMAIN_SIZE:
+             size = sizeof(unsigned long);
+             break;
+         case EC_IOCTL_SLAVE_STATE:
+@@ -633,10 +637,6 @@ static long ec_msg_payload_process(unsigned int cmd, void *src, void *dest)
+         case EC_IOCTL_SYNC_SLAVES:
+         case EC_IOCTL_SYNC_MON_QUEUE:
+         case EC_IOCTL_RESET:
+-        case EC_IOCTL_DOMAIN_SIZE:
+-        case EC_IOCTL_DOMAIN_OFFSET:
+-        case EC_IOCTL_DOMAIN_PROCESS:
+-        case EC_IOCTL_DOMAIN_QUEUE:
+             size = 0;
+             break;
+         case EC_IOCTL_SELECT_REF_CLOCK:
+diff --git a/lib/master.c b/lib/master.c
+index 7760b3f1..f28fcc17 100644
+--- a/lib/master.c
++++ b/lib/master.c
+@@ -690,8 +690,8 @@ int ecrt_master_activate(ec_master_t *master)
+     ec_domain_t *domain = master->first_domain;
+     while (domain) {
+ #ifdef EC_USERMODE
+-	int offset = ipc_ctrl_ioctl(&master->ipcs, EC_IOCTL_DOMAIN_OFFSET,
+-                domain->index);
++	int offset = ipc_ctrl_ioctl(master->ipcs, EC_IOCTL_DOMAIN_OFFSET,
++                &domain->index);
+ #else
+         int offset = ioctl(domain->master->fd, EC_IOCTL_DOMAIN_OFFSET,
+                 domain->index);
+diff --git a/master/ethercatd.c b/master/ethercatd.c
+index 2620babd..86aa1b40 100644
+--- a/master/ethercatd.c
++++ b/master/ethercatd.c
+@@ -187,7 +187,9 @@ static void ethercatd_ipc_start(ec_master_t *master)
+     }
+     memset(&schparam, 0, sizeof(schparam));
+     schparam.sched_priority = EC_MASTER_IPC_THREAD_PRIO;
++
+     ret = pthread_setschedparam(*master->ipc_thread, SCHED_OTHER, &schparam);
++
+     if (ret < 0) {
+         EC_MASTER_ERR(master, "Failed to set thread as SCHED_IDLE (error %i)!\n",
+ 		ret);
+@@ -275,7 +277,7 @@ int ethercatd_master_init(unsigned int node_id)
+     }
+ 
+ #if EC_ENABLE_DAEMON
+-    while(1);
++    while(1){usleep(1000);};
+ #endif
+     EC_INFO("%u master%s waiting for devices.\n",
+             master_count, (master_count == 1 ? "" : "s"));
+diff --git a/master/master.c b/master/master.c
+index 45936c28..9f7cf408 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -210,7 +210,7 @@ int ec_master_init(ec_master_t *master, /**< EtherCAT master */
+     master->num_devices = 1 + !ec_mac_is_zero(backup_mac);
+ #else
+     if (!ec_mac_is_zero(backup_mac)) {
+-        EC_MASTER_WARN(master, "Ignoring backup MAC address!");
++        EC_MASTER_WARN(master, "Ignoring backup MAC address!\n");
+     }
+ #endif
+ 
+-- 
+2.34.1
+

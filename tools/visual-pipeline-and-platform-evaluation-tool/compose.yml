@@ -3,6 +3,10 @@ x-vippet: &vippet
   build:
     context: .
     dockerfile: Dockerfile.vippet
+    args:
+      http_proxy:
+      https_proxy:
+      no_proxy:
   ports:
     - "7860:7860"
   healthcheck:
@@ -18,6 +22,9 @@ x-vippet: &vippet
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
     PIPELINE: smartnvr
+    http_proxy: ${http_proxy}
+    https_proxy: ${https_proxy}
+    no_proxy: ${no_proxy}
   env_file:
     - path: '.public_models_env'
       required: false
@@ -34,6 +41,9 @@ services:
       - ./models.sh:/home/dlstreamer/models.sh
     environment:
       - MODELS_PATH=/output/
+      - http_proxy=${http_proxy}
+      - https_proxy=${https_proxy}
+      - no_proxy=${no_proxy}
     env_file:
       - path: '.public_models_env'
         required: false
@@ -65,6 +75,10 @@ services:
     build:
       context: ./collector
       dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
     container_name: collector
     privileged: true
     devices:
@@ -78,18 +92,30 @@ services:
     volumes:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
   videogenerator:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-videogenerator:${DOCKER_TAG}
     build:
       context: video_generator
       dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
     container_name: videogenerator
     volumes:
       - "./videos:/usr/src/app/output"
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"
+    environment:
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
 
 volumes:
   collector-signals:
@@ -97,3 +123,4 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+
