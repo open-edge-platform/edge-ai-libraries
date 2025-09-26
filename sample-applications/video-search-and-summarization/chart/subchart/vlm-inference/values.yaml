@@ -67,8 +67,8 @@ startupProbe:
   tcpSocket:
     port: vlm-port
   initialDelaySeconds: 10
-  periodSeconds: 30
-  failureThreshold: 100
+  periodSeconds: 10
+  failureThreshold: 300
 
 # Node affinity to schedule pods on specific nodes only
 nodeAffinity: {}

@@ -65,17 +65,17 @@ readinessProbe:
     path: /api/v1/health
     port: audio-port
   initialDelaySeconds: 5
-  periodSeconds: 20
-  failureThreshold: 3
+  periodSeconds: 10
+  failureThreshold: 6
 
-# Wait for startup till max ~ 45Mins 
+# Wait for startup till max ~ 50Mins 
 startupProbe:
   httpGet:
     path: /api/v1/health
     port: audio-port
   initialDelaySeconds: 10
-  periodSeconds: 30
-  failureThreshold: 90
+  periodSeconds: 10
+  failureThreshold: 300
 
 # Node affinity to schedule pods on specific nodes only
 nodeAffinity: {}

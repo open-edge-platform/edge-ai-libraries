@@ -65,13 +65,13 @@ readinessProbe:
     path: /health
     port: vs-port
   initialDelaySeconds: 5
-  periodSeconds: 20
-  failureThreshold: 3
+  periodSeconds: 10
+  failureThreshold: 6
 
 startupProbe:
   httpGet:
     path: /health
     port: vs-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 12
+  periodSeconds: 10
+  failureThreshold: 24

@@ -38,7 +38,7 @@ spec:
             - |
               echo "Waiting for OVMS service to be ready..."
               RETRIES=0
-              MAX_RETRIES=10
+              MAX_RETRIES=120
               until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
                 RETRIES=$((RETRIES+1))
                 echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
@@ -46,7 +46,7 @@ spec:
                   echo "OVMS service health check failed after $MAX_RETRIES attempts"
                   exit 1
                 fi
-                sleep 120
+                sleep 10
               done
               echo "OVMS service is ready!"
         {{- end }}

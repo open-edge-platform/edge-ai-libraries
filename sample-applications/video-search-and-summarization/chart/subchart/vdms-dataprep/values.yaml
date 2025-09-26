@@ -78,15 +78,15 @@ readinessProbe:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 6
+  periodSeconds: 10
+  failureThreshold: 12
 startupProbe:
   httpGet:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 6
+  periodSeconds: 10
+  failureThreshold: 12
 
 nodeSelector: {}
 tolerations: []

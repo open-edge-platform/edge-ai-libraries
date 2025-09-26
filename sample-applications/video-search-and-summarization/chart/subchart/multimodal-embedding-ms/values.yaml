@@ -74,8 +74,8 @@ readinessProbe:
     path: /health
     port: mm-embed-port
   initialDelaySeconds: 5
-  periodSeconds: 20
-  failureThreshold: 3
+  periodSeconds: 10
+  failureThreshold: 6
 
 # Wait for startup till max ~ 30Mins 
 startupProbe:
@@ -83,18 +83,18 @@ startupProbe:
     path: /health
     port: mm-embed-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 90
+  periodSeconds: 10
+  failureThreshold: 180
 
 # Starting up MME service with TextEmebedding Model can take a while, so we set a longer startup probe
-# Wait for startup till max ~ 45Mins
+# Wait for startup till max ~ 50Mins
 startupProbeWithTextEmbeddingModel:
   httpGet:
     port: mm-embed-port
     path: /health
   initialDelaySeconds: 10
-  periodSeconds: 30
-  failureThreshold: 90
+  periodSeconds: 10
+  failureThreshold: 300
 
 nodeSelector: {}
 
