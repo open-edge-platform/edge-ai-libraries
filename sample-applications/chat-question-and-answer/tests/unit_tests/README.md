@@ -82,7 +82,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    # via scripts
     export HUGGINGFACE_API_TOKEN="<YOUR_HUGGINGFACE_API_TOKEN>"
     export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
-    export EMBEDDING_MODEL_NAME=nomic-ai/nomic-embed-text-v1.5
+    export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
     export RERANKER_MODEL=BAAI/bge-reranker-base
     source setup.sh llm=<ModelServer> embed=<Embedding>
    ```

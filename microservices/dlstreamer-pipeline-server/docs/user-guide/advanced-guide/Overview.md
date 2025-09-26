@@ -48,7 +48,7 @@
 -   [Enable Open Telemetry](./detailed_usage/how-to-advanced/enable-open-telemetry.md)
 -   [Working with other services](./detailed_usage/how-to-advanced/work-with-other-services.md)
 
-
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -60,3 +60,4 @@ detailed_usage/udf/Overview
 detailed_usage/publisher/Overview
 detailed_usage/how-to-advanced/Overview
 ```
+hide_directive-->

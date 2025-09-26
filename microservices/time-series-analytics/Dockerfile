@@ -44,10 +44,7 @@ RUN export no_proxy= && \
         apt-get update; \
     fi && \
     apt-get install -y --no-install-recommends \
-    intel-opencl-icd=\* ocl-icd-opencl-dev=\* intel-level-zero-gpu=\* level-zero=\* \
-    libmfx1=\* libmfxgen1=\* libvpl2=\* intel-media-va-driver-non-free=\* \
-    libgbm1=\* libigdgmm12=\* libxatracker2=\* libdrm-amdgpu1=\* \
-    va-driver-all=\* vainfo=\* hwinfo=\* clinfo=\* && \
+    intel-opencl-icd intel-level-zero-gpu && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* 
 
@@ -65,8 +62,7 @@ COPY ./requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
-ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
-    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/opt/intel/oneapi/2025.1/lib"
+ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
