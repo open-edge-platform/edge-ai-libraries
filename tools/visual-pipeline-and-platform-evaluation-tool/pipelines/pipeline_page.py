@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import datetime
 from typing import List, Optional
 
@@ -14,6 +15,7 @@ from chart import Chart, ChartType, create_charts
 from device import DeviceDiscovery, DeviceFamily, DeviceType
 from explore import GstInspector
 from gstpipeline import PipelineLoader
+from models import SupportedModelsManager
 from optimize import PipelineOptimizer
 from utils import prepare_video_and_constants
 
@@ -30,6 +32,12 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 charts: List[Chart] = create_charts(device_discovery.list_devices())
+
+try:
+    supported_models_manager = SupportedModelsManager()
+except Exception as e:
+    logging.error(str(e))
+    sys.exit(1)
 
 
 class Pipeline:
@@ -205,8 +213,6 @@ class Pipeline:
 
         self.object_detection_model = gr.Dropdown(
             label="Object Detection Model",
-            choices=self.config["parameters"]["inference"]["detection_models"],
-            value=self.config["parameters"]["inference"]["detection_model_default"],
             elem_id="object_detection_model",
         )
 
@@ -255,10 +261,6 @@ class Pipeline:
         # Mapping of these choices to actual model path in utils.py
         self.object_classification_model = gr.Dropdown(
             label="Object Classification Model",
-            choices=self.config["parameters"]["inference"]["classification_models"],
-            value=self.config["parameters"]["inference"][
-                "classification_model_default"
-            ],
             elem_id="object_classification_model",
         )
 
@@ -394,6 +396,44 @@ class Pipeline:
             """
             Component event handlers and interactions are defined here.
             """
+
+            page.load(
+                # Read supported models and update the model dropdowns every time a new pipeline is selected
+                # (list of models may change)
+                lambda: [
+                    *(
+                        lambda det, cls: [
+                            gr.Dropdown(
+                                choices=det[0],
+                                value=det[1],
+                            ),
+                            gr.Dropdown(
+                                choices=cls[0],
+                                value=cls[1],
+                            ),
+                        ]
+                    )(
+                        supported_models_manager.filter_detection_models(
+                            self.config["parameters"]["inference"]["detection_models"],
+                            self.config["parameters"]["inference"][
+                                "detection_model_default"
+                            ],
+                        ),
+                        supported_models_manager.filter_classification_models(
+                            self.config["parameters"]["inference"][
+                                "classification_models"
+                            ],
+                            self.config["parameters"]["inference"][
+                                "classification_model_default"
+                            ],
+                        ),
+                    )
+                ],
+                outputs=[
+                    self.object_detection_model,
+                    self.object_classification_model,
+                ],
+            )
 
             # Handle click on the pipeline image
             self.pipeline_image.select(

@@ -1,0 +1,12 @@
+ch_PP-OCRv4_rec_infer|PaddleOCR (FP32)|public|classification|default
+efficientnet-b0_INT8|EfficientNet B0 (INT8)|pipeline-zoo-models|classification|default
+mobilenet-v2-pytorch|MobileNet V2 PyTorch (FP16)|omz|classification|optional
+resnet-50-tf_INT8|ResNet-50 TF (INT8)|pipeline-zoo-models|classification|default
+ssdlite_mobilenet_v2_INT8|SSDLite MobileNet V2 (INT8)|pipeline-zoo-models|detection|default
+vehicle-attributes-recognition-barrier-0039|Vehicle Attributes Recognition Barrier 0039 (FP16)|omz|classification|default
+yolov5m-416_INT8|YOLO v5m 416x416 (INT8)|pipeline-zoo-models|detection|default
+yolov5m-640_INT8|YOLO v5m 640x640 (INT8)|pipeline-zoo-models|detection|optional
+yolov5s-416_INT8|YOLO v5s 416x416 (INT8)|pipeline-zoo-models|detection|default
+yolov8_license_plate_detector|YOLO v8 License Plate Detector (FP32)|public|detection|default
+yolov10m|YOLO v10m 640x640 (FP16)|public|detection|optional
+yolov10s|YOLO v10s 640x640 (FP16)|public|detection|optional
