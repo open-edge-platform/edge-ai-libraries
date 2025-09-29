@@ -16,7 +16,6 @@ from src.endpoints import (
     delete_video_router,
     download_video_router,
     list_videos_router,
-    prep_video_router_legacy,
     process_document_router,
     process_minio_video_router,
     upload_and_process_video_router,
@@ -24,6 +23,7 @@ from src.endpoints import (
 
 # Dump loaded settings, if in debug mode
 logger.debug(f"Settings loaded: {settings.model_dump()}")
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -97,7 +97,6 @@ app.include_router(check_health_router)
 app.include_router(process_document_router)
 
 # Video processing endpoints
-app.include_router(prep_video_router_legacy)
 app.include_router(process_minio_video_router)
 app.include_router(upload_and_process_video_router)
 
