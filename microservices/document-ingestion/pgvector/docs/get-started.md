@@ -103,7 +103,9 @@ This method provides the fastest way to get started with the microservice.
 2. Examples of expected outputs for validation.
 -->
 
-## First Use: Running a Predefined Task
+## Application Usage:
+
+## Type 1: Upload Files
 
 Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the commands from the same shell as where the environment variables are set.
 
@@ -134,6 +136,53 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
    ```bash
    rm -rf ./minimal-document.pdf
    ```
+
+## Type 2: Upload URLs
+
+Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
+
+ > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript. For JavaScript-intensive pages, the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
+
+1. **Get stored URLs**:
+   Retrieve a list of all URLs that have been processed and stored in the system.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
+
+2. **Upload URLs to create and store embeddings**:
+   Submit one or more URLs to be processed for embedding creation.
+   ```bash
+   curl -X 'POST' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json' \
+     -H 'Content-Type: application/json' \
+     -d '[
+     "https://en.wikipedia.org/wiki/Fiat",
+     "https://en.wikipedia.org/wiki/Lunar_eclipse"
+   ]'
+   ```
+
+3. **Verify the URLs were processed**:
+   Check that the URLs were successfully processed and stored.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
+   Expected output: A JSON response with the list of processed URLs should be printed.
+
+4. **Delete a specific URL or all URLs**:
+   Get the URL from the GET call response in step 3 and use it in the DELETE request below.
+   ```bash
+   curl -X 'DELETE' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls?url=<url_to_be_deleted>&delete_all=false" \
+     -H 'accept: */*'
+   ```
+
+   **Note**:
+   - Optionally set `delete_all=true` if you want to delete all URLs from the database instead of a specific URL
 
 ## Advanced Setup Options
 
