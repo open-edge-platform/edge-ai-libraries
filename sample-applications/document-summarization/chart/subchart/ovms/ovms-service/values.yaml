@@ -2,7 +2,7 @@ ovmServer:
   name: ovms-service
   image:
     repository: openvino/model_server
-    tag: 2025.1
+    tag: 2025.2
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP

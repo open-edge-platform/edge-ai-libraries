@@ -9,6 +9,7 @@
 - [September 2024](./september-2024.md)
 - [July 2024](./july-2024.md)
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -21,3 +22,4 @@ october-2024.md
 september-2024.md
 july-2024.md
 ```
+hide_directive-->

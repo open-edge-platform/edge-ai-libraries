@@ -54,7 +54,7 @@ When prompting `Please enter the LOCAL_EMBED_MODEL_ID`, choose one model name fr
 | Model Name                          | Search in English | Search in Chinese | Remarks|
 |-------------------------------------|----------------------|---------------------|---------------|
 | CLIP-ViT-H-14                        | Yes                  | No                 |            |
-| CN-CLIP-ViT-H-14              | Yes                  | Yes                  | Supports search text query in Chinese       | 
+| CN-CLIP-ViT-H-14              | Yes                  | Yes                  | Supports search text query in Chinese       |
 
 
 3.  Deploy with docker compose
@@ -70,7 +70,7 @@ Check if all microservices are up and runnning
     docker compose -f compose_milvus.yaml ps
     ```
 
-Output 
+Output
 ```
 NAME                         COMMAND                  SERVICE                                 STATUS              PORTS
 milvus-etcd                  "etcd -advertise-cli…"   milvus-etcd                             running (healthy)   2379-2380/tcp
@@ -94,7 +94,7 @@ docker compose -f compose.yaml up -d
 
 ### Basic Query
 
-```curl
+```bash
 curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 -H "Content-Type: application/json" \
 -d '{
@@ -105,7 +105,7 @@ curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 
 ### Query with Filter
 
-```curl
+```bash
 curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 -H "Content-Type: application/json" \
 -d '{

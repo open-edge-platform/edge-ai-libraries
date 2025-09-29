@@ -26,15 +26,13 @@ spec:
 
       initContainers:
       - name: fetch-pipeline-resources
-        image: bitnami/git:latest
+        image: alpine/git:latest
         command:
-          - /bin/bash
+          - /bin/sh
           - -c
           - |
-            git clone --depth 1 https://github.com/open-edge-platform/edge-ai-libraries /repo
-            mkdir -p /resources/models/geti /resources/videos
-            cp -r /repo/microservices/dlstreamer-pipeline-server/resources/models/geti/ /resources/models/
-            curl -L https://github.com/open-edge-platform/edge-ai-libraries/raw/main/microservices/dlstreamer-pipeline-server/resources/videos/warehouse.avi -o /resources/videos/warehouse.avi
+            git clone https://github.com/open-edge-platform/edge-ai-libraries /repo
+            cp -r /repo/microservices/dlstreamer-pipeline-server/resources/. /resources
         volumeMounts:
           - name: pipeline-resources
             mountPath: /resources

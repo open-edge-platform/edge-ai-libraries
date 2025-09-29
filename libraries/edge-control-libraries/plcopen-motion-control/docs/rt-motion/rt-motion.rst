@@ -1,10 +1,11 @@
 RTmotion Concept and Application Interface
-###################################################
+==========================================
 
 The PLCopen motion standard provides a way to have standard and modular application libraries that are reusable for multiple industrial automation scenarios, such as PLC motion control, CNC and robotics. For more detailed information of the PLCopen motion specifications, please refer to `Motion Control <https://plcopen.org/technical-activities/motion-control>`_.
 
 1. RTmotion Overview
-********************************************
+####################
+
 The motion control market displays a wide variety of incompatible systems and solutions. In businesses where different systems are used, this incompatibility induces considerable costs for the end-users, learning is confusing, engineering becomes difficult, and the process of market growth slows down. Standardization would certainly reduce these negative factors. Standardization means not only the programming languages themselves, (as standardization is achieved using the worldwide IEC 61131-3 standard) but also standardizing the interface towards different motion control solutions. In this way the programming of these motion control solutions is less hardware dependent. The reusability of the application software is increased, and the costs involved in training and support are reduced.
 
 **RTmotion** is an C++ library created by Intel Corporation. **RTmotion** implements part of the single axis motion control function blocks defined in parts `1&2 <https://plcopen.org/downloads/plcopen-motion-control-part-1-version-20>`_, `3 <https://plcopen.org/downloads/plcopen-motion-control-part-3-version-20>`_ and `5 <https://plcopen.org/downloads/plcopen-motion-control-part-5-version-20>`_ of PLCopen motion control standard. The figure below shows the connections between **RTmotion** and other components in |ECI|.
@@ -14,10 +15,10 @@ The motion control market displays a wide variety of incompatible systems and so
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 1. ECI SoftMotion overview</b></p>
 
-**RTmotion** is a library designed to match the interfaces and functions of the function blocks defined in PLCopen standard. It is not tied to any operating system, fieldbus, SoftPLC or applications. But it needs to run in a real-time thread to have steady cycle and gain maximum performance. So the real-time operating systems are the base foundation for RTmotion to run on. As figure above shows, |ECI| provides two types of real-time operating systems (Preempt RT, Xenomai) that RTmotion can fit in. 
+**RTmotion** is a library designed to match the interfaces and functions of the function blocks defined in PLCopen standard. It is not tied to any operating system, fieldbus, SoftPLC or applications. But it needs to run in a real-time thread to have steady cycle and gain maximum performance. So the real-time operating systems are the base foundation for RTmotion to run on. As figure above shows, |ECI| provides two types of real-time operating systems (Preempt RT, Xenomai) that RTmotion can fit in.
 
 RTmotion provides functions and algorithms for performing motion control tasks according to the PLCopen standard. It requires reading status from servo motors and outputting motion commands to them. The bridge between RTmotion and servo motors is implemented in a hardware abstraction layer called **plcopen-servo**. It is based on a servo template that can be populated by different fieldbus communication stack interfaces to derive the servo motor of a specific fieldbus type. As shown in the figure, |ECI| provides two types of servo layers (CANopen and EtherCAT). Details of plcopen-servo are covered in level-2.
 
@@ -25,7 +26,7 @@ RTmotion's functional blocks often play the role of basic modules that can be in
 
   - Called in a C++ application: |ECI| provides examples in **plcopen-servo** and **plcopen-databus** repositories for reference.
   - Integrated in a SoftPLC runtime: RTmotion has been integrated in several commercial and open-source SoftPLC runtime. See the list below.
-  
+
     * WASM (`Further reading for WASM <https://github.com/bytecodealliance/wasm-micro-runtime>`_)
     * LogicLab (`Further reading for LogicLab + RTmotion <https://www.nxtrol.com/h-nd-25.html>`_)
     * OpenPLC (`Further reading for OpenPLC + RTmotion <https://eci.intel.com/docs/3.1/components/openplc.html>`_)
@@ -34,20 +35,20 @@ RTmotion's functional blocks often play the role of basic modules that can be in
 RTmotion provides basic trajectory interpolation and motion control in real-time tasks synchronized with the servo motor cycle time. As shown in the right part of the figure, the real-time tasks usually require to communicate with some non-real-time software (advanced robotics motion planning, SCADA HMI, CNC and machine vision) in some application scenarios. It can be realized by using a communication layer in the databus form of Shared-Memory, Modbus, Socket, ZeroMQ, MQTT, OPCUA, etc.
 
 1.1. RTmotion Requirements
-===========================
+++++++++++++++++++++++++++
 
 - PC: Industrial PC with |Intel| CPU
 - RTOS: |ECI| Preempt RT/Xenomai
 - Fieldbus: |ECI| EtherCAT/CANopen stack
 
 1.2. RTmotion Features
-=======================
+++++++++++++++++++++++
 
 - PLCopen Data Types
-  
+
   * ``AXIS_REF``: Defined as a pointer to an axis. Since AXIS_REF is used as a VAR_IN_OUT variable in the function block, and any function block can access and change the status of the axis, function block scheduling and management are implemented in the axis to avoid potential errors when modifying the axis at the same time.
   * ``MC_AXIS_STATES``:
-  
+
     + mcDisabled
     + mcStandstill
     + mcHoming
@@ -59,9 +60,9 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
   * ``MC_DIRECTION``:
 
     + mcPositiveDirection
-    + mcShortestWay 
+    + mcShortestWay
     + mcNegativeDirection
-    + mcCurrentDirection 
+    + mcCurrentDirection
   * ``MC_BUFFER_MODE``:
 
     + mcAborting
@@ -94,7 +95,7 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
   * ``MC_Home``: Commands drive to search the home reference signal with the homing-specific settings of the drive
   * ``MC_Jog``: Commands a jogged movement to an axis
 - Single Axis Administrative (FB x20)
-  
+
   * ``MC_Power``: Controls the power stage (ON or OFF).
   * ``MC_Reset``: Makes the transition from the ``ErrorStop`` state to the ``Standstill`` or ``Disabled`` state by resetting all internal axis-related errors.
   * ``MC_SetPosition``: Shifts the coordinate system with the current servo encoder position as the defined distance.
@@ -126,7 +127,7 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
 
   * ``MC_CamTableSelect``: Selects the CAM tables by setting the connections to the relevant tables.
 - State Management
-  
+
   * RTmotion manages the axis states through a motion kernel in accordance with the state diagram defined in the section 2.1 of the PLCopen motion control part `1&2 <https://plcopen.org/downloads/plcopen-motion-control-part-1-version-20>`_.
 - S-Curve Trajectory Plan
 
@@ -141,23 +142,24 @@ RTmotion provides basic trajectory interpolation and motion control in real-time
   * ``BlendingHigh``: blending with highest velocity of FB 1 and FB 2 at end-position of FB1
 
 2. RTmotion Configuration
-**************************
-RTmotion can be set up to run in different system configurations. The configurations listed in this section are those we recommend and have tested in our labs. 
+#########################
+RTmotion can be set up to run in different system configurations. The configurations listed in this section are those we recommend and have tested in our labs.
 
 2.1. ECI-B\K\A configurations
-=================================
++++++++++++++++++++++++++++++
+
 .. image:: ../assets/config/rtmotion_config_1.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 2. ECI motion configurations for Atom or Core CPU</b></p>
 
 As shown in the figure above, RTmotion can be set up to run with an |Atom| or |Core| CPU in three configurations:
 
 - **ECI-B (Bare-metal)**:
-  
+
   * OS: Host (Preempt-RT/Xenomai)
   * One CPU core is isolated and dedicated for RTmotion real-time task.
   * Rest CPU cores and iGPU are used for non-real-time HMI/MV tasks.
@@ -168,20 +170,21 @@ As shown in the figure above, RTmotion can be set up to run with an |Atom| or |C
   * One CPU core is used for host |Linux| tasks.
   * Rest CPU cores and iGPU are used for Guest VM.
 - **ECI-A (ACRN)**:
-  
+
   * OS: Service OS (|Linux|), Guest VM1 (|Windows|), Guest VM2 (Preempt-RT/Xenomai)
   * Two CPU cores are isolated and dedicated for Guest VM2. Among them, one is dedicated for RTmotion real-time task.
   * One CPU core is shared by Service OS and Guest VM1.
   * Rest CPU cores and iGPU are used for Guest VM1.
 
 2.2. Configurations with hybrid cores
-=======================================
++++++++++++++++++++++++++++++++++++++
+
 .. image:: ../assets/config/rtmotion_config_2.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 3. ECI motion configuration for hybrid CPU</b></p>
 
 - The 12th generation of |Intel| CPUs integrate Performance (P) and Efficient (E) cores. For example the ADL-S which has 8 P-core and 4 E-core. For best performance, real-time RTmotion tasks should run in a real-time VM running on an E-core. P-cores are used to run |Windows| VMs for non-real-time HMI/machine vision workloads. In this configuration, the P-core can support hyper-threading and hardware P-state features without sacrificing the real-time performance of the E-core:
@@ -193,29 +196,32 @@ As shown in the figure above, RTmotion can be set up to run with an |Atom| or |C
   * Rest P-core and iGPU are used for Guest VM1.
 
 3. RTmotion Applications
-*************************
+########################
+
 This section lists some of the RTmotion applications in the industrial automation domains. It shows how |ECI| with RTmotion enables customers to consolidate their real-time (motion control) and non-real-time (HMI/Machine Vision/CNC/ROS2 Robotics) workloads.
 
 3.1. Logistics control
-=======================
+++++++++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_1.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 4. RTmotion application for parcel singulation controller</b></p>
 
 In this project, RTmotion enables customers to consolidate their machine vision and real-time motion control workloads to run on an |Intel| x86 platform. This application scenario is very common in logistics. Parcel separation controllers typically consist of two separate systems: a PLC connected to the 28~84 conveyor EtherCAT servo motors for speed control, and a |Windows| IPC for parcel pose detection and servo motor speed planning. The results of the speed planning will be transmitted to the PLC via TCP/IP socket communication. As shown above, |ECI| solutions combine both functions into one platform. There will be an |ECI| Preempt RT |Linux| OS running as the host. A CPU core is then isolated to run real-time RTmotion tasks to control servo motors, which in traditional solutions plays the role of a PLC. KVM is used here as the hypervisor to support running |Windows| guest VMs on |Linux| hosts. |Windows| applications can be migrated to the guest VM without any modification.
- 
+
 3.2. SMT machine control with flying-trigger
-=============================================
+++++++++++++++++++++++++++++++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_2.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 5. RTmotion application for flying-trigger</b></p>
 
 In this project, the RTmotion function block has been integrated into |EAE| for motion control of SMT manufacturing. The project also integrated |ECI| flying-trigger technique and |EII| to improve vision capture and detection efficiency. The key components are listed here:
@@ -227,63 +233,69 @@ In this project, the RTmotion function block has been integrated into |EAE| for 
 - |EAE| for runtime, PLC programming and central management
 
 3.3. 100-axis control with |EAE|
-=================================================================
+++++++++++++++++++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_3.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 6. RTmotion application for multiple axis control</b></p>
 
 Coating, winding and stacking machines in Li-battery manufacturing often require real-time synchronization between hundreds of axes and multiple functions (CamIn, GearIn, velocity and torque control, etc.). |ECI| with RTmotion has demonstrated the capability to meet this requirements, that controlling 100 EtherCAT servo motors within 1ms cycle time with a maximum real-time latency of 15us. The RTmotion is also integrated in |EAE| in this project.
 
 3.4. AMR control
-================
+++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_4.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 7. RTmotion application for AMR control</b></p>
 
 AMR (Autonomous Mobile Robot) is now widely used in warehouses, logistical companies, agriculture businesses, and healthcare institutions. AMR typically consists of two independent hardware control systems: one for real-time motion control and another for SLAM/path planning/vision. Since AMR usually only needs to drive less than 4 servo motors with low accuracy velocity control, and the kinematics and dynamics model for the whole-body control are simpler compared to that of a 6-axis robot arm, the low-end computing unit is sufficient to complete the real-time motion control. With |ECI| and RTmotion, it is quite reasonable and easy to integrate two independent systems, from which customers can benefit from reduced hardware costs, higher reliability, system flexibility and easy upgrades. As shown in the figure above, one CPU core can be isolated to run RTmotion tasks to drive mobile platforms. Both CANopen and EtherCAT based servo motors are supported. ROS2 tasks can utilize remaining CPU and system resources to implement SLAM/path planning/vision functions. Buttons, safety sensors and other I/O devices can be easily controlled via remote IO modules based on CANBus, EtherCAT or Modbus.
 
 3.5. Robot arm control
-======================
+++++++++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_5.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 8. RTmotion application for robot arm control</b></p>
 
-Similar to the concept of AMR, the robotic arm control workloads can also be consolidated by |ECI| with RTmotion. With the development of machine vision, AI and advanced motion planning technique, new type of intelligent robot arm controllers have been widely used. However, this intelligent controller is often separated from the robot arm's native controller, which is only responsible for real-time motion control. This increases the difficulty of system adaptation. At the same time, in recent years, there has been a trend in the industry to consolidate PLC control, real-time motion control of robotic arms, machine vision and HMI into one controller to support the overall development of automated workstations. 
+Similar to the concept of AMR, the robotic arm control workloads can also be consolidated by |ECI| with RTmotion. With the development of machine vision, AI and advanced motion planning technique, new type of intelligent robot arm controllers have been widely used. However, this intelligent controller is often separated from the robot arm's native controller, which is only responsible for real-time motion control. This increases the difficulty of system adaptation. At the same time, in recent years, there has been a trend in the industry to consolidate PLC control, real-time motion control of robotic arms, machine vision and HMI into one controller to support the overall development of automated workstations.
 
 3.6. Inspection machine control
-================================
++++++++++++++++++++++++++++++++
+
 .. image:: ../assets/app/rtmotion_app_6.png
    :width: 85%
    :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 9. RTmotion application for inspection machine</b></p>
 
 Patches provided by |ECI| have integrated RTmotion into the IDE and runtime of Open Source SoftPLC (OpenPLC). Customers can do IEC 61131-3 PLC programming for motion control as they normally do on traditional PLC products. Through the RTmotion configuration introduced in Chapter 2, customers can customize the PC-based SoftPLC controller according to their needs. Since most non-standard automation equipment only requires PTP movement, RTmotion's function blocks MC_MoveAbsolute, MC_Homing, and MC_MoveRelative can meet these usage scenarios. As shown in the figure above, the customer migrated all the functions of the PLC in the Li-battery Hipot test device to the PC-based soft PLC controller through |ECI| and RTmotion. This helps customers reduce hardware costs and makes the entire system IT-friendly.
 
 4. RTmotion Function Blocks
-****************************
+###########################
+
 This section will introduce the usage interface and function diagram of each function block.
 
 4.1. MC_Stop
-=============
+++++++++++++
+
 MC_STOP cannot be aborted by another FB. An error could happen when another motion FB is triggered on the same axis before MC_STOP finish its task.
 
 4.1.1. MC_STOP inputs/outputs
-------------------------------
+-----------------------------
 
 +----------------+---------------+-----------------------------------------------------------------+
 | FB-Name        | MC_STOP       |                                                                 |
@@ -314,7 +326,7 @@ MC_STOP cannot be aborted by another FB. An error could happen when another moti
 +----------------+---------------+-----------------------------------------------------------------+
 
 4.1.2. MC_STOP diagram
------------------------
+----------------------
 
       .. figure:: ../assets/fb/sanity_check_3_1.png
          :align: center
@@ -326,15 +338,16 @@ MC_STOP cannot be aborted by another FB. An error could happen when another moti
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 10. Time series plot for the MC_Stop execution results</b></p>
 
 4.2. MC_Halt
-=============
+++++++++++++
+
 MC_Halt can be aborted by another FB even if the velocity of axis has not been decelerated to zero.
 
 4.2.1. MC_Halt inputs/outputs
-------------------------------
+-----------------------------
 
 +----------------+----------------+-----------------------------------------------------------------+
 | FB-Name        | MC_Halt        |                                                                 |
@@ -369,7 +382,7 @@ MC_Halt can be aborted by another FB even if the velocity of axis has not been d
 +----------------+----------------+-----------------------------------------------------------------+
 
 4.2.2. MC_Halt diagram
------------------------
+----------------------
 
       .. figure:: ../assets/fb/sanity_check_3_2.png
          :align: center
@@ -381,15 +394,16 @@ MC_Halt can be aborted by another FB even if the velocity of axis has not been d
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 11. Time series plot for the MC_Halt execution results</b></p>
 
 4.3. MC_MoveAbsolute
-=====================
+++++++++++++++++++++
+
 This Function Block commands a controlled motion to a specified absolute position.
 
 4.3.1. MC_MoveAbsolute inputs/outputs
---------------------------------------
+-------------------------------------
 
 +----------------+-----------------+-----------------------------------------------------------------+
 | FB-Name        | MC_MoveAbsolute |                                                                 |
@@ -432,7 +446,7 @@ This Function Block commands a controlled motion to a specified absolute positio
 +----------------+-----------------+-----------------------------------------------------------------+
 
 4.3.2. MC_MoveAbsolute diagram
---------------------------------
+------------------------------
 
       .. figure:: ../assets/fb/sanity_check_3_3.png
          :align: center
@@ -444,16 +458,17 @@ This Function Block commands a controlled motion to a specified absolute positio
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 12. Time series plot for the MC_MoveAbsolute execution results</b></p>
 
 4.4. MC_MoveRelative
-=====================
+++++++++++++++++++++
+
 This Function Block commands a controlled motion of a specified distance relative to the set position at the time of the
 execution.
 
 4.4.1. MC_MoveRelative inputs/outputs
---------------------------------------
+-------------------------------------
 
 +----------------+-----------------+-----------------------------------------------------------------+
 | FB-Name        | MC_MoveRelative |                                                                 |
@@ -494,7 +509,7 @@ execution.
 +----------------+-----------------+-----------------------------------------------------------------+
 
 4.4.2. MC_MoveRelative diagram
---------------------------------
+------------------------------
 
       .. figure:: ../assets/fb/sanity_check_3_4.png
          :align: center
@@ -506,16 +521,17 @@ execution.
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 13. Time series plot for the MC_MoveRelative execution results</b></p>
 
 4.5. MC_MoveAdditive
-=====================
+++++++++++++++++++++
+
 This Function Block commands a controlled motion of a specified relative distance additional to the most recent commanded position in the axis state **DiscreteMotion**. The most recent commanded position may be the result of a previous MC_MoveAdditive motion which was aborted. If the FB is activated in the axis state **ContinuousMotion**, the
 specified relative distance is added to the set position at the time of the execution.
 
 4.5.1. MC_MoveAdditive inputs/outputs
---------------------------------------
+-------------------------------------
 
 +----------------+-----------------+-----------------------------------------------------------------+
 | FB-Name        | MC_MoveAdditive |                                                                 |
@@ -556,7 +572,7 @@ specified relative distance is added to the set position at the time of the exec
 +----------------+-----------------+-----------------------------------------------------------------+
 
 4.5.2. MC_MoveAdditive diagram
---------------------------------
+------------------------------
 
       .. figure:: ../assets/fb/sanity_check_3_5.png
          :align: center
@@ -568,11 +584,12 @@ specified relative distance is added to the set position at the time of the exec
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 14. Time series plot for the MC_MoveAdditive execution results</b></p>
 
 4.6. MC_MoveSuperimposed
-=========================
+++++++++++++++++++++++++
+
 This Function Block Commands a controlled motion of a specified relative distance additional to an existing motion. The existing Motion is not interrupted, but is superimposed by the additional motion.
 
 Behavior when active:
@@ -583,7 +600,7 @@ Behavior when active:
 - In the state 'Standstill' the FB MC_MoveSuperimposed acts like MC_MoveRelative.
 
 4.6.1. MC_MoveSuperimposed inputs/outputs
-------------------------------------------
+-----------------------------------------
 
 +-----------------+---------------------+----------------------------------------------------------------------------------------+
 | FB-Name         | MC_MoveSuperimposed |                                                                                        |
@@ -622,7 +639,7 @@ Behavior when active:
 +-----------------+---------------------+----------------------------------------------------------------------------------------+
 
 4.6.2. MC_MoveSuperimposed diagram
------------------------------------
+----------------------------------
 
       .. figure:: ../assets/fb/sanity_check_3_7.png
          :align: center
@@ -638,11 +655,12 @@ Behavior when active:
    <p align="center"><b>Figure 15. Time series plot for the MC_MoveSuperimposed execution results</b></p>
 
 4.7. MC_MoveVelocity
-=====================
+++++++++++++++++++++
+
 This Function Block commands a never ending controlled motion at a specified velocity.
 
 4.7.1. MC_MoveVelocity inputs/outputs
---------------------------------------
+-------------------------------------
 
 +----------------+-----------------+-----------------------------------------------------------------+
 | FB-Name        | MC_MoveVelocity |                                                                 |
@@ -683,7 +701,7 @@ This Function Block commands a never ending controlled motion at a specified vel
 +----------------+-----------------+-----------------------------------------------------------------+
 
 4.7.2. MC_MoveVelocity diagram
---------------------------------
+------------------------------
 
       .. figure:: ../assets/fb/sanity_check_3_6.png
          :align: center
@@ -695,19 +713,20 @@ This Function Block commands a never ending controlled motion at a specified vel
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 16. Time series plot for the MC_MoveVelocity execution results</b></p>
 
 4.8. MC_Homing
-===============
+++++++++++++++
+
 This Function Block commands the axis to perform the 'search home' sequence. The details of this sequence are
-manufacturer dependent. RTmotion MC_Homing FB takes the current position as the home position when comes across 
-the rising edge of AbsoluteSwitchSignal in the search direction or the falling edge of the signal in the 
+manufacturer dependent. RTmotion MC_Homing FB takes the current position as the home position when comes across
+the rising edge of AbsoluteSwitchSignal in the search direction or the falling edge of the signal in the
 diverse direction. Since the velocity can not be decelerated to zero when the absolute signal is triggered, this
 function block will decelerate and return back to stop at the home position.
 
 4.8.1. MC_Homing inputs/outputs
---------------------------------
+-------------------------------
 
 +---------------------------+---------------+---------------------------------------------------------------------+
 | FB-Name                   | MC_Homing     |                                                                     |
@@ -754,22 +773,23 @@ function block will decelerate and return back to stop at the home position.
 +---------------------------+---------------+---------------------------------------------------------------------+
 
 4.8.2. MC_Homing diagram
--------------------------
+------------------------
 The small white squares stand for the position that axis starts the homing process.
 
       .. figure:: ../assets/fb/mc_homing_cases.png
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 17. PLC homing cases</b></p>
 
 4.9. MC_TorqueControl
-================================
++++++++++++++++++++++
+
 The FB activates the CST (cyclic synchronous torque) mode. In the CST mode, the motion is executed with a target torque. The reference value for the target torque is provided by input ``Torque``. After the target torque is reached, the output ``InTorque`` is set to ``TRUE``.
 
 4.9.1. MC_TorqueControl inputs/outputs
---------------------------------------------------
+--------------------------------------
 
 +--------------------+---------------------+-----------------------------------------------------------------+
 | FB-Name            | MC_TorqueControl    |                                                                 |
@@ -800,7 +820,7 @@ The FB activates the CST (cyclic synchronous torque) mode. In the CST mode, the 
 +--------------------+---------------------+-----------------------------------------------------------------+
 
 4.9.2. MC_TorqueControl diagram
-------------------------------------
+-------------------------------
 The value of max profile velocity default set by servo API or via the axis parameter table.
 
       .. figure:: ../assets/fb/mc_torque_control_cases.png
@@ -809,11 +829,12 @@ The value of max profile velocity default set by servo API or via the axis param
          :align: center
 
 4.10. MC_Home
-================================
++++++++++++++
+
 This Function Block commands drive to search the home reference signal with the homing-specific settings of the drive.
 
 4.10.1. MC_Home
---------------------------------------------------
+---------------
 
 +------------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name          | MC_Home                   |                                                                 |
@@ -840,18 +861,19 @@ This Function Block commands drive to search the home reference signal with the 
 +------------------+---------------------------+-----------------------------------------------------------------+
 
 4.10.2. MC_Home drive parameters setting
---------------------------------------------------
+----------------------------------------
 Refer to the user guide of the drive for the Homing-specific parameter settings. These parameters can be set by servo SDO or via the axis parameter table.
 
 - ``Homing method``: selects the homing method.
 - ``Homing speeds``: sets the two speeds used in homing procedure, one for speed during search for switch and other for speed during search for zero.
 
 4.11. MC_Jog
-================================
+++++++++++++
+
 This Function Block commands a jogged movement to an axis as long as the input **JogForward** or **JogBackward** is set.
 
 4.11.1. MC_Jog
---------------------------------------------------
+--------------
 
 +------------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name          | MC_Jog                    |                                                                 |
@@ -888,13 +910,14 @@ This Function Block commands a jogged movement to an axis as long as the input *
 +------------------+---------------------------+-----------------------------------------------------------------+
 
 4.11.2. MC_Jog Diagram
------------------------
+----------------------
 
       .. figure:: ../assets/fb/mc_jog_axis.png
          :align: center
 
 4.12. MC_Power
-==============
+++++++++++++++
+
 This Function Block controls the power stage (On or Off). The power-on process depends on the fieldbus protocol content.
 For example, if RTmotion is connected to a CiA402 EtherCAT servo motor, the power-on process switches the servo motor
 state to "Operation Enabled" state. It also resolves situations where state switching encounters errors or exceptions,
@@ -930,8 +953,9 @@ or the servo motor reports an error when an electrical or physical condition occ
 +----------------+---------------+------------------------------------------------------------------------+
 
 4.13. MC_Reset
-==============
-This Function Block makes the transition from the state 'ErrorStop' to 'Standstill' or 'Disabled' by resetting 
+++++++++++++++
+
+This Function Block makes the transition from the state 'ErrorStop' to 'Standstill' or 'Disabled' by resetting
 all internal axis-related errors - it does not affect the output of the FB instances.
 
 4.13.1. MC_Reset inputs/outputs
@@ -960,14 +984,15 @@ all internal axis-related errors - it does not affect the output of the FB insta
 +------------+---------------+-----------------------------------------------------------------+
 
 4.14. MC_SetPosition
-=====================
+++++++++++++++++++++
+
 This Function Block shifts the coordinate system of an axis by manipulating both the set-point position as well as the
-actual position of an axis with the same value without any movement caused. (Re-calibration with same following error). 
-This can be used for instance for a reference situation. This Function Block can also be used during motion without 
+actual position of an axis with the same value without any movement caused. (Re-calibration with same following error).
+This can be used for instance for a reference situation. This Function Block can also be used during motion without
 changing the commanded position, which is now positioned in the shifted coordinate system.
 
 4.14.1. MC_SetPosition inputs/outputs
---------------------------------------
+-------------------------------------
 
 +------------+----------------------+-----------------------------------------------------------------+
 | FB-Name    | MC_SetPosition       |                                                                 |
@@ -999,11 +1024,12 @@ changing the commanded position, which is now positioned in the shifted coordina
 - ``mcSetPositionModeAbsolute``: means that the actual position value of the axis is set to the value specified in the 'Position' parameter.
 
 4.15. MC_ReadStatus
-====================
++++++++++++++++++++
+
 This Function Block returns in detail the status of the state diagram of the selected axis.
 
 4.15.1. MC_ReadStatus inputs/outputs
---------------------------------------
+------------------------------------
 
 +--------------------+---------------+-----------------------------------------------------------------+
 | FB-Name            | MC_ReadStatus |                                                                 |
@@ -1044,12 +1070,13 @@ This Function Block returns in detail the status of the state diagram of the sel
 +--------------------+---------------+-----------------------------------------------------------------+
 
 4.16. MC_ReadAxisInfo
-=======================
++++++++++++++++++++++
+
 This Function Block reads information concerning an axis, like modes, inputs directly related to the axis, and certain
 status information.
 
 4.16.1. MC_ReadAxisInfo inputs/outputs
-----------------------------------------
+--------------------------------------
 
 +--------------------+-----------------+-----------------------------------------------------------------+
 | FB-Name            | MC_ReadAxisInfo |                                                                 |
@@ -1092,12 +1119,13 @@ status information.
 +--------------------+-----------------+-----------------------------------------------------------------+
 
 4.17. MC_ReadAxisError
-=======================
+++++++++++++++++++++++
+
 This Function Block presents general axis errors not relating to the Function Blocks. (for instance axis errors, drive
 errors, communication errors)
 
 4.17.1. MC_ReadAxisError inputs/outputs
-----------------------------------------
+---------------------------------------
 
 +-------------+------------------+-----------------------------------------------------------------+
 | FB-Name     | MC_ReadAxisError |                                                                 |
@@ -1120,12 +1148,13 @@ errors, communication errors)
 +-------------+------------------+-----------------------------------------------------------------+
 
 4.18. MC_ReadCommandPosition
-=============================
+++++++++++++++++++++++++++++
+
 The FB reads the motion command returned from the motion kernel to the axis, which is used to update to the servo motor
 in the current thread cycle.
 
 4.18.1. MC_ReadCommandPosition inputs/outputs
-----------------------------------------------
+---------------------------------------------
 
 +------------+------------------------+-----------------------------------------------------------------+
 | FB-Name    | MC_ReadCommandPosition |                                                                 |
@@ -1152,12 +1181,13 @@ in the current thread cycle.
 +------------+------------------------+-----------------------------------------------------------------+
 
 4.19. MC_ReadCommandVelocity
-=============================
+++++++++++++++++++++++++++++
+
 The FB reads the motion command returned from the motion kernel to the axis, which is used to update to the servo motor
 in the current thread cycle.
 
 4.19.1. MC_ReadCommandVelocity inputs/outputs
-----------------------------------------------
+---------------------------------------------
 
 +------------+------------------------+-----------------------------------------------------------------+
 | FB-Name    | MC_ReadCommandVelocity |                                                                 |
@@ -1184,12 +1214,13 @@ in the current thread cycle.
 +------------+------------------------+-----------------------------------------------------------------+
 
 4.20. MC_ReadCommandAcceleration
-=================================
+++++++++++++++++++++++++++++++++
+
 The FB reads the motion command returned from the motion kernel to the axis, which is used to update to the servo motor
 in the current thread cycle.
 
 4.20.1. MC_ReadCommandAcceleration inputs/outputs
---------------------------------------------------
+-------------------------------------------------
 
 +--------------+----------------------------+-----------------------------------------------------------------+
 | FB-Name      | MC_ReadCommandAcceleration |                                                                 |
@@ -1216,12 +1247,13 @@ in the current thread cycle.
 +--------------+----------------------------+-----------------------------------------------------------------+
 
 4.21. MC_ReadActualPosition
-===========================
-The FB reads the actual position of the axis, which is converted from the current servo motor encoder value to 
++++++++++++++++++++++++++++
+
+The FB reads the actual position of the axis, which is converted from the current servo motor encoder value to
 a position in user-defined units and is displaced relative to the starting position.
 
 4.21.1. MC_ReadActualPosition inputs/outputs
---------------------------------------------------
+--------------------------------------------
 
 +------------+-----------------------+-----------------------------------------------------------------+
 | FB-Name    | MC_ReadActualPosition |                                                                 |
@@ -1248,12 +1280,12 @@ a position in user-defined units and is displaced relative to the starting posit
 +------------+-----------------------+-----------------------------------------------------------------+
 
 4.22. MC_ReadActualVelocity
-===========================
-The FB reads the actual velocity of the axis, which is converted from the current servo motor encoder value to 
++++++++++++++++++++++++++++
+The FB reads the actual velocity of the axis, which is converted from the current servo motor encoder value to
 a velocity in user-defined units.
 
 4.22.1. MC_ReadActualVelocity inputs/outputs
---------------------------------------------------
+--------------------------------------------
 
 +------------+-----------------------+-----------------------------------------------------------------+
 | FB-Name    | MC_ReadActualVelocity |                                                                 |
@@ -1280,12 +1312,13 @@ a velocity in user-defined units.
 +------------+-----------------------+-----------------------------------------------------------------+
 
 4.23. MC_ReadActualTorque
-================================
++++++++++++++++++++++++++
+
 The FB reads the actual torque or force (in technical units).
 
 
 4.23.1. MC_ReadActualTorque inputs/outputs
---------------------------------------------------
+------------------------------------------
 
 +--------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name      | MC_ReadActualTorque       |                                                                 |
@@ -1312,13 +1345,14 @@ The FB reads the actual torque or force (in technical units).
 +--------------+---------------------------+-----------------------------------------------------------------+
 
 4.24. MC_ReadActualAcceleration
-================================
-The FB reads the actual acceleration of the axis, which is converted from the current servo motor encoder value to 
++++++++++++++++++++++++++++++++
+
+The FB reads the actual acceleration of the axis, which is converted from the current servo motor encoder value to
 an acceleration in user-defined units.
 
 
 4.24.1. MC_ReadActualAcceleration inputs/outputs
---------------------------------------------------
+------------------------------------------------
 
 +--------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name      | MC_ReadActualAcceleration |                                                                 |
@@ -1345,19 +1379,20 @@ an acceleration in user-defined units.
 +--------------+---------------------------+-----------------------------------------------------------------+
 
 4.25. MC_ReadDigitalInput
-================================
-The FB gives access to the input value of the IO module. It provides the mcBOOL value of the specified Input bit 
-of the referenced IO_REF object. The VAR_IN_OUT object 'Input' specifies the IO module and numbers its inputs from 
-0 in ascending address order. The VAR_INPUT 'InputNumber' specifies the input number and the VAR_INPUT 'BitNumber' 
-specifies the bit number of this input. 
++++++++++++++++++++++++++
 
-For example, if the 'Input' is set to my_io, the 'InputNumber' is set to 0, and the 'BitNumber' is set to 0, then 
-the VAR_OUTPUT 'Value' will return the mcBOOL value of the first bit of the first input in the my_io object  while 
+The FB gives access to the input value of the IO module. It provides the mcBOOL value of the specified Input bit
+of the referenced IO_REF object. The VAR_IN_OUT object 'Input' specifies the IO module and numbers its inputs from
+0 in ascending address order. The VAR_INPUT 'InputNumber' specifies the input number and the VAR_INPUT 'BitNumber'
+specifies the bit number of this input.
+
+For example, if the 'Input' is set to my_io, the 'InputNumber' is set to 0, and the 'BitNumber' is set to 0, then
+the VAR_OUTPUT 'Value' will return the mcBOOL value of the first bit of the first input in the my_io object  while
 the VAR_OUTPUT 'Valid' is mcTrue.
 
 
 4.25.1. MC_ReadDigitalInput inputs/outputs
---------------------------------------------------
+------------------------------------------
 
 +--------------+---------------------+--------------------------------------------------------------------------------------------+
 | FB-Name      | MC_ReadDigitalInput |                                                                                            |
@@ -1388,19 +1423,20 @@ the VAR_OUTPUT 'Valid' is mcTrue.
 +--------------+---------------------+--------------------------------------------------------------------------------------------+
 
 4.26. MC_ReadDigitalOutput
-================================
-The FB gives access to the output value of the IO module. It provides the mcBOOL value of the specified Output bit 
-of the referenced IO_REF object. The VAR_IN_OUT object 'Output' specifies the IO module and numbers its outputs from 
-0 in ascending address order. The VAR_INPUT 'OutputNumber' specifies the output number and the VAR_INPUT 'BitNumber' 
-specifies the bit number of this output. 
+++++++++++++++++++++++++++
 
-For example, if the 'Output' is set to my_io, the 'OutputNumber' is set to 0, and the 'BitNumber' is set to 0, then 
-the VAR_OUTPUT 'Value' will return the mcBOOL value of the first bit of the first output in the my_io object while 
-the VAR_OUTPUT 'Valid' is mcTrue. 
+The FB gives access to the output value of the IO module. It provides the mcBOOL value of the specified Output bit
+of the referenced IO_REF object. The VAR_IN_OUT object 'Output' specifies the IO module and numbers its outputs from
+0 in ascending address order. The VAR_INPUT 'OutputNumber' specifies the output number and the VAR_INPUT 'BitNumber'
+specifies the bit number of this output.
+
+For example, if the 'Output' is set to my_io, the 'OutputNumber' is set to 0, and the 'BitNumber' is set to 0, then
+the VAR_OUTPUT 'Value' will return the mcBOOL value of the first bit of the first output in the my_io object while
+the VAR_OUTPUT 'Valid' is mcTrue.
 
 
 4.26.1. MC_ReadDigitalOutput inputs/outputs
---------------------------------------------------
+-------------------------------------------
 
 +--------------+----------------------+--------------------------------------------------------------------------------------------+
 | FB-Name      | MC_ReadDigitalOutput |                                                                                            |
@@ -1431,18 +1467,19 @@ the VAR_OUTPUT 'Valid' is mcTrue.
 +--------------+----------------------+--------------------------------------------------------------------------------------------+
 
 4.27. MC_WriteDigitalOutput
-================================
-The FB writes a mcBOOL value to the output bit referenced by the argument ‘Output’.The VAR_IN_OUT object 'Output' 
-specifies the IO module and numbers its outputs from 0 in ascending address order. The VAR_INPUT 'OutputNumber' 
++++++++++++++++++++++++++++
+
+The FB writes a mcBOOL value to the output bit referenced by the argument ‘Output’.The VAR_IN_OUT object 'Output'
+specifies the IO module and numbers its outputs from 0 in ascending address order. The VAR_INPUT 'OutputNumber'
 specifies the output number and the VAR_INPUT 'BitNumber' specifies the bit number of this output.
 
-For example, if the 'Output' is set to my_io, the 'OutputNumber' is set to 0, the 'BitNumber' is set to 0, and the 
-'Value' is set to mcTrue, then this FB will set the first bit of the first output in the my_io object to mcTrue after 
-the VAR_OUTPUT 'Done' is mcTrue. 
+For example, if the 'Output' is set to my_io, the 'OutputNumber' is set to 0, the 'BitNumber' is set to 0, and the
+'Value' is set to mcTrue, then this FB will set the first bit of the first output in the my_io object to mcTrue after
+the VAR_OUTPUT 'Done' is mcTrue.
 
 
 4.27.1. MC_WriteDigitalOutput inputs/outputs
---------------------------------------------------
+--------------------------------------------
 
 +--------------+-----------------------+--------------------------------------------------------------------------------------------+
 | FB-Name      | MC_WriteDigitalOutput |                                                                                            |
@@ -1473,7 +1510,8 @@ the VAR_OUTPUT 'Done' is mcTrue.
 +--------------+-----------------------+--------------------------------------------------------------------------------------------+
 
 4.28. MC_SetControllerMode
-================================
+++++++++++++++++++++++++++
+
 This function block, if supported by the drive, can be used to switch to another controller mode. Preconditions:
 
 - The axis must support the desired controlling mode. In order to check this, see the feature documentation PDF inside the corresponding SoftMotion driver library.
@@ -1486,7 +1524,7 @@ Behavior when active:
 - All FBs should be aborted when the mode is changed from high level to the low level. (high level: position & velocity; low level: torque). Switch home to other mode also need to abort all FBs.
 
 4.28.1. MC_SetControllerMode inputs/outputs
---------------------------------------------------
+-------------------------------------------
 
 +--------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name      | MC_SetControllerMode      |                                                                 |
@@ -1520,12 +1558,13 @@ Behavior when active:
   + ``mcServoControlModeHomeServo``: means that set the servo mode to HM (Homing mode).
 
 4.29. MC_ReadRawPosition
-===========================
-The FB reads the raw position of the axis, which is converted from the current servo motor encoder value to 
+++++++++++++++++++++++++
+
+The FB reads the raw position of the axis, which is converted from the current servo motor encoder value to
 a position in user-defined units without being displaced relative to the starting position.
 
 4.29.1. MC_ReadRawPosition inputs/outputs
---------------------------------------------------
+-----------------------------------------
 
 +------------+--------------------+------------------------------------------------------------------+
 | FB-Name    | MC_ReadRawPosition |                                                                  |
@@ -1553,13 +1592,14 @@ a position in user-defined units without being displaced relative to the startin
 
 
 4.30. MC_SetOverride
-================================
+++++++++++++++++++++
+
 This Function Block sets the values of override for the whole axis, and all functions that are working on that axis. The
 override parameters contribute as a factor to the calculation of the commanded velocity, acceleration and jerk of the
 motion.
 
 4.30.1. MC_SetOverride
---------------------------------------------------
+----------------------
 
 +------------------+---------------------------+---------------------------------------------------------------------------------------------------------+
 | FB-Name          | MC_SetOverride            |                                                                                                         |
@@ -1591,11 +1631,12 @@ motion.
 
 
 4.31. MC_ReadMotionState
-===========================
+++++++++++++++++++++++++
+
 This FB returns in detail the status of the axis with respect to the motion currently in progress.
 
 4.31.1. MC_ReadMotionState inputs/outputs
---------------------------------------------------
+-----------------------------------------
 
 +-------------------+--------------------+------------------------------------------------------------------------------------------------------------------+
 | FB-Name           | MC_ReadMotionState |                                                                                                                  |
@@ -1635,11 +1676,12 @@ This FB returns in detail the status of the axis with respect to the motion curr
 
 
 4.32. MC_CamTableSelect
-===========================
++++++++++++++++++++++++
+
 The FB selects the CAM tables by setting the connections to the relevant tables.
 
 4.32.1. MC_CamTableSelect inputs/outputs
---------------------------------------------------
+----------------------------------------
 
 +----------------+-------------------+-----------------------------------------------------------------+
 | FB-Name        | MC_CamTableSelect |                                                                 |
@@ -1677,7 +1719,7 @@ The FB selects the CAM tables by setting the connections to the relevant tables.
 
 
 4.32.2. MC_CamRef class
---------------------------------------------------
+-----------------------
 
 +------------------+-------------+----------------------------------------------------------------------------------------------------------------+
 | Struct-Name      | MC_CamRef   |                                                                                                                |
@@ -1695,7 +1737,7 @@ The FB selects the CAM tables by setting the connections to the relevant tables.
 
 
 4.32.3. MC_CAM_ID struct
---------------------------------------------------
+------------------------
 
 +------------------+-----------+-----------------------------------------------------------------------------+
 | Struct-Name      | MC_CamRef |                                                                             |
@@ -1719,11 +1761,12 @@ The FB selects the CAM tables by setting the connections to the relevant tables.
 
 
 4.33. MC_CamIn
-===========================
+++++++++++++++
+
 The function block implements a selected cam plate.
 
 4.33.1. MC_CamIn inputs/outputs
---------------------------------------------------
+-------------------------------
 
 +----------------+---------------+------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | FB-Name        | MC_CamIn      |                                                                                                                                                                                                                                                                        |
@@ -1777,20 +1820,20 @@ The function block implements a selected cam plate.
 
 
 4.33.2 Definition of MasterAbsolute
---------------------------------------------------
+-----------------------------------
 
 * ``MasterAbsolute=TRUE``
-  
+
   + The cam is started at the current master position.
   + If Periodic=True, master position will be evaluated by modulo operations of the master value range.
 * ``MasterAbsolute=FALSE``
-  
+
   + Sets the zero point of the master to the current master position or to the position at the end of the previous cam.
   + The MasterAbsolute=FALSE mode may be used only if the value 0 is in the master value range because the evaluation of the cam is started at this position.
 
 
 4.33.3 Interaction of MC_CamIn.StartMode and MC_CamTableSelect.SlaveAbsolute
-------------------------------------------------------------------------------
+----------------------------------------------------------------------------
 
 +--------------------+---------------------------------+-------------------------------+
 | MC_CamIn.StartMode | MC_CamTableSelect.SlaveAbsolute | MC_CamIn.StartMode: New value |
@@ -1806,18 +1849,18 @@ The function block implements a selected cam plate.
 
 
 4.33.4 Definition of StartMode
---------------------------------------------------
+------------------------------
 
 * ``StartMode = mcAbsolute``
-  
+
   + When starting a new cycle, the cam is evaluated independent of the current position of the slave. This can lead to jumps if the slave position to the master start position deviates from that of the master end position.
 * ``StartMode = mcRelative``
-  
+
   + The new cam is started allowing for the current slave position. The position that the slave has after the end of the previous cycle is added as a slave offset to the new evaluations of the cam. Jumps can also occur if the slave position at the master start position is not 0.
 
 
 4.33.5. Combination effect of StartMode, MC_CamTableSelect.Periodic and MC_CamTableSelect.MasterAbsolute on execution
-----------------------------------------------------------------------------------------------------------------------
+---------------------------------------------------------------------------------------------------------------------
 
 * ``MC_CamTableSelect.Periodic & MC_CamTableSelect.MasterAbsolute's effect on execution``
 
@@ -1848,18 +1891,19 @@ The function block implements a selected cam plate.
 
 
 4.33.6. MC_CamIn Diagram
---------------------------------------------------
+------------------------
 
       .. figure:: ../assets/fb/mc_camIn_axis.png
          :align: center
 
 
 4.34. MC_CamOut
-===========================
++++++++++++++++
+
 The FB disengages the Slave axis from Master axis immediately.
 
 4.34.1. MC_CamOut inputs/outputs
---------------------------------------------------
+--------------------------------
 
 +--------------+---------------+-----------------------------------------------------------------+
 | FB-Name      | MC_CamOut     |                                                                 |
@@ -1889,11 +1933,12 @@ The FB disengages the Slave axis from Master axis immediately.
 
 
 4.35. MC_GearIn
-================================
++++++++++++++++
+
 The FB commands a ratio between the VELOCITY of the slave and master axis.
 
 4.35.1. MC_GearIn inputs/outputs
---------------------------------------------------
+--------------------------------
 
 +------------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name          | MC_GearIn                 |                                                                 |
@@ -1935,18 +1980,19 @@ The FB commands a ratio between the VELOCITY of the slave and master axis.
 
 
 4.35.2. MC_GearIn Diagram
---------------------------------------------------
+-------------------------
 
       .. figure:: ../assets/fb/mc_gearIn_axis.png
          :align: center
 
 
 4.36. MC_GearOut
-================================
+++++++++++++++++
+
 The FB disengages the Slave axis from the Master axis
 
 4.36.1. MC_GearOut inputs/outputs
---------------------------------------------------
+---------------------------------
 
 +------------------+---------------------------+-----------------------------------------------------------------+
 | FB-Name          | MC_GearOut                |                                                                 |
@@ -1972,19 +2018,20 @@ The FB disengages the Slave axis from the Master axis
 
 
 4.36.2. MC_GearOut Diagram
---------------------------------------------------
+--------------------------
 
       .. figure:: ../assets/fb/mc_gearOut_axis.png
          :align: center
 
 
 4.37. MC_GearInPos
-================================
+++++++++++++++++++
+
 This Function Block commands a gear ratio between the position of the slave and master axes from the synchronization point onward.
 
 
 4.37.1. MC_GearInPos inputs/outputs
---------------------------------------------------
+-----------------------------------
 
 +---------------------+---------------+--------------------------------------------------------------------------------------------+
 | FB-Name             | MC_GearIn     |                                                                                            |
@@ -2040,7 +2087,7 @@ This Function Block commands a gear ratio between the position of the slave and 
 
 
 4.37.2. MC_GearInPos Timing Diagram
---------------------------------------------------
+-----------------------------------
 
       .. figure:: ../assets/fb/mc_gearInPos_timing.png
          :align: center
@@ -2051,17 +2098,18 @@ If the MasterStartDistance is not specified (indicated by a non-positive value),
 
 
 4.37.3. MC_GearInPos Executing Diagram
---------------------------------------------------
+--------------------------------------
 
       .. figure:: ../assets/fb/mc_gearInPos_axis.png
          :align: center
 
 4.38. MC_DigitalCamSwitch
-================================
++++++++++++++++++++++++++
+
 This Function Block is the analogy to switches on a motor shaft: it commands a group of discrete output bits to switch in analogy to a set of mechanical cam controlled switches connected to an axis. Forward and backward movements are allowed.
 
 4.38.1. MC_DigitalCamSwitch
---------------------------------------------------
+---------------------------
 
 +--------------+---------------------+----------------------------------------------------------------------------------------------------------------+
 | FB-Name      | MC_DigitalCamSwitch |                                                                                                                |
@@ -2096,7 +2144,7 @@ This Function Block is the analogy to switches on a motor shaft: it commands a g
 +--------------+---------------------+----------------------------------------------------------------------------------------------------------------+
 
 4.38.2. McCamSwitch struct and MC_CAMSWITCH_REF struct
-----------------------------------------------------------
+------------------------------------------------------
 
 +-----------------+-------------+--------------------------------------------------+
 | Struct-Name     | McCamSwitch |                                                  |
@@ -2142,7 +2190,7 @@ Here is an example of MC_CAMSWITCH_REF
 
 
 4.38.3. McTrack struct
---------------------------------------------------
+----------------------
 
 +-----------------+-------------+-----------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------------+
 | Struct-Name     | McCamSwitch |                                                                                                                                                                                                                                   |
@@ -2176,7 +2224,7 @@ Below the behavior of the outputs, when the axis is moving continuously in the n
          :align: center
 
 4.38.4. MC_DigitalCamSwitch Executing Diagram
---------------------------------------------------
+---------------------------------------------
 
       .. figure:: ../assets/fb/digital_cam_switch/test_case_positive.png
          :align: center
@@ -2184,12 +2232,14 @@ Below the behavior of the outputs, when the axis is moving continuously in the n
       .. figure:: ../assets/fb/digital_cam_switch/test_case_negative.png
          :align: center
 
-5. RTmotion trajectory planning
-********************************
+1. RTmotion trajectory planning
+###############################
+
 Servo motors running in Cyclic Synchronous Position Mode (CSP), Cyclic Synchronous Velocity Mode (CSV) or Cyclic Synchronous Torque Mode (CST) mode need to receive commands in real-time cycle time, such as 1ms cycle time. This requires trajectory planning algorithms to interpolate in delta time interval same to the cycle time.
 
 5.1. S-curve trajectory planning
-==================================
+++++++++++++++++++++++++++++++++
+
 S-curve trajectory planning is one algorithm used by the PLCopen function blocks for single axis trajectory interpolation. When driving a motor to an absolute or additive position, the motors always try to accelerate its velocity to its maximum value and decelerate before it reaches the target position. If the acceleration during this process is not continuous or linear piece-wise, some infinite jerk spikes may happen, which can cause efforts and stresses on the mechanical system of motors that results in detrimental or undesired vibrational effects. Therefore, the S-curve trajectory planning is necessary.
 
 A sample implementation of the S-curve algorithm is provided in ECI for reference design. For more information of S-curve planning, refer to "Trajectory Planning for Automatic Machines and Robots-Springer (2008)" by *Luigi Biagiotti, Claudio Melchiorri*.
@@ -2205,7 +2255,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 17. Scurve test 1 result</b></p>
 
 **Test2**
@@ -2217,7 +2267,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 18. Scurve test 2 result</b></p>
 
 **Test3**
@@ -2229,7 +2279,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 19. Scurve test 3 result</b></p>
 
 **Test4**
@@ -2241,7 +2291,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 20. Scurve test 4 result</b></p>
 
 **Test5**
@@ -2253,7 +2303,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 21. Scurve test 5 result</b></p>
 
 **Test6**
@@ -2265,7 +2315,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 22. Scurve test 6 result</b></p>
 
 **Test7**
@@ -2277,7 +2327,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 23. Scurve test 7 result</b></p>
 
 **Test8**
@@ -2289,7 +2339,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 24. Scurve test 8 result</b></p>
 
 **Test9**
@@ -2301,7 +2351,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/online_scurve_test.cpp`
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 25. Scurve test 9 result</b></p>
 
 Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
@@ -2315,7 +2365,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 26. Planner test VelocityUp result</b></p>
 
 **VelocityDown**
@@ -2327,7 +2377,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 27. Planner test VelocityDown result</b></p>
 
 **Example_3_9**
@@ -2339,7 +2389,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 28. Planner test Example_3_9 result</b></p>
 
 **Example_3_10**
@@ -2351,7 +2401,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 29. Planner test Example_3_10 result</b></p>
 
 **Example_3_11**
@@ -2363,7 +2413,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 30. Planner test Example_3_11 result</b></p>
 
 **Example_3_12**
@@ -2375,7 +2425,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 31. Planner test Example_3_12 result</b></p>
 
 **Example_3_13**
@@ -2387,7 +2437,7 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 32. Planner test Example_3_13 result</b></p>
 
 **Test_Negative**
@@ -2399,15 +2449,16 @@ Some s-curve planner tests in ``<RTmotion_ROOT_DIR>/test/planner_test.cpp``:
          :align: center
 
 .. raw:: html
-  
+
    <p align="center"><b>Figure 33. Planner test Test_Negative result</b></p>
 
 6. RTmotion C++ example
-************************
+#######################
+
 This section provides examples of how to call RTmotion functions in C++ applications.
 
 6.1. Build RTmotion
-====================
++++++++++++++++++++
 
 At the first step, build and install Ruckig:
 
@@ -2434,9 +2485,9 @@ Build RTmotion and its minimum example:
       make
 
 6.2. Run RTmotion minimum example
-==================================
++++++++++++++++++++++++++++++++++
 
-The RTmotion minimum example shows how to run RTmotion function blocks (MC_Power, MC_MoveRelative, MC_ReadActualPosition, MC_ReadActualVelocity) on a virtual axis. The program uses MC_Power to power on the axis. Then it uses MC_MoveRelative to move the axis to a distance with 200 units relative to the current position (by default 0 at start time). When the MC_MoveRelative is done, a negative 200 units distance is set and the MC_MoveRelative is re-triggered to move the axis back to its original position. 
+The RTmotion minimum example shows how to run RTmotion function blocks (MC_Power, MC_MoveRelative, MC_ReadActualPosition, MC_ReadActualVelocity) on a virtual axis. The program uses MC_Power to power on the axis. Then it uses MC_MoveRelative to move the axis to a distance with 200 units relative to the current position (by default 0 at start time). When the MC_MoveRelative is done, a negative 200 units distance is set and the MC_MoveRelative is re-triggered to move the axis back to its original position.
 
 .. code-block:: bash
 
@@ -2714,7 +2765,7 @@ This is the source code for a minimal example, code explanation has been added v
 
 
 6.3. Run RTmotion with EtherCAT servo
-======================================
++++++++++++++++++++++++++++++++++++++
 
 Running RTmotion with EtherCAT servos needs to replace the virtual servo ``RTmotion::Servo`` with a EtherCAT servo ``RTmotion::EcrtServo``, which can be derived from ``RTmotion::Servo`` as shown here:
 
@@ -2793,7 +2844,7 @@ Refer to the following instructions when writing the servo interface:
 
     - ``vel``: Velocity goal in the unit of raw_unit/sec.
     - ``return``: If error occurs, returns a user-defined error code, otherwise returns 0.
-    
+
 .. cpp:function::  MC_SERVO_ERROR_CODE setTorque(mcLREAL torque)
 
     - ``torque``: Torque goal in the unit of N/m.
@@ -2816,15 +2867,15 @@ Refer to the following instructions when writing the servo interface:
 
 .. cpp:function::  mcDINT pos(void)
 
-    Get the actual position (``raw_unit``) of the servo motor. 
+    Get the actual position (``raw_unit``) of the servo motor.
 
 .. cpp:function::  mcDINT vel(void)
 
-    Get the actual velocity (``raw_unit/sec``) of the servo motor. 
- 
+    Get the actual velocity (``raw_unit/sec``) of the servo motor.
+
 .. cpp:function::  mcDINT acc(void)
 
-    Get the actual acceleration (``raw_unit/sec`` :sup:`2`) of the servo motor. 
+    Get the actual acceleration (``raw_unit/sec`` :sup:`2`) of the servo motor.
 
 .. cpp:function::  mcLREAL torque(void)
 
@@ -2876,7 +2927,7 @@ After implementing the EtherCAT servo, add the following content to the minimal 
 - Add code to the global and ``main()`` part:
 
     .. code-block:: C++
-         
+
           /* Include plcopen-servo and Ethercat EnableKit related headers */
           #include <motionentry.h>
           #include <ecrt_config.hpp>
@@ -2927,7 +2978,7 @@ After implementing the EtherCAT servo, add the following content to the minimal 
 
             my_servo = new EcrtServo();
             my_servo->setMaster(master);
-             
+
             if (motion_servo_master_activate(master->master)) {
                 printf("fail to activate master\n");
                 return -1;
@@ -2951,9 +3002,9 @@ After implementing the EtherCAT servo, add the following content to the minimal 
             axis->setAxisId(1);
             axis->setAxisConfig(&config);
             axis->setServo(servo);
-            
+
             ......
-            
+
             /* Need to release EtherCAT master after the RT-thread exit */
             motion_servo_master_release(master);
           }
@@ -2961,10 +3012,10 @@ After implementing the EtherCAT servo, add the following content to the minimal 
 - Add code to the cyclic thread part:
 
     .. code-block:: C++
-          
+
           /* RX to get EtherCAT data at the beginning of the cycle */
           motion_servo_recv_process(master->master, static_cast<uint8_t *>(domain));
-          
+
           /* Action execution part */
           ...
 
@@ -2974,7 +3025,7 @@ After implementing the EtherCAT servo, add the following content to the minimal 
           motion_servo_send_process(master->master, static_cast<uint8_t *>(domain));
 
 6.4. Run RTmotion with EtherCAT IO
-======================================
+++++++++++++++++++++++++++++++++++
 
 Running RTmotion with EtherCAT IO needs to replace the virtual IO ``RTmotion::McIO`` with a EtherCAT IO ``RTmotion::EcrtIO``, which can be derived from ``RTmotion::McIO`` as shown here:
 
@@ -3008,18 +3059,18 @@ Refer to the following instructions when writing the IO interface:
 
 .. cpp:function::  mcUINT deviceAddr(void)
 
-    Get the set address of the IO object. 
+    Get the set address of the IO object.
 
 .. cpp:function::  MC_IO_ERROR_CODE getErrorCode(void)
 
-    Get the user-defined error code of the IO object. 
+    Get the user-defined error code of the IO object.
 
 After implementing the EtherCAT IO, add the following content to the minimal example presented in the previous section.
 
 - Add code to the global and ``main()`` part:
 
     .. code-block:: C++
-         
+
           /* Include plcopen-servo-io and Ethercat EnableKit related headers */
           #include <motionentry.h>
           #include <ecrt_io.hpp>
@@ -3066,7 +3117,7 @@ After implementing the EtherCAT IO, add the following content to the minimal exa
             }
 
             motion_servo_set_send_interval(master);
-             
+
             if (motion_servo_master_activate(master->master)) {
                 printf("fail to activate master\n");
                 motion_servo_master_release(master);
@@ -3101,9 +3152,9 @@ After implementing the EtherCAT IO, add the following content to the minimal exa
             }
             // check initialization results and print IO info
             my_io->printIOInfo();
-            
+
             ......
-            
+
             /* Need to release EtherCAT master after the RT-thread exit */
             motion_servo_master_release(master);
             delete my_io;
@@ -3112,13 +3163,13 @@ After implementing the EtherCAT IO, add the following content to the minimal exa
 - Add code to the cyclic thread part:
 
     .. code-block:: C++
-          
+
           /* RX to get EtherCAT data at the beginning of the cycle */
           motion_servo_recv_process(master->master, static_cast<uint8_t *>(domain));
           my_io->runCycle();
-          
+
           /* Action execution part */
-          // fb_read_digital_input test 
+          // fb_read_digital_input test
           mcUSINT input_result = static_cast<mcUSINT>(fb_read_digital_input.getValue());
           if (fb_read_digital_input.isValid() == mcTRUE)
           {
@@ -3128,7 +3179,7 @@ After implementing the EtherCAT IO, add the following content to the minimal exa
           {
             // error handling
           }
-          // fb_write_digital_output test 
+          // fb_write_digital_output test
           fb_write_digital_output.setValue(1);
           if (fb_write_digital_output.isError() == mcTRUE)
           {
@@ -3151,7 +3202,7 @@ After implementing the EtherCAT IO, add the following content to the minimal exa
 
 
 7. Appendix
-************
+###########
 
 - Acronyms
 

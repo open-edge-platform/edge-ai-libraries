@@ -1,0 +1,305 @@
+From 6157b27e16393e3e6cf2fe51a9f0efda53241ef1 Mon Sep 17 00:00:00 2001
+From: Zhang Wei <wei.e.zhang@intel.com>
+Date: Tue, 1 Jul 2025 10:59:24 +0800
+Subject: [PATCH 3/4] add ecrt_master_wait_for_slave api to check master/slave
+ status
+
+Signed-off-by: Zhang Wei <wei.e.zhang@intel.com>
+---
+ examples/dual_master/main.c | 34 +++++---------------------
+ examples/ecatdio/main.c     | 31 ++++++------------------
+ examples/ecatmotor/main.c   | 34 +++++++-------------------
+ include/ecrt.h              | 12 ++++++++++
+ master/ethercatd.c          | 48 ++++++++++++++++++++++++++++++++++---
+ 5 files changed, 79 insertions(+), 80 deletions(-)
+
+diff --git a/examples/dual_master/main.c b/examples/dual_master/main.c
+index 60ded6b1..bfc05466 100644
+--- a/examples/dual_master/main.c
++++ b/examples/dual_master/main.c
+@@ -433,10 +433,7 @@ void *my_thread1(void *arg)
+ static int ec_master_pre_configuration(Master_Data *master_data, uint64_t dc_ref_init_time)
+ {
+     int ret;
+-#if !EC_ENABLE_DAEMON
+-    ec_slave_info_t slave_info;
+-    ec_master_state_t master_state = {};
+-#endif
++
+     ec_slave_config_t *sc;
+     ec_sync_info_t* servo_syncs;
+     ec_pdo_entry_reg_t* domain_regs;
+@@ -444,26 +441,7 @@ static int ec_master_pre_configuration(Master_Data *master_data, uint64_t dc_ref
+         return -1;
+     }
+ #if !EC_ENABLE_DAEMON
+-    printf("Getting master state...\n");
+-    ecrt_master_state(master_data->master, &master_state);
+-    while (1){
+-        ecrt_master_state(master_data->master, &master_state);
+-	if ((master_state.slaves_responding == 1)&&(master_state.al_states&0x0E))
+-            break;
+-        sleep(0.01);
+-    };
+-    printf("Getting slave0 info...\n");
+-    while(1)
+-    {
+-	ret = ecrt_master_get_slave(master_data->master, 0, &slave_info);
+-	if (ret != 0) {
+-	    //printf("Error in getting slave info\n");
+-	} else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
+-	    //printf("slave info state=%d\n",slave_info.al_state);
+-	    break;
+-	}
+-        sleep(0.01);
+-    };
++    ecrt_master_wait_for_slave(master_data, 1);
+ #endif
+     printf("Creating domain for master0 ...\n");
+     master_data->domain = ecrt_master_create_domain(master_data->master);
+@@ -539,10 +517,10 @@ static void ec_master_perf_console(Master_Data *master_data)
+     if (master_data->sem_update&&master_data->count) {
+         printf("Master%d:\n", master_data->master_id);
+         printf("latency(us):  %10.3f ... %10.3f ... %10.3f\n", (float)(master_data->latency_min_ns)/1000, (float)(master_data->latency_sum_ns)/master_data->count/1000, (float)(master_data->latency_max_ns)/1000);
+-            printf("DCM(ns)    :  %10d ... %10d\n", master_data->dc_diff_min, master_data->dc_diff_max);
+-            printf("exec(us)   :  %10.3f ... %10.3f ... %10.3f\n", (float)(master_data->exec_min_ns)/1000, (float)(master_data->exec_sum_ns/master_data->count)/1000, (float)(master_data->exec_max_ns)/1000);
+-            master_data->sem_update = 0;
+-        }
++        printf("DCM(ns)    :  %10d ... %10d\n", master_data->dc_diff_min, master_data->dc_diff_max);
++        printf("exec(us)   :  %10.3f ... %10.3f ... %10.3f\n", (float)(master_data->exec_min_ns)/1000, (float)(master_data->exec_sum_ns/master_data->count)/1000, (float)(master_data->exec_max_ns)/1000);
++        master_data->sem_update = 0;
++    }
+ 
+ }
+ 
+diff --git a/examples/ecatdio/main.c b/examples/ecatdio/main.c
+index 171f8150..1f34fd10 100644
+--- a/examples/ecatdio/main.c
++++ b/examples/ecatdio/main.c
+@@ -62,6 +62,9 @@ static uint32_t horselight_tick = 1000;
+ static pthread_t cyclic_thread;
+ static volatile int run = 1;
+ 
++#if !EC_ENABLE_DAEMON
++static ec_master_t *masters = NULL;
++#endif
+ static ec_master_t *master = NULL;
+ static ec_master_state_t master_state = {};
+ static Slave_Data ec_slave0;
+@@ -270,10 +273,6 @@ static void getOptions(int argc, char **argv)
+  ***************************************************************************/
+ int main(int argc, char *argv[])
+ {
+-#if !EC_ENABLE_DAEMON
+-    int ret;
+-    ec_slave_info_t slave_info;
+-#endif
+     getOptions(argc,argv);
+     data_init();
+     signal(SIGTERM, signal_handler);
+@@ -281,31 +280,15 @@ int main(int argc, char *argv[])
+     mlockall(MCL_CURRENT | MCL_FUTURE);
+ 
+     printf("Requesting master...\n");
++#if !EC_ENABLE_DAEMON
++    masters = ecrt_masters_create(0);
++#endif
+     master = ecrt_request_master(0);
+     if (!master) {
+         return -1;
+     }
+ #if !EC_ENABLE_DAEMON
+-    printf("Getting master state...\n");
+-    ecrt_master_state(master, &master_state);
+-    while (1){
+-        ecrt_master_state(master, &master_state);
+-	if ((master_state.slaves_responding == 1)&&(master_state.al_states&0x0E))
+-           break;
+-        sleep(0.01);
+-    };
+-    printf("Getting slave info...\n");
+-    while(1)
+-    {
+-	ret = ecrt_master_get_slave(master, 0, &slave_info);
+-	if (ret != 0) {
+-	    printf("Error in getting slave info\n");
+-	} else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
+-	    printf("slave info state=%d\n",slave_info.al_state);
+-	    break;
+-	}
+-        sleep(0.01);
+-    };
++    ecrt_master_wait_for_slave(master, 1);
+ #endif
+ 
+     printf("Creating domain ...\n");
+diff --git a/examples/ecatmotor/main.c b/examples/ecatmotor/main.c
+index 0634ae2e..df45a028 100644
+--- a/examples/ecatmotor/main.c
++++ b/examples/ecatmotor/main.c
+@@ -58,6 +58,9 @@ static int operation_mode = MODE_CSP;
+ static ec_sync_info_t* servo_syncs;
+ static int slave_decord_per_cycle;
+ 
++#if !EC_ENABLE_DAEMON
++static ec_master_t *masters = NULL;
++#endif
+ static ec_master_t *master = NULL;
+ static ec_master_state_t master_state = {};
+ static Slave_Data ec_slave0;
+@@ -300,7 +303,7 @@ static void getOptions(int argc, char **argv)
+         {"slave",required_argument,	NULL,	's'},
+         {"velocity",required_argument,	NULL,	'v'},
+         {"master",required_argument,	NULL,	'm'},
+-	{"mode", required_argument, NULL, 'o'},
++        {"mode", required_argument, NULL, 'o'},
+         {"help",	no_argument,		NULL,	'h'},
+         {}
+     };
+@@ -349,42 +352,23 @@ int main(int argc, char *argv[])
+     struct timespec dc_period;
+     int ret;
+ 
+-#if !EC_ENABLE_DAEMON
+-    ec_slave_info_t slave_info;
+-#endif
+     getOptions(argc,argv);
+     data_init();
+     signal(SIGTERM, signal_handler);
+     signal(SIGINT, signal_handler);
+     mlockall(MCL_CURRENT | MCL_FUTURE);
+ 
+-
++#if !EC_ENABLE_DAEMON
++    masters = ecrt_masters_create(0);
++#endif
+     master = ecrt_request_master(master_id);
+     if (!master) {
+         return -1;
+     }
+ #if !EC_ENABLE_DAEMON
+-    printf("Getting master state...\n");
+-    ecrt_master_state(master, &master_state);
+-    while (1){
+-        ecrt_master_state(master, &master_state);
+-	if ((master_state.slaves_responding == 1)&&(master_state.al_states&0x0E))
+-           break;
+-        sleep(0.01);
+-    };
+-    printf("Getting slave info...\n");
+-    while(1)
+-    {
+-	ret = ecrt_master_get_slave(master, 0, &slave_info);
+-	if (ret != 0) {
+-	    printf("Error in getting slave info\n");
+-	} else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
+-	    printf("slave info state=%d\n",slave_info.al_state);
+-	    break;
+-	}
+-        sleep(0.01);
+-    };
++    ecrt_master_wait_for_slave(master, 1);
+ #endif
++
+     printf("Creating domain ...\n");
+     domain = ecrt_master_create_domain(master);
+     if (!domain){
+diff --git a/include/ecrt.h b/include/ecrt.h
+index 14fb41c3..8a35c325 100644
+--- a/include/ecrt.h
++++ b/include/ecrt.h
+@@ -657,6 +657,18 @@ EC_PUBLIC_API ec_master_t *ecrt_request_master(
+         );
+ 
+ #ifdef EC_USERMODE
++/** Waiting EtherCAT Master state initial and slave status ready.
++ *
++ * This function waits for the EtherCAT master to be in the initial state and
++ * all slaves to be ready. It is used in userspace applications to ensure that
++ * the master is ready for operation before proceeding with further setup.
++ *
++ * \apiusage{master_idle,blocking}
++ *
++ * \return 0 on success, otherwise a negative error code.
++ */
++EC_PUBLIC_API int ecrt_master_wait_for_slave(ec_master_t *master, int slave_count);
++
+ /** Create an EtherCAT master array for realtime operation.
+  *
+  * Before an application can access an EtherCAT master, it has to reserve one
+diff --git a/master/ethercatd.c b/master/ethercatd.c
+index febcc174..2620babd 100644
+--- a/master/ethercatd.c
++++ b/master/ethercatd.c
+@@ -47,6 +47,10 @@
+ 
+ #define MAX_MASTERS 32 /**< Maximum number of masters. */
+ 
++#define MASTER_READY_TIMEOUT 2000000 /* Timeout for master ready. */
++#define MASTER_READY_DELAY_US 10000 /* Delay to check for master ready. */
++static const int MASTER_READY_RETRY = (MASTER_READY_DELAY_US)/MASTER_READY_DELAY_US; /**< Number of retries to check for master ready. */
++
+ /*****************************************************************************/
+ 
+ 
+@@ -582,6 +586,41 @@ int ecrt_master_set_send_interval(
+ }
+ #endif
+ 
++int ecrt_master_wait_for_slave(ec_master_t *master, int slave_count) {
++    int ret;
++    ec_slave_info_t slave_info;
++    ec_master_state_t master_state;
++    int retry = MASTER_READY_RETRY;
++
++    printf("Getting master state...\n");
++    while (retry--) {
++        ecrt_master_state(master, &master_state);
++        if ((master_state.slaves_responding == 1) && (master_state.al_states & 0x0E))
++            break;
++        usleep(MASTER_READY_DELAY_US);
++    }
++    if (retry < 0) {
++        printf("Timeout waiting for master state.\n");
++        return -1;
++    } else {
++        printf("Master state: slaves_responding=%d, al_states=0x%02X, link_up=%d\n",
++               master_state.slaves_responding, master_state.al_states, master_state.link_up);
++    }
++    retry = MASTER_READY_RETRY;
++    printf("Getting slave info...\n");
++    while (retry--) {
++        ret = ecrt_master_get_slave(master, 0, &slave_info);
++        if (ret != 0) {
++            printf("Error in getting slave info\n");
++        } else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
++            printf("slave info state=%d\n", slave_info.al_state);
++            break;
++        }
++        usleep(MASTER_READY_DELAY_US);
++    }
++    return 0;
++}
++
+ /** Request a master.
+  *
+  * Same as ecrt_request_master(), but with ERR_PTR() return value.
+@@ -632,9 +671,12 @@ ec_master_t *ecrt_request_master_err(
+     }
+ 
+     ec_lock_up(&master->device_sem);
+-#if !EC_ENABLE_DAEMON
+-    sleep(5);
+-#endif
++
++    /* Need to double verify if this sleep is needed, just mask here */
++//#if !EC_ENABLE_DAEMON
++    //sleep(5);
++//#endif
++
+     if (ec_master_enter_operation_phase(master)) {
+         EC_MASTER_ERR(master, "Failed to enter OPERATION phase!\n");
+         errptr = ERR_PTR(-EIO);
+-- 
+2.34.1
+

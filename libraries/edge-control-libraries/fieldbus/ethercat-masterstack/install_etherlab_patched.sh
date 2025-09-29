@@ -1,6 +1,4 @@
 #! /bin/bash
-# SPDX-License-Identifier: Apache-2.0
-# Copyright (C) 2025 Intel Corporation
 
 # check if the patch list file is provided
 if [ "$#" -ne 1 ]; then

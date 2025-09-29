@@ -1,6 +1,6 @@
-# Intel® Deep Learning Streamer Pipeline Framework Release Notes
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release Notes
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2025.1.2
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2025.1.2
 
 Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework is a streaming media analytics framework, based on GStreamer* multimedia framework, for creating complex media analytics pipelines. It ensures pipeline interoperability and provides optimized media, and inference operations using Intel® Distribution of OpenVINO™ Toolkit Inference Engine backend, across Intel® architecture, CPU, discrete GPU, integrated GPU and NPU.
 The complete solution leverages:
@@ -47,7 +47,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Deep Scenario model support | Commercial 3D model support |
 | Anomaly model support | Added support for anomaly model, [sample](./samples/gstreamer/gst_launch/geti_deployment) added as reference, sample added as reference. |
 | RealSense element support | New [gvarealsense](./docs/source/elements/gvarealsense.md) element implementation providing basic integration with Intel RealSense cameras, enabling video and depth stream capture for use in GStreamer pipelines. |
-| OpenVINO 2025.2 version support | Support of recent OpenVINO version added. |
+| OpenVINO 2025.3 version support | Support of recent OpenVINO version added. |
 | GStreamer 1.26.4 version support | Support of recent GStreamer version added. |
 | NPU 1.19 version driver support | Support of recent NPU driver version added. |
 | Docker image size reduction | Reduction for all images, e.g., Ubuntu 24 Release image size reduced to 1.6GB from 2.6GB |
@@ -64,11 +64,11 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Error when using legacy YoloV5 models: Dynamic resize: Model width dimension shall be static | To avoid the issue, modify `samples/download_public_models.sh` by inserting the following snippet at lines 273 and 280: |
 | | python3 - <<EOF ""${MODEL_NAME}""<br>import sys, os<br>from openvino.runtime import Core<br>from openvino.runtime import save_model<br>model_name = sys.argv[1]<br>core = Core()<br>os.rename(f""{model_name}_openvino_model"", f""{model_name}_openvino_modelD"")<br>model = core.read_model(f""{model_name}_openvino_modelD/{model_name}.xml"")<br>model.reshape([-1, 3, 640, 640]) |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2025.0.1.3
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2025.0.1.3
 
 Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework is a streaming media analytics framework, based on GStreamer\* multimedia framework, for creating complex media analytics pipelines. It ensures pipeline interoperability and provides optimized media, and inference operations using Intel® Distribution of OpenVINO™ Toolkit Inference Engine backend, across Intel® architecture, CPU, discrete GPU, integrated GPU and NPU.
 
-This release includes Intel® DL Streamer Pipeline Framework elements to enable video and audio analytics capabilities, (e.g., object detection, classification, audio event detection), and other elements to build end-to-end optimized pipeline in GStreamer\* framework.
+This release includes DL Streamer Pipeline Framework elements to enable video and audio analytics capabilities, (e.g., object detection, classification, audio event detection), and other elements to build end-to-end optimized pipeline in GStreamer\* framework.
 
 The complete solution leverages:
 
@@ -80,23 +80,23 @@ The complete solution leverages:
 
 | Element| Description|
 |--------|------------|
-| [gvadetect](https://dlstreamer.github.io/elements/gvadetect)| Performs object detection on a full-frame or region of interest (ROI) using object detection models such as YOLOv4-v11, MobileNet SSD, Faster-RCNN etc. Outputs the ROI for detected objects.  |
-| [gvaclassify](https://dlstreamer.github.io/elements/gvaclassify) | Performs object classification. Accepts the ROI as an input and outputs classification results with the ROI metadata.                                                                      |
-| [gvainference](https://dlstreamer.github.io/elements/gvainference) | Runs deep learning inference on a full-frame or ROI using any model with an RGB or BGR input.|
-| [gvatrack](https://dlstreamer.github.io/elements/gvatrack)| Performs object tracking using zero-term, or imageless tracking algorithms. Assigns unique object IDs to the tracked objects.                                                   |
-| [gvaaudiodetect](https://dlstreamer.github.io/elements/gvaaudiodetect) | Performs audio event detection using AclNet model. |
-| [gvaattachroi](https://dlstreamer.github.io/elements/gvaattachroi.html) | Adds user-defined regions of interest to perform inference on, instead of full frame.|
-| [gvafpscounter](https://dlstreamer.github.io/elements/gvafpscounter) | Measures frames per second across multiple streams in a single process. |
-| [gvametaaggregate](https://dlstreamer.github.io/elements/gvametaaggregate.html) | Aggregates inference results from multiple pipeline branches |
-| [gvametaconvert](https://dlstreamer.github.io/elements/gvametaconvert) | Converts the metadata structure to the JSON format.|
-| [gvametapublish](https://dlstreamer.github.io/elements/gvametapublish) | Publishes the JSON metadata to MQTT or Kafka message brokers or files. |
-| [gvapython](https://dlstreamer.github.io/elements/gvapython) | Provides a callback to execute user-defined Python functions on every frame. Can be used for metadata conversion, inference post-processing, and other tasks.|
-| [gvawatermark](https://dlstreamer.github.io/elements/gvawatermark) | Overlays the metadata on the video frame to visualize the inference results. |
+| [gvadetect](./docs/source/elements/gvadetect.md)| Performs object detection on a full-frame or region of interest (ROI) using object detection models such as YOLOv4-v11, MobileNet SSD, Faster-RCNN etc. Outputs the ROI for detected objects.  |
+| [gvaclassify](./docs/source/elements/gvaclassify.md) | Performs object classification. Accepts the ROI as an input and outputs classification results with the ROI metadata.                                                                      |
+| [gvainference](./docs/source/elements/gvainference.md) | Runs deep learning inference on a full-frame or ROI using any model with an RGB or BGR input.|
+| [gvatrack](./docs/source/elements/gvatrack.md)| Performs object tracking using zero-term, or imageless tracking algorithms. Assigns unique object IDs to the tracked objects.                                                   |
+| [gvaaudiodetect](./docs/source/elements/gvaaudiodetect.md) | Performs audio event detection using AclNet model. |
+| [gvaattachroi](./docs/source/elements/gvaattachroi.md) | Adds user-defined regions of interest to perform inference on, instead of full frame.|
+| [gvafpscounter](./docs/source/elements/gvafpscounter.md) | Measures frames per second across multiple streams in a single process. |
+| [gvametaaggregate](./docs/source/elements/gvametaaggregate.md) | Aggregates inference results from multiple pipeline branches |
+| [gvametaconvert](./docs/source/elements/gvametaconvert.md) | Converts the metadata structure to the JSON format.|
+| [gvametapublish](./docs/source/elements/gvametapublish.md) | Publishes the JSON metadata to MQTT or Kafka message brokers or files. |
+| [gvapython](./docs/source/elements/gvapython.md) | Provides a callback to execute user-defined Python functions on every frame. Can be used for metadata conversion, inference post-processing, and other tasks.|
+| [gvawatermark](./docs/source/elements/gvawatermark.md) | Overlays the metadata on the video frame to visualize the inference results. |
 
 
-For the details of supported platforms, please refer to [System Requirements](https://dlstreamer.github.io/get_started/system_requirements.html) section.
+For the details of supported platforms, please refer to [System Requirements](./docs/source/get_started/system_requirements.md) section.
 
-For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [Intel® DL Streamer Pipeline Framework installation guide](https://dlstreamer.github.io/get_started/install/install_guide_index.html)
+For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md)
 
 ## New in this Release
 
@@ -119,7 +119,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Error when using legacy YoloV5 models: Dynamic resize: Model width dimension shall be static | To avoid the issue, modify samples/download_public_models.sh by inserting the following snippet at lines 273 and 280:<br><br>python3 - <<EOF "${MODEL_NAME}"<br>import sys, os<br>from openvino.runtime import Core<br>from openvino.runtime import save_model<br>model_name = sys.argv[1]<br>core = Core()<br>os.rename(f"{model_name}_openvino_model", f"{model_name}_openvino_modelD")<br>model = core.read_model(f"{model_name}_openvino_modelD/{model_name}.xml")<br>model.reshape([-1, 3, 640, 640]) |
 
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2025.0.2
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2025.0.2
 
 ### New in this Release
 
@@ -129,7 +129,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | GStreamer plugins | Support for gst-rswebrtc-plugins |
 | Documentation updates | Documentation updates - "queue" element  |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2025.0.1
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2025.0.1
 
 ### New in this Release
 
@@ -142,7 +142,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Updated NPU driver | Updated NPU driver to 1.13.0 version. |
 | Documentation updates | Documentation how to convert from DeepStream to Deep Learning Steamer |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2025.0.0
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2025.0.0
 
 ### New in this Release
 
@@ -155,7 +155,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Bug fixing | Running multiple gstreamer pipeline objects in the same process on dGPU leads to error; DLStreamer docker image build is failing (2024.2.2 and 2024.3.0 versions); Fixed installation scripts: minor fixes of GPU, NPU installation section; Updated documentation: cleanup, added missed parts, added DLS system requirements |
 
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.3.0
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.3.0
 
 ### New in this Release
 
@@ -167,13 +167,13 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Enabled Intel® Core™ Ultra Processors (Series 2) (formerly codenamed Lunar Lake)  | Validated with Ubuntu 24.04, 6.12.3-061203-generic  |
 
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.2.2
+# Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.2.2
 
 ### New in this Release
 
 | **Title**      | **High-level description**      |
 |----------------|---------------------------------|
-| Installation of Intel® DL Streamer Pipeline Framework from Debian packages using APT repository | Support for apt-get install has been added. |
+| Installation of DL Streamer Pipeline Framework from Debian packages using APT repository | Support for apt-get install has been added. |
 | Yolo11s-pose support | Added support for Yolo11s-pose model. |
 | Change in gvafpscounter element | Reset FPS counters whenever a stream is added/removed. |
 | OpenVINO updated | OpenVINO updated to the 2024.5 version. |
@@ -181,7 +181,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | NPU 1.10.0 | NPU drivers updated to NPU 1.10.0 version. |
 | Bugs fixing | Fixed issue with failing performance tests ; Fixed fuzzy tests ; Enabled debug mode ; Created TLS configuration that allows for secure communication between DL Streamer and MQTT broker; Fixed python error: init_threadstate: thread state already initialized; Fixed problem with DLS compilation / GSTreamer base plugin error.; Fixed issue with sample_test: python_draw_face_attributes on Ubuntu 24.04; Fixed issue with sample_test: gvapython cpu/gpu on Ubuntu 24.04 |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.2.1
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.2.1
 
 ### New in this Release
 
@@ -192,7 +192,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | GStreamer | GStreamer updated to the 1.24.8 version  |
 | Fix Github issue: [#440](https://github.com/dlstreamer/dlstreamer/issues/440) | gvapython error: Fatal Python error: init_threadstate: thread state already initialized |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.2.0
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.2.0
 
 ### New in this Release
 
@@ -203,9 +203,9 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 |OpenVINO 2024.4 support | Update to latest version of OpenVINO |
 |GStreamer 1.24.7 support | Update to latest version of GStreamer |
 |Intel® NPU 1.6.0 driver support | Support for newer version of Intel® NPU Linux driver |
-|Simplified installation process for option#1 (i.e. Ubuntu packages) via script|Development of the script that enhances user experience during installation of Intel® DL Streamer with usage of option#1. |
+|Simplified installation process for option#1 (i.e. Ubuntu packages) via script|Development of the script that enhances user experience during installation of DL Streamer with usage of option#1. |
 |Documentation improvements|Descriptions enhancements in various points.|
-[Preview feature] Simplified installation process for option#2 via script|Development of the script that enhances user experience during installation of Intel® DL Streamer with usage of option#2..|
+[Preview feature] Simplified installation process for option#2 via script|Development of the script that enhances user experience during installation of DL Streamer with usage of option#2..|
 
 ### Fixed Issues
 
@@ -217,7 +217,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 |Github issue: #[435](https://github.com/dlstreamer/dlstreamer/issues/435)| No such element or plugin 'gvadetect' |
 |Internal findings|installation via option#3 documentation fixes; fixed hangs on MTL NPU for INT8 models; fixed issues with using 4xFlex170 system|
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.1.2
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.1.2
 
 ### New in this Release
 
@@ -241,7 +241,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | [#397](https://github.com/dlstreamer/dlstreamer/issues/397) | Installation Error DLStreamer - Both Debian Packages and Compile from Sources |
 | Internal findings | custom efficientnetb0 fix, issue with selection region before inference, Geti classification model fix, dGPU vah264enc element not found error fix, sample: face_detection_and_classifiation fix|
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.1.1
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.1.1
 
 ### New in this Release
 
@@ -257,9 +257,10 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Fix pipeline which failed to start with mobilenet-v2-1.0-224 model  |
 | Fix batch-size error -> with yolov8 model and other yolo models |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.1.0
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.1.0
 
 ### New in this Release
+
 
 | **Title**      | **High-level description**      |
 |----------------|---------------------------------|
@@ -279,7 +280,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | 421 | [Can we specify the IOU threshold in yolov8 post-process json like yolov5?](https://github.com/dlstreamer/dlstreamer/issues/421) | Same solution as in [#394](https://github.com/dlstreamer/dlstreamer/issues/394) | All |
 | 420 | [there is a customer's detect model need to support](https://github.com/dlstreamer/dlstreamer/issues/420) | Support for Centerface and HSEmotion added | All |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.0.2
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.0.2
 
 ### New in this Release
 
@@ -303,9 +304,10 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | 415 | [cant run against Efficientnet-b0 due to model exceeds allowable size of 10MB](https://github.com/dlstreamer/dlstreamer/issues/415) | Resolved, user was able to get it running with last suggestion to use implemented RealSense specific gstreamer plugins, like •https://github.com/WKDSMRT/realsense-gstreamer => `realsensesrc` •https://gitlab.com/aivero/legacy/public/gstreamer/gst-realsense => `realsensesrc` A couple years old... | All |
 | 416 | [detection with yolo not available on latest](https://github.com/dlstreamer/dlstreamer/issues/416) | Continue with "merged" command-line, using `videobox` and or `videomixer` (or many different other ways from the internet). You might need to start again... and checking the setup on your HOST. I'm using Ubuntu 22.04LTS. Created a non-root-user. Adding the user to video and render groups. Installed docker and configured to use Docker as non-root (without using "sudo" when using "docker run"). Before starting the container, I just call xhost +. Passing the render-group-id to "docker run" (in my case `--group-add=110`) `docker run -it --net=host --device=/dev/dri --device=/dev/video0 --device=/dev/video1 --group-add=110 -v ~/.Xauthority:/home/dlstreamer/.Xauthority -v /tmp/.X11-unix -e DISPLAY=$DISPLAY -v /dev/bus/usb dlstreamer /bin/bash` (not using `-u 0 --privileged`)  | All |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.0.1
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.0.1
 
 ### New in this Release
+
 
 | **Title**      | **High-level description**      |
 |----------------|---------------------------------|
@@ -328,7 +330,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | 406 | [yolox support](https://github.com/dlstreamer/dlstreamer/issues/406) | Added as a feature in this release | All |
 | 409 | [ERROR: from element /GstPipeline:pipeline0/GstGvaDetect:gvadetect0: base_inference plugin initialization failed](https://github.com/dlstreamer/dlstreamer/issues/409) | Suggested temporarily - to use a root-user when running the container image, like `docker run -it -u 0 [... .add here your other parameters.. ...]`, to get more permissions | All |
 
-## Intel® Deep Learning Streamer Pipeline Framework Release 2024.0
+## Deep Learning Streamer (DL Streamer) Pipeline Framework Release 2024.0
 
 ### New in this Release
 
@@ -345,7 +347,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 
 ### System Requirements
 
-Please refer to [Intel® DL Streamer documentation](https://dlstreamer.github.io/get_started/system_requirements.html).
+Please refer to [DL Streamer documentation](./docs/source/get_started/system_requirements.md).
 
 ## Installation Notes
 
@@ -355,11 +357,11 @@ There are several installation options for Pipeline Framework:
 1. Build Docker image from docker file and run Docker image
 1. Build Pipeline Framework from source code
 
-For more detailed instructions please refer to [Intel® DL Streamer Pipeline Framework installation guide](https://dlstreamer.github.io/get_started/install/install_guide_index.html).
+For more detailed instructions please refer to [DL Streamer Pipeline Framework installation guide](./docs/source/get_started/install/install_guide_index.md).
 
 ## Samples
 
-The [samples](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples) folder in Intel® DL Streamer Pipeline Framework repository contains command line, C++ and Python examples.
+The [samples](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples) folder in DL Streamer Pipeline Framework repository contains command line, C++ and Python examples.
 
 ## Legal Information
 

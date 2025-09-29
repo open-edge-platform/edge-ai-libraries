@@ -1,6 +1,6 @@
-# Intel® Deep Learning Streamer Pipeline Framework Release 2025.1.2
+# Deep Learning Streamer Pipeline Framework Release 2025.1.2
 
-Intel® Deep Learning Streamer (Intel® DL Streamer) Pipeline Framework is a streaming media analytics framework, based on GStreamer* multimedia framework, for creating complex media analytics pipelines. It ensures pipeline interoperability and provides optimized media, and inference operations using Intel® Distribution of OpenVINO™ Toolkit Inference Engine backend, across Intel® architecture, CPU, discrete GPU, integrated GPU and NPU.
+Deep Learning Streamer Pipeline Framework is a streaming media analytics framework, based on GStreamer* multimedia framework, for creating complex media analytics pipelines. It ensures pipeline interoperability and provides optimized media, and inference operations using Intel® Distribution of OpenVINO™ Toolkit Inference Engine backend, across Intel® architecture, CPU, discrete GPU, integrated GPU and NPU.
 The complete solution leverages:
 
 - Open source GStreamer\* framework for pipeline management
@@ -27,7 +27,7 @@ The complete solution leverages:
   | [gvawatermark](./elements/gvawatermark.md) | Overlays the metadata on the video frame to visualize the inference   results. |
 
 For the details on supported platforms, please refer to [System Requirements](./get_started/system_requirements.md).
-For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, refer to [Intel® DL Streamer Pipeline Framework installation guide](./get_started/install/install_guide_index.md).
+For installing Pipeline Framework with the prebuilt binaries or Docker\* or to build the binaries from the open source, refer to [Deep Learning Streamer Pipeline Framework installation guide](./get_started/install/install_guide_index.md).
 
 ## New in this Release
 
@@ -45,7 +45,7 @@ For installing Pipeline Framework with the prebuilt binaries or Docker\* or to b
 | Deep Scenario model support | Commercial 3D model support |
 | Anomaly model support | Added support for anomaly model, [sample](https://github.com/open-edge-platform/edge-ai-libraries/tree/main/libraries/dl-streamer/samples/gstreamer/gst_launch/geti_deployment) added as reference, sample added as reference. |
 | RealSense element support | New [gvarealsense](./elements/gvarealsense.md) element implementation providing basic integration with Intel RealSense cameras, enabling video and depth stream capture for use in GStreamer pipelines. |
-| OpenVINO 2025.2 version support | Support of recent OpenVINO version added. |
+| OpenVINO 2025.3 version support | Support of recent OpenVINO version added. |
 | GStreamer 1.26.4 version support | Support of recent GStreamer version added. |
 | NPU 1.19 version driver support | Support of recent NPU driver version added. |
 | Docker image size reduction | Reduction for all images, e.g., Ubuntu 24 Release image size reduced to 1.6GB from 2.6GB |

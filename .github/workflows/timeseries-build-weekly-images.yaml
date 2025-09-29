@@ -37,10 +37,12 @@ jobs:
 
     - name: Push Docker img
       run: |
-        docker push ghcr.io/${{ github.repository }}/intel/ia-time-series-analytics-microservice:1.0.0
+        IMAGE_NAME=$(grep '^TIME_SERIES_ANALYTICS_IMAGE=' microservices/time-series-analytics/docker/.env | cut -d'=' -f2)
+        docker push ghcr.io/${{ github.repository }}/$IMAGE_NAME
 
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
-        docker rmi ghcr.io/${{ github.repository }}intel/ia-time-series-analytics-microservice:1.0.0 || true
+        IMAGE_NAME=$(grep '^TIME_SERIES_ANALYTICS_IMAGE=' microservices/time-series-analytics/docker/.env | cut -d'=' -f2)
+        docker rmi ghcr.io/${{ github.repository }}/$IMAGE_NAME || true

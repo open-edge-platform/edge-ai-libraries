@@ -1,7 +1,21 @@
-from dataclasses import dataclass, field
-from typing import List
+from dataclasses import dataclass
+from enum import Enum
+import logging
 
 import openvino as ov
+
+logger = logging.getLogger("device")
+
+
+class DeviceType(Enum):
+    DISCRETE = "DISCRETE"
+    INTEGRATED = "INTEGRATED"
+
+
+class DeviceFamily(Enum):
+    CPU = "CPU"
+    GPU = "GPU"
+    NPU = "NPU"
 
 
 @dataclass
@@ -126,9 +140,10 @@ class DeviceInfo:
     """
 
     device_name: str
-    available_devices: List[str] = field(default_factory=list)
     full_device_name: str = ""
-    device_type: str = ""
+    device_type: "DeviceType" = DeviceType.INTEGRATED
+    device_family: "DeviceFamily" = DeviceFamily.CPU
+    gpu_id: int | None = None
 
 
 class DeviceDiscovery:
@@ -143,17 +158,72 @@ class DeviceDiscovery:
         """Initialize OpenVINO Runtime Core and fetch available devices."""
         if not hasattr(self, "core"):
             self.core = ov.Core()
-            self.devices = [
-                DeviceInfo(
-                    device_name=device,
-                    available_devices=self.core.get_property(
-                        device, "AVAILABLE_DEVICES"
-                    ),
-                    full_device_name=self.core.get_property(device, "FULL_DEVICE_NAME"),
-                    device_type=self.core.get_property(device, "DEVICE_TYPE"),
+            self.devices = []
+            for device in self.core.available_devices:
+                full_device_name = str(
+                    self.core.get_property(device, "FULL_DEVICE_NAME")
                 )
-                for device in self.core.available_devices
+                device_type = self.parse_device_type(device)
+                device_family = self.parse_device_family(device)
+                gpu_id = self.parse_gpu_id(device)
+                self.devices.append(
+                    DeviceInfo(
+                        device_name=device,
+                        full_device_name=full_device_name,
+                        device_type=device_type,
+                        device_family=device_family,
+                        gpu_id=gpu_id,
+                    )
+                )
+
+            # Add "GPU.<gpu_id>" to full_device_name if there are multiple GPUs
+            gpu_devices = [
+                d for d in self.devices if d.device_family == DeviceFamily.GPU
             ]
+            if len(gpu_devices) > 1:
+                for d in gpu_devices:
+                    d.full_device_name += f" ({d.device_name})"
+
+    def parse_device_type(self, device: str) -> DeviceType:
+        type_str = str(self.core.get_property(device, "DEVICE_TYPE"))
+        # type_str is expected to be "Type.INTEGRATED" or "Type.DISCRETE"
+        if type_str == "Type.INTEGRATED":
+            return DeviceType.INTEGRATED
+        elif type_str == "Type.DISCRETE":
+            return DeviceType.DISCRETE
+        else:
+            logger.error(
+                f"Unknown device type: {type_str} for device: {device}. Fallback to INTEGRATED."
+            )
+            return DeviceType.INTEGRATED
+
+    @staticmethod
+    def parse_device_family(device: str) -> DeviceFamily:
+        if device.startswith("CPU"):
+            return DeviceFamily.CPU
+        elif device.startswith("GPU"):
+            return DeviceFamily.GPU
+        elif device.startswith("NPU"):
+            return DeviceFamily.NPU
+        else:
+            logger.error(
+                f"Unknown device family for device: {device}. Fallback to CPU."
+            )
+            return DeviceFamily.CPU
+
+    @staticmethod
+    def parse_gpu_id(device: str) -> int | None:
+        if device == "GPU":
+            return 0
+        elif device.startswith("GPU."):
+            parts = device.split(".")
+            if len(parts) == 2 and parts[1].isdigit():
+                return int(parts[1])
+            else:
+                logger.info(f"Incorrect gpu_id for device: {device}")
+                return None
+        else:
+            return None
 
     def list_devices(self):
         """List all available devices."""

@@ -1,7 +1,7 @@
 # Large Vision Models
 
-This page illustrates how to prepare the Vision Transformer from the
-CLIP models for integration with the Intel® DL Streamer pipeline.
+This article explains how to prepare the Vision Transformer from the
+CLIP models for integration with the Deep Learning Streamer pipeline.
 
 > **NOTE:** The instructions provided below are comprehensive, but for convenience,
 > it is recommended to use the
@@ -11,10 +11,9 @@ CLIP models for integration with the Intel® DL Streamer pipeline.
 
 ## 1. Setup
 
-The instructions assume Intel® DL Streamer framework is installed on the
+The instructions assume Deep Learning Streamer framework is installed on the
 local system along with Intel® OpenVINO™ model downloader and converter
-tools, as described here:
-[Tutorial](https://dlstreamer.github.io/get_started/tutorial.html#tutorial-setup).
+tools, as described in the [Tutorial](../get_started/tutorial.md#setup).
 
 It is also necessary to install the Transformers and Pillow packages:
 
@@ -29,11 +28,11 @@ Below is a Python script for converting the Vision Transformer from the
 **clip-vit-large-patch14**/**clip-vit-base-patch16**/**clip-vit-base-patch32**
 model to the Intel® OpenVINO™ format. Since using a sample input is
 recommended during the conversion, prepare a sample image in one of the
-common formats and replace *IMG_PATH* with the relevant value:
+common formats and replace `IMG_PATH` with the relevant value:
 
 ### clip-vit-large-patch14
 
-``` python
+```python
 from transformers import CLIPProcessor, CLIPVisionModel
 import PIL
 import openvino as ov
@@ -70,10 +69,9 @@ ov_model.set_rt_info("crop", ['model_info', 'resize_type'])
 ov.save_model(ov_model, MODEL + ".xml")
 ```
 
-
 ### clip-vit-base-patch16
 
-``` python
+```python
 from transformers import CLIPProcessor, CLIPVisionModel
 import PIL
 import openvino as ov
@@ -112,7 +110,7 @@ ov.save_model(ov_model, MODEL + ".xml")
 
 ### clip-vit-base-patch32
 
-``` python
+```python
 from transformers import CLIPProcessor, CLIPVisionModel
 import PIL
 import openvino as ov
@@ -152,4 +150,4 @@ ov.save_model(ov_model, MODEL + ".xml")
 ## 3. Model usage
 
 See the [generate_frame_embeddings.sh](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/samples/gstreamer/gst_launch/lvm/generate_frame_embeddings.sh) sample for detailed
-examples of Intel® DL Streamer pipelines using the model.
+examples of Deep Learning Streamer pipelines using the model.

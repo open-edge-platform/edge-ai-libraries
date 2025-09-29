@@ -37,7 +37,8 @@ logging.basicConfig(
 
 logger = logging.getLogger()
 
-app = FastAPI()
+REST_API_ROOT_PATH = os.getenv('REST_API_ROOT_PATH', '/')
+app = FastAPI(root_path=REST_API_ROOT_PATH)
 
 KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
@@ -59,7 +60,7 @@ class DataPoint(BaseModel):
 class Config(BaseModel):
     """Configuration model for the service."""
     model_registry: dict = {"enable": False, "version": "1.0"}
-    udfs: dict = {"name": "udf_name"}
+    udfs: dict = {"name": "udf_name", "device": "cpu/gpu"}
     alerts: Optional[dict] = {}
 
 
@@ -391,7 +392,8 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     },
                     "udfs": {
                         "name": "udf_name",
-                        "model": "model_name"}
+                        "model": "model_name",
+                        "device": "cpu or gpu"}
                     "alerts": {
                     }
     responses:
@@ -453,6 +455,16 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             status_code=422,
             detail="Missing key 'name' in udfs"
             )
+        if "device" in udfs:
+            device_value = udfs["device"].lower()
+            is_valid = (device_value == "cpu" or 
+                       device_value == "gpu" or 
+                       (device_value.startswith("gpu:") and device_value.split(":")[1].isdigit()))
+            
+            if not is_valid:
+                error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
+                logger.error(error_msg)
+                raise HTTPException(status_code=422, detail=error_msg)
 
         config["model_registry"] = {}
         config["udfs"] = {}

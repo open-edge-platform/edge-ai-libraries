@@ -12,6 +12,10 @@ spec:
       labels:
         app: chatqna-core-ui
     spec:
+      securityContext:
+        allowPrivilegeEscalation: false
+        seccompProfile:
+          type: RuntimeDefault
       containers:
         - name: chatqna-core-ui
           image: "{{ .Values.image.registry }}chatqna-ui:{{ .Values.image.uiTag }}"

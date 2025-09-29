@@ -11,8 +11,8 @@ ovms:
   name: ovms
   image:
     repository: openvino/model_server
-    tag: "2025.0"
-    Gputag: "2025.0-gpu"
+    tag: "2025.3"
+    Gputag: "2025.3-gpu"
     pullPolicy: IfNotPresent
   readinessProbe:
     httpGet:

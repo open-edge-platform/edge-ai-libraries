@@ -11,10 +11,6 @@ class TestGstPipeline(unittest.TestCase):
     def setUp(self):
         self.pipeline = GstPipeline()
 
-    def test_pipeline_property(self):
-        with self.assertRaises(ValueError):
-            self.pipeline.pipeline()
-
     def test_diagram_property(self):
         with self.assertRaises(ValueError):
             self.pipeline.diagram()

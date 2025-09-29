@@ -61,7 +61,7 @@ videoSummaryManager:
   name: videosummarybackend
   image:
     repository: intel/pipeline-manager
-    tag: "1.2.0"
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:

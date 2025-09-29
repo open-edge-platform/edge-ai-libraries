@@ -28,12 +28,12 @@ global:
     name: document-summarization
     image:
       repository: "intel/document-summary"
-      tag: "1.0.1"
+      tag: "1.0.2"
       pullPolicy: IfNotPresent
 nginx:
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: 1.27.4
+    tag: 1.29.1
     pullPolicy: IfNotPresent
 docSumUI:
   name: docsum-ui

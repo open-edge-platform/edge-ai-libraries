@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginxinc/nginx-unprivileged:1.27.4
+    image: nginxinc/nginx-unprivileged:1.29.1
     ports:
       - "8101:8101"
     volumes:
@@ -217,7 +217,7 @@ services:
     shm_size: "1g"
 
   ovms-service:
-    image: openvino/model_server:2025.0
+    image: openvino/model_server:2025.3
     container_name: ovms-service
     profiles:
       - OVMS
@@ -233,7 +233,7 @@ services:
       - "9300:9300"
       - "8300:80"
     volumes:
-      - "${VOLUME_OVMS:-./ovms_config}:/workspace:ro"
+      - "${VOLUME_OVMS:-./ovms}:/workspace:ro"
     healthcheck:
       test: [ "CMD", "curl", "-f", "http://localhost/v2/health/ready" ]
       interval: 30s
@@ -263,7 +263,7 @@ services:
     command: --model-id ${EMBEDDING_MODEL_NAME} --auto-truncate
 
   ovms-service-gpu:
-    image: openvino/model_server:2025.0-gpu
+    image: openvino/model_server:2025.3-gpu
     container_name: ovms-service
     profiles:
       - GPU-OVMS
@@ -279,7 +279,7 @@ services:
       - "9000:9000"
       - "8300:80"
     volumes:
-      - "${VOLUME_OVMS:-./ovms_config}:/workspace:ro"
+      - "${VOLUME_OVMS:-./ovms}:/workspace:ro"
     devices:
       - /dev/dri:/dev/dri
     group_add:
