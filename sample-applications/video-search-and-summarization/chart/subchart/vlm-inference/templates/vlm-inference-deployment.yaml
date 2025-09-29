@@ -14,19 +14,23 @@ spec:
       labels:
         app: {{ .Values.vlminference.name }}
     spec:
+      {{- with .Values.securityContext }}
       securityContext:
-        runAsUser: 1000
-        runAsGroup: 1000
-        fsGroup: 1000
+        {{- toYaml . | nindent 10 }}
+      {{- end }}
       {{- with .Values.nodeAffinity }}
       affinity:
         nodeAffinity:
           {{- toYaml . | nindent 10 }}
       {{- end }}
       containers:
-        - name: {{ .Values.vlminference.name }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.vlminference.image.repository }}:{{ .Values.vlminference.image.tag }}"
           imagePullPolicy: {{ .Values.vlminference.image.pullPolicy }}
+          {{- with .Values.containerSecurityContext }}
+          securityContext:
+            {{- toYaml . | nindent 12 }}
+          {{- end }}
           ports:
             - containerPort: {{ .Values.containerPort }}
               name: {{ .Values.containerPortName }}
@@ -60,7 +64,7 @@ spec:
           volumeMounts:
           - name: workspace
             mountPath: /app/ov-model
-            subPath: ov-models
+            subPath: models
           - name: workspace
             mountPath: /home/appuser/.cache/huggingface
             subPath: huggingface
@@ -68,9 +72,9 @@ spec:
             readOnlyRootFilesystem: false
       volumes:
         - name: workspace
-          {{- if .Values.global.pvcName }}
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ include "vlminference.fullname" . }}-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

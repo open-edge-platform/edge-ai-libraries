@@ -1,9 +1,8 @@
-# Common PVC that can be shared across sub-charts
-{{- if and (.Values.global.usePvc) (.Values.vdmsdataprep.enabled) }}
+{{- if .Values.global.usePvc }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-  name: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
+  name: {{ include "audioanalyzer.fullname" . }}-pvc
   {{- if .Values.global.keepPvc }}
   annotations:
     helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
@@ -13,5 +12,5 @@ spec:
     - ReadWriteOnce
   resources:
     requests:
-      storage: {{ .Values.sharedClaimSize | default "10Gi" }}
+      storage: {{ .Values.claimSize | default "10Gi" }}
 {{- end }}

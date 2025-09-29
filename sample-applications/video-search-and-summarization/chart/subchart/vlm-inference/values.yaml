@@ -1,8 +1,12 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/vlmserving"
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
+  volumeHostPath: ""
+
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
 
   # vlmName is the Vision-Language Model used by VLM Inference Microservice
   vlmName: ""
@@ -11,7 +15,11 @@ global:
     no_proxy: ""
     http_proxy: ""
     https_proxy: ""
-  
+
+# claimSize is the storage size claimed by PVC if usePvc is set to true.
+# claimSize should be set based on the size of models and files expected to be stored.
+claimSize: ""
+
 containerPort: 8000 # Port on which container application listens internally
 containerPortName: vlm-port  # Optional name to refer containerPort
 service:
@@ -59,8 +67,22 @@ startupProbe:
   tcpSocket:
     port: vlm-port
   initialDelaySeconds: 10
-  periodSeconds: 30
-  failureThreshold: 100
+  periodSeconds: 10
+  failureThreshold: 300
 
 # Node affinity to schedule pods on specific nodes only
 nodeAffinity: {}
+
+securityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+
+containerSecurityContext:
+  capabilities:
+    drop:
+    - ALL
+  readOnlyRootFilesystem: false
+  allowPrivilegeEscalation: false
+  runAsNonRoot: true
+  runAsUser: 1000
