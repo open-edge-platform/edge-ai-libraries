@@ -19,7 +19,7 @@ audioanalyzer:
   name: audioanalyzer
   image:
     repository: intel/audio-analyzer
-    tag: "1.2.0"
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
   env:
     DEBUG: "false"

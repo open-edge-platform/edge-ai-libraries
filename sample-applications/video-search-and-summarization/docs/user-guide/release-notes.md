@@ -2,12 +2,13 @@
 
 
 ## Current Release
-**Version**: RC5.2 \
-**Release Date**: 26 Aug 2025  
+**Version**: 1.2.1 \
+**Release Date**: 29 Sept 2025  
 
 **Features**:
 - Unified Search and Summary functionality for streamlined user experience.
 - New UI for new combined use case.
+- API updates to support combined use case.
 - Enhanced video management with support for tags on upload and search.
 - Improved text embedding capabilities within the MME service.
 - Introducing Search Alerts and Directory Watcher for proactive monitoring on search use-case.

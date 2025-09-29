@@ -58,7 +58,7 @@ Before running the application, you need to set several environment variables:
 
     ```bash
     export REGISTRY_URL=intel   
-    export TAG=1.2.0   
+    export TAG=1.2.1
     ```
 
 2. **Required credentials for some services**:
