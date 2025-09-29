@@ -18,18 +18,12 @@ describe('StatesController', () => {
     stateId: 'test-state-id',
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    fileInfo: {
-      destination: '/test',
-      path: '/test/path',
-      filename: 'test.mp4',
-      mimetype: 'video/mp4',
-      originalname: 'test.mp4',
-      fieldname: 'file',
-    },
+  // fileInfo removed, not present in State
     userInputs: {
-      videoName: 'Test Video',
       chunkDuration: 10,
       samplingFrame: 10,
+      frameOverlap: 2,
+      multiFrame: 1,
     },
     chunks: {},
     frames: {},
@@ -65,9 +59,10 @@ describe('StatesController', () => {
       summarySinglePrompt: 'Single prompt',
     },
     userInputs: {
-      videoName: 'Test Video',
       chunkDuration: 10,
       samplingFrame: 10,
+      frameOverlap: 2,
+      multiFrame: 1,
     },
     summary: 'Test summary',
     videoSummaryStatus: StateActionStatus.IN_PROGRESS,
