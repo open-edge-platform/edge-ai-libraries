@@ -37,15 +37,15 @@ describe('Drawer Component test suite', () => {
   it('should render the component correctly when closed', () => {
     renderComponent(false);
 
-    // Check if drawer title is present instead of testing style
-    expect(screen.getByText('Drawer Title')).toBeInTheDocument();
+    const drawerWrapper = screen.getByTestId('drawer-wrapper');
+    expect(drawerWrapper).toHaveStyle('transform: translateX(100%)');
   });
 
   it('should render the component correctly when open', () => {
     renderComponent(true);
 
-    // Check if drawer title is present instead of testing style
-    expect(screen.getByText('Drawer Title')).toBeInTheDocument();
+    const drawerWrapper = screen.getByTestId('drawer-wrapper');
+    expect(drawerWrapper).toHaveStyle('transform: translateX(0)');
   });
 
   it('should render the title correctly', () => {
@@ -56,7 +56,9 @@ describe('Drawer Component test suite', () => {
 
   it('should render the default title when no title is provided', () => {
     renderComponent(true);
-    expect(screen.getByText('Drawer Title')).toBeInTheDocument();
+    expect(
+      screen.getByText(new RegExp(i18n.t('drawerTitle'), 'i')),
+    ).toBeInTheDocument();
   });
 
   it('should render children correctly', () => {
@@ -69,7 +71,7 @@ describe('Drawer Component test suite', () => {
   it('should call close function when close button is clicked', () => {
     renderComponent(true);
 
-    const closeButton = screen.getByLabelText('Close');
+    const closeButton = screen.getByTestId('close-drawer-button');
     fireEvent.click(closeButton);
     expect(mockClose).toHaveBeenCalled();
   });
@@ -77,9 +79,8 @@ describe('Drawer Component test suite', () => {
   it('should call close function when overlay is clicked', () => {
     renderComponent(true);
 
-    // Since there's no overlay testid, test the presence of the drawer instead
-    expect(screen.getByText('Drawer Title')).toBeInTheDocument();
-    // Mock the overlay click behavior by testing drawer visibility
-    expect(mockClose).not.toHaveBeenCalled();
+    const overlay = screen.getByTestId('overlay');
+    fireEvent.click(overlay);
+    expect(mockClose).toHaveBeenCalled();
   });
 });
