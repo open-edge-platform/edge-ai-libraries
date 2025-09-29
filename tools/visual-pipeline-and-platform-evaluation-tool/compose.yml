@@ -21,7 +21,6 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
-    PIPELINE: smartnvr
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}

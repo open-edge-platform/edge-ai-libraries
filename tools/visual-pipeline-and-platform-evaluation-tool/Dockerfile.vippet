@@ -47,6 +47,9 @@ COPY --chown=dlstreamer:dlstreamer \
     gstpipeline.py \
     optimize.py \
     utils.py \
+    cleanup_models.sh \
+    home_page.py \
+    pipelines/pipeline_page.py \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines

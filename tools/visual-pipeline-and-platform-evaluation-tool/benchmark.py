@@ -23,7 +23,7 @@ class Benchmark:
         video_path: str,
         pipeline_cls,
         fps_floor: float,
-        rate: int,
+        rate: int | None,
         parameters: Dict[str, List[str]],
         constants: Dict[str, str],
         elements: List[tuple[str, str, str]] | None = None,
