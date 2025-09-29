@@ -4,9 +4,9 @@ Video Search and Summarization (VSS) is a foundational sample application that p
 video analytics, using a combination of different AI models. It offers three distinct modes
 in which its capabilities can be utilized:
 
-- Video Search ([overview](./Overview-search.md) | [architecture](./overview-architecture-search.md))
-- Video Summary ([overview](./Overview-summary.md) | [architecture](./overview-architecture-summary.md))
-- Video Search and Summary ([overview](./Overview-search-and-summary.md) | [architecture](./overview-architecture-search-and-summary.md))
+- Video Search ([overview](./overview-search.md) | [architecture](./overview-architecture-search.md))
+- Video Summary ([overview](./overview-summary.md) | [architecture](./overview-architecture-summary.md))
+- Video Search and Summary ([overview](./overview-search-and-summary.md) | [architecture](./overview-architecture-search-and-summary.md))
 
 
 ## Other references
@@ -21,17 +21,18 @@ in which its capabilities can be utilized:
 :maxdepth: 2
 :hidden:
 
-Get Started <get-started>
-Overview-search
-Overview-summary
-Overview-search-and-summary.md
-overview-architecture-search
-overview-architecture-summary
-overview-architecture-search-summary
-build-from-source
-deploy-with-helm
-api-reference
-system-requirements
-release-notes
+Get Started <get-started.md>
+overview-search.md
+overview-summary.md
+overview-search-and-summary.md
+overview-architecture-search.md
+overview-architecture-summary.md
+overview-architecture-search-summary.md
+build-from-source.md
+deploy-with-helm.md
+./directory-watcher-guide.md
+api-reference.md
+system-requirements.md
+release-notes.md
 :::
 hide_directive -->
