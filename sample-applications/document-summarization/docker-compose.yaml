@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginxinc/nginx-unprivileged:1.27.4
+    image: nginxinc/nginx-unprivileged:1.29.1
     environment:
       - no_proxy=${no_proxy},docsum-ui,docsum-api
       - http_proxy=${http_proxy}
@@ -16,7 +16,7 @@ services:
       - my_network
 
   ovms-service:
-    image: openvino/model_server:2025.1
+    image: openvino/model_server:2025.2
     container_name: ovms-service
     environment:
       - no_proxy=${no_proxy}

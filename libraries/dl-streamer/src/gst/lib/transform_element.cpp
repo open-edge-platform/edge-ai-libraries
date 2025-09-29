@@ -600,12 +600,12 @@ void GstDlsTransformClass::init(gpointer g_class, gpointer class_data) {
     GstElementClass *element_class = GST_ELEMENT_CLASS(g_class);
 
     // input caps
-    GstCaps *input_caps = frame_info_vector_to_gst_caps(desc->input_info);
+    GstCaps *input_caps = frame_info_vector_to_gst_caps(desc->input_info());
     GstPadTemplate *sink_template = gst_pad_template_new("sink", GST_PAD_SINK, GST_PAD_ALWAYS, input_caps);
     gst_element_class_add_pad_template(element_class, sink_template);
 
     // output caps
-    GstCaps *output_caps = frame_info_vector_to_gst_caps(desc->output_info);
+    GstCaps *output_caps = frame_info_vector_to_gst_caps(desc->output_info());
     GstPadTemplate *src_template = gst_pad_template_new("src", GST_PAD_SRC, GST_PAD_ALWAYS, output_caps);
     gst_element_class_add_pad_template(element_class, src_template);
 
@@ -667,11 +667,11 @@ static const GTypeInfo gst_dls_transform_type_info = {.class_size = sizeof(GstDl
 ///////////////////////////////////////////////////////////////////////////////////////
 
 gboolean register_element_gst_plugin(const dlstreamer::ElementDesc *element, GstPlugin *plugin) {
-    // make sure Intel® Deep Learning Streamer (Intel® DL Streamer) metadata registered
+    // make sure Deep Learning Streamer (DL Streamer) metadata registered
     gst_gva_tensor_meta_get_info();
     gst_gva_tensor_meta_api_get_type();
 
-    // register Intel® DL Streamer element as GStreamer element
+    // register DL Streamer element as GStreamer element
     GTypeInfo type_info = dlstreamer::gst_dls_transform_type_info;
     type_info.class_data = element;
     GType gtype = g_type_register_static(GST_TYPE_BASE_TRANSFORM, element->name.data(), &type_info, (GTypeFlags)0);

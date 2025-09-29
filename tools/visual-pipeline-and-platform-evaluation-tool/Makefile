@@ -7,7 +7,10 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help \
-	public_models_choice reset_public_models_choice
+	public_models_choice reset_public_models_choice build-videogenerator docker-build
+
+# Code Versions
+VERSION := v1.2
 
 # Project Variables
 PROJECT_NAME := vippet
@@ -34,7 +37,7 @@ $(VENV_DIR): requirements.txt ## Create Python venv
 
 all: lint build run test ## Run lint, build, run and test
 
-lint: $(VENV_DIR) mdlint ruff ## Run all linters
+lint: $(VENV_DIR) mdlint ruff pyright ## Run all linters
 
 MD_FILES := $(shell find . -type f \( -name '*.md' \) -not -path './.*' -print )
 mdlint: ## Lint MD files
@@ -67,13 +70,20 @@ check-device-type:
 		exit 1; \
 	fi; \
 
-build: check-device-type $(VENV_DIR) ## Build all images
+build: check-device-type $(VENV_DIR) ## Build core images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
-	docker compose build
+	DOCKER_TAG=$(VERSION) docker compose build
 
-build-dev: check-device-type $(VENV_DIR) ## Build all dev images
+build-dev: check-device-type $(VENV_DIR) ## Build core dev images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
-	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
+	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
+
+build-videogenerator: ## Build videogenerator image
+	DOCKER_TAG=$(VERSION) docker compose build videogenerator
+
+docker-build: ## Build all images
+	$(MAKE) build DEVICE_TYPE=$(or $(DEVICE_TYPE),CPU)
+	$(MAKE) build-videogenerator
 
 public_models_choice: ## Ask if public models shall be downloaded
 	@if [ -f $(PUBLIC_MODELS_ENV) ]; then \
@@ -95,16 +105,16 @@ reset_public_models_choice: ## Reset choice on public models download
 run: check-device-type public_models_choice ## Run the docker compose services
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	mkdir -p models && chmod o+w models && \
-	docker compose up -d
+	DOCKER_TAG=$(VERSION) docker compose up -d
 
 run-dev: check-device-type public_models_choice ## Run the docker compose services for development
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	mkdir -p models && chmod o+w models && \
-	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
+	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
 test: $(VENV_DIR) ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
-	docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
+	DOCKER_TAG=$(VERSION) docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu bash -c "\
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
@@ -113,7 +123,7 @@ shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
 
 shell-vippet: ## Open shell in vippet-* container
-	@VIPPET_SERVICE=$$(docker compose ps --services | grep "^vippet-" | head -n 1); \
+	@VIPPET_SERVICE=$$(DOCKER_TAG=$(VERSION) docker compose ps --services | grep "^vippet-" | head -n 1); \
 	$(MAKE) shell SERVICE=$$VIPPET_SERVICE;
 
 shell-models: ## Open shell in models container
@@ -126,8 +136,8 @@ shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	@VIPPET_SERVICE=$$(docker compose ps --services | grep "^vippet-" | head -n 1 || echo ""); \
-	docker compose down models collector videogenerator $$VIPPET_SERVICE
+	@VIPPET_SERVICE=$$(DOCKER_TAG=$(VERSION) docker compose ps --services | grep "^vippet-" | head -n 1 || echo ""); \
+	DOCKER_TAG=$(VERSION) docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
 	rm -rf .collector-signals/ models/ videos/

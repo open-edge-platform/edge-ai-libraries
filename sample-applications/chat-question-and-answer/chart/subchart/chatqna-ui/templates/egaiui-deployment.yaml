@@ -16,6 +16,8 @@ spec:
           runAsGroup: 101
           fsGroup: 101
           allowPrivilegeEscalation: false
+          seccompProfile:
+            type: RuntimeDefault
       containers:
         - name: {{ .Values.chatqnaui.name }}
           image: {{ .Values.chatqnaui.image.repository }}:{{ .Values.chatqnaui.image.tag }}

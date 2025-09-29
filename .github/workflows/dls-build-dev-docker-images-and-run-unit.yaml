@@ -11,7 +11,7 @@ env:
 jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs and run unit
-    runs-on: dls
+    runs-on: [dls, ubuntu]
     permissions:
       contents: read
       packages: read
@@ -27,7 +27,7 @@ jobs:
     - name: Clean before
       run: |
         sudo rm -rf edge-ai-libraries-repo
-    
+
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
@@ -63,7 +63,7 @@ jobs:
           --build-arg BUILD_ARG=Debug \
           -f ${{ matrix.path_dockerfile }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
-  
+
     # ====================================================== UNIT TESTS ============================================================
 
     - name: Print system information
@@ -99,7 +99,7 @@ jobs:
     - name: Create test results folder
       env:
         RESULTS_DIR: test-results
-      run: | 
+      run: |
         mkdir -p ${RESULTS_DIR}
         chmod -R 777 ${RESULTS_DIR}
 

@@ -1,12 +1,12 @@
-.. _real_time_linux:
+.. _real_time_in_linux:
 
-Real-Time Linux
-#################
+Real-Time in Linux
+==================
 
 |top_name| provides real-time capabilities to the kernel with PREEMPT_RT patch and boot parameters for real-time optimization, which aims to increase predictability and reduce scheduler latencies.
 
 Installation
-================
+############
 
 #. Before using the ECI repository, update the APT packages list:
 
@@ -14,12 +14,12 @@ Installation
 
       $ sudo apt update
 
-   .. figure:: assets/images/apt-update-1.png
+   .. figure:: ../../../assets/images/apt-update-1.png
       :align: center
 
    The APT package manager will download the latest list of packages available for all configured repositories.
 
-   .. figure:: assets/images/apt-update-2.png
+   .. figure:: ../../../assets/images/apt-update-2.png
       :align: center
 
    .. tip::
@@ -51,9 +51,9 @@ Installation
 
    Click the corresponding tab to know more.
 
-   .. tabs::
+   .. tab-set::
 
-      .. group-tab:: Linux Intel LTS PREEMPT_RT Kernel
+      .. tab-item:: Linux Intel LTS PREEMPT_RT Kernel
 
          **Linux Intel LTS PREEMPT_RT kernel** is Intel's Long-Term-Support kernel with PREEMPT_RT patches
 
@@ -61,7 +61,7 @@ Installation
 
             $ sudo apt install -y linux-intel-rt
 
-      .. group-tab:: Linux Intel LTS Xenomai Dovetail Kernel
+      .. tab-item:: Linux Intel LTS Xenomai Dovetail Kernel
 
          **Linux Intel LTS Xenomai Dovetail kernel** is Intel's Long-Term-Support kernel with Xenomai patches
 
@@ -80,7 +80,7 @@ Installation
       $ sudo reboot
 
 Verify Benchmark Performance
-===============================
+############################
 
 After installing the real-time Linux kernel, it's a good idea to benchmark the system to establish confidence that the system is properly configured. Perform either of the following commands to install `Cyclictest <https://git.kernel.org/pub/scm/utils/rt-tests/rt-tests.git>`_. Cyclictest is most commonly used for benchmarking real-time systems. It is one of the most frequently used tools for evaluating the relative performance of an RT. Cyclictest accurately and repeatedly measures the difference between a thread’s intended wake-up time and the time at which it actually wakes up to provide statistics about the system’s latency. It can measure latency in real-time systems caused by the hardware, the firmware, and the operating system.
 Please use ``rt-tests v2.6`` to collect performance, which support to pin threads to specific isolate core and avoid main thread in same core with the measurement threads.
@@ -131,7 +131,7 @@ Default parameters are used unless otherwise specified. Run ``cyclictest --help`
    * - -m
      - lock current and future memory allocations
    * - --laptop
-     - Not setting ``cpu_dma_latency`` to save battery, recommend using it when enabling per-core C-state disable.  
+     - Not setting ``cpu_dma_latency`` to save battery, recommend using it when enabling per-core C-state disable.
 
 On a **realtime-enabled** system, the result might be similar to the following:
 
@@ -141,4 +141,4 @@ On a **realtime-enabled** system, the result might be similar to the following:
 
 This result indicates an apparent short-term worst-case latency of 18 us. According to this, it is important to pay attention to the Max values as these are indicators of outliers. Even if the system has decent Avg (average) values, a single outlier as indicated by Max is enough to break or disturb a real-time system.
 
-If the real-time data is not good by default installation, please refer to :ref:`OS Setup <OS_Setup>` for BIOS optimization and `Optimize Performance <https://eci.intel.com/docs/3.3/development/performance.html>`_ to optimize Linux OS and application runtime on |Intel| Processors.
+If the real-time data is not good by default installation, please refer to :doc:`OS Setup <../prerequisites/os_setup>` for BIOS optimization and `Optimize Performance <https://eci.intel.com/docs/3.3/development/performance.html>`_ to optimize Linux OS and application runtime on |Intel| Processors.
