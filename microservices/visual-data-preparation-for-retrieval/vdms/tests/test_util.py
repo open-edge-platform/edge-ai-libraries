@@ -25,8 +25,7 @@ def test_get_video_fps_and_frames(mocker, tmp_path):
     Test whether get_video_fps_and_frames can produce frames and fps properly
     """
 
-    # This is a mock function based on input value. Used to mock differing values based on
-    # parameters to cap.get().
+    # Used to mock differing values based on parameters to cap.get()
     def mock_cap_get(val):
         if val == cv2.CAP_PROP_FPS:
             return 20.5
@@ -58,7 +57,7 @@ def test_get_video_fps_and_frames_exception(mocker, tmp_path):
     with pytest.raises(Exception):
         get_video_fps_and_frames(tmp_path)
 
-    cv2.VideoCapture.assert_called_once_with(tmp_path)
+    cv2.VideoCapture.assert_called_once_with(str(tmp_path))
 
 
 def test_calculate_intervals():

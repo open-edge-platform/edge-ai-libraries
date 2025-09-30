@@ -2,6 +2,23 @@
 
 ## Current Release
 
+**Version**: 1.2.3 \
+**Release Date**: WW39 2025
+
+- Updated to OpenVINO™ model server version 2025.3.
+- Streamlined Docker-based application deployment steps.
+- Refreshed list of embedding models.
+- UI and NGINX containers now run with non-root privileges in Helm deployments.
+- Various bug fixes.
+
+
+## Known Issues/Behavior (Consolidated):
+- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
+- Application running into Model Type issue on EMT 3.1 - Open
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
+
+## Previous Releases
+
 **Version**: 1.2.2 \
 **Release Date**: WW32 2025
 
@@ -9,14 +26,6 @@
 - Improved EMT-S 3.0 stability and performance through targeted bug fixes and optimizations. EMT 3.1 not supported in this version.
 - Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
 - Functional on EMT 3.0.
-
-## Known Issues/Behavior (Consolidated):
-- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
-- UI and NGINX container running as root Privilege in Helm Deployment - Closed
-- Application running into Model Type issue on EMT 3.1 - Open
-- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
-
-## Previous Releases
 
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025

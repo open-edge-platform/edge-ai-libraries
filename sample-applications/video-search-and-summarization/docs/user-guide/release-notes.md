@@ -1,12 +1,14 @@
 # Release Notes
 
+
 ## Current Release
-**Version**: RC5.2 \
-**Release Date**: 26 Aug 2025  
+**Version**: 1.2.1 \
+**Release Date**: 29 Sept 2025  
 
 **Features**:
 - Unified Search and Summary functionality for streamlined user experience.
 - New UI for new combined use case.
+- API updates to support combined use case.
 - Enhanced video management with support for tags on upload and search.
 - Improved text embedding capabilities within the MME service.
 - Introducing Search Alerts and Directory Watcher for proactive monitoring on search use-case.
@@ -24,7 +26,9 @@
 
 **Known Issues/Limitations**:
 
-- EMF and EMT are not supported yet.
+- EMF and EMT are not supported yet. 
+- `RWOnce` PVC access mode not supported.
+- Video summary with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines. 
 - Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
 - HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing.
 - VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
@@ -39,7 +43,6 @@
 
 **Version**: 1.2.0 \
 **Release Date**: 04 August 2025  
-
 **Features**:
 - This is an incremental release on top of RC4.1 providing fixes for issues found on RC4.1 The notes provided under RC4.1 apply for this incremental release too.
 - Issues fixed are listed below:
@@ -49,21 +52,8 @@
 - Limited support for EMT 3.0 based deployment. CPU-only configuration supported. 
 - Images for all required microservices uploaded and available on Docker registry.
 
-
-## Known Issues/Limitations (Consolidated):
-- Deployment on EMF is not supported. - Open
-- `RWOnce` PVC access mode not supported. - Open
-- Users are required to build the images and use the sample application. Docker images are not available yet on public registries (pending approvals). - Closed
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. - Open
-- HW sizing of the Search/Summary pipeline is in progress. Optimization of the pipelines will follow HW sizing. - Open
-- VLM models on GPUs currently support only microsoft/Phi-3.5-vision-instruct. - Open
-- The Helm chart presently supports only CPU deployments. - Open
-- Video summary with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines. - Open
-
-
 **Version**: RC4.1 \
 **Release Date**: 29 July 2025  
-
 **Features**:
 - This is an incremental release on top of RC4 providing fixes for issues found on RC4. The notes provided under RC4 apply for this incremental release too.
 - Issues fixed are listed below:
@@ -79,7 +69,6 @@
 
 **Version**: RC4 \
 **Release Date**: 18 June 2025  
-
 **Features**:
 - Added helm chart for summary and search.
 - Streamlined microservices names and folder structure.

@@ -57,10 +57,10 @@ if not isinstance(trace.get_tracer_provider(), TracerProvider):
         )
 
 PG_CONNECTION_STRING = os.getenv("PG_CONNECTION_STRING")
-MODEL_NAME = os.getenv("EMBEDDING_MODEL", "BAAI/bge-small-en-v1.5")
+MODEL_NAME = os.getenv("EMBEDDING_MODEL", "Alibaba-NLP/gte-large-en-v1.5")
 EMBEDDING_ENDPOINT_URL = os.getenv("EMBEDDING_ENDPOINT_URL", "http://localhost:6006")
 COLLECTION_NAME = os.getenv("INDEX_NAME")
-FETCH_K = os.getenv("FETCH_K")
+FETCH_K = int(os.getenv("FETCH_K", "10"))
 
 engine = create_async_engine(PG_CONNECTION_STRING)
 
@@ -69,9 +69,7 @@ try:
     embedder = EGAIEmbeddings(
         openai_api_key="EMPTY",
         openai_api_base="{}".format(EMBEDDING_ENDPOINT_URL),
-        model=MODEL_NAME,
-        request_timeout=30,  # Add timeout
-        max_retries=3,  # Add retries
+        model=MODEL_NAME
     )
     logging.info(
         f"Embeddings initialized with endpoint configured in EMBEDDING_ENDPOINT_URL"
@@ -88,7 +86,7 @@ knowledge_base = EGAIVectorDB(
 retriever = EGAIVectorStoreRetriever(
     vectorstore=knowledge_base,
     search_type="mmr",
-    search_kwargs={"k": 1, "fetch_k": FETCH_K},
+    search_kwargs={"k": FETCH_K, "fetch_k": FETCH_K * 3},
 )
 
 
@@ -130,6 +128,21 @@ LLM_MODEL = os.getenv("LLM_MODEL", "Intel/neural-chat-7b-v3-3")
 RERANKER_ENDPOINT = os.getenv("RERANKER_ENDPOINT", "http://localhost:9090/rerank")
 callbacks = [streaming_stdout.StreamingStdOutCallbackHandler()]
 
+# Format the context in a readable way
+def format_docs(docs):
+    if not docs:
+        return "No relevant context found."
+    
+    formatted_docs = []
+    for i, doc in enumerate(docs, 1):
+        content = doc.page_content.strip()
+        metadata = doc.metadata or {}
+        source = metadata.get("source", "Unknown source")
+        
+        formatted_docs.append(f"[Document {i}] {content}\nSource: {source}")
+    
+    return "\n\n".join(formatted_docs)
+
 async def process_chunks(question_text, max_tokens):
     if not question_text or not question_text.strip():
         raise ValueError("Question text cannot be empty")
@@ -157,8 +170,7 @@ async def process_chunks(question_text, max_tokens):
             streaming=True,
             callbacks=callbacks,
             seed=seed_value,
-            max_tokens=max_tokens,
-            stop=["\n\n"],
+            max_tokens=max_tokens
         )
 
     re_ranker = CustomReranker(reranking_endpoint=RERANKER_ENDPOINT)
@@ -168,6 +180,7 @@ async def process_chunks(question_text, max_tokens):
     chain = (
         RunnableParallel({"context": retriever, "question": RunnablePassthrough()})
         | re_ranker_lambda
+        | {"context": (lambda x: format_docs(x["context"])), "question": lambda x: x["question"]}
         | prompt
         | model
         | StrOutputParser()

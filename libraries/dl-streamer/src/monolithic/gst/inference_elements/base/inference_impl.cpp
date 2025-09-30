@@ -85,6 +85,40 @@ inline std::string GstVideoFormatToString(GstVideoFormat formatType) {
     }
 }
 
+// Helper function to convert MemoryType to string
+inline std::string MemoryTypeToString(MemoryType type) {
+    switch (type) {
+    case MemoryType::SYSTEM:
+        return "SYSTEM";
+    case MemoryType::VAAPI:
+        return "VA(API)";
+    case MemoryType::DMA_BUFFER:
+        return "DMA_BUFFER";
+    case MemoryType::ANY:
+        return "ANY";
+    default:
+        return "UNKNOWN";
+    }
+}
+
+// Helper function to convert ImagePreprocessorType to string
+inline std::string ImagePreprocessorTypeToString(ImagePreprocessorType type) {
+    switch (type) {
+    case ImagePreprocessorType::AUTO:
+        return "AUTO";
+    case ImagePreprocessorType::IE:
+        return "IE";
+    case ImagePreprocessorType::VAAPI_SYSTEM:
+        return "VA(API)";
+    case ImagePreprocessorType::VAAPI_SURFACE_SHARING:
+        return "VA(API)_SURFACE_SHARING";
+    case ImagePreprocessorType::OPENCV:
+        return "OPENCV";
+    default:
+        return "UNKNOWN";
+    }
+}
+
 ImagePreprocessorType ImagePreprocessorTypeFromString(const std::string &image_preprocessor_name) {
     constexpr std::pair<const char *, ImagePreprocessorType> preprocessor_types[]{
         {"", ImagePreprocessorType::AUTO},
@@ -242,21 +276,23 @@ bool IsModelProcSupportedForVaapiSurfaceSharing(
             continue;
     }
     // VaapiSurfaceSharing converter always generates NV12 image,
-    // which can be further converted to model color space using OpenVINO™ model pre-processing stage.
+    // which can be further converted to model color space using inference engine pre-processing stage.
     return true;
 }
 
 bool IsPreprocSupported(ImagePreprocessorType preproc,
                         const std::vector<ModelInputProcessorInfo::Ptr> &model_input_processor_info,
-                        GstVideoInfo *input_video_info, const std::string device) {
-    bool isNpu = (device.find("NPU") != std::string::npos);
+                        GstVideoInfo *input_video_info, const std::map<std::string, std::string> base_config) {
+    bool isNpu = (base_config.at(KEY_DEVICE).find("NPU") != std::string::npos);
+    bool isCustomLib = !base_config.at(KEY_CUSTOM_PREPROC_LIB).empty();
     switch (preproc) {
     case ImagePreprocessorType::IE:
-        return !isNpu && IsModelProcSupportedForIE(model_input_processor_info, input_video_info);
+        return !isNpu && !isCustomLib && IsModelProcSupportedForIE(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::VAAPI_SYSTEM:
-        return IsModelProcSupportedForVaapi(model_input_processor_info, input_video_info);
+        return !isCustomLib && IsModelProcSupportedForVaapi(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::VAAPI_SURFACE_SHARING:
-        return !isNpu && IsModelProcSupportedForVaapiSurfaceSharing(model_input_processor_info, input_video_info);
+        return !isNpu && !isCustomLib &&
+               IsModelProcSupportedForVaapiSurfaceSharing(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::OPENCV:
         return true;
     case ImagePreprocessorType::AUTO:
@@ -268,8 +304,10 @@ bool IsPreprocSupported(ImagePreprocessorType preproc,
 // Returns default suitable preprocessor according to caps and custom preprocessing options
 ImagePreprocessorType
 GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessorInfo::Ptr> &model_input_processor_info,
-                         GstVideoInfo *input_video_info, const std::string device) {
+                         GstVideoInfo *input_video_info, const std::map<std::string, std::string> base_config) {
     ImagePreprocessorType result = ImagePreprocessorType::OPENCV;
+    std::string device = base_config.at(KEY_DEVICE);
+
     switch (caps) {
     case SYSTEM_MEMORY_CAPS_FEATURE:
         result = ImagePreprocessorType::IE;
@@ -277,14 +315,6 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
     case VA_SURFACE_CAPS_FEATURE:
     case VA_MEMORY_CAPS_FEATURE:
         result = ImagePreprocessorType::VAAPI_SYSTEM;
-
-        // VA context may come from other pipeline elements ensure using correct preprocessor type
-        if (device.find("CPU") != std::string::npos) {
-            GVA_WARNING(
-                "Using VAAPI preprocessor with CPU device is not recommended, forcing using OpenCV preprocessor");
-            result = ImagePreprocessorType::IE;
-        }
-
         break;
     case DMA_BUF_CAPS_FEATURE:
 #ifdef ENABLE_VPUX
@@ -298,7 +328,7 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
     }
 
     // Fallback to OPENCV
-    if (!IsPreprocSupported(result, model_input_processor_info, input_video_info, device)) {
+    if (!IsPreprocSupported(result, model_input_processor_info, input_video_info, base_config)) {
         result = ImagePreprocessorType::OPENCV;
     }
 
@@ -319,24 +349,30 @@ void setPreprocessorType(InferenceConfig &config,
     if (current == ImagePreprocessorType::AUTO) {
         // Automatically select the preferred preprocessor type based on capabilities and input info
         selected_preprocessor =
-            GetPreferredImagePreproc(caps, model_input_processor_info, input_video_info, config[KEY_BASE][KEY_DEVICE]);
-    } else if (!IsPreprocSupported(current, model_input_processor_info, input_video_info,
-                                   config[KEY_BASE][KEY_DEVICE])) {
+            GetPreferredImagePreproc(caps, model_input_processor_info, input_video_info, config[KEY_BASE]);
+    } else if (!IsPreprocSupported(current, model_input_processor_info, input_video_info, config[KEY_BASE])) {
         // Handle unsupported preprocessor types by attempting fallback options
         if (current == ImagePreprocessorType::IE &&
             IsPreprocSupported(ImagePreprocessorType::OPENCV, model_input_processor_info, input_video_info,
-                               config[KEY_BASE][KEY_DEVICE])) {
+                               config[KEY_BASE])) {
             // Fallback to OpenCV if IE is unsupported
             selected_preprocessor = ImagePreprocessorType::OPENCV;
             GVA_WARNING("'pre-process-backend=ie' not supported with current settings, falling back to "
                         "'pre-process-backend=opencv'");
+        } else if (current == ImagePreprocessorType::VAAPI_SYSTEM &&
+                   IsPreprocSupported(ImagePreprocessorType::OPENCV, model_input_processor_info, input_video_info,
+                                      config[KEY_BASE])) {
+            // Fallback to OpenCV if VAAPI_SYSTEM is unsupported
+            selected_preprocessor = ImagePreprocessorType::OPENCV;
+            GVA_WARNING("'pre-process-backend=va' not supported with current settings, falling back "
+                        "to 'pre-process-backend=opencv'");
         } else if (current == ImagePreprocessorType::VAAPI_SURFACE_SHARING &&
                    IsPreprocSupported(ImagePreprocessorType::VAAPI_SYSTEM, model_input_processor_info, input_video_info,
-                                      config[KEY_BASE][KEY_DEVICE])) {
+                                      config[KEY_BASE])) {
             // Fallback to VAAPI_SYSTEM if VAAPI_SURFACE_SHARING is unsupported
             selected_preprocessor = ImagePreprocessorType::VAAPI_SYSTEM;
-            GVA_WARNING("'pre-process-backend=vaapi-surface-sharing' not supported with current settings, falling back "
-                        "to 'pre-process-backend=vaapi'");
+            GVA_WARNING("'pre-process-backend=va-surface-sharing' not supported with current settings, falling back "
+                        "to 'pre-process-backend=va'");
         } else {
             // Throw an error if no suitable fallback is available
             throw std::runtime_error(
@@ -592,10 +628,6 @@ bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference, size_t max_st
 
     // Check reference count if display is set
     if (gva_base_inference->priv->va_display) {
-        if (device.find("GPU") == device.npos) {
-            return true; // For CPU/NPU/AUTO device fallback to default control flow and do not create a new/separate
-                         // VADisplay context
-        }
         // This counts all shared_ptr references, not just streams, but is the best available heuristic
         auto use_count = gva_base_inference->priv->va_display.use_count();
         if (use_count > static_cast<long>(max_streams)) {
@@ -640,7 +672,10 @@ dlstreamer::ContextPtr createVaDisplay(GvaBaseInference *gva_base_inference) {
                  GST_ELEMENT_NAME(gva_base_inference));
     } else {
         // Create a new VADisplay context
-        uint32_t rel_dev_index = Utils::getRelativeGpuDeviceIndex(device);
+        uint32_t rel_dev_index = 0;
+        if (device.find("GPU") != device.npos) {
+            rel_dev_index = Utils::getRelativeGpuDeviceIndex(device);
+        }
         display = vaApiCreateVaDisplay(rel_dev_index);
         GVA_INFO("Using new VADisplay (%p) ", static_cast<void *>(display.get()));
     }
@@ -714,6 +749,21 @@ InferenceImpl::Model InferenceImpl::CreateModel(GvaBaseInference *gva_base_infer
     memory_type =
         GetMemoryType(GetMemoryType(static_cast<CapsFeature>(std::stoi(ie_config[KEY_BASE][KEY_CAPS_FEATURE]))),
                       static_cast<ImagePreprocessorType>(std::stoi(ie_config[KEY_BASE][KEY_PRE_PROCESSOR_TYPE])));
+
+    ImagePreprocessorType preproc_type =
+        static_cast<ImagePreprocessorType>(std::stoi(ie_config[KEY_BASE][KEY_PRE_PROCESSOR_TYPE]));
+
+    std::string requested_preproc_type_str = (gva_base_inference->pre_proc_type && gva_base_inference->pre_proc_type[0])
+                                                 ? gva_base_inference->pre_proc_type
+                                                 : "auto";
+
+    GST_WARNING_OBJECT(
+        gva_base_inference,
+        "\n\nElement name: %s || device: %s || selected memory_type: %s || requested preprocessor_type: %s || "
+        "selected preprocessor_type: %s\n",
+        GST_ELEMENT_NAME(GST_ELEMENT(gva_base_inference)),
+        gva_base_inference->device ? gva_base_inference->device : "NULL", MemoryTypeToString(memory_type).c_str(),
+        requested_preproc_type_str.c_str(), ImagePreprocessorTypeToString(preproc_type).c_str());
 
     dlstreamer::ContextPtr va_dpy;
     if (memory_type == MemoryType::VAAPI || memory_type == MemoryType::DMA_BUFFER) {
@@ -1190,7 +1240,8 @@ GstFlowReturn InferenceImpl::TransformFrameIp(GvaBaseInference *gva_base_inferen
             // pause if total number of buffered frames exceeds max number of frames in flight,
             // and frame presentation time is later than ones already queued
             while ((buffer->pts > latest_pts) &&
-                   (output_frames.size() > model.inference->GetNireq() * model.inference->GetBatchSize())) {
+                   (output_frames.size() > model.inference->GetNireq() * model.inference->GetBatchSize() *
+                                               gva_base_inference->inference_interval)) {
                 output_lock.unlock();
                 lock.unlock();
                 std::this_thread::sleep_for(std::chrono::milliseconds(10));

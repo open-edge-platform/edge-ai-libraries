@@ -123,6 +123,21 @@ curl -X GET "http://${host_ip}:${VDMS_DATAPREP_HOST_PORT}/v1/dataprep/videos/dow
 
 You can also access **Minio Console UI** to verify the bucket creation and video uploads by heading to `http://${host_ip}:{MINIO_CONSOLE_HOST_PORT}` in your browser. Use the Value of `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` as login credentials for Console UI. Videos are uploaded by default in **vdms-bucket-test** bucket unless you specify a different bucket_name in your API requests.
 
+## Runs Tests
+
+We can run unit tests and generate coverage by running following command in the application's directory :
+
+```bash
+# Switch to application directory (assuming you are in cloned repo's root dir)
+cd microservices/visual-data-preparation-for-retrieval/vdms
+
+poetry lock --no-update
+poetry install --with cpu,dev
+
+# Run tests and generate coverage report
+source setup.sh test
+```
+
 ## Troubleshooting
 
 1. **Docker Container Fails to Start**:

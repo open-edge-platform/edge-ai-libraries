@@ -82,7 +82,7 @@ elif [ "$1" = "--clean-data" ]; then
     echo -e "${YELLOW}Removing Docker volumes created by the application... ${NC}"
 
     # Remove volumes 
-    docker volume rm docker_minio_data docker_pg_data docker_vdms-db  2>/dev/null || true
+    docker volume rm docker_minio_data docker_pg_data docker_vdms-db docker_audio_analyzer_data docker_data-prep  2>/dev/null || true
     
     if [ $? -eq 0 ]; then
         echo -e "${GREEN}All volumes were successfully removed. ${NC}"

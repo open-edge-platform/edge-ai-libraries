@@ -51,44 +51,13 @@ async def list_videos(
         minio_client.ensure_bucket_exists(bucket_name)
 
         # Get all objects in the bucket
-        objects = minio_client.list_videos_in_bucket(bucket_name=bucket_name)
+        videos: list[dict] = minio_client.list_all_videos(bucket_name=bucket_name)
 
         video_list: List[VideoInfo] = []
-        # Group objects by video_id (assuming format video_id/filename)
-        video_map = {}
-
-        for obj in objects:
-            # Skip non-video files
-            if not minio_client.is_video_object(obj.object_name):
-                continue
-
-            parts = obj.object_name.split("/", 1)
-            if len(parts) != 2:
-                # Skip files not in expected format
-                continue
-
-            video_id, video_name = parts
-            if video_id not in video_map:
-                video_map[video_id] = []
-            video_map[video_id].append(
-                {
-                    "video_name": video_name,
-                    "video_path": obj.object_name,
-                    "creation_ts": obj.last_modified.isoformat(),
-                }
-            )
 
         # Create VideoInfo objects from the grouped data
-        for video_id, videos in video_map.items():
-            for video in videos:
-                video_list.append(
-                    VideoInfo(
-                        video_id=video_id,
-                        video_name=video["video_name"],
-                        video_path=video["video_path"],
-                        creation_ts=video["creation_ts"],
-                    )
-                )
+        for video in videos:
+            video_list.append(VideoInfo.model_validate(video))
 
         return BucketVideoListResponse(bucket_name=bucket_name, videos=video_list)
 

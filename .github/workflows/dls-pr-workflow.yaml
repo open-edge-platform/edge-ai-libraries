@@ -45,7 +45,7 @@ jobs:
 
       - name: Remove thirdparty folder
         run: rm -rf libraries/dl-streamer/thirdparty
- 
+
       - name: Code-style action
         uses: ./.github/actions/common/code-style
         with:
@@ -97,6 +97,13 @@ jobs:
       packages: read
     name: BUILD & TEST .deb pkgs & img
     uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
+
+  build-and-test-windows:
+    permissions:
+      contents: read
+      packages: read
+    name: BUILD & TEST Windows DLLs
+    uses: ./.github/workflows/dls-build-and-test-windows.yaml
 
   filter-docker-related-changes:
     permissions:
@@ -150,7 +157,7 @@ jobs:
             path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
             output: reports/trivy-dlstreamer_fedora41.json
           - name: dlstreamer-testing-ubuntu
-            path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
+            path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile
             output: reports/trivy-dlstreamer-testing-ubuntu.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
@@ -182,7 +189,7 @@ jobs:
             dockerfile: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
             output-file: hadolint-dlstreamer_fedora41.json
           - name: dlstreamer-testing-ubuntu
-            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile 
+            dockerfile: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile
             output-file: hadolint-dlstreamer-testing-ubuntu.json
     steps:
       - name: Check out edge-ai-libraries repository
@@ -203,7 +210,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    name: SCAN pylint 
+    name: SCAN pylint
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository

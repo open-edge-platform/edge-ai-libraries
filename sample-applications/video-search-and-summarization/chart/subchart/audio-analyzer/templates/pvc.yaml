@@ -1,0 +1,16 @@
+{{- if .Values.global.usePvc }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "audioanalyzer.fullname" . }}-pvc
+  {{- if .Values.global.keepPvc }}
+  annotations:
+    helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.claimSize | default "10Gi" }}
+{{- end }}

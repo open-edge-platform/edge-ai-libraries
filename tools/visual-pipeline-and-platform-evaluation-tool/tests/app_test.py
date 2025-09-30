@@ -5,7 +5,7 @@ from app import (
     create_interface,
     generate_stream_data,
     read_latest_metrics,
-    chart_titles,
+    charts,
 )
 
 
@@ -30,10 +30,35 @@ class TestApp(unittest.TestCase):
             f"gpu engine=video,gpu_id=1 usage=1.0 {timestamp}\n"
             f"gpu engine=compute,gpu_id=1 usage=1.0 {timestamp}\n"
         )
-        with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
-            result = read_latest_metrics()
-            expected = [1.0 for _ in range(12)] + [None for _ in range(8)]
-            self.assertEqual(result, expected)
+        # Patch charts to include a GPU chart with gpu_id=1
+        from chart import Chart, ChartType
+
+        gpu_chart = Chart(
+            "Test GPU Chart", "Utilization", ChartType.DGPU_ENGINE_UTILIZATION, gpu_id=1
+        )
+        cpu_chart = Chart("Test CPU Chart", "Utilization", ChartType.CPU_UTILIZATION)
+        mem_chart = Chart("Test MEM Chart", "Utilization", ChartType.MEMORY_UTILIZATION)
+        patched_charts = [cpu_chart, mem_chart, gpu_chart]
+        with mock.patch("app.charts", patched_charts):
+            with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
+                result = read_latest_metrics()
+                # Check that all expected keys exist and have value 1.0 or None
+                self.assertIsInstance(result, dict)
+                # CPU/mem/core_temp/cpu_freq always present
+                for key in ["cpu_user", "mem_used_percent", "core_temp", "cpu_freq"]:
+                    self.assertEqual(result[key], 1.0)
+                # GPU metrics for gpu_id=1
+                for key in [
+                    "gpu_package_power_1",
+                    "gpu_power_1",
+                    "gpu_freq_1",
+                    "gpu_render_1",
+                    "gpu_ve_1",
+                    "gpu_video_1",
+                    "gpu_copy_1",
+                    "gpu_compute_1",
+                ]:
+                    self.assertEqual(result[key], 1.0)
 
     def test_read_latest_invalid(self):
         timestamp = 1748629754000000000
@@ -53,14 +78,38 @@ class TestApp(unittest.TestCase):
         )
         with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
             result = read_latest_metrics()
-            expected = [None for _ in range(20)]
-            self.assertEqual(result, expected)
+            self.assertIsInstance(result, dict)
+            for v in result.values():
+                self.assertTrue(v is None or v == "null")
 
     def test_generate_stream_data(self):
-        mock_data = [1.0 for _ in range(20)]
-        with mock.patch("app.read_latest_metrics", return_value=mock_data):
-            for i in range(len(chart_titles)):
-                stream = generate_stream_data(i)
+        # Prepare a metrics dict with all keys set to 1.0 for all charts
+        metrics = {}
+        for chart in charts:
+            if chart.gpu_id is not None:
+                for key in [
+                    "gpu_package_power",
+                    "gpu_power",
+                    "gpu_freq",
+                    "gpu_render",
+                    "gpu_ve",
+                    "gpu_video",
+                    "gpu_copy",
+                    "gpu_compute",
+                ]:
+                    metrics[f"{key}_{chart.gpu_id}"] = 1.0
+
+        # Always present keys
+        for key in ["cpu_user", "mem_used_percent", "core_temp", "cpu_freq"]:
+            metrics[key] = 1.0
+
+        with (
+            mock.patch("app.read_latest_metrics", return_value=metrics),
+            mock.patch("builtins.open", mock.mock_open(read_data="1.0\n")),
+        ):
+            streams = generate_stream_data()
+            self.assertEqual(len(streams), len(charts))
+            for stream in streams:
                 self.assertIsNotNone(stream)
 
 

@@ -40,7 +40,7 @@ spec:
               /scripts/model-converter.sh
           env:
             - name: OD_MODEL_OUTPUT_DIR
-              value: "/models/yoloworld"
+              value: /models/yoloworld
             - name: OD_MODEL_NAME
               value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
             - name: OD_MODEL_TYPE
@@ -56,11 +56,10 @@ spec:
               mountPath: /scripts
             - name: models-volume
               mountPath: /models
-              subPath: ov-models/videoingestion
           securityContext:
             privileged: true
       containers:
-        - name: videoingestion
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.videoingestion.image.repository }}:{{ .Values.videoingestion.image.tag }}"
           imagePullPolicy: {{ .Values.videoingestion.image.pullPolicy }}
           ports:
@@ -118,7 +117,6 @@ spec:
             mountPath: /run/udev
           - name: models-volume
             mountPath: /home/pipeline-server/models
-            subPath: ov-models/videoingestion
           securityContext:
             readOnlyRootFilesystem: false
             privileged: true
@@ -144,9 +142,9 @@ spec:
           name: {{ include "videoingestion.fullname" . }}-model-converter
           defaultMode: 0755
       - name: models-volume
-        {{- if .Values.global.pvcName }}
+        {{- if .Values.global.usePvc }}
         persistentVolumeClaim:
-          claimName: {{ .Values.global.pvcName }}
+          claimName: {{ include "videoingestion.fullname" . }}-pvc
         {{- else if .Values.global.volumeHostPath }}
         hostPath:
           path: {{ .Values.global.volumeHostPath }}
