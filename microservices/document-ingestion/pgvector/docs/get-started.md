@@ -43,6 +43,10 @@ export PGDB_PASSWD=<user_db_password>
 export PGDB_NAME=<user_db_name>
 export PGDB_INDEX=<user_db_index>
 
+# HTTP request configuration (optional)
+# Set USER_AGENT_HEADER to override the default User-Agent; a robust default is used if unset.
+export USER_AGENT_HEADER=<your_user_agent_string>
+
 # OPTIONAL - If user wants to push the built images to a remote container registry, user needs to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to application name and tag to form the final image name.
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
@@ -141,8 +145,8 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
 
 Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
 
- > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript. For JavaScript-intensive pages, the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
-
+ > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
+ 
 1. **Get stored URLs**:
    Retrieve a list of all URLs that have been processed and stored in the system.
    ```bash
