@@ -23,8 +23,10 @@ def create_interface() -> gr.Blocks:
 
     for p in PipelineLoader.list():
         pipeline = Pipeline(p)
-        with vippet.route(pipeline.name, pipeline.route):
-            pipeline.page.render()
+        enabled = pipeline.config.get("metadata", {}).get("enabled", False)
+        if enabled:
+            with vippet.route(pipeline.name, pipeline.route):
+                pipeline.page.render()
 
     return vippet
 
