@@ -210,10 +210,10 @@ class Pipeline:
 
         # Object detection model
         # Mapping of these choices to actual model path in utils.py
-
         self.object_detection_model = gr.Dropdown(
             label="Object Detection Model",
             elem_id="object_detection_model",
+            # choices and value will be set for each pipeline later
         )
 
         # Object detection device
@@ -262,6 +262,7 @@ class Pipeline:
         self.object_classification_model = gr.Dropdown(
             label="Object Classification Model",
             elem_id="object_classification_model",
+            # choices and value will be set for each pipeline later
         )
 
         # Object classification device
