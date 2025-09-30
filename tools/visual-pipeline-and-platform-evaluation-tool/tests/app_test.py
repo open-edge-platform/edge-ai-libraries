@@ -22,9 +22,9 @@ mock.patch(
     ),
 ).start()
 
-from app import create_interface
+from app import create_interface  # noqa: E402
 
-from pipelines.pipeline_page import (
+from pipelines.pipeline_page import (  # noqa: E402
     generate_stream_data,
     read_latest_metrics,
     charts,
