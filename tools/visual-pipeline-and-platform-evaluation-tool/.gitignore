@@ -1,11 +1,4 @@
 __pycache__
-emissions.csv
-.collector.out
-.collector.run
-free_output.log
-qmassa_output.json
-turbostat_output.log
-videos/
-models/*
 .coverage
-.public_models_env
+models/output/*
+videos/

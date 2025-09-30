@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import {
   CaptionsSummarizeTemplate,
@@ -18,7 +17,13 @@ import {
 
 @Injectable()
 export class TemplateService {
-  getVideoTemplate() {}
+  addAudioTranscripts(prompt: string, transcripts: string) {
+    return `${prompt}\n\nAudio transcripts for this chunk of video:\n${transcripts}\n\n`;
+  }
+
+  addDetectedObjects(prompt: string, objects: Set<string>) {
+    return `${prompt}\n\nDetected objects in this chunk of video:\n${Array.from(objects).join(', ')}\n\n`;
+  }
 
   getTemplate(name: string): string {
     return PromptTemplates[name] ?? '';
@@ -36,16 +41,6 @@ export class TemplateService {
 
     return template;
   }
-
-  addDetectedObjects(prompt:string, detectedObjects: Set<string>){
-    const objectsList = Array.from(detectedObjects).join(', ');
-    return `${prompt}\n\nDetected objects in these frames: ${objectsList}\n\n`;
-  }
-
-  addAudioTranscript(prompt:string, transcripts:string){
-    return `${prompt}\n\nAudio transcripts for this chunk of video:\n${transcripts}\n\n`;
-  }
-
 
   getCaptionsSummarizeTemplate(): string {
     return CaptionsSummarizeTemplate;

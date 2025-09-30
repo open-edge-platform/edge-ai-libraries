@@ -8,9 +8,9 @@ spec:
   type: {{ .Values.videoingestion.service.type }}
   ports:
     - port: {{ .Values.videoingestion.service.port }}
-      targetPort: {{ .Values.videoingestion.service.port }}
+      targetPort: {{ .Values.videoingestion.containerPortName }}
       protocol: TCP
-      name: http
+      name: {{ .Values.videoingestion.service.portName }}
   selector:
     app: {{ include "videoingestion.name" . }}
 

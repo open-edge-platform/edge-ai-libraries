@@ -70,11 +70,11 @@ services:
       VLM_ACCESS_LOG_FILE: ${VLM_ACCESS_LOG_FILE:-/dev/null}
     restart: unless-stopped
     devices:
-      - ${DRI_MOUNT_PATH}:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     group_add:
-      - ${USER_GROUP_ID-1000} 
-      - ${VIDEO_GROUP_ID-44}    
-      - ${RENDER_GROUP_ID-1002}
+      - ${USER_GROUP_ID:-1000} 
+      - ${VIDEO_GROUP_ID:-44}    
+      - ${RENDER_GROUP_ID:-1002}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 15s
@@ -120,7 +120,7 @@ services:
     ports:
       - "${EVAM_PIPELINE_HOST_PORT}:8080"
     healthcheck:
-      test: ["CMD", "wget", "http://localhost:8080/pipelines", "-O", "/tmp/health"]
+      test: ["CMD-SHELL", "curl -f http://localhost:8080/pipelines || exit 1"]
       interval: 60s
       timeout: 10s
       retries: 3
@@ -179,9 +179,9 @@ services:
     ports:
       - "${AUDIO_HOST_PORT}:8000"
     volumes:
-      - audio_analyzer_data:/models
-      - audio_analyzer_data:/data
-      - ${DRI_MOUNT_PATH}:/dev/dri
+      - audio_analyzer_data:/home/appuser/models
+      - audio_analyzer_data:/home/appuser/data
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     environment:
       - http_proxy
       - https_proxy
@@ -198,7 +198,7 @@ services:
       minio-service:
         condition: service_healthy
     devices:
-      - ${DRI_MOUNT_PATH}:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/api/v1/health"]
@@ -238,7 +238,7 @@ volumes:
   audio_analyzer_data:
     driver: local
   ov-models:
-    external: true
+    driver: local
   vol_evam_pipeline_root:
     driver: local
     driver_opts:

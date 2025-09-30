@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC } from 'react';
 import { CountStatus, StateActionStatus } from '../../redux/summary/summary';
 import { useTranslation } from 'react-i18next';
@@ -150,7 +152,7 @@ export const StatusTag: FC<StatusTagProps> = ({ label, action, count, total }) =
 export const StatusIndicator: FC<StatusTagProps> = ({ label, action }) => {
   return (
     <>
-      <Tooltip label={label} align='right'>
+      <Tooltip label={label} autoAlign>
         <CicleStatusIndicator className={statusClassName[action ?? StateActionStatus.NA]}></CicleStatusIndicator>
       </Tooltip>
     </>

@@ -3,3 +3,4 @@ numpy
 pytest-cov
 minio==7.2.15
 pillow==11.0.0
+paho-mqtt

@@ -7,7 +7,8 @@ SHELL := bash -eu -o pipefail
 .DEFAULT_GOAL := help
 .PHONY: all lint build mdlint ruff fix-linter format pyright run build-dev run-dev test \
 	shell shell-vippet shell-models shell-collector shell-videogenerator stop clean help \
-	public_models_choice reset_public_models_choice build-videogenerator docker-build
+	build-videogenerator build-models docker-build check-device-type \
+	install-models-once install-models-force install-models-all
 
 # Code Versions
 VERSION := v1.2
@@ -22,8 +23,6 @@ DEV_COMPOSE_FILE := compose.dev.yml
 
 # Python venv Target
 VENV_DIR := .venv
-
-PUBLIC_MODELS_ENV := .public_models_env
 
 # Placeholder to prevent warnings about missing variables.
 # This value is overridden by setup_env.sh in relevant targets.
@@ -81,35 +80,20 @@ build-dev: check-device-type $(VENV_DIR) ## Build core dev images (vippet-app, v
 build-videogenerator: ## Build videogenerator image
 	DOCKER_TAG=$(VERSION) docker compose build videogenerator
 
+build-models: ## Build model image
+	DOCKER_TAG=$(VERSION) docker compose build models
+
 docker-build: ## Build all images
 	$(MAKE) build DEVICE_TYPE=$(or $(DEVICE_TYPE),CPU)
 	$(MAKE) build-videogenerator
+	$(MAKE) build-models
 
-public_models_choice: ## Ask if public models shall be downloaded
-	@if [ -f $(PUBLIC_MODELS_ENV) ]; then \
-		printf "Choice on downloading public models was already made, skipping prompt. "; \
-		printf "To reset choice run \`make reset_public_models_choice\`.\n"; \
-		exit 0; \
-	fi; \
-	read -p "Do you want to download public models? (y/n): " yn; \
-	case $$yn in \
-		y|Y|[yY][eE][sS]) DOWNLOAD_PUBLIC_MODELS=true ;; \
-		*) DOWNLOAD_PUBLIC_MODELS=false ;; \
-	esac; \
-	echo "DOWNLOAD_PUBLIC_MODELS set to $$DOWNLOAD_PUBLIC_MODELS" ;\
-	echo "DOWNLOAD_PUBLIC_MODELS=$$DOWNLOAD_PUBLIC_MODELS" > $(PUBLIC_MODELS_ENV)
-
-reset_public_models_choice: ## Reset choice on public models download
-	rm -rf $(PUBLIC_MODELS_ENV)
-
-run: check-device-type public_models_choice ## Run the docker compose services
+run: check-device-type install-models-once ## Run the docker compose services
 	source setup_env.sh -d $(DEVICE_TYPE) && \
-	mkdir -p models && chmod o+w models && \
 	DOCKER_TAG=$(VERSION) docker compose up -d
 
-run-dev: check-device-type public_models_choice ## Run the docker compose services for development
+run-dev: check-device-type install-models-once ## Run the docker compose services for development
 	source setup_env.sh -d $(DEVICE_TYPE) && \
-	mkdir -p models && chmod o+w models && \
 	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
 test: $(VENV_DIR) ## Run tests and generate coverage report
@@ -118,6 +102,18 @@ test: $(VENV_DIR) ## Run tests and generate coverage report
 		vippet-cpu bash -c "\
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
+
+install-models-once: ## Handle models download and installation (once)
+	mkdir -p models/output && chmod o+w models/output
+	MODEL_INSTALLATION=once DOCKER_TAG=$(VERSION) docker compose run --rm -it models
+
+install-models-force: ## Handle models download and installation (force)
+	mkdir -p models/output && chmod o+w models/output
+	MODEL_INSTALLATION=force DOCKER_TAG=$(VERSION) docker compose run --rm -it models
+
+install-models-all: ## Install all models automatically (no dialog)
+	mkdir -p models/output && chmod o+w models/output
+	MODEL_INSTALLATION=all DOCKER_TAG=$(VERSION) docker compose run --rm -it models
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
 	docker exec -it $(SERVICE) bash
@@ -140,7 +136,7 @@ stop: ## Stop the docker compose services
 	DOCKER_TAG=$(VERSION) docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
-	rm -rf .collector-signals/ models/ videos/
+	rm -rf .collector-signals/ models/output/ videos/
 
 help: ## Print help for each target
 	@echo ViPPET make targets

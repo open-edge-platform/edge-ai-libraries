@@ -23,7 +23,7 @@ By following this guide, you will learn how to:
     - Create and navigate to the directory:
 
       ```bash
-      mkdir visual-pipeline-and-platform-evaluation-tool
+      mkdir -p visual-pipeline-and-platform-evaluation-tool/models
       cd visual-pipeline-and-platform-evaluation-tool
       ```
 
@@ -33,15 +33,17 @@ By following this guide, you will learn how to:
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/setup_env.sh"
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/compose.yml"
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
-      curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models.sh"
-      chmod +x models.sh
+      curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
+      curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
+      curl -Lo models/supported_models.lst "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/supported_models.lst"
+      chmod +x models/model_manager.sh
       ```
 
 2. **Start the Application**:
     - Set the appropriate device type (CPU, GPU, or NPU) and run the following command:
 
       ```bash
-      make run DEVICE_TYPE=<CPU/GPU/NPU>
+      make build-models run DEVICE_TYPE=<CPU/GPU/NPU>
       ```
 
 3. **Verify the Application**:
@@ -69,6 +71,18 @@ By following this guide, you will learn how to:
 For alternative ways to set up the sample application, see:
 
 - [How to Build from Source](./how-to-build-source.md)
+
+### Model Installation and Management
+
+When you first launch the Visual Pipeline and Platform Evaluation Tool,
+you will be prompted to select and install the models you wish to use.
+This step allows you to choose only the models relevant to your intended pipelines.
+
+If you want to manage your installed models again, run the following command:
+
+```bash
+make install-models-force
+```
 
 ### Known Issues
 

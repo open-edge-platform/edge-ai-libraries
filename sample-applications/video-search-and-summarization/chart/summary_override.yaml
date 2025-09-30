@@ -1,21 +1,9 @@
-multimodalembeddingms:
-  enabled: false
-
-vdmsdataprep:
-  enabled: false
-
-vdmsvectordb:
-  enabled: false
-
-videosearch:
-  enabled: false
-
+rabbitmq:
+  enabled: true
 vlminference:
   enabled: true
-
 videoingestion:
   enabled: true 
-
 audioanalyzer:
   enabled: true
 

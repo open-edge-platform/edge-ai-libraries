@@ -55,13 +55,9 @@ services:
       DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
       DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
       VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
-      MINIO_API_PORT: 80
-      MINIO_HOST: ${MINIO_HOST}
-      MINIO_ROOT_USER: ${MINIO_ROOT_USER}
-      MINIO_ROOT_PASSWORD: ${MINIO_ROOT_PASSWORD}
       VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
-      VDMS_BUCKET: ${VDMS_BUCKET}
       CHUNK_DURATION: ${VS_DEFAULT_CLIP_DURATION}
+      WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
     restart: unless-stopped
     volumes:
       - "${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir"
@@ -72,17 +68,15 @@ services:
     image: intellabs/vdms:v2.10.0
     ipc: host
     environment:
-      - OVERRIDE_images_path=db/images
-      - OVERRIDE_descriptors_path=db/descriptors
-      - OVERRIDE_blobs_path=db/blobs
-      - OVERRIDE_pmgd_path=db/graph
+      - OVERRIDE_db_root_path=/db
+      - OVERRIDE_images_path=/db/images
+      - OVERRIDE_descriptors_path=/db/descriptors
+      - OVERRIDE_blobs_path=/db/blobs
+      - OVERRIDE_pmgd_path=/db/graph
     ports:
       - "${VDMS_VDB_HOST_PORT}:55555"
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:5000/v1/health_check || exit 1"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
+    volumes:
+      - vdms-db:/db
     networks:
       - vs_network
 
@@ -128,18 +122,21 @@ services:
       no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
-      MODEL_NAME: ${VCLIP_MODEL}
+      TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}
+      IMAGE_EMBEDDING_MODEL_NAME: ${VCLIP_MODEL}
       DEFAULT_START_OFFSET_SEC: ${VCLIP_START_OFFSET_SEC}
       DEFAULT_CLIP_DURATION: ${VCLIP_CLIP_DURATION}
       DEFAULT_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
       EMBEDDING_USE_OV: ${VCLIP_USE_OV}
       EMBEDDING_DEVICE: ${VCLIP_DEVICE}
+      USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
+      DEBUG_MODE: ${DEBUG_MODE:-False}
     devices:
-      - ${DRI_MOUNT_PATH}:/dev/dri
+      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
     group_add:
-      - ${USER_GROUP_ID-1000} 
-      - ${VIDEO_GROUP_ID-44}    
-      - ${RENDER_GROUP_ID-1002}
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
     restart: unless-stopped
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
@@ -155,7 +152,9 @@ services:
       - ov-models:/app/ov-models
 
 volumes:
+  vdms-db:
+    driver: local
   ov-models:
-    external: true
+    driver: local
   data-prep:
-    external: true
+    driver: local

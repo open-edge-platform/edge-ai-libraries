@@ -1,8 +1,23 @@
 global:
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: "/mnt/vlmserving"
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+
+  # vlmName is the Vision-Language Model used by VLM Inference Microservice
+  vlmName: ""
+  
   proxy:
-    no_proxy: 
-    http_proxy:
-    https_proxy:
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
+  
+containerPort: 8000 # Port on which container application listens internally
+containerPortName: vlm-port  # Optional name to refer containerPort
+service:
+  type: ClusterIP
+  port: 8000  # Port on which service listens for incoming connection, if exposed externally
+  portName: http  # Service port name. Useful when service exposes multiple ports.
 
   # vlmName is the Vision-Language Model used by VLM Inference Microservice
   vlmName: ""
@@ -10,13 +25,9 @@ global:
 vlminference:
   name: vlm-inference-microservice
   image:
-    repository: "intel/vlm-openvino-serving"
-    tag: "1.2.0"
+    repository: intel/vlm-openvino-serving
+    tag: "1.2.1"
     pullPolicy: "IfNotPresent"
-  service:
-    type: ClusterIP
-    port: 8000
-    targetPort: 8000
   env:
     VLM_COMPRESSION_WEIGHT_FORMAT: "int8"
     VLM_DEVICE: "cpu"
@@ -24,8 +35,32 @@ vlminference:
     MULTI_FRAME_COUNT: 12
     VLM_CONCURRENT: 4
     VLM_HOST_PORT: 8000
-  volumeMounts:
-    pvcName: vlm-pvc
-    egai_vlm_pvc:
-      size: 40Gi
-      accessMode: ReadWriteOnce
+
+# TODO : Investigate why liveness are failing while vlm service is servicing a request.
+# Removing Liveness/Readiness probes as vlm service is probably undergoing blocking calls and not responding to health checks.
+# livenessProbe:
+#   httpGet:
+#     path: /health
+#     port: vlm-port
+#   initialDelaySeconds: 10
+#   periodSeconds: 20
+#   failureThreshold: 3
+
+# readinessProbe:
+#   httpGet:
+#     path: /health
+#     port: vlm-port
+#   initialDelaySeconds: 5
+#   periodSeconds: 20
+#   failureThreshold: 3
+
+# Wait for startup till max ~ 50Mins
+startupProbe:
+  tcpSocket:
+    port: vlm-port
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  failureThreshold: 100
+
+# Node affinity to schedule pods on specific nodes only
+nodeAffinity: {}

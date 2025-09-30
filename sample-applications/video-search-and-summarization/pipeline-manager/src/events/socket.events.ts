@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 export enum SocketEvent {
   STATE_SYNC = 'socket.stateSync',
   STATE_SYNC_PARTIAL = 'socket.stateSyncPartial',
@@ -19,6 +18,7 @@ export enum SocketEvent {
   FRAME_SUMMARY_SYNC = 'socket.frame.summary',
 
   SEARCH_NOTIFICATION = 'socket.search.notification',
+  SEARCH_UPDATE = 'socket.search.update',
 }
 
 export interface SocketStateSyncPayload {

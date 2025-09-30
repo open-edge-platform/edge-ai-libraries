@@ -58,7 +58,7 @@ Before running the application, you need to set several environment variables:
 
     ```bash
     export REGISTRY_URL=intel   
-    export TAG=1.2.0   
+    export TAG=1.2.1
     ```
 
 2. **Required credentials for some services**:
@@ -100,11 +100,26 @@ Before running the application, you need to set several environment variables:
     # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
     export OD_MODEL_NAME="yolov8l-worldv2"
 
-    # Multimodal embedding model. Only openai/clip-vit-base models are supported
+    # SETTING EMBEDDING MODELS
+    # Set this when using --search option to run the application in video search mode. This enables a multimodal embedding model capable of generating correlated text and image embeddings. Only openai/clip-vit-base model is supported as of now.
     export VCLIP_MODEL=openai/clip-vit-base-patch32
+
+    # Set this when using --all option to run application in combined summarization and search mode. Only Qwen/Qwen3-Embedding-0.6B is supported as of now.
+    export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
     ```
 
-4. **Advanced VLM Configuration Options**:
+5. **Directory Watcher Configuration (Video Search Mode Only)**:
+
+    For automated video ingestion in search mode, you can use the directory watcher service:
+
+    ```bash
+    # Path to the directory to watch on the host system. Default: "edge-ai-libraries/sample-applications/video-search-and-summarization/data"
+    export VS_WATCHER_DIR="/path/to/your/video/directory"
+    ```
+
+    > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with `--search` mode.
+
+6. **Advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
 
@@ -133,7 +148,7 @@ Before running the application, you need to set several environment variables:
    export HUGGINGFACE_TOKEN=<your_huggingface_token>
    ```
 
-Once exported, run the setup script as mentioned [here](#running-app). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
+Once exported, run the setup script as mentioned [here](#running-the-application). Please switch off the `GATED_MODEL` flag by running `export GATED_MODEL=false`, once you are no more using gated models. This avoids unnecessary authentication step during setup.
 
 ## 📊 Application Stacks Overview
 
@@ -143,7 +158,9 @@ The Video Summary application offers multiple stacks and deployment options:
 |-------|-------------|------|
 | Video Summary | Video frame captioning and Summary | `--summary` |
 | Video Search | Video indexing and semantic search | `--search` |
-| Video Search + Summary **_(Under Construction)_** | Both summary and search capabilities | `--all` |
+| Video Search + Summary | Both summary and search capabilities | `--all` |
+
+> **📁 Automated Video Ingestion**: The Video Search stack includes an optional Directory Watcher service for automated video processing. See the [Directory Watcher Service Guide](./directory-watcher-guide.md) for details on setting up automatic video monitoring and ingestion.
 
 ### 🧩 Deployment Options for Video Summary
 
@@ -180,7 +197,7 @@ Follow these steps to run the application:
     cd edge-ai-libraries/sample-applications/video-search-and-summarization
     ```
 
-2. Set the required environment variables as described  [above](#required-env).
+2. Set the required environment variables as described [here](#required-env).
 
 3. Run the setup script with the appropriate flag, depending on your use case.
 
@@ -189,6 +206,8 @@ Follow these steps to run the application:
    ```bash
    source setup.sh --down
    ```
+
+   > **💡 Clean Up Tip**: If you encounter issues or want to completely reset the application data, use `source setup.sh --clean-data` to stop all containers and remove all Docker volumes including user data. This provides a fresh start for troubleshooting.
 
 - **To run Video Summary only:**
 
@@ -200,6 +219,14 @@ Follow these steps to run the application:
 
     ```bash
     source setup.sh --search
+    ```
+
+    > **📁 Directory Watcher**: For automated video ingestion and processing in search mode, see the [Directory Watcher Service Guide](./directory-watcher-guide.md) to learn how to set up automatic monitoring and processing of video files from a specified directory.
+
+- **To run Unified Video Search and Summary :**
+
+    ```bash
+    source setup.sh --all
     ```
 
 - **To run Video Summary with OVMS Microservice for final summary :**
@@ -298,8 +325,7 @@ For alternative ways to set up the sample application, see:
 - You can try resetting the volume storage, by deleting the previously created volumes using following commands:
 
   ```bash
-  source setup.sh --down
-  docker volume rm audio_analyzer_data data-prep
+  source setup.sh --clean-data
   ```
   
   > **_NOTE :_** This step does not apply when you are setting up the application for the first time.
@@ -339,3 +365,44 @@ For alternative ways to set up the sample application, see:
 **Note**: Removing the `ov-models`/`docker_ov-models` volume will delete any previously cached/converted models. The VLM service will automatically re-download and convert models on the next startup, which may take additional time depending on your internet connection and the model size.
 
 **Prevention**: This issue has been fixed in the current version of the VLM microservice Dockerfile. New installations will automatically create the volume with correct permissions.
+
+### VLM Final Summary Hallucination Issues
+
+**Problem**: The final summary generated by the VLM microservice contains hallucinated or inaccurate information that doesn't reflect the actual video content.
+
+**Cause**: This issue can occur when using smaller VLM models that may not have sufficient capacity to accurately process and summarize complex video content, leading to generation of plausible but incorrect information.
+
+**Symptoms**:
+
+- Final summary contains information not present in the video
+- Summary describes events, objects, or activities that don't actually occur in the video
+- Inconsistent or contradictory information in the generated summary
+- Summary quality is poor despite chunk-wise summaries being accurate
+
+**Solution**:
+Try using a larger, more capable VLM model by updating the `VLM_MODEL_NAME` environment variable:
+
+1. Stop the running application:
+
+   ```bash
+   source setup.sh --down
+   ```
+
+2. Set a larger VLM model (e.g., upgrade from 3B to 7B parameters):
+
+   ```bash
+   export VLM_MODEL_NAME="Qwen/Qwen2.5-VL-7B-Instruct"
+   ```
+
+3. Restart the application:
+
+   ```bash
+   source setup.sh --summary
+   ```
+
+**Alternative Models to Try**:
+
+- For CPU: `Qwen/Qwen2.5-VL-7B-Instruct` (larger version)
+- For GPU: Consider other supported VLM models with higher parameter counts
+
+**Note**: Larger models will require more system resources (RAM/VRAM) and may have longer inference times, but typically provide more accurate and coherent summaries.

@@ -55,26 +55,27 @@ spec:
           image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
           imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.videoSummaryManager.service.targetPort }}
+            - containerPort: 3000
+              name: {{ .Values.videoSummaryManager.containerPortName }}
           env:
             - name: no_proxy
-              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,.svc.cluster.local"
+              value: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,ovms,rabbitmq,"
             - name: http_proxy
               value: "{{ .Values.global.proxy.http_proxy }}"
             - name: https_proxy
               value: "{{ .Values.global.proxy.https_proxy }}"
-            - name: MINIO_ROOT_USER
-              value: "{{ .Values.global.env.MINIO_ROOT_USER }}"
             - name: MINIO_PROTOCOL
-              value: "{{ .Values.global.env.MINIO_PROTOCOL }}"
+              value: {{ .Values.videoSummaryManager.minioProtocol | quote }}
             - name: MINIO_HOST
-              value: "{{ .Values.minioServer.name }}"
+              value: {{ include "minioserver.name" .Subcharts.minioserver }}
             - name: MINIO_PORT
-              value: "{{ .Values.minioServer.service.port }}"
-            - name: MINIO_BUCKET
-              value: "{{ .Values.global.env.MINIO_BUCKET }}"
+              value: {{ .Values.minioserver.service.apiPort | quote }}
+            - name: MINIO_ROOT_USER
+              value: {{ required "Value for MINIO_ROOT_USER is required and cannot be empty!" .Values.global.env.MINIO_ROOT_USER | quote }}
             - name: MINIO_ROOT_PASSWORD
-              value: "{{ .Values.global.env.MINIO_ROOT_PASSWORD }}"
+              value: {{ required "Value for MINIO_ROOT_PASSWORD is required!" .Values.global.env.MINIO_ROOT_PASSWORD | quote }}
+            - name: MINIO_BUCKET
+              value: {{ .Values.videoSummaryManager.minioBucket | quote }}
             - name: EVAM_HOST
               value: "{{ .Values.videoingestion.name }}"
             - name: EVAM_PIPELINE_PORT
@@ -86,9 +87,9 @@ spec:
             - name: RABBITMQ_HOST
               value: "{{ .Values.rabbitmq.name }}"
             - name: RABBITMQ_USER
-              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_USER }}"
+              value: {{ required "Value for RABBITMQ_DEFAULT_USER is required!" .Values.global.env.RABBITMQ_DEFAULT_USER | quote }}
             - name: RABBITMQ_PASSWORD
-              value: "{{ .Values.global.env.RABBITMQ_DEFAULT_PASS }}"
+              value: {{ required "Value for RABBITMQ_DEFAULT_PASS is required!" .Values.global.env.RABBITMQ_DEFAULT_PASS | quote }}
             - name: RABBITMQ_AMQP_PORT
               value: "{{ .Values.rabbitmq.service.amqpPort }}"
             - name: LLM_SUMMARIZATION_KEY
@@ -98,7 +99,7 @@ spec:
             - name: LLM_SUMMARIZATION_DEVICE
               value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}"
             - name: LLM_MODEL_NAME
-              value: "{{ .Values.global.llmName }}"
+              value: {{ .Values.global.llmName | quote }}
             - name: VLM_CAPTIONING_KEY
               value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_KEY }}"
             - name: VLM_CAPTIONING_API
@@ -106,7 +107,7 @@ spec:
             - name: VLM_CAPTIONING_DEVICE
               value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}"
             - name: VLM_MODEL_NAME
-              value: "{{ .Values.global.vlmName }}"
+              value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
             - name: LLM_CONCURRENT
               value: "{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}"
             - name: VLM_CONCURRENT
@@ -124,9 +125,9 @@ spec:
             - name: DB_PORT
               value: "{{ .Values.postgresql.service.port }}"
             - name: DB_USER
-              value: "{{ .Values.global.env.POSTGRES_USER }}"
+              value: {{ required "Value for POSTGRES_USER is required!" .Values.global.env.POSTGRES_USER | quote }}
             - name: DB_PASSWORD
-              value: "{{ .Values.global.env.POSTGRES_PASSWORD }}"
+              value: {{ required "Values for POSTGRES_PASSWORD is required!" .Values.global.env.POSTGRES_PASSWORD | quote }}
             - name: DB_NAME
               value: "{{ .Values.global.env.POSTGRES_DB }}"
             - name: AUDIO_HOST

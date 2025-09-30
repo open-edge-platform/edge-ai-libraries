@@ -1,5 +1,6 @@
 import logging
 import os
+import sys
 from datetime import datetime
 from typing import Dict, List, Optional, Tuple
 
@@ -16,6 +17,7 @@ from explore import GstInspector
 from optimize import PipelineOptimizer
 from gstpipeline import GstPipeline, PipelineLoader
 from utils import prepare_video_and_constants
+from models import SupportedModelsManager
 
 logging.getLogger("httpx").setLevel(logging.WARNING)
 
@@ -41,6 +43,11 @@ current_pipeline: Tuple[GstPipeline, Dict] = PipelineLoader.load(
 )
 gst_inspector = GstInspector()
 device_discovery = DeviceDiscovery()
+try:
+    supported_models_manager = SupportedModelsManager()
+except Exception as e:
+    logging.error(str(e))
+    sys.exit(1)
 
 # Device detection and chart title logic
 charts: List[Chart] = create_charts(device_discovery.list_devices())
@@ -674,17 +681,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Mapping of these choices to actual model path in utils.py
     object_detection_model = gr.Dropdown(
         label="Object Detection Model",
-        choices=[
-            "SSDLite MobileNet V2 (INT8)",
-            "YOLO v5m 416x416 (INT8)",
-            "YOLO v5s 416x416 (INT8)",
-            "YOLO v5m 640x640 (INT8)",
-            "YOLO v10s 640x640 (FP16)",
-            "YOLO v10m 640x640 (FP16)",
-            "YOLO v8 License Plate Detector (FP32)",
-        ],
-        value="YOLO v5s 416x416 (INT8)",
         elem_id="object_detection_model",
+        # choices and value will be set for each pipeline later
     )
 
     # Object detection device
@@ -732,16 +730,8 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
     # Mapping of these choices to actual model path in utils.py
     object_classification_model = gr.Dropdown(
         label="Object Classification Model",
-        choices=[
-            "Disabled",
-            "EfficientNet B0 (INT8)",
-            "MobileNet V2 PyTorch (FP16)",
-            "ResNet-50 TF (INT8)",
-            "PaddleOCR (FP32)",
-            "Vehicle Attributes Recognition Barrier 0039 (FP16)",
-        ],
-        value="ResNet-50 TF (INT8)",
         elem_id="object_classification_model",
+        # choices and value will be set for each pipeline later
     )
 
     # Object classification device
@@ -1112,23 +1102,38 @@ def create_interface(title: str = "Visual Pipeline and Platform Evaluation Tool"
                                 None,
                                 inferencing_channels,
                             ).then(
+                                # Read supported models and update the model dropdowns every time a new pipeline is selected
+                                # (list of models may change)
                                 lambda: [
-                                    gr.Dropdown(
-                                        choices=current_pipeline[1]["parameters"][
-                                            "inference"
-                                        ]["detection_models"],
-                                        value=current_pipeline[1]["parameters"][
-                                            "inference"
-                                        ]["detection_model_default"],
-                                    ),
-                                    gr.Dropdown(
-                                        choices=current_pipeline[1]["parameters"][
-                                            "inference"
-                                        ]["classification_models"],
-                                        value=current_pipeline[1]["parameters"][
-                                            "inference"
-                                        ]["classification_model_default"],
-                                    ),
+                                    *(
+                                        lambda det, cls: [
+                                            gr.Dropdown(
+                                                choices=det[0],
+                                                value=det[1],
+                                            ),
+                                            gr.Dropdown(
+                                                choices=cls[0],
+                                                value=cls[1],
+                                            ),
+                                        ]
+                                    )(
+                                        supported_models_manager.filter_detection_models(
+                                            current_pipeline[1]["parameters"][
+                                                "inference"
+                                            ]["detection_models"],
+                                            current_pipeline[1]["parameters"][
+                                                "inference"
+                                            ]["detection_model_default"],
+                                        ),
+                                        supported_models_manager.filter_classification_models(
+                                            current_pipeline[1]["parameters"][
+                                                "inference"
+                                            ]["classification_models"],
+                                            current_pipeline[1]["parameters"][
+                                                "inference"
+                                            ]["classification_model_default"],
+                                        ),
+                                    )
                                 ],
                                 outputs=[
                                     object_detection_model,

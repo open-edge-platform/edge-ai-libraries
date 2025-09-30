@@ -22,12 +22,8 @@ export VDMS_DATAPREP_HOST_PORT=6007
 
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"
-# Port on which API service runs inside container
-export MINIO_API_PORT=9000
 # Port on which we want to access API service outside container i.e. on host.
 export MINIO_API_HOST_PORT=6010
-# Port on which Minio server console would be running inside container.
-export MINIO_CONSOLE_PORT=9001
 # Port on which we want to access Minio Console outside container i.e. on host.
 export MINIO_CONSOLE_HOST_PORT=6011
 # Mount point for Minio objects storage. This helps persist objects stored on minio server.
@@ -35,10 +31,8 @@ export MINIO_MOUNT_PATH="/mnt/miniodata"
 
 # Env vars for vdms-vector-db ---------------------------------------
 export VDMS_STORAGE=aws
-export VDMS_USE_MINIO=true
 export VDMS_VDB_HOST="vdms-vector-db"
 export VDMS_VDB_HOST_PORT=6020
-export VDMS_VDB_PORT=55555
 
 # ----------------------------------------------------------------------------------------
 # Following part contains variables that need to be set from shell
@@ -64,8 +58,8 @@ echo "Using Registry : ${REGISTRY}"
 # -----------------------------------------------------------------------------------------
 
 # Check if MINIO credentials are set
-# Only check MinIO credentials if we're not just stopping containers 
-if [ "$1" != "--down" ]; then
+# Only check MinIO credentials for scenarios that lead to docker compose up commands
+if [ "$#" -eq 0 ] || [ "$1" = "--dev" ] || [ "$1" = "--nd" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in environment.${NC}"
         return

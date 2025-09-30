@@ -14,12 +14,24 @@ spec:
       labels:
         app: {{ .Values.audioanalyzer.name }}
     spec:
+      {{- with .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
         - name: {{ .Values.audioanalyzer.name }}
           image: "{{ .Values.audioanalyzer.image.repository }}:{{ .Values.audioanalyzer.image.tag }}"
           imagePullPolicy: {{ .Values.audioanalyzer.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.audioanalyzer.service.targetPort }}
+            - containerPort: {{ .Values.audioanalyzer.containerPort }}
+              name: {{ .Values.audioanalyzer.containerPortName }}
+          livenessProbe:
+            {{- toYaml .Values.livenessProbe | nindent 12 }}
+          readinessProbe:
+            {{- toYaml .Values.readinessProbe | nindent 12 }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
           env:
             - name: DEBUG
               value: {{ .Values.audioanalyzer.env.DEBUG | quote }}
@@ -51,13 +63,20 @@ spec:
               value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
           volumeMounts:
             - name: data-volume
-              mountPath: /data
-            - name: models-volume
-              mountPath: /models
+              mountPath: /home/appuser/data
+              subPath: audioanalyzer/data
+            - name: data-volume
+              mountPath: /home/appuser/models
+              subPath: audioanalyzer/models
       volumes:
         - name: data-volume
+          {{- if .Values.global.pvcName }}
           persistentVolumeClaim:
-            claimName: {{ .Values.audioanalyzer.volumeMounts.pvcName }}
-        - name: models-volume
-          persistentVolumeClaim:
-            claimName: {{ .Values.audioanalyzer.volumeMounts.modelsPvcName }}
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

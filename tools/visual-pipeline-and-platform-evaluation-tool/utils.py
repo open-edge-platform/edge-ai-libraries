@@ -195,10 +195,10 @@ def prepare_video_and_constants(
             )
         case "MobileNet V2 PyTorch (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
+                f"{MODELS_PATH}/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
+                f"{MODELS_PATH}/omz/mobilenet-v2-pytorch/mobilenet-v2.json"
             )
         case "PaddleOCR (FP32)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
@@ -207,10 +207,10 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = ""
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
+                f"{MODELS_PATH}/omz/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
+                f"{MODELS_PATH}/omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
             )
         case _:
             raise ValueError("Unrecognized Object Classification Model")
