@@ -4,14 +4,10 @@ import { useEffect, useState, type FC } from 'react';
 import { useTranslation } from 'react-i18next';
 import styled from 'styled-components';
 import { Button } from '@carbon/react';
-import { Video } from '@carbon/icons-react';
-
-import Drawer from '../Drawer/Drawer.tsx';
-import { useDisclosure } from '../../hooks/useDisclosure.ts';
-import VideoUpload from '../Drawer/VideoUpload.tsx';
 import PromptInputModal from '../Modals/PromptInputModal.tsx';
 import { FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config.ts';
-import { VideoUploadSearch } from '../Drawer/VideoUploadSearch.tsx';
+import SummarizeModal from '../PopupModal/SummarizeModal';
+import VideoEmbeddingModal from '../PopupModal/VideoEmbeddingModal';
 import { useAppDispatch } from '../../redux/store.ts';
 import { videosLoad } from '../../redux/video/videoSlice.ts';
 import { SearchModal } from '../PopupModal/SearchModal.tsx';
@@ -56,9 +52,10 @@ export const TitleContainer = styled.div`
 `;
 
 const Navbar: FC = () => {
+  const [showSummarizeModal, setShowSummarizeModal] = useState(false);
+  const [showEmbeddingModal, setShowEmbeddingModal] = useState(false);
   const { t } = useTranslation();
 
-  const [isDrawerOpen, { open: openDrawer, close: closeDrawer }] = useDisclosure(false);
   const dispatch = useAppDispatch();
 
   useEffect(() => {
@@ -90,18 +87,6 @@ const Navbar: FC = () => {
     }
   };
 
-  const getVideoUploadDrawer = () => {
-    const hasSearch = FEATURE_SEARCH == FEATURE_STATE.ON;
-    const hasSummary = FEATURE_SUMMARY == FEATURE_STATE.ON;
-    dispatch(LoadTags());
-    if (hasSearch && hasSummary) {
-      return <VideoUpload closeDrawer={closeDrawer} isOpen={isDrawerOpen} />;
-    } else if (hasSearch) {
-      return <VideoUploadSearch closeDrawer={closeDrawer} isOpen={isDrawerOpen} />;
-    } else {
-      return <VideoUpload closeDrawer={closeDrawer} isOpen={isDrawerOpen} />;
-    }
-  };
 
   const [showSearchModal, setShowSearchModal] = useState<boolean>(false);
 
@@ -115,8 +100,16 @@ const Navbar: FC = () => {
 
       {FEATURE_SEARCH == FEATURE_STATE.ON && <SearchModal showModal={showSearchModal} closeModal={closeSearchModal} />}
 
+      <SummarizeModal open={showSummarizeModal} onClose={() => setShowSummarizeModal(false)} />
+      
+      {FEATURE_SEARCH == FEATURE_STATE.ON && (
+        <VideoEmbeddingModal 
+          open={showEmbeddingModal} 
+          onClose={() => setShowEmbeddingModal(false)} 
+        />
+      )}
+
       <StyledDiv>
-        {/* <Logo>{t('VideoSummary')}</Logo> */}
         <Logo>{getBrandName()}</Logo>
         <span className='spacer'></span>
 
@@ -133,23 +126,40 @@ const Navbar: FC = () => {
           </Button>
         )}
 
-        <Button kind='primary' onClick={openDrawer} disabled={false}>
+        {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_SUMMARY == FEATURE_STATE.ON && (
+          <Button
+            kind='secondary'
+            disabled={false}
+            onClick={() => {
+              dispatch(LoadTags());
+              setShowEmbeddingModal(true);
+            }}
+          >
+            {t('CreateVideoEmbedding')}
+          </Button>
+        )}
+
+        <Button 
+          kind='primary' 
+          onClick={() => {
+            const hasSearch = FEATURE_SEARCH == FEATURE_STATE.ON;
+            const hasSummary = FEATURE_SUMMARY == FEATURE_STATE.ON;
+            
+            if (hasSearch && !hasSummary) {
+              // Only search feature enabled, open embedding modal
+              dispatch(LoadTags());
+              setShowEmbeddingModal(true);
+            } else {
+              // Summary feature enabled (with or without search), open summarize modal
+              dispatch(LoadTags());
+              setShowSummarizeModal(true);
+            }
+          }} 
+          disabled={false}
+        >
           {getVideoUploadAction()}
         </Button>
       </StyledDiv>
-
-      <Drawer
-        isOpen={isDrawerOpen}
-        close={closeDrawer}
-        title={
-          <TitleContainer>
-            <Video className='mr-8' />
-            {t('VideoUpload')}
-          </TitleContainer>
-        }
-      >
-        {getVideoUploadDrawer()}
-      </Drawer>
     </>
   );
 };
