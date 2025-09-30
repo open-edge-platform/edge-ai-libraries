@@ -7,7 +7,7 @@ from home_page import home
 from pipelines.pipeline_page import Pipeline
 
 
-def create_interface():
+def create_interface() -> gr.Blocks:
     with open(os.path.join(os.path.dirname(__file__), "app.css")) as f:
         css_code = f.read()
 
