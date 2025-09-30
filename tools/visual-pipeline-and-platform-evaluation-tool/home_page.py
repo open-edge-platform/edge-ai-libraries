@@ -4,15 +4,6 @@ from gstpipeline import PipelineLoader
 from device import DeviceDiscovery
 
 with gr.Blocks() as home:
-    # Header
-    gr.HTML(
-        "<div class='spark-header'>"
-        "  <div class='spark-header-line'></div>"
-        "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
-        "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool</div>"
-        "</div>"
-    )
-
     gr.Markdown(
         """
         ## Recommended Pipelines
@@ -70,13 +61,4 @@ with gr.Blocks() as home:
     gr.Markdown(
         value=device_table_md,
         elem_id="device_table",
-    )
-
-    # Footer
-    gr.HTML(
-        "<div class='spark-footer'>"
-        "  <div class='spark-footer-info'>"
-        "    ©2025 Intel Corporation  |  Terms of Use  |  Cookies  |  Privacy"
-        "  </div>"
-        "</div>"
     )

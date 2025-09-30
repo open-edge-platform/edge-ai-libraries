@@ -610,15 +610,6 @@ class Pipeline:
             Components rendering starts here.
             """
 
-            # Header
-            gr.HTML(
-                "<div class='spark-header'>"
-                "  <div class='spark-header-line'></div>"
-                "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
-                "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool</div>"
-                "</div>"
-            )
-
             # Main content
             with gr.Row():
                 # Left column
@@ -711,15 +702,6 @@ class Pipeline:
                         self.object_classification_inference_interval.render()
                         self.object_classification_nireq.render()
                         self.object_classification_reclassify_interval.render()
-
-            # Footer
-            gr.HTML(
-                "<div class='spark-footer'>"
-                "  <div class='spark-footer-info'>"
-                "    ©2025 Intel Corporation  |  Terms of Use  |  Cookies  |  Privacy"
-                "  </div>"
-                "</div>"
-            )
 
         return page
 

@@ -18,15 +18,35 @@ def create_interface() -> gr.Blocks:
 
     title: str = "Visual Pipeline and Platform Evaluation Tool"
 
-    with gr.Blocks(theme=theme, css=css_code, title=title) as vippet:
-        home.render()
-
+    tabs = {"Home": home}
     for p in PipelineLoader.list():
         pipeline = Pipeline(p)
         enabled = pipeline.config.get("metadata", {}).get("enabled", False)
         if enabled:
-            with vippet.route(pipeline.name, pipeline.route):
-                pipeline.page.render()
+            tabs[pipeline.name] = pipeline.page
+
+    with gr.Blocks(theme=theme, css=css_code, title=title) as vippet:
+        # Header
+        gr.HTML(
+            "<div class='spark-header'>"
+            "  <div class='spark-header-line'></div>"
+            "  <img src='https://www.intel.com/content/dam/logos/intel-header-logo.svg' class='spark-logo'></img>"
+            "  <div class='spark-title'>Visual Pipeline and Platform Evaluation Tool</div>"
+            "</div>"
+        )
+
+        gr.TabbedInterface(
+            tab_names=list(tabs.keys()), interface_list=list(tabs.values())
+        )
+
+        # Footer
+        gr.HTML(
+            "<div class='spark-footer'>"
+            "  <div class='spark-footer-info'>"
+            "    ©2025 Intel Corporation  |  Terms of Use  |  Cookies  |  Privacy"
+            "  </div>"
+            "</div>"
+        )
 
     return vippet
 
