@@ -9,6 +9,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
         self.constants = {
             "VIDEO_OUTPUT_PATH": "output.mp4",
             "VIDEO_PATH": "input.mp4",
+            "VIDEO_CODEC": "h264",
             "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
             "OBJECT_DETECTION_MODEL_PROC": "detection_model_proc.json",
             "OBJECT_CLASSIFICATION_MODEL_PATH": "classification_model.xml",
@@ -127,6 +128,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
             constants={
                 "VIDEO_OUTPUT_PATH": "output.mp4",
                 "VIDEO_PATH": "input.mp4",
+                "VIDEO_CODEC": "h265",
                 "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": "detection_model_proc.json",
                 "OBJECT_CLASSIFICATION_MODEL_PATH": "Disabled",
@@ -250,6 +252,7 @@ class TestSmartNVRPipeline(unittest.TestCase):
             constants={
                 "VIDEO_OUTPUT_PATH": "output.mp4",
                 "VIDEO_PATH": "input.mp4",
+                "VIDEO_CODEC": "h264",
                 "OBJECT_DETECTION_MODEL_PATH": "detection_model.xml",
                 "OBJECT_DETECTION_MODEL_PROC": None,
                 "OBJECT_CLASSIFICATION_MODEL_PATH": "classification_model.xml",
