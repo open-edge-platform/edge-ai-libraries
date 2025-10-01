@@ -80,7 +80,9 @@ def prepare_video_and_constants(
     # Discover the video codec of the input video
     input_video_codec = discover_video_codec(input_video_player)
     if input_video_codec == "unknown":
-        raise ValueError("Could not detect the video codec of the input file. Please provide a valid video file.")
+        raise ValueError(
+            "Could not detect the video codec of the input file. Please provide a valid video file."
+        )
     if input_video_codec not in ["h264", "h265"]:
         raise ValueError(
             f"Input video codec '{input_video_codec}' is not supported. Please use a video with H.264 or H.265 codec."
@@ -656,6 +658,7 @@ def is_yolov10_model(model_path: str) -> bool:
     """
     return "yolov10" in model_path.lower()
 
+
 def discover_video_codec(video_path: str) -> str:
     """
     Discovers the codec for the given video file.
@@ -672,7 +675,9 @@ def discover_video_codec(video_path: str) -> str:
         return "unknown"
     fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
     cap.release()
-    video_codec = "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip().lower()
+    video_codec = (
+        "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip().lower()
+    )
     if "avc" in video_codec:
         return "h264"
     if "hevc" in video_codec:

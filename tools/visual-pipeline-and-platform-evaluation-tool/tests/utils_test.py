@@ -81,12 +81,16 @@ class TestUtils(unittest.TestCase):
             )
         self.assertIn(
             "Could not detect the video codec of the input file. Please provide a valid video file.",
-            str(context.exception)
+            str(context.exception),
         )
 
     @patch("utils.discover_video_codec")
-    def test_prepare_video_and_constants_not_supported_codec(self, mock_discover_video_codec):
-        mock_discover_video_codec.return_value = "av1" # Assuming 'av1' is not in the supported list
+    def test_prepare_video_and_constants_not_supported_codec(
+        self, mock_discover_video_codec
+    ):
+        mock_discover_video_codec.return_value = (
+            "av1"  # Assuming 'av1' is not in the supported list
+        )
         with self.assertRaises(ValueError) as context:
             prepare_video_and_constants(
                 **{
@@ -107,7 +111,7 @@ class TestUtils(unittest.TestCase):
             )
         self.assertIn(
             f"Input video codec '{mock_discover_video_codec.return_value}' is not supported.",
-            str(context.exception)
+            str(context.exception),
         )
 
     @patch("utils.Popen")
@@ -226,7 +230,7 @@ class TestUtils(unittest.TestCase):
 
         # Mock VideoCapture to simulate a video file with H.264 codec
         # 'avc' as fourcc: ord('a') | ord('v')<<8 | ord('c')<<16 | ord(' ')<<24
-        fourcc = (ord('a')) | (ord('v') << 8) | (ord('c') << 16) | (ord(' ') << 24)
+        fourcc = (ord("a")) | (ord("v") << 8) | (ord("c") << 16) | (ord(" ") << 24)
         mock_cap.get.return_value = fourcc
         mock_videocap.return_value = mock_cap
         video_codec = utils.discover_video_codec("dummy.mp4")
@@ -234,7 +238,7 @@ class TestUtils(unittest.TestCase):
 
         # Mock VideoCapture to simulate a video file with H.265 codec
         # 'hevc' as fourcc: ord('h') | ord('e')<<8 | ord('v')<<16 | ord('c')<<24
-        fourcc = (ord('h')) | (ord('e') << 8) | (ord('v') << 16) | (ord('c') << 24)
+        fourcc = (ord("h")) | (ord("e") << 8) | (ord("v") << 16) | (ord("c") << 24)
         mock_cap.get.return_value = fourcc
         mock_videocap.return_value = mock_cap
         video_codec = utils.discover_video_codec("dummy.mp4")
@@ -242,7 +246,7 @@ class TestUtils(unittest.TestCase):
 
         # Mock VideoCapture to simulate a video file with AV1 codec
         # 'hevc' as fourcc: ord('a') | ord('v')<<8 | ord('0')<<16 | ord('1')<<24
-        fourcc = (ord('a')) | (ord('v') << 8) | (ord('0') << 16) | (ord('1') << 24)
+        fourcc = (ord("a")) | (ord("v") << 8) | (ord("0") << 16) | (ord("1") << 24)
         mock_cap.get.return_value = fourcc
         mock_videocap.return_value = mock_cap
         video_codec = utils.discover_video_codec("dummy.mp4")

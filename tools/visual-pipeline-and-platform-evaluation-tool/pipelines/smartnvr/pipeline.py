@@ -200,18 +200,27 @@ class SmartNVRPipeline(GstPipeline):
             vaapi_suffix = str(
                 128 + int(gpu_index)
             )  # 128 + 1 = 129, 128 + 2 = 130, etc.
-            _encoder_element = f"varenderD{vaapi_suffix}{constants["VIDEO_CODEC"]}lpenc"
+            _encoder_element = f"varenderD{vaapi_suffix}{constants['VIDEO_CODEC']}lpenc"
         else:
             # Fallback to default encoder if no specific GPU is selected
             _encoder_element = next(
-                (f"va{constants["VIDEO_CODEC"]}lpenc" for element in elements if element[1] == f"va{constants["VIDEO_CODEC"]}lpenc"),
+                (
+                    f"va{constants['VIDEO_CODEC']}lpenc"
+                    for element in elements
+                    if element[1] == f"va{constants['VIDEO_CODEC']}lpenc"
+                ),
                 next(
-                    (f"va{constants["VIDEO_CODEC"]}enc" for element in elements if element[1] == f"va{constants["VIDEO_CODEC"]}enc"),
+                    (
+                        f"va{constants['VIDEO_CODEC']}enc"
+                        for element in elements
+                        if element[1] == f"va{constants['VIDEO_CODEC']}enc"
+                    ),
                     next(
                         (
-                            f"{constants["VIDEO_CODEC"].replace('h', 'x', 1)}enc bitrate=16000 speed-preset=superfast"
+                            f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc bitrate=16000 speed-preset=superfast"
                             for element in elements
-                            if element[1] == f"{constants["VIDEO_CODEC"].replace('h', 'x', 1)}enc"
+                            if element[1]
+                            == f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc"
                         ),
                         None,  # Fallback to None if no encoder is found
                     ),
@@ -229,17 +238,15 @@ class SmartNVRPipeline(GstPipeline):
             vaapi_suffix = str(
                 128 + int(gpu_index)
             )  # 128 + 1 = 129, 128 + 2 = 130, etc.
-            _decoder_element = (
-                f"varenderD{vaapi_suffix}{constants["VIDEO_CODEC"]}dec ! video/x-raw(memory:VAMemory)"
-            )
+            _decoder_element = f"varenderD{vaapi_suffix}{constants['VIDEO_CODEC']}dec ! video/x-raw(memory:VAMemory)"
             _postprocessing_element = f"varenderD{vaapi_suffix}postproc"
         else:
             # Fallback to default elements if no specific GPU is selected
             _decoder_element = next(
                 (
-                    f"va{constants["VIDEO_CODEC"]}dec ! video/x-raw(memory:VAMemory)"
+                    f"va{constants['VIDEO_CODEC']}dec ! video/x-raw(memory:VAMemory)"
                     for element in elements
-                    if element[1] == f"va{constants["VIDEO_CODEC"]}dec"
+                    if element[1] == f"va{constants['VIDEO_CODEC']}dec"
                 ),
                 next(
                     ("decodebin" for element in elements if element[1] == "decodebin"),

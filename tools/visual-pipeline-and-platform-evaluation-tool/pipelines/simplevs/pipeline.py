@@ -67,9 +67,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "  file-path=/dev/null ! "
         )
 
-        self._inference_output_stream = (
-            "{encoder} ! {VIDEO_CODEC}parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
-        )
+        self._inference_output_stream = "{encoder} ! {VIDEO_CODEC}parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
 
         # Add shmsink for live preview (shared memory)
         self._shmsink = (
@@ -106,14 +104,23 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
 
         # Set encoder element based on device
         _encoder_element = next(
-            (f"va{constants["VIDEO_CODEC"]}enc" for element in elements if element[1] == f"va{constants["VIDEO_CODEC"]}enc"),
+            (
+                f"va{constants['VIDEO_CODEC']}enc"
+                for element in elements
+                if element[1] == f"va{constants['VIDEO_CODEC']}enc"
+            ),
             next(
-                (f"va{constants["VIDEO_CODEC"]}lpenc" for element in elements if element[1] == f"va{constants["VIDEO_CODEC"]}lpenc"),
+                (
+                    f"va{constants['VIDEO_CODEC']}lpenc"
+                    for element in elements
+                    if element[1] == f"va{constants['VIDEO_CODEC']}lpenc"
+                ),
                 next(
                     (
-                        f"{constants["VIDEO_CODEC"].replace('h', 'x', 1)}enc bitrate=16000 speed-preset=superfast"
+                        f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc bitrate=16000 speed-preset=superfast"
                         for element in elements
-                        if element[1] == f"{constants["VIDEO_CODEC"].replace('h', 'x', 1)}enc"
+                        if element[1]
+                        == f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc"
                     ),
                     None,  # Fallback to None if no encoder is found
                 ),
