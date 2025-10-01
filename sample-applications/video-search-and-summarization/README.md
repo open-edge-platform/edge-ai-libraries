@@ -11,9 +11,8 @@ The detailed documentation to help you get started, configure, and deploy the sa
 ## Documentation
 
 - **Overview**
-  - [Overview](./docs/user-guide/index.md): A high-level introduction.
-  - [Overview Architecture](./docs/user-guide/overview-architecture-search-and-summary.md): Detailed architecture.
-
+  - [Overview | Architecture](./docs/user-guide/index.md): A high-level sample application introduction including Architecture details.
+  
 - **Getting Started**
   - [Get Started](./docs/user-guide/get-started.md): Step-by-step guide to get started with the sample application.
   - [System Requirements](./docs/user-guide/system-requirements.md): Hardware and software requirements for running the sample application.
