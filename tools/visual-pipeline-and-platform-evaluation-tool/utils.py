@@ -675,6 +675,7 @@ def discover_video_codec(video_path: str) -> str:
         return "unknown"
     fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
     cap.release()
+    # Decode the FOURCC integer into a 4-character string by extracting each byte.
     video_codec = (
         "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip().lower()
     )
