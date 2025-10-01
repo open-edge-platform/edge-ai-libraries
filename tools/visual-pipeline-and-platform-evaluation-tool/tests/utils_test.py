@@ -245,7 +245,7 @@ class TestUtils(unittest.TestCase):
         self.assertEqual(video_codec, "h265")
 
         # Mock VideoCapture to simulate a video file with AV1 codec
-        # 'hevc' as fourcc: ord('a') | ord('v')<<8 | ord('0')<<16 | ord('1')<<24
+        # 'av01' as fourcc: ord('a') | ord('v')<<8 | ord('0')<<16 | ord('1')<<24
         fourcc = (ord("a")) | (ord("v") << 8) | (ord("0") << 16) | (ord("1") << 24)
         mock_cap.get.return_value = fourcc
         mock_videocap.return_value = mock_cap

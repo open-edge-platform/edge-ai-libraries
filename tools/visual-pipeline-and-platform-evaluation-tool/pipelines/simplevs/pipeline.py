@@ -103,6 +103,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         )
 
         # Set encoder element based on device
+        _codec_bits = constants["VIDEO_CODEC"].lstrip("h")  # e.g., "h264" -> "264"
         _encoder_element = next(
             (
                 f"va{constants['VIDEO_CODEC']}enc"
@@ -117,10 +118,9 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
                 ),
                 next(
                     (
-                        f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc bitrate=16000 speed-preset=superfast"
+                        f"x{_codec_bits}enc bitrate=16000 speed-preset=superfast"
                         for element in elements
-                        if element[1]
-                        == f"{constants['VIDEO_CODEC'].replace('h', 'x', 1)}enc"
+                        if element[1] == f"x{_codec_bits}enc"
                     ),
                     None,  # Fallback to None if no encoder is found
                 ),
