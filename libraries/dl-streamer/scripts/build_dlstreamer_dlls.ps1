@@ -113,13 +113,13 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 	Write-Host "################################# GStreamer ${GSTREAMER_VERSION} already installed ##################################"
 }
 
-# Check if OpenVINO™ is installed and if it's the correct version
+# Check if OpenVINO is installed and if it's the correct version
 $OPENVINO_NEEDS_INSTALL = $true
-if (-Not [System.IO.File]::Exists("${OPENVINO_DEST_FOLDER}\\setupvars.ps1")) {
-	echo "OpenVINO™ not found - installation needed"
+if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\\setupvars.ps1")) {
+	echo "OpenVINO not found - installation needed"
 	$OPENVINO_NEEDS_INSTALL = $true
 } else {
-	echo "OpenVINO™ found in folder $OPENVINO_DEST_FOLDER"
+	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
 
 	# Try to get installed version from version file
 	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\\runtime\\version.txt"
@@ -129,41 +129,41 @@ if (-Not [System.IO.File]::Exists("${OPENVINO_DEST_FOLDER}\\setupvars.ps1")) {
 			# Check if version starts with required version (e.g., "2025.3.0" starts with "2025.3")
 			if ($VERSION_CONTENT.StartsWith($OPENVINO_VERSION)) {
 				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
-				Write-Host "OpenVINO™ version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
+				Write-Host "OpenVINO version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
 				$OPENVINO_NEEDS_INSTALL = $false
 			} else {
 				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
-				Write-Host "OpenVINO™ version mismatch - installed: $INSTALLED_VERSION_FULL, required: $OPENVINO_VERSION"
+				Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION_FULL, required: $OPENVINO_VERSION"
 				$OPENVINO_NEEDS_INSTALL = $true
 			}
 		} else {
-			Write-Host "Warning: Could not read OpenVINO™ version file"
+			Write-Host "Warning: Could not read OpenVINO version file"
 			$OPENVINO_NEEDS_INSTALL = $false
 		}
 	} else {
-		Write-Host "Warning: Could not find OpenVINO™ version file, but installation appears complete"
+		Write-Host "Warning: Could not find OpenVINO version file, but installation appears complete"
 		$OPENVINO_NEEDS_INSTALL = $false
 	}
 }
 if ($OPENVINO_NEEDS_INSTALL) {
-	Write-Host "####################################### Installing OpenVINO™ GenAI ${OPENVINO_VERSION} #######################################"
+	Write-Host "####################################### Installing OpenVINO GenAI ${OPENVINO_VERSION} #######################################"
 
-	# Remove existing OpenVINO™ installation if present
+	# Remove existing OpenVINO installation if present
 	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
-		Write-Host "Removing existing OpenVINO™ installation..."
+		Write-Host "Removing existing OpenVINO installation..."
 		Remove-Item -LiteralPath "${OPENVINO_DEST_FOLDER}" -Recurse -Force
 	}
 
 	# Check if correct installer is already downloaded
 	$OPENVINO_INSTALLER = "${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
 	if (-Not (Test-Path $OPENVINO_INSTALLER)) {
-		Write-Host "Downloading OpenVINO™ GenAI ${OPENVINO_VERSION}..."
+		Write-Host "Downloading OpenVINO GenAI ${OPENVINO_VERSION}..."
 		Invoke-WebRequest -OutFile $OPENVINO_INSTALLER -Uri "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${OPENVINO_VERSION}/windows/openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
 	} else {
-		Write-Host "Using existing OpenVINO™ installer: $OPENVINO_INSTALLER"
+		Write-Host "Using existing OpenVINO installer: $OPENVINO_INSTALLER"
 	}
 
-	Write-Host "Extracting OpenVINO™ GenAI ${OPENVINO_VERSION}..."
+	Write-Host "Extracting OpenVINO GenAI ${OPENVINO_VERSION}..."
 	Expand-Archive -Path $OPENVINO_INSTALLER -DestinationPath "C:\" -Force
 	$EXTRACTED_FOLDER = "C:\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64"
 	if (Test-Path $EXTRACTED_FOLDER) {
@@ -173,7 +173,7 @@ if ($OPENVINO_NEEDS_INSTALL) {
 	}
 	Write-Host "############################################ Done ########################################################"
 } else {
-	Write-Host "################################# OpenVINO™ GenAI ${OPENVINO_VERSION} already correctly installed ##################################"
+	Write-Host "################################# OpenVINO GenAI ${OPENVINO_VERSION} already correctly installed ##################################"
 }
 
 if (-Not (Test-Path "C:\\Program Files\\Git")) {
@@ -251,7 +251,7 @@ Start-Process -Wait -FilePath "vcpkg" -ArgumentList "install", "--triplet=x64-wi
 Start-Process -Wait -FilePath "taskkill" -ArgumentList "/im", "msbuild.exe", "/f", "/t" -NoNewWindow
 Write-Host "########################################## Done #####################################################"
 
-Write-Host "################################ Initializing OpenVINO™ ###########################################"
+Write-Host "################################## Initializing OpenVINO ############################################"
 & "$OPENVINO_DEST_FOLDER\setupvars.ps1"
 Write-Host "####################################### Done ######################################################"
 
