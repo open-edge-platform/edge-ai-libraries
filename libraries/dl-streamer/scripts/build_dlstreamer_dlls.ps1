@@ -121,22 +121,26 @@ if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\setupvars.ps1")) {
 	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
 
 	# Try to get installed version from version file
-	$INSTALLED_VERSION = $null
 	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\runtime\version.txt"
 	if (Test-Path $VERSION_FILE) {
 		$VERSION_CONTENT = Get-Content $VERSION_FILE -First 1
 		if ($VERSION_CONTENT) {
-			$INSTALLED_VERSION = ($VERSION_CONTENT -split '-')[0]
+			# Check if version starts with required version (e.g., "2025.3.0" starts with "2025.3")
+			if ($VERSION_CONTENT.StartsWith($OPENVINO_VERSION)) {
+				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
+				Write-Host "OpenVINO version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
+				$OPENVINO_NEEDS_INSTALL = $false
+			} else {
+				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
+				Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION_FULL, required: $OPENVINO_VERSION"
+				$OPENVINO_NEEDS_INSTALL = $true
+			}
+		} else {
+			Write-Host "Warning: Could not read OpenVINO version file"
+			$OPENVINO_NEEDS_INSTALL = $false
 		}
-	}
-	if ($INSTALLED_VERSION -and ($INSTALLED_VERSION -ne $OPENVINO_VERSION)) {
-		Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION, required: $OPENVINO_VERSION"
-		$OPENVINO_NEEDS_INSTALL = $true
-	} elseif ($INSTALLED_VERSION) {
-		Write-Host "OpenVINO version $INSTALLED_VERSION verified - correct version installed"
-		$OPENVINO_NEEDS_INSTALL = $false
 	} else {
-		Write-Host "Warning: Could not verify OpenVINO version, but installation appears complete"
+		Write-Host "Warning: Could not find OpenVINO version file, but installation appears complete"
 		$OPENVINO_NEEDS_INSTALL = $false
 	}
 }
