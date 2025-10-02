@@ -1,10 +1,11 @@
 import os
+from typing import List
 
 import gradio as gr
 
 from gstpipeline import PipelineLoader
-from home_page import home
 from pipelines.pipeline_page import Pipeline
+import home
 
 
 def create_interface() -> gr.Blocks:
@@ -18,12 +19,9 @@ def create_interface() -> gr.Blocks:
 
     title: str = "Visual Pipeline and Platform Evaluation Tool"
 
-    tabs = {"Home": home}
-    for p in PipelineLoader.list():
-        pipeline = Pipeline(p)
-        enabled = pipeline.config.get("metadata", {}).get("enabled", False)
-        if enabled:
-            tabs[pipeline.name] = pipeline.page
+    pipelines: List[Pipeline] = []
+    for id, pipeline_dir in enumerate(PipelineLoader.list(), start=1):
+        pipelines.append(Pipeline(id, pipeline_dir))
 
     with gr.Blocks(theme=theme, css=css_code, title=title) as vippet:
         # Header
@@ -35,9 +33,12 @@ def create_interface() -> gr.Blocks:
             "</div>"
         )
 
-        gr.TabbedInterface(
-            tab_names=list(tabs.keys()), interface_list=list(tabs.values())
-        )
+        with gr.Tabs() as tabs:
+            home.tab("Home", 0, pipelines, tabs)
+
+            for pipeline in pipelines:
+                with gr.Tab(label=pipeline.config["name"], id=pipeline.id):
+                    pipeline.tab()
 
         # Footer
         gr.HTML(

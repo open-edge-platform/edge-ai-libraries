@@ -41,12 +41,12 @@ except Exception as e:
 
 
 class Pipeline:
-    def __init__(self, dir: str):
+    def __init__(self, id: int, dir: str):
+        self.id = id
+        self.dir = dir
         self.gst_pipeline, self.config = PipelineLoader.load(dir)
-        self.name = self.config["name"]
-        self.route = f"/{dir}"
+        self.enabled = self.config.get("metadata", {}).get("enabled", False)
         self._create_gradio_components()
-        self.page = self._page()
 
     def _create_gradio_components(self):
         """
@@ -392,7 +392,7 @@ class Pipeline:
         if self.config["parameters"]["benchmark"]["ai_stream_rate"]:
             self.components.add(self.ai_stream_rate)
 
-    def _page(self) -> gr.Blocks:
+    def tab(self) -> gr.Blocks:
         with gr.Blocks() as page:
             """
             Component event handlers and interactions are defined here.
