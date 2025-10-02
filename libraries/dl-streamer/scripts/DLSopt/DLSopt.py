@@ -23,18 +23,23 @@ def scan_system():
 def sample_pipeline(pipeline, sample_duration):
     pipeline = Gst.parse_launch("!".join(pipeline))
 
-    fps_counter = next(filter(lambda element: element.name == "gvafpscounter0", pipeline.children))
+    try:
+        fps_counter = next(filter(lambda element: element.name == "gvafpscounter0", pipeline.children))
 
-    bus = pipeline.get_bus()
+        bus = pipeline.get_bus()
 
-    pipeline.set_state(Gst.State.PLAYING)
-    time.sleep(60)
-    pipeline.set_state(Gst.State.NULL)
-    time.sleep(5)
+        pipeline.set_state(Gst.State.PLAYING)
+        time.sleep(sample_duration)
+        pipeline.set_state(Gst.State.NULL)
 
-    while message := bus.pop():
-        logger.info("Message: " + message)
-    logger.info("FPS: " + fps_counter.get_property("avg-fps"))
+        while message := bus.pop():
+            logger.info("Message: " + message)
+    
+        logger.info("FPS: " + fps_counter.get_property("avg-fps"))
+    except StopIteration:
+        logger.error("Pipeline is missing a gvafpscounter!")
+    except TypeError:
+        logger.error("Could not find the `avg-fps` property on Gvafpscounter!")
 
     
 def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10):
