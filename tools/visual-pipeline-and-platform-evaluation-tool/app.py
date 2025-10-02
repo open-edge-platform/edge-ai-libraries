@@ -37,8 +37,9 @@ def create_interface() -> gr.Blocks:
             home.tab("Home", 0, pipelines, tabs)
 
             for pipeline in pipelines:
-                with gr.Tab(label=pipeline.config["name"], id=pipeline.id):
-                    pipeline.tab()
+                if pipeline.enabled:
+                    with gr.Tab(label=pipeline.config["name"], id=pipeline.id):
+                        pipeline.tab()
 
         # Footer
         gr.HTML(
