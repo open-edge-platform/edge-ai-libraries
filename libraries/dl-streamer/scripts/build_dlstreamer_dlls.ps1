@@ -114,7 +114,7 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 }
 
 # Check if OpenVINO™ is installed and if it's the correct version
-if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\setupvars.ps1")) {
+if (-Not [System.IO.File]::Exists("${OPENVINO_DEST_FOLDER}\setupvars.ps1")) {
 	echo "OpenVINO™ not found - installation needed"
 	$OPENVINO_NEEDS_INSTALL = $true
 } else {
