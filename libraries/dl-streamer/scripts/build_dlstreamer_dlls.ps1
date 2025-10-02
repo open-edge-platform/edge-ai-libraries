@@ -8,6 +8,10 @@ param(
 	[switch]$useInternalProxy
 )
 
+$GSTREAMER_VERSION = "1.26.1"
+$OPENVINO_VERSION = "2025.3"
+$OPENVINO_DEST_FOLDER = "C:\\openvino"
+$GSTREAMER_DEST_FOLDER = "C:\\gstreamer"
 $DLSTREAMER_TMP = "C:\\dlstreamer_tmp"
 
 if ($useInternalProxy) {
@@ -55,10 +59,50 @@ if (-Not (Test-Path "${env:ProgramFiles(x86)}\\Windows Kits")) {
 	Write-Host "################################ Windows SDK already installed #######################################"
 }
 
-$GSTREAMER_VERSION = "1.26.6"
+# Check if GStreamer is installed and if it's the correct version
+$GSTREAMER_NEEDS_INSTALL = $false
 
-if (-Not (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi")) {
+if (-Not (Test-Path "${GSTREAMER_DEST_FOLDER}")) {
+	Write-Host "GStreamer not found - installation needed"
+	$GSTREAMER_NEEDS_INSTALL = $true
+} else {
+	# Check if the correct version is installed by looking for version-specific files
+	$VERSION_SPECIFIC_PATH = "${GSTREAMER_DEST_FOLDER}\\1.0\\msvc_x86_64"
+	if (-Not (Test-Path $VERSION_SPECIFIC_PATH)) {
+		Write-Host "GStreamer installation incomplete - reinstallation needed"
+		$GSTREAMER_NEEDS_INSTALL = $true
+	} else {
+		# Try to get installed version from pkg-config file or directory structure
+		$INSTALLED_VERSION = $null
+		$PKG_CONFIG_FILE = "${VERSION_SPECIFIC_PATH}\\lib\\pkgconfig\\gstreamer-1.0.pc"
+		if (Test-Path $PKG_CONFIG_FILE) {
+			$VERSION_LINE = Get-Content $PKG_CONFIG_FILE | Select-String "Version:"
+			if ($VERSION_LINE) {
+				$INSTALLED_VERSION = ($VERSION_LINE -split ":")[1].Trim()
+			}
+		}
+
+		if ($INSTALLED_VERSION -ne $GSTREAMER_VERSION) {
+			Write-Host "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
+			$GSTREAMER_NEEDS_INSTALL = $true
+		} else {
+			Write-Host "GStreamer ${GSTREAMER_VERSION} is already correctly installed"
+		}
+	}
+}
+if ($GSTREAMER_NEEDS_INSTALL) {
 	Write-Host "##################################### Installing GStreamer ${GSTREAMER_VERSION} #######################################"
+
+	# Remove existing installation if present
+	if (Test-Path "${GSTREAMER_DEST_FOLDER}") {
+		Write-Host "Removing existing GStreamer installation..."
+		Remove-Item -LiteralPath "${GSTREAMER_DEST_FOLDER}" -Recurse -Force
+	}
+
+	if (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi") {
+		Write-Host "Removing existing GStreamer installer..."
+		Remove-Item -LiteralPath "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
+	}
 	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
 	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
 	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
@@ -66,23 +110,65 @@ if (-Not (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VE
 	(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
 	Write-Host "################################################# Done ###################################################"
 } else {
-	Write-Host "################################### GStreamer ${GSTREAMER_VERSION} already installed ###################################"
+	Write-Host "################################# GStreamer ${GSTREAMER_VERSION} already installed ##################################"
 }
 
-$OPENVINO_VERSION = "2025.3"
-$OPENVINO_DEST_FOLDER = "C:\\openvino"
+# Check if OpenVINO is installed and if it's the correct version
+if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\setupvars.ps1")) {
+	echo "OpenVINO not found - installation needed"
+	$OPENVINO_NEEDS_INSTALL = $true
+} else {
+	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
 
-if (-Not (Test-Path "${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip")) {
-	Write-Host "####################################### Installing OpenVINO GenAI ${OPENVINO_VERSION} #######################################"
-	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip -Uri "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${OPENVINO_VERSION}/windows/openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
-	Expand-Archive -Path "${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip" -DestinationPath "C:\"
-	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
-		Remove-Item -LiteralPath "${OPENVINO_DEST_FOLDER}" -Recurse
+	# Try to get installed version from version file
+	$INSTALLED_VERSION = $null
+	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\runtime\version.txt"
+	if (Test-Path $VERSION_FILE) {
+		$VERSION_CONTENT = Get-Content $VERSION_FILE -First 1
+		if ($VERSION_CONTENT) {
+			$INSTALLED_VERSION = ($VERSION_CONTENT -split '-')[0]
+		}
 	}
-	Move-Item -Path "C:\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64" -Destination "${OPENVINO_DEST_FOLDER}"
+	if ($INSTALLED_VERSION -and ($INSTALLED_VERSION -ne $OPENVINO_VERSION)) {
+		Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION, required: $OPENVINO_VERSION"
+		$OPENVINO_NEEDS_INSTALL = $true
+	} elseif ($INSTALLED_VERSION) {
+		Write-Host "OpenVINO version $INSTALLED_VERSION verified - correct version installed"
+		$OPENVINO_NEEDS_INSTALL = $false
+	} else {
+		Write-Host "Warning: Could not verify OpenVINO version, but installation appears complete"
+		$OPENVINO_NEEDS_INSTALL = $false
+	}
+}
+if ($OPENVINO_NEEDS_INSTALL) {
+	Write-Host "####################################### Installing OpenVINO GenAI ${OPENVINO_VERSION} #######################################"
+
+	# Remove existing OpenVINO installation if present
+	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
+		Write-Host "Removing existing OpenVINO installation..."
+		Remove-Item -LiteralPath "${OPENVINO_DEST_FOLDER}" -Recurse -Force
+	}
+
+	# Check if correct installer is already downloaded
+	$OPENVINO_INSTALLER = "${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
+	if (-Not (Test-Path $OPENVINO_INSTALLER)) {
+		Write-Host "Downloading OpenVINO GenAI ${OPENVINO_VERSION}..."
+		Invoke-WebRequest -OutFile $OPENVINO_INSTALLER -Uri "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${OPENVINO_VERSION}/windows/openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
+	} else {
+		Write-Host "Using existing OpenVINO installer: $OPENVINO_INSTALLER"
+	}
+
+	Write-Host "Extracting OpenVINO GenAI ${OPENVINO_VERSION}..."
+	Expand-Archive -Path $OPENVINO_INSTALLER -DestinationPath "C:\" -Force
+	$EXTRACTED_FOLDER = "C:\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64"
+	if (Test-Path $EXTRACTED_FOLDER) {
+		# Rename the extracted folder to the final destination name
+		$DEST_FOLDER_NAME = Split-Path $OPENVINO_DEST_FOLDER -Leaf
+		Rename-Item -Path $EXTRACTED_FOLDER -NewName $DEST_FOLDER_NAME
+	}
 	Write-Host "############################################ Done ########################################################"
 } else {
-	Write-Host "################################# OpenVINO GenAI ${OPENVINO_VERSION} already installed ##################################"
+	Write-Host "################################# OpenVINO GenAI ${OPENVINO_VERSION} already correctly installed ##################################"
 }
 
 if (-Not (Test-Path "C:\\Program Files\\Git")) {
@@ -161,8 +247,8 @@ Start-Process -Wait -FilePath "taskkill" -ArgumentList "/im", "msbuild.exe", "/f
 Write-Host "########################################## Done #####################################################"
 
 Write-Host "################################## Initializing OpenVINO ############################################"
-C:\openvino\setupvars.ps1
-Write-Host "######################################### Done ######################################################"
+& "$OPENVINO_DEST_FOLDER\setupvars.ps1"
+Write-Host "####################################### Done ######################################################"
 
 Write-Host "##################################### Running CMAKE #################################################"
 $exit_code = Start-Process -Wait -FilePath "cmake" -ArgumentList "-DCMAKE_TOOLCHAIN_FILE=${env:VCPKG_ROOT}\scripts\buildsystems\vcpkg.cmake", "${DLSTREAMER_SRC_LOCATION}" -NoNewWindow

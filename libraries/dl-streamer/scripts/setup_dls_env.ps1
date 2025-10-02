@@ -4,11 +4,134 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-if (-Not (Test-Path 'C:\gstreamer')) {
-	echo 'Please install GStreamer to folder C:\gstreamer and then run the script again.'
-	exit
+$GSTREAMER_VERSION = "1.26.1"
+$OPENVINO_VERSION = "2025.3"
+$GSTREAMER_DEST_FOLDER = "C:\\gstreamer"
+$OPENVINO_DEST_FOLDER = "C:\\openvino"
+$DLSTREAMER_TMP = "C:\\dlstreamer_tmp"
+
+# Create temporary directory if it doesn't exist
+if (-Not (Test-Path $DLSTREAMER_TMP)) {
+	mkdir $DLSTREAMER_TMP
+}
+
+# Check if GStreamer is installed and if it's the correct version
+$GSTREAMER_NEEDS_INSTALL = $false
+if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
+	echo "GStreamer not found - installation needed"
+	$GSTREAMER_NEEDS_INSTALL = $true
 } else {
-	echo 'GStreamer found in folder C:\gstreamer'
+	echo "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
+
+	# Check if the correct version is installed
+	$VERSION_SPECIFIC_PATH = "$GSTREAMER_DEST_FOLDER\1.0\msvc_x86_64"
+	if (-Not (Test-Path $VERSION_SPECIFIC_PATH)) {
+		echo "GStreamer installation incomplete - reinstallation needed"
+		$GSTREAMER_NEEDS_INSTALL = $true
+	} else {
+		# Try to get installed version from pkg-config file
+		$INSTALLED_VERSION = $null
+		$PKG_CONFIG_FILE = "$VERSION_SPECIFIC_PATH\lib\pkgconfig\gstreamer-1.0.pc"
+		if (Test-Path $PKG_CONFIG_FILE) {
+			$VERSION_LINE = Get-Content $PKG_CONFIG_FILE | Select-String "Version:"
+			if ($VERSION_LINE) {
+				$INSTALLED_VERSION = ($VERSION_LINE -split ":")[1].Trim()
+			}
+		}
+
+		if ($INSTALLED_VERSION -and $INSTALLED_VERSION -ne $GSTREAMER_VERSION) {
+			echo "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
+			$GSTREAMER_NEEDS_INSTALL = $true
+		} elseif ($INSTALLED_VERSION) {
+			echo "GStreamer version $INSTALLED_VERSION verified - correct version installed"
+		} else {
+			echo "Warning: Could not verify GStreamer version, but installation appears complete"
+		}
+	}
+}
+
+if ($GSTREAMER_NEEDS_INSTALL) {
+	echo "##################################### Installing GStreamer ${GSTREAMER_VERSION} #######################################"
+
+	# Remove existing installation if present
+	if (Test-Path $GSTREAMER_DEST_FOLDER) {
+		echo "Removing existing GStreamer installation..."
+		Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
+	}
+
+	if (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi") {
+		echo "Removing existing GStreamer installer..."
+		Remove-Item -LiteralPath "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
+	}
+	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
+	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
+	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
+	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
+
+	# Fix pkg-config file for MSVC compatibility
+	if (Test-Path "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc") {
+		(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
+	}
+
+	echo "################################################# GStreamer installation completed ###################################################"
+}
+
+# Check if OpenVINO is installed and if it's the correct version
+if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\setupvars.ps1")) {
+	echo "OpenVINO not found - installation needed"
+	$OPENVINO_NEEDS_INSTALL = $true
+} else {
+	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
+
+	# Try to get installed version from version file
+	$INSTALLED_VERSION = $null
+	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\runtime\version.txt"
+	if (Test-Path $VERSION_FILE) {
+		$VERSION_CONTENT = Get-Content $VERSION_FILE -First 1
+		if ($VERSION_CONTENT) {
+			$INSTALLED_VERSION = ($VERSION_CONTENT -split '-')[0]
+		}
+	}
+	if ($INSTALLED_VERSION -and ($INSTALLED_VERSION -ne $OPENVINO_VERSION)) {
+		Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION, required: $OPENVINO_VERSION"
+		$OPENVINO_NEEDS_INSTALL = $true
+	} elseif ($INSTALLED_VERSION) {
+		Write-Host "OpenVINO version $INSTALLED_VERSION verified - correct version installed"
+		$OPENVINO_NEEDS_INSTALL = $false
+	} else {
+		Write-Host "Warning: Could not verify OpenVINO version, but installation appears complete"
+		$OPENVINO_NEEDS_INSTALL = $false
+	}
+}
+if ($OPENVINO_NEEDS_INSTALL) {
+	Write-Host "####################################### Installing OpenVINO GenAI ${OPENVINO_VERSION} #######################################"
+
+	# Remove existing OpenVINO installation if present
+	if (Test-Path "${OPENVINO_DEST_FOLDER}") {
+		Write-Host "Removing existing OpenVINO installation..."
+		Remove-Item -LiteralPath "${OPENVINO_DEST_FOLDER}" -Recurse -Force
+	}
+
+	# Check if correct installer is already downloaded
+	$OPENVINO_INSTALLER = "${DLSTREAMER_TMP}\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
+	if (-Not (Test-Path $OPENVINO_INSTALLER)) {
+		Write-Host "Downloading OpenVINO GenAI ${OPENVINO_VERSION}..."
+		Invoke-WebRequest -OutFile $OPENVINO_INSTALLER -Uri "https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/${OPENVINO_VERSION}/windows/openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64.zip"
+	} else {
+		Write-Host "Using existing OpenVINO installer: $OPENVINO_INSTALLER"
+	}
+
+	Write-Host "Extracting OpenVINO GenAI ${OPENVINO_VERSION}..."
+	Expand-Archive -Path $OPENVINO_INSTALLER -DestinationPath "C:\" -Force
+	$EXTRACTED_FOLDER = "C:\\openvino_genai_windows_${OPENVINO_VERSION}.0.0_x86_64"
+	if (Test-Path $EXTRACTED_FOLDER) {
+		# Rename the extracted folder to the final destination name
+		$DEST_FOLDER_NAME = Split-Path $OPENVINO_DEST_FOLDER -Leaf
+		Rename-Item -Path $EXTRACTED_FOLDER -NewName $DEST_FOLDER_NAME
+	}
+	Write-Host "############################################ Done ########################################################"
+} else {
+	Write-Host "################################# OpenVINO GenAI ${OPENVINO_VERSION} already correctly installed ##################################"
 }
 
 echo 'Setting variables: LIBVA_DRIVER_NAME, LIBVA_DRIVERS_PATH, Path (for LIBVA)'
@@ -39,14 +162,6 @@ $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
 $pathEntries = $USER_PATH -split ';'
 if (-Not ($pathEntries -contains $GSTREAMER_DIR)) {
 	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $GSTREAMER_DIR, [System.EnvironmentVariableTarget]::User)
-}
-
-echo 'Searching for OpenVINO'
-if (-Not [System.IO.File]::Exists('C:\openvino\setupvars.ps1')) {
-	echo 'OpenVINO C:\openvino\setupvars.ps1 not found - please install OpenVINO!'
-
-} else {
-	echo 'OpenVINO found'
 }
 
 echo 'Setting variables:, OpenVINO_DIR, OPENVINO_LIB_PATHS, Path (for OpenVINO)'
@@ -82,12 +197,14 @@ $env:OpenVINO_DIR
 echo "OPENVINO_LIB_PATHS:"
 $env:OPENVINO_LIB_PATHS
 
-echo ""
-echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
-echo "Please wait for a moment... "
-
 try {
-	del C:\Users\$env:USERNAME\AppData\Local\Microsoft\Windows\INetCache\gstreamer-1.0\registry.x86_64-msvc.bin
+	if (Test-Path "C:\Users\$env:USERNAME\AppData\Local\Microsoft\Windows\INetCache\gstreamer-1.0\registry.x86_64-msvc.bin") {
+		echo "Clearing existing GStreamer cache"
+		del C:\Users\$env:USERNAME\AppData\Local\Microsoft\Windows\INetCache\gstreamer-1.0\registry.x86_64-msvc.bin
+		echo ""
+		echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
+		echo "Please wait for a moment... "
+	}
 	$(gst-inspect-1.0.exe gvadetect)
 } catch {
 	echo "Error caught - clearing a cache and retrying..."
