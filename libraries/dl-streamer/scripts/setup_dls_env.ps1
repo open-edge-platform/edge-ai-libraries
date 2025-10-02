@@ -59,21 +59,29 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 		Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
 	}
 
-	if (Test-Path "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi") {
-		echo "Removing existing GStreamer installer..."
-		Remove-Item -LiteralPath "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
-	}
-	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
-	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
-	Invoke-WebRequest -OutFile ${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
-	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi", "/qn"
+	$GSTREAMER_RUNTIME_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
+	$GSTREAMER_DEVEL_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi"
 
-	# Fix pkg-config file for MSVC compatibility
-	if (Test-Path "C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc") {
-		(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
+	if (Test-Path $GSTREAMER_RUNTIME_INSTALLER) {
+		Write-Host "Using existing GStreamer runtime installer: $GSTREAMER_RUNTIME_INSTALLER"
+	} else {
+		Write-Host "Downloading GStreamer runtime installer..."
+		Invoke-WebRequest -OutFile $GSTREAMER_RUNTIME_INSTALLER -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-msvc-x86_64-${GSTREAMER_VERSION}.msi
 	}
 
+	if (Test-Path $GSTREAMER_DEVEL_INSTALLER) {
+		Write-Host "Using existing GStreamer development installer: $GSTREAMER_DEVEL_INSTALLER"
+	} else {
+		Write-Host "Downloading GStreamer development installer..."
+		Invoke-WebRequest -OutFile $GSTREAMER_DEVEL_INSTALLER -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
+	}
+
+	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_RUNTIME_INSTALLER, "/qn"
+	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_DEVEL_INSTALLER, "/qn"
+	(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
 	echo "################################################# GStreamer installation completed ###################################################"
+} else {
+	Write-Host "################################# GStreamer ${GSTREAMER_VERSION} already installed ##################################"
 }
 
 # Check if OpenVINO is installed and if it's the correct version
