@@ -137,7 +137,8 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 		Write-Host "Please uninstall the existing GStreamer using Control Panel before proceeding."
 		Write-Host "The required installers have been downloaded for you and will be reused on the next run."
 		Write-Host " "
-		Write-Host "After uninstalling, ensure the old GStreamer installation folder is fully removed, then rerun this script. The new version will install automatically."
+		Write-Host "After uninstalling, ensure the old GStreamer installation folder ${GSTREAMER_DEST_FOLDER} is fully removed."
+		Write-Host "Then rerun this script. The new version will install automatically."
 		Write-Host "#############################################################################################"
 		exit 1
 	} else {
