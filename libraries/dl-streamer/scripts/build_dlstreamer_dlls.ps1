@@ -63,16 +63,16 @@ if (-Not (Test-Path "${env:ProgramFiles(x86)}\\Windows Kits")) {
 $GSTREAMER_NEEDS_INSTALL = $false
 $GSTREAMER_INSTALL_MODE = "none"  # values: none | fresh | reinstall
 if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
-	echo "GStreamer not found - installation needed"
+	Write-Host "GStreamer not found - installation needed"
 	$GSTREAMER_NEEDS_INSTALL = $true
 	$GSTREAMER_INSTALL_MODE = "fresh"
 } else {
-	echo "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
+	Write-Host "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
 
 	# Check if the correct version is installed
 	$VERSION_SPECIFIC_PATH = "$GSTREAMER_DEST_FOLDER\1.0\msvc_x86_64"
 	if (-Not (Test-Path $VERSION_SPECIFIC_PATH)) {
-		echo "GStreamer installation incomplete - reinstallation needed"
+		Write-Host "GStreamer installation incomplete - reinstallation needed"
 		$GSTREAMER_NEEDS_INSTALL = $true
 		$GSTREAMER_INSTALL_MODE = "reinstall"
 	} else {
@@ -87,19 +87,19 @@ if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 		}
 
 		if ($INSTALLED_VERSION -and $INSTALLED_VERSION -ne $GSTREAMER_VERSION) {
-			echo "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
+			Write-Host "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
 			$GSTREAMER_NEEDS_INSTALL = $true
 			$GSTREAMER_INSTALL_MODE = "reinstall"
 		} elseif ($INSTALLED_VERSION) {
-			echo "GStreamer version $INSTALLED_VERSION verified - correct version installed"
+			Write-Host "GStreamer version $INSTALLED_VERSION verified - correct version installed"
 		} else {
-			echo "Warning: Could not verify GStreamer version, but installation appears complete"
+			Write-Host "Warning: Could not verify GStreamer version, but installation appears complete"
 		}
 	}
 }
 
 if ($GSTREAMER_NEEDS_INSTALL) {
-	echo "##################################### Preparing GStreamer ${GSTREAMER_VERSION} #######################################"
+	Write-Host "##################################### Preparing GStreamer ${GSTREAMER_VERSION} #######################################"
 
 	$GSTREAMER_RUNTIME_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
 	$GSTREAMER_DEVEL_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi"
@@ -120,16 +120,16 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 
 	if ($GSTREAMER_INSTALL_MODE -eq "fresh") {
 		if (Test-Path $GSTREAMER_DEST_FOLDER) {
-			echo "Removing existing GStreamer directory remnants before installation..."
+			Write-Host "Removing existing GStreamer directory remnants before installation..."
 			Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
 		}
 
-		echo "Installing GStreamer runtime package..."
+		Write-Host "Installing GStreamer runtime package..."
 		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_RUNTIME_INSTALLER, "/qn"
-		echo "Installing GStreamer development package..."
+		Write-Host "Installing GStreamer development package..."
 		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_DEVEL_INSTALLER, "/qn"
 		(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
-		echo "################################################# GStreamer installation completed ###################################################"
+		Write-Host "################################################# GStreamer installation completed ###################################################"
 	} elseif ($GSTREAMER_INSTALL_MODE -eq "reinstall") {
 		Write-Host "#############################################################################################"
 		Write-Host "Detected existing GStreamer installation that doesn't match the required version ${GSTREAMER_VERSION}."
@@ -152,10 +152,10 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 # Check if OpenVINO is installed and if it's the correct version
 $OPENVINO_NEEDS_INSTALL = $true
 if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\\setupvars.ps1")) {
-	echo "OpenVINO not found - installation needed"
+	Write-Host "OpenVINO not found - installation needed"
 	$OPENVINO_NEEDS_INSTALL = $true
 } else {
-	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
+	Write-Host "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
 
 	# Try to get installed version from version file
 	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\\runtime\\version.txt"

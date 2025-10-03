@@ -19,16 +19,16 @@ if (-Not (Test-Path $DLSTREAMER_TMP)) {
 $GSTREAMER_NEEDS_INSTALL = $false
 $GSTREAMER_INSTALL_MODE = "none"  # values: none | fresh | reinstall
 if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
-	echo "GStreamer not found - installation needed"
+	Write-Host "GStreamer not found - installation needed"
 	$GSTREAMER_NEEDS_INSTALL = $true
 	$GSTREAMER_INSTALL_MODE = "fresh"
 } else {
-	echo "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
+	Write-Host "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
 
 	# Check if the correct version is installed
 	$VERSION_SPECIFIC_PATH = "$GSTREAMER_DEST_FOLDER\1.0\msvc_x86_64"
 	if (-Not (Test-Path $VERSION_SPECIFIC_PATH)) {
-		echo "GStreamer installation incomplete - reinstallation needed"
+		Write-Host "GStreamer installation incomplete - reinstallation needed"
 		$GSTREAMER_NEEDS_INSTALL = $true
 		$GSTREAMER_INSTALL_MODE = "reinstall"
 	} else {
@@ -43,19 +43,19 @@ if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 		}
 
 		if ($INSTALLED_VERSION -and $INSTALLED_VERSION -ne $GSTREAMER_VERSION) {
-			echo "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
+			Write-Host "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
 			$GSTREAMER_NEEDS_INSTALL = $true
 			$GSTREAMER_INSTALL_MODE = "reinstall"
 		} elseif ($INSTALLED_VERSION) {
-			echo "GStreamer version $INSTALLED_VERSION verified - correct version installed"
+			Write-Host "GStreamer version $INSTALLED_VERSION verified - correct version installed"
 		} else {
-			echo "Warning: Could not verify GStreamer version, but installation appears complete"
+			Write-Host "Warning: Could not verify GStreamer version, but installation appears complete"
 		}
 	}
 }
 
 if ($GSTREAMER_NEEDS_INSTALL) {
-	echo "##################################### Preparing GStreamer ${GSTREAMER_VERSION} #######################################"
+	Write-Host "##################################### Preparing GStreamer ${GSTREAMER_VERSION} #######################################"
 
 	$GSTREAMER_RUNTIME_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
 	$GSTREAMER_DEVEL_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi"
@@ -76,16 +76,16 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 
 	if ($GSTREAMER_INSTALL_MODE -eq "fresh") {
 		if (Test-Path $GSTREAMER_DEST_FOLDER) {
-			echo "Removing existing GStreamer directory remnants before installation..."
+			Write-Host "Removing existing GStreamer directory remnants before installation..."
 			Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
 		}
 
-		echo "Installing GStreamer runtime package..."
+		Write-Host "Installing GStreamer runtime package..."
 		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_RUNTIME_INSTALLER, "/qn"
-		echo "Installing GStreamer development package..."
+		Write-Host "Installing GStreamer development package..."
 		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_DEVEL_INSTALLER, "/qn"
 		(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
-		echo "################################################# GStreamer installation completed ###################################################"
+		Write-Host "################################################# GStreamer installation completed ###################################################"
 	} elseif ($GSTREAMER_INSTALL_MODE -eq "reinstall") {
 		Write-Host "#############################################################################################"
 		Write-Host "Detected existing GStreamer installation that doesn't match the required version ${GSTREAMER_VERSION}."
@@ -108,10 +108,10 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 # Check if OpenVINO is installed and if it's the correct version
 $OPENVINO_NEEDS_INSTALL = $true
 if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\\setupvars.ps1")) {
-	echo "OpenVINO not found - installation needed"
+	Write-Host "OpenVINO not found - installation needed"
 	$OPENVINO_NEEDS_INSTALL = $true
 } else {
-	echo "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
+	Write-Host "OpenVINO found in folder $OPENVINO_DEST_FOLDER"
 
 	# Try to get installed version from version file
 	$VERSION_FILE = "$OPENVINO_DEST_FOLDER\\runtime\\version.txt"
@@ -121,19 +121,19 @@ if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\\setupvars.ps1")) {
 			# Check if version starts with required version (e.g., "2025.3.0" starts with "2025.3")
 			if ($VERSION_CONTENT.StartsWith($OPENVINO_VERSION)) {
 				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
-				echo "OpenVINO version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
+				Write-Host "OpenVINO version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
 				$OPENVINO_NEEDS_INSTALL = $false
 			} else {
 				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
-				echo "OpenVINO version mismatch - installed: $INSTALLED_VERSION_FULL, required: $OPENVINO_VERSION"
+				Write-Host "OpenVINO version mismatch - installed: $INSTALLED_VERSION_FULL, required: $OPENVINO_VERSION"
 				$OPENVINO_NEEDS_INSTALL = $true
 			}
 		} else {
-			echo "Warning: Could not read OpenVINO version file"
+			Write-Host "Warning: Could not read OpenVINO version file"
 			$OPENVINO_NEEDS_INSTALL = $false
 		}
 	} else {
-		echo "Warning: Could not find OpenVINO version file, but installation appears complete"
+		Write-Host "Warning: Could not find OpenVINO version file, but installation appears complete"
 		$OPENVINO_NEEDS_INSTALL = $false
 	}
 }
@@ -168,7 +168,7 @@ if ($OPENVINO_NEEDS_INSTALL) {
 	Write-Host "################################# OpenVINO GenAI ${OPENVINO_VERSION} already correctly installed ##################################"
 }
 
-echo 'Setting variables: LIBVA_DRIVER_NAME, LIBVA_DRIVERS_PATH, Path (for LIBVA)'
+Write-Host 'Setting variables: LIBVA_DRIVER_NAME, LIBVA_DRIVERS_PATH, Path (for LIBVA)'
 [Environment]::SetEnvironmentVariable('LIBVA_DRIVER_NAME', 'vaon12', [System.EnvironmentVariableTarget]::User)
 [Environment]::SetEnvironmentVariable('LIBVA_DRIVERS_PATH', (Get-Item .).FullName + '\Microsoft.Direct3D.VideoAccelerationCompatibilityPack.1.0.2\build\native\x64\bin\', [System.EnvironmentVariableTarget]::User)
 $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -177,7 +177,7 @@ if (-Not ($pathEntries -contains 'VideoAccelerationCompatibilityPack')) {
 	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + [Environment]::GetEnvironmentVariable('LIBVA_DRIVERS_PATH', 'User'), [System.EnvironmentVariableTarget]::User)
 }
 
-echo 'Setting variables: GST_PLUGIN_PATH, Path (for DLLs)'
+Write-Host 'Setting variables: GST_PLUGIN_PATH, Path (for DLLs)'
 $CURRENT_DIR = (Get-Item .).FullName
 [Environment]::SetEnvironmentVariable('GST_PLUGIN_PATH', "C:\gstreamer\1.0\msvc_x86_64\bin;C:\gstreamer\1.0\msvc_x86_64\lib\gstreamer-1.0;$CURRENT_DIR", [System.EnvironmentVariableTarget]::User)
 $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
@@ -186,11 +186,11 @@ if (-Not ($pathEntries -contains $CURRENT_DIR)) {
     [Environment]::SetEnvironmentVariable('Path', ($USER_PATH + ';' + $CURRENT_DIR), [System.EnvironmentVariableTarget]::User)
 }
 
-echo 'Setting variables: GST_PLUGIN_SCANNER'
+Write-Host 'Setting variables: GST_PLUGIN_SCANNER'
 $GSTREAMER_PLUGIN_SCANNER_PATH = (Get-ChildItem -Filter gst-plugin-scanner.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-plugin-scanner.exe' -ErrorAction SilentlyContinue) | Select-Object -First 1
 [Environment]::SetEnvironmentVariable('GST_PLUGIN_SCANNER', $GSTREAMER_PLUGIN_SCANNER_PATH, [System.EnvironmentVariableTarget]::User)
 
-echo 'Setting variables: Path (for gst-launch-1.0)'
+Write-Host 'Setting variables: Path (for gst-launch-1.0)'
 $GSTREAMER_DIR = (Get-ChildItem -Filter gst-launch-1.0.exe -Recurse -Path 'C:\gstreamer' -Include 'gst-launch-1.0.exe' -ErrorAction SilentlyContinue).DirectoryName | Select-Object -First 1
 $USER_PATH = [Environment]::GetEnvironmentVariable('Path', 'User')
 $pathEntries = $USER_PATH -split ';'
@@ -198,7 +198,7 @@ if (-Not ($pathEntries -contains $GSTREAMER_DIR)) {
 	[Environment]::SetEnvironmentVariable('Path', $USER_PATH + ';' + $GSTREAMER_DIR, [System.EnvironmentVariableTarget]::User)
 }
 
-echo 'Setting variables:, OpenVINO_DIR, OPENVINO_LIB_PATHS, Path (for OpenVINO)'
+Write-Host 'Setting variables:, OpenVINO_DIR, OPENVINO_LIB_PATHS, Path (for OpenVINO)'
 [Environment]::SetEnvironmentVariable('OpenVINO_DIR', "C:\openvino\runtime\cmake", [System.EnvironmentVariableTarget]::User)
 [Environment]::SetEnvironmentVariable('OpenVINOGenAI_DIR', "C:\openvino\runtime\cmake", [System.EnvironmentVariableTarget]::User)
 [Environment]::SetEnvironmentVariable('OPENVINO_LIB_PATHS', "C:\openvino\runtime\3rdparty\tbb\bin;C:\openvino\runtime\bin\intel64\Release", [System.EnvironmentVariableTarget]::User)
@@ -215,37 +215,37 @@ $env:LIBVA_DRIVERS_PATH = [System.Environment]::GetEnvironmentVariable('LIBVA_DR
 $env:OpenVINO_DIR = [System.Environment]::GetEnvironmentVariable('OpenVINO_DIR','User')
 $env:OPENVINO_LIB_PATHS = [System.Environment]::GetEnvironmentVariable('OPENVINO_LIB_PATHS','User')
 
-echo "USER ENVIRONMENT VARIABLES"
-echo "Path:"
+Write-Host "USER ENVIRONMENT VARIABLES"
+Write-Host "Path:"
 $env:Path
-echo "GST_PLUGIN_PATH:"
+Write-Host "GST_PLUGIN_PATH:"
 $env:GST_PLUGIN_PATH
-echo "GST_PLUGIN_SCANNER:"
+Write-Host "GST_PLUGIN_SCANNER:"
 $env:GST_PLUGIN_SCANNER
-echo "LIBVA_DRIVER_NAME:"
+Write-Host "LIBVA_DRIVER_NAME:"
 $env:LIBVA_DRIVER_NAME
-echo "LIBVA_DRIVERS_PATH:"
+Write-Host "LIBVA_DRIVERS_PATH:"
 $env:LIBVA_DRIVERS_PATH
-echo "OpenVINO_DIR:"
+Write-Host "OpenVINO_DIR:"
 $env:OpenVINO_DIR
-echo "OPENVINO_LIB_PATHS:"
+Write-Host "OPENVINO_LIB_PATHS:"
 $env:OPENVINO_LIB_PATHS
 
 try {
 	if (Test-Path "C:\Users\$env:USERNAME\AppData\Local\Microsoft\Windows\INetCache\gstreamer-1.0\registry.x86_64-msvc.bin") {
-		echo "Clearing existing GStreamer cache"
+		Write-Host "Clearing existing GStreamer cache"
 		del C:\Users\$env:USERNAME\AppData\Local\Microsoft\Windows\INetCache\gstreamer-1.0\registry.x86_64-msvc.bin
-		echo ""
-		echo "Generating GStreamer cache. It may take up to a few minutes for the first run"
-		echo "Please wait for a moment... "
+		Write-Host ""
+		Write-Host "Generating GStreamer cache. It may take up to a few minutes for the first run"
+		Write-Host "Please wait for a moment... "
 	}
 	$(gst-inspect-1.0.exe gvadetect)
 } catch {
-	echo "Error caught - clearing a cache and retrying..."
+	Write-Host "Error caught - clearing a cache and retrying..."
 	mv gstvideoanalytics.dll gstvideoanalytics.dll.old
 	$(gst-inspect-1.0.exe gvadetect)
 	mv gstvideoanalytics.dll.old gstvideoanalytics.dll
 	$(gst-inspect-1.0.exe gvadetect)
 }
 
-echo "DLStreamer is ready"
+Write-Host "DLStreamer is ready"
