@@ -18,7 +18,6 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
-    PIPELINE: smartnvr
     MODELS_PATH: /home/dlstreamer/vippet/models
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}

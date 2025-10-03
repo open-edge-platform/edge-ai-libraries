@@ -48,6 +48,8 @@ COPY --chown=dlstreamer:dlstreamer \
     models.py \
     optimize.py \
     utils.py \
+    home.py \
+    pipelines/pipeline_page.py \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines

@@ -12,7 +12,6 @@ in which its capabilities can be utilized:
 ## Other references
 
 * [Get Started guide](./get-started)
-* [Details on the system architecture and customizable options](./overview-architecture.md)
 * [Detailed hardware and software requirements](./system-requirements.md).
 
 

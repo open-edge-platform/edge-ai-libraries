@@ -22,8 +22,9 @@ mock.patch(
     ),
 ).start()
 
-from app import (  # noqa: E402
-    create_interface,
+from app import create_interface  # noqa: E402
+
+from pipelines.pipeline_page import (  # noqa: E402
     generate_stream_data,
     read_latest_metrics,
     charts,
@@ -64,7 +65,7 @@ class TestApp(unittest.TestCase):
         cpu_chart = Chart("Test CPU Chart", "Utilization", ChartType.CPU_UTILIZATION)
         mem_chart = Chart("Test MEM Chart", "Utilization", ChartType.MEMORY_UTILIZATION)
         patched_charts = [cpu_chart, mem_chart, gpu_chart]
-        with mock.patch("app.charts", patched_charts):
+        with mock.patch("pipelines.pipeline_page.charts", patched_charts):
             with mock.patch("builtins.open", mock.mock_open(read_data=mock_data)):
                 result = read_latest_metrics()
                 # Check that all expected keys exist and have value 1.0 or None
@@ -129,7 +130,9 @@ class TestApp(unittest.TestCase):
             metrics[key] = 1.0
 
         with (
-            mock.patch("app.read_latest_metrics", return_value=metrics),
+            mock.patch(
+                "pipelines.pipeline_page.read_latest_metrics", return_value=metrics
+            ),
             mock.patch("builtins.open", mock.mock_open(read_data="1.0\n")),
         ):
             streams = generate_stream_data()

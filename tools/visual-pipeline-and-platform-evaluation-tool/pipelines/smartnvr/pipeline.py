@@ -33,7 +33,7 @@ class SmartNVRPipeline(GstPipeline):
             "{compositor} "
             "  name=comp "
             "  {sinks} ! tee name=livetee "
-            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            "livetee. ! queue2 ! {encoder} ! {VIDEO_CODEC}parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
             "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width={output_width},height={output_height} ! {shmsink} "
         )
 
@@ -42,7 +42,7 @@ class SmartNVRPipeline(GstPipeline):
             "  name=comp "
             "  {sinks} ! "
             "{encoder} ! "
-            "h264parse ! "
+            "{VIDEO_CODEC}parse ! "
             "mp4mux ! "
             "filesink "
             "  location={VIDEO_OUTPUT_PATH} async=false "
@@ -52,7 +52,7 @@ class SmartNVRPipeline(GstPipeline):
             "filesrc "
             "  location={VIDEO_PATH} ! "
             "qtdemux ! "
-            "h264parse ! "
+            "{VIDEO_CODEC}parse ! "
             "tee name=t{id} ! "
             "queue2 ! "
             "mp4mux ! "
@@ -68,7 +68,7 @@ class SmartNVRPipeline(GstPipeline):
             "filesrc "
             "  location={VIDEO_PATH} ! "
             "qtdemux ! "
-            "h264parse ! "
+            "{VIDEO_CODEC}parse ! "
             "tee name=t{id} ! "
             "queue2 ! "
             "mp4mux ! "
@@ -200,18 +200,27 @@ class SmartNVRPipeline(GstPipeline):
             vaapi_suffix = str(
                 128 + int(gpu_index)
             )  # 128 + 1 = 129, 128 + 2 = 130, etc.
-            _encoder_element = f"varenderD{vaapi_suffix}h264lpenc"
+            _encoder_element = f"varenderD{vaapi_suffix}{constants['VIDEO_CODEC']}lpenc"
         else:
             # Fallback to default encoder if no specific GPU is selected
+            _codec_bits = constants["VIDEO_CODEC"].lstrip("h")  # e.g., "h264" -> "264"
             _encoder_element = next(
-                ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
+                (
+                    f"va{constants['VIDEO_CODEC']}lpenc"
+                    for element in elements
+                    if element[1] == f"va{constants['VIDEO_CODEC']}lpenc"
+                ),
                 next(
-                    ("vah264enc" for element in elements if element[1] == "vah264enc"),
+                    (
+                        f"va{constants['VIDEO_CODEC']}enc"
+                        for element in elements
+                        if element[1] == f"va{constants['VIDEO_CODEC']}enc"
+                    ),
                     next(
                         (
-                            "x264enc bitrate=16000 speed-preset=superfast"
+                            f"x{_codec_bits}enc bitrate=16000 speed-preset=superfast"
                             for element in elements
-                            if element[1] == "x264enc"
+                            if element[1] == f"x{_codec_bits}enc"
                         ),
                         None,  # Fallback to None if no encoder is found
                     ),
@@ -229,17 +238,15 @@ class SmartNVRPipeline(GstPipeline):
             vaapi_suffix = str(
                 128 + int(gpu_index)
             )  # 128 + 1 = 129, 128 + 2 = 130, etc.
-            _decoder_element = (
-                f"varenderD{vaapi_suffix}h264dec ! video/x-raw(memory:VAMemory)"
-            )
+            _decoder_element = f"varenderD{vaapi_suffix}{constants['VIDEO_CODEC']}dec ! video/x-raw(memory:VAMemory)"
             _postprocessing_element = f"varenderD{vaapi_suffix}postproc"
         else:
             # Fallback to default elements if no specific GPU is selected
             _decoder_element = next(
                 (
-                    "vah264dec ! video/x-raw(memory:VAMemory)"
+                    f"va{constants['VIDEO_CODEC']}dec ! video/x-raw(memory:VAMemory)"
                     for element in elements
-                    if element[1] == "vah264dec"
+                    if element[1] == f"va{constants['VIDEO_CODEC']}dec"
                 ),
                 next(
                     ("decodebin" for element in elements if element[1] == "decodebin"),
