@@ -7,9 +7,32 @@ import sys
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
 
+#################################################### Init ###############################################################################
+
 Gst.init()
 logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)8s] - %(message)s")
 logger = logging.getLogger(__name__)
+
+########################################################## Utils #####################################################################
+
+def parse_element_parameters(element):
+    parameters = element.strip().split(" ")
+    del parameters[0]
+    parsed_parameters = {}
+    for parameter in parameters:
+        parts = parameter.split("=")
+        parsed_parameters[parts[0]] = parts[1]
+
+    return parsed_parameters
+
+def assemble_parameters(parameters):
+    result = ""
+    for parameter, value in parameters.items():
+        result = result + parameter + "=" + value
+
+    return result
+
+#################################################### System Scanning ####################################################################
 
 def scan_system():
     context = {"GPU": False,
@@ -20,8 +43,16 @@ def scan_system():
                "va-surface-sharing": False}
     return context
 
+##################################################### Pipeline Running ###################################################################
+
+def explore_pipelines(suggestions, search_duration):
+    pass
+
 def sample_pipeline(pipeline, sample_duration):
-    pipeline = Gst.parse_launch("!".join(pipeline))
+    pipeline = "!".join(pipeline)
+    logger.debug("Testing: " + pipeline)
+
+    pipeline = Gst.parse_launch(pipeline)
 
     try:
         fps_counter = next(filter(lambda element: element.name == "gvafpscounter0", pipeline.children))
@@ -35,17 +66,117 @@ def sample_pipeline(pipeline, sample_duration):
         while message := bus.pop():
             logger.info("Message: " + message)
     
-        logger.info("FPS: " + fps_counter.get_property("avg-fps"))
+        return fps_counter.get_proprty("avg-fps")
     except StopIteration:
         logger.error("Pipeline is missing a gvafpscounter!")
+        return 0
     except TypeError:
         logger.error("Could not find the `avg-fps` property on Gvafpscounter!")
+        return 0
 
+########################################################## Gvadetect #####################################################################
+
+def add_gvadetect_suggestions(suggestions, context):
+    devices = ["CPU"]
+    backends = [""]
+    batches = range(1,32)
+    nireqs = range(1,8)
+
+    if context["GPU"]:
+        devices.append("GPU")
+
+    if context["NPU"]:
+        devices.append("NPU")
+
+    if context["ie"]:
+        backends.append("ie")
     
+    if context["opencv"]:
+        backends.append("opencv")
+
+    if context["va"]:
+        backends.append("va")
+
+    if context["va-surface-sharing"]:
+        backends.append("va-surface-sharing")
+
+    for suggestion in suggestions:
+        if "gvadetect" in suggestion[0]:
+            parameters = parse_element_parameters(suggestion[0])
+
+            for device in devices:
+                for backend in backends:
+                    for batch in batches:
+                        for nireq in nireqs:
+                            parameters["device"] = device
+                            parameters["pre-process-backend"] = backend
+                            parameters["batch-size"] = str(batch)
+                            parameters["nireq"] = str(nireq)
+                            suggestion.append("gvadetect " + assemble_parameters(parameters))
+
+########################################################## Gvaclassify #####################################################################
+
+def add_gvaclassify_suggestions(suggestions, context):
+    devices = ["CPU"]
+    backends = [""]
+    batches = range(1,32)
+    nireqs = range(1,8)
+
+    if context["GPU"]:
+        devices.append("GPU")
+
+    if context["NPU"]:
+        devices.append("NPU")
+
+    if context["ie"]:
+        backends.append("ie")
+    
+    if context["opencv"]:
+        backends.append("opencv")
+
+    if context["va"]:
+        backends.append("va")
+
+    if context["va-surface-sharing"]:
+        backends.append("va-surface-sharing")
+
+    for suggestion in suggestions:
+        if "gvaclassify" in suggestion[0]:
+            parameters = parse_element_parameters(suggestion[0])
+
+            for device in devices:
+                for backend in backends:
+                    for batch in batches:
+                        for nireq in nireqs:
+                            parameters["device"] = device
+                            parameters["pre-process-backend"] = backend
+                            parameters["batch-size"] = str(batch)
+                            parameters["nireq"] = str(nireq)
+                            suggestion.append("gvaclassify " + assemble_parameters(parameters))
+
+########################################################## Main Logic #####################################################################
+
 def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10):
+    context = scan_system()
+
     pipeline = " ".join(pipeline).split("!")
-    logger.info("Testing pipeline: " + "!".join(pipeline))
-    sample_pipeline(pipeline, sample_duration)
+    fps = sample_pipeline(pipeline, sample_duration)
+    logger.info("FPS: " + str(fps))
+    
+    # Suggestions structure:
+    #   [
+    #       ["element1 param1=value1", "element1 param1=value2", ...other variants],
+    #       ["element2 param1=value1", "element2 param1=value2", ...other variants],
+    #       ["element3 param1=value1", "element3 param1=value2", ...other variants],
+    #       ...other pipeline elements
+    #   ]
+    suggestions = []
+    for element in pipeline:
+        suggestions.append([element])
+
+    add_gvadetect_suggestions(suggestions, context)
+    add_gvaclassify_suggestions(suggestions, context)
+    return explore_pipelines(suggestions, search_duration)
 
 def main():
     parser = argparse.ArgumentParser(
