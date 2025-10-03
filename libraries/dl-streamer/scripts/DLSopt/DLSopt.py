@@ -2,7 +2,7 @@ import argparse
 import gi
 import time
 import logging
-import sys
+import itertools
 
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
@@ -28,7 +28,7 @@ def parse_element_parameters(element):
 def assemble_parameters(parameters):
     result = ""
     for parameter, value in parameters.items():
-        result = result + parameter + "=" + value
+        result = result + parameter + "=" + value + " "
 
     return result
 
@@ -45,8 +45,22 @@ def scan_system():
 
 ##################################################### Pipeline Running ###################################################################
 
-def explore_pipelines(suggestions, search_duration):
-    pass
+def explore_pipelines(suggestions, base_fps, search_duration, sample_duration):
+    best_pipeline = []
+    start_time = time.time()
+    best_fps = base_fps
+    for combination in itertools.product(*suggestions):
+        fps = sample_pipeline(list(combination), sample_duration)
+
+        if fps > best_fps:
+            best_fps = fps
+            best_pipeline = list(combination)
+
+        cur_time = time.time()
+        if cur_time - start_time > search_duration:
+            break
+
+    return best_pipeline
 
 def sample_pipeline(pipeline, sample_duration):
     pipeline = "!".join(pipeline)
@@ -55,7 +69,7 @@ def sample_pipeline(pipeline, sample_duration):
     pipeline = Gst.parse_launch(pipeline)
 
     try:
-        fps_counter = next(filter(lambda element: element.name == "gvafpscounter0", pipeline.children))
+        fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, pipeline.children))
 
         bus = pipeline.get_bus()
 
@@ -66,12 +80,16 @@ def sample_pipeline(pipeline, sample_duration):
         while message := bus.pop():
             logger.info("Message: " + message)
     
-        return fps_counter.get_proprty("avg-fps")
+        fps = fps_counter.get_proprty("avg-fps")
+        del pipeline
+        return fps
     except StopIteration:
         logger.error("Pipeline is missing a gvafpscounter!")
+        del pipeline
         return 0
-    except TypeError:
+    except AttributeError:
         logger.error("Could not find the `avg-fps` property on Gvafpscounter!")
+        del pipeline
         return 0
 
 ########################################################## Gvadetect #####################################################################
@@ -79,8 +97,8 @@ def sample_pipeline(pipeline, sample_duration):
 def add_gvadetect_suggestions(suggestions, context):
     devices = ["CPU"]
     backends = [""]
-    batches = range(1,32)
-    nireqs = range(1,8)
+    batches = range(32)
+    nireqs = range(8)
 
     if context["GPU"]:
         devices.append("GPU")
@@ -101,7 +119,7 @@ def add_gvadetect_suggestions(suggestions, context):
         backends.append("va-surface-sharing")
 
     for suggestion in suggestions:
-        if "gvadetect" in suggestion[0]:
+        if " gvadetect" in suggestion[0]:
             parameters = parse_element_parameters(suggestion[0])
 
             for device in devices:
@@ -110,8 +128,8 @@ def add_gvadetect_suggestions(suggestions, context):
                         for nireq in nireqs:
                             parameters["device"] = device
                             parameters["pre-process-backend"] = backend
-                            parameters["batch-size"] = str(batch)
-                            parameters["nireq"] = str(nireq)
+                            parameters["batch-size"] = str(batch + 1)
+                            parameters["nireq"] = str(nireq + 1)
                             suggestion.append("gvadetect " + assemble_parameters(parameters))
 
 ########################################################## Gvaclassify #####################################################################
@@ -119,8 +137,8 @@ def add_gvadetect_suggestions(suggestions, context):
 def add_gvaclassify_suggestions(suggestions, context):
     devices = ["CPU"]
     backends = [""]
-    batches = range(1,32)
-    nireqs = range(1,8)
+    batches = range(32)
+    nireqs = range(8)
 
     if context["GPU"]:
         devices.append("GPU")
@@ -141,7 +159,7 @@ def add_gvaclassify_suggestions(suggestions, context):
         backends.append("va-surface-sharing")
 
     for suggestion in suggestions:
-        if "gvaclassify" in suggestion[0]:
+        if " gvaclassify" in suggestion[0]:
             parameters = parse_element_parameters(suggestion[0])
 
             for device in devices:
@@ -150,8 +168,8 @@ def add_gvaclassify_suggestions(suggestions, context):
                         for nireq in nireqs:
                             parameters["device"] = device
                             parameters["pre-process-backend"] = backend
-                            parameters["batch-size"] = str(batch)
-                            parameters["nireq"] = str(nireq)
+                            parameters["batch-size"] = str(batch + 1)
+                            parameters["nireq"] = str(nireq + 1)
                             suggestion.append("gvaclassify " + assemble_parameters(parameters))
 
 ########################################################## Main Logic #####################################################################
@@ -176,7 +194,12 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 
     add_gvadetect_suggestions(suggestions, context)
     add_gvaclassify_suggestions(suggestions, context)
-    return explore_pipelines(suggestions, search_duration)
+    best_pipeline = explore_pipelines(suggestions, fps, search_duration, sample_duration)
+    
+    if best_pipeline == []:
+        best_pipeline = pipeline
+
+    return pipeline
 
 def main():
     parser = argparse.ArgumentParser(
