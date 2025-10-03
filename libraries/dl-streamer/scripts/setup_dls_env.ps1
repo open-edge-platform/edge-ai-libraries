@@ -92,8 +92,7 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 		Write-Host "Automatic installation is paused until the current GStreamer is removed."
 		Write-Host "Please uninstall the existing GStreamer from 'Apps & Features' (Control Panel)."
 		Write-Host "The required installers have been downloaded for you and will be reused on the next run:"
-		Write-Host "  - Runtime: $GSTREAMER_RUNTIME_INSTALLER"
-		Write-Host "  - Development: $GSTREAMER_DEVEL_INSTALLER"
+		Write-Host " "
 		Write-Host "After uninstalling, rerun this script — the new version will install automatically."
 		Write-Host "#############################################################################################"
 		exit 1
@@ -118,7 +117,6 @@ if (-Not [System.IO.File]::Exists("$OPENVINO_DEST_FOLDER\\setupvars.ps1")) {
 	if (Test-Path $VERSION_FILE) {
 		$VERSION_CONTENT = Get-Content $VERSION_FILE -First 1
 		if ($VERSION_CONTENT) {
-			# Check if version starts with required version (e.g., "2025.3.0" starts with "2025.3")
 			if ($VERSION_CONTENT.StartsWith($OPENVINO_VERSION)) {
 				$INSTALLED_VERSION_FULL = ($VERSION_CONTENT -split '-')[0]
 				Write-Host "OpenVINO version $INSTALLED_VERSION_FULL verified - compatible with required $OPENVINO_VERSION"
