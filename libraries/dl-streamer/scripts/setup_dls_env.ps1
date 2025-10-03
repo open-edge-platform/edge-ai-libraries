@@ -17,9 +17,11 @@ if (-Not (Test-Path $DLSTREAMER_TMP)) {
 
 # Check if GStreamer is installed and if it's the correct version
 $GSTREAMER_NEEDS_INSTALL = $false
+$GSTREAMER_INSTALL_MODE = "none"  # values: none | fresh | reinstall
 if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 	echo "GStreamer not found - installation needed"
 	$GSTREAMER_NEEDS_INSTALL = $true
+	$GSTREAMER_INSTALL_MODE = "fresh"
 } else {
 	echo "GStreamer found in folder $GSTREAMER_DEST_FOLDER"
 
@@ -28,6 +30,7 @@ if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 	if (-Not (Test-Path $VERSION_SPECIFIC_PATH)) {
 		echo "GStreamer installation incomplete - reinstallation needed"
 		$GSTREAMER_NEEDS_INSTALL = $true
+		$GSTREAMER_INSTALL_MODE = "reinstall"
 	} else {
 		# Try to get installed version from pkg-config file
 		$INSTALLED_VERSION = $null
@@ -42,6 +45,7 @@ if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 		if ($INSTALLED_VERSION -and $INSTALLED_VERSION -ne $GSTREAMER_VERSION) {
 			echo "GStreamer version mismatch - installed: $INSTALLED_VERSION, required: $GSTREAMER_VERSION"
 			$GSTREAMER_NEEDS_INSTALL = $true
+			$GSTREAMER_INSTALL_MODE = "reinstall"
 		} elseif ($INSTALLED_VERSION) {
 			echo "GStreamer version $INSTALLED_VERSION verified - correct version installed"
 		} else {
@@ -51,13 +55,7 @@ if (-Not (Test-Path $GSTREAMER_DEST_FOLDER)) {
 }
 
 if ($GSTREAMER_NEEDS_INSTALL) {
-	echo "##################################### Installing GStreamer ${GSTREAMER_VERSION} #######################################"
-
-	# Remove existing installation if present
-	if (Test-Path $GSTREAMER_DEST_FOLDER) {
-		echo "Removing existing GStreamer installation..."
-		Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
-	}
+	echo "##################################### Preparing GStreamer ${GSTREAMER_VERSION} #######################################"
 
 	$GSTREAMER_RUNTIME_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-msvc-x86_64_${GSTREAMER_VERSION}.msi"
 	$GSTREAMER_DEVEL_INSTALLER = "${DLSTREAMER_TMP}\\gstreamer-1.0-devel-msvc-x86_64_${GSTREAMER_VERSION}.msi"
@@ -76,10 +74,33 @@ if ($GSTREAMER_NEEDS_INSTALL) {
 		Invoke-WebRequest -OutFile $GSTREAMER_DEVEL_INSTALLER -Uri https://gstreamer.freedesktop.org/data/pkg/windows/${GSTREAMER_VERSION}/msvc/gstreamer-1.0-devel-msvc-x86_64-${GSTREAMER_VERSION}.msi
 	}
 
-	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_RUNTIME_INSTALLER, "/qn"
-	Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_DEVEL_INSTALLER, "/qn"
-	(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
-	echo "################################################# GStreamer installation completed ###################################################"
+	if ($GSTREAMER_INSTALL_MODE -eq "fresh") {
+		if (Test-Path $GSTREAMER_DEST_FOLDER) {
+			echo "Removing existing GStreamer directory remnants before installation..."
+			Remove-Item -LiteralPath $GSTREAMER_DEST_FOLDER -Recurse -Force
+		}
+
+		echo "Installing GStreamer runtime package..."
+		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_RUNTIME_INSTALLER, "/qn"
+		echo "Installing GStreamer development package..."
+		Start-Process -Wait -FilePath "msiexec" -ArgumentList "/passive", "INSTALLDIR=C:\gstreamer", "/i", $GSTREAMER_DEVEL_INSTALLER, "/qn"
+		(Get-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc).Replace('-lm', '') | Set-Content C:\gstreamer\1.0\msvc_x86_64\lib\pkgconfig\gstreamer-analytics-1.0.pc
+		echo "################################################# GStreamer installation completed ###################################################"
+	} elseif ($GSTREAMER_INSTALL_MODE -eq "reinstall") {
+		Write-Host "#############################################################################################"
+		Write-Host "Detected existing GStreamer installation that doesn't match the required version ${GSTREAMER_VERSION}."
+		Write-Host "Automatic installation is paused until the current GStreamer is removed."
+		Write-Host "Please uninstall the existing GStreamer from 'Apps & Features' (Control Panel)."
+		Write-Host "The required installers have been downloaded for you and will be reused on the next run:"
+		Write-Host "  - Runtime: $GSTREAMER_RUNTIME_INSTALLER"
+		Write-Host "  - Development: $GSTREAMER_DEVEL_INSTALLER"
+		Write-Host "After uninstalling, rerun this script — the new version will install automatically."
+		Write-Host "#############################################################################################"
+		exit 1
+	} else {
+		Write-Warning "Internal state error: unknown GStreamer install mode '$GSTREAMER_INSTALL_MODE'."
+		exit 1
+	}
 } else {
 	Write-Host "################################# GStreamer ${GSTREAMER_VERSION} already installed ##################################"
 }
