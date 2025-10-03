@@ -8,7 +8,7 @@ param(
 	[switch]$useInternalProxy
 )
 
-$GSTREAMER_VERSION = "1.26.6"
+$GSTREAMER_VERSION = "1.26.1"
 $OPENVINO_VERSION = "2025.3"
 $OPENVINO_DEST_FOLDER = "C:\\openvino"
 $GSTREAMER_DEST_FOLDER = "C:\\gstreamer"
