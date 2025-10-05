@@ -247,7 +247,9 @@ class ModelManager:
         self,
         job_id: str,
         model_path: str,
+        model_name: str,
         hub: str,
+        hf_token: str,
         output_dir: Optional[str] = None,
         converter: Optional[str] = None,
         **kwargs,
@@ -308,8 +310,10 @@ class ModelManager:
                 model_path=model_path,
             )
 
+            logger.info(f"Request details: {model_path}, {hub}, {kwargs}")
+
             result = convert_plugin.convert(
-                model_path, output_dir, progress_callback=progress_callback, **kwargs
+                model_name, output_dir, progress_callback=progress_callback,hf_token=hf_token, **kwargs
             )
 
             # Update job status
@@ -533,7 +537,7 @@ class ModelManager:
         model_name = os.path.basename(model_path)
         job_id = self.register_job("convert", model_name, output_dir, converter)
         return self.process_conversion(
-            job_id, model_path, output_dir, converter, **kwargs
+            job_id=job_id, model_path=model_path, model_name=model_name, output_dir=output_dir, converter=converter, **kwargs
         )
 
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:

@@ -22,6 +22,8 @@ ENV PATH="/root/.local/bin:$PATH"
 # Install Ollama
 RUN curl -fsSL https://ollama.com/install.sh | sh
 
+
+
 # Copy only the Poetry configuration files first to leverage Docker caching
 COPY pyproject.toml poetry.lock /app/
 
@@ -52,7 +54,7 @@ RUN groupadd -g ${GID} appuser && \
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
-# Copy the application files into the container
+
 COPY . /app
 
 WORKDIR /app

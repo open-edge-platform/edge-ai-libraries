@@ -34,7 +34,7 @@ source scripts/setup_model_path.sh
 docker compose -f docker/compose.yaml up --build
 ```
 
-The service will be available at `http://localhost:32004/api/v1`
+The service will be available at `http://localhost:8200/api/v1/docs`
 
 ## API Documentation
 

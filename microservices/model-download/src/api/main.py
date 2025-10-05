@@ -114,10 +114,11 @@ async def download_models(
 
             if needs_conversion:
                 # Get configuration for conversion
+                extra_kwargs["token"] = Authorization.credentials if Authorization else None
                 config = model.config.dict() if model.config else {}
 
                 # Create a unique output directory for the converted model
-                convert_output_dir = os.path.join(
+                convert_output_dir = os.path.join( "models",
                     download_path,
                     "openvino_models",
                     config['device'],
@@ -140,13 +141,15 @@ async def download_models(
                 background_tasks.add_task(
                     model_manager.process_conversion,
                     job_id=convert_job_id,
+                    #hf_token=
                     model_path=download_path,
                     hub=model.hub,
                     output_dir=convert_output_dir,
                     converter="openvino",
                     model_name=model.name,
                     model_type=model.type,
-                    **config
+                    **config,
+                    hf_token=extra_kwargs["token"]
                 )
 
         # Return response immediately with job IDs

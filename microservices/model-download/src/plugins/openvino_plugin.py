@@ -25,7 +25,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Check if the hub is openvino or if is_ovms is True
         return hub.lower() == "huggingface" or kwargs.get("is_ovms", False)
 
-    def convert(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def convert(self, model_name: str, output_dir: str, hf_token: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
@@ -37,7 +37,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
         weight_format = config.get("precision", kwargs.get("weight_format", "fp16"))
-        huggingface_token = kwargs.get("hf_token")
+        huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))
@@ -132,45 +132,54 @@ class OpenVINOConverter(ModelDownloadPlugin):
             raise RuntimeError(
                 "Failed to authenticate with Hugging Face. Please check your token."
             )
-        logger.info("Starting to install required packages...")           
+        #logger.info("Starting to install required packages...")           
         # Step 1: Create a virtual environment if it doesn't exist
-        venv_path = os.path.join(os.getcwd(), ".venv")
-        venv_python = os.path.join(venv_path, "bin", "python")
-        venv_pip = os.path.join(venv_path, "bin", "pip")
+        #venv_path = os.path.join(os.getcwd(), ".venv")
+        #venv_python = os.path.join(venv_path, "bin", "python")
+        #venv_pip = os.path.join(venv_path, "bin", "pip")
         
-        if not os.path.exists(venv_path):
-            logger.info(f"Creating virtual environment at {venv_path}...")
-            try:
-                subprocess.run(["python3", "-m", "venv", venv_path], check=True)
-                logger.info("Virtual environment created successfully.")
-            except subprocess.CalledProcessError as e:
-                raise RuntimeError(f"Failed to create virtual environment: {str(e)}")
-        else:
-            logger.info(f"Virtual environment already exists at {venv_path}")
+        # Delete existing venv if it exists
+        # if os.path.exists(venv_path):
+        #     logger.info(f"Removing existing virtual environment at {venv_path}...")
+        #     try:
+        #         subprocess.run(["rm", "-rf", venv_path], check=True)
+        #         logger.info("Existing virtual environment removed successfully.")
+        #     except subprocess.CalledProcessError as e:
+        #         raise RuntimeError(f"Failed to remove existing virtual environment: {str(e)}")
+        
+        # Create new virtual environment
+        # logger.info(f"Creating fresh virtual environment at {venv_path}...")
+        # try:
+        #     subprocess.run(["python3", "-m", "venv", venv_path], check=True)
+        #     logger.info("Virtual environment created successfully.")
+        # except subprocess.CalledProcessError as e:
+        #     raise RuntimeError(f"Failed to create virtual environment: {str(e)}")
         
         # Step 2: Install dependencies in the virtual environment
-        logger.info("Installing required packages in virtual environment...")
-        try:
-            requirements_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt"
-            subprocess.run(
-            f"{venv_pip} install -r {requirements_url} --no-cache-dir",
-            shell=True,
-            check=True
-            )
-            logger.info("Dependencies installed successfully.")
-        except subprocess.CalledProcessError as e:
-            raise RuntimeError(f"Failed to install dependencies: {str(e)}")
+        # logger.info("Installing required packages in virtual environment...")
+        # try:
+        #     requirements_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt"
+        #     subprocess.run(
+        #         ["pip3", "install","-r", requirements_url],
+        #     check=True,
+        #     text=True,
+        #     capture_output=True
+        #     )
+
+        #     logger.info("Dependencies installed successfully.")
+        # except subprocess.CalledProcessError as e:
+        #     raise RuntimeError(f"Failed to install dependencies: {str(e)}")
         
         # Step 3: Download the export_model.py script
         logger.info("Checking for export_model.py script...")
         export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
         
-        export_script_path = os.path.join(model_directory, "export_model.py")
-        if not os.path.exists(export_script_path):
-            logger.info(f"Downloading export_model.py script to {export_script_path}...")
+        #export_script_path = os.path.join(model_directory, "export_model.py")
+        if not os.path.exists("export_model.py"):
+            logger.info(f"Downloading export_model.py script...")
             try:
-                os.makedirs(os.path.dirname(export_script_path), exist_ok=True)
-                subprocess.run(["curl","-v", export_script_path, export_script_url], check=True,shell=True,text=True)
+                #os.makedirs(os.path.dirname(export_script_path), exist_ok=True)
+                subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to download export script: {str(e)}")
         else:
@@ -184,7 +193,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         
         # Build command with Python from the virtual environment
         command = [
-            venv_python, export_script_path, export_type,
+            "python3", "export_model.py", export_type,
             "--source_model", model_name,
             "--weight-format", weight_format,
             "--config_file_path", f"{model_directory}/config.json",
@@ -192,13 +201,20 @@ class OpenVINOConverter(ModelDownloadPlugin):
             "--target_device", target_device
         ]
 
+        # command_bash = f"""
+        #     curl -o export_model.py https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py && \
+        #     python3 export_model.py {export_type} --source_model {model_name} --weight-format {weight_format} --config_file_path {model_directory}/config.json --model_repository_path {model_directory} --target_device {target_device}
+        # """
         # Add optional parameters if provided
         if export_type == "text_generation" and cache_size is not None:
-            command += ["--cache_size", str(cache_size)]
+            command += ["--cache_size", cache_size]
 
-        logger.info(f"Executing command with virtual environment: {' '.join(command)}")
+        logger.info(f"Executing command with virtual environment: {command}")
         try:
-            subprocess.run(command, check=True)
+            result = subprocess.run(command, check=True, text=True)
+            logger.info(f"Model conversion output: {result.stdout}")
+            if result.stderr:
+                logger.warning(f"Model conversion warnings/errors: {result.stderr}")    
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
                 f"Model conversion failed: {str(e)}. Check if the model is compatible with the specified format and device."
