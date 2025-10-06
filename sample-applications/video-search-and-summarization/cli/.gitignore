@@ -1,0 +1,12 @@
+# Binaries
+video-summarizer-cli
+go.sum
+*.exe
+*.out
+*.test
+
+# Dependency directories
+vendor/
+data/
+logs/
+runs/
