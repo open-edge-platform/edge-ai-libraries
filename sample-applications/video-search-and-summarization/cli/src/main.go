@@ -105,12 +105,12 @@ func initialModel() model {
 		chunkDuration:     appConfig.ChunkDuration, // Use chunk duration from YAML config
 		samplingFrame:     appConfig.SamplingFrame, // Use sampling frame from YAML config
 		progressBar:       progress.New(progress.WithDefaultGradient()),
-		scrollPosition:    0,    // Start at the top of content
-		termHeight:        24,   // Default terminal height 
-		termWidth:         80,   // Default terminal width 
-		lastContentLen:    0,    // Initialize content length tracker
-		frameSummaryCount: 0,    // Initialize frame summary counter
-		askToExit: false, // Initialize askToExit flag
+		scrollPosition:    0,     // Start at the top of content
+		termHeight:        24,    // Default terminal height
+		termWidth:         80,    // Default terminal width
+		lastContentLen:    0,     // Initialize content length tracker
+		frameSummaryCount: 0,     // Initialize frame summary counter
+		askToExit:         false, // Initialize askToExit flag
 	}
 }
 
@@ -166,6 +166,8 @@ func uploadVideoCmd(videoPath string, chunkDuration int, samplingFrame int) tea.
 			return uploadMsg{err: fmt.Errorf("video upload returned empty VideoId")}
 		}
 
+		multiFrameWindow := appConfig.MultiFrameWindow()
+
 		summaryDTO := SummaryPipelineDTO{
 			VideoID: videoRO.VideoId,
 			Title:   "Video Summary",
@@ -173,7 +175,7 @@ func uploadVideoCmd(videoPath string, chunkDuration int, samplingFrame int) tea.
 				ChunkDuration: chunkDuration,
 				SamplingFrame: samplingFrame,
 				FrameOverlap:  appConfig.OverlapOverride,
-				MultiFrame:    appConfig.MultiFrameOverride,
+				MultiFrame:    multiFrameWindow,
 			},
 			VideoIngestion: SummaryPipelineEvam{
 				EVAMPipeline: EVAMPipelines(appConfig.IngestionPipelineOverride),
@@ -597,7 +599,7 @@ func (m model) View() string {
 			}
 			statusOutput.WriteString("\nYou can re-run the CLI with the same config to process another video.\n")
 		}
-		
+
 		if m.askToExit {
 			statusOutput.WriteString("✅ Processing complete! Do you want to exit? (y/n)\n")
 		} else {
@@ -983,4 +985,3 @@ func (m model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 
 	return m, nil
 }
-

@@ -119,9 +119,7 @@ make build
 
 The CLI supports the following keyboard shortcuts:
 
-- `↑/↓`: Scroll content up/down by one line
-- `Home`: Scroll to the top of content
-- `End`: Scroll to the bottom of content
+- `↑/↓`: Scroll content up/down
 - `q`: Quit the application
 
 ## Configuration
@@ -132,7 +130,7 @@ The YAML configuration file (default: `./config/generic.yaml`) contains the foll
 chunkDuration: 20            # Duration of each video chunk in seconds
 samplingFrame: 5             # Frame sampling interval
 overlapOverride: 0           # Frame overlap between chunks
-multiFrameOverride: 5        # Multi-frame analysis setting
+# Multi-frame window is automatically set to samplingFrame + overlapOverride
 framePromptOverride: "Describe the scene in detail"  # Prompt for frame analysis
 mapPromptOverride: "Summarize these frame descriptions"  # Prompt for map phase
 reducePromptOverride: "Create a cohesive summary from these chunks"  # Prompt for reduce phase

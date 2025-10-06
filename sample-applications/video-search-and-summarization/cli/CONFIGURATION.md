@@ -46,6 +46,7 @@ The backend exposes its configuration, including all supported audio models, def
 - **Accuracy Impact**: Higher values (more frequent sampling) improve detection of short-duration events and small object motion but increase redundancy and processing cost. Higher values may miss short events.
 - **Performance Impact**: Linear scaling with number of frames analyzed. Doubling the `samplingFrame` roughly doubles frame processing time.
 - **Tuning Tips**: For high-motion or dense scenes (traffic, retail) use 8-15. For slow scenes use 3-8.
+- **Derived Setting**: The multi-frame window sent to the backend is automatically computed as `samplingFrame + overlapOverride`.
 
 ### `overlapOverride`
 - **Type**: `integer` (frames)
@@ -54,11 +55,6 @@ The backend exposes its configuration, including all supported audio models, def
 - **Accuracy Impact**: Small positive overlap (1–5s worth of frames) reduces boundary artifacts and missed short events.
 - **Performance Impact**: Overlap increases total frames processed (duplicated across chunk boundaries).
 - **Tuning Tips**: Use 0–2s overlap for most cases. For unpredictable short events that happen near cuts, use 3–5s.
-
-### `multiFrameOverride`
-- **Type**: `integer`
-- **Default**: `5`
-- **Meaning**: Number of nearby frames aggregated together for multi-frame analysis. This value should be the sum of `samplingFrame` and `overlapOverride`.
 
 ### `framePromptOverride`
 - **Type**: `string`

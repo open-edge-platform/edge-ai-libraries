@@ -6,7 +6,7 @@ samplingFrame: 6          # Frame sampling rate (analyze every Nth frame)
 
 # Advanced override settings
 overlapOverride: 0         # Seconds of overlap between consecutive video chunks
-multiFrameOverride: 6      # Number of frames to process together for multi-frame analysis. Should be the sum of samplingFrame and overlapOverride. This is dependent on VSS Setup and models used.
+# Multi-frame window is derived as samplingFrame + overlapOverride.
 
 # Generates detailed captions for multi-frame batches using VLM.
 framePromptOverride: |
@@ -50,7 +50,7 @@ ingestionPipelineOverride: "object_detection"
 videoPath: "resources/ceramic_store.mp4"
 
 # Backend endpoint for video processing
-backendEndpoint: "http://10.223.23.199:12345"  
+backendEndpoint: "http://localhost:12345"
 
 # Enable debug mode for detailed logging
 debug: true

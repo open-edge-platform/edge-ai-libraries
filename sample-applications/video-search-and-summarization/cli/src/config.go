@@ -6,19 +6,28 @@ package main
 import "github.com/charmbracelet/bubbles/progress"
 
 type Config struct {
-	ChunkDuration        int    `yaml:"chunkDuration"`
-	SamplingFrame        int    `yaml:"samplingFrame"`
-	OverlapOverride      int    `yaml:"overlapOverride"`
-	MultiFrameOverride   int    `yaml:"multiFrameOverride"`
-	FramePromptOverride  string `yaml:"framePromptOverride"`
-	MapPromptOverride    string `yaml:"mapPromptOverride"`
-	ReducePromptOverride string `yaml:"reducePromptOverride"`
-	SinglePromptOverride string `yaml:"singlePromptOverride"`
+	ChunkDuration             int    `yaml:"chunkDuration"`
+	SamplingFrame             int    `yaml:"samplingFrame"`
+	OverlapOverride           int    `yaml:"overlapOverride"`
+	FramePromptOverride       string `yaml:"framePromptOverride"`
+	MapPromptOverride         string `yaml:"mapPromptOverride"`
+	ReducePromptOverride      string `yaml:"reducePromptOverride"`
+	SinglePromptOverride      string `yaml:"singlePromptOverride"`
 	IngestionPipelineOverride string `yaml:"ingestionPipelineOverride"`
-	AudioModelOverride   string `yaml:"audioModelOverride"`
-	VideoPath            string `yaml:"videoPath"`
-	Debug                bool   `yaml:"debug"`           // Field to control debug logs
-	BackendEndpoint      string `yaml:"backendEndpoint"` // New field for backend API URL
+	AudioModelOverride        string `yaml:"audioModelOverride"`
+	VideoPath                 string `yaml:"videoPath"`
+	Debug                     bool   `yaml:"debug"`           // Field to control debug logs
+	BackendEndpoint           string `yaml:"backendEndpoint"` // New field for backend API URL
+}
+
+// MultiFrameWindow returns the number of frames processed together for multi-frame analysis.
+// The value is derived from sampling frame and overlap settings to keep inputs consistent.
+func (c Config) MultiFrameWindow() int {
+	multiFrame := c.SamplingFrame + c.OverlapOverride
+	if multiFrame < 0 {
+		return 0
+	}
+	return multiFrame
 }
 
 // model holds the state for the Bubbletea program
@@ -34,19 +43,19 @@ type model struct {
 	videoID        string
 	err            error        // Any error encountered during processing
 	status         statusResult // Store the latest statusResult for display
-	jsonLogPath    string // Path to saved JSON log file (set when processing completes)
-	markdownPath   string // Path to saved Markdown summary file (set when processing completes)
+	jsonLogPath    string       // Path to saved JSON log file (set when processing completes)
+	markdownPath   string       // Path to saved Markdown summary file (set when processing completes)
 
 	// Add a progress bar to the model
 	progressBar progress.Model
 
 	// State for scrolling
-	scrollPosition    int  // Current scroll position (line number)
-	contentHeight     int  // Total height of scrollable content
-	termHeight        int  // Terminal height for viewport calculations
-	termWidth         int  // Terminal width for viewport calculations
-	lastContentLen    int  // Track content length to detect new content
-	frameSummaryCount int  // Track number of Chunk Summaries
+	scrollPosition    int // Current scroll position (line number)
+	contentHeight     int // Total height of scrollable content
+	termHeight        int // Terminal height for viewport calculations
+	termWidth         int // Terminal width for viewport calculations
+	lastContentLen    int // Track content length to detect new content
+	frameSummaryCount int // Track number of Chunk Summaries
 
 	// New field to control debug logs
 	askToExit bool // Flag to show exit confirmation prompt
@@ -101,13 +110,13 @@ type VideoUploadMsg struct {
 
 // pollMsg is a message sent after polling the status endpoint.
 type pollMsg struct {
-	progress    int
-	done        bool
-	summary     string
-	err         error
-	Status      *statusResult // Embed the latest status for display
-	completeLog bool          // Flag to indicate when log has been saved
-	backoffTime int           // Time to wait before next poll (in seconds)
-	jsonLogPath  string       // Path to JSON log file when done
-	markdownPath string       // Path to Markdown summary file when done
+	progress     int
+	done         bool
+	summary      string
+	err          error
+	Status       *statusResult // Embed the latest status for display
+	completeLog  bool          // Flag to indicate when log has been saved
+	backoffTime  int           // Time to wait before next poll (in seconds)
+	jsonLogPath  string        // Path to JSON log file when done
+	markdownPath string        // Path to Markdown summary file when done
 }
