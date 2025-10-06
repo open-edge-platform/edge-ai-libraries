@@ -84,27 +84,27 @@ make build
    
    - With default config:
      ```
-     ./video-summarizer
+     ./video-summarizer-cli
      ```
    
    - With video path specified via flag (overrides config):
      ```
-     ./video-summarizer --video=/path/to/your/video.mp4
+     ./video-summarizer-cli --video=/path/to/your/video.mp4
      ```
    
    - With a specific use case config (retail analysis):
      ```
-     ./video-summarizer --config=./config/retail.yaml
+     ./video-summarizer-cli --config=./config/retail.yaml
      ```
    
    - With traffic monitoring config:
      ```
-     ./video-summarizer --config=./config/traffic.yaml
+     ./video-summarizer-cli --config=./config/traffic.yaml
      ```
    
    - With your custom config file:
      ```
-     ./video-summarizer --config=./config/my-custom-config.yaml
+     ./video-summarizer-cli --config=./config/my-custom-config.yaml
      ```
 
 3. The CLI will automatically:
@@ -163,7 +163,7 @@ To create a custom configuration:
 
 3. Use your custom configuration:
    ```bash
-   ./video-summarizer --config=./config/my-usecase.yaml
+   ./video-summarizer-cli --config=./config/my-usecase.yaml
    ```
 
 > NOTE : For more details on the configuration parameters, please refer to the [Configuration Documentation](./CONFIGURATION.md).
