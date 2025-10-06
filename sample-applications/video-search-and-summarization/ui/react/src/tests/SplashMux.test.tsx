@@ -5,7 +5,7 @@ import { render, screen, fireEvent } from '@testing-library/react';
 import { Provider } from 'react-redux';
 import { configureStore } from '@reduxjs/toolkit';
 import { SplashSummarySearch } from '../components/MainPage/SplashMux';
-import { UISlice } from '../redux/ui/ui.slice';
+import { UISlice, initialState as uiInitialState } from '../redux/ui/ui.slice';
 import { MuxFeatures } from '../redux/ui/ui.model';
 
 // Mock the sub-components to focus on SplashMux logic
@@ -24,6 +24,7 @@ const createTestStore = (selectedMux = MuxFeatures.SUMMARY) => {
     },
     preloadedState: {
       ui: {
+        ...uiInitialState,
         selectedMux,
         promptEditing: null, // Can be null according to the interface
       },
