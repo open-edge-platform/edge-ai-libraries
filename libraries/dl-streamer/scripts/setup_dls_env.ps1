@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-$GSTREAMER_VERSION = "1.26.1"
+$GSTREAMER_VERSION = "1.26.6"
 $OPENVINO_VERSION = "2025.3"
 $GSTREAMER_DEST_FOLDER = "C:\\gstreamer"
 $OPENVINO_DEST_FOLDER = "C:\\openvino"
