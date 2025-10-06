@@ -21,7 +21,7 @@ cd C:\\dlstreamer_dlls
 ```
 
 > **NOTE:** There can be an execution policy on your system which does not allow to execute
-> PowerShell scripts. If you encouter such situation, policy can be securyly changed in open
+> PowerShell scripts. If you encounter such situation, policy can be securely changed in open
 > terminal with the following PowerShell command: `Set-ExecutionPolicy -Scope Process -ExecutionPolicy Bypass`
 
 You are ready to use Deep Learning Streamer. For further instructions to run
