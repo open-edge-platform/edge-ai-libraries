@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect } from 'vitest';
 import { UIActions, initialState, uiSelector, UIReducer } from '../redux/ui/ui.slice';
-import { UISliceState, OpenPromptModal, PromptEditing } from '../redux/ui/ui.model';
+import { UISliceState, OpenPromptModal, PromptEditing, MuxFeatures } from '../redux/ui/ui.model';
 
 describe('UISlice test suite', () => {
   describe('Initial State', () => {
@@ -16,7 +16,9 @@ describe('UISlice test suite', () => {
     it('should have proper initialState export', () => {
       expect(initialState).toEqual({
         promptEditing: null,
-        selectedMux: 1,
+        selectedMux: MuxFeatures.SUMMARY,
+        groupByTag: false,
+        showVideoGroups: false,
       });
     });
   });
@@ -116,7 +118,9 @@ describe('UISlice test suite', () => {
             submitValue: 'old-submit-value',
             vars: ['%oldVar%'],
           },
-          selectedMux: 1,
+          selectedMux: MuxFeatures.SUMMARY,
+          groupByTag: false,
+          showVideoGroups: false,
         };
 
         const newPromptPayload: OpenPromptModal = {
@@ -145,7 +149,9 @@ describe('UISlice test suite', () => {
             submitValue: null,
             vars: [],
           },
-          selectedMux: 1,
+          selectedMux: MuxFeatures.SUMMARY,
+          groupByTag: false,
+          showVideoGroups: false,
         };
 
         const state = UIReducer(initialPromptState, UIActions.submitPromptModal('submitted value'));
@@ -173,7 +179,9 @@ describe('UISlice test suite', () => {
             submitValue: 'old value',
             vars: [],
           },
-          selectedMux: 1,
+          selectedMux: MuxFeatures.SUMMARY,
+          groupByTag: false,
+          showVideoGroups: false,
         };
 
         const state = UIReducer(initialPromptState, UIActions.submitPromptModal('new value'));
@@ -192,7 +200,9 @@ describe('UISlice test suite', () => {
             submitValue: 'submit value',
             vars: ['%var%'],
           },
-          selectedMux: 1,
+          selectedMux: MuxFeatures.SUMMARY,
+          groupByTag: false,
+          showVideoGroups: false,
         };
 
         const state = UIReducer(initialPromptState, UIActions.closePrompt());
@@ -223,7 +233,9 @@ describe('UISlice test suite', () => {
           modalHeading: '',
           modalPrompt: '',
           modalPromptVars: [],
-          selectedMux: 1,
+          selectedMux: initialState.selectedMux,
+          groupByTag: initialState.groupByTag,
+          showVideoGroups: initialState.showVideoGroups,
         });
       });
 
@@ -237,7 +249,7 @@ describe('UISlice test suite', () => {
         };
 
         const mockState = {
-          ui: { promptEditing: promptEditingState },
+          ui: { ...initialState, promptEditing: promptEditingState },
         } as any;
         
         const selectedData = uiSelector(mockState);
@@ -248,6 +260,9 @@ describe('UISlice test suite', () => {
           modalHeading: 'Selector Heading',
           modalPrompt: 'Selector prompt with %var1% and %var2%',
           modalPromptVars: ['%var1%', '%var2%'],
+          selectedMux: initialState.selectedMux,
+          groupByTag: initialState.groupByTag,
+          showVideoGroups: initialState.showVideoGroups,
         });
       });
 
@@ -261,7 +276,7 @@ describe('UISlice test suite', () => {
         };
 
         const mockState = {
-          ui: { promptEditing: promptEditingState },
+          ui: { ...initialState, promptEditing: promptEditingState },
         } as any;
         
         const selectedData = uiSelector(mockState);
@@ -272,6 +287,9 @@ describe('UISlice test suite', () => {
           modalHeading: 'Partial Heading',
           modalPrompt: 'Partial prompt',
           modalPromptVars: [],
+          selectedMux: initialState.selectedMux,
+          groupByTag: initialState.groupByTag,
+          showVideoGroups: initialState.showVideoGroups,
         });
       });
     });

@@ -9,7 +9,7 @@ import { configureStore } from '@reduxjs/toolkit';
 
 import PromptInputModal from '../components/Modals/PromptInputModal.tsx';
 import i18n from '../utils/i18n';
-import { UIReducer } from '../redux/ui/ui.slice.ts';
+import { UIReducer, initialState as uiInitialState } from '../redux/ui/ui.slice.ts';
 import { PromptEditing } from '../redux/ui/ui.model.ts';
 
 
@@ -21,8 +21,8 @@ const createMockStore = (promptEditing: PromptEditing | null = null) => {
     },
     preloadedState: {
       ui: {
+        ...uiInitialState,
         promptEditing,
-        selectedMux: 1,
       },
     },
   });

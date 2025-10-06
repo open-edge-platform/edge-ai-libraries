@@ -49,10 +49,12 @@ describe('UI Model Interfaces', () => {
         vars: ['testVar'],
       };
 
-      const uiState = {
-        promptEditing: promptEditing,
+      const uiState: UISliceState = {
+        promptEditing,
         selectedMux: MuxFeatures.SUMMARY,
-      } as UISliceState;
+        groupByTag: false,
+        showVideoGroups: false,
+      };
       
       expect(uiState.promptEditing).toBe(promptEditing);
       expect(uiState.promptEditing?.open).toBe('state-test');
@@ -63,6 +65,8 @@ describe('UI Model Interfaces', () => {
       const uiState: UISliceState = {
         promptEditing: null,
         selectedMux: MuxFeatures.SEARCH,
+        groupByTag: false,
+        showVideoGroups: false,
       };
 
       expect(uiState.promptEditing).toBeNull();
