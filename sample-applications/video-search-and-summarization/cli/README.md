@@ -175,3 +175,11 @@ The CLI automatically saves the following files:
 1. **Log files**: Detailed application logs in `./logs/cli_TIMESTAMP.log`
 2. **JSON data**: Complete API response data in `./runs/CONFIG_TIMESTAMP.json`
 3. **Markdown summary**: Formatted summary in `./runs/CONFIG_TIMESTAMP.md`
+
+## Known Issues
+
+- **Real-time scrolling**: Scrolling with `↑/↓` may feel jumpy when new summaries arrive from the backend. Use saved outputs in `runs/` to review completed content, or wait for processing to complete before scrolling.
+
+- **Minimal input validation**: The CLI performs basic validation of YAML configs and backend responses. Invalid values may cause unexpected behavior. Use example configs in `config/` as templates and verify your backend supports the specified options via `/manager/app/config`.
+
+For issues not covered here, capture logs from `logs/` and report them with your config file to help reproduce and prioritize fixes.

@@ -275,29 +275,23 @@ func saveMarkdownToFile(status statusResult, configFilePath string) (string, err
 	if len(status.FrameSummaries) > 0 {
 		mdContent.WriteString("## Chunk Summaries\n\n")
 
+		frameToChunk := buildFrameChunkMap(status.Frames)
+
 		for i, summary := range status.FrameSummaries {
-			startFrameID := summary.StartFrame
-			endFrameID := summary.EndFrame
-
-			// Find timestamps for the frames
-			startTS := 0.0
-			endTS := 0.0
-
-			for _, frame := range status.Frames {
-				if frame["frameId"] == startFrameID {
-					startTS, _ = frame["videoTimeStamp"].(float64)
-				}
-				if frame["frameId"] == endFrameID {
-					endTS, _ = frame["videoTimeStamp"].(float64)
-					endTS += 1
-				}
+			// Determine chunk association and build heading label
+			chunkID := getChunkIDForSummary(summary, frameToChunk)
+			heading := ""
+			if chunkID != "" {
+				heading = fmt.Sprintf("Chunk %s", chunkID)
+			} else {
+				startTS := getFrameTimeStamp(summary.StartFrame, status.Frames)
+				endTS := getFrameTimeStamp(summary.EndFrame, status.Frames) + 1
+				timeRange := fmt.Sprintf("%s - %s", formatTime(startTS), formatTime(endTS))
+				heading = fmt.Sprintf("Time Range: %s", timeRange)
 			}
 
-			// Format the timestamp range
-			timeRange := fmt.Sprintf("%s - %s", formatTime(startTS), formatTime(endTS))
-
-			// Add heading with time range
-			mdContent.WriteString(fmt.Sprintf("### %d. Time Range: %s\n\n", i+1, timeRange))
+			// Add heading based on chunk or fallback to time range
+			mdContent.WriteString(fmt.Sprintf("### %d. %s\n\n", i+1, heading))
 
 			// Add the summary text
 			cleanSummary := strings.TrimSpace(summary.Summary)
@@ -359,6 +353,71 @@ func formatTime(seconds float64) string {
 	minutes := int(seconds) / 60
 	secs := int(seconds) % 60
 	return fmt.Sprintf("%02d:%02d", minutes, secs)
+}
+
+// valueToString safely converts interface values into strings
+func valueToString(value interface{}) string {
+	if value == nil {
+		return ""
+	}
+
+	switch v := value.(type) {
+	case string:
+		return v
+	case json.Number:
+		return v.String()
+	case fmt.Stringer:
+		return v.String()
+	case int:
+		return fmt.Sprintf("%d", v)
+	case int64:
+		return fmt.Sprintf("%d", v)
+	case float64:
+		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%f", v), "0"), ".")
+	case float32:
+		return strings.TrimRight(strings.TrimRight(fmt.Sprintf("%f", v), "0"), ".")
+	default:
+		return fmt.Sprintf("%v", v)
+	}
+}
+
+// buildFrameChunkMap creates lookup map from frame ID to chunk ID
+func buildFrameChunkMap(frames []map[string]interface{}) map[string]string {
+	frameToChunk := make(map[string]string, len(frames))
+
+	for _, frame := range frames {
+		frameID := valueToString(frame["frameId"])
+		chunkID := valueToString(frame["chunkId"])
+
+		if frameID != "" && chunkID != "" {
+			frameToChunk[frameID] = chunkID
+		}
+	}
+
+	return frameToChunk
+}
+
+// getChunkIDForSummary determines the chunk ID associated with a given frame summary
+func getChunkIDForSummary(summary FrameSummary, frameToChunk map[string]string) string {
+	for _, frameID := range summary.Frames {
+		if chunkID, ok := frameToChunk[frameID]; ok && chunkID != "" {
+			return chunkID
+		}
+	}
+
+	if summary.StartFrame != "" {
+		if chunkID, ok := frameToChunk[summary.StartFrame]; ok && chunkID != "" {
+			return chunkID
+		}
+	}
+
+	if summary.EndFrame != "" {
+		if chunkID, ok := frameToChunk[summary.EndFrame]; ok && chunkID != "" {
+			return chunkID
+		}
+	}
+
+	return ""
 }
 
 // wrapText wraps text to fit within a specified width
@@ -436,29 +495,22 @@ func (m model) generateContentText() string {
 	if len(m.status.FrameSummaries) > 0 {
 		rawContentBuilder.WriteString("📝 Chunk Summaries\n\n")
 
+		frameToChunk := buildFrameChunkMap(m.status.Frames)
+
 		for i, summary := range m.status.FrameSummaries {
-			startFrameID := summary.StartFrame
-			endFrameID := summary.EndFrame
-
-			// Find timestamps for the frames
-			startTS := 0.0
-			endTS := 0.0
-
-			for _, frame := range m.status.Frames {
-				if frame["frameId"] == startFrameID {
-					startTS, _ = frame["videoTimeStamp"].(float64)
-				}
-				if frame["frameId"] == endFrameID {
-					endTS, _ = frame["videoTimeStamp"].(float64)
-					endTS += 1
-				}
+			chunkID := getChunkIDForSummary(summary, frameToChunk)
+			heading := ""
+			if chunkID != "" {
+				heading = fmt.Sprintf("Chunk %s", chunkID)
+			} else {
+				startTS := getFrameTimeStamp(summary.StartFrame, m.status.Frames)
+				endTS := getFrameTimeStamp(summary.EndFrame, m.status.Frames) + 1
+				timeRange := fmt.Sprintf("%s - %s", formatTime(startTS), formatTime(endTS))
+				heading = fmt.Sprintf("Time Range: %s", timeRange)
 			}
 
-			// Format the timestamp range and include it directly in the heading
-			timeRange := fmt.Sprintf("%s - %s", formatTime(startTS), formatTime(endTS))
-
-			// Add heading with time range
-			rawContentBuilder.WriteString(fmt.Sprintf("%d. Time Range: %s\n\n", i+1, timeRange))
+			// Add heading with chunk identifier or fallback to time range
+			rawContentBuilder.WriteString(fmt.Sprintf("%d. %s\n\n", i+1, heading))
 
 			// Clean summary text to prevent possible duplication
 			cleanSummary := strings.TrimSpace(summary.Summary)
