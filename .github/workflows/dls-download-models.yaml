@@ -260,5 +260,5 @@ jobs:
     - name: Schedule reboot
       if: always()
       run: |
-        echo "Scheduling reboot in 30 seconds..."
-        sudo /usr/local/bin/reboot_runner.sh 30
+        echo "Scheduling reboot in 15 seconds..."
+        sudo /usr/local/bin/reboot_runner.sh 15

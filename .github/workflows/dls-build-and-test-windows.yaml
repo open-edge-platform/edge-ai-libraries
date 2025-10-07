@@ -116,4 +116,4 @@ jobs:
       if: always()
       shell: powershell
       run: |
-        Start-Job { Start-Sleep -Seconds 30; Restart-Computer -Force }
+        Start-Job { Start-Sleep -Seconds 15; Restart-Computer -Force }
