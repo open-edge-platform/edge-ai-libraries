@@ -3,17 +3,21 @@
 
 FROM python:3.12.10-slim AS build
 
-RUN pip install poetry
+ARG USER_ID=1000
+ARG USER_GROUP_ID=1000
+
+RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+
+RUN pip install poetry==2.1.3
 
 RUN poetry config virtualenvs.create false
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN poetry install --no-root
+RUN poetry lock && poetry install --no-root
 
 COPY . .
-RUN mkdir -p /tmp/watcher-dir
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false
@@ -47,6 +51,10 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         done; \
         apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
+    
+RUN mkdir -p /tmp/watcher-dir && chmod 775 /tmp/watcher-dir && chown -R appuser:appuser /app
+
+USER appuser
 
 EXPOSE 8000
 

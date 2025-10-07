@@ -6,13 +6,13 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-      target: prod 
+      target: prod
     image: ${REGISTRY:-}audio-analyzer:${TAG:-latest}
     ports:
       - "8000:8000"
     volumes:
-      - audio_analyzer_data:/models
-      - audio_analyzer_data:/data
+      - audio_analyzer_data:/home/appuser/models
+      - audio_analyzer_data:/home/appuser/data
       - /dev/dri:/dev/dri
     environment:
       - http_proxy

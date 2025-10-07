@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Controller, Get, Param } from '@nestjs/common';
 import { StateService } from './services/state.service';
 import { UiService } from './services/ui.service';

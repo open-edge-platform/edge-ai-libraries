@@ -77,6 +77,17 @@ def prepare_video_and_constants(
     if os.path.exists(video_output_path):
         os.remove(video_output_path)
 
+    # Discover the video codec of the input video
+    input_video_codec = discover_video_codec(input_video_player)
+    if input_video_codec == "unknown":
+        raise ValueError(
+            "Could not detect the video codec of the input file. Please provide a valid video file."
+        )
+    if input_video_codec not in ["h264", "h265"]:
+        raise ValueError(
+            f"Input video codec '{input_video_codec}' is not supported. Please use a video with H.264 or H.265 codec."
+        )
+
     # Reset the FPS file
     with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
         f.write("0.0\n")
@@ -103,6 +114,7 @@ def prepare_video_and_constants(
 
     constants = {
         "VIDEO_PATH": input_video_player,
+        "VIDEO_CODEC": input_video_codec,
         "VIDEO_OUTPUT_PATH": video_output_path,
     }
 
@@ -195,10 +207,10 @@ def prepare_video_and_constants(
             )
         case "MobileNet V2 PyTorch (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
+                f"{MODELS_PATH}/omz/mobilenet-v2-pytorch/FP16/mobilenet-v2-pytorch.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/public/mobilenet-v2-pytorch/mobilenet-v2.json"
+                f"{MODELS_PATH}/omz/mobilenet-v2-pytorch/mobilenet-v2.json"
             )
         case "PaddleOCR (FP32)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
@@ -207,10 +219,10 @@ def prepare_video_and_constants(
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = ""
         case "Vehicle Attributes Recognition Barrier 0039 (FP16)":
             constants["OBJECT_CLASSIFICATION_MODEL_PATH"] = (
-                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
+                f"{MODELS_PATH}/omz/vehicle-attributes-recognition-barrier-0039/FP16/vehicle-attributes-recognition-barrier-0039.xml"
             )
             constants["OBJECT_CLASSIFICATION_MODEL_PROC"] = (
-                f"{MODELS_PATH}/intel/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
+                f"{MODELS_PATH}/omz/vehicle-attributes-recognition-barrier-0039/vehicle-attributes-recognition-barrier-0039.json"
             )
         case _:
             raise ValueError("Unrecognized Object Classification Model")
@@ -645,3 +657,30 @@ def is_yolov10_model(model_path: str) -> bool:
         bool: True if the model is a YOLO v10 model, False otherwise.
     """
     return "yolov10" in model_path.lower()
+
+
+def discover_video_codec(video_path: str) -> str:
+    """
+    Discovers the codec for the given video file.
+
+    Args:
+        video_path (str): Path to the video file.
+
+    Returns:
+        str: Video codec name (e.g., 'h264', 'h265', etc.).
+    """
+    cap = cv2.VideoCapture(video_path)
+    if not cap.isOpened():
+        logger.error(f"Cannot open video file: {video_path}")
+        return "unknown"
+    fourcc = int(cap.get(cv2.CAP_PROP_FOURCC))
+    cap.release()
+    # Decode the FOURCC integer into a 4-character string by extracting each byte.
+    video_codec = (
+        "".join([chr((fourcc >> 8 * i) & 0xFF) for i in range(4)]).strip().lower()
+    )
+    if "avc" in video_codec:
+        return "h264"
+    if "hevc" in video_codec:
+        return "h265"
+    return video_codec or "unknown"

@@ -14,41 +14,41 @@ x-vippet: &vippet
     interval: 30s
     timeout: 10s
     retries: 5
-  depends_on:
-    models:
-      condition: service_completed_successfully
   restart: on-failure:5
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
-    PIPELINE: smartnvr
+    MODELS_PATH: /home/dlstreamer/vippet/models
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}
-  env_file:
-    - path: '.public_models_env'
-      required: false
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
-    - ./models:/home/dlstreamer/vippet/models
+    - ./models/output:/home/dlstreamer/vippet/models
 
 services:
   models:
-    image: intel/dlstreamer:2025.1.2-ubuntu24
+    profiles: [do-not-start]
+    image: docker.io/intel/vippet-models:${DOCKER_TAG}
+    build:
+      context: models
+      dockerfile: Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    stdin_open: true
+    tty: true
     container_name: models
     volumes:
-      - ./models/:/output
-      - ./models.sh:/home/dlstreamer/models.sh
+      - ./models/output/:/output
     environment:
-      - MODELS_PATH=/output/
+      - MODELS_PATH=/output
+      - MODEL_INSTALLATION=${MODEL_INSTALLATION:-once}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
       - no_proxy=${no_proxy}
-    env_file:
-      - path: '.public_models_env'
-        required: false
-    command: './models.sh'
-    restart: on-failure:5
+    command: './model_manager.sh'
   vippet-cpu:
     <<: *vippet
     container_name: vippet-cpu
@@ -123,4 +123,3 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
-

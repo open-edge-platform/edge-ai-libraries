@@ -1,6 +1,6 @@
 # API Reference
 **Version: 1.0.3**
 
-```{eval-rst}
+<!--hide_directive```{eval-rst}
 .. swagger-plugin:: api-docs/openapi.yaml
-```
+```hide_directive-->

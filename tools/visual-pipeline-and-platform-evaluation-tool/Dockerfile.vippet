@@ -41,14 +41,17 @@ COPY --chown=dlstreamer:dlstreamer \
     app.css \
     benchmark.py \
     chart.py \
-    cleanup_models.sh \
     device.py \
     explore.py \
     gstpipeline.py \
+    models/supported_models.lst \
+    models.py \
     optimize.py \
     utils.py \
+    home.py \
+    pipelines/pipeline_page.py \
     /home/dlstreamer/vippet/
 
 COPY --chown=dlstreamer:dlstreamer pipelines/ /home/dlstreamer/vippet/pipelines
 
-CMD ["/bin/bash", "-c", "./cleanup_models.sh; python app.py"]
+CMD ["/bin/bash", "-c", "python app.py"]

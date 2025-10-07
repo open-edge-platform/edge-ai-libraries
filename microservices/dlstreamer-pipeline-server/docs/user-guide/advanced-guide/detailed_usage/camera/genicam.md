@@ -1,15 +1,16 @@
-```{eval-rst}
+<!--hide_directive```{eval-rst}
 :orphan:
-```
+```hide_directive-->
+
 # GenICam GigE or USB3 Cameras
 
 For more information or configuration details for the GenICam GigE or the USB3 camera support, refer to the [GenICam GigE/USB3.0 Camera Support](./generic_plugin_doc.md).
 
-## Installation 
+## Installation
 Follow the steps for camera setup and debug tools.
 
 ### Balluff Camera
-Use Impact Acquire tool to view Balluff cameras, allied vision and other Genicam cameras such as GigE, usb basler. 
+Use Impact Acquire tool to view Balluff cameras, allied vision and other Genicam cameras such as GigE, usb basler.
 
 Install Impact Acquire tool:
 
@@ -25,17 +26,17 @@ sudo apt-get install -y libwxbase3.0-0v5 \
                       libwxgtk-webview3.0-gtk3-0v5 \
                       libwxgtk-webview3.0-gtk3-dev \
                       wx3.0-headers \
-                      libgtk2.0-dev 
+                      libgtk2.0-dev
 # download ImpactAcquire-x86_64-linux-3.1.0.sh: https://static.matrix-vision.com/mvIMPACT_Acquire/3.1.0/
 cd ~/Downloads
-chmod a+x ImpactAcquire-x86_64-linux-3.1.0.sh 
+chmod a+x ImpactAcquire-x86_64-linux-3.1.0.sh
 ./ImpactAcquire-x86_64-linux-3.1.0.sh
 ```
 
 #### to open Impact Acquire:
 ```sh
 cd /opt/ImpactAcquire/apps/ImpactControlCenter/x86_64
-./ImpactControlCenter 
+./ImpactControlCenter
 ```
 #### GUI will display
 click on Action -> Use Device --> choose mvBlueFOX3
@@ -58,7 +59,7 @@ Download and extract pylon package (minimum pylon-8.0.2) [here](https://www.basl
 ```sh
   stat /dev/bus/usb
   sudo usermod -a -G dialout $USER
-  cd /opt/pylon/share/pylon 
+  cd /opt/pylon/share/pylon
   ./setup-usb.sh
   sudo reboot
   ```
@@ -121,9 +122,11 @@ dlstreamer-pipeline-server:
 >
 > - If one observes `Feature not writable` message while working with the GenICam cameras, then reset the device using the camera software or using the reset property of the Generic Plugin. For more information, refer the [README](src-gst-gencamsrc/README.md).
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
 basler_doc.md
 generic_plugin_doc.md
 ```
+hide_directive-->

@@ -67,9 +67,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             "  file-path=/dev/null ! "
         )
 
-        self._inference_output_stream = (
-            "{encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
-        )
+        self._inference_output_stream = "{encoder} ! {VIDEO_CODEC}parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} "
 
         # Add shmsink for live preview (shared memory)
         self._shmsink = (
@@ -82,7 +80,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         # shmsink branch for live preview (BGR format), width/height will be formatted in evaluate
         self._shmsink_branch = (
             "tee name=livetee "
-            "livetee. ! queue2 ! {encoder} ! h264parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
+            "livetee. ! queue2 ! {encoder} ! {VIDEO_CODEC}parse ! mp4mux ! filesink location={VIDEO_OUTPUT_PATH} async=false "
             "livetee. ! queue2 ! videoconvert ! video/x-raw,format=BGR,width={width},height={height} ! {shmsink} "
         )
 
@@ -105,15 +103,24 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
         )
 
         # Set encoder element based on device
+        _codec_bits = constants["VIDEO_CODEC"].lstrip("h")  # e.g., "h264" -> "264"
         _encoder_element = next(
-            ("vah264enc" for element in elements if element[1] == "vah264enc"),
+            (
+                f"va{constants['VIDEO_CODEC']}enc"
+                for element in elements
+                if element[1] == f"va{constants['VIDEO_CODEC']}enc"
+            ),
             next(
-                ("vah264lpenc" for element in elements if element[1] == "vah264lpenc"),
+                (
+                    f"va{constants['VIDEO_CODEC']}lpenc"
+                    for element in elements
+                    if element[1] == f"va{constants['VIDEO_CODEC']}lpenc"
+                ),
                 next(
                     (
-                        "x264enc bitrate=16000 speed-preset=superfast"
+                        f"x{_codec_bits}enc bitrate=16000 speed-preset=superfast"
                         for element in elements
-                        if element[1] == "x264enc"
+                        if element[1] == f"x{_codec_bits}enc"
                     ),
                     None,  # Fallback to None if no encoder is found
                 ),

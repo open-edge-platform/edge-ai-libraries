@@ -25,9 +25,6 @@ if settings.http_proxy:
     proxies["http://"] = settings.http_proxy
 if settings.https_proxy:
     proxies["https://"] = settings.https_proxy
-# if settings.no_proxy_env:
-#     proxies["no_proxy"] = settings.no_proxy_env
-
 
 def should_bypass_proxy(url: str, no_proxy: str) -> bool:
     """
