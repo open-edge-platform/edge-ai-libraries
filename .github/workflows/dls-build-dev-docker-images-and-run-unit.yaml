@@ -154,3 +154,9 @@ jobs:
       env:
         RESULTS_DIR: test-results
       run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo
+
+    - name: Schedule reboot
+      if: always()
+      run: |
+        echo "Scheduling safe reboot in 15 seconds..."
+        sudo systemd-run --on-active=15s /sbin/reboot

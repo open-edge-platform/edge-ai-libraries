@@ -256,3 +256,9 @@ jobs:
       run: |
         rm -rf edge-ai-libraries-repo .virtualenvs
         rm -rf $HOME/.virtualenvs
+
+    - name: Schedule reboot
+      if: always()
+      run: |
+        echo "Scheduling safe reboot in 15 seconds..."
+        sudo systemd-run --on-active=15s /sbin/reboot
