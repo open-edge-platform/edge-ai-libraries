@@ -44,7 +44,10 @@ export PGDB_NAME=<user_db_name>
 export PGDB_INDEX=<user_db_index>
 
 # HTTP request configuration (optional)
-# Set USER_AGENT_HEADER to override the default User-Agent; a robust default is used if unset.
+# Set USER_AGENT_HEADER to define a custom User-Agent string for outgoing HTTP requests.
+# If not set, a robust default User-Agent is automatically applied
+# Setting a clear and descriptive User-Agent helps external servers identify the application and
+# reduces the chance of requests being treated as bot traffic.
 export USER_AGENT_HEADER=<your_user_agent_string>
 
 # OPTIONAL - If user wants to push the built images to a remote container registry, user needs to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to application name and tag to form the final image name.
