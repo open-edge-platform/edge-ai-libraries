@@ -13,7 +13,6 @@
 #include "utils.h"
 #include <gst/gst.h>
 #include <gstanalyticskeypointsmtd.h>
-#include <sched.h>
 
 gboolean buffer_attach_roi_meta_from_sink_pad(GstBuffer *buf, const GstVideoInfo *src_pad_video_info,
                                               GstGvaMetaAggregatePad *sink_pad);
