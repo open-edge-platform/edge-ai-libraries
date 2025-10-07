@@ -158,5 +158,5 @@ jobs:
     - name: Schedule reboot
       if: always()
       run: |
-        echo "Scheduling safe reboot in 15 seconds..."
-        sudo systemd-run --on-active=15s /sbin/reboot
+        echo "Scheduling reboot in 15 seconds..."
+        sudo /usr/local/bin/reboot_runner.sh 15
