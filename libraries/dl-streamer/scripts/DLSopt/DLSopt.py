@@ -3,6 +3,8 @@ import gi
 import time
 import logging
 import itertools
+import os
+import sys
 
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
@@ -12,6 +14,10 @@ from gi.repository import Gst
 Gst.init()
 logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)8s] - %(message)s")
 logger = logging.getLogger(__name__)
+logger.info("GStreamer initialized successfully")
+gst_version = Gst.version()
+logger.info(f"GStreamer version: {gst_version.major}.{gst_version.minor}.{gst_version.micro}")
+
 
 ########################################################## Utils #####################################################################
 
@@ -77,12 +83,28 @@ def sample_pipeline(pipeline, sample_duration):
         time.sleep(sample_duration)
         pipeline.set_state(Gst.State.NULL)
 
-        while message := bus.pop():
-            logger.info("Message: " + message)
-    
-        fps = fps_counter.get_proprty("avg-fps")
-        del pipeline
-        return fps
+       # Process any messages from the bus
+       message = bus.pop()
+       while message is not None:
+           if message.type == Gst.MessageType.ERROR:
+               error, debug = message.parse_error()
+               logger.error(f"Pipeline error: {error.message}")
+           elif message.type == Gst.MessageType.WARNING:
+               warning, debug = message.parse_warning()
+               logger.warning(f"Pipeline warning: {warning.message}")
+           elif message.type == Gst.MessageType.STATE_CHANGED:
+               old, new, pending = message.parse_state_changed()
+               logger.debug(f"State changed: {old} -> {new}")
+           message = bus.pop()
+
+       del pipeline
+       return fps_counter.get_property("avg-fps")
+
+       #while message := bus.pop():
+       #    logger.info("Message: " + message)
+       #fps = fps_counter.get_property("avg-fps")
+       #del pipeline
+       #return fps
     except StopIteration:
         logger.error("Pipeline is missing a gvafpscounter!")
         del pipeline
