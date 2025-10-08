@@ -187,8 +187,6 @@ jobs:
       id: run_tests
       env:
         TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
-        MODELS_PATH: ${{ env.MODELS_PATH }}
-        VIDEO_INPUTS_PATH: ${{ env.VIDEO_INPUTS_PATH }}
       run: |
         cd $DLS_REL_PATH/tests
         mkdir functional_tests_results
@@ -199,8 +197,8 @@ jobs:
 
         source $HOME/.virtualenvs/dlstreamer/bin/activate
         ./run_tests.sh \
-          --models-path="$MODELS_PATH" \
-          --video-examples-path="$VIDEO_INPUTS_PATH" \
+          --models-path=${{ env.MODELS_PATH }} \
+          --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} \
           --test-configs="$TEST_CONFIGS" \
           --results-path="$DLS_TESTS_RESULTS_PATH" \
           --report-name="functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results" \
