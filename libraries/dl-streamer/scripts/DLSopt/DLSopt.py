@@ -75,13 +75,14 @@ def sample_pipeline(pipeline, sample_duration):
     pipeline = Gst.parse_launch(pipeline)
 
     try:
-        fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, pipeline.children))
+       logger.info("Sampling for " + str(sample_duration) + " seconds...")
+       fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, pipeline.children))
 
-        bus = pipeline.get_bus()
+       bus = pipeline.get_bus()
 
-        pipeline.set_state(Gst.State.PLAYING)
-        time.sleep(sample_duration)
-        pipeline.set_state(Gst.State.NULL)
+       pipeline.set_state(Gst.State.PLAYING)
+       time.sleep(sample_duration)
+       pipeline.set_state(Gst.State.NULL)
 
        # Process any messages from the bus
        message = bus.pop()
@@ -100,11 +101,6 @@ def sample_pipeline(pipeline, sample_duration):
        del pipeline
        return fps_counter.get_property("avg-fps")
 
-       #while message := bus.pop():
-       #    logger.info("Message: " + message)
-       #fps = fps_counter.get_property("avg-fps")
-       #del pipeline
-       #return fps
     except StopIteration:
         logger.error("Pipeline is missing a gvafpscounter!")
         del pipeline
@@ -201,7 +197,7 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 
     pipeline = " ".join(pipeline).split("!")
     fps = sample_pipeline(pipeline, sample_duration)
-    logger.info("FPS: " + str(fps))
+    logger.info(f"FPS: {fps:.2f}")
     
     # Suggestions structure:
     #   [
@@ -216,10 +212,10 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 
     add_gvadetect_suggestions(suggestions, context)
     add_gvaclassify_suggestions(suggestions, context)
-    best_pipeline = explore_pipelines(suggestions, fps, search_duration, sample_duration)
+    #best_pipeline = explore_pipelines(suggestions, fps, search_duration, sample_duration)
     
-    if best_pipeline == []:
-        best_pipeline = pipeline
+    #if best_pipeline == []:
+    #    best_pipeline = pipeline
 
     return pipeline
 
