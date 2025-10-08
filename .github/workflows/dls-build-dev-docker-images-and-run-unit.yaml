@@ -67,7 +67,7 @@ jobs:
     # ====================================================== UNIT TESTS ============================================================
     - name: Check models
       run: |
-        echo "## Resources checks" >> $GITHUB_STEP_SUMMARY
+        echo "## Basic checks" >> $GITHUB_STEP_SUMMARY
         if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
           echo "Models: found ✅" >> $GITHUB_STEP_SUMMARY
           ls -A "${{ env.MODELS_PATH }}"
