@@ -185,6 +185,10 @@ jobs:
 
     - name: 🚀 Run tests
       id: run_tests
+      env:
+        test_configs: ${{ env.TEST_CONFIGS }}
+        models_path: ${{ env.MODELS_PATH }}
+        video_examples_path: ${{ env.VIDEO_INPUTS_PATH }}
       run: |
         cd $DLS_REL_PATH/tests
         mkdir functional_tests_results
@@ -195,7 +199,7 @@ jobs:
 
         echo "Starting to execute FUNCTIONAL TESTS main sctipt"
         source $HOME/.virtualenvs/dlstreamer/bin/activate
-        ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
+        ./run_tests.sh --models-path=${models_path} --video-examples-path=${video_examples_path} --test-configs="${test_configs}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
 
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
@@ -206,9 +210,11 @@ jobs:
 
     - name: Print tests summary in workflow
       if: steps.run_tests.outcome == 'success'
+      env:
+        dls_tests_results_path: ${{ env.DLS_TESTS_RESULTS_PATH }}
       run: |
         echo "## Tests summary" >> $GITHUB_STEP_SUMMARY
-        sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${{ env.DLS_TESTS_RESULTS_PATH }}"/functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
+        sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${dls_tests_results_path}"/functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
 
     - name: Uninstall dlstreamer
       if: always ()
