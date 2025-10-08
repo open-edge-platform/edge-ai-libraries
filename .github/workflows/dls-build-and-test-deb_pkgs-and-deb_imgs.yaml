@@ -97,18 +97,9 @@ jobs:
         cp -r deb_packages ${{ env.DLS_REL_PATH }}
 
     # ======================================================== OH HOST TESTING PART ========================================================
-    - name: Print system information
-      run: |
-        echo "## System information" >> $GITHUB_STEP_SUMMARY
-        echo "Runner name: ${{ runner.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
-        echo "OS version: $(. /etc/os-release && echo "$PRETTY_NAME")" >> $GITHUB_STEP_SUMMARY
-        echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
-        echo "CPU Name: $(lscpu | grep 'Model name' | sed 's/Model name:[ \t]*//')" >> $GITHUB_STEP_SUMMARY
-
     - name: Check models
       run: |
-        echo "## Basic checks" >> $GITHUB_STEP_SUMMARY
+        echo "## Resources checks" >> $GITHUB_STEP_SUMMARY
         if [ -d "${{ env.MODELS_PATH }}" ] && [ "$(ls -A "${{ env.MODELS_PATH }}")" ]; then
           echo "Models: found ✅" >> $GITHUB_STEP_SUMMARY
         else
