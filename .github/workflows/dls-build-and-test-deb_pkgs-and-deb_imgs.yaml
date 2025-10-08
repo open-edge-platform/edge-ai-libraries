@@ -186,9 +186,9 @@ jobs:
     - name: 🚀 Run tests
       id: run_tests
       env:
-        test_configs: ${{ env.TEST_CONFIGS }}
-        models_path: ${{ env.MODELS_PATH }}
-        video_examples_path: ${{ env.VIDEO_INPUTS_PATH }}
+        TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
+        MODELS_PATH: ${{ env.MODELS_PATH }}
+        VIDEO_INPUTS_PATH: ${{ env.VIDEO_INPUTS_PATH }}
       run: |
         cd $DLS_REL_PATH/tests
         mkdir functional_tests_results
@@ -197,9 +197,14 @@ jobs:
         echo "DLS_TESTS_RESULTS_PATH=$DLS_TESTS_RESULTS_PATH" >> $GITHUB_ENV
         cd ../functional_tests
 
-        echo "Starting to execute FUNCTIONAL TESTS main sctipt"
         source $HOME/.virtualenvs/dlstreamer/bin/activate
-        ./run_tests.sh --models-path=${models_path} --video-examples-path=${video_examples_path} --test-configs="${test_configs}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
+        ./run_tests.sh \
+          --models-path="$MODELS_PATH" \
+          --video-examples-path="$VIDEO_INPUTS_PATH" \
+          --test-configs="$TEST_CONFIGS" \
+          --results-path="$DLS_TESTS_RESULTS_PATH" \
+          --report-name="functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results" \
+          --on-host
 
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
