@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: 1.2.3 \
+**Version**: 1.4.0 \
 **Release Date**: WW42 2025
 
 - Ollama Integration with Expanded Model Support. Enabling support for a broader range of models beyond the previously supported OpenVINO. This allows users to seamlessly switch between OpenVINO and Ollama-supported models.

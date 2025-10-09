@@ -2,7 +2,7 @@ image:
   registry: "intel/"
   pullPolicy: IfNotPresent
   tags:
-    ui: "core_1.2.3"
+    ui: "core_1.4.0"
 
 
 global:
