@@ -8,21 +8,28 @@ set (TARGET_NAME "audio_inference_elements")
 
 find_package(PkgConfig REQUIRED)
 find_package(OpenVINO REQUIRED Runtime)
-
 pkg_check_modules(GSTREAMER gstreamer-1.0>=1.16 REQUIRED)
 pkg_check_modules(GSTALLOC gstreamer-allocators-1.0 REQUIRED)
+pkg_check_modules(GSTAUDIO gstreamer-audio-1.0 REQUIRED)
+
+if(ENABLE_GENAI)
+    find_package(OpenVINOGenAI REQUIRED)
+endif()
 
 file (GLOB MAIN_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/base/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/base/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiodetect/*.c
     ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiodetect/*.cpp
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiotranscribe/*.c
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiotranscribe/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/openvino/*.cpp
     ${CMAKE_CURRENT_SOURCE_DIR}/*.c
 )
 
 file (GLOB MAIN_HEADERS
     ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiodetect/*.h
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiotranscribe/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/base/*.h
     ${CMAKE_CURRENT_SOURCE_DIR}/openvino/*.h
 )
@@ -44,6 +51,7 @@ PUBLIC
     ${CMAKE_CURRENT_SOURCE_DIR}/base/
     ${CMAKE_CURRENT_SOURCE_DIR}/openvino/
     ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiodetect/
+    ${CMAKE_CURRENT_SOURCE_DIR}/gvaaudiotranscribe/
 PRIVATE
     ${GSTREAMER_INCLUDE_DIRS}
     ${GSTALLOC_INCLUDE_DIRS}
@@ -54,6 +62,7 @@ target_link_libraries(${TARGET_NAME}
 PRIVATE
     ${GSTREAMER_LIBRARIES}
     ${GSTALLOC_LIBRARIES}
+    ${GSTAUDIO_LIBRARIES}
     dlstreamer_api
     common
     inference_backend
@@ -62,5 +71,12 @@ PRIVATE
     logger
     openvino::runtime
 )
+
+if(ENABLE_GENAI)
+    target_link_libraries(${TARGET_NAME}
+    PRIVATE
+        openvino::genai
+    )
+endif()
 
 install(TARGETS ${TARGET_NAME} DESTINATION ${DLSTREAMER_PLUGINS_INSTALL_PATH})

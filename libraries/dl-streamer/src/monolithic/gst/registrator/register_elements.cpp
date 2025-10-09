@@ -9,6 +9,7 @@
 #include <gst/gst.h>
 
 #include "gstgvaaudiodetect.h"
+#include "gstgvaaudiotranscribe.h"
 #include "gstgvaclassify.h"
 #include "gstgvadetect.h"
 #include "gstgvainference.h"
@@ -40,6 +41,8 @@ static gboolean plugin_init(GstPlugin *plugin) {
     if (!gst_element_register(plugin, "gvaclassify", GST_RANK_NONE, gst_gva_classify_get_type()))
         return FALSE;
     if (!gst_element_register(plugin, "gvaaudiodetect", GST_RANK_NONE, gst_gva_audio_detect_get_type()))
+        return FALSE;
+    if (!gst_element_register(plugin, "gvaaudiotranscribe", GST_RANK_NONE, gst_gva_audio_transcribe_get_type()))
         return FALSE;
     if (!gst_element_register(plugin, "gvatrack", GST_RANK_NONE, GST_TYPE_GVA_TRACK))
         return FALSE;
