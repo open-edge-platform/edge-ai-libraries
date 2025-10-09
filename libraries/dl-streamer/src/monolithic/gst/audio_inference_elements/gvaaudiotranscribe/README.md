@@ -9,19 +9,10 @@ This element provides audio transcription capabilities with an extensible handle
 - **Whisper models** (primary support) - OpenVINO GenAI backend
 - **Extensible handler interface** - Users can implement custom model handlers
 
-### Key Features
-
-- Real-time audio transcription
-- Configurable language and task settings
-- Optional timestamp generation
-- Device selection (CPU, GPU)
-- Extensible architecture for custom models
-- GStreamer metadata integration
-
 ### Model Type Support
 
 - `whisper` - Fully supported (OpenVINO GenAI)
-- Custom types -  Implement your own! See [CUSTOM_HANDLERS.md](CUSTOM_HANDLERS.md)
+- Custom types - Implement your own! See [CUSTOM_HANDLERS.md](CUSTOM_HANDLERS.md)
 
 ## Quick Usage
 
@@ -32,106 +23,42 @@ GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=</path/to/file.wa
 
 # RUN ON HOST
 
-# Install dependencies
-This adapted from the official docs: https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html
-```
-sudo apt-get update && \
-sudo apt-get install -y wget vainfo xz-utils python3-pip python3-gi gcc-multilib libglib2.0-dev \
-    flex bison autoconf automake libtool libogg-dev make g++ libva-dev yasm libglx-dev libdrm-dev \
-    python-gi-dev python3-dev unzip libgflags-dev libcurl4-openssl-dev \
-    libgirepository1.0-dev libx265-dev libx264-dev libde265-dev gudev-1.0 libusb-1.0 nasm python3-venv \
-    libcairo2-dev libxt-dev libgirepository1.0-dev libgles2-mesa-dev wayland-protocols \
-    libssh2-1-dev cmake git valgrind numactl libvpx-dev libopus-dev libsrtp2-dev libxv-dev \
-    linux-libc-dev libpmix2t64 libhwloc15 libhwloc-plugins libxcb1-dev libx11-xcb-dev \
-    ffmpeg librdkafka-dev libpaho-mqtt-dev libopencv-dev libpostproc-dev libavfilter-dev libavdevice-dev \
-    libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev libtbb12 libxml2-dev
-```
+# Install DLstreamer
 
-```
-sudo apt-get install --reinstall ffmpeg libpostproc-dev libavfilter-dev libavdevice-dev \
-            libswscale-dev libswresample-dev libavutil-dev libavformat-dev libavcodec-dev
-```
+Please follow DLstreamer official docs for installation steps: https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html 
 
-```
-sudo apt-get install --reinstall libopencv-dev
-```
+Note: Follow through step 8 of the documentation, then install OpenVINO GenAI as mentioned below. 
 
-# Build newer version of gstreamer.
-
-Note: apt package for gstreamer on ubuntu 24.04 by default installs version 1.24.1 but there are some plugins that are not implicitly installed therefore recommendation is to follow the above mention documentation and build gstreamer from source 
-
-```bash 
-python3 -m venv ~/python3venv
-source ~/python3venv/bin/activate
-
-pip install --upgrade pip==24.0
-pip install meson==1.4.1 ninja==1.11.1.1
-
-cd ~
-git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
-
-cd ~/gstreamer
-git switch -c "1.26.4" "tags/1.26.4"
-export PKG_CONFIG_PATH=/usr/lib/x86_64-linux-gnu/pkgconfig/:/usr/local/lib/pkgconfig:$PKG_CONFIG_PATH
-sudo ldconfig
-meson setup -Dexamples=disabled -Dtests=disabled -Dvaapi=enabled -Dgst-examples=disabled --buildtype=release --prefix=/opt/intel/dlstreamer/gstreamer --libdir=lib/ --libexecdir=bin/ build/
-ninja -C build
-sudo env PATH=~/python3venv/bin:$PATH meson install -C build/
-```
-
-**EXIT THE CURRENT SESSION AND REOPEN IT**
-The python environment doesn't need to be active anymore, and it's already contaminated your current session with variables
-
-
-# Clone dl-streamer repo & check out the appropriate branch
+# OpenVINO GenAI dependencies
 ```
 cd ~
-git clone https://github.com/dlstreamer.git
-git checkout audio_transcription
-git submodule update --init
-```
-
-# OpenVINO & OpenVINO GenAI dependencies
-```
-cd ~
-wget 'https://storage.openvinotoolkit.org/repositories/openvino/packages/nightly/2025.3.0-19730-c619ac6a596/openvino_toolkit_ubuntu24_2025.3.0.dev20250809_x86_64.tgz'
-wget 'https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/nightly/2025.3.0.0.dev20250809/openvino_genai_ubuntu24_2025.3.0.0.dev20250809_x86_64.tar.gz'
+wget 'https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.3/linux/openvino_genai_ubuntu24_2025.3.0.0_x86_64.tar.gz.sha256'
 tar xzf openvino_genai_ubuntu24_2025.3.0.0.dev20250809_x86_64.tar.gz
-tar xzf openvino_toolkit_ubuntu24_2025.3.0.dev20250809_x86_64.tgz
 ```
 
 Need to do this every time you reactivate the environment:
 ```
 source openvino_genai_ubuntu24_2025.3.0.0.dev20250809_x86_64/setupvars.sh
-source openvino_toolkit_ubuntu24_2025.3.0.dev20250809_x86_64/setupvars.sh
 ```
 
-# Set many environment variables needed to find the tools configured earlier. These are from the official advanced DLStreamer compiling guide.
-```
-export GST_PLUGIN_PATH="$HOME/dlstreamer/build/intel64/Release/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-
-1.0:/usr/lib/x86_64-linux-gnu/gstreamer-1.0"
-export LD_LIBRARY_PATH="/opt/intel/dlstreamer/gstreamer/lib:$HOME/dlstreamer/build/intel64/Release/lib:/usr/lib:/usr/local/lib:$LD_LIBRARY_PATH"
-export LIBVA_DRIVERS_PATH="/usr/lib/x86_64-linux-gnu/dri"
-export GST_VA_ALL_DRIVERS="1"
-export PATH="/opt/intel/dlstreamer/gstreamer/bin:$HOME/dlstreamer/build/intel64/Release/bin:$HOME/.local/bin:$HOME/python3venv/bin:$PATH"
-export PKG_CONFIG_PATH="/usr/local/lib/pkgconfig:$HOME/dlstreamer/build/intel64/Release/lib/pkgconfig:/usr/lib/x86_64-linux-gnu/pkgconfig:/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:$PKG_CONFIG_PATH"
-export GST_PLUGIN_FEATURE_RANK=${GST_PLUGIN_FEATURE_RANK},ximagesink:MAX
-```
+# Build DL Streamer 
+Note: This step is adapted from the official documentation, tweaking a couple of parameters for the audio transcription element. 
 
-# Set this include path too. Need to fix this so it's not needed, this is needed because of a cmake configuration bug in this PoC code:
 ```
-export CPLUS_INCLUDE_PATH=$OpenVINOGenAI_DIR/../../runtime/include
-```
+cd ~/edge-ai-libraries/libraries/dl-streamer
 
-
-# Build DL Streamer
-```
-cd ~/dlstreamer
 mkdir build
 cd build
-cmake -DENABLE_PAHO_INSTALLATION=ON -DENABLE_RDKAFKA_INSTALLATION=ON -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON -DENABLE_GENAI=on ..
-make -j $(nproc)
+
+export PKG_CONFIG_PATH="/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:${PKG_CONFIG_PATH}"
+source /opt/intel/openvino_2025/setupvars.sh
+
+cmake -DENABLE_PAHO_INSTALLATION=OFF -DENABLE_RDKAFKA_INSTALLATION=OFF -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON -DENABLE_GENAI=on..
+make -j "$(nproc)"
 ```
+
+Set up the environment using the following step: [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment)
+
 
 # Prepare to run the pipelines
 
@@ -141,9 +68,9 @@ mkdir ~/whisper-poc
 cd ~/whisper-poc
 ```
 
-## Get whisper model files
+## Get Whisper model files
 
-These steps adapted from the original whisper_speech_recognition sample in OpenVINO GenAI: https://github.com/openvinotoolkit/openvino.genai/blob/master/samples/cpp/whisper_speech_recognition/README.md
+These steps are adapted from the original whisper_speech_recognition sample in OpenVINO GenAI: https://github.com/openvinotoolkit/openvino.genai/blob/master/samples/cpp/whisper_speech_recognition/README.md
 
 ```
 wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/requirements.txt
@@ -151,7 +78,7 @@ wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads
 wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/export-requirements.txt
 ```
 
-You might want to create a python virtual environment and activate it if you don't want to install stuff for your user. Not strictly needed though.
+You might want to create a Python virtual environment and activate it if you don't want to install packages for your user. This is not strictly required though.
 
 Install those requirements:
 ```
@@ -160,31 +87,26 @@ source ~/whisper-env/bin/activate
 pip install --upgrade-strategy eager -r ../../requirements.txt
 ```
 
-Download & convert the whisper model:
+Download & convert the Whisper model:
 ```
 optimum-cli export openvino --trust-remote-code --model openai/whisper-base whisper-base
 ```
 
-## Finally actually run the full pipeline:
+## Finally, actually run the full pipeline:
 
-### Troubleshooting
- gst-launch to find the transcription feature, it was saying no element "gstgvaaudiotranscribe". If you get this same error, try running this first. Must have cached it initially? Not sure:
-```
-gst-inspect-1.0 ~/dlstreamer/build/intel64/Release/lib/libgstvideoanalytics.so
-```
 
-### Launch on a test wav file:
+### Launch on a test WAV file:
 
 ```
 GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=<path/to/wavfile> ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=whisper-base device=CPU model_type=whisper ! fakesink
 ```
 
-### Launch using the microphone
+### Launch using the microphone:
 ```
 GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0     pulsesrc buffer-time=2000000 ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=1,rate=16000 ! queue max-size-buffers=100 max-size-time=0 max-size-bytes=0 ! gvaaudiotranscribe model=whisper-base device=CPU model_type=whisper ! fakesink
 ```
 
-### Launch using video demux
+### Launch using video demux:
 ```bash
 GST_DEBUG=gvaaudiotranscribe:4 \
 gst-launch-1.0 filesrc location=<path/to/file.mp4/> ! \
@@ -200,23 +122,23 @@ gst-launch-1.0 filesrc location=<path/to/file.mp4/> ! \
 
 ### Clone the repo
 ```bash
-git clone https://github.com/dlstreamer.git && cd dlstreamer
-git checkout audio-transcription
-git submodule update --init --recursive
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git && cd edge-ai-librarie
+git checkout whisper-audio-transcription
+git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 ```
 
-### Docker build
+### Docker build 
 
 ```bash
-docker build -f docker/dlstreamer_dev_ubuntu24_asr.Dockerfile -t dlstreamer-ubuntu24-dev-asr .
+docker build -f docker/ubuntu/ubuntu24.Dockerfile  -t dlstreamer-ubuntu24-dev-asr .
 ```
 
-### Setup to download models
+### Set up to download models
 ```bash
 cd ~/
 python3 -m venv ~/python3-env
 source ~/python3-env/bin/activate
-# install dependencies to download and convert whisper-model
+# Install dependencies to download and convert Whisper model
 
 wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/requirements.txt
 wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/deployment-requirements.txt
@@ -231,9 +153,22 @@ pip install --upgrade-strategy eager -r ./requirements.txt
 mkdir -p ~/data
 cd ~/data
 optimum-cli export openvino --trust-remote-code --model openai/whisper-base whisper-base
-#sample wave file 
+# Sample wave file 
 wget https://storage.openvinotoolkit.org/models_contrib/speech/2021.2/librispeech_s5/how_are_you_doing_today.wav
 ```
+
+
+### Docker run 
+```bash
+# Run interactively 
+docker run -it -v ~/data:/data dlstreamer-ubuntu24-dev-asr:latest bash 
+# Run the command inside docker
+GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you_doing_today.wav ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=/data/whisper-base device=CPU ! fakesink
+# Or 
+# Quick try
+docker run -it -v ~/data:/data dlstreamer-ubuntu24-test:latest bash -c "GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you_doing_today.wav ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=/data/whisper-base device=CPU ! fakesink"
+```
+
 
 ## Extensible Handler Interface
 
@@ -241,7 +176,7 @@ This element features an extensible handler interface that allows users to imple
 
 ### Currently Supported Models
 
-- **Whisper** (`model_type=whisper`) - \u2705 Fully supported via OpenVINO GenAI
+- **Whisper** (`model_type=whisper`) - ✅ Fully supported via OpenVINO GenAI
 
 ### Adding Custom Model Support
 
@@ -282,15 +217,21 @@ See gstgvaaudiotranscribehandler.h for the extensible interface.
 - `task` - Task type: `transcribe` or `translate`
 - `return-timestamps` - Whether to include timestamps in output
 
+### Troubleshooting 
 
-### Docker run 
-```bash
-# run iteractively 
-docker run -it -v ~/data:/data dlstreamer-ubuntu24-dev-asr:latest bash 
-#run the command inside docker
-GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you_doing_today.wav ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=/data/whisper-base device=CPU ! fakesink
-or 
-#quick try
-docker run -it -v ~/data:/data dlstreamer-ubuntu24-test:latest bash -c "GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you_doing_today.wav ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=/data/whisper-base device=CPU ! fakesink"
+```bash 
+Failed to load plugin '/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so': 
+/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so: undefined symbol: _ZTVN2ov5genai11PerfMetricsE
 ```
+- If you get this error, it's mostly because the OpenVINO and OpenVINO GenAI versions do not match. Make sure you have the same version of openvino_toolkit and openvino_genAI [in this case 2025.3.0]
+
+```bash 
+gst-inspect: command not found
+or 
+no element named gvaaudiotranscribe
+```
+- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment) 
+
+
+
 
