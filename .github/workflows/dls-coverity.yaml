@@ -1,7 +1,14 @@
 name: "[DLS] Coverity (C/C++)"
 run-name: "[DLS] Coverity (C/C++)"
 on:
-  workflow_call: 
+  workflow_call:
+    secrets:
+      DLS_COVERITY_TOKEN:
+        required: true
+      DLS_COVERITY_EMAIL:
+        required: true
+      DLS_COVERITY_PROJECT:
+        required: true
   workflow_dispatch:
 permissions: {}
 
@@ -35,7 +42,7 @@ jobs:
             echo "No relevant changed files detected."
             echo "run-analysis=false" >> $GITHUB_OUTPUT
             exit 0
-          else 
+          else
             run_analysis=true
           fi
 
