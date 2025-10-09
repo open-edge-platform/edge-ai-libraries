@@ -28,11 +28,11 @@ VENV_DIR := .venv
 # This value is overridden by setup_env.sh in relevant targets.
 export RENDER_GROUP_ID := 1000
 
-$(VENV_DIR): requirements.txt ## Create Python venv
+$(VENV_DIR): $(PROJECT_NAME)/requirements.txt ## Create Python venv
 	python3 -m venv $@ ;\
 	set +u; . ./$@/bin/activate; set -u ;\
 	python -m pip install --upgrade pip ;\
-	python -m pip install -r requirements-dev.txt
+	python -m pip install -r $(PROJECT_NAME)/requirements-dev.txt
 
 all: lint build run test ## Run lint, build, run and test
 
@@ -100,6 +100,7 @@ test: $(VENV_DIR) ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
 	DOCKER_TAG=$(VERSION) docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu bash -c "\
+		cd $(PROJECT_NAME) && \
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 
@@ -136,7 +137,7 @@ stop: ## Stop the docker compose services
 	DOCKER_TAG=$(VERSION) docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
-	rm -rf .collector-signals/ models/output/ videos/
+	rm -rf $(PROJECT_NAME)/.collector-signals/ models/output/ videos/
 
 help: ## Print help for each target
 	@echo ViPPET make targets
