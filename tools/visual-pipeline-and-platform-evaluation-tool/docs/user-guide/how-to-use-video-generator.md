@@ -9,10 +9,7 @@ This guide is ideal for developers who want to work directly with the source cod
 **Build and Start the Tool**:
 
 ```bash
-mkdir videos
-chmod o+w videos
-docker compose build videogenerator
-docker compose run --rm videogenerator
+make run-videogenerator
 ```
 
 ## Make Changes
@@ -128,4 +125,4 @@ docker compose run --rm videogenerator
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
-- Expected result: An MP4 file is created under the `videos` folder.
+- Expected result: An MP4 file is created under the `shared/videos` folder.

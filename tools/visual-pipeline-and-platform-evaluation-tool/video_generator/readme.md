@@ -89,13 +89,10 @@ The program uses a config.json file to customize the video generation process. B
 ## Usage
 
 ```bash
-mkdir videos
-chmod o+w videos
-docker compose build videogenerator
-docker compose run --rm videogenerator
+make run-videogenerator
 ```
 
-The video will be generated in the `videos` directory with the specified file name.
+The video will be generated in the `shared/videos` directory with the specified file name.
 
 ## Note on Image Naming Convention
 

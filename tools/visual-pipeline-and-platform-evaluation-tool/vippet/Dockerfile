@@ -44,7 +44,6 @@ COPY --chown=dlstreamer:dlstreamer \
     vippet/device.py \
     vippet/explore.py \
     vippet/gstpipeline.py \
-    models/supported_models.lst \
     vippet/models.py \
     vippet/optimize.py \
     vippet/utils.py \

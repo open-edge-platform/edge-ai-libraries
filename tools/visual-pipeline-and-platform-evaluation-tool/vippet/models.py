@@ -1,9 +1,9 @@
 import os
 
 # Path to the file containing the list of supported models
-SUPPORTED_MODELS_FILE = os.path.join(os.path.dirname(__file__), "supported_models.lst")
+SUPPORTED_MODELS_FILE = "/models/supported_models.lst"
 # Path to the directory where models are stored
-MODELS_PATH = os.environ.get("MODELS_PATH", "/home/dlstreamer/vippet/models")
+MODELS_PATH = os.environ.get("MODELS_PATH", "/models/output")
 
 
 class SupportedModel:

@@ -92,6 +92,10 @@ run: check-device-type install-models-once ## Run the docker compose services
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	DOCKER_TAG=$(VERSION) docker compose up -d
 
+run-videogenerator: build-videogenerator ## Run only the videogenerator service
+	mkdir -p shared/videos && chmod o+w shared/videos
+	DOCKER_TAG=$(VERSION) docker compose up -d videogenerator
+
 run-dev: check-device-type install-models-once ## Run the docker compose services for development
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
@@ -105,15 +109,15 @@ test: $(VENV_DIR) ## Run tests and generate coverage report
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 
 install-models-once: ## Handle models download and installation (once)
-	mkdir -p models/output && chmod o+w models/output
+	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=once DOCKER_TAG=$(VERSION) docker compose run --rm -it models
 
 install-models-force: ## Handle models download and installation (force)
-	mkdir -p models/output && chmod o+w models/output
+	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=force DOCKER_TAG=$(VERSION) docker compose run --rm -it models
 
 install-models-all: ## Install all models automatically (no dialog)
-	mkdir -p models/output && chmod o+w models/output
+	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=all DOCKER_TAG=$(VERSION) docker compose run --rm -it models
 
 shell: ## Open shell in specified container (i.e. make shell SERVICE=vippet-gpu)
@@ -137,7 +141,7 @@ stop: ## Stop the docker compose services
 	DOCKER_TAG=$(VERSION) docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
-	rm -rf $(PROJECT_NAME)/.collector-signals/ models/output/ videos/
+	rm -rf shared/models/output/ shared/videos/
 
 help: ## Print help for each target
 	@echo ViPPET make targets
