@@ -1,3 +1,9 @@
+/*******************************************************************************
+ * Copyright (C) 2018-2024 Intel Corporation
+ *
+ * SPDX-License-Identifier: MIT
+******************************************************************************/
+
 #include "gstgvaaudiotranscribe.h"
 #include <gst/audio/audio.h>
 #include <gst/gst.h>

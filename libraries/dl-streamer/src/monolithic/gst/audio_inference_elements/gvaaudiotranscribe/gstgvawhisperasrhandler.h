@@ -1,3 +1,8 @@
+/*******************************************************************************
+ * Copyright (C) 2018-2024 Intel Corporation
+ *
+ * SPDX-License-Identifier: MIT
+******************************************************************************/
 
 #pragma once
 #include "gstgvaaudiotranscribehandler.h"
