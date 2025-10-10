@@ -2,6 +2,7 @@ x-vippet: &vippet
   image: docker.io/intel/vippet-app:${DOCKER_TAG}
   build:
     context: .
+    target: ${TARGET:-prod}
     dockerfile: vippet/Dockerfile
     args:
       http_proxy:

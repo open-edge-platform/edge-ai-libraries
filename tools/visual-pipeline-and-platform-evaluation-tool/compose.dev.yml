@@ -3,14 +3,11 @@ services:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv
   vippet-cpu:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv
   vippet-npu:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv

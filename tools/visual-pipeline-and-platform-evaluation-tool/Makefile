@@ -102,8 +102,8 @@ run-dev: check-device-type install-models-once ## Run the docker compose service
 
 test: ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
-	DOCKER_TAG=$(VERSION) docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
-		vippet-cpu bash -c "\
+	TARGET=test DOCKER_TAG=$(VERSION)-$$TARGET docker compose -f $(COMPOSE_FILE) run \
+	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet-cpu bash -c "\
 		cd $(PROJECT_NAME) && \
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
