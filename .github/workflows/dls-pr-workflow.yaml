@@ -123,8 +123,8 @@ jobs:
   dls-trivy-config-scan:
     permissions:
       contents: read
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    needs: [dls-filter-docker-related-changes]
+    if: needs.dls-filter-docker-related-changes.outputs.docker_changed == 'true'
     name: "DLS SCAN: Trivy ${{ matrix.name }}"
     strategy:
       fail-fast: false
@@ -154,8 +154,8 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
+    needs: [dls-filter-docker-related-changes]
+    if: needs.dls-filter-docker-related-changes.outputs.docker_changed == 'true'
     name: "DLS SCAN: Hadolint"
     runs-on: ubuntu-latest
     strategy:
