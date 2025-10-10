@@ -13,11 +13,11 @@ on:
 
   workflow_call:
     secrets:
-      DLS_COVERITY_TOKEN:
+      DLSPS_COVERITY_TOKEN:
         required: true
-      DLS_COVERITY_EMAIL:
+      DLSPS_COVERITY_EMAIL:
         required: true
-      DLS_COVERITY_PROJECT:
+      DLSPS_COVERITY_PROJECT:
         required: true
 
   workflow_dispatch:
