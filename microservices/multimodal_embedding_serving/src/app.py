@@ -22,11 +22,10 @@ The application follows a factory pattern for model instantiation and provides
 comprehensive error handling and logging.
 """
 
-from typing import List, Union
-
+from typing import List, Union, Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
-from pydantic import BaseModel
+from pydantic import BaseModel, Field, validator
 from .utils import ErrorMessages, logger, settings, decode_base64_image, download_image
 from .models import ModelFactory, get_model_handler, list_available_models
 from .wrapper import EmbeddingModel
@@ -176,6 +175,58 @@ class VideoFileInput(BaseModel):
     segment_config: dict
 
 
+class FramesBatchInput(BaseModel):
+    type: str
+    frames_manifest_path: str
+
+
+# Pydantic models for frames manifest validation
+class FrameInfo(BaseModel):
+    """Individual frame information in the manifest."""
+    frame_number: int = Field(..., ge=0, description="Frame number in the video")
+    timestamp: float = Field(..., ge=0.0, description="Timestamp in seconds")
+    image_path: Optional[str] = Field(None, description="Absolute path to the frame image file (None for video-based processing)")
+    type: str = Field(..., pattern="^(full_frame|detected_crop)$", description="Type of frame")
+    frame_interval: Optional[int] = Field(None, ge=1, description="Frame extraction interval used")
+    
+    # Optional fields for detected crops
+    is_detected_crop: Optional[bool] = Field(False, description="Whether this is a detected object crop")
+    detection_confidence: Optional[float] = Field(None, ge=0.0, le=1.0, description="Detection confidence score")
+    crop_bbox: Optional[List[int]] = Field(None, description="Bounding box coordinates [x1, y1, x2, y2]")
+    crop_index: Optional[int] = Field(None, ge=0, description="Crop index for the frame")
+    
+    @validator('crop_bbox')
+    def validate_bbox(cls, v):
+        if v is not None:
+            if len(v) != 4:
+                raise ValueError('crop_bbox must have exactly 4 elements [x1, y1, x2, y2]')
+            # Convert floats to integers and ensure they're non-negative
+            try:
+                v = [int(round(x)) if isinstance(x, (float, int)) else int(x) for x in v]
+            except (ValueError, TypeError):
+                raise ValueError('crop_bbox values must be numeric')
+            if not all(x >= 0 for x in v):
+                raise ValueError('crop_bbox values must be non-negative integers')
+            if v[0] >= v[2] or v[1] >= v[3]:
+                raise ValueError('Invalid bounding box: x1 < x2 and y1 < y2 required')
+        return v
+
+
+class FramesManifest(BaseModel):
+    """Complete frames manifest structure."""
+    frames: List[FrameInfo] = Field(..., min_items=1, description="List of frame information")
+    
+    # Optional metadata
+    video_metadata: Optional[dict] = Field(None, description="Original video metadata")
+    processing_metadata: Optional[dict] = Field(None, description="Processing configuration metadata")
+    
+    @validator('frames')
+    def validate_frames_not_empty(cls, v):
+        if not v:
+            raise ValueError('frames list cannot be empty')
+        return v
+
+
 class EmbeddingRequest(BaseModel):
     """
     Main request model for embedding generation.
@@ -194,6 +245,7 @@ class EmbeddingRequest(BaseModel):
         VideoUrlInput,
         VideoBase64Input,
         VideoFileInput,
+        FramesBatchInput,
     ]
     encoding_format: str
 
@@ -311,6 +363,10 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
             embedding = await embedding_model.get_video_embedding_from_file(
                 input_data.video_path, input_data.segment_config
             )
+        elif input_data.type == "frames_batch":
+            embedding = await embedding_model.get_video_embedding_from_frames_manifest(
+                input_data.frames_manifest_path
+            )
         else:
             raise HTTPException(status_code=400, detail="Invalid input type")
 
@@ -319,6 +375,12 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
     except HTTPException as e:
         logger.error(f"HTTP error creating embedding: {e.detail}")
         raise e
+    except FileNotFoundError as e:
+        logger.error(f"File not found error creating embedding: {e}")
+        raise HTTPException(status_code=404, detail=f"File not found: {e}")
+    except ValueError as e:
+        logger.error(f"Validation error creating embedding: {e}")
+        raise HTTPException(status_code=422, detail=f"Invalid input data: {e}")
     except Exception as e:
         logger.error(f"Error creating embedding: {e}")
         raise HTTPException(

@@ -13,7 +13,7 @@ For model handlers, import from the handlers subpackage:
 
 from .base import BaseEmbeddingModel
 from .registry import ModelFactory, get_model_handler, register_model_handler
-from .config import get_model_config, list_available_models, get_default_model
+from .config import get_model_config, list_available_models
 
 # Expose main API (core functionality only)
 __all__ = [
@@ -22,6 +22,5 @@ __all__ = [
     "get_model_handler",
     "register_model_handler",
     "get_model_config",
-    "list_available_models",
-    "get_default_model",
+    "list_available_models"
 ]

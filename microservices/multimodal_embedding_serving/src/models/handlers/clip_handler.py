@@ -24,9 +24,11 @@ import torch
 import torch.nn.functional as F
 import types
 import gc
+import json
 import openvino as ov
 from PIL import Image
 import open_clip
+import shutil
 
 from ..base import BaseEmbeddingModel
 from ...utils import logger
@@ -130,20 +132,29 @@ class CLIPHandler(BaseEmbeddingModel):
         """
         # Use shared utility to check/convert and load models
         model_key = f"{self.model_name}_{self.pretrained}".replace("/", "_").replace("-", "_")
+        
+        # For OpenVINO conversion, pass None for model and tokenizer loaders since
+        # Optimum Intel will handle model loading internally to avoid multiple downloads
         image_encoder_path, text_encoder_path = check_and_convert_openvino_models(
             model_key=model_key,
-            model_loader=lambda: open_clip.create_model_and_transforms(self.model_name, pretrained=self.pretrained),
-            tokenizer_loader=lambda: open_clip.get_tokenizer(self.model_name),
+            model_loader=None,  # Don't pre-load model for Optimum Intel conversion
+            tokenizer_loader=None,  # Don't pre-load tokenizer for Optimum Intel conversion  
             convert_func=self.convert_to_openvino,
             ov_models_dir=self.ov_models_dir
         )
         self.ov_image_encoder, self.ov_text_encoder = load_openvino_models(
             image_encoder_path, text_encoder_path, self.device
         )
-        # Always load preprocessing and tokenizer for OpenVINO inference
+        # Create model structure WITHOUT downloading weights to get preprocessing
+        # This leverages OpenCLIP's built-in preprocessing configuration
         _, _, self.preprocess = open_clip.create_model_and_transforms(
-            self.model_name, pretrained=self.pretrained
+            self.model_name, 
+            pretrained=self.pretrained,
+            load_weights=False,  # KEY: Don't download weights, just get preprocessing!
+            device='cpu'  # Lightweight since no weights loaded
         )
+        
+        # Get tokenizer (lightweight operation)
         self.tokenizer = open_clip.get_tokenizer(self.model_name)
         logger.info(f"CLIP OpenVINO models loaded successfully on device: {self.device}")
     
@@ -172,8 +183,9 @@ class CLIPHandler(BaseEmbeddingModel):
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO inference
-            text_features = torch.from_numpy(self.ov_text_encoder(tokenized)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: tokenized})
+            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -209,82 +221,110 @@ class CLIPHandler(BaseEmbeddingModel):
         elif isinstance(images, Image.Image):
             image_tensor = self.preprocess(images).unsqueeze(0)
         else:  # List of images
+            logger.debug(f"Preprocessing {len(images)} list of images for CLIP")
             image_tensor = torch.stack([self.preprocess(img) for img in images])
         
         if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO inference
-            image_features = torch.from_numpy(self.ov_image_encoder(image_tensor)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
+            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():
                 image_features = self.model.encode_image(image_tensor)
         
         image_features = F.normalize(image_features, dim=-1)
+        logger.debug(f"CLIP image_features shape: {image_features.shape}")
         return image_features
     
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
-        """Convert CLIP model to OpenVINO format for inference optimization."""
+        """Convert CLIP model to OpenVINO format using Optimum Intel for robust conversion."""
         ov_models_path = Path(ov_models_dir)
         ov_models_path.mkdir(exist_ok=True)
-        
-        # Use provided model and tokenizer, or fallback to instance attributes
-        if model is None:
-            model = self.model
-        if tokenizer is None:
-            tokenizer = self.tokenizer
-            
-        if model is None or tokenizer is None:
-            raise RuntimeError("Model and tokenizer must be available for conversion")
         
         model_key = f"{self.model_name}_{self.pretrained}".replace("/", "_").replace("-", "_")
         image_encoder_path = ov_models_path / f"{model_key}_image_encoder.xml"
         text_encoder_path = ov_models_path / f"{model_key}_text_encoder.xml"
         
-        # Create sample inputs
-        sample_image = torch.randn(1, 3, 224, 224)  # Standard CLIP input size
-        sample_text = tokenizer(["sample text"])
+        logger.info(f"OpenVINO models directory: {ov_models_path}")
+        logger.info(f"Model key: {model_key}")
+        logger.info(f"Expected image encoder path: {image_encoder_path}")
+        logger.info(f"Expected text encoder path: {text_encoder_path}")
         
-        # Convert image encoder for OpenVINO optimization
-        if not image_encoder_path.exists():
-            logger.info(f"Converting CLIP image encoder to OpenVINO: {image_encoder_path}")
-            
-            # Modify model forward method to encode_image
-            original_forward = model.forward
-            model.forward = model.encode_image
-            
-            ov_image_encoder = ov.convert_model(
-                model,
-                example_input=sample_image,
-                input=[-1, 3, sample_image.shape[2], sample_image.shape[3]],
-            )
-            ov.save_model(ov_image_encoder, image_encoder_path)
-            del ov_image_encoder
-            gc.collect()
-            logger.info(f"Image encoder saved to: {image_encoder_path}")
-            
-            # Restore original forward method
-            model.forward = original_forward
+        # Check if models already exist
+        if image_encoder_path.exists() and text_encoder_path.exists():
+            logger.info(f"Reusing existing OpenVINO models from persistent volume: {ov_models_path}")
+            return str(image_encoder_path), str(text_encoder_path)
         
-        # Convert text encoder for OpenVINO optimization
-        if not text_encoder_path.exists():
-            logger.info(f"Converting CLIP text encoder to OpenVINO: {text_encoder_path}")
+        # Use Optimum Intel with OpenCLIP's native HuggingFace support (recommended)
+        logger.info("Attempting conversion using Optimum Intel with OpenCLIP HuggingFace support...")
+        try:
+            from optimum.intel import OVModelOpenCLIPText, OVModelOpenCLIPVisual
+            from open_clip.pretrained import get_pretrained_cfg
+            from huggingface_hub import HfFolder
+            import os
             
-            # Modify model forward method to encode_text
-            original_forward = model.forward
-            model.forward = model.encode_text
+            # Use HuggingFace's default cache directory instead of creating our own
+            # This leverages existing caching and avoids redundant downloads
+            default_cache_dir = os.environ.get('HF_HOME') or os.path.expanduser('~/.cache/huggingface/hub')
+            logger.info(f"Using HuggingFace default cache directory: {default_cache_dir}")
             
-            ov_text_encoder = ov.convert_model(
-                model,
-                example_input=sample_text,
-                input=[-1, sample_text.shape[1]],
-            )
-            ov.save_model(ov_text_encoder, text_encoder_path)
-            del ov_text_encoder
-            gc.collect()
-            logger.info(f"Text encoder saved to: {text_encoder_path}")
+            # Use OpenCLIP's native HuggingFace Hub detection
+            logger.info(f"Checking for HuggingFace Hub support for {self.model_name}:{self.pretrained}")
+            pretrained_cfg = get_pretrained_cfg(self.model_name, self.pretrained)
+            hf_hub_id = pretrained_cfg.get('hf_hub', '')
             
-            # Restore original forward method
-            model.forward = original_forward
+            if hf_hub_id:
+                logger.info(f"Found HuggingFace Hub mapping: {hf_hub_id}")
+                
+                # Clean up the hf_hub_id (remove trailing slashes)
+                hf_hub_id = hf_hub_id.rstrip('/')
+                
+                # Use Optimum Intel directly with the HuggingFace model ID
+                logger.info(f"Converting {hf_hub_id} using Optimum Intel...")
+                
+                visual_model = OVModelOpenCLIPVisual.from_pretrained(
+                    hf_hub_id, export=True, trust_remote_code=True, cache_dir=default_cache_dir
+                )
+                text_model = OVModelOpenCLIPText.from_pretrained(
+                    hf_hub_id, export=True, trust_remote_code=True, cache_dir=default_cache_dir
+                )
+                
+                # Save the converted models directly to the target directory
+                visual_model.save_pretrained(ov_models_path)
+                text_model.save_pretrained(ov_models_path)
+                
+                # Optimum Intel saves as openvino_model_vision.xml and openvino_model_text.xml
+                # Rename to expected paths
+                optimum_vision_path = ov_models_path / "openvino_model_vision.xml"
+                optimum_text_path = ov_models_path / "openvino_model_text.xml"
+                optimum_vision_bin = ov_models_path / "openvino_model_vision.bin"
+                optimum_text_bin = ov_models_path / "openvino_model_text.bin"
+                
+                if optimum_vision_path.exists() and optimum_text_path.exists():
+                    # Rename files to expected names
+                    shutil.move(str(optimum_vision_path), str(image_encoder_path))
+                    shutil.move(str(optimum_vision_bin), str(image_encoder_path.with_suffix('.bin')))
+                    shutil.move(str(optimum_text_path), str(text_encoder_path))
+                    shutil.move(str(optimum_text_bin), str(text_encoder_path.with_suffix('.bin')))
+                    
+                    logger.info("Successfully converted using Optimum Intel with OpenCLIP native HF mapping")
+                    return str(image_encoder_path), str(text_encoder_path)
+                else:
+                    logger.error(f"Optimum Intel conversion succeeded but models not found at expected paths")
+                    logger.error(f"Expected: {optimum_vision_path}, {optimum_text_path}")
+                    logger.error(f"Directory contents: {list(ov_models_path.glob('*'))}")
+                    raise RuntimeError("Models not saved to expected Optimum Intel paths")
+            else:
+                logger.error(f"No HuggingFace Hub mapping found for {self.model_name}:{self.pretrained}")
+                raise RuntimeError("Model does not have HuggingFace Hub support - OpenVINO conversion requires HF Hub mapping")
+                
+        except ImportError:
+            logger.error("Optimum Intel not available. Please install optimum-intel to use OpenVINO conversion.")
+            raise RuntimeError("Optimum Intel not installed - required for OpenVINO conversion")
+        except Exception as e:
+            logger.error(f"Optimum Intel conversion failed: {e}")
+            raise RuntimeError(f"OpenVINO conversion failed: {e}")
         
         return str(image_encoder_path), str(text_encoder_path)
     

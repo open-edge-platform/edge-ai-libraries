@@ -174,8 +174,9 @@ class BLIP2Handler(BaseEmbeddingModel):
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO inference
-            text_features = torch.from_numpy(self.ov_text_encoder(tokenized)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: tokenized})
+            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -197,8 +198,9 @@ class BLIP2Handler(BaseEmbeddingModel):
             image_tensor = torch.stack([self.preprocess(img) for img in images])
         
         if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO inference
-            image_features = torch.from_numpy(self.ov_image_encoder(image_tensor)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
+            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():

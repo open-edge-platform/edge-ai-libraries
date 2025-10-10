@@ -22,7 +22,7 @@ interface, providing consistent text and image encoding capabilities.
 from typing import Dict, Type
 from .base import BaseEmbeddingModel
 from .handlers import CLIPHandler, CNClipHandler, MobileCLIPHandler, SigLIPHandler, BLIP2Handler, BLIP2TransformersHandler
-from .config import get_model_config, list_available_models, get_default_model
+from .config import get_model_config, list_available_models
 from ..utils import logger
 
 
@@ -113,15 +113,6 @@ class ModelFactory:
         """
         return list_available_models()
 
-    @staticmethod
-    def get_default() -> str:
-        """
-        Get the default model identifier from configuration.
-
-        Returns:
-            Default model identifier string (e.g., "CLIP/clip-vit-b-16")
-        """
-        return get_default_model()
 
     @staticmethod
     def is_model_supported(model_id: str) -> bool:
@@ -168,8 +159,6 @@ def get_model_handler(model_id: str = None, device=None, ov_models_dir=None, use
         Configured model handler instance ready for use
 
     Example:
-        # Use default model with default settings
-        handler = get_model_handler()
         
         # Use specific model with custom device
         handler = get_model_handler("CLIP/clip-vit-b-16", device="GPU")
@@ -177,8 +166,6 @@ def get_model_handler(model_id: str = None, device=None, ov_models_dir=None, use
         # Enable OpenVINO optimization
         handler = get_model_handler("MobileCLIP/mobileclip_s0", use_openvino=True)
     """
-    if model_id is None:
-        model_id = ModelFactory.get_default()
 
     return ModelFactory.create_model(
         model_id,

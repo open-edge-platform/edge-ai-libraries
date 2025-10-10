@@ -11,6 +11,9 @@ from typing import List, Union, Dict, Any
 import torch
 from PIL import Image
 import numpy as np
+import json
+import os
+from pydantic import ValidationError
 
 from .models.base import BaseEmbeddingModel
 from .utils import (
@@ -219,6 +222,243 @@ class EmbeddingModel:
         except Exception as e:
             logger.error(f"Error getting video embedding from file: {e}")
             raise RuntimeError(f"Failed to get video embedding from file: {e}")
+    
+    async def get_video_embedding_from_frames_manifest(self, manifest_path: str) -> List[List[float]]:
+        """
+        Get video embedding from frames manifest file.
+        
+        Supports two modes:
+        1. Individual frame images: Traditional mode where each frame is a separate image file
+        2. Video-based processing: New mode where manifest specifies frames to extract from a video file
+        
+        Args:
+            manifest_path: Path to the frames manifest JSON file
+            
+        Returns:
+            List of frame embedding lists (one per frame/crop)
+            
+        Raises:
+            FileNotFoundError: If manifest file doesn't exist (404)
+            ValueError: If manifest structure is invalid (422) 
+            RuntimeError: For other processing errors (500)
+        """
+        try:
+            logger.debug(f"Getting video embedding from frames manifest: {manifest_path}")
+            
+            # Validate manifest file exists
+            if not os.path.exists(manifest_path):
+                raise FileNotFoundError(f"Frames manifest file not found: {manifest_path}")
+            
+            # Load and validate manifest structure
+            try:
+                with open(manifest_path, 'r') as f:
+                    manifest_data = json.load(f)
+            except json.JSONDecodeError as e:
+                raise ValueError(f"Invalid JSON in manifest file: {e}")
+            
+            # Import here to avoid circular imports
+            try:
+                from .app import FramesManifest
+                manifest = FramesManifest(**manifest_data)
+            except ImportError:
+                # Fallback validation if import fails
+                if not isinstance(manifest_data, dict) or "frames" not in manifest_data:
+                    raise ValueError("Invalid manifest format: must be a JSON object with 'frames' key")
+                if not isinstance(manifest_data["frames"], list) or len(manifest_data["frames"]) == 0:
+                    raise ValueError("Invalid manifest format: 'frames' must be a non-empty list")
+                manifest = manifest_data
+            except ValidationError as e:
+                raise ValueError(f"Invalid manifest structure: {e}")
+            
+            # Check if this is a video-based manifest (has video_path) or image-based manifest
+            video_path = manifest_data.get("video_path")
+            frames_list = manifest.frames if hasattr(manifest, 'frames') else manifest_data["frames"]
+            
+            if video_path and os.path.exists(video_path):
+                # VIDEO-BASED PROCESSING: Extract specific frames from video file
+                logger.info(f"Processing video-based manifest with {len(frames_list)} frames from: {video_path}")
+                
+                # Extract the specific frames using video processing
+                from .utils import extract_video_frames
+                
+                # Check if this is an optimized manifest with unique frame numbers
+                if "total_metadata_entries" in manifest_data and "frame_metadata_map" in manifest_data:
+                    # OPTIMIZED MANIFEST: Use the deduplicated frames for extraction
+                    logger.info(f"Processing optimized video-based manifest with {len(frames_list)} unique frames "
+                               f"(from {manifest_data['total_metadata_entries']} total metadata entries)")
+                    
+                    # Extract unique frame numbers from the deduplicated frames list
+                    frame_numbers = []
+                    for frame_info in frames_list:
+                        if hasattr(frame_info, 'frame_number'):
+                            frame_numbers.append(frame_info.frame_number)
+                        elif isinstance(frame_info, dict):
+                            frame_numbers.append(frame_info.get("frame_number", 0))
+                else:
+                    # LEGACY MANIFEST: Extract frame numbers from all frames (may contain duplicates)
+                    logger.info(f"Processing legacy video-based manifest with {len(frames_list)} frames")
+                    
+                    frame_numbers = []
+                    seen_frames = set()
+                    
+                    for frame_info in frames_list:
+                        frame_num = None
+                        if hasattr(frame_info, 'frame_number'):
+                            frame_num = frame_info.frame_number
+                        elif isinstance(frame_info, dict):
+                            frame_num = frame_info.get("frame_number", 0)
+                        
+                        # Deduplicate frame numbers to avoid extracting the same frame multiple times
+                        if frame_num is not None and frame_num not in seen_frames:
+                            frame_numbers.append(frame_num)
+                            seen_frames.add(frame_num)
+                    
+                    logger.info(f"Deduplicated to {len(frame_numbers)} unique frames for extraction")
+                
+                # Create segment config with specific frame indices
+                segment_config = {
+                    "frame_indexes": frame_numbers,
+                    "startOffsetSec": 0,
+                    "clip_duration": -1  # Process entire video
+                }
+                
+                # Extract specified frames from video
+                extracted_frames = extract_video_frames(video_path, segment_config)
+                
+                if not extracted_frames:
+                    raise ValueError(f"No frames could be extracted from video: {video_path}")
+                
+                # For optimized manifests, process both frames and detected crops efficiently
+                if "total_metadata_entries" in manifest_data and "frame_metadata_map" in manifest_data:
+                    logger.info("Processing frames and detected crops using saved image files (optimal approach)...")
+                    
+                    # Use image-based processing for all entries (frames + crops) since VDMS DataPrep
+                    # already saved both full frames and crop images as files in shared temp storage
+                    all_frame_metadata = manifest_data.get("all_frame_metadata", [])
+                    
+                    images = []
+                    valid_entries = []
+                    
+                    logger.info(f"Loading {len(all_frame_metadata)} image files (frames + crops) from shared temp storage")
+                    
+                    for i, metadata_entry in enumerate(all_frame_metadata):
+                        image_path = metadata_entry.get("image_path")
+                        frame_type = metadata_entry.get("type", "full_frame")
+                        
+                        if image_path is None:
+                            logger.warning(f"Entry {i} has no image_path, skipping")
+                            continue
+                            
+                        if not os.path.exists(image_path):
+                            logger.warning(f"Image file not found: {image_path}, skipping")
+                            continue
+                        
+                        try:
+                            # Load the image file (works for both full frames and crops)
+                            image = Image.open(image_path)
+                            image.verify()  # Validate image
+                            image = Image.open(image_path)  # Reload after verify
+                            images.append(image)
+                            valid_entries.append(metadata_entry)
+                            
+                            # Debug log for first few images
+                            if len(images) <= 5:
+                                logger.debug(f"Loaded {frame_type} image: {os.path.basename(image_path)}")
+                                
+                        except Exception as e:
+                            logger.warning(f"Failed to load image {image_path}: {e}, skipping")
+                            continue
+                    
+                    if not images:
+                        raise ValueError("No valid images found in optimized manifest")
+                    
+                    # Batch encode all images at once (most efficient approach)
+                    logger.info(f"Generating embeddings for {len(images)} images using batch processing...")
+                    embeddings = self.handler.encode_image(images)
+                    
+                    # Normalize embeddings
+                    embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
+                    
+                    # Convert to list of lists
+                    embeddings_list = embeddings.tolist()
+                    
+                    # Count frame types for logging
+                    frame_count = sum(1 for entry in valid_entries if entry.get("type") == "full_frame")
+                    crop_count = sum(1 for entry in valid_entries if entry.get("type") == "detected_crop")
+                    
+                    logger.info(f"Optimal processing complete - {len(embeddings_list)} total embeddings "
+                               f"({frame_count} frames + {crop_count} crops) loaded from saved files")
+                    return embeddings_list
+                else:
+                    # Legacy behavior: direct mapping
+                    embeddings_list = self.get_video_embeddings([extracted_frames])
+                    logger.info(f"Video-based manifest processing complete - {len(embeddings_list)} frame embeddings")
+                    return embeddings_list
+                
+            else:
+                # IMAGE-BASED PROCESSING: Traditional mode with individual frame image files
+                logger.info(f"Processing image-based manifest with {len(frames_list)} frame images")
+                
+                images = []
+                valid_frames = []
+                
+                for i, frame_info in enumerate(frames_list):
+                    # Handle both Pydantic model and dict formats
+                    if hasattr(frame_info, 'image_path'):
+                        image_path = frame_info.image_path
+                        frame_data = frame_info.dict() if hasattr(frame_info, 'dict') else frame_info
+                    else:
+                        if not isinstance(frame_info, dict):
+                            logger.warning(f"Invalid frame info at index {i}: not a dict, skipping")
+                            continue
+                        image_path = frame_info.get("image_path")
+                        frame_data = frame_info
+                    
+                    # Skip frames with no image path (these are meant for video-based processing)
+                    if image_path is None:
+                        logger.debug(f"Frame {i} has no image_path (video-based frame), skipping in image-based processing")
+                        continue
+                    
+                    if not os.path.exists(image_path):
+                        logger.warning(f"Frame image not found: {image_path}, skipping")
+                        continue
+                    
+                    try:
+                        image = Image.open(image_path)
+                        # Validate image can be loaded
+                        image.verify()
+                        # Reload image for processing (verify() closes the file)
+                        image = Image.open(image_path)
+                        images.append(image)
+                        valid_frames.append(frame_data)
+                    except Exception as e:
+                        logger.warning(f"Failed to load frame image {image_path}: {e}, skipping")
+                        continue
+                
+                if not images:
+                    raise ValueError("No valid frame images found in manifest")
+                
+                # Batch encode all images at once (more efficient)
+                embeddings = self.handler.encode_image(images)
+                
+                # Normalize embeddings
+                embeddings = embeddings / embeddings.norm(dim=-1, keepdim=True)
+                
+                # Convert to list of lists
+                embeddings_list = embeddings.tolist()
+                
+                logger.info(f"Image-based manifest processing complete - {len(embeddings_list)} frame embeddings")
+                return embeddings_list
+            
+        except FileNotFoundError:
+            # Re-raise FileNotFoundError as-is (will become 404)
+            raise
+        except ValueError:
+            # Re-raise ValueError as-is (will become 422)
+            raise
+        except Exception as e:
+            logger.error(f"Error getting video embedding from frames manifest: {e}")
+            raise RuntimeError(f"Failed to get video embedding from frames manifest: {e}")
     
     def check_health(self) -> bool:
         """

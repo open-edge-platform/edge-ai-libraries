@@ -223,9 +223,10 @@ class CNClipHandler(BaseEmbeddingModel):
     def _encode_text_openvino(self, texts: List[str]) -> torch.Tensor:
         """Encode text using OpenVINO model."""
         text_tokens = self.tokenizer(texts)
-        text_features = self.ov_text_encoder(text_tokens.numpy())[0]
+        # Use OpenVINO inference with infer_new_request for thread safety
+        result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: text_tokens.numpy()})
+        text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
         # Convert to torch tensor and normalize
-        text_features = torch.from_numpy(text_features)
         text_features = F.normalize(text_features, p=2, dim=1)
         return text_features
     
@@ -278,18 +279,19 @@ class CNClipHandler(BaseEmbeddingModel):
         # Preprocess images
         processed_images = torch.stack([self.preprocess(img) for img in images])
         
-        # Run inference
-        image_features = self.ov_image_encoder(processed_images.numpy())[0]
+        # Run inference with infer_new_request for thread safety
+        result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: processed_images.numpy()})
+        image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         
         # Convert to torch tensor and normalize
-        image_features = torch.from_numpy(image_features)
         image_features = F.normalize(image_features, p=2, dim=1)
         return image_features
     
     def _encode_image_tensor_openvino(self, images: torch.Tensor) -> torch.Tensor:
         """Encode preprocessed image tensor using OpenVINO model."""
-        image_features = self.ov_image_encoder(images.numpy())[0]
-        image_features = torch.from_numpy(image_features)
+        # Use OpenVINO inference with infer_new_request for thread safety
+        result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: images.numpy()})
+        image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         image_features = F.normalize(image_features, p=2, dim=1)
         return image_features
     

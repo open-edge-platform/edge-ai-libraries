@@ -177,13 +177,6 @@ MODEL_CONFIGS = {
             "handler_class": "BLIP2TransformersHandler",
             "image_probs": blip2_image_probs,
         },
-        "blip2_transformers_vitL": {
-            "model_name": "blip2_feature_extractor",
-            "pretrained": "pretrain_vitL",
-            "image_size": 224,
-            "handler_class": "BLIP2TransformersHandler",
-            "image_probs": blip2_image_probs,
-        },
     },
 }
 
@@ -249,13 +242,3 @@ def list_available_models() -> dict:
         model_type: list(models.keys()) 
         for model_type, models in MODEL_CONFIGS.items()
     }
-
-
-def get_default_model() -> str:
-    """
-    Get the default model ID.
-    
-    Returns:
-        str: Default model ID
-    """
-    return os.getenv("MODEL_NAME", "CLIP/clip-vit-b-16")

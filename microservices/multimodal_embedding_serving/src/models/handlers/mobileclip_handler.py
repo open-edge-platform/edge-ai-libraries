@@ -25,6 +25,7 @@ import torch
 import torch.nn.functional as F
 import types
 import gc
+import requests
 import openvino as ov
 from PIL import Image
 import mobileclip
@@ -109,33 +110,14 @@ class MobileCLIPHandler(BaseEmbeddingModel):
                 # Load OpenVINO models
                 self._load_openvino_models()
             else:
-                # Download model if URL is provided
-                if self.url:
-                    model_dir = Path("checkpoints")
-                    model_dir.mkdir(exist_ok=True)
-                    
-                    # Download model file if it doesn't exist
-                    model_path = model_dir / Path(self.url).name
-                    if not model_path.exists():
-                        logger.info(f"Downloading MobileCLIP model from {self.url}")
-                        import requests
-                        response = requests.get(self.url)
-                        response.raise_for_status()
-                        with open(model_path, 'wb') as f:
-                            f.write(response.content)
-                        logger.info(f"Model downloaded to {model_path}")
-                    
-                    # Load model with local checkpoint
-                    self.model, _, self.preprocess = mobileclip.create_model_and_transforms(
-                        self.model_name, 
-                        pretrained=str(model_path)
-                    )
-                else:
-                    # Load model with pretrained path
-                    self.model, _, self.preprocess = mobileclip.create_model_and_transforms(
-                        self.model_name, 
-                        pretrained=self.pretrained
-                    )
+                # Download model if URL is provided and use ov_models_dir for storage
+                model_path = self._ensure_model_available()
+                
+                # Load model with downloaded checkpoint
+                self.model, _, self.preprocess = mobileclip.create_model_and_transforms(
+                    self.model_name, 
+                    pretrained=str(model_path)
+                )
                 
                 self.tokenizer = mobileclip.get_tokenizer(self.model_name)
                 self.model.eval()
@@ -145,13 +127,71 @@ class MobileCLIPHandler(BaseEmbeddingModel):
             logger.error(f"Failed to load MobileCLIP model {self.model_name}: {e}")
             raise
     
+    def _ensure_model_available(self) -> Path:
+        """
+        Ensure MobileCLIP model is available for loading.
+        
+        Downloads the model from URL if provided, or uses the pretrained path.
+        Uses the ov_models_dir as storage location which has write permissions.
+        
+        Returns:
+            Path to the model checkpoint file
+        """
+        if self.url:
+            # Use ov_models_dir for model storage (writable directory)
+            model_dir = Path(self.ov_models_dir) / "mobileclip_checkpoints"
+            model_dir.mkdir(parents=True, exist_ok=True)
+            
+            # Download model file if it doesn't exist
+            model_filename = Path(self.url).name
+            model_path = model_dir / model_filename
+            
+            if not model_path.exists():
+                logger.info(f"Downloading MobileCLIP model from {self.url}")
+                response = requests.get(self.url)
+                response.raise_for_status()
+                with open(model_path, 'wb') as f:
+                    f.write(response.content)
+                logger.info(f"Model downloaded to {model_path}")
+            else:
+                logger.info(f"Using cached model from {model_path}")
+            
+            return model_path
+        else:
+            # If no URL, try to use the pretrained path directly
+            # But first check if it's a relative path that needs to be in ov_models_dir
+            pretrained_path = Path(self.pretrained)
+            if not pretrained_path.is_absolute():
+                # Convert relative path to be inside ov_models_dir
+                model_path = Path(self.ov_models_dir) / "mobileclip_checkpoints" / pretrained_path.name
+                if not model_path.exists():
+                    raise FileNotFoundError(
+                        f"Model checkpoint not found at {model_path}. "
+                        f"Please provide a valid URL in the model configuration or "
+                        f"ensure the checkpoint is available in {model_path.parent}"
+                    )
+                return model_path
+            else:
+                return pretrained_path
+    
     def _load_openvino_models(self) -> None:
         """Load OpenVINO compiled models. Convert if they don't exist."""
         model_key = f"{self.model_name}".replace("/", "_").replace("-", "_")
+        
+        # Ensure model is available for OpenVINO conversion
+        model_path = self._ensure_model_available()
+        
+        # Create lambda functions that use the correct model path
+        def load_model_with_path():
+            return mobileclip.create_model_and_transforms(self.model_name, pretrained=str(model_path))
+        
+        def load_tokenizer():
+            return mobileclip.get_tokenizer(self.model_name)
+        
         image_encoder_path, text_encoder_path = check_and_convert_openvino_models(
             model_key=model_key,
-            model_loader=lambda: mobileclip.create_model_and_transforms(self.model_name, pretrained=self.pretrained),
-            tokenizer_loader=lambda: mobileclip.get_tokenizer(self.model_name),
+            model_loader=load_model_with_path,
+            tokenizer_loader=load_tokenizer,
             convert_func=self.convert_to_openvino,
             ov_models_dir=self.ov_models_dir
         )
@@ -160,7 +200,7 @@ class MobileCLIPHandler(BaseEmbeddingModel):
         )
         # Always load preprocessing and tokenizer for OpenVINO inference
         _, _, self.preprocess = mobileclip.create_model_and_transforms(
-            self.model_name, pretrained=self.pretrained
+            self.model_name, pretrained=str(model_path)
         )
         self.tokenizer = mobileclip.get_tokenizer(self.model_name)
         logger.info(f"MobileCLIP OpenVINO models loaded successfully on device: {self.device}")
@@ -173,8 +213,9 @@ class MobileCLIPHandler(BaseEmbeddingModel):
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO inference
-            text_features = torch.from_numpy(self.ov_text_encoder(tokenized)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_text_encoder.infer_new_request({self.ov_text_encoder.inputs[0]: tokenized})
+            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -193,8 +234,9 @@ class MobileCLIPHandler(BaseEmbeddingModel):
             image_tensor = torch.stack([self.preprocess(img) for img in images])
         
         if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO inference
-            image_features = torch.from_numpy(self.ov_image_encoder(image_tensor)[0])
+            # Use OpenVINO inference with infer_new_request for thread safety
+            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: image_tensor})
+            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         else:
             # Use PyTorch model
             with torch.no_grad():
@@ -208,14 +250,15 @@ class MobileCLIPHandler(BaseEmbeddingModel):
         ov_models_path = Path(ov_models_dir)
         ov_models_path.mkdir(exist_ok=True)
         
-        # Use provided model and tokenizer, or fallback to instance attributes
-        if model is None:
-            model = self.model
-        if tokenizer is None:
-            tokenizer = self.tokenizer
-            
+        # Use provided model and tokenizer, or load with proper model path
         if model is None or tokenizer is None:
-            raise RuntimeError("Model and tokenizer must be available for conversion")
+            # Ensure model is available for conversion
+            model_path = self._ensure_model_available()
+            model, _, _ = mobileclip.create_model_and_transforms(
+                self.model_name, 
+                pretrained=str(model_path)
+            )
+            tokenizer = mobileclip.get_tokenizer(self.model_name)
         
         model_key = f"{self.model_name}".replace("/", "_").replace("-", "_")
         image_encoder_path = ov_models_path / f"{model_key}_image_encoder.xml"

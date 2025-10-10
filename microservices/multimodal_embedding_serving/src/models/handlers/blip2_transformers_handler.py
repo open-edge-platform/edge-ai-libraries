@@ -15,6 +15,12 @@ The Transformers-based implementation offers:
 - Improved stability and error handling
 - Consistent tokenization and preprocessing
 - Enhanced OpenVINO conversion support
+- Projection layers for semantic search (768D → 256D) matching LAVIS behavior
+
+IMPORTANT: For semantic search/retrieval tasks, this handler uses projection layers
+to reduce embeddings from 768D (Q-Former) to 256D (projected space). This matches
+the LAVIS implementation and is CRITICAL for good search quality. The projection
+layers are specifically trained during BLIP-2's contrastive learning phase.
 
 The handler maintains the same interface as other model handlers while providing
 BLIP-2's advanced vision-language capabilities through the Q-Former architecture.
@@ -44,114 +50,140 @@ class TransformersBlip2Model(torch.nn.Module):
     the Hugging Face Transformers library. It handles the Q-Former architecture
     and ensures consistent embedding dimensions across text and image modalities.
     
+    This implementation uses projection layers from Blip2ForImageTextRetrieval to
+    reduce embeddings from 768D to 256D. This matches LAVIS behavior and is
+    essential for good semantic search quality.
+    
     The wrapper manages:
     - Q-Former based feature alignment
-    - Consistent embedding dimensionality
+    - Projection layers for semantic search (768D → 256D)
+    - Consistent embedding dimensionality (256D)
     - Text and image encoding workflows
     - Tokenization and preprocessing
     
     Args:
-        blip2_model: The loaded BLIP-2 model from Transformers
+        blip2_model: The loaded BLIP-2 model from Transformers (must have projection layers)
         processor: Associated processor for text and image preprocessing
-        embedding_dim: Target embedding dimension (auto-detected if None)
     """
     
-    def __init__(self, blip2_model, processor, embedding_dim=None):
+    def __init__(self, blip2_model, processor):
         super().__init__()
         self.blip2_model = blip2_model
         self.processor = processor
         
-        # Use Q-Former dimension as the standard (ensures consistency)
-        if hasattr(blip2_model, 'qformer') and hasattr(blip2_model.qformer, 'config'):
-            self.embedding_dim = blip2_model.qformer.config.hidden_size
-            logger.info(f"Using Q-Former dimension: {self.embedding_dim}")
-        elif embedding_dim is not None:
-            self.embedding_dim = embedding_dim
-        else:
-            # Fallback to 768 (standard transformer dimension)
-            self.embedding_dim = 768
-            logger.warning("Q-Former config not found, using default dimension: 768")
-            
-        logger.info(f"BLIP2 Transformers embedding dimension: {self.embedding_dim}")
-        logger.info("Q-Former will be used for both text and image feature extraction")
-            
-        logger.info(f"BLIP2 Transformers embedding dimension: {self.embedding_dim}")
+        # Verify model has projection layers (required for semantic search)
+        if not hasattr(blip2_model, 'vision_projection'):
+            raise ValueError(
+                "Model must have projection layers for semantic search. "
+                "Use Blip2ForImageTextRetrieval model."
+            )
+        
+        # Get embedding dimensions from model config
+        self.qformer_dim = blip2_model.config.qformer_config.hidden_size  # 768
+        self.embedding_dim = blip2_model.config.image_text_hidden_size    # 256
+        
+        logger.info(f"BLIP-2 model initialized for semantic search")
+        logger.info(f"Q-Former dimension: {self.qformer_dim}D")
+        logger.info(f"Projected dimension: {self.embedding_dim}D (matches LAVIS)")
 
     def encode_image(self, pixel_values):
         """
-        Encode image using BLIP2 Q-Former for consistent embeddings.
+        Encode image using BLIP2 with projection for semantic search.
         
         Processes images through the vision model and Q-Former to produce
-        aligned embeddings suitable for multimodal tasks. The Q-Former
-        architecture bridges vision and language representations.
+        aligned embeddings, then applies the vision_projection layer to reduce
+        from 768D to 256D, matching LAVIS image_embeds_proj behavior.
+        
+        Process flow:
+        1. Vision Model → vision features
+        2. Q-Former → query-based features (768D)
+        3. Projection → compact embeddings (256D)
+        4. Mean pooling → final image embedding
+        5. Normalization → unit vector for cosine similarity
         
         Args:
             pixel_values: Preprocessed image tensor
             
         Returns:
-            Image embeddings aligned through Q-Former architecture
+            Image embeddings (256D)
         """
         with torch.no_grad():
             # Get vision features
             vision_outputs = self.blip2_model.vision_model(pixel_values)
             image_embeds = vision_outputs.last_hidden_state
             
+            # Create attention mask for vision embeddings
+            image_attention_mask = torch.ones(
+                image_embeds.size()[:-1], 
+                dtype=torch.long, 
+                device=image_embeds.device
+            )
+            
             # Use Q-Former to get aligned image features
             query_tokens = self.blip2_model.query_tokens.expand(image_embeds.shape[0], -1, -1)
             query_outputs = self.blip2_model.qformer(
                 query_embeds=query_tokens,
                 encoder_hidden_states=image_embeds,
-                encoder_attention_mask=None,
+                encoder_attention_mask=image_attention_mask,
                 return_dict=True,
             )
             
-            # Use the mean pooling of query outputs as image embedding
-            image_features = query_outputs.last_hidden_state.mean(dim=1)
+            # Get Q-Former output (768D)
+            image_features = query_outputs.last_hidden_state
+            
+            # Apply projection (768D → 256D for semantic search)
+            image_features = self.blip2_model.vision_projection(image_features)
+            
+            # Mean pool over query tokens
+            image_features = image_features.mean(dim=1)
+            
+            # Normalize for cosine similarity (like LAVIS)
+            image_features = F.normalize(image_features, dim=-1)
             
             return image_features
 
     def encode_text(self, input_ids, attention_mask):
         """
-        Encode text using BLIP2 language model with projection to Q-Former space.
+        Encode text using BLIP2 with projection for semantic search.
         
-        Processes text through the language model and projects the features
-        to match the Q-Former embedding space for consistent multimodal
-        representation alignment.
+        Processes text through embeddings and Q-Former to produce aligned embeddings,
+        then applies the text_projection layer to reduce from 768D to 256D,
+        matching LAVIS text_embeds_proj behavior.
+        
+        Process flow:
+        1. Text Embeddings → token embeddings
+        2. Q-Former → query-based features (768D)
+        3. Projection → compact embeddings (256D)
+        4. [CLS] token → final text embedding
+        5. Normalization → unit vector for cosine similarity
         
         Args:
             input_ids: Tokenized input text tensor
             attention_mask: Attention mask for the input
             
         Returns:
-            Text embeddings projected to Q-Former space
+            Text embeddings (256D)
         """
         with torch.no_grad():
-            # Use the language model to get text embeddings
-            language_outputs = self.blip2_model.language_model(
-                input_ids=input_ids,
+            # Use Blip2ForImageTextRetrieval path
+            query_embeds = self.blip2_model.embeddings(input_ids=input_ids)
+            
+            # Process through Q-Former (without cross-attention to image)
+            text_outputs = self.blip2_model.qformer(
+                query_embeds=query_embeds,
+                query_length=0,
                 attention_mask=attention_mask,
                 return_dict=True,
             )
             
-            # Get the hidden states
-            if hasattr(language_outputs, 'hidden_states') and language_outputs.hidden_states is not None:
-                # Use the last hidden state from the hidden states
-                text_features = language_outputs.hidden_states[-1]
-            else:
-                # Fallback: use the logits and project them
-                text_features = language_outputs.logits
+            # Get Q-Former output (768D)
+            text_features = text_outputs.last_hidden_state
             
-            # Apply attention mask for proper pooling
-            mask_expanded = attention_mask.unsqueeze(-1).expand(text_features.size()).float()
-            text_features = (text_features * mask_expanded).sum(1) / mask_expanded.sum(1)
+            # Apply projection (768D → 256D) using [CLS] token
+            text_features = self.blip2_model.text_projection(text_features[:, 0, :])
             
-            # Project to Q-Former dimension if needed
-            if text_features.shape[-1] != self.embedding_dim:
-                # Create a simple linear projection to match Q-Former dimension
-                if not hasattr(self, 'text_projection'):
-                    self.text_projection = torch.nn.Linear(text_features.shape[-1], self.embedding_dim)
-                    self.text_projection.eval()
-                text_features = self.text_projection(text_features)
+            # Normalize for cosine similarity (like LAVIS)
+            text_features = F.normalize(text_features, dim=-1)
             
             return text_features
 
@@ -190,14 +222,18 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
     """
     Handler for BLIP-2 models using the Hugging Face Transformers library.
     
-    This handler provides an alternative implementation to the LAVIS-based
-    BLIP-2 handler, offering better integration with the Transformers ecosystem
-    and improved stability. It maintains the same interface while leveraging
-    Transformers' robust model loading and processing capabilities.
+    This handler provides an implementation optimized for semantic search/retrieval
+    tasks using BLIP-2's projection layers (768D → 256D). It uses the Hugging Face
+    Transformers library for better integration with the ecosystem and improved
+    stability.
+    
+    This implementation always uses projection layers to match LAVIS behavior,
+    which is essential for good search quality in semantic search applications.
     
     Key features:
     - Transformers-based model loading and processing
-    - Automatic model variant selection
+    - Projection layers for semantic search (768D → 256D, matches LAVIS)
+    - Automatic retrieval model selection
     - Improved tokenization and preprocessing
     - Enhanced OpenVINO conversion support
     - Better error handling and stability
@@ -208,7 +244,7 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         image_size: Input image dimensions
         use_openvino: Whether to use OpenVINO optimization
         device: Target device for inference
-        transformers_model_map: Mapping to Hugging Face model names
+        retrieval_model_map: Mapping to retrieval-specific models with projections
     """
     
     def __init__(self, model_config: Dict[str, Any]):
@@ -220,13 +256,10 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         self.device = model_config.get("device", "CPU")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov-models")
         
-        # Map model configurations to Transformers model names
-        self.transformers_model_map = {
-            "blip2_feature_extractor": {
-                "pretrain": "Salesforce/blip2-opt-2.7b",
-                "pretrain_vitL": "Salesforce/blip2-opt-6.7b",
-            }
-        }
+        # Map to retrieval-specific model with projection layers
+        # This model includes vision_projection and text_projection (768D → 256D)
+        # Note: Both pretrain and pretrain_vitL use the same HuggingFace model
+        self.retrieval_model = "Salesforce/blip2-itm-vit-g"  # ITM = Image-Text Matching
         
         # OpenVINO models
         self.ov_image_encoder = None
@@ -236,31 +269,27 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         """
         Get the appropriate Transformers model name for the current configuration.
         
-        Maps the internal model configuration to the corresponding Hugging Face
-        model identifier. This allows for flexible model selection while
-        maintaining a consistent interface.
+        Returns the Hugging Face retrieval model identifier with projection layers.
+        All BLIP-2 variants (pretrain, pretrain_vitL) use the same retrieval model
+        since they differ only in vision encoder size, which is handled internally.
         
         Returns:
-            str: Hugging Face model identifier for the current configuration
+            str: Hugging Face model identifier with projection layers
         """
-        if self.model_name in self.transformers_model_map:
-            model_variants = self.transformers_model_map[self.model_name]
-            if self.pretrained in model_variants:
-                return model_variants[self.pretrained]
-        
-        # Fallback to default
-        return "Salesforce/blip2-opt-2.7b"
+        # Always use the same retrieval model with projection layers
+        logger.info(f"Using retrieval model with projection layers: {self.retrieval_model}")
+        return self.retrieval_model
         
     def load_model(self) -> None:
         """
         Load BLIP-2 model using the Transformers library.
         
-        Initializes the BLIP-2 model and processor from Hugging Face Transformers,
-        providing an alternative to LAVIS-based loading. Handles both standard
-        PyTorch loading and OpenVINO optimization modes.
+        Initializes the BLIP-2 retrieval model with projection layers from Hugging Face
+        Transformers. The model includes vision_projection and text_projection layers
+        (768D → 256D) for optimal semantic search quality.
         
         The loading process includes:
-        - Model variant selection and mapping
+        - Retrieval model variant selection
         - Processor and tokenizer initialization
         - Custom wrapper creation for consistent interface
         - OpenVINO model compilation (if enabled)
@@ -269,24 +298,24 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             Exception: If model loading fails for any reason
         """
         try:
-            logger.info(f"Loading BLIP-2 model: {self.model_name} with pretrained: {self.pretrained}")
+            logger.info(f"Loading BLIP-2 retrieval model: {self.model_name} ({self.pretrained})")
             
             if self.use_openvino:
                 # Load OpenVINO models
                 self._load_openvino_models()
             else:
-                # Import transformers here to avoid dependency issues if not installed
-                from transformers import Blip2Model, Blip2Processor
-                
-                # Get the appropriate model name
+                # Get the retrieval model name
                 transformers_model_name = self._get_transformers_model_name()
                 logger.info(f"Using Transformers model: {transformers_model_name}")
                 
-                # Load processor and model (CPU-only)
+                # Load retrieval model with projection layers
+                from transformers import Blip2ForImageTextRetrieval, Blip2Processor
+                
+                logger.info("Loading Blip2ForImageTextRetrieval with projection layers...")
                 self.processor = Blip2Processor.from_pretrained(transformers_model_name)
-                blip2_model = Blip2Model.from_pretrained(
+                blip2_model = Blip2ForImageTextRetrieval.from_pretrained(
                     transformers_model_name,
-                    torch_dtype=torch.float32  # Use float32 for CPU-only inference
+                    torch_dtype=torch.float32
                 )
                 
                 # Create custom wrapper
@@ -294,7 +323,8 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
                 self.tokenizer = self.model.tokenizer
                 
                 self.model.eval()
-                logger.info(f"BLIP-2 model {self.model_name} loaded successfully using Transformers")
+                logger.info(f"BLIP-2 model loaded successfully")
+                logger.info(f"Embedding dimension: {self.model.embedding_dim}D (256D for semantic search)")
             
         except Exception as e:
             logger.error(f"Failed to load BLIP-2 model {self.model_name}: {e}")
@@ -302,7 +332,8 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
     
     def _load_openvino_models(self) -> None:
         """Load OpenVINO compiled models. Convert if they don't exist."""
-        model_key = f"{self.model_name}_{self.pretrained}_transformers".replace("/", "_").replace("-", "_")
+        model_key = f"{self.model_name}_{self.pretrained}_transformers_retrieval".replace("/", "_").replace("-", "_")
+        
         image_encoder_path, text_encoder_path = check_and_convert_openvino_models(
             model_key=model_key,
             model_loader=lambda: self._load_transformers_model(),
@@ -322,20 +353,20 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             "attention_mask": processor(text=texts, return_tensors="pt", padding=True, truncation=True).attention_mask
         }
         
-        # Store the embedding dimension for OpenVINO usage
-        self.target_embedding_dim = model.embedding_dim
-        
-        logger.info(f"BLIP-2 OpenVINO models loaded successfully on device: {self.device}")
+        logger.info(f"BLIP-2 OpenVINO models loaded on device: {self.device}")
+        logger.info(f"Embedding dimension: 256D (includes projection + normalization)")
 
     def _load_transformers_model(self):
-        """Load the Transformers model and processor."""
-        from transformers import Blip2Model, Blip2Processor
-        
+        """Load the Transformers retrieval model and processor."""
         transformers_model_name = self._get_transformers_model_name()
+        
+        # Load retrieval model with projection layers
+        from transformers import Blip2ForImageTextRetrieval, Blip2Processor
+        
         processor = Blip2Processor.from_pretrained(transformers_model_name)
-        blip2_model = Blip2Model.from_pretrained(
+        blip2_model = Blip2ForImageTextRetrieval.from_pretrained(
             transformers_model_name,
-            torch_dtype=torch.float32  # Use float32 for CPU-only inference
+            torch_dtype=torch.float32
         )
         
         model = TransformersBlip2Model(blip2_model, processor)
@@ -351,48 +382,39 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
         }
 
     def encode_text(self, texts: Union[str, List[str]]) -> torch.Tensor:
-        """Encode text using BLIP-2 text encoder."""
+        """
+        Encode text using BLIP-2 text encoder with projection.
+        
+        Returns 256D embeddings for semantic search.
+        """
         if isinstance(texts, str):
             texts = [texts]
         
         tokenized = self.tokenizer(texts)
         
         if self.use_openvino and self.ov_text_encoder is not None:
-            # Use OpenVINO language model embeddings
-            ov_inputs = [
-                tokenized["input_ids"].numpy(),
-                tokenized["attention_mask"].numpy()
-            ]
-            text_features = torch.from_numpy(self.ov_text_encoder(ov_inputs)[0])
-            
-            # Apply dimension alignment for OpenVINO outputs
-            # Project from language model dimension to Q-Former dimension
-            if hasattr(self, 'target_embedding_dim'):
-                target_dim = self.target_embedding_dim
-            else:
-                target_dim = 768  # Default Q-Former dimension
-                
-            input_dim = text_features.shape[-1]
-            if input_dim != target_dim:
-                if not hasattr(self, '_text_projection'):
-                    self._text_projection = torch.nn.Linear(input_dim, target_dim)
-                    # Initialize with small random weights for better stability
-                    with torch.no_grad():
-                        torch.nn.init.xavier_uniform_(self._text_projection.weight, gain=0.1)
-                text_features = self._text_projection(text_features)
+            # Use OpenVINO text encoder with infer_new_request for thread safety
+            # The converted model already includes Q-Former + projection + normalization
+            result = self.ov_text_encoder.infer_new_request({
+                self.ov_text_encoder.inputs[0]: tokenized["input_ids"].numpy(),
+                self.ov_text_encoder.inputs[1]: tokenized["attention_mask"].numpy()
+            })
+            text_features = torch.from_numpy(result[self.ov_text_encoder.outputs[0]])
         else:
-            # Use PyTorch model
-            with torch.no_grad():
-                text_features = self.model.encode_text(
-                    tokenized["input_ids"], 
-                    tokenized["attention_mask"]
-                )
+            # Use PyTorch model (already includes projection + normalization)
+            text_features = self.model.encode_text(
+                tokenized["input_ids"], 
+                tokenized["attention_mask"]
+            )
         
-        text_features = F.normalize(text_features, dim=-1)
         return text_features
     
     def encode_image(self, images: Union[Image.Image, List[Image.Image], torch.Tensor]) -> torch.Tensor:
-        """Encode images using BLIP-2 image encoder."""
+        """
+        Encode images using BLIP-2 image encoder with projection.
+        
+        Returns 256D embeddings for semantic search.
+        """
         if isinstance(images, torch.Tensor):
             pixel_values = images
         elif isinstance(images, Image.Image):
@@ -403,124 +425,109 @@ class BLIP2TransformersHandler(BaseEmbeddingModel):
             pixel_values = inputs.pixel_values
         
         if self.use_openvino and self.ov_image_encoder is not None:
-            # Use OpenVINO vision model
-            vision_outputs = torch.from_numpy(self.ov_image_encoder(pixel_values.numpy())[0])
-            # Use pooled output or mean pooling
-            if len(vision_outputs.shape) == 3:  # [batch, seq_len, dim]
-                image_features = vision_outputs.mean(dim=1)  # Mean pooling
-            else:
-                image_features = vision_outputs
-            
-            # Apply dimension alignment for OpenVINO outputs
-            # Project from vision model dimension to Q-Former dimension
-            if hasattr(self, 'target_embedding_dim'):
-                target_dim = self.target_embedding_dim
-            else:
-                target_dim = 768  # Default Q-Former dimension
-                
-            input_dim = image_features.shape[-1]
-            if input_dim != target_dim:
-                if not hasattr(self, '_image_projection'):
-                    self._image_projection = torch.nn.Linear(input_dim, target_dim)
-                    # Initialize with small random weights for better stability
-                    with torch.no_grad():
-                        torch.nn.init.xavier_uniform_(self._image_projection.weight, gain=0.1)
-                image_features = self._image_projection(image_features)
+            # Use OpenVINO image encoder with infer_new_request for thread safety
+            # The converted model already includes Q-Former + projection + normalization
+            result = self.ov_image_encoder.infer_new_request({
+                self.ov_image_encoder.inputs[0]: pixel_values.numpy()
+            })
+            image_features = torch.from_numpy(result[self.ov_image_encoder.outputs[0]])
         else:
-            # Use PyTorch model
-            with torch.no_grad():
-                image_features = self.model.encode_image(pixel_values)
+            # Use PyTorch model (already includes projection + normalization)
+            image_features = self.model.encode_image(pixel_values)
         
-        image_features = F.normalize(image_features, dim=-1)
         return image_features
 
     def convert_to_openvino(self, ov_models_dir: str, model=None, tokenizer=None) -> tuple:
-        """Convert BLIP-2 model to OpenVINO format - simplified approach."""
+        """Convert BLIP-2 retrieval model to OpenVINO format."""
         ov_models_path = Path(ov_models_dir)
         ov_models_path.mkdir(exist_ok=True)
         
-        model_key = f"{self.model_name}_{self.pretrained}_transformers".replace("/", "_").replace("-", "_")
+        model_key = f"{self.model_name}_{self.pretrained}_transformers_retrieval".replace("/", "_").replace("-", "_")
+        
         image_encoder_path = ov_models_path / f"{model_key}_image_encoder.xml"
         text_encoder_path = ov_models_path / f"{model_key}_text_encoder.xml"
         
         if model is None:
             model, processor, _ = self._load_transformers_model()
         
-        # Convert image encoder (Vision Model only)
+        logger.info(f"Converting BLIP-2 retrieval model to OpenVINO...")
+        
+        # Convert image encoder (for retrieval model)
         if not image_encoder_path.exists():
-            logger.info(f"Converting BLIP-2 vision model to OpenVINO: {image_encoder_path}")
-            
-            # Use the vision model directly
-            vision_model = model.blip2_model.vision_model
-            vision_model.eval()
+            logger.info(f"Converting BLIP-2 image encoder to OpenVINO: {image_encoder_path}")
             
             # Create sample input
             sample_image = torch.randn(1, 3, self.image_size, self.image_size)
             
             with torch.no_grad():
+                # Create a wrapper that uses the model's encode_image path
+                class ImageEncoderWrapper(torch.nn.Module):
+                    def __init__(self, wrapper_model):
+                        super().__init__()
+                        self.wrapper_model = wrapper_model
+                        
+                    def forward(self, pixel_values):
+                        # Use the wrapper's encode_image method directly
+                        return self.wrapper_model.encode_image(pixel_values)
+                
+                image_encoder_wrapper = ImageEncoderWrapper(model)
+                image_encoder_wrapper.eval()
+                
+                # Test the wrapper
+                test_output = image_encoder_wrapper(sample_image)
+                logger.info(f"Image encoder test output shape: {test_output.shape}")
+                
                 # Convert to OpenVINO
-                ov_image_encoder = ov.convert_model(vision_model, example_input=sample_image)
+                ov_image_encoder = ov.convert_model(image_encoder_wrapper, example_input=sample_image)
                 ov.save_model(ov_image_encoder, image_encoder_path)
                 del ov_image_encoder
                 gc.collect()
-                logger.info(f"Vision model saved to: {image_encoder_path}")
+                logger.info(f"Image encoder saved to: {image_encoder_path}")
         
-        # Convert text encoder (Language Model)
+        # Convert text encoder (for retrieval model)
         if not text_encoder_path.exists():
-            logger.info(f"Converting BLIP-2 language model to OpenVINO: {text_encoder_path}")
+            logger.info(f"Converting BLIP-2 text encoder to OpenVINO: {text_encoder_path}")
             
-            # Use the language model directly for text encoding
-            language_model = model.blip2_model.language_model
-            language_model.eval()
-            
-            # Create sample inputs for language model
+            # For retrieval model, wrap the encode_text method
+            # Create sample inputs for text encoding
             sample_text = torch.randint(0, 1000, (1, 10))
             sample_mask = torch.ones_like(sample_text)
             
             with torch.no_grad():
-                # Create a simple wrapper that only uses the embeddings
-                class LanguageModelEmbeddings(torch.nn.Module):
-                    def __init__(self, language_model):
+                # Create a wrapper that uses the model's encode_text path
+                class TextEncoderWrapper(torch.nn.Module):
+                    def __init__(self, wrapper_model):
                         super().__init__()
-                        self.language_model = language_model
+                        self.wrapper_model = wrapper_model
                         
                     def forward(self, input_ids, attention_mask):
-                        # Get embeddings from the language model
-                        outputs = self.language_model(
-                            input_ids=input_ids, 
-                            attention_mask=attention_mask,
-                            output_hidden_states=True
-                        )
-                        # Use the last hidden state, CLS token
-                        return outputs.hidden_states[-1][:, 0, :]
+                        # Use the wrapper's encode_text method directly
+                        return self.wrapper_model.encode_text(input_ids, attention_mask)
                 
-                text_embedder = LanguageModelEmbeddings(language_model)
-                text_embedder.eval()
+                text_encoder_wrapper = TextEncoderWrapper(model)
+                text_encoder_wrapper.eval()
                 
                 # Test the wrapper
-                test_output = text_embedder(sample_text, sample_mask)
-                logger.info(f"Text embedder test output shape: {test_output.shape}")
+                test_output = text_encoder_wrapper(sample_text, sample_mask)
+                logger.info(f"Text encoder test output shape: {test_output.shape}")
                 
                 # Convert to OpenVINO
                 ov_text_encoder = ov.convert_model(
-                    text_embedder, 
+                    text_encoder_wrapper, 
                     example_input=(sample_text, sample_mask)
                 )
                 ov.save_model(ov_text_encoder, text_encoder_path)
                 del ov_text_encoder
                 gc.collect()
-                logger.info(f"Language model embeddings saved to: {text_encoder_path}")
+                logger.info(f"Text encoder saved to: {text_encoder_path}")
         
         return str(image_encoder_path), str(text_encoder_path)
     
     def get_embedding_dim(self) -> int:
         """Get the embedding dimension for BLIP-2 models."""
+        # Always 256D for retrieval model (includes projection)
         if self.use_openvino:
-            # For OpenVINO, return the target embedding dimension
-            if hasattr(self, 'target_embedding_dim'):
-                return self.target_embedding_dim
-            else:
-                return 768  # Default Q-Former dimension
+            return 256
         else:
             if self.model is None:
                 raise RuntimeError("Model not loaded. Call load_model() first.")

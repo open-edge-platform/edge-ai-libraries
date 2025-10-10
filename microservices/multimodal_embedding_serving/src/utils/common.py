@@ -63,7 +63,6 @@ class Settings(BaseSettings):
         APP_DESC: Application description for API documentation
         EMBEDDING_MODEL_NAME: Default model to load for embedding generation
         EMBEDDING_DEVICE: Target device for model inference (CPU/GPU)  
-        EMBEDDING_MODEL_PATH: Path for model storage
         EMBEDDING_USE_OV: Whether to use OpenVINO optimization
         EMBEDDING_OV_MODELS_DIR: Directory for OpenVINO model storage
         MODEL_NAME: Legacy model name parameter (for backward compatibility)
@@ -84,10 +83,6 @@ class Settings(BaseSettings):
     # Generic model configuration - supports all model types from config
     EMBEDDING_MODEL_NAME: str = Field(default="CLIP/clip-vit-b-16", env="EMBEDDING_MODEL_NAME")
     EMBEDDING_DEVICE: str = Field(default="CPU", env="EMBEDDING_DEVICE")
-    EMBEDDING_MODEL_PATH: str = Field(
-        default=str(Path(__file__).parent.parent / "ov-models"),
-        env="EMBEDDING_MODEL_PATH",
-    )
     EMBEDDING_USE_OV: bool = Field(default=False, env="EMBEDDING_USE_OV")  # Default to False for SDK usage
     EMBEDDING_OV_MODELS_DIR: str = Field(
         default=str(Path(__file__).parent.parent / "ov-models"),
@@ -104,6 +99,32 @@ class Settings(BaseSettings):
     DEFAULT_START_OFFSET_SEC: int = Field(default=0, env="DEFAULT_START_OFFSET_SEC")
     DEFAULT_CLIP_DURATION: int = Field(default=-1, env="DEFAULT_CLIP_DURATION")
     DEFAULT_NUM_FRAMES: int = Field(default=64, env="DEFAULT_NUM_FRAMES")
+
+    @field_validator("EMBEDDING_USE_OV", mode="before")
+    @classmethod
+    def validate_embedding_use_ov(cls, v):
+        """Handle empty string for EMBEDDING_USE_OV"""
+        if v == "" or v is None:
+            return False
+        if isinstance(v, str):
+            return v.lower() in ("true", "1", "yes", "on")
+        return bool(v)
+
+    @field_validator("DEFAULT_START_OFFSET_SEC", mode="before")
+    @classmethod
+    def validate_default_start_offset_sec(cls, v):
+        """Handle empty string for DEFAULT_START_OFFSET_SEC"""
+        if v == "" or v is None:
+            return 0
+        return int(v)
+
+    @field_validator("DEFAULT_NUM_FRAMES", mode="before")
+    @classmethod
+    def validate_default_num_frames(cls, v):
+        """Handle empty string for DEFAULT_NUM_FRAMES"""
+        if v == "" or v is None:
+            return 64
+        return int(v)
 
     @field_validator("http_proxy", "https_proxy", mode="before")
     @classmethod

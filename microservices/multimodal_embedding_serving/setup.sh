@@ -29,6 +29,7 @@ export DEFAULT_NUM_FRAMES=64
 # OpenVINO configuration
 export EMBEDDING_USE_OV=false
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 
 # If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
 if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
@@ -50,8 +51,7 @@ if [ -z "$EMBEDDING_MODEL_NAME" ]; then
 fi
 
 # Model path configuration
-export EMBEDDING_MODEL_PATH=${EMBEDDING_MODEL_PATH:-"/app/ov-models"}
-export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-"/app/ov-models"}
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-"/app/ov_models"}
 
 # Check if EMBEDDING_MODEL_NAME is supported
 case "$EMBEDDING_MODEL_NAME" in
@@ -97,3 +97,4 @@ echo "REGISTRY set to: ${REGISTRY}"
 echo "EMBEDDING_MODEL_NAME set to: ${EMBEDDING_MODEL_NAME}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
 echo "EMBEDDING_USE_OV set to: ${EMBEDDING_USE_OV}"
+echo "OV_PERFORMANCE_MODE set to: ${OV_PERFORMANCE_MODE}"
