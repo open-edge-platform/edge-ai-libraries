@@ -6,12 +6,21 @@ on:
       - 'main'
     paths:
       - 'microservices/dlstreamer-pipeline-server/**'
-      
+
   pull_request:
     paths:
       - 'microservices/dlstreamer-pipeline-server/**'
-      
+
   workflow_call:
+    secrets:
+      DLS_COVERITY_TOKEN:
+        required: true
+      DLS_COVERITY_EMAIL:
+        required: true
+      DLS_COVERITY_PROJECT:
+        required: true
+
+  workflow_dispatch:
 permissions: {}
 
 
@@ -21,13 +30,13 @@ jobs:
     permissions:
       contents: read
       packages: write
-      
+
     strategy:
       fail-fast: false
       matrix:
         include:
           - ubuntu_version: ubuntu22
-          
+
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -48,7 +57,7 @@ jobs:
         export BASE_IMAGE="ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu22"
         export BUILD_TARGET=gstudfloader-builder
         docker compose build --no-cache --pull
-   
+
     - name: Run Coverity Scans.
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/tests
@@ -57,7 +66,7 @@ jobs:
         echo DLSPS_COVERITY_PROJECT=${{secrets.DLSPS_COVERITY_PROJECT}} >> .env
         docker run --rm --env-file .env  -v  `pwd`:/app -v /tmp:/tmp intel/dlstreamer-pipeline-server:coverity-ubuntu22  /bin/bash /app/coverity.sh
     - name: Upload Coverity Reports to Github
-      
+
       uses: actions/upload-artifact@v4
       with:
         name: Coverity-reports
@@ -68,4 +77,3 @@ jobs:
         rm -rf edge-ai-libraries-repo
         sudo rm -rf /tmp/coverity-output.tgz
         docker rmi intel/dlstreamer-pipeline-server:coverity-${{ matrix.ubuntu_version }} || true
-        
