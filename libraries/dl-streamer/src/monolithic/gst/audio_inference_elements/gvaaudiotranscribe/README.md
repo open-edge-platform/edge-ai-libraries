@@ -91,6 +91,10 @@ Download & convert the Whisper model:
 ```
 optimum-cli export openvino --trust-remote-code --model openai/whisper-base whisper-base
 ```
+### [Optional] To use GPU device for inference 
+
+There are few prerequisites that is required follow the Documentation for more details [GPU Device selection](../../../../../docs/source/dev_guide/gpu_device_selection.md)
+
 
 ## Finally, actually run the full pipeline:
 
@@ -230,7 +234,8 @@ gst-inspect: command not found
 or 
 no element named gvaaudiotranscribe
 ```
-- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment) 
+- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment), [Environment SetupScript](../../../../../scripts/setup_env.sh)
+
 
 
 
