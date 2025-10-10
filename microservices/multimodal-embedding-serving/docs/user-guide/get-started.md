@@ -147,7 +147,7 @@ curl --location 'http://localhost:9777/embeddings' \
     "encoding_format": "float",
     "input": {
         "type": "video_url",
-        "video_url": "https://file-examples.com/storage/feafd1e44468e86eb9d56c7/2017/04/file_example_MP4_480_1_5MG.mp4",
+        "video_url": "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/refs/heads/master/bolt-detection.mp4",
         "segment_config": {
             "startOffsetSec": 0,
             "clip_duration": -1,
