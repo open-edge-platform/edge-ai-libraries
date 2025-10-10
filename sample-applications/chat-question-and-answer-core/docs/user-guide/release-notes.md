@@ -5,11 +5,11 @@
 **Version**: 1.4.0 \
 **Release Date**: WW42 2025
 
-- Ollama Integration with Expanded Model Support. Enabling support for a broader range of models beyond the previously supported OpenVINO. This allows users to seamlessly switch between OpenVINO and Ollama-supported models.
+- Ollama Integration with Expanded Model Support. Enabling support for a broader range of models beyond the previously supported OpenVINO toolkit. This allows users to seamlessly switch between OpenVINO toolkit and Ollama-supported models.
 - Package Vulnerability Fixes. Upgraded dependencies to latest versions.
 
 ## Known Issues/Behavior (Consolidated):
-- Validation on the latest version of EMF has not been done. Hence, EMF should be considered as not supported. - Open
+- Validation on the latest version of Edge Manageability Framework has not been done. Hence, Edge Manageability Framework should be considered as not supported. - Open
 - Helm deployment with GPU support has not been validated due to internal cluster node issues. GPU-specific configurations may require manual testing or adjustments until cluster stability is restored. - Open
 
 ## Previous Releases

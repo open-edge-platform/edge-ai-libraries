@@ -75,7 +75,7 @@ By following this guide, you will learn how to:
 
    Choose one of the following options based on your hardware setups:
 
-   - **OpenVINO framework**
+   - **OpenVINO toolkit framework**
 
      - CPU-only setup (Default):
 
@@ -103,7 +103,7 @@ By following this guide, you will learn how to:
 
 5. **Model Configuration Setup**:
 
-   - You can define model settings through a YAML configuration file. To assist you in getting started, sample templates for the respective framework are available in the [Sample Directory](../../model_config/sample/). After creating and customizing your YAML file, set the `MODEL_CONFIG_PATH` environment variable to point to its location. You can specify the path to your YAML configuration file using either an absolute path or a relative path. If you are not familiar with Docker volume mount logic, it is recommended to use a full path to avoid any potential issues.
+   - You can define model settings through a YAML configuration file. To assist you in getting started, sample templates for the respective framework are available in the [Sample Directory](../../model_config/sample/). After creating and customizing your YAML file, set the `MODEL_CONFIG_PATH` environment variable to point to its location. You can specify the path to your YAML configuration file using either an absolute path or a relative path. If you are not familiar with Docker volume mount logic, Intel recommends using a full path to avoid any potential issues.
 
      ```bash
      # Recommended: Using a full path to your YAML file
@@ -129,9 +129,9 @@ By following this guide, you will learn how to:
 
     - __NOTE__
 
-       - **GPU inferencing only supported for OpenVINO framework not Ollama framework.**
+       - **GPU inferencing only supported for OpenVINO toolkit framework not Ollama framework.**
 
-       - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.0, GPU.1
+       - If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel® GPU) It is done by specifying GPU.0, GPU.1
 
          ```bash
          device_settings:
@@ -144,7 +144,7 @@ By following this guide, you will learn how to:
 
 6. **Start the Application**:
 
-   Start the application using docker compose:
+   Start the application using Docker Compose tool:
 
      ```bash
      docker compose -f docker/compose.yaml up
@@ -152,7 +152,7 @@ By following this guide, you will learn how to:
 
 7. **Verify the Application**:
 
-   Following log should be printed on the console to confirm that the application is ready for use.
+   The following log will be printed on the console, confirming that the application is ready for use.
 
      ```bash
      # chatqna-core    | INFO:     Application startup complete.
@@ -161,7 +161,7 @@ By following this guide, you will learn how to:
 
 8. **Access the Application**:
 
-   Open a browser and go to `http://<host-ip>:8102` to access the application dashboard. The application dashboard allows the user to,
+   Open a browser and go to `http://<host-ip>:8102` to access the application dashboard. The application dashboard allows the user to:
 
    - Create and manage context by adding documents (pdf, docx, etc. Note: Web links are not supported for the Core version of the sample application. Note: There are restrictions on the max size of the document allowed.)
    - Start Q&A session with the created context.

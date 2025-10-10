@@ -44,15 +44,15 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 
 Next, choose the appropriate `values*.yaml` file based on the model framework you want to use:
 
-- OpenVINO: Use `values-openvino.yaml`
+- OpenVINO toolkit: Use `values-openvino.yaml`
 
 - Ollama: Use `values-ollama.yaml`
 
-For OpenVINO framework, models (embedding, reranker and LLM) are downloaded from [HuggingFace Hub](https://huggingface.co/). For Ollama framework, models (embdding and LLM) are pulled from the [Ollama model registry](https://ollama.com/library).
+For OpenVINO toolkit framework, models (embedding, reranker and LLM) are downloaded from [HuggingFace Hub](https://huggingface.co/). For Ollama framework, models (embdding and LLM) are pulled from the [Ollama model registry](https://ollama.com/library).
 
 To enable GPU support, set the configuration parameter `gpu.enabled` to `true` and provide the corresponding `gpu.key` that assigned in your cluster node in the `values.yaml` file.
 
-GPU support only enabled for OpenVINO framework.
+GPU support only enabled for OpenVINO toolkit framework.
 
 For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./system-requirements.md) section.
 
@@ -122,7 +122,7 @@ helm dependency build
 
 Deploy the Chat Question-and-Answer Core Helm chart:
 
-- Deploy with OpenVINO:
+- Deploy with OpenVINO toolkit:
 
    ```bash
    helm install chatqna-core -f values.yaml -f values-openvino.yaml . --namespace <your-namespace>

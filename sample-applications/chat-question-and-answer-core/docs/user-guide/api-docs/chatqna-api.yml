@@ -326,7 +326,7 @@ paths:
     get:
       tags:
         - Model API
-      summary: Check status of OLLAMA models
+      summary: Checks status of OLLAMA models
       description: Retrieves the list of currently loaded Ollama models.
       responses:
         '200':
@@ -362,7 +362,7 @@ paths:
     get:
       tags:
         - Model API
-      summary: Get OLLAMA model metadata
+      summary: Gets OLLAMA model metadata
       description: Retrieves metadata for a specified OLLAMA model.
       parameters:
         - name: model_id

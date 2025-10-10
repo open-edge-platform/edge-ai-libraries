@@ -9,7 +9,7 @@ If you want to build the images via `docker compose`, please refer to the sectio
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
 > **Note:**
-> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT.
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). Intel recommends using prebuilt images on Edge Microvisor Toolkit.
 
 ## Building the Backend Image
 To build the Docker image for the `Chat Question-and-Answer Core` application, follow these steps:
@@ -24,7 +24,7 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
 
    Choose one of the following options:
 
-   - **OpenVINO framework**
+   - **OpenVINO™ toolkit framework**
 
      - CPU-only inferencing (Default Configuration):
 
@@ -32,7 +32,7 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
        docker build -t chatqna:latest -f docker/Dockerfile .
        ```
 
-       This build the image using OpenVINO to support CPU-based inferencing, suitable for hardware setups without GPU support.
+       This build the image using OpenVINO toolkit to support CPU-based inferencing, suitable for hardware setups without GPU support.
 
      - GPU-enabled inferencing (Intel GPUs support):
 
@@ -40,7 +40,7 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
        docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
        ```
 
-       This build the image using OpenVINO with additional GPU support for accelerated inferencing. It remains compatible with CPU-only systems, offering flexibility across different hardware setups.
+       This build the image using OpenVINO toolkit with additional GPU support for accelerated inferencing. It remains compatible with CPU-only systems, offering flexibility across different hardware setups.
 
    - **Ollama framework**
 
@@ -102,7 +102,7 @@ This guide explains how to build the images using the `compose.yaml` file via th
 
    Choose one of the following options based on your hardware setups:
 
-   - **OpenVINO framework**
+   - **OpenVINO™ toolkit framework**
 
      - CPU-only setup (Default):
 
@@ -148,7 +148,7 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
    Choose one of the following options based on your hardware setups:
 
-   - **OpenVINO framework**
+   - **OpenVINO™ toolkit framework**
 
      - CPU-only setup (Default):
 
@@ -176,7 +176,7 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
    Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
 
-   Refer to and use the same list of models for OpenVINO framework as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
 
 
 2. Start the Docker containers with the previously built images:

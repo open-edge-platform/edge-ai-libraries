@@ -97,7 +97,7 @@ class OpenVINOBackend:
 
     def convert_model(self, model_id: str, cache_dir: str, model_type: str):
         """
-        Converts a specified model to OpenVINO format and saves it to the cache directory.
+        Converts a specified model to OpenVINO™ toolkit format and saves it to the cache directory.
 
         Args:
             model_id (str): The identifier of the model to be converted.
@@ -113,7 +113,7 @@ class OpenVINOBackend:
         Notes:
             - If the model has already been converted and exists in the cache directory, the conversion process is skipped.
             - The function uses the Hugging Face `AutoTokenizer` to load and save the tokenizer.
-            - The function uses OpenVINO's `convert_tokenizer` and `save_model` to convert and save the tokenizer.
+            - The function uses OpenVINO toolkit's `convert_tokenizer` and `save_model` to convert and save the tokenizer.
             - Depending on the model_type, the function uses different OpenVINO model classes to convert and save the model.
         """
 
@@ -123,7 +123,7 @@ class OpenVINOBackend:
             logger.info(f"Optimized {model_id} exists in {cache_dir}. Skipping conversion...")
             return
 
-        logger.info(f"Converting {model_id} model to OpenVINO format...")
+        logger.info(f"Converting {model_id} model to OpenVINO™ toolkit format...")
         # 'main' is the only available revision and already handled in huggingfacehub module
         hf_tokenizer = AutoTokenizer.from_pretrained(model_id)  # nosec B615
         hf_tokenizer.save_pretrained(model_path)
