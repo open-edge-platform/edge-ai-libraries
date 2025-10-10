@@ -6,13 +6,15 @@ import styled from 'styled-components';
 import { Button } from '@carbon/react';
 import PromptInputModal from '../Modals/PromptInputModal.tsx';
 import { FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config.ts';
-import SummarizeModal from '../PopupModal/SummarizeModal';
-import VideoEmbeddingModal from '../PopupModal/VideoEmbeddingModal';
+import SummarizeModal from '../VideoActions/SummarizeModal';
+import VideoEmbeddingModal from '../VideoActions/VideoEmbeddingModal';
 import { useAppDispatch } from '../../redux/store.ts';
 import { videosLoad } from '../../redux/video/videoSlice.ts';
 import { SearchModal } from '../PopupModal/SearchModal.tsx';
 import { FEATURE_STATE } from '../../utils/constant.ts';
 import { LoadTags } from '../../redux/search/searchSlice.ts';
+import { UIActions } from '../../redux/ui/ui.slice.ts';
+import { MuxFeatures } from '../../redux/ui/ui.model.ts';
 
 const StyledDiv = styled.div`
   display: flex;
@@ -113,12 +115,18 @@ const Navbar: FC = () => {
         <Logo>{getBrandName()}</Logo>
         <span className='spacer'></span>
 
+        {/* Show Search Video button when search is enabled */}
         {FEATURE_SEARCH == FEATURE_STATE.ON && (
           <Button
             kind='primary'
             disabled={false}
+            data-tour="search-video-button"
             onClick={() => {
               dispatch(LoadTags());
+              // Switch to search view when both features are enabled
+              if (FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_SUMMARY == FEATURE_STATE.ON) {
+                dispatch(UIActions.setMux(MuxFeatures.SEARCH));
+              }
               setShowSearchModal(true);
             }}
           >
@@ -126,21 +134,10 @@ const Navbar: FC = () => {
           </Button>
         )}
 
-        {FEATURE_SEARCH == FEATURE_STATE.ON && FEATURE_SUMMARY == FEATURE_STATE.ON && (
-          <Button
-            kind='secondary'
-            disabled={false}
-            onClick={() => {
-              dispatch(LoadTags());
-              setShowEmbeddingModal(true);
-            }}
-          >
-            {t('CreateVideoEmbedding')}
-          </Button>
-        )}
-
+        {/* Show main action button based on features */}
         <Button 
           kind='primary' 
+          data-tour="create-summary-button"
           onClick={() => {
             const hasSearch = FEATURE_SEARCH == FEATURE_STATE.ON;
             const hasSummary = FEATURE_SUMMARY == FEATURE_STATE.ON;
@@ -152,6 +149,10 @@ const Navbar: FC = () => {
             } else {
               // Summary feature enabled (with or without search), open summarize modal
               dispatch(LoadTags());
+              // Switch to summary view when both features are enabled
+              if (hasSearch && hasSummary) {
+                dispatch(UIActions.setMux(MuxFeatures.SUMMARY));
+              }
               setShowSummarizeModal(true);
             }
           }} 
