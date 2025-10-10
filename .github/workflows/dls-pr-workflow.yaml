@@ -332,12 +332,10 @@ jobs:
     name: "DLS BUILD & TEST: Windows DLLs"
     uses: ./.github/workflows/dls-build-and-test-windows.yaml
 
-    # ------------------------------------------------ DL Streamer Pipeline Server BUILDS & TESTS -------------------------------------------------
-  dlspsbuild-and-test-windows:
+  # ------------------------------------------------ DL Streamer Pipeline Server BUILDS & TESTS -------------------------------------------------
+  dlsps-sanity-test:
+    permissions:
+      contents: read
+      packages: write
+    name: "DLSPS TEST: sanity tests"
     uses: ./.github/workflows/dlsps_sanity_test.yaml
-    dlsps-sanity-test:
-      permissions:
-        contents: read
-        packages: write
-      name: "DLSPS TEST: sanity tests"
-      uses: ./.github/workflows/dlsps_sanity_test.yaml
