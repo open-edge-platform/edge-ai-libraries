@@ -69,11 +69,11 @@ check-device-type:
 		exit 1; \
 	fi; \
 
-build: check-device-type $(VENV_DIR) ## Build core images (vippet-app, vippet-collector)
+build: check-device-type ## Build core images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	DOCKER_TAG=$(VERSION) docker compose build
 
-build-dev: check-device-type $(VENV_DIR) ## Build core dev images (vippet-app, vippet-collector)
+build-dev: check-device-type ## Build core dev images (vippet-app, vippet-collector)
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
 
@@ -100,7 +100,7 @@ run-dev: check-device-type install-models-once ## Run the docker compose service
 	source setup_env.sh -d $(DEVICE_TYPE) && \
 	DOCKER_TAG=$(VERSION) docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
 
-test: $(VENV_DIR) ## Run tests and generate coverage report
+test: ## Run tests and generate coverage report
 	# Run tests using the vippet-cpu container (tests are device agnostic)
 	DOCKER_TAG=$(VERSION) docker compose run --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet \
 		vippet-cpu bash -c "\
