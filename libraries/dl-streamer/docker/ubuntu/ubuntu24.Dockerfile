@@ -177,7 +177,7 @@ RUN \
     -Dgst-plugins-good:lame=disabled \
     -Dgst-plugins-good:flac=disabled \
     -Dgst-plugins-good:dv=disabled \
-    -Dgst-plugins-good:soup=disabled \
+    -Dgst-plugins-good:soup=enabled \
     -Dgst-plugins-bad:gpl=enabled \
     -Dgst-plugins-bad:va=enabled \
     -Dgst-plugins-bad:doc=disabled \
