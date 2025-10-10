@@ -1,27 +1,24 @@
 model_settings:
+  MODEL_RUNTIME: "openvino"
   EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
   RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
-  LLM_MODEL_ID: "microsoft/Phi-3.5-mini-instruct"
+  LLM_MODEL_ID: "meta-llama/Llama-3.1-8B-Instruct"
   PROMPT_TEMPLATE: >
-    <|system|>
+    <|start_header_id|>system<|end_header_id|>
     Use the following pieces of context from retrieved
     dataset to answer the question. Do not make up an answer if there is no
-    context provided to help answer it.<|end|>
+    context provided to help answer it.
 
-    <|context|>
+    <context>
     Context:
-    ---------
     {context}
-    <|end|>
+    </context>
 
-    <|user|>
-    ---------
+    <|start_header_id|>user<|end_header_id|>
     Question: {question}
-    ---------
-    <|end|>
+    <|eot_id|>
 
-    <|assistant|>
-    Answer:
+    <|start_header_id|>assistant<|end_header_id|>
 device_settings:
   EMBEDDING_DEVICE: "CPU"
   RERANKER_DEVICE: "CPU"

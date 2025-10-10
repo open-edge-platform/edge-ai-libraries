@@ -17,25 +17,50 @@
 # Default values
 MODEL_CACHE_PATH="/home/${USER}/model_cache/"
 DEVICE="CPU"
-PROFILES="DEFAULT"
+PROFILES="OPENVINO"
+BACKEND="OPENVINO"
+BACKEND_HOST="chatqna-core-ov-cpu"
+
+print_help() {
+    echo "Usage: source setup.sh [options]"
+    echo "Options:"
+    echo "  -p, --path <path>       Specify the model cache path"
+    echo "  -d, --device <device>   Specify the device"
+    echo "  -b, --backend <backend> Specify the backend (openvino or ollama)"
+    echo "  -h, --help              Display this help message"
+}
 
 # Parse named arguments using getopts
 # -p for MODEL_CACHE_PATH
 # -d for DEVICE
+# -b for BACKEND
 while [[ "$#" -gt 0 ]]; do
     case $1 in
         -p|--path) MODEL_CACHE_PATH="$2"; shift ;;
         -d|--device) DEVICE="$2"; shift ;;
+        -b|--backend) BACKEND="$2"; shift ;;
+        -h|--help)
+            print_help
+            return 0
+            ;;
         *)
             echo "Unknown parameter passed: $1"
-            echo "Accepted parameters are:"
-            echo "  -p  --path : Specify the model cache path"
-            echo "  -d  --device : Specify the device"
+            print_help
             return 1
             ;;
     esac
     shift
 done
+
+
+# Convert BACKEND to uppercase to handle both uppercase and lowercase inputs
+BACKEND=$(echo "$BACKEND" | tr '[:lower:]' '[:upper:]')
+# Check if BACKEND value is valid
+if [[ "$BACKEND" != "OPENVINO" && "$BACKEND" != "OLLAMA" ]]; then
+    echo "Error: Unsupported backend: '$BACKEND'. Supported backends are 'openvino' or 'ollama'."
+    return 1
+fi
+
 
 # Convert DEVICE to uppercase to handle both uppercase and lowercase inputs
 DEVICE=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
@@ -69,27 +94,35 @@ else
 fi
 
 
-# Export environment variables
-# Set COMPOSE_PROFILES based on device argument
-# If device is GPU, check if render device exists
-# If it exists, set to GPU-DEVICE
-# If it doesn't exist, set to DEFAULT
-# Else, set to DEFAULT
-# If device is not mentioned, set to DEFAULT
-if [ "$DEVICE" == "GPU" ]; then
-    # Check if render device exists
-    if compgen -G "/dev/dri/render*" > /dev/null; then
-        echo "GPU rendering device found. Getting the GID..."
-        export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
-        PROFILES="GPU-DEVICE"
-    else
-        echo -e "No GPU rendering device found. \nSwitching to CPU processing..."
+# Set environment variables based on the backend and device
+if [ "$BACKEND" == "OPENVINO" ]; then
+    if [ "$DEVICE" == "GPU" ]; then
+        # Check if render device exists
+        if compgen -G "/dev/dri/render*" > /dev/null; then
+            echo "GPU rendering device found. Getting the GID..."
+            export RENDER_DEVICE_GID=$(stat -c "%g" /dev/dri/render* | head -n 1)
+            PROFILES="OPENVINO-GPU"
+            BACKEND_HOST="chatqna-core-ov-gpu"
+        else
+            echo -e "No GPU rendering device found. \nUse CPU processing instead..."
+        fi
+    fi
+elif [ "$BACKEND" == "OLLAMA" ]; then
+    PROFILES="OLLAMA"
+    BACKEND_HOST="chatqna-core-ollama"
+    if [ "$DEVICE" == "GPU" ]; then
+        echo -e "Current ollama backend doesn't support GPU. Only CPU is supported."
+        echo -e "Use CPU processing..."
     fi
 fi
 
 export USER_GROUP_ID=$(id -g ${USER})
 export HF_ACCESS_TOKEN="${HUGGINGFACEHUB_API_TOKEN}"
 export MODEL_CACHE_PATH="$MODEL_CACHE_PATH"
-
 export APP_BACKEND_URL="/v1/chatqna"
 export COMPOSE_PROFILES=$PROFILES
+export UI_HOST="chatqna-core-ui"
+export BACKEND_HOST=$BACKEND_HOST
+
+# Generate nginx.conf file for docker compose
+source ./nginx_config/generate_nginx_conf.sh

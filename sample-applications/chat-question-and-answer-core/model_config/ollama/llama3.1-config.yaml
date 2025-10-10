@@ -1,0 +1,5 @@
+model_settings:
+  MODEL_RUNTIME: "ollama"
+  EMBEDDING_MODEL_ID: "mxbai-embed-large"
+  LLM_MODEL_ID: "llama3.1"
+  KEEP_ALIVE: -1

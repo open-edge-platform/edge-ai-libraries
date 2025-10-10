@@ -2,7 +2,7 @@ x-vippet: &vippet
   image: docker.io/intel/vippet-app:${DOCKER_TAG}
   build:
     context: .
-    dockerfile: Dockerfile.vippet
+    dockerfile: vippet/Dockerfile
     args:
       http_proxy:
       https_proxy:

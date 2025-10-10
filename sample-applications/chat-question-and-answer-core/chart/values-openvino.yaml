@@ -1,0 +1,33 @@
+global:
+  huggingface:
+    apiToken:
+  MODEL_RUNTIME: "openvino"
+  EMBEDDING_MODEL:
+  LLM_MODEL:
+  RERANKER_MODEL:
+  MAX_TOKENS: 1024
+
+  # The prompt template is used to format the input to the LLM.
+  # Start with folded-style (>) to avoid new lines in the multi-line template.
+  # Example:
+  # PROMPT_TEMPLATE: >
+  #   system:
+  #   Use the following pieces of context from retrieved
+  #   dataset to answer the question. Do not make up an answer if there is no
+  #   context provided to help answer it.
+  #
+  #   context:
+  #   {context}
+  #
+  #   user:
+  #   {question}
+  #
+  #   assistant:
+  PROMPT_TEMPLATE: ""
+
+  # If the system has an integrated GPU, its id is always 0 (GPU.0).
+  # The GPU is an alias for GPU.0. If a system has multiple GPUs (e.g., integrated and discrete),
+  # specify them like: GPU.1, GPU.0
+  EMBEDDING_DEVICE: "CPU"
+  RERANKER_DEVICE: "CPU"
+  LLM_DEVICE: "CPU"

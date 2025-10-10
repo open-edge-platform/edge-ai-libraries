@@ -17,12 +17,14 @@ ChatQ&A sample application is a foundational Retrieval Augmented Generation (RAG
 Key features include:
 
 - **Optimized RAG pipeline on Intel Tiber AI Systems hardware**: The application is [optimized](./benchmarks.md) to run efficiently on Intel® hardware, ensuring high performance and reliability. Given the memory optimization, this version is also able to address the Core portfolio.
-- **Supports a wide range of open-source models**: Intel's suite of inference microservices provides flexibility to use the right GenAI models (LLM, for example) as required for target usage. The application supports various [open-source models](https://huggingface.co/OpenVINO), allowing developers to select the best models for their use cases.
+- **Comprehensive Framework Options**: The application supports a diverse range of open-source models through both the `OpenVINO toolkit` and `Ollama` frameworks. This integration empowers developers to select from a wide array of models available on [Hugging Face](https://huggingface.co/OpenVINO) and [Ollama](https://ollama.com/library), offering flexibility in choosing the most suitable GenAI models (LLM, for example) for their use cases.
 - **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
 - **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) & [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
 
 ### Technical Architecture
-The Chat Question-and-Answer Core sample application is implemented as a LangChain based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker) executed in the context of a single OpenVINO® runtime. The approach is documented in the OpenVINO [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino). Readers are requested to refer to this documentation for the technical details.
+The Chat Question-and-Answer Core sample application is implemented as a LangChain based RAG pipeline with all the inference models (i.e. LLM, Embedding, and reranker) executed in the context of a single OpenVINO™ runtime. The approach is documented in the OpenVINO toolkit [documentation](https://blog.openvino.ai/blog-posts/accelerate-inference-of-hugging-face-transformer-models-with-optimum-intel-and-openvino). Readers are requested to refer to this documentation for the technical details.
+
+With the integration of the Ollama framework, the application expands its capabilities, offering additional flexibility and model options for developers. Ollama enhances the pipeline by broadening the scope of available models. For more information on the Ollama framework, visit its [official GitHub page](https://github.com/ollama/ollama).
 
 ## How to Use the Application
 

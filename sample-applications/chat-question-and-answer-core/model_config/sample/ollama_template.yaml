@@ -1,18 +1,24 @@
-# ChatQnA Core Application Configuration Template
-# Customize the values below to suit your application's requirements.
-
 model_settings:
-  # Embedding model used for vectorizing input text.
-  # Example: "BAAI/bge-small-en-v1.5"
-  EMBEDDING_MODEL_ID: "BAAI/bge-small-en-v1.5"
+  # Runtime for model serving.
+  # Options: "ollama", "openvino"
+  MODEL_RUNTIME: "ollama"
 
-  # Reranker model used to reorder retrieved results based on relevance.
-  # Example: "BAAI/bge-reranker-base"
-  RERANKER_MODEL_ID: "BAAI/bge-reranker-base"
+  # Embedding model used for vectorizing input text.
+  # Example: "qllama/bge-small-en-v1.5"
+  EMBEDDING_MODEL_ID: "qllama/bge-small-en-v1.5"
 
   # Large Language Model (LLM) used to generate responses.
-  # Example: "microsoft/Phi-3.5-mini-instruct"
-  LLM_MODEL_ID: "microsoft/Phi-3.5-mini-instruct"
+  # Example: "phi3.5"
+  LLM_MODEL_ID: "phi3.5"
+
+  # Parameter or setting in Ollama that controls how long a loaded language model remains in memory after it has been used.
+  # Example:
+  #   - "1h" (str) - 1 hour
+  #   - "30m" (str) - 30 minutes
+  #   - 1800 (int) - 1800 seconds/30minutes.
+  #   - 0 (int) - unload immediately after use.
+  #   - -1 (int) - forever
+  KEEP_ALIVE: -1
 
   # Prompt template used by the assistant to generate answers.
   # Ensure placeholders like {context} and {question} are preserved.
@@ -26,30 +32,21 @@ model_settings:
 
     <|context|>
     Context:
-    ---------
     {context}
     <|end|>
 
     <|user|>
-    ---------
     Question: {question}
-    ---------
     <|end|>
 
     <|assistant|>
-    Answer:
 
   # Optional: Maximum number of tokens in the model's response.
   # Maximum token 1024. Not exceeding this limit to avoid errors.
   MAX_TOKENS: 1024
 
-device_settings:
-  # Specify the device for each model. Options: "CPU", "GPU"
-  EMBEDDING_DEVICE: "CPU"
-  RERANKER_DEVICE: "CPU"
-  LLM_DEVICE: "CPU"
 
 # Notes:
 # - Ensure all model IDs are valid and accessible.
 # - Prompt template must be properly formatted and include required placeholders.
-# - Adjust device settings based on your system's hardware capabilities.
+# - Only CPU is supported for Ollama backend.

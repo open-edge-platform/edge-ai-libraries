@@ -4,7 +4,6 @@ asyncua==1.1.5
 fastapi==0.116.1
 uvicorn==0.34.0
 influxdb==5.3.2
-requests==2.32.4
 tomlkit==0.13.2
 protobuf==6.31.1
 dpctl==0.20.2
