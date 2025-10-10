@@ -14,7 +14,7 @@ fi
 # Script to manage installation/removal of models using dialog.
 # Requires: dialog, supported_models.lst
 
-SUPPORTED_MODELS_FILE="supported_models.lst"
+SUPPORTED_MODELS_FILE="/models/supported_models.lst"
 MODEL_MANAGER_TMP_DIR="/tmp/model_manager"
 
 MODEL_INSTALLATION="${MODEL_INSTALLATION:-once}"
