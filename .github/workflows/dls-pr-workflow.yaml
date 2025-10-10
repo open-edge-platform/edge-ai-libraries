@@ -334,10 +334,10 @@ jobs:
 
     # ------------------------------------------------ DL Streamer Pipeline Server BUILDS & TESTS -------------------------------------------------
   dlspsbuild-and-test-windows:
-  uses: ./.github/workflows/dlsps_sanity_test.yaml
-  dlsps-sanity-test:
-    permissions:
-      contents: read
-      packages: write
-    name: "DLSPS TEST: sanity tests"
     uses: ./.github/workflows/dlsps_sanity_test.yaml
+    dlsps-sanity-test:
+      permissions:
+        contents: read
+        packages: write
+      name: "DLSPS TEST: sanity tests"
+      uses: ./.github/workflows/dlsps_sanity_test.yaml
