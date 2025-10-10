@@ -69,13 +69,13 @@ Edit only the `values.yaml` file to set the necessary environment variables. Ens
 | `global.GPU.device` | Default is GPU, If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 | GPU |
 | `Chatqna.name` | Name of the ChatQnA application                        | `chatqna` |
 | `Chatqna.image.repository` | image repository url                | `intel/chatqna` |
-| `Chatqna.image.tag` | latest image tag                                  | `1.2.2`   |
+| `Chatqna.image.tag` | latest image tag                                  | `1.2.3`   |
 | `Chatqna.env.ENDPOINT_URL` | connection endpoint to model server |              |
 | `Chatqna.env.INDEX_NAME` | index name for pgVector                      | `intel-rag` |
 | `Chatqna.env.FETCH_K` |  Number of top K results to fetch               | `10` |
-| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | `BAAI/bge-small-en-v1.5`|
+| `Chatqna.global.EMBEDDING_MODEL_NAME`|   embedding model name                        | `Alibaba-NLP/gte-large-en-v1.5`|
 | `Chatqna.env.PG_CONNECTION_STRING` |    pgvector connection string      | `postgresql+psycopg://`|
-| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | `Intel/neural-chat-7b-v3-3`|
+| `Chatqna.env.LLM_MODEL` |  model to be used with tgi/vllm/ovms               | `Qwen/Qwen2.5-7B-Instruct`|
 | `Chatqna.env.RERANKER_MODEL` |  model to be used with tei               | `BAAI/bge-reranker-base`|
 
 NOTE: GPU is only enabled for openvino model server (OVMS)

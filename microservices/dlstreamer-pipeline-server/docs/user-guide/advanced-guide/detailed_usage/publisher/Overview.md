@@ -9,7 +9,7 @@
 - [OPCUA Publishing](#opcua-publishing)
 - [S3 frame publishing](#s3-frame-publishing)
 
-Processed metadata/frame from the video analytics pipeline can be published to various destinations over RTSP, WebRTC, MQTT. 
+Processed metadata/frame from the video analytics pipeline can be published to various destinations over RTSP, WebRTC, MQTT.
 
 ## RTSP Streaming
 To send frames over RTSP for streaming, refer to this [doc](../rest_api/customizing_pipeline_requests.md#rtsp).
@@ -35,6 +35,7 @@ To send frames and metadata over OPC UA, refer to this [doc](opcua_publish_doc.m
 ## S3 frame publishing
 To store frames from media source and publish the metadata to MQTT, refer to this [doc](s3_frame_storage.md).
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -43,3 +44,4 @@ mqtt_publish.md
 opcua_publish_doc.md
 s3_frame_storage.md
 ```
+hide_directive-->

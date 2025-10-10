@@ -1,9 +1,11 @@
 openapi: 3.1.0
 info:
-  title: Time Series Analytics Microservice API
-  version: 1.0.0
+  title: FastAPI
+  version: 0.1.0
+servers:
+- url: "/ts-api"
 paths:
-  /health:
+  "/health":
     get:
       summary: Health Check
       description: Get the health status of the kapacitor daemon.
@@ -14,30 +16,29 @@ paths:
           content:
             application/json:
               schema: {}
-  /opcua_alerts:
+  "/opcua_alerts":
     post:
       summary: Receive Alert
-      description: "Receive and process OPC UA alerts.\n\nThis endpoint accepts alert\
-        \ messages in JSON format and forwards them to the configured OPC UA client.\n\
-        If the OPC UA client is not initialized, it will attempt to initialize it\
-        \ using the current configuration.\n\nRequest Body Example:\n    {\n     \
-        \   \"alert\": \"message\"\n    }\n\nResponses:\n    200:\n        description:\
-        \ Alert received and processed successfully.\n        content:\n         \
-        \   application/json:\n                example:\n                    {\n \
-        \                       \"status_code\": 200,\n                        \"\
-        status\": \"success\",\n                        \"message\": \"Alert received\"\
-        \n                    }\n    500:\n        description: Failed to process\
-        \ the alert due to server error or misconfiguration.\n        content:\n \
-        \           application/json:\n                example:\n                \
-        \    {\n                        \"detail\": \"Failed to initialize OPC UA\
-        \ client: <error_message>\"\n                    }\n\nRaises:\n    HTTPException:\
-        \ If OPC UA alerts are not configured or if there is an error during processing."
+      description: "Receive and process OPC UA alerts.\n\nThis endpoint accepts alert
+        messages in JSON format and forwards them to the \nconfigured OPC UA client.\nIf
+        the OPC UA client is not initialized, it will attempt to initialize it \nusing
+        the current configuration.\n\nRequest Body Example:\n    {\n        \"alert\":
+        \"message\"\n    }\n\nResponses:\n    200:\n        description: Alert received
+        and processed successfully.\n        content:\n            application/json:\n
+        \               example:\n                    {\n                        \"status_code\":
+        200,\n                        \"status\": \"success\",\n                        \"message\":
+        \"Alert received\"\n                    }\n    500:\n        description:
+        Failed to process the alert due to server error or misconfiguration.\n        content:\n
+        \           application/json:\n                example:\n                    {\n
+        \                       \"detail\": \"Failed to initialize OPC UA client:
+        <error_message>\"\n                    }\n\nRaises:\n    HTTPException: If
+        OPC UA alerts are not configured or if there is an error during \n    processing."
       operationId: receive_alert_opcua_alerts_post
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Opcua_Alerts_Message'
+              "$ref": "#/components/schemas/OpcuaAlertsMessage"
         required: true
       responses:
         '200':
@@ -50,40 +51,40 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /input:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/input":
     post:
       summary: Receive Data
-      description: "Receives a data point in JSON format, converts it to InfluxDB\
-        \ line protocol, and sends it to the Kapacitor service.\n\nThe input JSON\
-        \ must include:\n    - topic (str): The topic name.\n    - tags (dict): Key-value\
-        \ pairs for tags (e.g., {\"location\": \"factory1\"}).\n    - fields (dict):\
-        \ Key-value pairs for fields (e.g., {\"temperature\": 23.5}).\n    - timestamp\
-        \ (int, optional): Epoch time in nanoseconds. If omitted, current time is\
-        \ used.\n\nExample request body:\n{\n    \"topic\": \"sensor_data\",\n   \
-        \ \"tags\": {\"location\": \"factory1\", \"device\": \"sensorA\"},\n    \"\
-        fields\": {\"temperature\": 23.5, \"humidity\": 60},\n    \"timestamp\": 1718000000000000000\n\
-        }\n\nArgs:\n    data_point (DataPoint): The data point to be processed, provided\
-        \ in the request body.\nReturns:\n    dict: A status message indicating success\
-        \ or failure.\nRaises:\n    HTTPException: If the Kapacitor service returns\
-        \ an error or if any exception occurs during processing.\n\nresponses:\n \
-        \   '200':\n    description: Data successfully sent to the Time series Analytics\
-        \ microservice\n    content:\n        application/json:\n        schema:\n\
-        \            type: object\n            properties:\n            status:\n\
-        \                type: string\n                example: success\n        \
-        \    message:\n                type: string\n                example: Data\
-        \ sent to Time series Analytics microservice\n    '4XX':\n    description:\
-        \ Client error (e.g., invalid input or Kapacitor error)\n    content:\n  \
-        \      application/json:\n        schema:\n            $ref: '#/components/schemas/HTTPValidationError'\n\
-        \    '500':\n    description: Internal server error\n    content:\n      \
-        \  application/json:\n        schema:\n            type: object\n        \
-        \    properties:\n            detail:\n                type: string"
+      description: "Receives a data point in JSON format, converts it to InfluxDB
+        line protocol, \nand sends it to the Kapacitor service.\n\nThe input JSON
+        must include:\n    - topic (str): The topic name.\n    - tags (dict): Key-value
+        pairs for tags (e.g., {\"location\": \"factory1\"}).\n    - fields (dict):
+        Key-value pairs for fields (e.g., {\"temperature\": 23.5}).\n    - timestamp
+        (int, optional): Epoch time in nanoseconds. If omitted, current time is used.\n\nExample
+        request body:\n{\n    \"topic\": \"sensor_data\",\n    \"tags\": {\"location\":
+        \"factory1\", \"device\": \"sensorA\"},\n    \"fields\": {\"temperature\":
+        23.5, \"humidity\": 60},\n    \"timestamp\": 1718000000000000000\n}\n\nArgs:\n
+        \   data_point (DataPoint): The data point to be processed, provided in the
+        request body.\nReturns:\n    dict: A status message indicating success or
+        failure.\nRaises:\n    HTTPException: If the Kapacitor service returns an
+        error or if any exception \n    occurs during processing.\n\nresponses:\n
+        \   '200':\n    description: Data successfully sent to the Time series Analytics
+        microservice\n    content:\n        application/json:\n        schema:\n            type:
+        object\n            properties:\n            status:\n                type:
+        string\n                example: success\n            message:\n                type:
+        string\n                example: Data sent to Time series Analytics microservice\n
+        \   '4XX':\n    description: Client error (e.g., invalid input or Kapacitor
+        error)\n    content:\n        application/json:\n        schema:\n            $ref:
+        '#/components/schemas/HTTPValidationError'\n    '500':\n    description: Internal
+        server error\n    content:\n        application/json:\n        schema:\n            type:
+        object\n            properties:\n            detail:\n                type:
+        string"
       operationId: receive_data_input_post
       requestBody:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/DataPoint'
+              "$ref": "#/components/schemas/DataPoint"
         required: true
       responses:
         '200':
@@ -96,29 +97,27 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
-  /config:
+                "$ref": "#/components/schemas/HTTPValidationError"
+  "/config":
     get:
       summary: Get Config
-      description: "Endpoint to retrieve the current configuration of the input service.\n\
-        Accepts an optional 'restart' query parameter and returns the current configuration\
-        \ in JSON format.\nIf 'restart=true' is provided, the Time Series Analytics\
-        \ Microservice UDF deployment service will be restarted before returning the\
-        \ configuration.\n\n---\nparameters:\n    - in: query\n      name: restart\n\
-        \      schema:\n        type: boolean\n        default: false\n      description:\
-        \ Restart the Time Series Analytics Microservice UDF deployment if true\n\
-        responses:\n    200:\n        description: Current configuration retrieved\
-        \ successfully\n        content:\n            application/json:\n        \
-        \        schema:\n                    type: object\n                    additionalProperties:\
-        \ true\n                    example:\n                        {\n        \
-        \                    \"model_registry\": { \"enable\": true, \"version\":\
-        \ \"2.0\" },\n                            \"udfs\": { \"name\": \"udf_name\"\
-        , \"model\": \"model_name\" },\n                            \"alerts\": {}\n\
-        \                        }\n    500:\n        description: Failed to retrieve\
-        \ configuration\n        content:\n            application/json:\n       \
-        \         schema:\n                    type: object\n                    properties:\n\
-        \                        detail:\n                            type: string\n\
-        \                            example: \"Failed to retrieve configuration\""
+      description: "Endpoint to retrieve the current configuration of the input service.\nAccepts
+        an optional 'restart' query parameter and returns the current configuration
+        \nin JSON format.\nIf 'restart=true' is provided, the Time Series Analytics
+        Microservice UDF deployment \nservice will be restarted before returning the
+        configuration.\n\n---\nparameters:\n    - in: query\n      name: restart\n
+        \     schema:\n        type: boolean\n        default: false\n      description:
+        Restart the Time Series Analytics Microservice UDF deployment if true\nresponses:\n
+        \   200:\n        description: Current configuration retrieved successfully\n
+        \       content:\n            application/json:\n                schema:\n
+        \                   type: object\n                    additionalProperties:
+        true\n                    example:\n                        {\n                            \"udfs\":
+        { \"name\": \"udf_name\", \"model\": \"model_name\" },\n                            \"alerts\":
+        {}\n                        }\n    500:\n        description: Failed to retrieve
+        configuration\n        content:\n            application/json:\n                schema:\n
+        \                   type: object\n                    properties:\n                        detail:\n
+        \                           type: string\n                            example:
+        \"Failed to retrieve configuration\""
       operationId: get_config_config_get
       parameters:
       - name: restart
@@ -145,42 +144,71 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                "$ref": "#/components/schemas/HTTPValidationError"
     post:
       summary: Config File Change
-      description: "Endpoint to handle configuration changes.\nThis endpoint can be\
-        \ used to update the configuration of the input service.\nUpdates the configuration\
-        \ of the input service with the provided key-value pairs.\n\n---\nrequestBody:\n\
-        \    required: true\n    content:\n        application/json:\n           \
-        \ schema:\n                type: object\n                additionalProperties:\
-        \ true\n            example:\n                {\"model_registry\": {\n   \
-        \                 \"enable\": true\n                    \"version\": \"2.0\"\
-        \n                },\n                \"udfs\": {\n                    \"\
-        name\": \"udf_name\",\n                    \"model\": \"model_name\"}\n  \
-        \              \"alerts\": {\n                }\nresponses:\n    200:\n  \
-        \      description: Configuration updated successfully\n        content:\n\
-        \            application/json:\n                schema:\n                \
-        \    type: object\n                    properties:\n                     \
-        \   status:\n                            type: string\n                  \
-        \          example: \"success\"\n                        message:\n      \
-        \                      type: string\n                            example:\
-        \ \"Configuration updated successfully\"\n    400:\n        description: Invalid\
-        \ input or error processing request\n        content:\n            application/json:\n\
-        \                schema:\n                    type: object\n             \
-        \       properties:\n                        detail:\n                   \
-        \         type: string\n                            example: \"Error message\"\
-        \n    500:\n        description: Failed to write configuration to file\n \
-        \       content:\n            application/json:\n                schema:\n\
-        \                    type: object\n                    properties:\n     \
-        \                   detail:\n                            type: string\n  \
-        \                          example: \"Failed to write configuration to file\""
+      description: |-
+        Endpoint to handle configuration changes.
+        This endpoint can be used to update the configuration of the input service.
+        Updates the configuration of the input service with the provided key-value pairs.
+
+        ---
+        requestBody:
+            required: true
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        additionalProperties: true
+                    example:
+                        {
+                        "udfs": {
+                            "name": "udf_name",
+                            "model": "model_name",
+                            "device": "cpu or gpu"}
+                        "alerts": {
+                        }
+        responses:
+            200:
+                description: Configuration updated successfully
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                status:
+                                    type: string
+                                    example: "success"
+                                message:
+                                    type: string
+                                    example: "Configuration updated successfully"
+            400:
+                description: Invalid input or error processing request
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                detail:
+                                    type: string
+                                    example: "Error message"
+            500:
+                description: Failed to write configuration to file
+                content:
+                    application/json:
+                        schema:
+                            type: object
+                            properties:
+                                detail:
+                                    type: string
+                                    example: "Failed to write configuration to file"
       operationId: config_file_change_config_post
       requestBody:
         required: true
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/Config'
+              "$ref": "#/components/schemas/Config"
       responses:
         '200':
           description: Successful Response
@@ -192,24 +220,18 @@ paths:
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HTTPValidationError'
+                "$ref": "#/components/schemas/HTTPValidationError"
 components:
   schemas:
     Config:
       properties:
-        model_registry:
-          additionalProperties: true
-          type: object
-          title: Model Registry
-          default:
-            enable: false
-            version: '1.0'
         udfs:
           additionalProperties: true
           type: object
           title: Udfs
           default:
             name: udf_name
+            device: cpu/gpu
         alerts:
           anyOf:
           - additionalProperties: true
@@ -219,6 +241,7 @@ components:
           default: {}
       type: object
       title: Config
+      description: Configuration model for the service.
     DataPoint:
       properties:
         topic:
@@ -244,20 +267,22 @@ components:
       - topic
       - fields
       title: DataPoint
+      description: Data point model for input data.
     HTTPValidationError:
       properties:
         detail:
           items:
-            $ref: '#/components/schemas/ValidationError'
+            "$ref": "#/components/schemas/ValidationError"
           type: array
           title: Detail
       type: object
       title: HTTPValidationError
-    Opcua_Alerts_Message:
+    OpcuaAlertsMessage:
       properties: {}
       additionalProperties: true
       type: object
-      title: Opcua_Alerts_Message
+      title: OpcuaAlertsMessage
+      description: Model for OPC UA alert messages.
     ValidationError:
       properties:
         loc:

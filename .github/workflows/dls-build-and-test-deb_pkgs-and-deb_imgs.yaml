@@ -97,15 +97,6 @@ jobs:
         cp -r deb_packages ${{ env.DLS_REL_PATH }}
 
     # ======================================================== OH HOST TESTING PART ========================================================
-    - name: Print system information
-      run: |
-        echo "## System information" >> $GITHUB_STEP_SUMMARY
-        echo "Runner name: ${{ runner.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
-        echo "OS version: $(. /etc/os-release && echo "$PRETTY_NAME")" >> $GITHUB_STEP_SUMMARY
-        echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
-        echo "CPU Name: $(lscpu | grep 'Model name' | sed 's/Model name:[ \t]*//')" >> $GITHUB_STEP_SUMMARY
-
     - name: Check models
       run: |
         echo "## Basic checks" >> $GITHUB_STEP_SUMMARY
@@ -194,6 +185,8 @@ jobs:
 
     - name: 🚀 Run tests
       id: run_tests
+      env:
+        TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
       run: |
         cd $DLS_REL_PATH/tests
         mkdir functional_tests_results
@@ -202,9 +195,14 @@ jobs:
         echo "DLS_TESTS_RESULTS_PATH=$DLS_TESTS_RESULTS_PATH" >> $GITHUB_ENV
         cd ../functional_tests
 
-        echo "Starting to execute FUNCTIONAL TESTS main sctipt"
         source $HOME/.virtualenvs/dlstreamer/bin/activate
-        ./run_tests.sh --models-path=${{ env.MODELS_PATH }} --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} --test-configs="${{ env.TEST_CONFIGS }}" --results-path="$DLS_TESTS_RESULTS_PATH" --report-name=functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results --on-host
+        ./run_tests.sh \
+          --models-path=${{ env.MODELS_PATH }} \
+          --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} \
+          --test-configs="$TEST_CONFIGS" \
+          --results-path="$DLS_TESTS_RESULTS_PATH" \
+          --report-name="functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results" \
+          --on-host
 
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
@@ -215,9 +213,11 @@ jobs:
 
     - name: Print tests summary in workflow
       if: steps.run_tests.outcome == 'success'
+      env:
+        dls_tests_results_path: ${{ env.DLS_TESTS_RESULTS_PATH }}
       run: |
         echo "## Tests summary" >> $GITHUB_STEP_SUMMARY
-        sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${{ env.DLS_TESTS_RESULTS_PATH }}"/functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
+        sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${dls_tests_results_path}"/functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
 
     - name: Uninstall dlstreamer
       if: always ()
@@ -234,3 +234,13 @@ jobs:
         docker rmi ${deb_img} || true
         sudo rm -f $HOME/dl-streamer
         rm -rf edge-ai-libraries-repo
+
+    # - name: Schedule reboot
+    #   if: always()
+    #   run: |
+    #     echo "Scheduling reboot in 15 seconds..."
+    #     if [ -x /usr/local/bin/reboot_runner.sh ]; then
+    #       sudo /usr/local/bin/reboot_runner.sh 15
+    #     else
+    #       echo "WARNING: /usr/local/bin/reboot_runner.sh not found or not executable. Skipping reboot."
+    #     fi

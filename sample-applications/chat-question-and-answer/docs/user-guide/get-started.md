@@ -35,8 +35,8 @@ The sample application has been validated with a few models just to validate the
 ### Embedding Models validated for each model server
    | Model Server | Models Validated |
    |--------------|-------------------|
-   | `TEI` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
-   | `OVMS` | `BAAI/bge-small-en-v1.5`, `BAAI/bge-large-en-v1.5` |
+   | `TEI` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
+   | `OVMS` | `Alibaba-NLP/gte-large-en-v1.5`, `nomic-ai/nomic-embed-text-v1.5` |
 
 ### LLM Models validated for each model server
 | Model Server | Models Validated |
@@ -92,8 +92,8 @@ Visit https://huggingface.co/settings/tokens to get your token.
 
    ```bash
    export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-   export LLM_MODEL=Intel/neural-chat-7b-v3-3
-   export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+   export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+   export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
    export RERANKER_MODEL=BAAI/bge-reranker-base
    export DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
@@ -101,30 +101,11 @@ Visit https://huggingface.co/settings/tokens to get your token.
    ```
    __NOTE__: If the system has an integrated GPU, its id is always 0 (GPU.0). The GPU is an alias for GPU.0. If a system has multiple GPUs (for example, an integrated and a discrete Intel GPU) It is done by specifying GPU.1,GPU.0 as a __DEVICE__
 
-    _Environment setup for OVMS as inference_
-    ```bash
-    # Create a python virtual environment
-    python3 -m venv .venv
-    # Activate the virtual env
-    source .venv/bin/activate
-    # Install required Python packages for model preparation
-    pip install -r ovms_config/requirements.txt
-    ```
-
-   To run a **GATED MODEL** like Llama models, the user will need to pass their [huggingface token](https://huggingface.co/docs/hub/security-tokens#user-access-tokens). The user will need to request access to specific model by going to the respective model page on HuggingFace.
-
-    _Go to https://huggingface.co/settings/tokens to get your token._
-
-   ```bash
-   # Login using huggingface-cli
-   huggingface-cli login
-   # pass hugging face token
-   ```
    _Run the below script to set up the rest of the environment depending on the model server and embedding._
 
    ```bash
    export REGISTRY="intel/"
-   export TAG=1.2.2
+   export TAG=1.2.3
    source setup.sh llm=<model-server> embed=<embedding>
    # Below are the options
    # model-server: VLLM , OVMS, TGI

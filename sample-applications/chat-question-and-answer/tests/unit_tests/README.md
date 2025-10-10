@@ -81,8 +81,8 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    ```bash
    # via scripts
     export HUGGINGFACE_API_TOKEN="<YOUR_HUGGINGFACE_API_TOKEN>"
-    export LLM_MODEL=Intel/neural-chat-7b-v3-3
-    export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+    export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+    export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
     export RERANKER_MODEL=BAAI/bge-reranker-base
     source setup.sh llm=<ModelServer> embed=<Embedding>
    ```
@@ -153,8 +153,8 @@ If you prefer not to use virtual environment, please follow these steps:
    ```bash
    # via scripts
    export HUGGINGFACE_API_TOKEN="<YOUR_HUGGINGFACE_API_TOKEN>"
-   export LLM_MODEL=Intel/neural-chat-7b-v3-3
-   export EMBEDDING_MODEL_NAME=BAAI/bge-small-en-v1.5
+   export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
+   export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
    export RERANKER_MODEL=BAAI/bge-reranker-base
    source setup.sh llm=<ModelServer> embed=<Embedding>
    ```

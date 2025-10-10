@@ -59,8 +59,7 @@ class DataPoint(BaseModel):
 
 class Config(BaseModel):
     """Configuration model for the service."""
-    model_registry: dict = {"enable": False, "version": "1.0"}
-    udfs: dict = {"name": "udf_name"}
+    udfs: dict = {"name": "udf_name", "device": "cpu/gpu"}
     alerts: Optional[dict] = {}
 
 
@@ -339,7 +338,6 @@ async def get_config(
                         additionalProperties: true
                         example:
                             {
-                                "model_registry": { "enable": true, "version": "2.0" },
                                 "udfs": { "name": "udf_name", "model": "model_name" },
                                 "alerts": {}
                             }
@@ -386,13 +384,11 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                     type: object
                     additionalProperties: true
                 example:
-                    {"model_registry": {
-                        "enable": true
-                        "version": "2.0"
-                    },
+                    {
                     "udfs": {
                         "name": "udf_name",
-                        "model": "model_name"}
+                        "model": "model_name",
+                        "device": "cpu or gpu"}
                     "alerts": {
                     }
     responses:
@@ -435,18 +431,6 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             return JSONResponse(
                 status_code=413,
                 content={"error": "Request exceeds the maximum allowed payload size of 5 KB."})
-
-        model_registry = config_data.model_registry
-        mandatory_model_registry_keys = ["version", "enable"]
-        missing_model_registry_keys = [key for key in mandatory_model_registry_keys
-                                     if key not in model_registry]
-        if missing_model_registry_keys:
-            logger.error("Missing keys in model_registry: %s", missing_model_registry_keys)
-            raise HTTPException(
-            status_code=422,
-            detail=f"Missing keys in model_registry: {', '.join(missing_model_registry_keys)}"
-            )
-
         udfs = config_data.udfs
         if "name" not in udfs:
             logger.error("Missing key 'name' in udfs")
@@ -454,11 +438,19 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
             status_code=422,
             detail="Missing key 'name' in udfs"
             )
-
-        config["model_registry"] = {}
+        if "device" in udfs:
+            device_value = udfs["device"].lower()
+            is_valid = (device_value == "cpu" or 
+                       device_value == "gpu" or 
+                       (device_value.startswith("gpu:") and device_value.split(":")[1].isdigit()))
+            
+            if not is_valid:
+                error_msg = "Invalid value for 'device' in udfs: {}, must be 'cpu', 'gpu', or 'gpu:N' (e.g., 'gpu:0')".format(udfs["device"])
+                logger.error(error_msg)
+                raise HTTPException(status_code=422, detail=error_msg)
+                
         config["udfs"] = {}
         config["alerts"] = {}
-        config["model_registry"] = model_registry
         config["udfs"] = config_data.udfs
         if config_data.alerts:
             config["alerts"] = config_data.alerts

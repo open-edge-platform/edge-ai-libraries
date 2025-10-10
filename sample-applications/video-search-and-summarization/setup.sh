@@ -14,17 +14,30 @@ export CONFIG_DIR=${PWD}/config
 export NGINX_CONFIG=${CONFIG_DIR}/nginx.conf
 export RABBITMQ_CONFIG=${CONFIG_DIR}/rmq.conf
 
+# Function to stop Docker containers
+stop_containers() {
+    echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
+    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
+        return 1
+    fi
+    echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
+    return 0
+}
+
 # Setting command usage and invalid arguments handling before the actual setup starts
 if [ "$#" -eq 0 ] ||  ([ "$#" -eq 1 ] && [ "$1" = "--help" ]); then
     # If no valid argument is passed, print usage information
     echo -e "-----------------------------------------------------------------"
-    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
+    echo -e  "${YELLOW}USAGE: ${GREEN}source setup.sh ${BLUE}[--setenv | --down | --clean-data | --help | --summary ${GREEN}[config]${BLUE} | --search ${GREEN}[config]${BLUE} | --all ${GREEN}[config]${BLUE}]"
     echo -e  "${YELLOW}"
     echo -e  "  --setenv:     Set environment variables without starting any containers"
     echo -e  "  --summary:    Configure and bring up Video Summarization application"
     echo -e  "  --search:     Configure and bring up Video Search application"
     echo -e  "  --all:        Configure and bring up both Video Summarization and Video Search applications"
     echo -e  "  --down:       Bring down all the docker containers for the application which was brought up."
+    echo -e  "  --clean-data: Bring down all the docker containers and remove all docker volumes for the user data."
     echo -e  "  --help:       Show this help message"
     echo -e  "  config:       Optional argument (only works with --summary, --search, or --all) to print the final"
     echo -e  "                compose configuration with all variables resolved without starting containers${NC}"
@@ -36,7 +49,7 @@ elif [ "$#" -gt 2 ]; then
     echo -e "${YELLOW}Use --help for usage information${NC}"
     return 1
 
-elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ]; then
+elif [ "$1" != "--help" ] && [ "$1" != "--summary" ] && [ "$1" != "--all" ] && [ "$1" != "--search" ] && [ "$1" != "--setenv" ] && [ "$1" != "--down" ] && [ "$1" != "--clean-data" ]; then
     # Default case for unrecognized first option
     echo -e "${RED}Unknown option: $1 ${NC}"
     echo -e "${YELLOW}Use --help for usage information${NC}"
@@ -56,13 +69,27 @@ elif [ "$#" -eq 2 ] && [ "$2" = "config" ] && [ "$1" != "--summary" ] && [ "$1" 
 
 elif [ "$1" = "--down" ]; then
     # If --down is passed, bring down the Docker containers
-    echo -e "${YELLOW}Bringing down the Docker containers... ${NC}"
-    docker compose -f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml --profile ovms down
+    stop_containers
+    return $?
+
+elif [ "$1" = "--clean-data" ]; then
+    # If --clean-data is passed, bring down the Docker containers and remove volumes
+    stop_containers
     if [ $? -ne 0 ]; then
-        echo -e "${RED}ERROR: Failed to stop and remove containers.${NC}"
         return 1
     fi
-    echo -e "${GREEN}All containers were successfully stopped and removed. ${NC}"
+    
+    echo -e "${YELLOW}Removing Docker volumes created by the application... ${NC}"
+
+    # Remove volumes 
+    docker volume rm docker_minio_data docker_pg_data docker_vdms-db  2>/dev/null || true
+    
+    if [ $? -eq 0 ]; then
+        echo -e "${GREEN}All volumes were successfully removed. ${NC}"
+    else
+        echo -e "${YELLOW}Note: Some volumes may not have existed or were already removed. ${NC}"
+    fi
+    echo -e "${GREEN}Clean operation completed successfully! ${NC}"
     return 0
 fi
 
@@ -192,7 +219,6 @@ export MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD} # Set this in your shell befor
 
 # env for vdms-vector-db
 export VDMS_VDB_HOST_PORT=55555
-export VDMS_BUCKET=vdms-bucket
 export VDMS_VDB_HOST=vdms-vector-db
 
 # env for vdms-dataprep-ms
@@ -204,6 +230,7 @@ export VDMS_PIPELINE_MANAGER_UPLOAD=http://$PM_HOST:3000
 # env for vclip-embedding-ms
 export VCLIP_HOST_PORT=9777
 export VCLIP_MODEL=${VCLIP_MODEL}
+export QWEN_MODEL=${QWEN_MODEL}
 export VCLIP_START_OFFSET_SEC=0
 export VCLIP_CLIP_DURATION=15
 export VCLIP_NUM_FRAMES=64
@@ -220,12 +247,12 @@ export VCLIP_ENDPOINT=http://$VCLIP_HOST:8000/embeddings
 
 # env for video-search
 export VS_HOST_PORT=7890
-export VS_INDEX_NAME=videosearch
-export VS_WATCHER_DIR=$PWD/data
-export VS_DELETE_PROCESSED_FILES=false
-export VS_INITIAL_DUMP=false
+export VS_WATCHER_DIR=${VS_WATCHER_DIR:-$PWD/data}
+export VS_DELETE_PROCESSED_FILES=${VS_DELETE_PROCESSED_FILES:-false}
+export VS_INITIAL_DUMP=${VS_INITIAL_DUMP:-false}
+export VS_WATCH_DIRECTORY_RECURSIVE=${VS_WATCH_DIRECTORY_RECURSIVE:-false}
 export VS_DEFAULT_CLIP_DURATION=15
-export VS_DEBOUNCE_TIME=1
+export VS_DEBOUNCE_TIME=${VS_DEBOUNCE_TIME:-10}
 export VS_HOST=video-search
 export VS_ENDPOINT=http://$VS_HOST:8000
 
@@ -246,8 +273,8 @@ echo -e "${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $
 echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
 
-# Verify if required environment variables are set in current shell, only when container down is not requested.
-if [ "$1" != "--down" ]; then
+# Verify if required environment variables are set in current shell, only when container down or clean is not requested.
+if [ "$1" != "--down" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; then
     if [ -z "$MINIO_ROOT_USER" ]; then
         echo -e "${RED}ERROR: MINIO_ROOT_USER is not set in your shell environment.${NC}"
         return
@@ -266,33 +293,45 @@ if [ "$1" != "--down" ]; then
         echo -e "${RED}ERROR: POSTGRES_PASSWORD is not set in your shell environment.${NC}"
         return
     fi
-
-    if [ -z "$RABBITMQ_USER" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}"
-        return
+    if [ "$1" != "--search" ]; then
+        if [ -z "$RABBITMQ_USER" ]; then
+            echo -e "${RED}ERROR: RABBITMQ_USER is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$RABBITMQ_PASSWORD" ]; then
+            echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$VLM_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$ENABLED_WHISPER_MODELS" ]; then
+            echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
+            return
+        fi
+        if [ -z "$OD_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
+            return
+        fi
     fi
-    if [ -z "$RABBITMQ_PASSWORD" ]; then
-        echo -e "${RED}ERROR: RABBITMQ_PASSWORD is not set in your shell environment.${NC}"
-        return
+    if [ "$1" != "--summary" ] || [ "$1" != "--all" ]; then
+        if [ -z "$VCLIP_MODEL" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
+            return
+        elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'.${NC}"
+            return
+        fi
     fi
-    if [ -z "$VCLIP_MODEL" ]; then
-        echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
-        return
-    elif [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-        echo -e "${RED}ERROR: VCLIP_MODEL is set to an invalid value. Expected: 'openai/clip-vit-base-patch32'.${NC}"
-        return
-    fi
-    if [ -z "$VLM_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: VLM_MODEL_NAME is not set in your shell environment.${NC}"
-        return
-    fi
-    if [ -z "$ENABLED_WHISPER_MODELS" ]; then
-        echo -e "${RED}ERROR: ENABLED_WHISPER_MODELS is not set in your shell environment.${NC}"
-        return
-    fi
-    if [ -z "$OD_MODEL_NAME" ]; then
-        echo -e "${RED}ERROR: OD_MODEL_NAME is not set in your shell environment.${NC}"
-        return
+    if [ "$1" = "--all" ]; then
+        if [ -z "$VCLIP_MODEL" ]; then
+            echo -e "${RED}ERROR: VCLIP_MODEL is not set in your shell environment.${NC}"
+            return
+        elif [ -z "$QWEN_MODEL" ] || [ "$QWEN_MODEL" != "Qwen/Qwen3-Embedding-0.6B" ]; then
+            echo -e "${RED}ERROR: QWEN_MODEL is either not set or set to invalid value in your shell environment.${NC}"
+            return
+        fi
     fi
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
@@ -307,11 +346,6 @@ if [ "$1" = "--setenv" ]; then
     echo -e  "${BLUE}Done setting up all environment variables. ${NC}"
     return 0
 fi
-
-# Generate docker volume
-echo -e  "${BLUE}Creating Docker volumes for common services:${NC}"
-docker volume create pg_data
-docker volume create minio_data
 
 # Add rendering device group ID for GPU support when needed
 # Check if render device exist
@@ -423,15 +457,10 @@ export_model_for_ovms() {
 }
 
 if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
-
-    echo -e  "${BLUE}Creating Docker volumes for Video Summarization services:${NC}"
-    docker volume create ov-models
-    docker volume create vol_evam_pipeline_root
-    docker volume create audio_analyzer_data
-
     # Turn on feature flags for summarization and turn off search
     export SUMMARY_FEATURE="FEATURE_ON"
     export SEARCH_FEATURE="FEATURE_OFF"
+    export APP_FEATURE_MUX="ATOMIC"
 
     # If summarization is enabled, set up the environment for OVMS or VLM for summarization
     [ "$1" = "--summary" ] && APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml" && \
@@ -440,8 +469,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     # If no arguments are passed or if --all is passed, set up both summarization and search   
     [ "$1" = "--all" ] && \
         echo -e  "${BLUE}Creating Docker volumes for Video Search services:${NC}" && \
-        docker volume create data-prep && \
         export SEARCH_FEATURE="FEATURE_ON" && \
+        export USE_ONLY_TEXT_EMBEDDINGS=True && \
+        export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
+        export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
         echo -e  "${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
 
@@ -456,7 +487,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-        echo -e "${BLUE}Using OVMS for LLM summarization${NC}"
+        echo -e "${BLUE}Using OVMS for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_ON
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
         export LLM_MODEL_API="v1/config"
@@ -520,6 +551,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
+        echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
 
@@ -542,15 +574,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     fi
 
 elif [ "$1" = "--search" ]; then
-
-    echo -e  "${BLUE}Creating Docker volumes for Video Search services: ${NC}"
-    docker volume create ov-models
-    docker volume create data-prep
     mkdir -p ${VS_WATCHER_DIR}
-
     # Turn on feature flags for search and turn off summarization
     export SUMMARY_FEATURE="FEATURE_OFF"
     export SEARCH_FEATURE="FEATURE_ON"
+    export APP_FEATURE_MUX="ATOMIC"
+    export USE_ONLY_TEXT_EMBEDDINGS=False  # When only search is enabled, we use both text and video embeddings
+    export VS_INDEX_NAME="video_frame_embeddings"  # DB Index or DB Collection name for video search standalone setup
 
     # If search is enabled, set up video search only
     APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml" 

@@ -7,7 +7,6 @@ The input data that this microservice takes can be broadly divided into two:
    b. Telegraf services sending the data in line protocol format
 -  **UDF deployment package** (comprises of UDF, TICKScripts, models)
    a. Through Volume mounts OR docker cp OR kubectl cp command
-   b. Pulling the UDF deployment package from the Model Registry microservice
 
 ![Time Series Analytics Microservice High Level Architecture](_images/Time-Series-Analytics-Microservice-Architecture.png)
 

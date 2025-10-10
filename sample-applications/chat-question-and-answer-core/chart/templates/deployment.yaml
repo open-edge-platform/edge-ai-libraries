@@ -20,7 +20,11 @@ spec:
         fsGroup: 1000
       containers:
         - name: chatqna-core
-          image: "{{ if .Values.gpu.enabled }}{{ .Values.image.registry }}chatqna:{{ .Values.image.backendGpuTag }}{{ else }}{{ .Values.image.registry }}chatqna:{{ .Values.image.backendTag }}{{ end }}"
+          {{- if eq (.Values.global.MODEL_RUNTIME | lower) "ollama" }}
+          image: "{{ .Values.image.registry }}chatqna:{{ .Values.image.tags.ollama }}"
+          {{- else }}
+          image: "{{ .Values.image.registry }}chatqna:{{ if .Values.gpu.enabled }}{{ .Values.image.tags.openvinoGPU }}{{ else }}{{ .Values.image.tags.openvinoCPU }}{{ end }}"
+          {{- end }}
           imagePullPolicy: "{{ .Values.image.pullPolicy }}"
           securityContext:
             privileged: false
@@ -36,9 +40,11 @@ spec:
             - name: https_proxy
               value: "{{ .Values.global.https_proxy }}"
             - name: no_proxy
-              value: "{{ .Values.global.no_proxy }}"
+              value: "{{ .Values.global.no_proxy }},127.0.0.1"
+            {{- if eq (.Values.global.MODEL_RUNTIME | lower) "openvino" }}
             - name: HF_ACCESS_TOKEN
               value: "{{ .Values.global.huggingface.apiToken }}"
+            {{- end }}
           {{ if .Values.gpu.enabled }}
           resources:
             requests:

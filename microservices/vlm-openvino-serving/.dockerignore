@@ -36,3 +36,28 @@ empty_model_dir
 mock_model_dir
 .coverage
 htmlcov
+
+# Ignore development and testing files
+.git/
+.gitignore
+.pytest_cache/
+.coverage
+.mypy_cache/
+.tox/
+.idea/
+.vscode/
+*.tmp
+*.swp
+*.swo
+*~
+tests/
+
+# Ignore documentation files
+README.md
+docs/
+*.md
+
+# Ignore CI/CD files
+.github/
+.gitlab-ci.yml
+Jenkinsfile

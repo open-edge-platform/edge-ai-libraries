@@ -20,8 +20,6 @@ import select
 import threading
 import tomlkit
 from influxdb import InfluxDBClient
-from mr_interface import MRHandler
-
 
 TEMP_KAPACITOR_DIR = tempfile.gettempdir()
 KAPACITOR_DEV = "kapacitor_devmode.conf"
@@ -30,8 +28,6 @@ SUCCESS = 0
 FAILURE = -1
 KAPACITOR_PORT = 9092
 KAPACITOR_NAME = 'kapacitord'
-
-mrHandlerObj = None
 
 def kapacitor_daemon_logs(logger):
     """Read the kapacitor logs and print it to stdout
@@ -396,10 +392,6 @@ def classifier_startup(config):
     mode = os.getenv("SECURE_MODE", "false")
     secure_mode = mode.lower() == "true"
 
-    global mrHandlerObj
-    mrHandlerObj = MRHandler(config, logger)
-
-
     # Delete old subscription
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
         delete_old_subscription(secure_mode)
@@ -414,21 +406,22 @@ def classifier_startup(config):
         model_name = config['udfs']['models']
     else:
         model_name = ""
+    device = "auto"
+    device_config = config['udfs'].get("device", None)
+    if device_config:
+        device = device_config.lower()
+        if device == "cpu":
+            device = "auto"
+        elif device == "gpu" or (device.startswith("gpu:") and device.split(":")[1].isdigit()):
+            device = device
+        else:
+            raise ValueError(f"Invalid value for 'device' in udfs: {device_config}, must be 'cpu' or 'gpu'")
 
     if os.getenv("SAMPLE_APP") is not None:
         dir_name = os.getenv("SAMPLE_APP")
     else:
         dir_name = udf_name
 
-    if mrHandlerObj is not None and mrHandlerObj.fetch_from_model_registry:
-        dir_name = mrHandlerObj.unique_id
-        if dir_name is None or dir_name == "":
-            logger.error("Please check the UDF name:%s "
-                         "and version: %s "
-                         "in the config.",
-                         mrHandlerObj.config['udfs']['name'],
-                         mrHandlerObj.config['model_registry']['version'])
-            return
     udf_section = config_data.get('udf', {}).get('functions', {})
     udf_section[udf_name] = tomlkit.table()
 
@@ -439,7 +432,8 @@ def classifier_startup(config):
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
         'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
-        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name)
+        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name),
+        'DEVICE': device
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
         config_data["mqtt"][0]["name"] = config["alerts"]["mqtt"]["name"]

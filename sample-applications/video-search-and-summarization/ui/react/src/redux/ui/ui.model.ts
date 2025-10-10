@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 export interface PromptEditing {
   open: string;
   heading: string;
@@ -9,8 +8,14 @@ export interface PromptEditing {
   vars: string[];
 }
 
+export enum MuxFeatures {
+  SEARCH,
+  SUMMARY,
+}
+
 export interface UISliceState {
   promptEditing: PromptEditing | null;
+  selectedMux: MuxFeatures;
 }
 export interface OpenPromptModal {
   heading: string;

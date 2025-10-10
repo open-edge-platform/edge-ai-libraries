@@ -2,18 +2,18 @@
 [tool.poetry]
 name = "video-search"
 version = "0.1.0"
-description = "Intel EGAI Video Search Microservice"
+description = "Video Search Microservice"
+authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = "^3.10,<3.13"
-fastapi = "^0.115.12"
-uvicorn = "^0.34.2"
+python = "^3.11,<3.13"
+fastapi = "^0.116.1"
+uvicorn = "^0.35.0"
 gunicorn = "^23.0.0"
-langchain-community = "^0.3.24"
+langchain-community = "0.3.27"
 vdms = "0.0.21"
 watchdog = "6.0.0"
-minio = "7.2.15"
 
 [build-system]
 requires = ["poetry-core>=1.0.0"]

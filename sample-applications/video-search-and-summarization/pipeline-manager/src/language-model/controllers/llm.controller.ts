@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Body, Controller, Post, Res } from '@nestjs/common';
 import { LlmService } from '../services/llm.service';
 import { TemplateService } from '../services/template.service';

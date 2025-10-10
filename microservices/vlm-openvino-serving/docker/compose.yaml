@@ -31,9 +31,9 @@ services:
     devices:
       - /dev/dri:/dev/dri
     group_add:
-      - ${USER_GROUP_ID-1000} 
-      - ${VIDEO_GROUP_ID}    
-      - ${RENDER_GROUP_ID} 
+      - ${USER_GROUP_ID:-1000} 
+      - ${VIDEO_GROUP_ID:-44}    
+      - ${RENDER_GROUP_ID:-1002}
     healthcheck:
       test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
       interval: 10s

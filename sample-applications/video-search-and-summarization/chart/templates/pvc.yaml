@@ -1,0 +1,17 @@
+{{- if .Values.global.pvcName }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ .Values.global.pvcName }}
+  {{- if .Values.global.keepPvc }}
+  annotations:
+    helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
+  {{- end }}
+spec:
+  accessModes:
+    - ReadWriteMany
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: {{ .Values.global.claimSize | default "50Gi" }}
+{{- end }}

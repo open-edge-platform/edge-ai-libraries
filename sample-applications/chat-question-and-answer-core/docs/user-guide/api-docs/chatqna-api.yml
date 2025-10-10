@@ -322,6 +322,98 @@ paths:
               summary: Curl example
               value: |
                 curl -X POST "http://localhost:8888/chat" -H "Content-Type: application/json" -d '{"input": "what is load_chain?"}'
+  /ollama-models:
+    get:
+      tags:
+        - Model API
+      summary: Checks status of OLLAMA models
+      description: Retrieves the list of currently loaded Ollama models.
+      responses:
+        '200':
+          description: List of loaded Ollama models
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  model_list:
+                    type: array
+                    items:
+                      type: string
+              example:
+                model_list: ["llama2", "mistral", "phi3"]
+        '500':
+          description: Error retrieving model list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              example:
+                detail: Error message
+          examples:
+            curl:
+              summary: Curl example
+              value: |
+                curl -X GET "http://localhost:8888/ollama-models"
+  /ollama-model:
+    get:
+      tags:
+        - Model API
+      summary: Gets OLLAMA model metadata
+      description: Retrieves metadata for a specified OLLAMA model.
+      parameters:
+        - name: model_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: The identifier of the OLLAMA model.
+      responses:
+        '200':
+          description: Metadata information about the specified OLLAMA model
+          content:
+            application/json:
+              schema:
+                type: object
+                additionalProperties: true
+              example:
+                model_id: llama2
+                name: Llama 2
+                version: 1.0
+                description: Meta's Llama 2 model
+                parameters:
+                  num_layers: 32
+                  hidden_size: 4096
+        '404':
+          description: Model not found or error retrieving metadata
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              example:
+                detail: Model with id 'llama2' not found.
+        '500':
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              example:
+                detail: An unexpected error occurred while retrieving the model metadata.
+      examples:
+        curl:
+          summary: Curl example
+          value: |
+            curl -X GET "http://localhost:8888/ollama-model?model_id=llama2"
 components:
   schemas:
     HTTPValidationError:

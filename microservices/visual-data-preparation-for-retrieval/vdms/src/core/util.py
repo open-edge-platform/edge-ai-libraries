@@ -4,21 +4,15 @@
 import datetime
 import io
 import json
-import os
 import pathlib
-import shutil
-import tempfile
 from typing import Dict, List, Optional, Tuple
 
 import cv2
 import yaml
 from tzlocal import get_localzone
 
-from src.common import DataPrepException, Settings, Strings
+from src.common import DataPrepException, Strings, logger, settings
 from src.core.minio_client import MinioClient
-from src.logger import logger
-
-settings = Settings()
 
 
 def sanitize_input(input: str) -> str | None:
@@ -181,6 +175,7 @@ def extract_video_metadata(
     video_filename: str,
     chunk_duration: int,
     clip_duration: int,
+    tags: List[str] | str = [],
 ) -> Dict:
     """
     Generates metadata for a video.
@@ -243,6 +238,10 @@ def extract_video_metadata(
             iso_date_time = current_time_local.isoformat()
             metadata[keyname]["date_time"] = {"_date": str(iso_date_time)}
 
+            # If tags is a list, convert it to a comma-separated string
+            if isinstance(tags, List):
+                tags: str = ",".join(tags) if tags else ""
+
             # Put other metadata into current key
             metadata[keyname].update(
                 {
@@ -255,6 +254,7 @@ def extract_video_metadata(
                     "bucket_name": bucket_name,
                     "video_url": video_url,
                     "video_rel_url": video_rel_url,
+                    "tags": tags,
                 }
             )
 
@@ -325,6 +325,7 @@ def store_video_metadata(
     chunk_duration: int,
     clip_duration: int,
     metadata_temp_path: str,
+    tags: List[str] | str = [],
 ) -> pathlib.Path:
     """
     Store video metadata in dictionary and dump it in a temporary metadata file
@@ -348,6 +349,7 @@ def store_video_metadata(
         video_filename=video_filename,
         chunk_duration=chunk_duration,
         clip_duration=clip_duration,
+        tags=tags,
     )
     metadata_file_path: pathlib.Path = save_metadata_at_temp(metadata_temp_path, metadata)
 
