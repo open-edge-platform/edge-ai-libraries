@@ -2,9 +2,9 @@ image:
   registry: "intel/"
   pullPolicy: IfNotPresent
   tags:
-    openvinoCPU: "core_1.4.0"
-    openvinoGPU: "core_gpu_1.4.0"
-    ollama: "core_ollama_1.4.0"
+    openvinoCPU: "core_1.3.0"
+    openvinoGPU: "core_gpu_1.3.0"
+    ollama: "core_ollama_1.3.0"
 
 configmap:
   enabled: true  # Set to `false` to use default model config in the application
