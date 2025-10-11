@@ -2,7 +2,6 @@
 
 Performs audio transcription using OpenVino GenAI Whisper model. for more details on the whisper ASR check out [OpenVino GenAI Documentation](https://docs.openvino.ai/2025/api/genai_api/_autosummary/openvino_genai.WhisperPipeline.html#openvino_genai.WhisperPipeline)
 
-This guide serves as a reference for extending custom ASR models.[CUSTOM_HANDLERS.md](/home/intel/workspace/forked/edge-ai-libraries/libraries/dl-streamer/src/monolithic/gst/audio_inference_elements/gvaaudiotranscribe/CUSTOM_HANDLERS.md)
 
 ```sh
 Element Flags:
@@ -63,11 +62,7 @@ Element Properties:
                         flags: readable, writable
                         Boolean. Default: false
 
-  return-timestamps   : Whether to return timestamps with transcription
-                        flags: readable, writable
-                        Boolean. Default: false
-
-  task                : Task: 'transcribe' or 'translate'
+  task                : Task: 'transcribe' 
                         flags: readable, writable
                         String. Default: "transcribe"
 

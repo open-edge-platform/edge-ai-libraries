@@ -7,12 +7,10 @@ GStreamer element for audio transcription using speech recognition models.
 This element provides audio transcription capabilities with an extensible handler interface. Currently supports:
 
 - **Whisper models** (primary support) - OpenVINO GenAI backend
-- **Extensible handler interface** - Users can implement custom model handlers
 
 ### Model Type Support
 
 - `whisper` - Fully supported (OpenVINO GenAI)
-- Custom types - Implement your own! See [CUSTOM_HANDLERS.md](CUSTOM_HANDLERS.md)
 
 ## Quick Usage
 
@@ -53,7 +51,7 @@ cd build
 export PKG_CONFIG_PATH="/opt/intel/dlstreamer/gstreamer/lib/pkgconfig:${PKG_CONFIG_PATH}"
 source /opt/intel/openvino_2025/setupvars.sh
 
-cmake -DENABLE_PAHO_INSTALLATION=OFF -DENABLE_RDKAFKA_INSTALLATION=OFF -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON -DENABLE_GENAI=on..
+cmake -DENABLE_PAHO_INSTALLATION=OFF -DENABLE_RDKAFKA_INSTALLATION=OFF -DENABLE_VAAPI=ON -DENABLE_SAMPLES=ON -DENABLE_GENAI=on ..
 make -j "$(nproc)"
 ```
 
@@ -91,9 +89,15 @@ Download & convert the Whisper model:
 ```
 optimum-cli export openvino --trust-remote-code --model openai/whisper-base whisper-base
 ```
-### [Optional] To use GPU device for inference 
+### To use GPU device for inference 
 
-There are few prerequisites that is required follow the Documentation for more details [GPU Device selection](../../../../../docs/source/dev_guide/gpu_device_selection.md)
+There are few prerequisites that is required follow the Documentation for more details 
+- [GPU driver installation](https://dlstreamer.github.io/get_started/install/install_guide_ubuntu.html#step-1-install-prerequisites), Just follow the first step and reboot your machine 
+```bash
+    #verify if the GPU device is popping up
+     clinfo | grep 'Device'
+```
+- [GPU Device selection](../../../../../docs/source/dev_guide/gpu_device_selection.md)
 
 
 ## Finally, actually run the full pipeline:
@@ -173,28 +177,31 @@ GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you
 docker run -it -v ~/data:/data dlstreamer-ubuntu24-test:latest bash -c "GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=/data/how_are_you_doing_today.wav ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=/data/whisper-base device=CPU ! fakesink"
 ```
 
+### Properties
 
-## Extensible Handler Interface
+- `model` - Path to model (directory for Whisper, custom path for other models)
+- `model_type` - Model type: `whisper` (supported), or your custom type
+- `device` - Inference device: `CPU`, `GPU`
+- `language` - Language code (e.g., `<|en|>` for English), currently supoports english
+- `task` - Task type: `transcribe` or `translate`, currently supports transcription 
 
-This element features an extensible handler interface that allows users to implement support for custom speech recognition models.
 
-### Currently Supported Models
+### Troubleshooting 
 
-- **Whisper** (`model_type=whisper`) - ✅ Fully supported via OpenVINO GenAI
+```bash 
+Failed to load plugin '/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so': 
+/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so: undefined symbol: _ZTVN2ov5genai11PerfMetricsE
+```
+- If you get this error, it's mostly because the OpenVINO and OpenVINO GenAI versions do not match. Make sure you have the same version of openvino_toolkit and openvino_genAI [in this case 2025.3.0]
 
-### Adding Custom Model Support
+```bash 
+gst-inspect: command not found
+or 
+no element named gvaaudiotranscribe
+```
+- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment), [Environment SetupScript](../../../../../scripts/setup_env.sh)
 
-Want to add support for your own speech recognition model? It's easy!
-
-1. **See the detailed guide**: [CUSTOM_HANDLERS.md](CUSTOM_HANDLERS.md)
-2. **Check examples**: Look at `examples/` directory for template implementations
-3. **Implement the interface**: Inherit from `GvaAudioTranscribeHandler`
-4. **Register your handler**: Add it to the model type selection logic
-5. **Use it**: Set `model_type=your_custom_type`
-
-### Example: Using Unsupported Model Type
-
-If you try to use an unsupported model type:
+- If you try to use an unsupported model type:
 
 ```bash
 # This will show a helpful error message
@@ -212,29 +219,6 @@ Feel free to implement support for 'custom_model' by extending the GvaAudioTrans
 See gstgvaaudiotranscribehandler.h for the extensible interface.
 ```
 
-### Properties
-
-- `model` - Path to model (directory for Whisper, custom path for other models)
-- `model_type` - Model type: `whisper` (supported), or your custom type
-- `device` - Inference device: `CPU`, `GPU`
-- `language` - Language code (e.g., `<|en|>` for English)
-- `task` - Task type: `transcribe` or `translate`
-- `return-timestamps` - Whether to include timestamps in output
-
-### Troubleshooting 
-
-```bash 
-Failed to load plugin '/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so': 
-/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so: undefined symbol: _ZTVN2ov5genai11PerfMetricsE
-```
-- If you get this error, it's mostly because the OpenVINO and OpenVINO GenAI versions do not match. Make sure you have the same version of openvino_toolkit and openvino_genAI [in this case 2025.3.0]
-
-```bash 
-gst-inspect: command not found
-or 
-no element named gvaaudiotranscribe
-```
-- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment), [Environment SetupScript](../../../../../scripts/setup_env.sh)
 
 
 
