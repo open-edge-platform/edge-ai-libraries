@@ -214,6 +214,14 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   // Get suggested tags from Redux store
   const { suggestedTags } = useAppSelector(SearchSelector);
 
+  const displayFileName = useMemo(() => {
+    if (!selectedFile) return '';
+    const originalName = selectedFile.name;
+    return originalName.toLowerCase().endsWith('.mp4')
+      ? originalName.slice(0, -4)
+      : originalName;
+  }, [selectedFile]);
+
   const resetForm = useCallback(() => {
     // Clean up video preview URL first
     if (videoPreviewUrlRef.current) {
@@ -408,7 +416,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               {selectedFile ? (
                 <>
                   <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                    {selectedFile.name}
+                    {displayFileName}
                   </h3>
                   <MainButton 
                     kind="tertiary" 
@@ -522,39 +530,27 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                   width: '100%',
                 }}
               >
-                <h3 style={{ fontWeight: 600, marginBottom: '1rem', textAlign: 'center' }}>{t('Preview')}</h3>
-                
                 {/* Video Preview inside the details box */}
                 {videoPreviewUrl && (
-                  <>
-                    <div style={{ marginBottom: '0.5rem' }}>
-                      <strong>{t('UploadedVideo', 'Uploaded Video')}:</strong>
-                    </div>
-                    <VideoPreviewContainer>
-                      <StyledVideoPlayer controls>
-                        <source src={videoPreviewUrl} type="video/mp4" />
-                        Your browser does not support the video tag.
-                      </StyledVideoPlayer>
-                    </VideoPreviewContainer>
-                  </>
+                  <VideoPreviewContainer>
+                    <StyledVideoPlayer controls>
+                      <source src={videoPreviewUrl} type="video/mp4" />
+                      Your browser does not support the video tag.
+                    </StyledVideoPlayer>
+                  </VideoPreviewContainer>
                 )}
                 
                 <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
                   <div>
-                    <strong>{t('videoNameLabel')}:</strong> {selectedFile ? selectedFile.name : '-'}
+                    <strong>{t('videoNameLabel')}:</strong> {selectedFile ? displayFileName : '-'}
                   </div>
-                  <div>
-                    <strong>{t('customVideoTags')}:</strong> {videoTags || '-'}
-                  </div>
-                  <div>
-                    <strong>{t('availableVideoTags')}:</strong>{' '}
-                    {selectedTags && selectedTags.length > 0 ? selectedTags.join(', ') : '-'}
-                  </div>
+                  {videoTags && videoTags.trim().length > 0 && (
+                    <div>
+                      <strong>{t('customVideoTags')}:</strong> {videoTags}
+                    </div>
+                  )}
                 </div>
               </div>
-              <p style={{ fontSize: '1rem', color: '#666', maxWidth: '420px', lineHeight: '1.5' }}>
-                {t('CreateEmbeddingDescription', 'Confirm the details and kick off embedding creation.')}
-              </p>
               {uploading && (
                 <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
               )}

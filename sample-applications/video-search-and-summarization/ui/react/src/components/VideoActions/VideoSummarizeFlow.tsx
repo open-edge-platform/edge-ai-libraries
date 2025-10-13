@@ -170,6 +170,13 @@ const TimelineConnector = styled.div<{ completed: boolean }>`
   border-radius: 2px;
 `;
 
+const AccordionFieldGroup = styled.div`
+  display: flex;
+  flex-direction: column;
+  gap: 1rem;
+  padding-top: 0.75rem;
+`;
+
 const MainButton = styled(Button)`
   min-width: 280px;
   font-size: 1.15rem;
@@ -277,21 +284,13 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       systemConfig?.evamPipeline ??
       EVAMPipelines.OBJECT_DETECTION;
 
-    let multiFrameActual = multiFrame;
-    if (systemConfig) {
-      const systemMultiFrame = systemConfig.multiFrame;
-      multiFrameActual = Math.min(systemMultiFrame, Math.min(sampleFrame, multiFrame) + frameOverlap);
-    } else {
-      multiFrameActual = Math.min(sampleFrame + frameOverlap, multiFrame);
-    }
-
     const pipelineData: SummaryPipelineDTO = {
       evam: { evamPipeline: fallbackEvamPipeline },
       sampling: {
         chunkDuration,
         samplingFrame: sampleFrame,
         frameOverlap,
-        multiFrame: multiFrameActual,
+        multiFrame: calculatedMultiFrame,
       },
       prompts: {
         framePrompt,
@@ -505,7 +504,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const [chunkDuration, setChunkDuration] = useState(8);
   const [sampleFrame, setSampleFrame] = useState(8);
   const [frameOverlap, setFrameOverlap] = useState(4);
-  const [multiFrame, setMultiFrame] = useState(12);
   const [audio, setAudio] = useState(true);
   const [systemConfig, setSystemConfig] = useState<SystemConfigWithMeta>();
 
@@ -530,25 +528,19 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const videoPreviewUrlRef = useRef<string | null>(null);
   const shouldKeepTagsMenuOpenRef = useRef(false);
 
-  const updateMultiFrame = useCallback(
-    (sampleFrames: number, overlap: number) => {
-      if (systemConfig) {
-        const calculatedMultiFrame = Math.min(sampleFrames + overlap, systemConfig.multiFrame);
-        setMultiFrame(calculatedMultiFrame);
-      }
-    },
-    [systemConfig]
+  const calculatedMultiFrame = useMemo(
+    () => sampleFrame + frameOverlap,
+    [sampleFrame, frameOverlap]
   );
 
   useEffect(() => {
     if (systemConfig) {
-      updateMultiFrame(sampleFrame, frameOverlap);
       setFramePrompt(systemConfig.framePrompt);
       setMapPrompt(systemConfig.summaryMapPrompt);
       setReducePrompt(systemConfig.summaryReducePrompt);
       setSingleReducePrompt(systemConfig.summarySinglePrompt);
     }
-  }, [sampleFrame, frameOverlap, systemConfig, updateMultiFrame]);
+  }, [systemConfig]);
 
   useEffect(() => {
     if (step !== 1) {
@@ -568,6 +560,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setSummaryName('');
     setSampleFrame(8);
     setChunkDuration(8);
+    setFrameOverlap(4);
     setProgressText('');
     setUploadProgress(0);
     setUploading(false);
@@ -614,8 +607,9 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   }, [selectedFile]);
 
   const frameOverlapChange = (val: number) => {
-    setFrameOverlap(val);
-    updateMultiFrame(sampleFrame, val);
+    const numericValue = Number.isFinite(val) ? val : 0;
+    const nonNegativeValue = Math.max(0, numericValue);
+    setFrameOverlap(nonNegativeValue);
   };
 
   const handleFileSelect = (files: FileList | null) => {
@@ -799,32 +793,34 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                       open={accordionOpen.ingestion}
                       onHeadingClick={() => setAccordionOpen(prev => ({ ...prev, ingestion: !prev.ingestion }))}
                     >
-                      <NumberInput
-                        id='overrideMultiFrame'
-                        value={frameOverlap}
-                        min={0}
-                        max={systemConfig.multiFrame}
-                        onChange={(_evt, { value }) => frameOverlapChange(Number(value))}
-                        label={createLabelWithTooltip(t('FramesOverlap'), t('FramesOverlapInfo'))}
-                      />
-                      <NumberInput
-                        id='overrideOverlap'
-                        value={multiFrame}
-                        max={systemConfig.multiFrame}
-                        readOnly={true}
-                        label={createLabelWithTooltip(t('MultiFrame'), t('MultiFrameInfo'))}
-                      />
-                      {systemConfig.meta.evamPipelines && (
-                        <Select 
-                          id='evam-pipeline-select' 
-                          labelText={createLabelWithTooltip(t('Chunking Pipeline'), t('ChunkingPipelineInfo'))} 
-                          ref={selectorRef}
-                        >
-                          {systemConfig.meta.evamPipelines.map((option: { name: string; value: string }) => (
-                            <SelectItem key={option.value} text={option.name} value={option.value} />
-                          ))}
-                        </Select>
-                      )}
+                      <AccordionFieldGroup>
+                        <NumberInput
+                          id='overrideMultiFrame'
+                          value={frameOverlap}
+                          min={0}
+                          max={systemConfig.multiFrame}
+                          onChange={(_evt, { value }) => frameOverlapChange(Number(value))}
+                          label={createLabelWithTooltip(t('FramesOverlap'), t('FramesOverlapInfo'))}
+                        />
+                        <TextInput
+                          id='overrideOverlap'
+                          type='number'
+                          value={calculatedMultiFrame.toString()}
+                          readOnly
+                          labelText={createLabelWithTooltip(t('MultiFrame'), t('MultiFrameInfo'))}
+                        />
+                        {systemConfig.meta.evamPipelines && (
+                          <Select 
+                            id='evam-pipeline-select' 
+                            labelText={createLabelWithTooltip(t('Chunking Pipeline'), t('ChunkingPipelineInfo'))} 
+                            ref={selectorRef}
+                          >
+                            {systemConfig.meta.evamPipelines.map((option: { name: string; value: string }) => (
+                              <SelectItem key={option.value} text={option.name} value={option.value} />
+                            ))}
+                          </Select>
+                        )}
+                      </AccordionFieldGroup>
                     </AccordionItem>
                     {systemConfig.meta.defaultAudioModel && (
                       <AccordionItem 
@@ -938,34 +934,28 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   maxWidth: '600px',
                   width: '100%'
                 }}>
-                  <h3 style={{ fontWeight: 600, marginBottom: '1rem', textAlign: 'center' }}>{t('Preview')}</h3>
-                  
                   {/* Video Preview inside the details box */}
                   {videoPreviewUrl && (
-                    <>
-                      <div style={{ marginBottom: '0.5rem' }}>
-                        <strong>{t('UploadedVideo', 'Uploaded Video')}:</strong>
-                      </div>
-                      <VideoPreviewContainer>
-                        <StyledVideoPlayer controls>
-                          <source src={videoPreviewUrl} type="video/mp4" />
-                          Your browser does not support the video tag.
-                        </StyledVideoPlayer>
-                      </VideoPreviewContainer>
-                    </>
+                    <VideoPreviewContainer>
+                      <StyledVideoPlayer controls>
+                        <source src={videoPreviewUrl} type="video/mp4" />
+                        Your browser does not support the video tag.
+                      </StyledVideoPlayer>
+                    </VideoPreviewContainer>
                   )}
                   
                   <div style={{ marginTop: videoPreviewUrl ? '1rem' : '0' }}>
                     <div><strong>{t('summaryTitle')}:</strong> {summaryName}</div>
-                    <div><strong>{t('customVideoTags')}:</strong> {videoTags}</div>
-                    <div><strong>{t('availableVideoTags')}:</strong> {selectedTags && selectedTags.length > 0 ? selectedTags.join(', ') : '-'}</div>
+                    {videoTags && videoTags.trim().length > 0 && (
+                      <div><strong>{t('customVideoTags')}:</strong> {videoTags}</div>
+                    )}
                     <div><strong>{t('ChunkDurationLabel')}:</strong> {chunkDuration}</div>
                     <div><strong>{t('FramePerChunkLabel')}:</strong> {sampleFrame}</div>
                     {systemConfig && (
                       <>
                         <div style={{ marginTop: '1rem', fontWeight: 600 }}>{t('IngestionSettings')}</div>
                         <div><strong>{t('FramesOverlap')}:</strong> {frameOverlap}</div>
-                        <div><strong>{t('MultiFrame')}:</strong> {multiFrame}</div>
+                        <div><strong>{t('MultiFrame')}:</strong> {calculatedMultiFrame}</div>
                         <div><strong>{t('Chunking Pipeline')}:</strong> {selectorRef?.current?.value ?? ''}</div>
                         {systemConfig.meta.defaultAudioModel && (
                           <>
@@ -998,10 +988,6 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                     )}
                   </div>
                 </div>
-                
-                <p style={{ fontSize: '1rem', color: '#666', maxWidth: '400px', lineHeight: '1.5' }}>
-                  {t('CreateSummaryDescription')}
-                </p>
                 {uploading && (
                   <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
                 )}
