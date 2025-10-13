@@ -111,18 +111,18 @@ To access a docsum-nginx service running in your Kubernetes cluster using NodePo
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<namespace\> and \<service-name\> with your actual values:
+Run the following command after replacing \<namespace\> and \<docsum-nginx-service-name\> with your actual values:
 ```bash
-  ## Step 1: List all the pods for the deployment and identify where docsum-nginx is running
+  # Step 1: List all the pods for the deployment and identify where docsum-nginx is running
   kubectl get pods -n <namespace> -o wide
   # Look for document-summarization-nginx pod to understand which node it is being deployed to.
 
-  ## Step 2: Get the node IP of the node where the service deployed to.
+  # Step 2: Get the node IP of the node where the service deployed to.
   kubectl get nodes -o wide
   # Look for the INTERNAL-IP value of the node deployed with the service
 
-  ## Step 3: Get the NodePort for the service deployed
-  kubectl get svc <service-name> -n <namespace>
+  # Step 3: Get the NodePort for the service deployed
+  kubectl get svc <docsum-nginx-service-name> -n <namespace>
 
   ## Step 4: Collect all the information above and paste it into your browser to access the service UI
   http://<node-ip>:<node-port>
