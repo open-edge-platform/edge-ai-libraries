@@ -2,58 +2,51 @@
  * Copyright (C) 2018-2024 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
-******************************************************************************/
+ ******************************************************************************/
 
 #include "gstgvaaudiotranscribe.h"
+#include "gstgvawhisperasrhandler.h"
+#include <dlstreamer/gst/metadata/gva_audio_event_meta.h>
+#include <fstream>
 #include <gst/audio/audio.h>
 #include <gst/gst.h>
-#include <openvino/genai/whisper_pipeline.hpp>
-#include <dlstreamer/gst/metadata/gva_audio_event_meta.h>
-#include "gstgvawhisperasrhandler.h"
-#include <string>
-#include <vector>
 #include <mutex>
 #include <nlohmann/json.hpp>
-#include <fstream>
+#include <openvino/genai/whisper_pipeline.hpp>
+#include <string>
+#include <vector>
 
 #define ELEMENT_LONG_NAME "Audio transcription using Whisper models with extensible handler interface"
-#define ELEMENT_DESCRIPTION "Performs speech recognition using OpenVINO Whisper models. Supports extensible handler interface for custom model implementations."
+#define ELEMENT_DESCRIPTION                                                                                            \
+    "Performs speech recognition using OpenVINO Whisper models. Supports extensible handler interface for custom "     \
+    "model implementations."
 #define SAMPLE_RATE 16000
 
 GST_DEBUG_CATEGORY_STATIC(gva_audio_transcribe_debug_category);
 #define GST_CAT_DEFAULT gva_audio_transcribe_debug_category
 #define GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC 3
 
-enum {
-    PROP_0,
-    PROP_MODEL_PATH,
-    PROP_DEVICE,
-    PROP_MODEL_TYPE,
-    PROP_LANGUAGE,
-    PROP_TASK,
-    PROP_RETURN_TIMESTAMPS
-};
+enum { PROP_0, PROP_MODEL_PATH, PROP_DEVICE, PROP_MODEL_TYPE, PROP_LANGUAGE, PROP_TASK, PROP_RETURN_TIMESTAMPS };
 
-static GstStaticPadTemplate sink_factory =
-    GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS("audio/x-raw, "
-                                           "format=(string)S16LE, "
-                                           "rate=(int)16000, "
-                                           "channels=(int)1"));
+static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
+                                                                   GST_STATIC_CAPS("audio/x-raw, "
+                                                                                   "format=(string)S16LE, "
+                                                                                   "rate=(int)16000, "
+                                                                                   "channels=(int)1"));
 
-static GstStaticPadTemplate src_factory =
-    GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS,
-                            GST_STATIC_CAPS("audio/x-raw, "
-                                           "format=(string)S16LE, "
-                                           "rate=(int)16000, "
-                                           "channels=(int)1"));
+static GstStaticPadTemplate src_factory = GST_STATIC_PAD_TEMPLATE("src", GST_PAD_SRC, GST_PAD_ALWAYS,
+                                                                  GST_STATIC_CAPS("audio/x-raw, "
+                                                                                  "format=(string)S16LE, "
+                                                                                  "rate=(int)16000, "
+                                                                                  "channels=(int)1"));
 
 G_DEFINE_TYPE_WITH_CODE(GvaAudioTranscribe, gst_gva_audio_transcribe, GST_TYPE_BASE_TRANSFORM,
                         GST_DEBUG_CATEGORY_INIT(gva_audio_transcribe_debug_category, "gvaaudiotranscribe", 0,
                                                 "debug category for gvaaudiotranscribe element"));
 
 // Forward declarations of methods
-static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec);
+static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id, const GValue *value,
+                                                  GParamSpec *pspec);
 static void gst_gva_audio_transcribe_get_property(GObject *object, guint prop_id, GValue *value, GParamSpec *pspec);
 static void gst_gva_audio_transcribe_finalize(GObject *object);
 static gboolean gst_gva_audio_transcribe_start(GstBaseTransform *base);
@@ -77,16 +70,19 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
     // Install properties
     g_object_class_install_property(
         gobject_class, PROP_MODEL_PATH,
-        g_param_spec_string("model", "Model", "Path to the Whisper model directory (or custom model path for extensible handlers)", NULL, G_PARAM_READWRITE));
+        g_param_spec_string("model", "Model",
+                            "Path to the Whisper model directory (or custom model path for extensible handlers)", NULL,
+                            G_PARAM_READWRITE));
 
     g_object_class_install_property(
         gobject_class, PROP_DEVICE,
         g_param_spec_string("device", "Device", "Device to use for inference (CPU, GPU)", "CPU", G_PARAM_READWRITE));
-    
+
     g_object_class_install_property(
         gobject_class, PROP_MODEL_TYPE,
-        g_param_spec_string("model_type", "Model_Type", "Model type for inference: 'whisper' (supported), custom types can be implemented", "whisper", G_PARAM_READWRITE));
-
+        g_param_spec_string("model_type", "Model_Type",
+                            "Model type for inference: 'whisper' (supported), custom types can be implemented",
+                            "whisper", G_PARAM_READWRITE));
 
     g_object_class_install_property(
         gobject_class, PROP_LANGUAGE,
@@ -96,17 +92,17 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
         gobject_class, PROP_TASK,
         g_param_spec_string("task", "Task", "Task: 'transcribe' or 'translate'", "transcribe", G_PARAM_READWRITE));
 
-    g_object_class_install_property(
-        gobject_class, PROP_RETURN_TIMESTAMPS,
-        g_param_spec_boolean("return-timestamps", "Return Timestamps",
-                            "Whether to return timestamps with transcription", FALSE, G_PARAM_READWRITE));
+    g_object_class_install_property(gobject_class, PROP_RETURN_TIMESTAMPS,
+                                    g_param_spec_boolean("return-timestamps", "Return Timestamps",
+                                                         "Whether to return timestamps with transcription", FALSE,
+                                                         G_PARAM_READWRITE));
 
     // Setup pad templates
     gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&src_factory));
     gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&sink_factory));
 
-    gst_element_class_set_static_metadata(element_class, ELEMENT_LONG_NAME, "Audio Transcription",
-                                          ELEMENT_DESCRIPTION, "Intel Corporation");
+    gst_element_class_set_static_metadata(element_class, ELEMENT_LONG_NAME, "Audio Transcription", ELEMENT_DESCRIPTION,
+                                          "Intel Corporation");
 }
 
 void gst_gva_audio_transcribe_init(GvaAudioTranscribe *gvaaudiotranscribe) {
@@ -130,7 +126,8 @@ void gst_gva_audio_transcribe_init(GvaAudioTranscribe *gvaaudiotranscribe) {
     GST_DEBUG_OBJECT(gvaaudiotranscribe, "Initialized gvaaudiotranscribe");
 }
 
-static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id, const GValue *value, GParamSpec *pspec) {
+static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id, const GValue *value,
+                                                  GParamSpec *pspec) {
     GvaAudioTranscribe *gvaaudiotranscribe = GVA_AUDIO_TRANSCRIBE(object);
 
     switch (prop_id) {
@@ -143,7 +140,7 @@ static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id
         gvaaudiotranscribe->device = g_value_dup_string(value);
         break;
     case PROP_MODEL_TYPE:
-    	g_free(gvaaudiotranscribe->model_type);
+        g_free(gvaaudiotranscribe->model_type);
         gvaaudiotranscribe->model_type = g_value_dup_string(value);
         break;
     case PROP_LANGUAGE:
@@ -174,8 +171,8 @@ static void gst_gva_audio_transcribe_get_property(GObject *object, guint prop_id
         g_value_set_string(value, gvaaudiotranscribe->device);
         break;
     case PROP_MODEL_TYPE:
-    	g_value_set_string(value, gvaaudiotranscribe->model_type);
-	break;
+        g_value_set_string(value, gvaaudiotranscribe->model_type);
+        break;
     case PROP_LANGUAGE:
         g_value_set_string(value, gvaaudiotranscribe->language);
         break;
@@ -209,8 +206,8 @@ static void gst_gva_audio_transcribe_finalize(GObject *object) {
         delete gvaaudiotranscribe->handler;
         gvaaudiotranscribe->handler = nullptr;
     }
-    delete static_cast<std::vector<float>*>(gvaaudiotranscribe->audio_data);
-    delete static_cast<std::mutex*>(gvaaudiotranscribe->mutex);
+    delete static_cast<std::vector<float> *>(gvaaudiotranscribe->audio_data);
+    delete static_cast<std::mutex *>(gvaaudiotranscribe->mutex);
 
     // Call parent finalize
     G_OBJECT_CLASS(gst_gva_audio_transcribe_parent_class)->finalize(object);
@@ -235,18 +232,19 @@ static gboolean gst_gva_audio_transcribe_start(GstBaseTransform *base) {
         gvaaudiotranscribe->handler = new WhisperHandler();
     } else {
         // Provide helpful message for unsupported types
-        GST_ERROR_OBJECT(gvaaudiotranscribe, 
-                         "Model type '%s' is not currently supported. "
-                         "Currently supported: 'whisper'. "
-                         "Feel free to implement support for '%s' by extending the GvaAudioTranscribeHandler interface! "
-                         "See gstgvaaudiotranscribehandler.h for the extensible interface.",
-                         gvaaudiotranscribe->model_type, gvaaudiotranscribe->model_type);
+        GST_ERROR_OBJECT(
+            gvaaudiotranscribe,
+            "Model type '%s' is not currently supported. "
+            "Currently supported: 'whisper'. "
+            "Feel free to implement support for '%s' by extending the GvaAudioTranscribeHandler interface! "
+            "See gstgvaaudiotranscribehandler.h for the extensible interface.",
+            gvaaudiotranscribe->model_type, gvaaudiotranscribe->model_type);
         return FALSE;
     }
 
-    GST_INFO_OBJECT(gvaaudiotranscribe, "Initializing %s handler with model '%s' on device '%s'", 
+    GST_INFO_OBJECT(gvaaudiotranscribe, "Initializing %s handler with model '%s' on device '%s'",
                     gvaaudiotranscribe->model_type, gvaaudiotranscribe->model_path, gvaaudiotranscribe->device);
-    
+
     try {
         if (!gvaaudiotranscribe->handler->initialize(gvaaudiotranscribe->model_path, gvaaudiotranscribe->device,
                                                      gvaaudiotranscribe->language, gvaaudiotranscribe->task,
@@ -256,12 +254,12 @@ static gboolean gst_gva_audio_transcribe_start(GstBaseTransform *base) {
             gvaaudiotranscribe->handler = nullptr;
             return FALSE;
         }
-        
+
         // Log handler info for debugging/monitoring
         auto info = gvaaudiotranscribe->handler->get_info();
-        GST_INFO_OBJECT(gvaaudiotranscribe, "Handler initialized: type=%s, backend=%s, status=%s", 
+        GST_INFO_OBJECT(gvaaudiotranscribe, "Handler initialized: type=%s, backend=%s, status=%s",
                         info["handler_type"].c_str(), info["backend"].c_str(), info["status"].c_str());
-                        
+
     } catch (const std::exception &e) {
         GST_ERROR_OBJECT(gvaaudiotranscribe, "Handler initialization failed: %s", e.what());
         delete gvaaudiotranscribe->handler;
@@ -281,7 +279,6 @@ static gboolean gst_gva_audio_transcribe_stop(GstBaseTransform *base) {
         delete gvaaudiotranscribe->handler;
         gvaaudiotranscribe->handler = nullptr;
     }
-
 
     auto *audio_data = static_cast<std::vector<float> *>(gvaaudiotranscribe->audio_data);
     audio_data->clear();
@@ -314,7 +311,8 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
 
     const size_t threshold_samples = SAMPLE_RATE * GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC;
     if (audio_data->size() > threshold_samples) {
-        GST_DEBUG_OBJECT(gvaaudiotranscribe, "Reached threshold of %zu samples, starting transcription", threshold_samples);
+        GST_DEBUG_OBJECT(gvaaudiotranscribe, "Reached threshold of %zu samples, starting transcription",
+                         threshold_samples);
 
         try {
             std::lock_guard<std::mutex> lock(*mutex);
@@ -330,26 +328,24 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                 GST_INFO_OBJECT(gvaaudiotranscribe, "Transcript: %s", transcript.c_str());
 
                 // Post a bus message so gst-launch -m displays it without needing debug categories
-                GstStructure *s = gst_structure_new("gvaaudiotranscribe",
-                                                   "text", G_TYPE_STRING, transcript.c_str(),
-                                                   NULL);
-                gst_element_post_message(GST_ELEMENT(base),
-                                         gst_message_new_element(GST_OBJECT(base), s));
+                GstStructure *s =
+                    gst_structure_new("gvaaudiotranscribe", "text", G_TYPE_STRING, transcript.c_str(), NULL);
+                gst_element_post_message(GST_ELEMENT(base), gst_message_new_element(GST_OBJECT(base), s));
                 GstClockTime start_time = GST_BUFFER_PTS(buf);
                 GstClockTime duration = GST_BUFFER_DURATION(buf);
-                if (!GST_CLOCK_TIME_IS_VALID(start_time)) start_time = 0;
-                if (!GST_CLOCK_TIME_IS_VALID(duration)) duration = GST_SECOND * GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC;
+                if (!GST_CLOCK_TIME_IS_VALID(start_time))
+                    start_time = 0;
+                if (!GST_CLOCK_TIME_IS_VALID(duration))
+                    duration = GST_SECOND * GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC;
                 GstClockTime end_time = start_time + duration;
                 if (gst_buffer_is_writable(buf)) {
-                    GstGVAAudioEventMeta *meta = gst_gva_buffer_add_audio_event_meta(buf, transcript.c_str(), start_time, end_time);
+                    GstGVAAudioEventMeta *meta =
+                        gst_gva_buffer_add_audio_event_meta(buf, transcript.c_str(), start_time, end_time);
                     if (meta) {
-                        GstStructure *detection = gst_structure_new(
-                            "detection",
-                            "label", G_TYPE_STRING, transcript.c_str(),
-                            "text", G_TYPE_STRING, transcript.c_str(),
-                            "start_timestamp", G_TYPE_UINT64, start_time,
-                            "end_timestamp", G_TYPE_UINT64, end_time,
-                            NULL);
+                        GstStructure *detection =
+                            gst_structure_new("detection", "label", G_TYPE_STRING, transcript.c_str(), "text",
+                                              G_TYPE_STRING, transcript.c_str(), "start_timestamp", G_TYPE_UINT64,
+                                              start_time, "end_timestamp", G_TYPE_UINT64, end_time, NULL);
                         gst_gva_audio_event_meta_add_param(meta, detection);
                         GST_INFO_OBJECT(gvaaudiotranscribe, "Added transcription metadata to buffer");
                     } else {

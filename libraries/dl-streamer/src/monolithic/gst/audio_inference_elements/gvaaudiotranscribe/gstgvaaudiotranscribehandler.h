@@ -6,18 +6,18 @@
 
 #pragma once
 #include <gst/gst.h>
-#include <vector>
-#include <string>
 #include <map>
+#include <string>
+#include <vector>
 
 /**
  * Base class for audio transcription handlers.
- * 
+ *
  * This interface allows users to implement custom model inference handlers
  * for different types of speech recognition models. Currently, Whisper is
  * the primary supported model type, but users can extend this interface
  * to support other models based on their interest and requirements.
- * 
+ *
  * To implement a custom handler:
  * 1. Inherit from this class
  * 2. Implement all pure virtual methods
@@ -25,7 +25,7 @@
  * 4. Set model_type parameter to your custom type name
  */
 class GvaAudioTranscribeHandler {
-public:
+  public:
     virtual ~GvaAudioTranscribeHandler() = default;
 
     /**
@@ -37,9 +37,8 @@ public:
      * @param return_timestamps Whether to return timestamps with transcription
      * @return true if initialization succeeded, false otherwise
      */
-    virtual bool initialize(const std::string &model_path, const std::string &device,
-                            const std::string &language, const std::string &task,
-                            bool return_timestamps) = 0;
+    virtual bool initialize(const std::string &model_path, const std::string &device, const std::string &language,
+                            const std::string &task, bool return_timestamps) = 0;
 
     /**
      * Perform transcription on audio data.
