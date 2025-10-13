@@ -62,12 +62,9 @@ class Settings(BaseSettings):
     VIDEO_UPLOAD_ENDPOINT: str = Field(default="", env="VIDEO_UPLOAD_ENDPOINT")
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
-    MINIO_API_PORT: str = Field(default="", env="MINIO_API_PORT")
-    MINIO_HOST: str = Field(default="", env="MINIO_HOST")
-    MINIO_ROOT_USER: str = Field(default="", env="MINIO_ROOT_USER")
-    MINIO_ROOT_PASSWORD: str = Field(default="", env="MINIO_ROOT_PASSWORD")
-    VDMS_BUCKET: str = Field(default="", env="VDMS_BUCKET")
+    WATCH_DIRECTORY_RECURSIVE: bool = Field(default=False, env="WATCH_DIRECTORY_RECURSIVE")
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
+    EMBEDDING_LENGTH: int = 0
 
 
 settings = Settings()

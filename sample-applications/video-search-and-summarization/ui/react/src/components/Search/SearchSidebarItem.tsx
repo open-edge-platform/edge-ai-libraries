@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, SyntheticEvent, useState } from 'react';
 import styled from 'styled-components';
 import { Checkbox, IconButton } from '@carbon/react';
@@ -7,7 +9,7 @@ import { useAppDispatch } from '../../redux/store';
 import { NotificationSeverity, notify } from '../Notification/notify';
 import PopupModal from '../PopupModal/PopupModal';
 import { SearchRemove, SearchWatch } from '../../redux/search/searchSlice';
-import { SearchQuery } from '../../redux/search/search';
+import { SearchQuery, SearchQueryStatus } from '../../redux/search/search';
 
 const SidebarItemWrapper = styled.div`
   display: flex;
@@ -33,8 +35,37 @@ const SidebarItemWrapper = styled.div`
   }
 
   &.unread {
-    border-color: red;
-    background-color: rgb(15 98 254 / 48%);
+    border-color: #0f62fe;
+    background-color: #edf5ff;
+    
+    .text-container {
+      color: #0f62fe;
+      font-weight: 500;
+    }
+    
+    &::before {
+      content: "● ";
+      color: #0f62fe;
+      font-weight: bold;
+      margin-right: 4px;
+    }
+  }
+
+  &.error {
+    /* border-color: #da1e28; */
+    background-color: #fdf2f2;
+    
+    .text-container {
+      color: #da1e28;
+      font-weight: 500;
+    }
+    
+    &::before {
+      content: "⚠ ";
+      color: #da1e28;
+      font-weight: bold;
+      margin-right: 4px;
+    }
   }
 
   &.selected,
@@ -57,6 +88,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
   const dispatch = useAppDispatch();
 
   const [showDeleteModal, setShowDeleteModal] = useState(false);
+  const hasError = item.queryStatus === SearchQueryStatus.ERROR;
 
   const handleCheckboxChange = (checked: boolean) => {
     if (checked) {
@@ -87,7 +119,7 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
 
   return (
     <>
-      <SidebarItemWrapper className={(selected ? 'selected ' : '') + (isUnread ? 'unread' : '')} onClick={onClick}>
+      <SidebarItemWrapper className={(selected ? 'selected ' : '') + (isUnread ? 'unread ' : '') + (hasError ? 'error' : '')} onClick={onClick}>
         <Checkbox
           checked={item.watch}
           onChange={(_, { checked }) => {
@@ -97,9 +129,11 @@ export const SearchSidebarItem: FC<SearchSidebarItemProps> = ({ item, selected, 
           id={`${item.queryId}-sync`}
         />
 
-        <span className='text-container'>{item.query}</span>
+        <span className='text-container'>
+          {item.query}
+        </span>
 
-        <IconButton align='left' kind='ghost' label={t('queryDeleteLabel')} onClick={handleDeleteClick}>
+        <IconButton kind='ghost' label={t('queryDeleteLabel')} autoAlign onClick={handleDeleteClick}>
           <TrashCan />
         </IconButton>
       </SidebarItemWrapper>

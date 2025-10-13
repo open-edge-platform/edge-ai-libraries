@@ -1,6 +1,7 @@
-```{eval-rst}
+<!--hide_directive```{eval-rst}
 :orphan:
-```
+```hide_directive-->
+
 # GenICam GigE or USB3 Cameras
 
 For more information or configuration details for the GenICam GigE or the USB3 camera support, refer to the [GenICam GigE/USB3.0 Camera Support](./generic_plugin_doc.md).

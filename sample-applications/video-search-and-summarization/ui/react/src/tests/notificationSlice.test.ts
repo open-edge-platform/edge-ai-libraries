@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { vi, describe, beforeEach, it, expect, afterEach } from 'vitest';
 
 import notificationReducer, {

@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import {
   ChunkSummaryStatusFromFrames,
@@ -8,9 +7,11 @@ import {
   StateActionStatus,
   UIFrameForState,
   UIFrameSummary,
+  UIState,
   VideoFrameState,
 } from './summary';
 import { RootState } from '../store';
+import { SummaryLoad } from './summarySlice';
 
 const initialState: VideoFrameState = {
   frames: {},
@@ -32,6 +33,11 @@ export const VideoFrameSlice = createSlice({
 
       state.frames = { ...state.frames, ...frames };
     },
+    reset: (state: VideoFrameState) => {
+      state.frames = {};
+      state.frameSummaries = {};
+      state.selectedSummary = null;
+    },
 
     updateFrameSummary: (state: VideoFrameState, action: PayloadAction<UIFrameSummary>) => {
       const { stateId, frameKey } = action.payload;
@@ -41,6 +47,46 @@ export const VideoFrameSlice = createSlice({
     selectSummary: (state: VideoFrameState, action: PayloadAction<string>) => {
       state.selectedSummary = action.payload;
     },
+  },
+  extraReducers: (builder) => {
+    builder.addCase(SummaryLoad.pending, (state) => {
+      state.frames = {};
+      state.frameSummaries = {};
+      state.selectedSummary = null;
+    });
+    builder.addCase(SummaryLoad.fulfilled, (state, action: PayloadAction<UIState[]>) => {
+      let stateFrames = {};
+      let stateFrameSummaries = {};
+
+      if (action.payload.length > 0) {
+        state.selectedSummary = action.payload[0].stateId;
+      }
+
+      for (const summary of action.payload) {
+        const { stateId, frames } = summary;
+        const frameData = frames.reduce((acc: Record<string, UIFrameForState>, curr) => {
+          const { chunkId, frameId } = curr;
+          const frameKey = [stateId, chunkId, frameId].join('#');
+          acc[frameKey] = { ...curr, stateId };
+          return acc;
+        }, {});
+
+        const frameSummaries = summary.frameSummaries.reduce(
+          (acc: Record<string, UIFrameSummary>, curr) => {
+            const { frameKey } = curr;
+            acc[[stateId, frameKey].join('#')] = curr;
+            return acc;
+          },
+          {} as Record<string, UIFrameSummary>,
+        );
+
+        stateFrameSummaries = { ...stateFrameSummaries, ...frameSummaries };
+        stateFrames = { ...stateFrames, ...frameData };
+      }
+
+      state.frames = stateFrames;
+      state.frameSummaries = stateFrameSummaries;
+    });
   },
 });
 
@@ -70,10 +116,11 @@ export const VideoFrameSelector = createSelector([selectVideoFrame], (frameState
     ),
 
   frameSummaryStatus: (chunkId: string) => {
-    let response: ChunkSummaryStatusFromFrames = {
+    const response: ChunkSummaryStatusFromFrames = {
       summaryUsingFrames: 0,
       summaries: [],
       summaryStatus: StateActionStatus.NA,
+      hasEmbeddings: false,
     };
 
     const frames = (

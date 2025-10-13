@@ -19,7 +19,7 @@ transformers = "^4.51.3"
 pywhispercpp = { git = "https://github.com/absadiki/pywhispercpp.git" }
 moviepy = "^2.1.2"
 aiofiles = "^23.2.1"
-optimum-intel = "^1.23.0"
+optimum-intel = "^1.24.0"
 openvino-genai = "2025.1.0.0"
 openvino = {version = "^2025.1.0.0.dev", extras = ["onnx", "pytorch"]}
 minio = "^7.2.15"

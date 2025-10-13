@@ -13,11 +13,18 @@ COPY . .
 
 RUN ["npm", "run", "build"]
 
-FROM nginx:1.27.4
+FROM nginxinc/nginx-unprivileged:1.28.0
+USER root
+ARG DOCROOT=/user/share/nginx/html
 
-COPY --from=vite-app /user/app/dist /user/share/nginx/html
-COPY ./env.sh /docker-entrypoint.d/env.sh
+COPY --from=vite-app --chown=nginx:nginx /user/app/dist ${DOCROOT}
+COPY --chown=nginx:nginx ./env.sh /docker-entrypoint.d/env.sh
+COPY --chown=nginx:nginx ./nginx.conf /etc/nginx/conf.d/default.conf
 
-COPY ./nginx.conf /etc/nginx/conf.d/default.conf
-RUN chmod +x /docker-entrypoint.d/env.sh
-EXPOSE 80
+RUN find ${DOCROOT} -type d -print0 | xargs -0 chmod 755 && \
+    find ${DOCROOT} -type f -print0 | xargs -0 chmod 644 && \
+    chmod 755 ${DOCROOT} && \
+    chmod +x /docker-entrypoint.d/env.sh
+
+USER nginx
+EXPOSE 8080

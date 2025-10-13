@@ -1,4 +1,9 @@
 global:
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: "/mnt/videoingestion"
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  
   proxy:
     no_proxy:
     http_proxy:
@@ -9,18 +14,26 @@ global:
     MINIO_ROOT_USER: 
     MINIO_ROOT_PASSWORD: 
 
+# odModelName defines the name of Object Detection Model
+odModelName: ""
+# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
+odModelType: ""
+
 videoingestion:
   name: videoingestion
   fullnameOverride: videoingestion
   fullname: videoingestion
   image:
-    repository: "intel/video-ingestion"
-    tag: "1.2.0"
+    repository: intel/video-ingestion
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
+
+  containerPort: 8080  # Port on which container application listens internally
+  containerPortName: vi-port # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 8080
-    name: videoingestion
+    port: 8080 # Port on which service exposes connection
+    portName: http  # Service port name. Useful when service exposes multiple ports.
 
   env:
     RUN_MODE: EVA
@@ -48,3 +61,5 @@ minioServer:
     type: ClusterIP
     port: 9000
     targetPort: 9000
+
+nodeAffinity: {}

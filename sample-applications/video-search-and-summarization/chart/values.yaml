@@ -1,39 +1,40 @@
 global:
-  huggingface:
-    apiToken: <huggingface-api-token> # Set this during installation
-  proxy:
-    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
-    http_proxy: ""
-    https_proxy: ""
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  # claimSize is the size of the PVC to be created.
+  claimSize: "50Gi"  
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
+
+  # huggingfaceToken should be set during installation if gated models need to be accessed.
+  huggingfaceToken: ""
+
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: ""
 
   # vlmName is Vision-Language Model Name used by VLM Inference Microservice
   vlmName: ""
   # llmName is Large Language Model Name used by OVMS service
   llmName: ""
 
+  proxy:
+    no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
+    http_proxy: ""
+    https_proxy: ""
   env:
-    UI_NODEPORT: 31998
-    POSTGRES_USER:
-    POSTGRES_PASSWORD:
-    POSTGRES_DB:
-    MINIO_ROOT_USER:
-    MINIO_PROTOCOL: "http:"
-    MINIO_BUCKET:
-    MINIO_ROOT_PASSWORD:
-    RABBITMQ_DEFAULT_USER:
-    RABBITMQ_DEFAULT_PASS:
+    POSTGRES_DB: video_summary_db
+    POSTGRES_USER: ""
+    POSTGRES_PASSWORD: ""
+    MINIO_ROOT_USER: ""
+    MINIO_ROOT_PASSWORD: ""
+    RABBITMQ_DEFAULT_USER: ""
+    RABBITMQ_DEFAULT_PASS: ""
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
 
-videosummaryui:
-  name: videosummaryui
-  service:
-    type: ClusterIP
-    port: 8100
-    targetPort: 80
-
 rabbitmq:
+  enabled: false
   name: rabbitmq
   fullname: rabbitmq
   service:
@@ -43,23 +44,22 @@ rabbitmq:
     managementPort: 15672
     mqttPort: 1883
 
-minioServer:
-  name: minio-server
+minioserver:
   service:
-    type: ClusterIP
-    port: 9000
-    targetPort: 9000
+    apiPort: 9000
 
 videoSummaryManager:
   name: videosummarybackend
   image:
     repository: intel/pipeline-manager
-    tag: 1.2.0
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
+  containerPortName: videosumm-port # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 3000
-    targetPort: 3000
+    port: 80    # Port on which service listens for incoming connection, if exposed externally
+  minioProtocol: "http:"
+  minioBucket: "video-search-summary"
   env:
     LLM_SUMMARIZATION_KEY: ""
     LLM_SUMMARIZATION_DEVICE: "CPU"
@@ -93,6 +93,10 @@ videoingestion:
   name: videoingestion
   fullnameOverride: videoingestion
   fullname: videoingestion
+  # odModelName defines the name of Object Detection Model
+  odModelName: ""
+  # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
+  odModelType: ""
   service:
     type: ClusterIP
     port: 8080
@@ -110,11 +114,10 @@ vlminference:
 # Add nginx configuration
 nginx:
   name: video-summary-nginx
+  containerPortName: nginx-port 
   service:
     type: NodePort
     port: 80
-    targetPort: 80
-    nodePort: 31999
   affinity:
     nodeAffinity:
       requiredDuringSchedulingIgnoredDuringExecution:
@@ -137,6 +140,8 @@ postgresql:
 multimodalembeddingms:
   enabled: false
   name: multimodal-embedding-ms
+  textEmbeddingModel: ""
+  imageEmbeddingModel: ""
   service:
     type: ClusterIP
     port: 8000

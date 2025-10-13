@@ -66,7 +66,7 @@ ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
-COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/mr_interface.py ./src/main.py /app/
+COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
 
 # Copy configuration files and directories efficiently
 COPY ./config.json /app/
