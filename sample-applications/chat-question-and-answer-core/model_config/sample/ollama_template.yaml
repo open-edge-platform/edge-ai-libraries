@@ -1,0 +1,52 @@
+model_settings:
+  # Runtime for model serving.
+  # Options: "ollama", "openvino"
+  MODEL_RUNTIME: "ollama"
+
+  # Embedding model used for vectorizing input text.
+  # Example: "qllama/bge-small-en-v1.5"
+  EMBEDDING_MODEL_ID: "qllama/bge-small-en-v1.5"
+
+  # Large Language Model (LLM) used to generate responses.
+  # Example: "phi3.5"
+  LLM_MODEL_ID: "phi3.5"
+
+  # Parameter or setting in Ollama that controls how long a loaded language model remains in memory after it has been used.
+  # Example:
+  #   - "1h" (str) - 1 hour
+  #   - "30m" (str) - 30 minutes
+  #   - 1800 (int) - 1800 seconds/30minutes.
+  #   - 0 (int) - unload immediately after use.
+  #   - -1 (int) - forever
+  KEEP_ALIVE: -1
+
+  # Prompt template used by the assistant to generate answers.
+  # Ensure placeholders like {context} and {question} are preserved.
+  # Optional: Adjust the template to match your model's requirements.
+  #           If did not provde, will use the default template defined in the application.
+  PROMPT_TEMPLATE: >
+    <|system|>
+    Use the following pieces of context from retrieved
+    dataset to answer the question. Do not make up an answer if there is no
+    context provided to help answer it.<|end|>
+
+    <|context|>
+    Context:
+    {context}
+    <|end|>
+
+    <|user|>
+    Question: {question}
+    <|end|>
+
+    <|assistant|>
+
+  # Optional: Maximum number of tokens in the model's response.
+  # Maximum token 1024. Not exceeding this limit to avoid errors.
+  MAX_TOKENS: 1024
+
+
+# Notes:
+# - Ensure all model IDs are valid and accessible.
+# - Prompt template must be properly formatted and include required placeholders.
+# - Only CPU is supported for Ollama backend.

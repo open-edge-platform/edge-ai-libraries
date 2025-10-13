@@ -111,3 +111,9 @@ jobs:
         if (Test-Path ${{ env.DLS_REPO_TARGET_DIRECTORY }}) {
             Remove-Item -Recurse -Force ${{ env.DLS_REPO_TARGET_DIRECTORY }}
         }
+
+    # - name: Schedule reboot
+    #   if: always()
+    #   shell: powershell
+    #   run: |
+    #     Start-Job { Start-Sleep -Seconds 15; Restart-Computer -Force }

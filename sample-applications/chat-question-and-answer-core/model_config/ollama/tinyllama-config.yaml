@@ -1,0 +1,5 @@
+model_settings:
+  MODEL_RUNTIME: "ollama"
+  EMBEDDING_MODEL_ID: "nomic-embed-text"
+  LLM_MODEL_ID: "tinyllama"
+  KEEP_ALIVE: -1

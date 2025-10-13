@@ -77,7 +77,7 @@ RUN curl -sSL https://install.python-poetry.org | python -
 WORKDIR $SETUP_PATH
 COPY poetry.lock pyproject.toml ./
 # Install runtime (prod) deps. Uses $POETRY_VIRTUALENVS_IN_PROJECT to create venv.
-RUN poetry install --only main
+RUN poetry install --with openvino --without dev --without ollama
 
 
 # `dev` image is used during development / testing
@@ -91,7 +91,7 @@ COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dev dependencies. Prod dependencies are already installed.
-RUN poetry install --with dev
+RUN poetry install --with dev,openvino,ollama
 
 # Source code will be mounted here
 WORKDIR /app
@@ -100,7 +100,8 @@ USER appuser
 
 EXPOSE 8888
 
-CMD uvicorn app.server:app --host 0.0.0.0 --port 8888 --reload
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8888", "--reload"]
+
 
 # `prod` image used for runtime
 FROM python-base AS prod
@@ -116,21 +117,19 @@ RUN apt-get update && apt-get install --no-install-recommends --fix-missing -y \
 # Copy the poetry installation and the virtual env
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-RUN sed -i 's/tokenizer.pad_token_id = model.config.eos_token_id/tokenizer.pad_token_id = tokenizer.eos_token_id/' \
-    /opt/projsetup/.venv/lib/python3.11/site-packages/langchain_huggingface/llms/huggingface_pipeline.py
 
 # Prepare directories for model cache and config
 RUN mkdir -p /tmp/model_cache /tmp/model_config
 
 # Copy application code and model config
 COPY app ./app
-COPY model_config/sample/template.yaml /tmp/model_config/default_model.yaml
+COPY model_config/sample/openvino_template.yaml /tmp/model_config/default_model.yaml
 
 # Set ownership to appuser
-RUN chown -R appuser:appuser /my-app /tmp/model_cache /tmp/model_config/
+RUN chown -R appuser:appuser /my-app /tmp/model_cache /tmp/model_config
 
 USER appuser
 
 EXPOSE 8888
 
-CMD uvicorn app.server:app --host 0.0.0.0 --port 8888
+CMD ["uvicorn", "app.server:app", "--host", "0.0.0.0", "--port", "8888"]
