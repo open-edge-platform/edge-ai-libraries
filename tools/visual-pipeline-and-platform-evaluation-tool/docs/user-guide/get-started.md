@@ -24,6 +24,7 @@ By following this guide, you will learn how to:
 
       ```bash
       mkdir -p visual-pipeline-and-platform-evaluation-tool/models
+      mkdir -p visual-pipeline-and-platform-evaluation-tool/shared/models
       cd visual-pipeline-and-platform-evaluation-tool
       ```
 
@@ -35,7 +36,7 @@ By following this guide, you will learn how to:
       curl -LO "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/Makefile"
       curl -Lo models/Dockerfile "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/Dockerfile"
       curl -Lo models/model_manager.sh "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/model_manager.sh"
-      curl -Lo models/supported_models.lst "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/models/supported_models.lst"
+      curl -Lo shared/models/supported_models.lst "https://github.com/open-edge-platform/edge-ai-libraries/raw/refs/heads/main/tools/visual-pipeline-and-platform-evaluation-tool/shared/models/supported_models.lst"
       chmod +x models/model_manager.sh
       ```
 

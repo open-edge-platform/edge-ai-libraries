@@ -24,9 +24,6 @@ USER dlstreamer
 
 WORKDIR /home/dlstreamer
 
-COPY --chown=dlstreamer:dlstreamer \
-    model_manager.sh \
-    supported_models.lst \
-    /home/dlstreamer/
+COPY --chown=dlstreamer:dlstreamer models/model_manager.sh /home/dlstreamer/
 
 CMD ["./model_manager.sh"]
