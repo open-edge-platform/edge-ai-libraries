@@ -78,7 +78,7 @@ This method provides the fastest way to get started with the microservice.
 2. **Change to project directory**:
     Start the container using:
     ```bash
-    cd <clone-repo-dir-path>/microservices/document-ingestion/pgvector
+    cd edge-ai-libraries/microservices/document-ingestion/pgvector
     ```
 
 3. **Configure the environment variables**:
