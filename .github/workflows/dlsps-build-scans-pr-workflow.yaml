@@ -93,27 +93,61 @@ jobs:
         path: /tmp/htmlcov
 
     - name: Scan Docker image with Trivy
-      uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        image: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
-        severity: "CRITICAL"
-        # output-format: "json"
-        output-file: "DLSPS_${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+        scan_target: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
+        severity: "HIGH"
+        scan_type: image
+        format: table
+        report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-img"
+        scan-scope: all
+        timeout: 20m
+        ignore_unfixed: true
+
+    - name: Fail if vulnerabilities > 0 in Trivy results
+      run: |
+        file=$(ls security-results/trivy/trivy-results-*dlsps-img* | head -n 1)
+        cat $file
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+        if [[ "$vuln_count" != "0" ]]; then
+          echo "❌ Vulnerabilities found: $vuln_count"
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
+      shell: bash
 
     - name: Scan Docker extended image with Trivy
-      uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/trivy@65fc743e0c69b8529188b89dede3acfe2897b2e0
       with:
-        image: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
-        severity: "CRITICAL"
-        # output-format: "json"
-        output-file: "DLSPS_${{ matrix.ubuntu_version }}-extended-trivy-image-report.txt"
+        scan_target: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
+        severity: "HIGH"
+        scan_type: image
+        format: table
+        report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-extended-img"
+        scan-scope: all
+        timeout: 20m
+        ignore_unfixed: true
+
+    - name: Fail if vulnerabilities > 0 in Trivy results
+      run: |
+        file=$(ls security-results/trivy/trivy-results-*dlsps-extended-img* | head -n 1)
+        cat $file
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+        if [[ "$vuln_count" != "0" ]]; then
+          echo "❌ Vulnerabilities found: $vuln_count"
+          exit 1
+        else
+          echo "✅ No vulnerabilities found."
+        fi
+      shell: bash
 
     - name: Upload Trivy image report as artifact
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
-        name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-report
-        path: DLSPS_${{ matrix.ubuntu_version }}*-trivy-image-report.txt
+        name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
+        path: security-results/trivy/trivy-results-*
 
     - name: Run Trivy Filesystem Scan
       if: matrix.ubuntu_version == 'ubuntu22'
@@ -150,18 +184,14 @@ jobs:
       run: |
         sudo rm -rf edge-ai-libraries-repo
         sudo rm -rf /tmp/htmlcov reports/*
-        sudo rm -r DLSPS_${{ matrix.ubuntu_version }}*-trivy-image-report.txt
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }} || true
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }} || true
 
-  bandit-virus-scans:
-    name: Run Bandit and Virus Scan
+  dlsps-clamav:
+    permissions:
+      contents: read
+    name: "DLSPS SCAN: ClamAV antivirus"
     runs-on: ubuntu-latest
-    strategy:
-      fail-fast: false
-      matrix:
-        include:
-          - ubuntu_version: ubuntu22
     steps:
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -169,37 +199,42 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - name: Run Bandit Scan
-      run: |
-        mkdir -p reports
-        docker pull ghcr.io/pycqa/bandit/bandit
-        echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
-        echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
-
-    - name: Run Virus Scan
-      run: |
-        mkdir -p reports
-        docker pull clamav/clamav
-        echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
-        docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/dlstreamer-pipeline-server/ > ./reports/clamav-report.txt || true
-        echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
-
-    - name: Upload Scan Reports
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+    - name: ClamAV scan
+      uses: open-edge-platform/orch-ci/.github/actions/clamav@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
       with:
-        name: DLSPS_bandit-virus-reports
-        path: reports/
+        project-folder: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+        report-path: clamav_scan_report-dlsps.txt
+        report_suffix: dlsps
 
     - name: Clean up
-      if: always()
       run: |
-        rm -rf edge-ai-libraries-repo
-        sudo rm -rf reports
-        if [ -n "$(docker images -aq)" ]; then
-               docker rmi -f $(docker images -aq) || true
-        fi
+        sudo rm -rf edge-ai-libraries-repo
 
+  dlsps-bandit:
+    permissions:
+      contents: read
+    name: "DLSPS SCAN: Bandit"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+        path: edge-ai-libraries-repo
+
+    - name: Run Bandit scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
+      with:
+        scan-scope: "changed"
+        severity-level: "HIGH"
+        confidence-level: "HIGH"
+        output-format: "txt"
+        paths: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+        report_suffix: dlsps
+
+    - name: Clean up
+      run: |
+        sudo rm -rf edge-ai-libraries-repo
 
   trivy-config-dockerfile-scan:
     permissions:
@@ -215,78 +250,81 @@ jobs:
       output-report-path: reports/DLSPS_trivy_config_report.txt
       name: DLSPS_trivy_report
 
-  pylint:
+  dlsps-pylint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: "DLSPS SCAN: pylint"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
-          persist-credentials: false
           path: edge-ai-libraries-repo
-
-      - name: Set up Python
-        uses: actions/setup-python@v5
-        with:
-          python-version: '3.10'
-
-      - name: Install dependencies from all requirements.txt files
-        run: |
-          python -m pip install --upgrade pip
-          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
-          find . -type f -iname 'requirements.txt' -exec pip install -r {} \;
-
-      - name: Install pylint
-        run: pip install pylint
+          persist-credentials: false
 
       - name: Run pylint
-        run: |
-          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
-          find . -type f -iname '*.py' -exec pylint --errors-only --disable=import-error  {} \;  > pylint_report.txt || true
-          cp pylint_report.txt ${{ github.workspace }}
-          echo "### Pylint Results" >> $GITHUB_STEP_SUMMARY
-          echo "Please find pylint report in pylint-report.txt" >> $GITHUB_STEP_SUMMARY
-
-      - name: Upload pylint report as artifact
-        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
+        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
         with:
-          name: DLSPS_pylint-report
-          path: pylint_report.txt
+          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          output-file: pylint-report.txt
+          name: DLSPS_pylint
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up
-        if: always()
         run: |
-          rm -rf edge-ai-libraries-repo
-          sudo rm -f pylint_report.txt
+          sudo rm -rf edge-ai-libraries-repo
 
-  shellcheck:
+  dlsps-shellcheck:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: "DLSPS SCAN: shellcheck"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
-          persist-credentials: false
           path: edge-ai-libraries-repo
+          persist-credentials: false
+          fetch-depth: 0
 
-      - name: Install ShellCheck
-        run:  sudo apt-get update &&  sudo apt-get install -y shellcheck
-
-      - name: Run ShellCheck
-        run: |
-          cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
-          echo "Scanning for .sh files and running ShellCheck..."
-          find . -type f -name "*.sh" | tee shell_files.txt | xargs -r shellcheck -f gcc > shellcheck_report.txt || true
-          echo "### ShellCheck Results" >> $GITHUB_STEP_SUMMARY
-          echo "Please find ShellCheck report in shellcheck_report.txt" >> $GITHUB_STEP_SUMMARY
-          cp shellcheck_report.txt ${{ github.workspace }}
-
-      - name: Upload ShellCheck report
-        uses: actions/upload-artifact@v4
+      - name: Run shellcheck
+        uses: ./edge-ai-libraries-repo/.github/actions/common/shellcheck
         with:
-          name: DLSPS_shellcheck-report
-          path: shellcheck_report.txt
+          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          output-file: shellcheck-report.txt
+          name: DLSPS_shellcheck
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Clean up
-        if: always()
         run: |
-          rm -rf edge-ai-libraries-repo
-          sudo rm -f shellcheck_report.txt
+          sudo rm -rf edge-ai-libraries-repo
+
+  dlsps-yamllint:
+    permissions:
+      contents: read
+      pull-requests: write
+    name: "DLSPS SCAN: yamllint"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          path: edge-ai-libraries-repo
+          persist-credentials: false
+
+      - name: Run yamlint
+        uses: ./edge-ai-libraries-repo/.github/actions/common/yamllint
+        with:
+          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          output-file: yamllint-report.txt
+          name: DLSPS_yamlint
+          enable-reviewdog: true
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Clean up
+        run: |
+          sudo rm -rf edge-ai-libraries-repo
