@@ -5,6 +5,10 @@ services:
   dataprep_microservice:
     build:
       target: dev
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
     image: intel/document-ingestion:1.2.0-dev
     environment:
       DEFAULT_BUCKET: "intel.gai.dev.test"

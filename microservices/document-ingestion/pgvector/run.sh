@@ -44,6 +44,9 @@ export BATCH_SIZE=32
 export CHUNK_SIZE=1500
 export CHUNK_OVERLAP=200
 
+# Export version with YYYYMMDD
+export DEFAULT_VERSION=$(date +%Y%m%d)
+
 # Based on provided CONTAINER_REGISTRY_URL, set registry name which is prefixed to application's name/tag
 # to form complete image name. Add a trailing slash to container registry URL if not present.
 if ! [ -z "$CONTAINER_REGISTRY_URL" ] && ! [ "${CONTAINER_REGISTRY_URL: -1}" = "/" ]; then
@@ -85,14 +88,14 @@ elif [ "$1" = "--conf" ] && [ "$#" -eq 1 ]; then
 elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
     docker compose -f docker/compose.yaml down
 
-# Build images
-elif [ "$1" = "--build" ] && [ "$#" -eq 1 ]; then
-    echo "Please provide the service name to build: dataprep"
-
-# Build dataprep image
+# Build dataprep image using DEFAULT_VERSION as tag if not provided
 elif ([ "$1" = "--build" ] && [ "$2" = "dataprep" ]) && ([ "$#" -eq 2 ] || [ "$#" -eq 3 ]); then
-    tag=${3:-intel/document-ingestion:1.1}
-    docker build -t $tag -f docker/Dockerfile .
+    tag=${3:-intel/document-ingestion:$DEFAULT_VERSION}
+    docker build -t $tag \
+       --label "project=${PROJECT_NAME}" \
+       --label "service=dataprep" \
+       --label "build-script=run.sh" \
+       -f docker/Dockerfile .
     if [ $? = 0 ]; then
         docker images | grep $tag
         echo "Image ${tag} was successfully built."
@@ -121,6 +124,48 @@ elif [ "$#" -eq 0 ]; then
         docker ps | grep "${PROJECT_NAME}"
         echo "All services are up with prod environment!"
     fi
+
+# Remove all project-related Docker images
+elif [ "$1" = "--clean" ] && [ "$#" -eq 1 ]; then
+    echo "Removing all ${PROJECT_NAME} related Docker images..."
+    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f
+    # Fallback: also remove legacy images that may not have labels
+    docker images | grep "${PROJECT_NAME}" | awk '{print $3}' | xargs -r docker rmi -f
+    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f
+    echo "Cleanup completed!"
+
+# Remove specific service image using labels
+elif [ "$1" = "--clean" ] && [ "$2" = "dataprep" ] && [ "$#" -eq 2 ]; then
+    echo "Removing dataprep service images..."
+    docker images --filter "label=project=${PROJECT_NAME}" --filter "label=service=dataprep" -q | xargs -r docker rmi -f
+    # Fallback: also remove legacy images that may not have labels
+    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f
+    echo "Dataprep images removed!"
+
+# Complete cleanup - stop containers, remove containers, networks, volumes, and images
+elif [ "$1" = "--purge" ] && [ "$#" -eq 1 ]; then
+    echo "Performing complete cleanup..."
+    docker compose -f docker/compose.yaml down --volumes --remove-orphans
+    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f
+    # Fallback cleanup for legacy images
+    docker images | grep "${PROJECT_NAME}" | awk '{print $3}' | xargs -r docker rmi -f
+    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f    
+    echo "Complete cleanup finished!"
+
 else
     echo "Invalid arguments!"
+    echo "Usage: $0 [OPTION]"
+    echo "Options:"
+    echo "  (no args)       Spin up all services in daemon mode"
+    echo "  --nosetup       Set environment variables only"
+    echo "  --conf          Verify docker compose configuration"
+    echo "  --down          Stop and remove all containers"
+    echo "  --build         Build images (requires service name)"
+    echo "  --build dataprep [tag]  Build dataprep image with optional tag"
+    echo "  --dev           Spin up services with dev environment in daemon mode"
+    echo "  --dev --nd      Spin up services with dev environment in non-daemon mode"
+    echo "  --nd            Spin up services in non-daemon mode"
+    echo "  --clean         Remove all project-related Docker images"
+    echo "  --clean dataprep Remove dataprep service images"
+    echo "  --purge         Complete cleanup (containers, images, volumes, networks)"
 fi

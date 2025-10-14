@@ -43,13 +43,15 @@ Currently, TEI is used to host the embedding model. Following variables are requ
 
 ## Build from source
 
+If you want to build the dataprep image locally instead of using pre-built images:
 ```bash
-# To build DataPrep service image
-
-# image_name:tag in below command are optional. If not provided `intel/document-ingestion:1.1` tag would be used.
-source ./run.sh --build dataprep <image_name:tag>
+# Build with default tag (uses current date in YYYYMMDD format)
+source ./run.sh --build dataprep
+    
+# Build with custom tag
+source ./run.sh --build dataprep my-registry/my-dataprep:v1.0
 ```
-
+**Note**: All built images are automatically labeled for easy management and cleanup.
 
 ## Common Customizations
 Customization options are currently provided in the context of the sample application. Refer to ChatQnA sample application for details like Helm and customization options.
