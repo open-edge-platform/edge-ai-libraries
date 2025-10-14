@@ -148,7 +148,7 @@ jobs:
       trivy-report-format: 'json'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
-      name: ${{ matrix.name }}
+      name: DLS_${{ matrix.name }}
 
   dls-hadolint:
     permissions:
@@ -185,7 +185,7 @@ jobs:
         with:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
-          name: ${{ matrix.name }}
+          name: DLS_${{ matrix.name }}
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -207,7 +207,7 @@ jobs:
         with:
           path: edge-ai-libraries-repo/libraries/dl-streamer
           output-file: pylint-report.txt
-          name: dls
+          name: DLS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -230,7 +230,7 @@ jobs:
         with:
           path: edge-ai-libraries-repo/libraries/dl-streamer
           output-file: shellcheck-report.txt
-          name: dls
+          name: DLS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -252,7 +252,7 @@ jobs:
         with:
           path: edge-ai-libraries-repo/libraries/dl-streamer
           output-file: yamllint-report.txt
-          name: dls
+          name: DLS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
 
@@ -276,7 +276,7 @@ jobs:
     - name: Upload ClamAV Scan Report
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
       with:
-        name: ${{ env.CLAMAV_ARTIFACT_NAME }}
+        name: DLS_${{ env.CLAMAV_ARTIFACT_NAME }}
         path: ${{ env.SANITIZED_CLAMAV_REPORT_PATH }}
 
   dls-bandit:
@@ -297,18 +297,6 @@ jobs:
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-
-  # ----------------------------------------------------- DL Streamer Pipeline Server SCANs -----------------------------------------------------
-  dlsps-coverity:
-    permissions:
-      contents: read
-      packages: write
-    name: "DLSPS SCAN: static C/C++ code analysis"
-    uses: ./.github/workflows/dlsps_coverity.yaml
-    secrets:
-      DLSPS_COVERITY_TOKEN: ${{ secrets.DLSPS_COVERITY_TOKEN }}
-      DLSPS_COVERITY_EMAIL: ${{ secrets.DLSPS_COVERITY_EMAIL }}
-      DLSPS_COVERITY_PROJECT: ${{ secrets.DLSPS_COVERITY_PROJECT }}
 
   # -------------------------------------------------------- DL Streamer BUILDS & TESTS ---------------------------------------------------------
   dls-build-dev-images-and-run-unit-tests:
@@ -331,6 +319,25 @@ jobs:
       packages: read
     name: "DLS BUILD & TEST: Windows DLLs"
     uses: ./.github/workflows/dls-build-and-test-windows.yaml
+
+  separator:
+    runs-on: ubuntu-latest
+    name: "----------------------------------------"
+    steps:
+      - name: Separator
+        run: echo "---------------------------------------------------------"
+
+  # ----------------------------------------------------- DL Streamer Pipeline Server SCANs -----------------------------------------------------
+  dlsps-coverity:
+    permissions:
+      contents: read
+      packages: write
+    name: "DLSPS SCAN: static C/C++ code analysis"
+    uses: ./.github/workflows/dlsps_coverity.yaml
+    secrets:
+      DLSPS_COVERITY_TOKEN: ${{ secrets.DLSPS_COVERITY_TOKEN }}
+      DLSPS_COVERITY_EMAIL: ${{ secrets.DLSPS_COVERITY_EMAIL }}
+      DLSPS_COVERITY_PROJECT: ${{ secrets.DLSPS_COVERITY_PROJECT }}
 
   # ------------------------------------------------ DL Streamer Pipeline Server BUILDS & TESTS -------------------------------------------------
   dlsps-sanity-test:

@@ -147,7 +147,7 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       if: steps.test_hello_dlstreamer_script.outcome == 'success'
       with:
-        name: hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
+        name: DLS_hello_dlstreamer_output_video_${{ matrix.runner_print_label }}_${{ matrix.ubuntu_version }}_CPU_yolo11s
         path: ${{ env.DLS_REL_PATH }}/test_hello_dlstreamer
 
     - name: Init tests configurations
@@ -209,14 +209,14 @@ jobs:
           --video-examples-path=${{ env.VIDEO_INPUTS_PATH }} \
           --test-configs="$TEST_CONFIGS" \
           --results-path="$DLS_TESTS_RESULTS_PATH" \
-          --report-name="functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results" \
+          --report-name="DLS_functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results" \
           --on-host
 
     - name: Upload test results
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       if: steps.run_tests.outcome == 'success'
       with:
-        name: functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results
+        name: DLS_functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results
         path: "${{ env.DLS_TESTS_RESULTS_PATH }}"
 
     - name: Print tests summary in workflow

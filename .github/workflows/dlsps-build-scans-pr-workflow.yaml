@@ -188,7 +188,7 @@ jobs:
     - name: Upload Scan Reports
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
-        name: bandit-virus-reports
+        name: DLSPS_bandit-virus-reports
         path: reports/
 
     - name: Clean up
