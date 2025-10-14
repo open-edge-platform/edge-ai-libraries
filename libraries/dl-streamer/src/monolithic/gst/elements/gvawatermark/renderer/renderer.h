@@ -18,6 +18,7 @@
 class Renderer {
   public:
     void draw(dlstreamer::FramePtr buffer, std::vector<render::Prim> prims);
+    void draw_va(cv::Mat buffer, std::vector<render::Prim> prims);
 
     virtual ~Renderer() = default;
 

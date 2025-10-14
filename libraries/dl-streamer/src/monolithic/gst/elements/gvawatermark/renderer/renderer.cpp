@@ -72,3 +72,9 @@ void Renderer::draw(dlstreamer::FramePtr buffer, std::vector<render::Prim> prims
     convert_prims_color(prims);
     draw_backend(image_planes, prims);
 }
+
+void Renderer::draw_va(cv::Mat buffer, std::vector<render::Prim> prims) {
+    std::vector<cv::Mat> image_planes = {buffer};
+    convert_prims_color(prims);
+    draw_backend(image_planes, prims);
+}
