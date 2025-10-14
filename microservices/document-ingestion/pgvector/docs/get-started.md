@@ -43,6 +43,13 @@ export PGDB_PASSWD=<user_db_password>
 export PGDB_NAME=<user_db_name>
 export PGDB_INDEX=<user_db_index>
 
+# HTTP request configuration (optional)
+# Set USER_AGENT_HEADER to define a custom User-Agent string for outgoing HTTP requests.
+# If not set, a robust default User-Agent is automatically applied
+# Setting a clear and descriptive User-Agent helps external servers identify the application and
+# reduces the chance of requests being treated as bot traffic.
+export USER_AGENT_HEADER=<your_user_agent_string>
+
 # OPTIONAL - If user wants to push the built images to a remote container registry, user needs to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to application name and tag to form the final image name.
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
@@ -110,6 +117,30 @@ This method provides the fastest way to get started with the microservice.
     ```
     **Expected result**: Access to Data Store API Docs should now be available. Go through the DataPrep Service API docs to **upload**, **get** and **delete** documents to create/store/delete embeddings and upload/delete document sources for embeddings. Ensure that access to the DataPrep microservice is done from the same shell where `run.sh` was run. If not, run the script to only set the variables with a *--nosetup* flag: `source ./run.sh --nosetup`
 
+## Cleanup and Management
+
+The microservice provides several cleanup options for managing Docker images and containers:
+
+### Stop Services
+```bash
+# Stop and remove all running containers
+source ./run.sh --down
+```
+
+### Image Cleanup
+```bash
+# Remove all project-related Docker images (uses Docker labels for accurate cleanup)
+source ./run.sh --clean
+
+# Remove only dataprep service images
+source ./run.sh --clean dataprep
+
+# Complete cleanup - removes containers, images, volumes, and networks
+source ./run.sh --purge
+```
+
+**Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
+
 <!--
 **User Story US-2: Running and Exploring the Microservice**
 - **As a developer**, I want to execute a predefined task or pipeline with the microservice, so that I can understand its functionality.
@@ -119,7 +150,9 @@ This method provides the fastest way to get started with the microservice.
 2. Examples of expected outputs for validation.
 -->
 
-## First Use: Running a Predefined Task
+## Application Usage:
+
+## Type 1: Upload Files
 
 Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the commands from the same shell as where the environment variables are set.
 
@@ -151,30 +184,52 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
    rm -rf ./minimal-document.pdf
    ```
 
-## Cleanup and Management
+## Type 2: Upload URLs
 
-The microservice provides several cleanup options for managing Docker images and containers:
+Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
 
-### Stop Services
-```bash
-# Stop and remove all running containers
-source ./run.sh --down
-```
+ > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
+ 
+1. **Get stored URLs**:
+   Retrieve a list of all URLs that have been processed and stored in the system.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
 
-### Image Cleanup
-```bash
-# Remove all project-related Docker images (uses Docker labels for accurate cleanup)
-source ./run.sh --clean
+2. **Upload URLs to create and store embeddings**:
+   Submit one or more URLs to be processed for embedding creation.
+   ```bash
+   curl -X 'POST' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json' \
+     -H 'Content-Type: application/json' \
+     -d '[
+     "https://en.wikipedia.org/wiki/Fiat",
+     "https://en.wikipedia.org/wiki/Lunar_eclipse"
+   ]'
+   ```
 
-# Remove only dataprep service images
-source ./run.sh --clean dataprep
+3. **Verify the URLs were processed**:
+   Check that the URLs were successfully processed and stored.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
+   Expected output: A JSON response with the list of processed URLs should be printed.
 
-# Complete cleanup - removes containers, images, volumes, and networks
-source ./run.sh --purge
-```
+4. **Delete a specific URL or all URLs**:
+   Get the URL from the GET call response in step 3 and use it in the DELETE request below.
+   ```bash
+   curl -X 'DELETE' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls?url=<url_to_be_deleted>&delete_all=false" \
+     -H 'accept: */*'
+   ```
 
-**Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
-
+   **Note**:
+   - Optionally set `delete_all=true` if you want to delete all URLs from the database instead of a specific URL
 
 ## Advanced Setup Options
 
