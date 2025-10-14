@@ -339,3 +339,10 @@ jobs:
       packages: write
     name: "DLSPS TEST: sanity tests"
     uses: ./.github/workflows/dlsps_sanity_test.yaml
+
+  dlsps-build-scans-tests:
+    permissions:
+      contents: read
+      packages: write
+    name: "DLSPS BUILS & SCAN & TEST: build and test"
+    uses: ./.github/workflows/dlsps-build-scans-pr-workflow.yaml

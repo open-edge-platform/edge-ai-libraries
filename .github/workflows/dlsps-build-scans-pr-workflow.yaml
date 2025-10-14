@@ -6,12 +6,11 @@ on:
       - 'main'
     paths:
       - 'microservices/dlstreamer-pipeline-server/**'
-      
   pull_request:
     paths:
       - 'microservices/dlstreamer-pipeline-server/**'
-      
   workflow_call:
+  workflow_dispatch:
 permissions: {}
 
 jobs:
@@ -43,8 +42,8 @@ jobs:
 
     - name: Set BASE_IMAGE
       env:
-        BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu22"
-        BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu24"
+        BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu22" # TODO: Use latest available image
+        BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu24" # TODO: Use latest available image
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
           echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
@@ -59,6 +58,7 @@ jobs:
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BUILD_TARGET=dlstreamer-pipeline-server
         docker compose build --no-cache --pull
+
     - name: Build dls-pipeline-server-img-extended
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
@@ -66,13 +66,15 @@ jobs:
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         BUILD_TARGET=dlstreamer-pipeline-server-extended
         docker compose build --no-cache --pull
+
     - name: Unit Test dls-pipeline-server
       if: matrix.ubuntu_version == 'ubuntu22'
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         make build
         make test | tee /tmp/pytest_output.txt
-        exit ${PIPESTATUS[0]}     
+        exit ${PIPESTATUS[0]}
+
     - name: Create Unit Test Summary
       if: matrix.ubuntu_version == 'ubuntu22'
       run: |
@@ -82,54 +84,58 @@ jobs:
         echo "### Pytest Summary" >> "$GITHUB_STEP_SUMMARY"
         echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
         echo "$summary_line" >> "$GITHUB_STEP_SUMMARY"
-        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"            
+        echo "\`\`\`" >> "$GITHUB_STEP_SUMMARY"
+
     - name: Upload unit test results to Github
       if: matrix.ubuntu_version == 'ubuntu22'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
       with:
-        name: Coverage-reports
-        path: /tmp/htmlcov  
+        name: DLSPS_Coverage-reports
+        path: /tmp/htmlcov
+
     - name: Scan Docker image with Trivy
       uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
         image: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
         severity: "CRITICAL"
         # output-format: "json"
-        output-file: "dlsps-${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+        output-file: "DLSPS_${{ matrix.ubuntu_version }}-trivy-image-report.txt"
+
     - name: Scan Docker extended image with Trivy
       uses: ./edge-ai-libraries-repo/.github/actions/common/trivy-image-scan
       with:
         image: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
         severity: "CRITICAL"
         # output-format: "json"
-        output-file: "dlsps-${{ matrix.ubuntu_version }}-extended-trivy-image-report.txt"
+        output-file: "DLSPS_${{ matrix.ubuntu_version }}-extended-trivy-image-report.txt"
+
     - name: Upload Trivy image report as artifact
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
-        name: dlsps-${{ matrix.ubuntu_version }}-trivy-image-report
-        path: dlsps-${{ matrix.ubuntu_version }}*-trivy-image-report.txt
+        name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-report
+        path: DLSPS_${{ matrix.ubuntu_version }}*-trivy-image-report.txt
 
     - name: Run Trivy Filesystem Scan
       if: matrix.ubuntu_version == 'ubuntu22'
       run: |
-        
         docker pull aquasec/trivy:0.63.0
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
         mkdir -p reports
         curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
-       
-        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true 
+
+        docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs /src/ --format template --template "@/src/trivy-html.tpl" -o "/src/reports/trivy_fs_code_scan.html" || true
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --list-all-pkgs --format template --template "@/src/trivy-html.tpl" --output "/src/reports/trivy-fs-full-report.csv" /src/ || true
         docker run --rm -v `pwd`:/src aquasec/trivy:0.63.0 fs --ignore-unfixed /src | tee ./reports/trivy-fs-full-report.txt
         mv ./reports ${{ github.workspace }}
+
     - name: Upload Trivy Filesystem Reports
       if: matrix.ubuntu_version == 'ubuntu22'
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
-        name: trivy-fs-reports
-        path: reports/*    
-    
+        name: DLSPS_trivy-fs-reports
+        path: reports/*
+
     - name: Create summary
       if: always()
       run: |
@@ -139,14 +145,16 @@ jobs:
         echo "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
     - name: Clean up
       if: always()
       run: |
-        rm -rf edge-ai-libraries-repo
-        sudo rm -rf /tmp/htmlcov
+        sudo rm -rf edge-ai-libraries-repo
+        sudo rm -rf /tmp/htmlcov reports/*
+        sudo rm -r DLSPS_${{ matrix.ubuntu_version }}*-trivy-image-report.txt
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }} || true
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }} || true
-          
+
   bandit-virus-scans:
     name: Run Bandit and Virus Scan
     runs-on: ubuntu-latest
@@ -169,6 +177,7 @@ jobs:
         echo "### Bandit Scan Results" >> $GITHUB_STEP_SUMMARY
         docker run --rm -v "${{ github.workspace }}:/src" ghcr.io/pycqa/bandit/bandit -r /src/edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server -f txt -o /src/reports/bandit-report.txt || true >> $GITHUB_STEP_SUMMARY
         echo "Please find full report in bandit-report.txt" >> $GITHUB_STEP_SUMMARY
+
     - name: Run Virus Scan
       run: |
         mkdir -p reports
@@ -176,20 +185,23 @@ jobs:
         echo "### Virus Scan Results" >> $GITHUB_STEP_SUMMARY
         docker run --rm -v "${{ github.workspace }}:/src" clamav/clamav clamscan -r  /src/edge-ai-libraries/microservices/dlstreamer-pipeline-server/ > ./reports/clamav-report.txt || true
         echo "Please find full report in clamav-report.txt" >> $GITHUB_STEP_SUMMARY
+
     - name: Upload Scan Reports
-      uses: actions/upload-artifact@v4
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: bandit-virus-reports
         path: reports/
+
     - name: Clean up
       if: always()
       run: |
         rm -rf edge-ai-libraries-repo
+        sudo rm -rf reports
         if [ -n "$(docker images -aq)" ]; then
                docker rmi -f $(docker images -aq) || true
         fi
 
-  
+
   trivy-config-dockerfile-scan:
     permissions:
       contents: read
@@ -201,12 +213,11 @@ jobs:
       dockerfile-path: microservices/dlstreamer-pipeline-server/
       trivy-report-format: 'table'
       severity-levels: 'HIGH,CRITICAL'
-      output-report-path: reports/dlsps_trivy_config_report.txt
-      name: dlsps_trivy_report
-  
+      output-report-path: reports/DLSPS_trivy_config_report.txt
+      name: DLSPS_trivy_report
+
   pylint:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -217,7 +228,7 @@ jobs:
       - name: Set up Python
         uses: actions/setup-python@v5
         with:
-          python-version: '3.10'  
+          python-version: '3.10'
 
       - name: Install dependencies from all requirements.txt files
         run: |
@@ -237,13 +248,19 @@ jobs:
           echo "Please find pylint report in pylint-report.txt" >> $GITHUB_STEP_SUMMARY
 
       - name: Upload pylint report as artifact
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
-          name: pylint-report
+          name: DLSPS_pylint-report
           path: pylint_report.txt
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -rf edge-ai-libraries-repo
+          sudo rm -f pylint_report.txt
+
   shellcheck:
     runs-on: ubuntu-latest
-
     steps:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
@@ -266,6 +283,11 @@ jobs:
       - name: Upload ShellCheck report
         uses: actions/upload-artifact@v4
         with:
-          name: shellcheck-report
+          name: DLSPS_shellcheck-report
           path: shellcheck_report.txt
-  
+
+      - name: Clean up
+        if: always()
+        run: |
+          rm -rf edge-ai-libraries-repo
+          sudo rm -f shellcheck_report.txt
