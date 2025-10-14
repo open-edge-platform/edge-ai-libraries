@@ -389,5 +389,6 @@ jobs:
     permissions:
       contents: read
       packages: write
+      pull-requests: write
     name: "DLSPS BUILS & SCAN & TEST: build and test"
     uses: ./.github/workflows/dlsps-build-scans-pr-workflow.yaml
