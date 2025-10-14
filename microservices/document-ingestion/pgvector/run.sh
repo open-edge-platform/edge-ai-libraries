@@ -84,9 +84,29 @@ if [ "$1" = "--nosetup" ] && [ "$#" -eq 1 ]; then
 elif [ "$1" = "--conf" ] && [ "$#" -eq 1 ]; then
     docker compose config
 
-# tear down all services
+# Stop and remove containers and networks (basic down)
 elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
+    echo "Stopping and removing containers and networks..."
     docker compose -f docker/compose.yaml down
+    echo "Services stopped. Images and volumes preserved."
+
+# Stop and remove containers, networks, and volumes (keep images)  
+elif [ "$1" = "--down" ] && [ "$2" = "--volumes" ] && [ "$#" -eq 2 ]; then
+    echo "Stopping and removing containers, networks, and volumes..."
+    docker compose -f docker/compose.yaml down --volumes
+    echo "Services stopped. Images preserved, volumes removed."
+
+# Stop dev environment services
+elif [ "$1" = "--down" ] && [ "$2" = "--dev" ] && [ "$#" -eq 2 ]; then
+    echo "Stopping and removing dev environment containers and networks..."
+    docker compose -f docker/compose.yaml -f docker/compose-dev.yaml down
+    echo "Dev environment services stopped. Images and volumes preserved."
+
+# Stop dev environment services with volumes
+elif [ "$1" = "--down" ] && [ "$2" = "--dev" ] && [ "$3" = "--volumes" ] && [ "$#" -eq 3 ]; then
+    echo "Stopping and removing dev environment containers, networks, and volumes..."
+    docker compose -f docker/compose.yaml -f docker/compose-dev.yaml down --volumes
+    echo "Dev environment services stopped. Images preserved, volumes removed."
 
 # Build dataprep image using DEFAULT_VERSION as tag if not provided
 elif ([ "$1" = "--build" ] && [ "$2" = "dataprep" ]) && ([ "$#" -eq 2 ] || [ "$#" -eq 3 ]); then
@@ -159,7 +179,10 @@ else
     echo "  (no args)       Spin up all services in daemon mode"
     echo "  --nosetup       Set environment variables only"
     echo "  --conf          Verify docker compose configuration"
-    echo "  --down          Stop and remove all containers"
+    echo "  --down          Stop and remove containers and networks (keep images and volumes)"
+    echo "  --down --volumes Stop and remove containers, networks, and volumes (keep images)"
+    echo "  --down --dev    Stop and remove dev environment containers and networks"
+    echo "  --down --dev --volumes Stop and remove dev environment containers, networks, and volumes"
     echo "  --build         Build images (requires service name)"
     echo "  --build dataprep [tag]  Build dataprep image with optional tag"
     echo "  --dev           Spin up services with dev environment in daemon mode"
