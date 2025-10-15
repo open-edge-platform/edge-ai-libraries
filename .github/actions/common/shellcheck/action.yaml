@@ -29,26 +29,26 @@ runs:
     - name: Run ShellCheck
       env:
         path: ${{ inputs.path }}
-        output-file: ${{ inputs.output-file }}
+        output_file: ${{ inputs.output-file }}
       run: |
-        find ${path} -name "*.sh" -exec shellcheck {} \; 2>&1 | tee ${output-file} || true
-        if [ ! -f "${output-file}" ]; then
-          echo "No shell scripts found or shellcheck produced no output" > ${output-file}
+        find ${path} -name "*.sh" -exec shellcheck {} \; 2>&1 | tee ${output_file} || true
+        if [ ! -f "${output_file}" ]; then
+          echo "No shell scripts found or shellcheck produced no output" > ${output_file}
         fi
       shell: bash
 
     - name: Analyze ShellCheck results
       if: always()
       env:
-        output-file: ${{ inputs.output-file }}
+        output_file: ${{ inputs.output-file }}
         name: ${{ inputs.name }}
       run: |
-        if [ -f "${output-file}" ]; then
+        if [ -f "${output_file}" ]; then
           # Count issues by severity - ensure we get a single clean number
-          error_count=$(grep "^.*: error:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          warning_count=$(grep "^.*: warning:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          info_count=$(grep "^.*: info:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          note_count=$(grep "^.*: note:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          error_count=$(grep "^.*: error:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep "^.*: warning:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          info_count=$(grep "^.*: info:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          note_count=$(grep "^.*: note:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           error_count=${error_count:-0}
           warning_count=${warning_count:-0}

@@ -36,28 +36,28 @@ runs:
     - name: Run pylint
       env:
         path: ${{ inputs.path }}
-        output-file: ${{ inputs.output-file }}
+        output_file: ${{ inputs.output-file }}
       run: |
         find ${path} -name "*.py" -not -path "*/venv/*" \
-          -exec pylint {} \; 2>&1 | tee ${output-file} || true
-        if [ ! -f "${output-file}" ]; then
-          echo "No Python files found or pylint produced no output" > ${output-file}
+          -exec pylint {} \; 2>&1 | tee ${output_file} || true
+        if [ ! -f "${output_file}" ]; then
+          echo "No Python files found or pylint produced no output" > ${output_file}
         fi
       shell: bash
 
     - name: Analyze Pylint results
       if: always()
       env:
-        output-file: ${{ inputs.output-file }}
+        output_file: ${{ inputs.output-file }}
         name: ${{ inputs.name }}
       run: |
-        if [ -f "${output-file}" ]; then
+        if [ -f "${output_file}" ]; then
           # Count issues by severity (pylint uses C/R/W/E/F prefixes) - ensure we get single clean numbers
-          convention_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: C[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          refactor_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: R[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          warning_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: W[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          error_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: E[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          fatal_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: F[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          convention_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: C[0-9]+:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          refactor_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: R[0-9]+:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: W[0-9]+:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          error_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: E[0-9]+:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          fatal_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: F[0-9]+:" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           convention_count=${convention_count:-0}
           refactor_count=${refactor_count:-0}
@@ -73,7 +73,7 @@ runs:
           total=$((convention_count + refactor_count + warning_count + error_count + fatal_count)) || total=0
 
           # Try to extract the score - ensure this doesn't fail
-          score=$(grep "Your code has been rated at" "${output-file}" 2>/dev/null | tail -1 | grep -oE "[0-9]+\.[0-9]+/10" 2>/dev/null || echo "")
+          score=$(grep "Your code has been rated at" "${output_file}" 2>/dev/null | tail -1 | grep -oE "[0-9]+\.[0-9]+/10" 2>/dev/null || echo "")
 
           echo "### Pylint Results for ${name}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
