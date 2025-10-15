@@ -12,6 +12,14 @@ This element provides audio transcription capabilities with an extensible handle
 
 - `whisper` - Fully supported (OpenVINO GenAI)
 
+### Tools and Versions
+
+- cmake 3.28.3
+- meson 1.4.1
+- gstreamer 1.26.4
+- openvino 2025.3
+- openvino_genai 2025.3
+
 ## Quick Usage
 
 ```bash
@@ -28,21 +36,21 @@ Please follow DLstreamer official docs for installation steps: https://dlstreame
 Note: Follow through step 8 of the documentation, then install OpenVINO GenAI as mentioned below. 
 
 # OpenVINO GenAI dependencies
-```
+```bash
 cd ~
-wget 'https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.3/linux/openvino_genai_ubuntu24_2025.3.0.0_x86_64.tar.gz.sha256'
+wget 'https://storage.openvinotoolkit.org/repositories/openvino_genai/packages/2025.3/linux/openvino_genai_ubuntu24_2025.3.0.0_x86_64.tar.gz'
 tar xzf openvino_genai_ubuntu24_2025.3.0.0.dev20250809_x86_64.tar.gz
 ```
 
 Need to do this every time you reactivate the environment:
-```
+```bash
 source openvino_genai_ubuntu24_2025.3.0.0.dev20250809_x86_64/setupvars.sh
 ```
 
 # Build DL Streamer 
 Note: This step is adapted from the official documentation, tweaking a couple of parameters for the audio transcription element. 
 
-```
+```bash
 cd ~/edge-ai-libraries/libraries/dl-streamer
 
 mkdir build
@@ -61,38 +69,39 @@ Set up the environment using the following step: [Environment Setup](https://dls
 # Prepare to run the pipelines
 
 ## Create workspace
-```
+```bash
 mkdir ~/whisper-poc
 cd ~/whisper-poc
 ```
 
 ## Get Whisper model files
 
-These steps are adapted from the original whisper_speech_recognition sample in OpenVINO GenAI: https://github.com/openvinotoolkit/openvino.genai/blob/master/samples/cpp/whisper_speech_recognition/README.md
+These steps are adapted from the original whisper_speech_recognition sample in OpenVINO GenAI: https://github.com/openvinotoolkit/openvino.genai/blob/releases/2025/3/samples/cpp/whisper_speech_recognition/README.md
 
-```
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/requirements.txt
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/deployment-requirements.txt
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/export-requirements.txt
+```bash
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/requirements.txt
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/deployment-requirements.txt
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/export-requirements.txt
+
 ```
 
 You might want to create a Python virtual environment and activate it if you don't want to install packages for your user. This is not strictly required though.
 
 Install those requirements:
-```
+```bash
 python3 -m venv ~/whisper-env
 source ~/whisper-env/bin/activate
 pip install --upgrade-strategy eager -r ../../requirements.txt
 ```
 
 Download & convert the Whisper model:
-```
+```bash
 optimum-cli export openvino --trust-remote-code --model openai/whisper-base whisper-base
 ```
 ### To use GPU device for inference 
 
 There are few prerequisites that is required follow the Documentation for more details 
-- [GPU driver installation](https://dlstreamer.github.io/get_started/install/install_guide_ubuntu.html#step-1-install-prerequisites), Just follow the first step and reboot your machine 
+- [GPU driver installation](../../../../../docs/source/get_started/install/install_guide_ubuntu.md#step-1-install-prerequisites), after running [DLS_install_prerequisites.sh](../../../../../scripts/DLS_install_prerequisites.sh) script and reboot your machine 
 ```bash
     #verify if the GPU device is popping up
      clinfo | grep 'Device'
@@ -105,12 +114,12 @@ There are few prerequisites that is required follow the Documentation for more d
 
 ### Launch on a test WAV file:
 
-```
+```bash
 GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 filesrc location=<path/to/wavfile> ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=whisper-base device=CPU model_type=whisper ! fakesink
 ```
 
 ### Launch using the microphone:
-```
+```bash
 GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0     pulsesrc buffer-time=2000000 ! audioconvert ! audioresample ! audio/x-raw,format=S16LE,channels=1,rate=16000 ! queue max-size-buffers=100 max-size-time=0 max-size-bytes=0 ! gvaaudiotranscribe model=whisper-base device=CPU model_type=whisper ! fakesink
 ```
 
@@ -131,7 +140,6 @@ gst-launch-1.0 filesrc location=<path/to/file.mp4/> ! \
 ### Clone the repo
 ```bash
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git && cd edge-ai-librarie
-git checkout whisper-audio-transcription
 git submodule update --init libraries/dl-streamer/thirdparty/spdlog
 ```
 
@@ -148,9 +156,9 @@ python3 -m venv ~/python3-env
 source ~/python3-env/bin/activate
 # Install dependencies to download and convert Whisper model
 
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/requirements.txt
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/deployment-requirements.txt
-wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/master/samples/export-requirements.txt
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/requirements.txt
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/deployment-requirements.txt
+wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/export-requirements.txt
 
 pip install --upgrade-strategy eager -r ./requirements.txt
 ```
@@ -212,7 +220,7 @@ gst-launch-1.0 audiotestsrc ! audioconvert ! audioresample ! \
 ```
 
 **Error output:**
-```
+```bash
 Model type 'custom_model' is not currently supported. 
 Currently supported: 'whisper'. 
 Feel free to implement support for 'custom_model' by extending the GvaAudioTranscribeHandler interface! 
