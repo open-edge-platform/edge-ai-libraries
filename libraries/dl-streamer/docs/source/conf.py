@@ -1,8 +1,4 @@
-# ==============================================================================
-# Copyright (C) 2025 Intel Corporation
-#
-# SPDX-License-Identifier: MIT
-# ==============================================================================
+
 
 # Configuration file for the Sphinx documentation builder.
 #

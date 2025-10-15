@@ -30,16 +30,9 @@ runs:
     - name: Analyze code style results
       if: always()
       run: |
-        echo "📁 Current directory: $(pwd)"
-        echo "📂 Checking for output files:"
-        ls -la _output/ 2>/dev/null || echo "No _output directory found"
-        ls -la _styled/ 2>/dev/null || echo "No _styled directory found"
-
         if [ "${{ steps.code-style-check.outputs.STYLE_ISSUES }}" == "true" ]; then
           # Count number of files with style issues
           if [ -f "_output/diff.html" ]; then
-            echo "✅ Found diff.html at: $(pwd)/_output/diff.html"
-            ls -lh _output/diff.html
             # Try to count files from diff output
             file_count=$(diff -u --recursive "${{ inputs.target_dir }}" "_styled/${{ inputs.target_dir }}" 2>/dev/null | grep -c "^diff -u" || echo "1+")
 
