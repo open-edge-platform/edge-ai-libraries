@@ -253,6 +253,7 @@ jobs:
       uses: ./.github/actions/common/license-namespace-checker
       with:
         name: 'DLSPS_license-check-report'
+        path: '.'
 
   dlsps-clamav:
     permissions:
