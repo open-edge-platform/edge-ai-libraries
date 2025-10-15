@@ -43,6 +43,13 @@ export PGDB_PASSWD=<user_db_password>
 export PGDB_NAME=<user_db_name>
 export PGDB_INDEX=<user_db_index>
 
+# HTTP request configuration (optional)
+# Set USER_AGENT_HEADER to define a custom User-Agent string for outgoing HTTP requests.
+# If not set, a robust default User-Agent is automatically applied
+# Setting a clear and descriptive User-Agent helps external servers identify the application and
+# reduces the chance of requests being treated as bot traffic.
+export USER_AGENT_HEADER=<your_user_agent_string>
+
 # OPTIONAL - If user wants to push the built images to a remote container registry, user needs to name the images accordingly. For this, image name should include the registry URL as well. To do this, set the following environment variable from shell. Please note that this URL will be prefixed to application name and tag to form the final image name.
 
 export CONTAINER_REGISTRY_URL=<user_container_registry_url>
@@ -103,7 +110,9 @@ This method provides the fastest way to get started with the microservice.
 2. Examples of expected outputs for validation.
 -->
 
-## First Use: Running a Predefined Task
+## Application Usage:
+
+## Type 1: Upload Files
 
 Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the commands from the same shell as where the environment variables are set.
 
@@ -134,6 +143,53 @@ Try uploading a sample PDF file and verify that the embeddings and files are sto
    ```bash
    rm -rf ./minimal-document.pdf
    ```
+
+## Type 2: Upload URLs
+
+Try uploading web page URLs and verify that the embeddings are created and stored. Run the commands from the same shell as where the environment variables are set.
+
+ > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
+ 
+1. **Get stored URLs**:
+   Retrieve a list of all URLs that have been processed and stored in the system.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
+
+2. **Upload URLs to create and store embeddings**:
+   Submit one or more URLs to be processed for embedding creation.
+   ```bash
+   curl -X 'POST' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json' \
+     -H 'Content-Type: application/json' \
+     -d '[
+     "https://en.wikipedia.org/wiki/Fiat",
+     "https://en.wikipedia.org/wiki/Lunar_eclipse"
+   ]'
+   ```
+
+3. **Verify the URLs were processed**:
+   Check that the URLs were successfully processed and stored.
+   ```bash
+   curl -X 'GET' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
+     -H 'accept: application/json'
+   ```
+   Expected output: A JSON response with the list of processed URLs should be printed.
+
+4. **Delete a specific URL or all URLs**:
+   Get the URL from the GET call response in step 3 and use it in the DELETE request below.
+   ```bash
+   curl -X 'DELETE' \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls?url=<url_to_be_deleted>&delete_all=false" \
+     -H 'accept: */*'
+   ```
+
+   **Note**:
+   - Optionally set `delete_all=true` if you want to delete all URLs from the database instead of a specific URL
 
 ## Advanced Setup Options
 

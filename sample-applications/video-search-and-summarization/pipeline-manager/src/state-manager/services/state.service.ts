@@ -1,7 +1,6 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
-import { Injectable } from '@nestjs/common';
+import { Injectable, Logger } from '@nestjs/common';
 import {
   ModelInfo,
   State,
@@ -21,9 +20,10 @@ import {
   AudioTranscriptsParsed,
 } from 'src/audio/models/audio.model';
 import { Video } from 'src/video-upload/models/video.model';
-import { SummaryPipelineSampling } from 'src/pipeline/models/summary-pipeline.model';
+import { SummaryPipelineSampling } from 'src/summary/models/summary-pipeline.model';
 import { PipelineEvents } from 'src/events/Pipeline.events';
-import { Span, TraceService } from 'nestjs-otel';
+import { VideoEntity } from 'src/video-upload/models/video.entity';
+import { AppEvents } from 'src/events/app.events';
 
 @Injectable()
 export class StateService {
@@ -33,38 +33,43 @@ export class StateService {
     private emitter: EventEmitter2,
     private $config: ConfigService,
     private $stateDb: StateDbService,
-    private $trace: TraceService,
   ) {}
+
+  async init(videos: VideoEntity[]) {
+    const states = await this.$stateDb.getAllStates();
+    states.forEach((state) => {
+      const video = videos.find((v) => v.videoId === state.videoId);
+
+      if (video) {
+        this.states.set(state.stateId, {
+          ...state,
+          video: video,
+        });
+      }
+    });
+    console.log('StateService initialized with', this.states.size, 'states');
+  }
 
   fetchAll(): State[] {
     return Array.from(this.states.values());
   }
 
-  saveToDB(stateId: string) {
+  async saveToDB(stateId: string) {
     if (this.states.has(stateId)) {
       const state = this.states.get(stateId);
-
       if (state) {
-        state.updatedAt = new Date().toISOString();
-
-        const tracer = this.$trace.getTracer();
-
-        const span = tracer.startSpan('SUMMARY_OVERVIEW', {
-          attributes: {
-            stateId,
-            videoId: state.video.videoId,
-            startTime: state.createdAt,
-            endTime: state.updatedAt,
-          },
-        });
-
-        this.$stateDb.updateState(stateId, state).then((res) => {
-          console.log('State saved to DB:', res);
-        });
-
-        span.end();
+        try {
+          const res = await this.$stateDb.updateState(stateId, state);
+          Logger.log('State saved to DB:', res);
+        } catch (error) {
+          Logger.error('Error saving state to DB:', error);
+        }
       }
     }
+  }
+
+  exists(stateId: string) {
+    return this.states.has(stateId);
   }
 
   fetch(stateId: string): State | undefined {
@@ -269,6 +274,15 @@ export class StateService {
     }
   }
 
+  searchEmbeddingsCreated(stateId: string, frameKey: string) {
+    if (this.states.has(stateId)) {
+      if (this.states.get(stateId)!.frameSummaries[frameKey]) {
+        this.states.get(stateId)!.frameSummaries[frameKey].embeddingsCreated =
+          true;
+      }
+    }
+  }
+
   async create(
     videoData: Video,
     title: string,
@@ -295,10 +309,10 @@ export class StateService {
       },
     };
 
-    const { video, ...stateWihtoutVideo } = state;
+    const { video, ...stateWithoutVideo } = state;
 
     await this.$stateDb.addState({
-      ...stateWihtoutVideo,
+      ...stateWithoutVideo,
       videoId: video.videoId,
     });
 
@@ -309,9 +323,11 @@ export class StateService {
     return state;
   }
 
-  remove(stateId: string) {
+  async remove(stateId: string) {
     if (this.states.has(stateId)) {
+      await this.$stateDb.removeState(stateId);
       this.states.delete(stateId);
+      this.emitter.emit(AppEvents.SUMMARY_REMOVED, stateId);
     }
   }
 

@@ -3,29 +3,28 @@ replicaCount: 1
 videosearch:
   image:
     repository: intel/video-search
-    tag: 1.2.0
+    tag: "1.2.1"
     pullPolicy: IfNotPresent
   env:
     VDMS_VDB_HOST: "vdms-vectordb"
     VDMS_VDB_PORT: "55555"
-    VCLIP_START_OFFSET_SEC: "0"
-    VCLIP_CLIP_DURATION: "10"
-    VCLIP_USE_OV: "CONFIG_OFF"
-    VCLIP_DEVICE: "cpu"
-    VCLIP_HOST: "multimodal-embedding-ms"
     VS_WATCHER_DIR: "/tmp/watcher-dir"
     VS_DEBOUNCE_TIME: "1"
     VS_DELETE_PROCESSED_FILES: "false"
     VS_INITIAL_DUMP: "false"  # Set to true if you want to dump existing videos on startup
     VIDEO_UPLOAD_ENDPOINT: "http://pipeline-manager:3000"
-    VDMS_BUCKET: "video-summary"
     VS_DEFAULT_CLIP_DURATION: "15"  # Default chunk duration in seconds
+  
+  containerPort: 8000  # Port on which container application listens internally
+  containerPortName: vs-port  # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 8000
-    targetPort: 8000
+    port: 8000  # Port on which service listens for incoming connection, if exposed externally
+    portName: http  # Service port name. Useful when service exposes multiple ports.
 
 global:
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: ""
   proxy:
     no_proxy:
     http_proxy:
@@ -36,7 +35,6 @@ global:
     VCLIP_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
     VCLIP_MODEL: "openai/clip-vit-base-patch32"
     VCLIP_NUM_FRAMES: 15
-    VS_INDEX_NAME: "videosearch-index"
   # Add other environment variables as needed
 
 mmEmbeddingingMs:
@@ -52,3 +50,28 @@ minioServer:
     type: ClusterIP
     port: 9000
     targetPort: 9000
+
+
+livenessProbe:
+  httpGet:
+    path: /health
+    port: vs-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /health
+    port: vs-port
+  initialDelaySeconds: 5
+  periodSeconds: 20
+  failureThreshold: 3
+
+startupProbe:
+  httpGet:
+    path: /health
+    port: vs-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  failureThreshold: 12

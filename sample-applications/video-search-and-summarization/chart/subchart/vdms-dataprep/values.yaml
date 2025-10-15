@@ -7,7 +7,7 @@ image:
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "1.2.0"
+  tag: "1.2.1"
 
 imagePullSecrets: []
 # This is to override the chart name.
@@ -29,35 +29,42 @@ securityContext:
   seccompProfile:
     type: RuntimeDefault    
 
+containerPort: 8000   # Port on which container application listens internally
+containerPortName: dataprep-port    # Optional name to refer containerPort
 service:
   type: ClusterIP
-  name: dataprep-port
-  port: 8000
+  port: 8000    # Port on which service listens for incoming connection, if exposed externally
+  portName: http    # Service port name. Useful when service exposes multiple ports.
 
 resources: {}
 
 livenessProbe:
   httpGet:
     path: /health
-    port: 8000
+    port: dataprep-port
+  initialDelaySeconds: 20
   periodSeconds: 20
-  failureThreshold: 15
+  failureThreshold: 6
 readinessProbe:
   httpGet:
     path: /health
-    port: 8000
-  periodSeconds: 10
+    port: dataprep-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  failureThreshold: 6
+startupProbe:
+  httpGet:
+    path: /health
+    port: dataprep-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
   failureThreshold: 6
 
-
 nodeSelector: {}
-
 tolerations: []
-
 affinity: {}
 
 # Values required to configure DataPrep service
-bucketName: "vdms-bucket"
 indexName: "videosearch-index"
 vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
@@ -65,18 +72,24 @@ multimodalEmbeddingModelName: "openai/clip-vit-base-patch32"
 multimodalEmbeddingNumFrames: 64
 
 global:
-  # Set this value to hostPath where we want to mount a volume (Used in single node cluster).
-  volumeHostPath: ""
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: "/mnt/dataprep"
 
-  # Set the PVC name here if storage sub-chart is enabled (Used in single/multi node cluster).
-  pvcName: "vss-shared-pvc"
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  
   # Nodes on which pods using the PV will be scheduled
   storageNodeAffinity: []
 
   # Common release tags to be used for several dependencies 
   commonTag: ""
+
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: ""
+  
   proxy:
   # setup proxy settings
+    no_proxy: ""
     http_proxy: ""
     https_proxy: ""
   env:

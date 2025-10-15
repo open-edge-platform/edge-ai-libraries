@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable, Logger } from '@nestjs/common';
 import { OpenAiInitRO } from '../models/openai.model';
 import { ConfigService } from '@nestjs/config';

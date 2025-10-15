@@ -82,7 +82,10 @@ jobs:
       packages: read
     name: SCAN DLS static C/C++ code analysis
     uses: ./.github/workflows/dls-coverity.yaml
-    secrets: inherit
+    secrets:
+      DLS_COVERITY_TOKEN: ${{ secrets.DLS_COVERITY_TOKEN }}
+      DLS_COVERITY_EMAIL: ${{ secrets.DLS_COVERITY_EMAIL }}
+      DLS_COVERITY_PROJECT: ${{ secrets.DLS_COVERITY_PROJECT }}
 
   build-dev-images-and-run-unit-tests:
     permissions:

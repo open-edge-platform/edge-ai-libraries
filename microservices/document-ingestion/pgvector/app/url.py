@@ -5,6 +5,7 @@ import requests
 import psycopg
 import ipaddress
 import socket
+import os
 from urllib.parse import urlparse
 from http import HTTPStatus
 from fastapi import HTTPException
@@ -117,6 +118,11 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
             HTML parsing, or any other errors during the ingestion process.
     """
 
+    default_user_agent = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/117.0.0.0 Safari/537.36"
+
+    headers = {
+        "User-Agent": os.getenv("USER_AGENT_HEADER", default_user_agent)
+    }
 
     try:
         invalid_urls = 0
@@ -132,7 +138,7 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
                     adapter = requests.adapters.HTTPAdapter()
                     session.mount("http://", adapter)
                     session.mount("https://", adapter)
-                    response = session.get(url, timeout=5, allow_redirects=False)
+                    response = session.get(url, headers=headers, timeout=5, allow_redirects=True)
 
                 if response.status_code != HTTPStatus.OK:
                     logger.info(f"Failed to fetch URL: {url} with status code {response.status_code}")
@@ -182,7 +188,7 @@ def ingest_url_to_pgvector(url_list: List[str]) -> None:
                 logger.error(f"Error while parsing HTML content for URL - {url}: {e}")
                 raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=f"Error while parsing URL")
 
-            logger.info(f"[ ingest url ] url: {url} content: {content}")
+            logger.info(f"[ ingest url ] url: {url} content: {content} headers: {headers}")
             metadata = [{"url": url}]
 
             chunks = text_splitter.split_text(content)

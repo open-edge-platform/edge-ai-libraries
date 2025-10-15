@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Controller, Get } from '@nestjs/common';
 import { AudioService } from '../services/audio.service';
 import { lastValueFrom } from 'rxjs';
