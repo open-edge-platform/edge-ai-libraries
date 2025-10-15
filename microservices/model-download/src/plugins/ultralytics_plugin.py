@@ -31,8 +31,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             return model_name in supported_models or model_name == "all"
         except:
             return False
-    
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """Download the model using the bash script"""
         # Remove prefix if present
         #model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name

@@ -19,7 +19,7 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         return hub.lower() == "huggingface"
     
 
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> dict:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
         hf_token = kwargs.get("hf_token")
         revision = kwargs.get("revision")
         model_specific_path = os.path.join(output_dir, model_name.replace("/", "_"))

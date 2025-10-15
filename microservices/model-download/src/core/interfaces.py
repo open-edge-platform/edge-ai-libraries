@@ -57,5 +57,5 @@ class ModelDownloadPlugin(ABC):
         }
     
     @abstractmethod
-    def download(self, model_name: str, output_dir: str, progress_callback: Optional[Callable] = None, **kwargs) -> Dict[str, Any]:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         pass

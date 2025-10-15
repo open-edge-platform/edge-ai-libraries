@@ -27,7 +27,7 @@ class OllamaPlugin(ModelDownloadPlugin):
             return True
         return False
     
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """Download the Ollama model"""
         process = None
         model_downloaded_path = os.path.join(output_dir, model_name.replace("/", "_"))

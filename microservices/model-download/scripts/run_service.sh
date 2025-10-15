@@ -1,5 +1,14 @@
 #!/bin/bash
 
+# Color definitions
+NC='\033[0m'          # No Color
+GREEN='\033[0;32m'    # Green
+YELLOW='\033[1;33m'   # Yellow
+BLUE='\033[0;34m'     # Blue
+RED='\033[0;31m'      # Red
+CYAN='\033[0;36m'     # Cyan
+BOLD='\033[1m'        # Bold
+
 # Default values
 DEFAULT_MODEL_PATH="$HOME/models/"
 BUILD=false
@@ -10,20 +19,37 @@ TAG="latest"
 REGISTRY=""
 ACTION="up"
 
+# Function to log messages with color
+log_info() {
+    echo -e "${BLUE}INFO:${NC} $1"
+}
+
+log_success() {
+    echo -e "${GREEN}SUCCESS:${NC} $1"
+}
+
+log_warning() {
+    echo -e "${YELLOW}WARNING:${NC} $1"
+}
+
+log_error() {
+    echo -e "${RED}ERROR:${NC} $1"
+}
+
 # Function to display script usage
 show_usage() {
-    echo "Usage: $0 [options] [action]"
-    echo "Actions:"
-    echo "  up                     Start the services (default)"
-    echo "  down                   Stop the services"
-    echo "Options:"
-    echo "  --build                Build the Docker image before running"
-    echo "  --rebuild              Force rebuild the Docker image without cache"
-    echo "  --model-path <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
-    echo "  --plugins <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics)"
-    echo "  --tag <tag>            Docker image tag (default: latest)"
-    echo "  --registry <registry>  Docker registry prefix (default: none)"
-    echo "  --help                 Show this help message"
+    echo -e "${BOLD}Usage:${NC} $0 [options] [action]"
+    echo -e "${BOLD}Actions:${NC}"
+    echo -e "  ${CYAN}up${NC}                     Start the services (default)"
+    echo -e "  ${CYAN}down${NC}                   Stop the services"
+    echo -e "${BOLD}Options:${NC}"
+    echo -e "  ${CYAN}--build${NC}                Build the Docker image before running"
+    echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache"
+    echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
+    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics)"
+    echo -e "  ${CYAN}--tag${NC} <tag>            Docker image tag (default: latest)"
+    echo -e "  ${CYAN}--registry${NC} <registry>  Docker registry prefix (default: none)"
+    echo -e "  ${CYAN}--help${NC}                 Show this help message"
 }
 
 # Parse command line arguments
@@ -51,7 +77,7 @@ while [[ $# -gt 0 ]]; do
                 MODEL_PATH="$2"
                 shift 2
             else
-                echo "Error: --model-path requires a path argument"
+                log_error "--model-path requires a path argument"
                 exit 1
             fi
             ;;
@@ -60,7 +86,7 @@ while [[ $# -gt 0 ]]; do
                 PLUGINS="$2"
                 shift 2
             else
-                echo "Error: --plugins requires a comma-separated list"
+                log_error "--plugins requires a comma-separated list"
                 exit 1
             fi
             ;;
@@ -69,7 +95,7 @@ while [[ $# -gt 0 ]]; do
                 TAG="$2"
                 shift 2
             else
-                echo "Error: --tag requires a value"
+                log_error "--tag requires a value"
                 exit 1
             fi
             ;;
@@ -82,7 +108,7 @@ while [[ $# -gt 0 ]]; do
                 fi
                 shift 2
             else
-                echo "Error: --registry requires a value"
+                log_error "--registry requires a value"
                 exit 1
             fi
             ;;
@@ -91,15 +117,12 @@ while [[ $# -gt 0 ]]; do
             exit 0
             ;;
         *)
-            echo "Unknown option or action: $1"
+            log_error "Unknown option or action: $1"
             show_usage
             exit 1
             ;;
     esac
 done
-
-# Change to the docker directory first for both actions
-cd "$(dirname "$0")/../docker" || { echo "Failed to change directory to ../docker"; exit 1; }
 
 # Skip model path setup and other operations for "down" action
 if [[ "$ACTION" != "down" ]]; then
@@ -109,29 +132,30 @@ if [[ "$ACTION" != "down" ]]; then
     fi
 
     # Setup the model path (similar to setup_model_path.sh)
-    echo "Setting up model path: $MODEL_PATH"
+    log_info "Setting up model path: ${BOLD}$MODEL_PATH${NC}"
 
     if [[ "$MODEL_PATH" != /* ]]; then
         MODEL_PATH="$PWD/$MODEL_PATH"
-        echo "Relative path provided. Using absolute path: $MODEL_PATH"
+        log_info "Relative path provided. Using absolute path: ${BOLD}$MODEL_PATH${NC}"
     fi
 
     # Check if MODEL_PATH exists
     if [ -e "$MODEL_PATH" ]; then
         # If it exists, check the owner
         if [ "$(stat -c '%U:%G' "$MODEL_PATH")" != "root:root" ]; then
-            echo "$MODEL_PATH exists in host..."
+            log_info "${BOLD}$MODEL_PATH${NC} exists in host..."
         else
             # If owned by root:root, delete and recreate it
-            echo "$MODEL_PATH exists and is owned by root:root. Deleting it and recreate..."
+            log_warning "$MODEL_PATH exists and is owned by root:root. Deleting it and recreate..."
             sudo rm -rf "$MODEL_PATH"
             mkdir -p "$MODEL_PATH"
-            echo "Recreated $MODEL_PATH with correct permissions."
+            log_success "Recreated ${BOLD}$MODEL_PATH${NC} with correct permissions."
         fi
     else
         # If it doesn't exist, create it
-        echo "$MODEL_PATH does not exist. Creating it..."
+        log_info "${BOLD}$MODEL_PATH${NC} does not exist. Creating it..."
         mkdir -p "$MODEL_PATH"
+        log_success "Created ${BOLD}$MODEL_PATH${NC} successfully."
     fi
 
     # Get the current user group ID for Docker permissions
@@ -145,7 +169,7 @@ if [[ "$ACTION" != "down" ]]; then
     export ENABLED_PLUGINS="$PLUGINS"
 
     # Generate environment file for docker-compose
-    echo "Generating environment settings..."
+    log_info "Generating environment settings..."
     cat > ../.env << EOF
 TAG=$TAG
 REGISTRY=$REGISTRY
@@ -153,6 +177,7 @@ USER_GROUP_ID=$USER_GROUP_ID
 MODEL_PATH=$MODEL_PATH
 ENABLED_PLUGINS=$PLUGINS
 EOF
+    log_success "Environment settings generated successfully."
 fi
 
 # Handle the action
@@ -160,42 +185,43 @@ case "$ACTION" in
     up)
         # Build the Docker image if requested
         if [[ "$BUILD" == true ]]; then
-            BUILD_COMMAND="docker compose build"
+            BUILD_COMMAND="docker compose -f docker/compose.yaml build"
             
             # Add no-cache option if rebuild is requested
             if [[ "$REBUILD" == true ]]; then
                 BUILD_COMMAND="$BUILD_COMMAND --no-cache"
             fi
             
-            echo "Building Docker image: $BUILD_COMMAND"
-            eval "$BUILD_COMMAND" || { echo "Docker build failed"; exit 1; }
+            log_info "Building Docker image: ${BOLD}$BUILD_COMMAND${NC}"
+            eval "$BUILD_COMMAND" || { log_error "Docker build failed"; exit 1; }
+            log_success "Docker image built successfully."
         fi
 
         # Run the Docker container
-        echo "Starting model download service..."
+        log_info "Starting model download service..."
         if docker compose ps | grep -q "model_download"; then
-            echo "Service is already running. Stopping first..."
-            docker compose down
+            log_warning "Service is already running. Stopping first..."
+            docker compose -f docker/compose.yaml down
         fi
 
-        docker compose up -d
+        docker compose -f docker/compose.yaml up -d
 
-        echo "Model download service is running."
-        echo "- Model path: $MODEL_PATH"
+        log_success "Model download service is running."
+        echo -e "  ${GREEN}${NC} Model path: ${BOLD}$MODEL_PATH${NC}"
         if [[ -n "$PLUGINS" ]]; then
-            echo "- Enabled plugins: $PLUGINS"
+            echo -e "  ${GREEN}${NC} Enabled plugins: ${BOLD}$PLUGINS${NC}"
         fi
-        echo "- Access the API at http://localhost:8200"
-        echo "- View logs with: docker logs model_download"
+        echo -e "  ${GREEN}${NC} Access the API at: ${BOLD}http://localhost:8200${NC}"
+        echo -e "  ${GREEN}${NC} View logs with: ${BOLD}docker logs model_download${NC}"
         ;;
     down)
         # For down action, we only need to stop the services
-        echo "Stopping model download service..."
-        docker compose down
-        echo "Model download service stopped."
+        log_info "Stopping model download service..."
+        docker compose -f docker/compose.yaml down
+        log_success "Model download service stopped."
         ;;
     *)
-        echo "Unknown action: $ACTION"
+        log_error "Unknown action: $ACTION"
         show_usage
         exit 1
         ;;

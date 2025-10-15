@@ -25,7 +25,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Check if the hub is openvino or if is_ovms is True
         return hub.lower() == "huggingface" or kwargs.get("is_ovms", False)
 
-    def convert(self, model_name: str, output_dir: str, hf_token: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def convert(self, model_name: str, output_dir: str, hf_token: str, **kwargs) -> Dict[str, Any]:
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
@@ -72,7 +72,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             logger.error(f"Failed to convert model to OVMS format: {str(e)}")
             raise RuntimeError(f"Failed to convert model to OVMS format: {str(e)}")
             
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """
         This plugin is a converter, not a downloader, but implementing this method for compatibility.
         Raises NotImplementedError as this plugin does not support direct downloads.
