@@ -44,12 +44,15 @@ runs:
         name: ${{ inputs.name }}
       run: |
         if [ -f "${output-file}" ]; then
-          # Count issues by severity (yamllint uses [error] and [warning]) - ensure we get single numbers
-          error_count=$(grep "\[error\]" "${output-file}" 2>/dev/null | wc -l || echo "0")
-          warning_count=$(grep "\[warning\]" "${output-file}" 2>/dev/null | wc -l || echo "0")
-          # Ensure counts are valid integers
+          # Count issues by severity (yamllint uses [error] and [warning]) - ensure we get single clean numbers
+          error_count=$(grep "\[error\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
+          warning_count=$(grep "\[warning\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
+          # Ensure counts are valid integers, default to 0 if empty
           error_count=${error_count:-0}
           warning_count=${warning_count:-0}
+          # Additional safety check - ensure numeric
+          [[ ! "$error_count" =~ ^[0-9]+$ ]] && error_count=0
+          [[ ! "$warning_count" =~ ^[0-9]+$ ]] && warning_count=0
           total=$((error_count + warning_count))
 
           echo "### Yamllint Results for ${name}" >> $GITHUB_STEP_SUMMARY
