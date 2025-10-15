@@ -1,5 +1,6 @@
 services:
   model_download_service:
+    image: ${REGISTRY}model-download:${TAG}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -10,8 +11,6 @@ services:
     ports:
       - "8200:8000"  # Map container port 8000 to host port 8200
     volumes:
-      # Mount volumes for models and caching
-      - ~/.cache/huggingface:/home/appuser/.cache/huggingface
       - ~/models:/app/models
     group_add:
       - ${USER_GROUP_ID:-1000}

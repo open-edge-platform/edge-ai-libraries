@@ -1,10 +1,10 @@
 # Model Download Service
 
-The Model Download Service is a microservice that facilitates downloading the models from Hugging Face/Ollama and in case of Hugging Face, converting to OpenVINO Model Server (OVMS) format. This service provides a RESTful API for managing model downloads and conversions.
+The Model Download Service is a microservice that facilitates downloading the models from multiple hubs Hugging Face/Ollama/Ultralytics and supprots converting to OpenVINO Model Server (OVMS) format for HuggingFace models. This service provides a RESTful API for managing model downloads and conversions.
 
 ## Features
 
-- Download models from Hugging Face/Ollama model hub
+- Download models from Hugging Face/Ollama/Ultralytics model hub
 - Convert models to OVMS format (Hugging Face models only)
 - Support for various model precisions (INT8, FP16, FP32)
 - Support for different device targets (CPU, GPU)
@@ -15,7 +15,7 @@ The Model Download Service is a microservice that facilitates downloading the mo
 ## Prerequisites
 
 - Docker and Docker Compose
-- Hugging Face API token (not needed for Ollama model hub)
+- Hugging Face API token required for conversion and HuggingFace Gated models
 - Sufficient disk space for model storage
 
 ## Quick Start
@@ -27,14 +27,16 @@ cd microservices/model-download
 
 2. Setup the directory for storing the downloaded models with appropriate permissions
 ```bash
+export REGISTRY=""
+export TAG=
 source scripts/setup_model_path.sh
 ```
 3. Start the service using Docker Compose:
 ```bash
-docker compose -f docker/compose.yaml up --build
+docker compose -f docker/compose.yaml up
 ```
 
-The service will be available at `http://localhost:8200/api/v1/docs`
+The service will be available at `http://localhost:8200/api/v1`
 
 ## API Documentation
 
@@ -124,27 +126,6 @@ The service can be configured through environment variables and Docker volumes:
 #### Volumes:
 - `~/.cache/huggingface:/home/appuser/.cache/huggingface`: Cache Hugging Face models
 - `~/models:/app/models`: Persist downloaded models
-
-## Docker Compose Configuration
-
-The service can be run using Docker Compose with the following configuration:
-
-```yaml
-services:
-  model_download_service:
-    build:
-      context: ..
-      dockerfile: docker/Dockerfile
-    environment:
-      - HF_HUB_ENABLE_HF_TRANSFER=1
-    ports:
-      - "32004:8000"
-    volumes:
-      - ~/.cache/huggingface:/home/appuser/.cache/huggingface
-      - ~/models:/app/models
-    group_add:
-      - ${USER_GROUP_ID:-1000}
-```
 
 ## Error Handling
 
