@@ -49,11 +49,16 @@ runs:
         name: ${{ inputs.name }}
       run: |
         if [ -f "${output-file}" ]; then
-          # Count issues by severity (hadolint uses error, warning, info, style)
-          error_count=$(grep -c " error " "${output-file}" 2>/dev/null || echo "0")
-          warning_count=$(grep -c " warning " "${output-file}" 2>/dev/null || echo "0")
-          info_count=$(grep -c " info " "${output-file}" 2>/dev/null || echo "0")
-          style_count=$(grep -c " style " "${output-file}" 2>/dev/null || echo "0")
+          # Count issues by severity (hadolint uses error, warning, info, style) - ensure we get single numbers
+          error_count=$(grep " error " "${output-file}" 2>/dev/null | wc -l || echo "0")
+          warning_count=$(grep " warning " "${output-file}" 2>/dev/null | wc -l || echo "0")
+          info_count=$(grep " info " "${output-file}" 2>/dev/null | wc -l || echo "0")
+          style_count=$(grep " style " "${output-file}" 2>/dev/null | wc -l || echo "0")
+          # Ensure counts are valid integers
+          error_count=${error_count:-0}
+          warning_count=${warning_count:-0}
+          info_count=${info_count:-0}
+          style_count=${style_count:-0}
           total=$((error_count + warning_count + info_count + style_count))
 
           echo "### Hadolint Results for ${name}" >> $GITHUB_STEP_SUMMARY
