@@ -46,10 +46,15 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         if return_code != 0:
             raise RuntimeError(f"Failed to download Ultralytics model {model_name}")
         
+        host_path = output_dir
+        if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+            host_prefix = os.getenv("MODEL_PATH", "models")
+            host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+        
         return {
             "model_name": model_name,
             "source": "ultralytics",
-            "download_path": output_dir,
+            "download_path": host_path,
             "return_code": return_code
         }
     

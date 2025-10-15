@@ -198,12 +198,19 @@ class ModelManager:
             self._jobs[job_id]["result"] = result
 
             logger.info("download_completed", job_id=job_id, model_name=model_name)
+            
+            # Convert container path to host path if applicable
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
 
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_name": model_name,
-                "download_path": output_dir,
+                "download_path": host_path,
                 "details": result,
             }
 
@@ -297,12 +304,19 @@ class ModelManager:
             self._jobs[job_id]["result"] = result
 
             logger.info("conversion_completed", job_id=job_id, model_path=model_path)
+            
+            # Convert container path to host path if applicable
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
 
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_path": model_path,
-                "conversion_path": output_dir,
+                "conversion_path": host_path,
                 "details": result,
             }
 
@@ -418,12 +432,19 @@ class ModelManager:
                 model_name=model_name,
                 files=len(downloaded_paths),
             )
-
+            
+            # Convert container path to host path if applicable
+            host_path = model_path
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+                
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_name": model_name,
-                "download_path": model_path,
+                "download_path": host_path,
                 "details": result,
             }
 

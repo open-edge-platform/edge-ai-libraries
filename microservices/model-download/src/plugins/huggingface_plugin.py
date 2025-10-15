@@ -33,10 +33,15 @@ class HuggingFacePlugin(ModelDownloadPlugin):
             revision=revision,
         )
 
+        host_path = output_dir
+        if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+            host_prefix = os.getenv("MODEL_PATH", "models")
+            host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+
         return {
             "model_name": model_name,
             "source": "huggingface",
-            "download_path": model_downloaded_path,
+            "download_path": host_path,
             "success": True
         }
 

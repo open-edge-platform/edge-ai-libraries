@@ -18,7 +18,8 @@ app = FastAPI(root_path="/api/v1", title="Model Download Service", version="1.0.
 plugin_registry = PluginRegistry()
 plugins_package = importlib.import_module("src.plugins")
 plugin_registry.discover_plugins(plugins_package)
-model_manager = ModelManager(plugin_registry, default_dir=os.getenv("MODELS_DIR", "./models"))
+models_dir = os.getenv("MODELS_DIR", "/opt/models")
+model_manager = ModelManager(plugin_registry, default_dir=models_dir)
 auth_token = HTTPBearer(auto_error=False)
 
 
@@ -88,7 +89,7 @@ async def download_models(
                 
                 extra_kwargs["token"] = Authorization.credentials if Authorization else None
                 download_path = os.path.join(
-                    "models", download_path, model.hub
+                    models_dir, download_path, model.hub
                 )
                 # First, register download job
                 download_job_id = model_manager.register_job(
@@ -118,7 +119,7 @@ async def download_models(
                 config = model.config.dict() if model.config else {}
 
                 # Create a unique output directory for the converted model
-                convert_output_dir = os.path.join( "models",
+                convert_output_dir = os.path.join( models_dir,
                     download_path,
                     "openvino_models",
                     config['device'],

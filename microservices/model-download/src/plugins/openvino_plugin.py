@@ -54,10 +54,15 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 model_name=model_name 
             )
 
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+            
             return {
                 "model_name": model_name,
                 "source": "openvino",
-                "conversion_path": output_dir,
+                "conversion_path": host_path,
                 "is_ovms": True,
                 "config": {
                     "precision": weight_format,
