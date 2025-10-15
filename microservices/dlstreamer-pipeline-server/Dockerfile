@@ -212,7 +212,7 @@ RUN mkdir -p $XDG_RUNTIME_DIR && chmod -R g+s $XDG_RUNTIME_DIR && chown ${USER}:
 USER $USER
 
 # Copy source code
-COPY ./docker/run.sh ./docker/detect-cores.sh .
+COPY ./docker/run.sh ./docker/detect-cores.sh ./
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
