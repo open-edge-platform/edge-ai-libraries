@@ -43,19 +43,14 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
           persist-credentials: false
-          path: edge-ai-libraries-repo
 
       - name: Remove thirdparty folder
-        run: rm -rf edge-ai-libraries-repo/libraries/dl-streamer/thirdparty
+        run: rm -rf libraries/dl-streamer/thirdparty
 
       - name: Code-style action
-        uses: ./edge-ai-libraries-repo/.github/actions/common/code-style
+        uses: ./.github/actions/common/code-style
         with:
-          target_dir: "edge-ai-libraries-repo/libraries/dl-streamer"
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
+          target_dir: "libraries/dl-streamer"
 
   dls-check-license-headers:
     permissions:
@@ -67,14 +62,9 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries-repo
 
     - name: Check license headers
-      uses: ./edge-ai-libraries-repo/.github/actions/common/license-namespace-checker
-
-    - name: Clean up
-      run: |
-        sudo rm -rf edge-ai-libraries-repo
+      uses: ./.github/actions/common/license-namespace-checker
 
   # dls-static-code-analysis:
   #   permissions:
@@ -111,14 +101,13 @@ jobs:
         with:
           persist-credentials: false
           fetch-depth: 0
-          path: edge-ai-libraries-repo
 
       - name: Fetch main branch for comparison
         run: git fetch origin main
 
       - name: Detect changes in docker directory
         run: |
-          echo "🔍 Checking for changes in 'edge-ai-libraries-repo/libraries/dl-streamer/docker/'..."
+          echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
           CHANGED_FILES=$(git diff --name-only origin/main HEAD)
           echo "📄 Changed files:"
           echo "$CHANGED_FILES"
@@ -129,10 +118,6 @@ jobs:
             echo "docker_changed=false" >> "$GITHUB_OUTPUT"
             echo "✅ No docker-related changes."
           fi
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dls-trivy-config-scan:
     permissions:
@@ -193,20 +178,15 @@ jobs:
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
           persist-credentials: false
-          path: edge-ai-libraries-repo
 
       - name: Run Hadolint Action
-        uses: ./edge-ai-libraries-repo/.github/actions/common/hadolint
+        uses: ./.github/actions/common/hadolint
         with:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
           name: DLS_${{ matrix.name }}
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dls-pylint:
     permissions:
@@ -218,21 +198,16 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
 
       - name: Run pylint
-        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
+        uses: ./.github/actions/common/pylint
         with:
-          path: edge-ai-libraries-repo/libraries/dl-streamer
+          path: libraries/dl-streamer
           output-file: pylint-report.txt
           name: DLS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dls-shellcheck:
     permissions:
@@ -320,7 +295,6 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries-repo
 
     - name: Run Bandit scan
       uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
@@ -329,12 +303,8 @@ jobs:
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-        paths: edge-ai-libraries-repo/libraries/dl-streamer
+        paths: libraries/dl-streamer
         report_suffix: dlstreamer
-
-    - name: Clean up
-      run: |
-        sudo rm -rf edge-ai-libraries-repo
 
   # -------------------------------------------------------- DL Streamer BUILDS & TESTS ---------------------------------------------------------
   dls-build-dev-images-and-run-unit-tests:

@@ -220,7 +220,6 @@ jobs:
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
-        path: edge-ai-libraries-repo
 
     - name: Run Bandit scan
       uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
@@ -229,12 +228,8 @@ jobs:
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-        paths: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+        paths: microservices/dlstreamer-pipeline-server
         report_suffix: dlsps
-
-    - name: Clean up
-      run: |
-        sudo rm -rf edge-ai-libraries-repo
 
   trivy-config-dockerfile-scan:
     permissions:
@@ -260,21 +255,16 @@ jobs:
       - name: Check out edge-ai-libraries repository
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
 
       - name: Run pylint
-        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
+        uses: ./.github/actions/common/pylint
         with:
-          path: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+          path: microservices/dlstreamer-pipeline-server
           output-file: pylint-report.txt
           name: DLSPS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
-
-      - name: Clean up
-        run: |
-          sudo rm -rf edge-ai-libraries-repo
 
   dlsps-shellcheck:
     permissions:
