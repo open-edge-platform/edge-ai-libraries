@@ -35,6 +35,8 @@ runs:
         if [ ! -f "${output-file}" ]; then
           echo "No YAML files found or yamllint produced no output" > ${output-file}
         fi
+        echo "✅ Report created at: $(pwd)/${output-file}"
+        ls -lh ${output-file}
       shell: bash
 
     - name: Analyze Yamllint results
