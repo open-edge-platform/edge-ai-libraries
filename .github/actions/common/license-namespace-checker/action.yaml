@@ -58,7 +58,7 @@ runs:
 
     - name: Upload License Check report
       if: always()
-      uses: actions/upload-artifact@ea054f7fb52c8d80cbc0ebc8327ba75c6e5a7edf #4.6.2
+      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: ${{ inputs.name }}
         path: license-check-report.txt
