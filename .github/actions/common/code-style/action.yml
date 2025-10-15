@@ -19,16 +19,44 @@ runs:
       shell: bash
 
     - name: Run code style check
+      id: code-style-check
       env:
         target_dir: ${{ inputs.target_dir }}
       run: |
-        chmod +x .github/actions/common/code-style/entrypoint.sh 
-        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}"
+        chmod +x .github/actions/common/code-style/entrypoint.sh
+        ./.github/actions/common/code-style/entrypoint.sh "${target_dir}" || echo "STYLE_ISSUES=true" >> $GITHUB_OUTPUT
       shell: bash
 
-    - name: Upload clang-format report on failure
-      if: failure()
+    - name: Analyze code style results
+      if: always()
+      run: |
+        if [ "${{ steps.code-style-check.outputs.STYLE_ISSUES }}" == "true" ]; then
+          # Count number of files with style issues
+          if [ -f "_output/diff.html" ]; then
+            # Try to count files from diff output
+            file_count=$(diff -u --recursive "${{ inputs.target_dir }}" "_styled/${{ inputs.target_dir }}" 2>/dev/null | grep -c "^diff -u" || echo "1+")
+
+            echo "### Code Style Check Results" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "- ❌ **Status**: Style issues found" >> $GITHUB_STEP_SUMMARY
+            echo "- 📁 **Files affected**: ${file_count}" >> $GITHUB_STEP_SUMMARY
+            echo "- 📄 **Detailed report**: Available in artifacts (diff.html)" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Please review the code-style report artifact and apply clang-format to fix the issues.**" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "💡 **Tip**: Run \`clang-format -i\` on the affected files to automatically fix formatting." >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "### Code Style Check Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "✅ **All code follows the style guidelines!**" >> $GITHUB_STEP_SUMMARY
+        fi
+      shell: bash
+
+    - name: Upload clang-format report
+      if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: code-style-report
         path: _output/diff.html
+        if-no-files-found: ignore

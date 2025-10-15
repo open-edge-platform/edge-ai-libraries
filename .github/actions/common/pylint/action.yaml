@@ -39,9 +39,63 @@ runs:
         output-file: ${{ inputs.output-file }}
       run: |
         find ${path} -name "*.py" -not -path "*/venv/*" \
-          | xargs pylint | tee ${output-file}
+          -exec pylint {} \; 2>&1 | tee ${output-file} || true
+        if [ ! -f "${output-file}" ]; then
+          echo "No Python files found or pylint produced no output" > ${output-file}
+        fi
       shell: bash
-      continue-on-error: true
+
+    - name: Analyze Pylint results
+      if: always()
+      env:
+        output-file: ${{ inputs.output-file }}
+        name: ${{ inputs.name }}
+      run: |
+        if [ -f "${output-file}" ]; then
+          # Count issues by severity (pylint uses C/R/W/E/F prefixes)
+          convention_count=$(grep -cE "^[^:]+:[0-9]+:[0-9]+: C[0-9]+:" "${output-file}" 2>/dev/null || echo "0")
+          refactor_count=$(grep -cE "^[^:]+:[0-9]+:[0-9]+: R[0-9]+:" "${output-file}" 2>/dev/null || echo "0")
+          warning_count=$(grep -cE "^[^:]+:[0-9]+:[0-9]+: W[0-9]+:" "${output-file}" 2>/dev/null || echo "0")
+          error_count=$(grep -cE "^[^:]+:[0-9]+:[0-9]+: E[0-9]+:" "${output-file}" 2>/dev/null || echo "0")
+          fatal_count=$(grep -cE "^[^:]+:[0-9]+:[0-9]+: F[0-9]+:" "${output-file}" 2>/dev/null || echo "0")
+          total=$((convention_count + refactor_count + warning_count + error_count + fatal_count))
+
+          # Try to extract the score
+          score=$(grep "Your code has been rated at" "${output-file}" 2>/dev/null | tail -1 | grep -oE "[0-9]+\.[0-9]+/10" || echo "")
+
+          echo "### Pylint Results for ${name}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Issues**: $total" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$fatal_count" -gt 0 ]; then
+            echo "- 🔴 **Fatal**: $fatal_count" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$error_count" -gt 0 ]; then
+            echo "- ❌ **Errors**: $error_count" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$warning_count" -gt 0 ]; then
+            echo "- ⚠️ **Warnings**: $warning_count" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$refactor_count" -gt 0 ]; then
+            echo "- 🔧 **Refactor**: $refactor_count" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$convention_count" -gt 0 ]; then
+            echo "- 📋 **Convention**: $convention_count" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ -n "$score" ]; then
+            echo "- 📊 **Score**: $score" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$total" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Please review the Pylint report artifact and consider fixing the issues.**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **No issues found!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+      shell: bash
 
     - name: Upload Pylint report
       if: always()

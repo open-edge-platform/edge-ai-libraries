@@ -31,9 +31,44 @@ runs:
         path: ${{ inputs.path }}
         output-file: ${{ inputs.output-file }}
       run: |
-        yamllint ${path} | tee ${output-file}
+        yamllint ${path} 2>&1 | tee ${output-file} || true
+        if [ ! -f "${output-file}" ]; then
+          echo "No YAML files found or yamllint produced no output" > ${output-file}
+        fi
       shell: bash
-      continue-on-error: true
+
+    - name: Analyze Yamllint results
+      if: always()
+      env:
+        output-file: ${{ inputs.output-file }}
+        name: ${{ inputs.name }}
+      run: |
+        if [ -f "${output-file}" ]; then
+          # Count issues by severity (yamllint uses [error] and [warning])
+          error_count=$(grep -c "\[error\]" "${output-file}" 2>/dev/null || echo "0")
+          warning_count=$(grep -c "\[warning\]" "${output-file}" 2>/dev/null || echo "0")
+          total=$((error_count + warning_count))
+
+          echo "### Yamllint Results for ${name}" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- **Total Issues**: $total" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$error_count" -gt 0 ]; then
+            echo "- ❌ **Errors**: $error_count" >> $GITHUB_STEP_SUMMARY
+          fi
+          if [ "$warning_count" -gt 0 ]; then
+            echo "- ⚠️ **Warnings**: $warning_count" >> $GITHUB_STEP_SUMMARY
+          fi
+
+          if [ "$total" -gt 0 ]; then
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Please review the Yamllint report artifact and consider fixing the issues.**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "✅ **No issues found!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        fi
+      shell: bash
 
     - name: Upload Yamllint report
       if: always()
