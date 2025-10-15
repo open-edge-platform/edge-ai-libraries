@@ -61,7 +61,6 @@ e-cores|p-cores|lp-cores)
     [ ${#CORE_PINNING[@]} -eq 0 ] || taskset_cmds=(taskset -c ${CORE_PINNING// /,})
     ;;
 esac
-set -x
 ${taskset_cmds[@]} python3 -m src
 
 wait
