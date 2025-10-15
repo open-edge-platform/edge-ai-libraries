@@ -2,7 +2,7 @@
 FROM python:3.11-slim AS python-base
 
 # Set the working directory in the container
-WORKDIR /app
+WORKDIR /opt
 
 # Install system dependencies required for Poetry and the application
 RUN apt-get update && apt-get install -y \
@@ -25,7 +25,7 @@ RUN curl -fsSL https://ollama.com/install.sh | sh
 
 
 # Copy only the Poetry configuration files first to leverage Docker caching
-COPY pyproject.toml poetry.lock /app/
+COPY pyproject.toml poetry.lock /opt/
 
 # Install dependencies using Poetry
 RUN poetry config virtualenvs.create false && poetry install --no-root
@@ -55,12 +55,12 @@ COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/p
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
 
-COPY . /app
+COPY . /opt
 
-WORKDIR /app
+WORKDIR /opt
 
 # Change the user of working directory to non-root user
-RUN chown -R appuser:appuser /app
+RUN chown -R appuser:appuser /opt
 
 # Switch to non-root user
 USER appuser
@@ -69,8 +69,8 @@ USER appuser
 EXPOSE 8000
 
 # Set environment variables
-ENV PYTHONPATH=/app
-ENV MODELS_DIR=/app/models
+ENV PYTHONPATH=/opt
+ENV MODELS_DIR=/opt/models
 
 # Command to run the application
 CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]

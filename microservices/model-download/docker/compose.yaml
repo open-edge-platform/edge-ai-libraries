@@ -8,9 +8,10 @@ services:
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - LOG_LEVEL=INFO
+      - ENABLED_PLUGINS=${ENABLED_PLUGINS}
     ports:
       - "8200:8000"  # Map container port 8000 to host port 8200
     volumes:
-      - ~/models:/app/models
+      - ${MODEL_PATH:-~/models}:/opt/models
     group_add:
       - ${USER_GROUP_ID:-1000}
