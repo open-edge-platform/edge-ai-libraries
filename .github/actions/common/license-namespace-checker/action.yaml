@@ -3,7 +3,8 @@ description: 'Checks license headers and namespace usage in headers'
 inputs:
   name:
     description: 'Name for the output artifact'
-    required: true
+    required: false
+    default: 'license-namespace-check-report'
 runs:
   using: 'composite'
   steps:

@@ -67,8 +67,11 @@ jobs:
           .github
         fetch-depth: 0
 
+
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
+      with:
+        name: 'DLS_license-check-report'
 
   # dls-static-code-analysis:
   #   permissions:

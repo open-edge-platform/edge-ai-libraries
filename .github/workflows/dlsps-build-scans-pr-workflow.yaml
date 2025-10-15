@@ -250,6 +250,8 @@ jobs:
 
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
+      with:
+        name: 'DLSPS_license-check-report'
 
   dlsps-clamav:
     permissions:
