@@ -88,6 +88,11 @@ if [ -z $GPUS ]; then
     DEVICE=CPU
 fi
 
+# This will cause shellcheck warnings
+test_variable="hello world"
+echo $test_variable
+[ $test_variable == "test" ] && echo "matched"
+
 # shellcheck source=/dev/null
 . /etc/os-release
 

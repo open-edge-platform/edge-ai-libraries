@@ -58,10 +58,14 @@ jobs:
     name: "DLS SCAN: check license headers"
     runs-on: ubuntu-latest
     steps:
-    - name: Check out edge-ai-libraries repository
+    - name: Check out edge-ai-libraries repository (sparse)
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
         persist-credentials: false
+        sparse-checkout: |
+          libraries/dl-streamer
+          .github
+        fetch-depth: 0
 
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker

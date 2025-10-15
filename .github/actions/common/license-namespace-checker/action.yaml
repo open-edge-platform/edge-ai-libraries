@@ -1,5 +1,9 @@
 name: 'License and Namespace Checker'
 description: 'Checks license headers and namespace usage in headers'
+inputs:
+  name:
+    description: 'Name for the output artifact'
+    required: true
 runs:
   using: 'composite'
   steps:
@@ -37,28 +41,39 @@ runs:
       shell: bash
       env:
         CHANGED_FILES: ${{ steps.discover-changes.outputs.changed_files }}
+        output_file: license-check-report.txt
       run: |
         if [ -z "${CHANGED_FILES}" ]; then
-          echo "No new files to scan."
+          echo "No new files to scan." | tee "${output_file}"
           echo "ISSUES_FOUND=false" >> $GITHUB_OUTPUT
         else
           cd edge-ai-libraries-repo
-          if ../.github/actions/common/license-namespace-checker/run.sh . $CHANGED_FILES 2>&1 | tee /tmp/license-check-output.txt; then
+          if ../.github/actions/common/license-namespace-checker/run.sh . $CHANGED_FILES 2>&1 | tee "../${output_file}"; then
             echo "ISSUES_FOUND=false" >> $GITHUB_OUTPUT
           else
             echo "ISSUES_FOUND=true" >> $GITHUB_OUTPUT
           fi
         fi
 
+    - name: Upload License Check report
+      if: always()
+      uses: actions/upload-artifact@ea054f7fb52c8d80cbc0ebc8327ba75c6e5a7edf #4.6.2
+      with:
+        name: ${{ inputs.name }}
+        path: license-check-report.txt
+        if-no-files-found: warn
+
     - name: Analyze License Check results
       if: always()
       shell: bash
+      env:
+        output_file: license-check-report.txt
       run: |
         if [ "${{ steps.license-check.outputs.ISSUES_FOUND }}" == "true" ]; then
           # Count files with issues
-          if [ -f "/tmp/license-check-output.txt" ]; then
-            error_files=$(grep -c "^edge-ai-libraries-repo/" /tmp/license-check-output.txt 2>/dev/null || echo "0")
-            error_count=$(grep -c "Error:" /tmp/license-check-output.txt 2>/dev/null || echo "0")
+          if [ -f "${output_file}" ]; then
+            error_files=$(grep -c "^edge-ai-libraries-repo/" "${output_file}" 2>/dev/null || echo "0")
+            error_count=$(grep -c "Error:" "${output_file}" 2>/dev/null || echo "0")
 
             echo "### License & Namespace Check Results" >> $GITHUB_STEP_SUMMARY
             echo "" >> $GITHUB_STEP_SUMMARY
@@ -89,4 +104,3 @@ runs:
       shell: bash
       run: |
         sudo rm -rf edge-ai-libraries-repo
-        rm -f /tmp/license-check-output.txt
