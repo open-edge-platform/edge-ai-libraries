@@ -45,15 +45,15 @@ runs:
       run: |
         if [ -f "${output-file}" ]; then
           # Count issues by severity (yamllint uses [error] and [warning]) - ensure we get single clean numbers
-          error_count=$(grep "\[error\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
-          warning_count=$(grep "\[warning\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
+          error_count=$(grep "\[error\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep "\[warning\]" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           error_count=${error_count:-0}
           warning_count=${warning_count:-0}
-          # Additional safety check - ensure numeric
-          [[ ! "$error_count" =~ ^[0-9]+$ ]] && error_count=0
-          [[ ! "$warning_count" =~ ^[0-9]+$ ]] && warning_count=0
-          total=$((error_count + warning_count))
+          # Additional safety check - ensure numeric (use case to validate)
+          case "$error_count" in ''|*[!0-9]*) error_count=0 ;; esac || true
+          case "$warning_count" in ''|*[!0-9]*) warning_count=0 ;; esac || true
+          total=$((error_count + warning_count)) || total=0
 
           echo "### Yamllint Results for ${name}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY

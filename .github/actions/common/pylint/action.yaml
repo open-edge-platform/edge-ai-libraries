@@ -53,27 +53,27 @@ runs:
       run: |
         if [ -f "${output-file}" ]; then
           # Count issues by severity (pylint uses C/R/W/E/F prefixes) - ensure we get single clean numbers
-          convention_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: C[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
-          refactor_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: R[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
-          warning_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: W[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
-          error_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: E[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
-          fatal_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: F[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]')
+          convention_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: C[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          refactor_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: R[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: W[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          error_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: E[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          fatal_count=$(grep -E "^[^:]+:[0-9]+:[0-9]+: F[0-9]+:" "${output-file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           convention_count=${convention_count:-0}
           refactor_count=${refactor_count:-0}
           warning_count=${warning_count:-0}
           error_count=${error_count:-0}
           fatal_count=${fatal_count:-0}
-          # Additional safety check - ensure numeric
-          [[ ! "$convention_count" =~ ^[0-9]+$ ]] && convention_count=0
-          [[ ! "$refactor_count" =~ ^[0-9]+$ ]] && refactor_count=0
-          [[ ! "$warning_count" =~ ^[0-9]+$ ]] && warning_count=0
-          [[ ! "$error_count" =~ ^[0-9]+$ ]] && error_count=0
-          [[ ! "$fatal_count" =~ ^[0-9]+$ ]] && fatal_count=0
-          total=$((convention_count + refactor_count + warning_count + error_count + fatal_count))
+          # Additional safety check - ensure numeric (use case to validate) - set returns true
+          case "$convention_count" in ''|*[!0-9]*) convention_count=0 ;; esac || true
+          case "$refactor_count" in ''|*[!0-9]*) refactor_count=0 ;; esac || true
+          case "$warning_count" in ''|*[!0-9]*) warning_count=0 ;; esac || true
+          case "$error_count" in ''|*[!0-9]*) error_count=0 ;; esac || true
+          case "$fatal_count" in ''|*[!0-9]*) fatal_count=0 ;; esac || true
+          total=$((convention_count + refactor_count + warning_count + error_count + fatal_count)) || total=0
 
-          # Try to extract the score
-          score=$(grep "Your code has been rated at" "${output-file}" 2>/dev/null | tail -1 | grep -oE "[0-9]+\.[0-9]+/10" || echo "")
+          # Try to extract the score - ensure this doesn't fail
+          score=$(grep "Your code has been rated at" "${output-file}" 2>/dev/null | tail -1 | grep -oE "[0-9]+\.[0-9]+/10" 2>/dev/null || echo "")
 
           echo "### Pylint Results for ${name}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
