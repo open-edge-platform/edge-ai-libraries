@@ -217,6 +217,36 @@ jobs:
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }} || true
         docker rmi intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }} || true
 
+  dlsps-code-style:
+    permissions:
+      contents: read
+    name: "DLSPS SCAN: code-style"
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false
+
+      - name: Code-style action
+        uses: ./.github/actions/common/code-style
+        with:
+          target_dir: "microservices/dlstreamer-pipeline-server"
+
+  dlsps-check-license-headers:
+    permissions:
+      contents: read
+    name: "DLSPS SCAN: check license headers"
+    runs-on: ubuntu-latest
+    steps:
+    - name: Check out edge-ai-libraries repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        persist-credentials: false
+
+    - name: Check license headers
+      uses: ./.github/actions/common/license-namespace-checker
+
   dlsps-clamav:
     permissions:
       contents: read
@@ -269,7 +299,7 @@ jobs:
       fail-fast: false
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
-      dockerfile-path: microservices/dlstreamer-pipeline-server/
+      dockerfile-path: microservices/dlstreamer-pipeline-server
       trivy-report-format: 'table'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: reports/DLSPS_trivy_config_report.txt
