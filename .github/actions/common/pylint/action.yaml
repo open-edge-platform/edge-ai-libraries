@@ -38,8 +38,12 @@ runs:
         path: ${{ inputs.path }}
         output_file: ${{ inputs.output-file }}
       run: |
-        find ${path} -name "*.py" -not -path "*/venv/*" \
-          -exec pylint {} \; 2>&1 | tee ${output_file} || true
+        # Run pylint on all Python files at once for a single comprehensive score
+        if find ${path} -name "*.py" -not -path "*/venv/*" | grep -q .; then
+          find ${path} -name "*.py" -not -path "*/venv/*" -print0 | xargs -0 pylint 2>&1 | tee ${output_file} || true
+        else
+          echo "No Python files found" > ${output_file}
+        fi
         if [ ! -f "${output_file}" ]; then
           echo "No Python files found or pylint produced no output" > ${output_file}
         fi
