@@ -51,6 +51,7 @@ jobs:
         uses: ./.github/actions/common/code-style
         with:
           target_dir: "libraries/dl-streamer"
+          name: 'DLS_code-style-check-report'
 
   dls-check-license-headers:
     permissions:
@@ -66,7 +67,6 @@ jobs:
           libraries/dl-streamer
           .github
         fetch-depth: 0
-
 
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker

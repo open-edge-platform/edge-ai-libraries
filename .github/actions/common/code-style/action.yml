@@ -5,6 +5,10 @@ inputs:
     description: "Directory to check for C/C++ files"
     required: false
     default: "."
+  name:
+    description: 'Name for the output artifact'
+    required: false
+    default: 'code-style-check-report'
 
 runs:
   using: "composite"
@@ -57,6 +61,6 @@ runs:
       if: always()
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
-        name: code-style-report
+        name: ${{ inputs.name }}
         path: _output/diff.html
         if-no-files-found: ignore

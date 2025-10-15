@@ -232,6 +232,7 @@ jobs:
         uses: ./.github/actions/common/code-style
         with:
           target_dir: "microservices/dlstreamer-pipeline-server"
+          name: 'DLSPS_code-style-check-report'
 
   dlsps-check-license-headers:
     permissions:
