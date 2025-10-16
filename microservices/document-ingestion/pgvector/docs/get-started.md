@@ -24,7 +24,7 @@ Before you begin, ensure the following prerequisites are addressed. Note that th
 - **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
 - **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
 - **Docker compose installed**: Refer [Install docker compose](https://docs.docker.com/compose/install/).
-- If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell.
+- **Proxy Configuration (if applicable)**: If the setup is behind a proxy, ensure `http_proxy`, `https_proxy`, and `no_proxy` are properly set on the shell before starting the services.
 
 This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
 
@@ -56,6 +56,22 @@ export CONTAINER_REGISTRY_URL=<user_container_registry_url>
 ```
 Refer to [manually customize](./how-to-customize.md) for customization options for the microservice.
 
+## Proxy Configuration
+
+If your environment requires proxy settings, configure the following environment variables before starting the services:
+
+```bash
+# Set proxy environment variables
+export http_proxy=http://your-proxy-server:port
+export https_proxy=https://your-proxy-server:port
+export no_proxy=localhost,127.0.0.1,your-internal-hosts
+```
+
+**Important Notes:**
+- These proxy settings will be automatically passed to all services including the dataprep microservice during build time
+- The `no_proxy` variable should include localhost and any internal services that should bypass the proxy
+- Ensure these variables are set in the same shell session where you run the `run.sh` script
+
 ## Quick Start with Docker
 
 This method provides the fastest way to get started with the microservice.
@@ -63,13 +79,13 @@ This method provides the fastest way to get started with the microservice.
 1. **Clone the repository**:
     Run the following command to clone the repository:
     ```bash
-    git clone <link-to-repository>
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
     ```
 
 2. **Change to project directory**:
     Start the container using:
     ```bash
-    cd <clone-repo-dir-path>/microservices/document-ingestion/pgvector
+    cd edge-ai-libraries/microservices/document-ingestion/pgvector
     ```
 
 3. **Configure the environment variables**:
@@ -100,6 +116,30 @@ This method provides the fastest way to get started with the microservice.
     http://${host_ip}:${DATAPREP_HOST_PORT}/docs
     ```
     **Expected result**: Access to Data Store API Docs should now be available. Go through the DataPrep Service API docs to **upload**, **get** and **delete** documents to create/store/delete embeddings and upload/delete document sources for embeddings. Ensure that access to the DataPrep microservice is done from the same shell where `run.sh` was run. If not, run the script to only set the variables with a *--nosetup* flag: `source ./run.sh --nosetup`
+
+## Cleanup and Management
+
+The microservice provides several cleanup options for managing Docker images and containers:
+
+### Stop Services
+```bash
+# Stop and remove all running containers
+source ./run.sh --down
+```
+
+### Image Cleanup
+```bash
+# Remove all project-related Docker images (uses Docker labels for accurate cleanup)
+source ./run.sh --clean
+
+# Remove only dataprep service images
+source ./run.sh --clean dataprep
+
+# Complete cleanup - removes containers, images, volumes, and networks
+source ./run.sh --purge
+```
+
+**Note**: The cleanup commands use Docker labels to identify and remove images, ensuring that custom-tagged images built with `--build` are properly cleaned up regardless of their tag names.
 
 <!--
 **User Story US-2: Running and Exploring the Microservice**

@@ -3,20 +3,11 @@ services:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv
-      - ./models/supported_models.lst:/home/dlstreamer/vippet/supported_models.lst
-      - ./models/output:/home/dlstreamer/vippet/models
   vippet-cpu:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv
-      - ./models/supported_models.lst:/home/dlstreamer/vippet/supported_models.lst
-      - ./models/output:/home/dlstreamer/vippet/models
   vippet-npu:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-      - ./.venv:/home/dlstreamer/vippet/.venv
-      - ./models/supported_models.lst:/home/dlstreamer/vippet/supported_models.lst
-      - ./models/output:/home/dlstreamer/vippet/models

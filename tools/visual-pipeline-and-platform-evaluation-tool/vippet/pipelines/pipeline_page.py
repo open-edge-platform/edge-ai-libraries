@@ -1,27 +1,19 @@
 import logging
-import os
 import sys
-from datetime import datetime
-from typing import List, Optional
+from typing import List
 
 import gradio as gr
-import pandas as pd
-import plotly.graph_objects as go
-import requests
 
 import utils
 from benchmark import Benchmark
-from chart import Chart, ChartType, create_charts
+from chart import Chart, create_charts
+from telemetry import Telemetry
 from device import DeviceDiscovery, DeviceFamily, DeviceType
 from explore import GstInspector
 from gstpipeline import PipelineLoader
 from models import SupportedModelsManager
 from optimize import PipelineOptimizer
 from utils import prepare_video_and_constants
-
-TEMP_DIR = "/tmp/"
-METRICS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/metrics.txt"
-FPS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/fps.txt"
 
 INFERENCING_CHANNELS_LABEL = "Number of Inferencing channels"
 RECORDING_AND_INFERENCING_CHANNELS_LABEL = "Number of Recording + Inferencing channels"
@@ -32,6 +24,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 charts: List[Chart] = create_charts(device_discovery.list_devices())
+telemetry = Telemetry(charts)
 
 try:
     supported_models_manager = SupportedModelsManager()
@@ -57,21 +50,20 @@ class Pipeline:
 
         try:
             # Download the pipeline recording files
-            download_file(
+            file_path = utils.download_file(
                 self.config["recording"]["url"],
                 self.config["recording"]["filename"],
             )
             label = "Input Video"
-            path = os.path.join(TEMP_DIR, self.config["recording"]["filename"])
         except Exception as e:
             print(f"Error downloading pipeline recordings: {e}")
             label = "Error: Video file not found. Verify the recording URL or proxy settings."
-            path = None
+            file_path = None
 
         # Video Player
         self.input_video_player = gr.Video(
             label=label,
-            value=path,
+            value=file_path,
             interactive=True,
             show_download_button=True,
             sources="upload",
@@ -469,7 +461,7 @@ class Pipeline:
 
             # Handle timer ticks
             self.timer.tick(
-                generate_stream_data,
+                telemetry.generate_stream_data,
                 outputs=self.plots,
             )
 
@@ -517,7 +509,7 @@ class Pipeline:
                 outputs=self.timer,
             ).then(
                 # Generate the persistent telemetry data
-                generate_stream_data,
+                telemetry.generate_stream_data,
                 inputs=None,
                 outputs=self.plots,
             ).then(
@@ -578,7 +570,7 @@ class Pipeline:
                 outputs=self.timer,
             ).then(
                 # Generate the persistent telemetry data
-                generate_stream_data,
+                telemetry.generate_stream_data,
                 inputs=None,
                 outputs=self.plots,
             ).then(
@@ -834,316 +826,6 @@ class Pipeline:
         return result.format(s=s, ai=ai, non_ai=non_ai, fps=fps)
 
 
-def download_file(url, local_filename):
-    # Send a GET request to the URL
-    with requests.get(url, stream=True) as response:
-        response.raise_for_status()  # Check if the request was successful
-        # Open a local file with write-binary mode
-        with open(os.path.join(TEMP_DIR, local_filename), "wb") as file:
-            # Iterate over the response content in chunks
-            for chunk in response.iter_content(chunk_size=8192):
-                file.write(chunk)  # Write each chunk to the local file
-
-
 def on_stop():
     utils.cancelled = True
     logging.warning(f"utils.cancelled in on_stop: {utils.cancelled}")
-
-
-def generate_stream_data():
-    new_x = datetime.now()
-
-    # Read metrics once
-    metrics = read_latest_metrics()
-
-    # Read FPS once
-    latest_fps = 0
-    try:
-        with open(FPS_FILE_PATH, "r") as fps_file:
-            lines = [line.strip() for line in fps_file.readlines()[-500:]]
-            latest_fps = float(lines[-1])
-    except (FileNotFoundError, IndexError):
-        latest_fps = 0
-
-    figs = []
-    for chart in charts:
-        new_y = 0
-
-        if chart.type == ChartType.PIPELINE_THROUGHPUT:
-            new_y = latest_fps
-        elif chart.type == ChartType.CPU_FREQUENCY and metrics["cpu_freq"] is not None:
-            new_y = metrics["cpu_freq"]
-        elif (
-            chart.type == ChartType.CPU_UTILIZATION and metrics["cpu_user"] is not None
-        ):
-            new_y = metrics["cpu_user"]
-        elif (
-            chart.type == ChartType.CPU_TEMPERATURE and metrics["core_temp"] is not None
-        ):
-            new_y = metrics["core_temp"]
-        elif (
-            chart.type == ChartType.MEMORY_UTILIZATION
-            and metrics["mem_used_percent"] is not None
-        ):
-            new_y = metrics["mem_used_percent"]
-        elif chart.type == ChartType.DGPU_POWER and chart.gpu_id is not None:
-            metrics_dict = {
-                "Package Power": metrics.get(f"gpu_package_power_{chart.gpu_id}"),
-                "Total Power": metrics.get(f"gpu_power_{chart.gpu_id}"),
-            }
-            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
-            continue
-        elif chart.type == ChartType.DGPU_FREQUENCY and chart.gpu_id is not None:
-            freq = metrics.get(f"gpu_freq_{chart.gpu_id}")
-            if freq is not None:
-                new_y = freq
-        elif (
-            chart.type == ChartType.DGPU_ENGINE_UTILIZATION and chart.gpu_id is not None
-        ):
-            metrics_dict = {
-                "Render": metrics.get(f"gpu_render_{chart.gpu_id}"),
-                "Video Enhance": metrics.get(f"gpu_ve_{chart.gpu_id}"),
-                "Video": metrics.get(f"gpu_video_{chart.gpu_id}"),
-                "Copy": metrics.get(f"gpu_copy_{chart.gpu_id}"),
-                "Compute": metrics.get(f"gpu_compute_{chart.gpu_id}"),
-            }
-            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
-            continue
-        elif chart.type == ChartType.IGPU_POWER and chart.gpu_id is not None:
-            metrics_dict = {
-                "Package Power": metrics.get(f"gpu_package_power_{chart.gpu_id}"),
-                "Total Power": metrics.get(f"gpu_power_{chart.gpu_id}"),
-            }
-            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
-            continue
-        elif chart.type == ChartType.IGPU_FREQUENCY and chart.gpu_id is not None:
-            freq = metrics.get(f"gpu_freq_{chart.gpu_id}")
-            if freq is not None:
-                new_y = freq
-        elif (
-            chart.type == ChartType.IGPU_ENGINE_UTILIZATION and chart.gpu_id is not None
-        ):
-            metrics_dict = {
-                "Render": metrics.get(f"gpu_render_{chart.gpu_id}"),
-                "Video Enhance": metrics.get(f"gpu_ve_{chart.gpu_id}"),
-                "Video": metrics.get(f"gpu_video_{chart.gpu_id}"),
-                "Copy": metrics.get(f"gpu_copy_{chart.gpu_id}"),
-                "Compute": metrics.get(f"gpu_compute_{chart.gpu_id}"),
-            }
-            figs.append(update_multi_metric_chart(chart, metrics_dict, new_x))
-            continue
-
-        new_row = pd.DataFrame({"x": [new_x], "y": [new_y]})
-        # Only include non-empty DataFrames in concat to avoid FutureWarning
-        if chart.df.empty:
-            chart.df = new_row
-        else:
-            chart.df = pd.concat([chart.df, new_row], ignore_index=True).tail(50)
-
-        chart.fig.data = []  # clear previous trace
-        chart.fig.add_trace(go.Scatter(x=chart.df["x"], y=chart.df["y"], mode="lines"))
-
-        figs.append(chart.fig)
-
-    return figs
-
-
-def read_latest_metrics():
-    # Get all gpu_ids present in charts
-    gpu_ids_in_charts = set(
-        chart.gpu_id for chart in charts if chart.gpu_id is not None
-    )
-
-    # Prepare metrics map with all keys set to None
-    metrics: dict[str, Optional[float]] = {
-        "cpu_user": None,
-        "mem_used_percent": None,
-        "core_temp": None,
-        "cpu_freq": None,
-    }
-    # For each GPU id, add all relevant metrics keys
-    gpu_metric_keys = [
-        "gpu_package_power",
-        "gpu_power",
-        "gpu_freq",
-        "gpu_render",
-        "gpu_ve",
-        "gpu_video",
-        "gpu_copy",
-        "gpu_compute",
-    ]
-    for gpu_id in gpu_ids_in_charts:
-        for key in gpu_metric_keys:
-            metrics[f"{key}_{gpu_id}"] = None
-
-    try:
-        with open(METRICS_FILE_PATH, "r") as metrics_file:
-            lines = [line.strip() for line in metrics_file.readlines()[-500:]]
-    except FileNotFoundError:
-        return metrics
-
-    for line in reversed(lines):
-        line = normalize_engine_names(line)
-
-        # CPU metrics
-        if metrics["cpu_user"] is None and "cpu" in line:
-            parts = line.split()
-            if len(parts) > 1:
-                for field in parts[1].split(","):
-                    if field.startswith("usage_user="):
-                        try:
-                            metrics["cpu_user"] = float(field.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-
-        if metrics["mem_used_percent"] is None and "mem" in line:
-            parts = line.split()
-            if len(parts) > 1:
-                for field in parts[1].split(","):
-                    if field.startswith("used_percent="):
-                        try:
-                            metrics["mem_used_percent"] = float(field.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-
-        if metrics["core_temp"] is None and "temp" in line:
-            parts = line.split()
-            if len(parts) > 1:
-                for field in parts[1].split(","):
-                    if "temp" in field:
-                        try:
-                            metrics["core_temp"] = float(field.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-
-        if metrics["cpu_freq"] is None and "cpu_frequency_avg" in line:
-            try:
-                parts = [part for part in line.split() if "frequency=" in part]
-                if parts:
-                    metrics["cpu_freq"] = float(parts[0].split("=")[1])
-            except (ValueError, IndexError):
-                pass
-
-        # GPU metrics for all detected gpu_ids
-        for gpu_id in gpu_ids_in_charts:
-            id_str = f"gpu_id={gpu_id}"
-            # Package Power
-            key = f"gpu_package_power_{gpu_id}"
-            if metrics[key] is None and "pkg_cur_power" in line and id_str in line:
-                parts = line.split()
-                try:
-                    metrics[key] = float(parts[1].split("=")[1])
-                except (ValueError, IndexError):
-                    pass
-            # Total Power
-            key = f"gpu_power_{gpu_id}"
-            if metrics[key] is None and "gpu_cur_power" in line and id_str in line:
-                parts = line.split()
-                try:
-                    metrics[key] = float(parts[1].split("=")[1])
-                except (ValueError, IndexError):
-                    pass
-            # Frequency
-            key = f"gpu_freq_{gpu_id}"
-            if metrics[key] is None and "gpu_frequency" in line and id_str in line:
-                for part in line.split():
-                    if part.startswith("value="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-            # Render
-            key = f"gpu_render_{gpu_id}"
-            if metrics[key] is None and "engine=render" in line and id_str in line:
-                for part in line.split():
-                    if part.startswith("usage="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-            # Copy
-            key = f"gpu_copy_{gpu_id}"
-            if metrics[key] is None and "engine=copy" in line and id_str in line:
-                for part in line.split():
-                    if part.startswith("usage="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-            # Video Enhance
-            key = f"gpu_ve_{gpu_id}"
-            if (
-                metrics[key] is None
-                and "engine=video-enhance" in line
-                and id_str in line
-            ):
-                for part in line.split():
-                    if part.startswith("usage="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-            # Video
-            key = f"gpu_video_{gpu_id}"
-            if (
-                metrics[key] is None
-                and "engine=video" in line
-                and "engine=video-enhance" not in line
-                and id_str in line
-            ):
-                for part in line.split():
-                    if part.startswith("usage="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-            # Compute
-            key = f"gpu_compute_{gpu_id}"
-            if metrics[key] is None and "engine=compute" in line and id_str in line:
-                for part in line.split():
-                    if part.startswith("usage="):
-                        try:
-                            metrics[key] = float(part.split("=")[1])
-                        except (ValueError, IndexError):
-                            pass
-
-        # Early exit if all metrics are filled
-        if all(v is not None for v in metrics.values()):
-            break
-
-    return metrics
-
-
-def normalize_engine_names(line: str) -> str:
-    """
-    Class names for XE drivers: https://github.com/ulissesf/qmassa/blob/v1.0.1/src/drm_drivers/xe.rs#L79-L92
-    are different from those used in i915 drivers: https://github.com/ulissesf/qmassa/blob/v1.0.1/src/drm_drivers/i915.rs#L100-L113
-    Normalize them to the i915 names.
-    """
-    return (
-        line.replace("engine=rcs", "engine=render")
-        .replace("engine=bcs", "engine=copy")
-        .replace("engine=ccs", "engine=compute")
-        .replace("engine=vcs", "engine=video")
-        .replace("engine=vecs", "engine=video-enhance")
-    )
-
-
-def update_multi_metric_chart(chart, metrics, new_x):
-    """
-    Update chart DataFrame and figure for charts with multiple metrics.
-    """
-    if chart.df.empty:
-        chart.df = pd.DataFrame(columns=pd.Index(["x"] + list(metrics.keys())))
-    new_row = pd.DataFrame([{"x": new_x, **metrics}])
-    # Only include non-empty DataFrames in concat to avoid FutureWarning
-    if chart.df.empty:
-        chart.df = new_row
-    else:
-        chart.df = pd.concat([chart.df, new_row], ignore_index=True).tail(50)
-    chart.fig.data = []
-    for key in metrics.keys():
-        chart.fig.add_trace(
-            go.Scatter(x=chart.df["x"], y=chart.df[key], mode="lines", name=key)
-        )
-    return chart.fig

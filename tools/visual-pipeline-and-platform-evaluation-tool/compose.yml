@@ -2,6 +2,7 @@ x-vippet: &vippet
   image: docker.io/intel/vippet-app:${DOCKER_TAG}
   build:
     context: .
+    target: ${TARGET:-prod}
     dockerfile: vippet/Dockerfile
     args:
       http_proxy:
@@ -18,21 +19,21 @@ x-vippet: &vippet
   environment:
     GST_DEBUG: "1"
     TZ: America/Los_Angeles
-    MODELS_PATH: /home/dlstreamer/vippet/models
+    MODELS_PATH: /models/output
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}
   volumes:
     - collector-signals:/home/dlstreamer/vippet/.collector-signals
-    - ./models/output:/home/dlstreamer/vippet/models
+    - ./shared/models/:/models
 
 services:
   models:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-models:${DOCKER_TAG}
     build:
-      context: models
-      dockerfile: Dockerfile
+      context: .
+      dockerfile: models/Dockerfile
       args:
         http_proxy:
         https_proxy:
@@ -41,9 +42,9 @@ services:
     tty: true
     container_name: models
     volumes:
-      - ./models/output/:/output
+      - ./shared/models/:/models
     environment:
-      - MODELS_PATH=/output
+      - MODELS_PATH=/models/output
       - MODEL_INSTALLATION=${MODEL_INSTALLATION:-once}
       - http_proxy=${http_proxy}
       - https_proxy=${https_proxy}
@@ -108,7 +109,7 @@ services:
         no_proxy:
     container_name: videogenerator
     volumes:
-      - "./videos:/usr/src/app/output"
+      - "./shared/videos:/usr/src/app/output"
       - "./video_generator/config.json:/usr/src/app/config.json"
       - "./video_generator/background.gif:/usr/src/app/background.gif"
       - "./video_generator/images:/usr/src/app/images"

@@ -39,6 +39,7 @@ jobs:
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
         git submodule update --init libraries/dl-streamer/thirdparty/googletest
+        git submodule update --init libraries/dl-streamer/dl-streamer-tests
 
     - name: Set up Docker Buildx
       uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
@@ -107,8 +108,8 @@ jobs:
           -v ${{ env.VIDEO_INPUTS_PATH }}:${MAPPED_VIDEO_EXAMPLES_DIR} \
           -v ${{ env.MODELS_PATH }}:${MAPPED_MODELS_PATH} \
           -v $PWD/${RESULTS_DIR}:${MAPPED_RESULTS_DIR}        \
-          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
-          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/tests/unit_tests:/home/dlstreamer/dlstreamer/tests \
+          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/dl-streamer-tests/scripts:/home/dlstreamer/dlstreamer/scripts  \
+          -v $PWD/edge-ai-libraries-repo/libraries/dl-streamer/dl-streamer-tests/unit_tests:/home/dlstreamer/dlstreamer/tests \
           -e VIDEO_EXAMPLES_DIR=${MAPPED_VIDEO_EXAMPLES_DIR}  \
           -w /home/dlstreamer/dlstreamer  \
           -e MODELS_PATH=${MAPPED_MODELS_PATH} \
@@ -120,7 +121,7 @@ jobs:
     - name: Run python script to get Unit Test results
       env:
         RESULTS_DIR: test-results
-      run: python3 edge-ai-libraries-repo/libraries/dl-streamer/tests/scripts/unit_test_results.py $PWD/${RESULTS_DIR}
+      run: python3 edge-ai-libraries-repo/libraries/dl-streamer/dl-streamer-tests/scripts/unit_test_results.py $PWD/${RESULTS_DIR}
 
     - name: Add test summary to job summary
       if: always ()
