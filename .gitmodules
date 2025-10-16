@@ -40,3 +40,6 @@
 [submodule "microservices/random-forest"]
 	path = microservices/random-forest
 	url = https://github.com/intel/random-forest-microservice
+[submodule "libraries/dl-streamer/dl-streamer-tests"]
+	path = libraries/dl-streamer/dl-streamer-tests
+	url = https://github.com/open-edge-platform/dl-streamer-tests
