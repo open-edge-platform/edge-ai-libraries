@@ -10,7 +10,7 @@ export VIDEO_GROUP_ID
 export RENDER_GROUP_ID
 
 # Append the value of the public IP address to the no_proxy list 
-export no_proxy="localhost, 127.0.0.1, ::1" 
+export no_proxy="localhost,127.0.0.1,::1,${host_ip}" 
 export http_proxy=${http_proxy}
 export https_proxy=${https_proxy}
 
@@ -25,7 +25,23 @@ export HOST_DATA_PATH="$HOME/data"
 export MODEL_DIR="$HOME/models"
 # export LOCAL_EMBED_MODEL_ID="CLIP-ViT-H-14"
 
+export DEFAULT_START_OFFSET_SEC=0
+export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
+export DEFAULT_NUM_FRAMES=64
+
+# OpenVINO configuration
+export EMBEDDING_USE_OV=false
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+# If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
+if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
+    export EMBEDDING_USE_OV=true
+fi
+
 export DATAPREP_SERVICE_PORT=9990
+export EMBEDDING_SERVER_PORT=9777
+export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
+
+docker volume create ov-models
 
 
 if [[ -z "$LOCAL_EMBED_MODEL_ID" ]]; then
