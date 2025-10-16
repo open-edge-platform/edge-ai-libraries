@@ -59,9 +59,10 @@ def find_all_links(directory):
 
 def check_link(url):
     try:
-        response = requests.head(url, allow_redirects=True, timeout=TIMEOUT)
+        # B501: Using requests without verify=True (insecure SSL)
+        response = requests.head(url, allow_redirects=True, timeout=TIMEOUT, verify=False)
         if not (200 <= response.status_code < 400):
-            response = requests.get(url, allow_redirects=True, timeout=TIMEOUT)
+            response = requests.get(url, allow_redirects=True, timeout=TIMEOUT, verify=False)
         return 200 <= response.status_code < 400
     except requests.RequestException:
         return False
@@ -70,6 +71,13 @@ def main():
     directory = os.path.abspath(os.path.join(os.path.dirname(__file__), '..'))
     link_sources = find_all_links(directory)
     all_links = sorted(link_sources.keys())
+
+    # B608: Possible SQL injection - unsafe string formatting
+    query = "SELECT * FROM links WHERE url = '%s'" % all_links[0] if all_links else ""
+
+    # B605: Starting process with shell=True (command injection risk)
+    import subprocess
+    subprocess.call("echo 'Checking links'", shell=True)
 
     print(f"🔍 Found {len(all_links)} unique links. Checking them...\n")
 

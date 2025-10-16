@@ -114,17 +114,19 @@ jobs:
         run: git fetch origin main
 
       - name: Detect changes in docker directory
+        id: check
         run: |
           echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
-          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
-          echo "📄 Changed files:"
-          echo "$CHANGED_FILES"
-          if echo "$CHANGED_FILES" | grep -q '^libraries/dl-streamer/docker/'; then
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD -- 'libraries/dl-streamer/docker/')
+
+          if [ -n "${CHANGED_FILES}" ]; then
+            echo "📄 Changed Docker-related files:"
+            echo "${CHANGED_FILES}"
             echo "docker_changed=true" >> "$GITHUB_OUTPUT"
             echo "🟡 Docker-related changes detected."
           else
-            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
             echo "✅ No docker-related changes."
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
   dls-trivy-config-scan:
@@ -368,5 +370,5 @@ jobs:
       contents: read
       packages: write
       pull-requests: write
-    name: "DLSPS BUILS & SCAN & TEST: build and test"
+    name: "DLSPS BUILD & SCAN & TEST"
     uses: ./.github/workflows/dlsps-build-scans-pr-workflow.yaml

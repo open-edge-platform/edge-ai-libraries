@@ -46,9 +46,9 @@ runs:
         name: ${{ inputs.name }}
       run: |
         if [ -f "${output_file}" ]; then
-          # Count issues by severity (yamllint uses [error] and [warning]) - ensure we get single clean numbers
-          error_count=$(grep "\[error\]" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          warning_count=$(grep "\[warning\]" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          # Count issues by severity (yamllint uses ::error and ::warning in GitHub Actions format)
+          error_count=$(grep "::error" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep "::warning" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           error_count=${error_count:-0}
           warning_count=${warning_count:-0}
