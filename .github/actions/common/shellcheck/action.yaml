@@ -102,7 +102,7 @@ runs:
 
     - name: Run ReviewDog (ShellCheck)
       if: ${{ inputs.enable-reviewdog == 'true' }}
-      uses: reviewdog/action-shellcheck@5ebd09ddbe2ebb471646ce234c6c8dd18663ca7c # 1.30.0
+      uses: reviewdog/action-shellcheck@4c07458293ac342d477251099501a718ae5ef86e # 1.32.0
       with:
         github_token: ${{ inputs.github_token }}
         reporter: github-pr-review
