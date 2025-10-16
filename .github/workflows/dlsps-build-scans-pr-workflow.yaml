@@ -268,11 +268,11 @@ jobs:
         path: edge-ai-libraries-repo
 
     - name: ClamAV scan
-      uses: open-edge-platform/orch-ci/.github/actions/clamav@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
+      uses: open-edge-platform/orch-ci/.github/actions/security/clamav@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        project-folder: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
-        # report-path: clamav_scan_report-DLSPS.txt
-        report_suffix: "DLS_ClamAV_antivirus_report"
+        scan-scope: all
+        paths: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
+        report_suffix: "DLSPS_ClamAV_antivirus_report"
 
     - name: Clean up
       run: |
