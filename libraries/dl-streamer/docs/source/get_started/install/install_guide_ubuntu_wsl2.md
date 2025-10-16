@@ -89,6 +89,14 @@ drwxr-xr-x 16 root root       3.5K Mar 24 16:00 ..
 
 ### Step 2: If you don't have renderD12\* device, please update GPU drivers and update WSL
 
+If there is no /dev/dri directory please try running:
+
+```bash
+sudo modprobe vgem
+```
+
+and please check once again.
+
 ### Step 3: Install GPU libraries
 
 ```bash
@@ -115,19 +123,9 @@ sudo apt update
 sudo apt-get install intel-dlstreamer
 ```
 
-### Step 6: Test by running hello_dlstreamer script
+### [Optional] Step 6: Do optional steps.
 
-#### CPU device
-
-```bash
-/opt/intel/dlstreamer/scripts/hello_dlstreamer.sh
-```
-
-#### GPU device
-
-```bash
-/opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --device=GPU
-```
+All optional steps including download models and run sample application could be run as described in [Install Guide Ubuntu](./install_guide_ubuntu.md)
 
 ------------------------------------------------------------------------
 
