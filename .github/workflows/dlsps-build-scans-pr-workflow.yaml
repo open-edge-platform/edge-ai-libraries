@@ -268,6 +268,7 @@ jobs:
         path: edge-ai-libraries-repo
 
     - name: ClamAV scan
+      id: clamav-dlsps-scan
       uses: open-edge-platform/orch-ci/.github/actions/security/clamav@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
         scan-scope: all
@@ -277,7 +278,7 @@ jobs:
     - name: Analyze ClamAV results
       if: always()
       env:
-        REPORT_PATH: ${{ steps.clamav-scan.outputs.report_path }}
+        REPORT_PATH: ${{ steps.clamav-dlsps-scan.outputs.report_path }}
       run: |
         if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
           echo "📄 Found ClamAV report: $REPORT_PATH"
