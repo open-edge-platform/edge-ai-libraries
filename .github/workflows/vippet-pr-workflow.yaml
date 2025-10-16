@@ -6,6 +6,7 @@ on:
     branches:
       - main
       - release-*
+      - initial-vippet-api
     paths:
       - 'tools/visual-pipeline-and-platform-evaluation-tool/**'
   workflow_dispatch:
