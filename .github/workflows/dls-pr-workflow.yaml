@@ -291,6 +291,7 @@ jobs:
         scan-scope: all
         paths: edge-ai-libraries-repo/libraries/dl-streamer
         report_suffix: "DLS_ClamAV_antivirus_report"
+        fail-on-findings: false
 
     - name: Analyze ClamAV results
       if: always()
