@@ -54,11 +54,12 @@ runs:
         name: ${{ inputs.name }}
       run: |
         if [ -f "${output_file}" ]; then
-          # Count issues by severity (hadolint uses error, warning, info, style) - ensure we get single clean numbers
-          error_count=$(grep " error " "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          warning_count=$(grep " warning " "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          info_count=$(grep " info " "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
-          style_count=$(grep " style " "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          # Count issues by severity (hadolint format: DL#### or SC#### followed by colored severity)
+          # Pattern matches: DL3008 or SC1091 (hadolint and shellcheck codes)
+          error_count=$(grep -E "(DL|SC)[0-9]+" "${output_file}" 2>/dev/null | grep -i "error" | wc -l | tr -d '[:space:]' || echo "0")
+          warning_count=$(grep -E "(DL|SC)[0-9]+" "${output_file}" 2>/dev/null | grep -i "warning" | wc -l | tr -d '[:space:]' || echo "0")
+          info_count=$(grep -E "(DL|SC)[0-9]+" "${output_file}" 2>/dev/null | grep -i "info" | wc -l | tr -d '[:space:]' || echo "0")
+          style_count=$(grep -E "(DL|SC)[0-9]+" "${output_file}" 2>/dev/null | grep -i "style" | wc -l | tr -d '[:space:]' || echo "0")
           # Ensure counts are valid integers, default to 0 if empty
           error_count=${error_count:-0}
           warning_count=${warning_count:-0}

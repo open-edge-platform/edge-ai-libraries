@@ -51,7 +51,7 @@ jobs:
 
     # ======================================================== BUILDING PART ========================================================
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
 
     - name: Log in to GitHub Container Registry
       uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
@@ -184,7 +184,7 @@ jobs:
         ln -s $PWD/$DLS_REL_PATH $HOME
 
     - name: Check out test repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         repository: open-edge-platform/dl-streamer-tests
         persist-credentials: false
@@ -196,7 +196,7 @@ jobs:
       env:
         TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
       run: |
-        cd dl-streamer-tests-repo
+        cd $DLS_REL_PATH/tests
         mkdir functional_tests_results
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD

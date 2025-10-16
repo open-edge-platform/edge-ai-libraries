@@ -64,12 +64,6 @@ jobs:
         echo DLSPS_COVERITY_PROJECT=${{secrets.DLSPS_COVERITY_PROJECT}} >> .env
         docker run --rm --env-file .env  -v  `pwd`:/app -v /tmp:/tmp intel/dlstreamer-pipeline-server:coverity-ubuntu22  /bin/bash /app/coverity.sh
 
-    - name: Upload Coverity Reports to Github
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
-      with:
-        name: DLSPS_Coverity-reports
-        path: /tmp/coverity-output.tgz
-
     - name: Clean up
       if: always()
       run: |
