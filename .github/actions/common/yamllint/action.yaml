@@ -18,6 +18,10 @@ inputs:
   github_token:
     description: GitHub token for ReviewDog
     required: false
+  fail-on-findings:
+    description: "Whether to fail the action if issues are found"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -27,6 +31,7 @@ runs:
       shell: bash
 
     - name: Run Yamllint
+      id: run-yamllint
       env:
         path: ${{ inputs.path }}
         output_file: ${{ inputs.output-file }}
@@ -92,3 +97,17 @@ runs:
         github_token: ${{ inputs.github_token }}
         reporter: github-pr-review
         level: warning
+
+    - name: Fail if Yamllint found issues
+      if: inputs.fail-on-findings == 'true'
+      shell: bash
+      env:
+        output_file: ${{ inputs.output-file }}
+      run: |
+        if [ -f "${output_file}" ]; then
+          issue_count=$(grep -E "::error|::warning" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          if [ "$issue_count" -gt 0 ]; then
+            echo "❌ Yamllint found $issue_count issue(s). Failing the job."
+            exit 1
+          fi
+        fi

@@ -9,6 +9,10 @@ inputs:
     description: 'Path to the repository root'
     required: false
     default: '.'
+  fail-on-findings:
+    description: "Whether to fail the action if issues are found"
+    required: false
+    default: "true"
 runs:
   using: 'composite'
   steps:
@@ -89,6 +93,13 @@ runs:
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "ℹ️ **No relevant files changed - check skipped**" >> $GITHUB_STEP_SUMMARY
         fi
+
+    - name: Fail if license/namespace issues found
+      if: inputs.fail-on-findings == 'true' && steps.license-check.outputs.ISSUES_FOUND == 'true'
+      shell: bash
+      run: |
+        echo "❌ License or namespace issues found. Failing the job."
+        exit 1
 
     - name: Clean up
       if: always()

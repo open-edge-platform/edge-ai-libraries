@@ -9,6 +9,10 @@ inputs:
     description: 'Name for the output artifact'
     required: false
     default: 'code-style-check-report'
+  fail-on-findings:
+    description: "Whether to fail the action if issues are found"
+    required: false
+    default: "true"
 
 runs:
   using: "composite"
@@ -64,3 +68,10 @@ runs:
         name: ${{ inputs.name }}
         path: _output/diff.html
         if-no-files-found: ignore
+
+    - name: Fail if code style issues found
+      if: inputs.fail-on-findings == 'true' && steps.code-style-check.outputs.STYLE_ISSUES == 'true'
+      shell: bash
+      run: |
+        echo "❌ Code style issues found. Failing the job."
+        exit 1
