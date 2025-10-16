@@ -125,7 +125,7 @@ sudo apt-get install intel-dlstreamer
 
 ### [Optional] Step 6: Do optional steps.
 
-All optional steps including download models and run sample application could be run as described in [Install Guide Ubuntu](./install_guide_ubuntu.md)
+All optional steps, including downloading models and running the sample application, can be completed by following the instructions in the [Install Guide Ubuntu](./install_guide_ubuntu.md)
 
 ------------------------------------------------------------------------
 
