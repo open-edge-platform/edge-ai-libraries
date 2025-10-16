@@ -276,16 +276,15 @@ jobs:
 
     - name: Analyze ClamAV results
       if: always()
+      env:
+        REPORT_PATH: ${{ steps.clamav-scan.outputs.report_path }}
       run: |
-        # Find the ClamAV report file
-        report_file=$(ls clamav-results-*DLSPS_ClamAV_antivirus_report* 2>/dev/null | head -n 1)
-
-        if [ -f "$report_file" ]; then
-          echo "📄 Found ClamAV report: $report_file"
+        if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
+          echo "📄 Found ClamAV report: $REPORT_PATH"
 
           # Extract scan summary using jq
-          files_scanned=$(jq -r '.scan_summary.files_scanned // 0' "$report_file" 2>/dev/null || echo "0")
-          threats_found=$(jq -r '.scan_summary.threats_found // 0' "$report_file" 2>/dev/null || echo "0")
+          files_scanned=$(jq -r '.scan_summary.files_scanned // 0' "$REPORT_PATH" 2>/dev/null || echo "0")
+          threats_found=$(jq -r '.scan_summary.threats_found // 0' "$REPORT_PATH" 2>/dev/null || echo "0")
 
           echo "### ClamAV Antivirus Scan Results" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
@@ -301,7 +300,9 @@ jobs:
             echo "✅ **All files are clean - no threats detected!**" >> $GITHUB_STEP_SUMMARY
           fi
         else
-          echo "⚠️ ClamAV report not found" >> $GITHUB_STEP_SUMMARY
+          echo "### ClamAV Antivirus Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **ClamAV report not found at path: ${REPORT_PATH:-not provided}**" >> $GITHUB_STEP_SUMMARY
         fi
 
     - name: Clean up
