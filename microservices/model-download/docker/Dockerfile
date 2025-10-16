@@ -19,11 +19,6 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 # Add Poetry to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
-
-
 # Copy only the Poetry configuration files first to leverage Docker caching
 COPY pyproject.toml poetry.lock /opt/
 
@@ -62,6 +57,10 @@ WORKDIR /opt
 # Change the user of working directory to non-root user
 RUN chown -R appuser:appuser /opt
 
+# Make the entrypoint script executable
+COPY docker/entrypoint.sh /opt/entrypoint.sh
+RUN chmod +x /opt/entrypoint.sh
+
 # Switch to non-root user
 USER appuser
 
@@ -71,6 +70,5 @@ EXPOSE 8000
 # Set environment variables
 ENV PYTHONPATH=/opt
 ENV MODELS_DIR=/opt/models
-
-# Command to run the application
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use our entrypoint script
+ENTRYPOINT ["/opt/entrypoint.sh"]

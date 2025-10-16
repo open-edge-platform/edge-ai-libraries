@@ -78,7 +78,7 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 log_error "--model-path requires a path argument"
-                exit 1
+                return 1
             fi
             ;;
         --plugins)
@@ -87,7 +87,7 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 log_error "--plugins requires a comma-separated list"
-                exit 1
+                return 1
             fi
             ;;
         --tag)
@@ -96,7 +96,7 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 log_error "--tag requires a value"
-                exit 1
+                return 1
             fi
             ;;
         --registry)
@@ -109,17 +109,17 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 log_error "--registry requires a value"
-                exit 1
+                return 1
             fi
             ;;
         --help)
             show_usage
-            exit 0
+            return 0
             ;;
         *)
             log_error "Unknown option or action: $1"
             show_usage
-            exit 1
+            return 1
             ;;
     esac
 done
@@ -168,9 +168,9 @@ if [[ "$ACTION" != "down" ]]; then
     export MODEL_PATH="$MODEL_PATH"
     export ENABLED_PLUGINS="$PLUGINS"
 
-    # Generate environment file for docker-compose
+    # Generate environment file for docker-compose in current directory
     log_info "Generating environment settings..."
-    cat > ../.env << EOF
+    cat > .env << EOF
 TAG=$TAG
 REGISTRY=$REGISTRY
 USER_GROUP_ID=$USER_GROUP_ID
@@ -193,7 +193,7 @@ case "$ACTION" in
             fi
             
             log_info "Building Docker image: ${BOLD}$BUILD_COMMAND${NC}"
-            eval "$BUILD_COMMAND" || { log_error "Docker build failed"; exit 1; }
+            eval "$BUILD_COMMAND" || { log_error "Docker build failed"; return 1; }
             log_success "Docker image built successfully."
         fi
 
@@ -204,15 +204,8 @@ case "$ACTION" in
             docker compose -f docker/compose.yaml down
         fi
 
-        docker compose -f docker/compose.yaml up -d
+        docker compose -f docker/compose.yaml up
 
-        log_success "Model download service is running."
-        echo -e "  ${GREEN}${NC} Model path: ${BOLD}$MODEL_PATH${NC}"
-        if [[ -n "$PLUGINS" ]]; then
-            echo -e "  ${GREEN}${NC} Enabled plugins: ${BOLD}$PLUGINS${NC}"
-        fi
-        echo -e "  ${GREEN}${NC} Access the API at: ${BOLD}http://localhost:8200${NC}"
-        echo -e "  ${GREEN}${NC} View logs with: ${BOLD}docker logs model_download${NC}"
         ;;
     down)
         # For down action, we only need to stop the services
@@ -223,6 +216,6 @@ case "$ACTION" in
     *)
         log_error "Unknown action: $ACTION"
         show_usage
-        exit 1
+        return 1
         ;;
 esac

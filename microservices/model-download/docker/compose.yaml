@@ -5,6 +5,7 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: model_download
+    command: --plugins ${ENABLED_PLUGINS:-all}
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
       - LOG_LEVEL=INFO
