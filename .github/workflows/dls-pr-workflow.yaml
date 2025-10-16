@@ -295,7 +295,7 @@ jobs:
     - name: Analyze ClamAV results
       if: always()
       env:
-        REPORT_PATH: ${{ steps.clamav-dls-scanl.outputs.report_path }}
+        REPORT_PATH: ${{ steps.clamav-dls-scan.outputs.report_path }}
       run: |
         if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
           echo "📄 Found ClamAV report: $REPORT_PATH"
