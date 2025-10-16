@@ -122,7 +122,7 @@ runs:
         output_file: ${{ inputs.output-file }}
       run: |
         if [ -f "${output_file}" ]; then
-          issue_count=$(grep -E "DL[0-9]+" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
+          issue_count=$(grep -E "(DL|SC)[0-9]+" "${output_file}" 2>/dev/null | wc -l | tr -d '[:space:]' || echo "0")
           if [ "$issue_count" -gt 0 ]; then
             echo "❌ Hadolint found $issue_count issue(s). Failing the job."
             exit 1
