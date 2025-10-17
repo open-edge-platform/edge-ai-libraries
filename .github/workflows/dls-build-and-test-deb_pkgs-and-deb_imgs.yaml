@@ -196,7 +196,7 @@ jobs:
       env:
         TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
       run: |
-        cd $DLS_REL_PATH/tests
+        cd dl-streamer-tests-repo
         mkdir functional_tests_results
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD
