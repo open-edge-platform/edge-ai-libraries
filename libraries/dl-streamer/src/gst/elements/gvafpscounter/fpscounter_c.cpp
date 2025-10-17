@@ -25,7 +25,7 @@ static FILE *output = stdout;
 // C interface
 void fps_counter_create_iterative(const char *intervals, bool print_std_dev, bool print_latency) {
     try {
-        std::lock_guard<std::mutex> lock(        channels_mutex);
+        std::lock_guard<std::mutex> lock(channels_mutex);
         std::vector<std::string> intervals_list = Utils::splitString(intervals, ',');
         for (const std::string &interval : intervals_list)
             if (not fps_counters.count(interval)) {

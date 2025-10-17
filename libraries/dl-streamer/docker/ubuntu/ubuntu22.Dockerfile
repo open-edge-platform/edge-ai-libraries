@@ -110,8 +110,6 @@ RUN \
     python3 -m venv /python3venv && \
     /python3venv/bin/pip3 install --no-cache-dir --upgrade pip==24.0 && \
     /python3venv/bin/pip3 install --no-cache-dir --no-dependencies \
-
-
     meson==1.4.1 \
     ninja==1.11.1.1 \
     numpy==2.2.0 \
