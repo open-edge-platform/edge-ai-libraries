@@ -332,7 +332,6 @@ jobs:
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-        fail-on-findings: false
         paths: microservices/dlstreamer-pipeline-server
         report_suffix: dlsps
         fail-on-findings: true
