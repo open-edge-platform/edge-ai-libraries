@@ -6,26 +6,12 @@ authors = []
 packages = [{ include = "app" }]
 
 [tool.poetry.dependencies]
-einops = "^0.8.1"
 fastapi = "0.115.4"
-huggingface-hub = { version = "^0.30.0", extras = ["hf-transfer","hf-xet"] }
-nncf = "2.16.0"
-openvino = "2025.3.0"
-openvino-tokenizers = { version = "2025.3.0", extras = ["transformers"] }
-optimum = {extras = ["openvino", "nncf"], version = "^1.25.0"}
 pillow = "^11.2.1"
 python = ">=3.10,<=3.13"
-pydantic = "^1.10.13"
-qwen_vl_utils = "^0.0.11"
-sentence_transformers = "3.1.1"
+pydantic = "^2.7.0"
 structlog = "25.1.0"
-transformers = "^4.51.3"
 uvicorn = "^0.23.2"
-ultralytics = "^8.3.196"
-sentencepiece = "0.2.0"
-openai = "^1.0.0"
-timm = "1.0.15"
-diffusers = "0.33.1"
 
 [tool.poetry.group.dev.dependencies]
 pytest = "^7.4.0"

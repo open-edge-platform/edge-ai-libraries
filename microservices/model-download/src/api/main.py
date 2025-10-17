@@ -22,6 +22,13 @@ models_dir = os.getenv("MODELS_DIR", "/opt/models")
 model_manager = ModelManager(plugin_registry, default_dir=models_dir)
 auth_token = HTTPBearer(auto_error=False)
 
+# Log which plugins are activated at startup
+for plugin_type in plugin_registry.plugins:
+    for plugin_name in plugin_registry.get_plugin_names(plugin_type):
+        is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+        status = "AVAILABLE" if is_available else f"NOT AVAILABLE: {reason}"
+        logger.info(f"Plugin {plugin_name} ({plugin_type}): {status}")
+
 
 # Add CORS middleware
 app.add_middleware(
@@ -82,6 +89,14 @@ async def download_models(
         job_ids = []
         
         for model in request.models:
+            # Check if the plugin's dependencies are installed
+            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
+            if not is_plugin_available:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Plugin '{model.hub}' is not available: {error_reason}"
+                )
+            
             # Pass token for HuggingFace
             extra_kwargs = model.dict()
             needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
@@ -114,6 +129,14 @@ async def download_models(
                 )
 
             if needs_conversion:
+                # Check if OpenVINO plugin is available for conversion
+                is_openvino_available, openvino_error = plugin_registry.check_plugin_dependencies("openvino")
+                if not is_openvino_available:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"OpenVINO conversion requested but plugin is not available: {openvino_error}"
+                    )
+                
                 # Get configuration for conversion
                 extra_kwargs["token"] = Authorization.credentials if Authorization else None
                 config = model.config.dict() if model.config else {}
@@ -249,17 +272,31 @@ async def list_plugins():
             # Get plugin capabilities
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
             
+            # Check if plugin dependencies are installed
+            is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+            
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
                 "description": getattr(plugin, "__doc__", "No description available").strip(),
                 "capabilities": {
                     "supports_parallel_downloads": can_handle_parallel,
-                }
+                },
+                "available": is_available,
+                "unavailable_reason": reason if not is_available else None
             }
             plugins_info[plugin_type].append(plugin_info)
     
+    # Count available plugins
+    total_plugins = sum(len(plugins) for plugins in plugins_info.values())
+    available_plugins = sum(
+        1 for plugin_type in plugins_info for plugin in plugins_info[plugin_type] 
+        if plugin.get("available", False)
+    )
+    
     return {
         "available_plugins": plugins_info,
-        "total_count": sum(len(plugins) for plugins in plugins_info.values())
+        "total_count": total_plugins,
+        "available_count": available_plugins,
+        "activation_instructions": "To enable plugins, restart the container with the --plugins option specifying the plugins you need (e.g. huggingface,openvino,ultralytics,ollama) or use 'all' to enable all plugins"
     }
