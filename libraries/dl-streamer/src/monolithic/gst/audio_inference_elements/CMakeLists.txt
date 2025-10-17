@@ -8,13 +8,10 @@ set (TARGET_NAME "audio_inference_elements")
 
 find_package(PkgConfig REQUIRED)
 find_package(OpenVINO REQUIRED Runtime)
+find_package(OpenVINOGenAI REQUIRED)
 pkg_check_modules(GSTREAMER gstreamer-1.0>=1.16 REQUIRED)
 pkg_check_modules(GSTALLOC gstreamer-allocators-1.0 REQUIRED)
 pkg_check_modules(GSTAUDIO gstreamer-audio-1.0 REQUIRED)
-
-if(ENABLE_GENAI)
-    find_package(OpenVINOGenAI REQUIRED)
-endif()
 
 file (GLOB MAIN_SRC
     ${CMAKE_CURRENT_SOURCE_DIR}/base/*.c
@@ -72,11 +69,11 @@ PRIVATE
     openvino::runtime
 )
 
-if(ENABLE_GENAI)
-    target_link_libraries(${TARGET_NAME}
-    PRIVATE
-        openvino::genai
-    )
-endif()
+
+target_link_libraries(${TARGET_NAME}
+PRIVATE
+    openvino::genai
+)
+
 
 install(TARGETS ${TARGET_NAME} DESTINATION ${DLSTREAMER_PLUGINS_INSTALL_PATH})
