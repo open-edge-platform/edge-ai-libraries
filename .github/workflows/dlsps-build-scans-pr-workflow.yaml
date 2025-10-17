@@ -53,7 +53,7 @@ jobs:
 
     - name: Build DL Streamer deb-final-img
       env:
-        deb_final_img: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:${{ github.sha }}
+        deb_final_img: dlstreamer-local:${{ matrix.ubuntu_version }}-${{ github.sha }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
         dls_ubuntu22_dockefile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu22.Dockerfile
         dls_ubuntu24_dockefile: ${{ env.DLS_REL_PATH }}/docker/ubuntu/ubuntu24.Dockerfile
