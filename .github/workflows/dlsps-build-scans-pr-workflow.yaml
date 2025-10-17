@@ -99,7 +99,6 @@ jobs:
       if: matrix.ubuntu_version == 'ubuntu22'
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/
-        pip install --upgrade -r tests/requirements.txt
         make build
         make test | tee /tmp/pytest_output.txt
 
