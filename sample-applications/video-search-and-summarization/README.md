@@ -2,6 +2,7 @@
 
 Video search and summarization is a foundational sample application that provides the following set of video analytics capabilities:
 
+| Mode | Use To | Capability |
 |---|---|---|
 | Video Search | Find specific content within large video datasets. | Extract and index visual, audio, and textual features from video frames using the LangChain framework, multimodal embedding models, and agentic reasoning. Query using natural language or multi-modal models. |
 | Video Summarization | Create concise summaries of long-form videos or live streams. | Improve searchability. Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
