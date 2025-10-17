@@ -87,15 +87,15 @@ jobs:
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
         export BUILD_TARGET=dlstreamer-pipeline-server
-        docker compose build --no-cache --pull
+        docker compose build --no-cache
 
     - name: Build dls-pipeline-server-img-extended
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}
         export DLSTREAMER_PIPELINE_SERVER_DOCKERFILE=Dockerfile
-        BUILD_TARGET=dlstreamer-pipeline-server-extended
-        docker compose build --no-cache --pull
+        export BUILD_TARGET=dlstreamer-pipeline-server-extended
+        docker compose build --no-cache
 
     - name: Unit Test dls-pipeline-server
       if: matrix.ubuntu_version == 'ubuntu22'
