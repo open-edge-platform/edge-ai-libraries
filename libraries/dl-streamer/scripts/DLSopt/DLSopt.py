@@ -196,19 +196,18 @@ def add_gvaclassify_suggestions(suggestions, context):
     add_classification_suggestions("gvaclassify", suggestions, context)
 
 def add_classification_suggestions(element, suggestions, context):
-    device = "CPU"
-    backend = "opencv"
-    batches = [1, 2, 4, 8, 16, 32]
-    nireqs = range(1, 9)
-
     if context["GPU"]:
-        device = "GPU"
-        backend = "va-surface-sharing"
+        add_parameter_suggestions(element, "GPU", "va-surface-sharing", suggestions)
 
     if context["NPU"]:
-        device = "NPU"
-        backend = "va"
+        add_parameter_suggestions(element, "NPU", "va", suggestions)
 
+    add_parameter_suggestions(element, "CPU", "opencv", suggestions)
+
+
+def add_parameter_suggestions(element, device, backend, suggestions):
+    batches = [1, 2, 4, 8, 16, 32]
+    nireqs = range(1, 9)
     for suggestion in suggestions:
         if element in suggestion[0]:
             parameters = parse_element_parameters(suggestion[0])
@@ -220,6 +219,7 @@ def add_classification_suggestions(element, suggestions, context):
                     parameters["batch-size"] = str(batch)
                     parameters["nireq"] = str(nireq)
                     suggestion.append(f"{element} {assemble_parameters(parameters)}")
+
 
 ####################################### Main Logic ################################################
 
