@@ -183,12 +183,20 @@ jobs:
       run: |
         ln -s $PWD/$DLS_REL_PATH $HOME
 
+    - name: Check out test repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        repository: open-edge-platform/dl-streamer-tests
+        persist-credentials: false
+        ref: be671f53438c01ad148f227adf405fff32bbe0a4
+        path: dl-streamer-tests-repo
+
     - name: 🚀 Run tests
       id: run_tests
       env:
         TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
       run: |
-        cd $DLS_REL_PATH/tests
+        cd dl-streamer-tests-repo
         mkdir functional_tests_results
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD
