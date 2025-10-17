@@ -62,14 +62,17 @@ Edit the `values.yaml` file to set the necessary environment variables. Ensure y
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone <repository-url>
+# Clone the latest on mainline
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
 ```bash
-cd <repository-url>/sample-applications/document-summarization/chart
+cd edge-ai-libraries/sample-applications/document-summarization/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File
