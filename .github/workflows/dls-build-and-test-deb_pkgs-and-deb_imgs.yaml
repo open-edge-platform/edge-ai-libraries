@@ -48,7 +48,6 @@ jobs:
       run: |
         cd edge-ai-libraries-repo
         git submodule update --init libraries/dl-streamer/thirdparty/spdlog
-        git submodule update --init libraries/dl-streamer/dl-streamer-tests
 
     # ======================================================== BUILDING PART ========================================================
     - name: Set up Docker Buildx
@@ -119,7 +118,7 @@ jobs:
 
     - name: Install DL Streamer on-host
       run: |
-        $DLS_REL_PATH/dl-streamer-tests/scripts/installation-on-host-entrypoint.sh $DLS_REL_PATH/deb_packages
+        $DLS_REL_PATH/tests/scripts/installation-on-host-entrypoint.sh $DLS_REL_PATH/deb_packages
 
     - name: 👋 Test hello_dlstreamer script
       id: test_hello_dlstreamer_script
@@ -184,12 +183,20 @@ jobs:
       run: |
         ln -s $PWD/$DLS_REL_PATH $HOME
 
+    - name: Check out test repository
+      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      with:
+        repository: open-edge-platform/dl-streamer-tests
+        persist-credentials: false
+        ref: be671f53438c01ad148f227adf405fff32bbe0a4
+        path: dl-streamer-tests-repo
+
     - name: 🚀 Run tests
       id: run_tests
       env:
         TEST_CONFIGS: ${{ env.TEST_CONFIGS }}
       run: |
-        cd $DLS_REL_PATH/dl-streamer-tests
+        cd dl-streamer-tests-repo
         mkdir functional_tests_results
         cd functional_tests_results
         DLS_TESTS_RESULTS_PATH=$PWD
@@ -223,7 +230,7 @@ jobs:
     - name: Uninstall dlstreamer
       if: always ()
       run: |
-        $DLS_REL_PATH/dl-streamer-tests/scripts/uninstall-dlstreamer.sh
+        $DLS_REL_PATH/tests/scripts/uninstall-dlstreamer.sh
 
     # ======================================================== CLEAUP PART ========================================================
     - name: Clean up
