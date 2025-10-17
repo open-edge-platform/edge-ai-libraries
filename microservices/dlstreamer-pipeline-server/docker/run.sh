@@ -50,7 +50,18 @@ gpu_execution_prequisites
 
 ros2_prerequisites
 
-python3 -m src
+taskset_cmds=()
+case "$CORE_PINNING" in
+e-cores|p-cores|lp-cores)
+    . ./detect-cores.sh
+    declare -n core_list="${CORE_PINNING/-/_}"
+    [ ${#core_list[@]} -eq 0 ] || taskset_cmds=(taskset -c $(IFS=,; echo "${core_list[*]}"))
+    ;;
+*)
+    [ ${#CORE_PINNING[@]} -eq 0 ] || taskset_cmds=(taskset -c ${CORE_PINNING// /,})
+    ;;
+esac
+${taskset_cmds[@]} python3 -m src
 
 wait
 
