@@ -1,15 +1,13 @@
-
-
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
 from pymilvus import MilvusClient
 
 from dependency.clip_ov.mm_embedding import EmbeddingModel
+from utils import decode_base64_image
 
 import os
 import requests
-import numpy as np
 
 MILVUS_HOST = os.getenv("MILVUS_HOST", "localhost")
 MILVUS_PORT = int(os.getenv("MILVUS_PORT", 19530))
@@ -46,13 +44,46 @@ class MilvusRetriever:
         else:
             embedding = self.embedding_model.get_text_embedding(query)
             return embedding
+        
+    def get_image_embedding(self, image_base64):
+        if self.embed_url:
+            headers = {'Content-Type': 'application/json'}
 
-    def search(self, query, filters=None, top_k=5):
-        # Get the embedding for the query
-        embedding = self.get_text_embedding(query)
+            payload = {
+                "model": VCLIP_MODEL,
+                "encoding_format": "float",
+                "input": {
+                    "type": "image_base64",
+                    "image_base64": image_base64
+                }
+            }
+
+            response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
+            data = response.json()
+            embedding = data.get("embedding")
+            return [embedding]
+        else:
+            image = decode_base64_image(image_base64)
+            embedding = self.embedding_model.get_image_embedding(image)
+            return embedding
+
+    def search(self, query=None, image_base64=None, filters=None, top_k=5):
+        # Validate input
+        if not query and not image_base64:
+            raise ValueError("Either 'query' or 'image_base64' must be provided.")
+        if query and image_base64:
+            raise ValueError("Provide only one of 'query' or 'image_base64', not both.")
+
+        # Get the embedding for the query or image
+        if query:
+            embedding = self.get_text_embedding(query)
+        else:
+            embedding = self.get_image_embedding(image_base64)
+
         if embedding is None:
-            raise Exception("Failed to get embedding for the query.")
+            raise Exception("Failed to get embedding for the input.")
 
+        # Construct filters if provided
         if filters:
             search_filter = ''
             filter_params = {}
