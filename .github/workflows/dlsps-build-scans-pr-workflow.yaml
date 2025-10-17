@@ -233,6 +233,7 @@ jobs:
         with:
           target_dir: "microservices/dlstreamer-pipeline-server"
           name: 'DLSPS_code-style-check-report'
+          fail-on-findings: true
 
   dlsps-check-license-headers:
     permissions:
@@ -254,6 +255,7 @@ jobs:
       with:
         name: 'DLSPS_license-check-report'
         path: '.'
+        fail-on-findings: true
 
   dlsps-clamav:
     permissions:
@@ -274,7 +276,7 @@ jobs:
         scan-scope: all
         paths: edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server
         report_suffix: "DLSPS_ClamAV_antivirus_report"
-        fail-on-findings: false
+        fail-on-findings: false # To change to 'true' in the future
 
     - name: Analyze ClamAV results
       if: always()
@@ -333,6 +335,7 @@ jobs:
         fail-on-findings: false
         paths: microservices/dlstreamer-pipeline-server
         report_suffix: dlsps
+        fail-on-findings: true
 
   trivy-config-dockerfile-scan:
     permissions:
@@ -368,6 +371,7 @@ jobs:
           name: DLSPS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
   dlsps-shellcheck:
     permissions:
@@ -391,6 +395,7 @@ jobs:
           name: DLSPS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
       - name: Clean up
         run: |
@@ -417,6 +422,7 @@ jobs:
           name: DLSPS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
       - name: Clean up
         run: |

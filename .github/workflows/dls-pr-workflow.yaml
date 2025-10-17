@@ -52,6 +52,7 @@ jobs:
         with:
           target_dir: "libraries/dl-streamer"
           name: 'DLS_code-style-check-report'
+          fail-on-findings: true
 
   dls-check-license-headers:
     permissions:
@@ -73,6 +74,7 @@ jobs:
       with:
         name: 'DLS_license-check-report'
         path: '.'
+        fail-on-findings: true
 
   # dls-static-code-analysis:
   #   permissions:
@@ -197,6 +199,7 @@ jobs:
           name: DLS_${{ matrix.name }}
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
   dls-pylint:
     permissions:
@@ -218,6 +221,7 @@ jobs:
           name: DLS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
   dls-shellcheck:
     permissions:
@@ -241,6 +245,7 @@ jobs:
           name: DLS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
       - name: Clean up
         run: |
@@ -267,6 +272,7 @@ jobs:
           name: DLS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
       - name: Clean up
         run: |
