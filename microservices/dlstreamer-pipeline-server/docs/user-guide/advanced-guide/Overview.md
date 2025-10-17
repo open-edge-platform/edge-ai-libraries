@@ -42,6 +42,7 @@
 -   [Object tracking](./detailed_usage/how-to-advanced/object_tracking/object_tracking.md)
 -   [Enable HTTPS for DL Streamer Pipeline Server](./detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md)
 -   [Performance Analysis](./detailed_usage/how-to-advanced/performance/Processing-Latency.md)
+-   [Core Pinning](./detailed_usage/how-to-advanced/performance/Core-Pinning.md)
 -   [Get tensor vector data](./detailed_usage/how-to-advanced/get-tensor-vector-data.md)
 -   [Multistream pipelines with shared model instance](./detailed_usage/how-to-advanced/multistream-pipelines.md)
 -   [Cross stream batching](./detailed_usage/how-to-advanced/cross-stream-batching.md)
