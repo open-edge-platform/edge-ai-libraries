@@ -50,6 +50,8 @@ jobs:
 
     - name: Build DL Streamer deb-final-img
       run: |
+        DLS_PATH="${{ env.DLS_REL_PATH }}"
+
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
           docker buildx build \
           --load \
@@ -57,8 +59,8 @@ jobs:
           --tag "dls-deb-final-img_ubuntu22:${{ github.sha }}" \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          -f ${{ matrix.DLS_DOCKERFILE_UBUNTU22_PATH }} \
-          ${{ env.DLS_REL_PATH }}
+          -f "${DLS_PATH}/docker/ubuntu/ubuntu22.Dockerfile" \
+          "${DLS_PATH}"
           echo "BASE_IMAGE=dls-deb-final-img_ubuntu22:${{ github.sha }}" >> $GITHUB_ENV
         elif [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
           docker buildx build \
@@ -67,8 +69,8 @@ jobs:
           --tag "dls-deb-final-img_ubuntu24:${{ github.sha }}" \
           --build-arg DLSTREAMER_VERSION=${{ env.dlstreamer-version }} \
           --build-arg DLSTREAMER_BUILD_NUMBER=deb-pkg-${{ matrix.ubuntu_version }} \
-          -f ${{ matrix.DLS_DOCKERFILE_UBUNTU24_PATH }} \
-          ${{ env.DLS_REL_PATH }}
+          -f "${DLS_PATH}/docker/ubuntu/ubuntu24.Dockerfile" \
+          "${DLS_PATH}"
           echo "BASE_IMAGE=dls-deb-final-img_ubuntu24:${{ github.sha }}" >> $GITHUB_ENV
         fi
 
