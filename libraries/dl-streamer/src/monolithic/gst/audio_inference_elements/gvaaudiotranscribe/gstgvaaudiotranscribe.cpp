@@ -26,7 +26,7 @@ GST_DEBUG_CATEGORY_STATIC(gva_audio_transcribe_debug_category);
 #define GST_CAT_DEFAULT gva_audio_transcribe_debug_category
 #define GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC 3
 
-enum { PROP_0, PROP_MODEL_PATH, PROP_DEVICE, PROP_MODEL_TYPE, PROP_LANGUAGE, PROP_TASK, PROP_RETURN_TIMESTAMPS };
+enum { PROP_0, PROP_MODEL_PATH, PROP_DEVICE, PROP_MODEL_TYPE};
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
                                                                    GST_STATIC_CAPS("audio/x-raw, "
@@ -71,7 +71,7 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
     g_object_class_install_property(
         gobject_class, PROP_MODEL_PATH,
         g_param_spec_string("model", "Model",
-                            "Path to the Whisper model directory (or custom model path for extensible handlers)", NULL,
+                            "Path to the model directory", NULL,
                             G_PARAM_READWRITE));
 
     g_object_class_install_property(
@@ -81,21 +81,8 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
     g_object_class_install_property(
         gobject_class, PROP_MODEL_TYPE,
         g_param_spec_string("model_type", "Model_Type",
-                            "Model type for inference: 'whisper' (supported), custom types can be implemented",
+                            "model_type value to use whisper for inference: 'whisper' (supported).",
                             "whisper", G_PARAM_READWRITE));
-
-    g_object_class_install_property(
-        gobject_class, PROP_LANGUAGE,
-        g_param_spec_string("language", "Language", "Language code (e.g., <|en|>)", "<|en|>", G_PARAM_READWRITE));
-
-    g_object_class_install_property(
-        gobject_class, PROP_TASK,
-        g_param_spec_string("task", "Task", "Task: 'transcribe' or 'translate'", "transcribe", G_PARAM_READWRITE));
-
-    g_object_class_install_property(gobject_class, PROP_RETURN_TIMESTAMPS,
-                                    g_param_spec_boolean("return-timestamps", "Return Timestamps",
-                                                         "Whether to return timestamps with transcription", FALSE,
-                                                         G_PARAM_READWRITE));
 
     // Setup pad templates
     gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&src_factory));
@@ -112,9 +99,6 @@ void gst_gva_audio_transcribe_init(GvaAudioTranscribe *gvaaudiotranscribe) {
     gvaaudiotranscribe->model_path = NULL;
     gvaaudiotranscribe->device = g_strdup("CPU");
     gvaaudiotranscribe->model_type = g_strdup("whisper");
-    gvaaudiotranscribe->language = g_strdup("<|en|>");
-    gvaaudiotranscribe->task = g_strdup("transcribe");
-    gvaaudiotranscribe->return_timestamps = FALSE;
 
     // Initialize internal state
     gvaaudiotranscribe->handler = nullptr;
@@ -143,17 +127,6 @@ static void gst_gva_audio_transcribe_set_property(GObject *object, guint prop_id
         g_free(gvaaudiotranscribe->model_type);
         gvaaudiotranscribe->model_type = g_value_dup_string(value);
         break;
-    case PROP_LANGUAGE:
-        g_free(gvaaudiotranscribe->language);
-        gvaaudiotranscribe->language = g_value_dup_string(value);
-        break;
-    case PROP_TASK:
-        g_free(gvaaudiotranscribe->task);
-        gvaaudiotranscribe->task = g_value_dup_string(value);
-        break;
-    case PROP_RETURN_TIMESTAMPS:
-        gvaaudiotranscribe->return_timestamps = g_value_get_boolean(value);
-        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
         break;
@@ -173,15 +146,6 @@ static void gst_gva_audio_transcribe_get_property(GObject *object, guint prop_id
     case PROP_MODEL_TYPE:
         g_value_set_string(value, gvaaudiotranscribe->model_type);
         break;
-    case PROP_LANGUAGE:
-        g_value_set_string(value, gvaaudiotranscribe->language);
-        break;
-    case PROP_TASK:
-        g_value_set_string(value, gvaaudiotranscribe->task);
-        break;
-    case PROP_RETURN_TIMESTAMPS:
-        g_value_set_boolean(value, gvaaudiotranscribe->return_timestamps);
-        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, prop_id, pspec);
         break;
@@ -197,8 +161,7 @@ static void gst_gva_audio_transcribe_finalize(GObject *object) {
     g_free(gvaaudiotranscribe->model_path);
     g_free(gvaaudiotranscribe->device);
     g_free(gvaaudiotranscribe->model_type);
-    g_free(gvaaudiotranscribe->language);
-    g_free(gvaaudiotranscribe->task);
+
 
     // Delete C++ objects
     if (gvaaudiotranscribe->handler) {
@@ -246,9 +209,12 @@ static gboolean gst_gva_audio_transcribe_start(GstBaseTransform *base) {
                     gvaaudiotranscribe->model_type, gvaaudiotranscribe->model_path, gvaaudiotranscribe->device);
 
     try {
+
+        const std::string language = "<|en|>";  // English language
+        const std::string task = "transcribe";   // Transcription task
+        const bool return_timestamps = false;     // Enable timestamps
         if (!gvaaudiotranscribe->handler->initialize(gvaaudiotranscribe->model_path, gvaaudiotranscribe->device,
-                                                     gvaaudiotranscribe->language, gvaaudiotranscribe->task,
-                                                     gvaaudiotranscribe->return_timestamps)) {
+                                                     language, task, return_timestamps)) {
             GST_ERROR_OBJECT(gvaaudiotranscribe, "Handler initialization returned false (no exception)");
             delete gvaaudiotranscribe->handler;
             gvaaudiotranscribe->handler = nullptr;
