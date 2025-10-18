@@ -38,15 +38,11 @@ Element Properties:
                         flags: readable, writable
                         String. Default: "CPU"
 
-  language            : Language code (e.g., <|en|>)
-                        flags: readable, writable
-                        String. Default: "<|en|>"
-
-  model               : Path to the Whisper model directory (or custom model path for extensible handlers)
+  model               : Path to the model directory
                         flags: readable, writable
                         String. Default: null
 
-  model-type          : Model type for inference: 'whisper' (supported), custom types can be implemented
+  model-type          : model_type value to use whisper for inference: 'whisper' (supported).
                         flags: readable, writable
                         String. Default: "whisper"
 
@@ -61,9 +57,4 @@ Element Properties:
   qos                 : Handle Quality-of-Service events
                         flags: readable, writable
                         Boolean. Default: false
-
-  task                : Task: 'transcribe' 
-                        flags: readable, writable
-                        String. Default: "transcribe"
-
 ```
