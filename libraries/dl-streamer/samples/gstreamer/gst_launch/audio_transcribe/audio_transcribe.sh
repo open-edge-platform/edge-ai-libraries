@@ -138,7 +138,7 @@ case "$TRANSCRIPTION_MODE" in
         ;;
     "video")
         echo "Building video file audio transcription pipeline..."
-        PIPELINE="filesrc location=$INPUT_SOURCE ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=$PATH_TO_MODELS device=$DEVICE model_type=$MODEL_TYPE return-timestamps=true ! fakesink"
+        PIPELINE="filesrc location=$INPUT_SOURCE ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=$PATH_TO_MODELS device=$DEVICE model_type=$MODEL_TYPE ! fakesink"
         ;;
     "live")
         echo "Building live microphone transcription pipeline..."
