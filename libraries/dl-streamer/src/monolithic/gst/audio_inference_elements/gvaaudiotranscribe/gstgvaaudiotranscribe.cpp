@@ -6,8 +6,9 @@
 
 #include "gstgvaaudiotranscribe.h"
 #include "gstgvawhisperasrhandler.h"
-#include <dlstreamer/gst/metadata/gva_audio_event_meta.h>
 #include <fstream>
+#include <gst/analytics/analytics.h>
+#include <gst/analytics/gstanalyticsclassificationmtd.h>
 #include <gst/audio/audio.h>
 #include <gst/gst.h>
 #include <mutex>
@@ -297,25 +298,29 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                 GstStructure *s =
                     gst_structure_new("gvaaudiotranscribe", "text", G_TYPE_STRING, transcript.c_str(), NULL);
                 gst_element_post_message(GST_ELEMENT(base), gst_message_new_element(GST_OBJECT(base), s));
-                GstClockTime start_time = GST_BUFFER_PTS(buf);
-                GstClockTime duration = GST_BUFFER_DURATION(buf);
-                if (!GST_CLOCK_TIME_IS_VALID(start_time))
-                    start_time = 0;
-                if (!GST_CLOCK_TIME_IS_VALID(duration))
-                    duration = GST_SECOND * GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC;
-                GstClockTime end_time = start_time + duration;
+                
+                // Add GstAnalyticsClassification metadata to buffer
                 if (gst_buffer_is_writable(buf)) {
-                    GstGVAAudioEventMeta *meta =
-                        gst_gva_buffer_add_audio_event_meta(buf, transcript.c_str(), start_time, end_time);
-                    if (meta) {
-                        GstStructure *detection =
-                            gst_structure_new("detection", "label", G_TYPE_STRING, transcript.c_str(), "text",
-                                              G_TYPE_STRING, transcript.c_str(), "start_timestamp", G_TYPE_UINT64,
-                                              start_time, "end_timestamp", G_TYPE_UINT64, end_time, NULL);
-                        gst_gva_audio_event_meta_add_param(meta, detection);
-                        GST_INFO_OBJECT(gvaaudiotranscribe, "Added transcription metadata to buffer");
+                    // Get or create analytics relation meta
+                    GstAnalyticsRelationMeta *relation_meta = gst_buffer_get_analytics_relation_meta(buf);
+                    if (!relation_meta) {
+                        relation_meta = gst_buffer_add_analytics_relation_meta(buf);
+                    }
+                    
+                    if (relation_meta) {
+                        // Create classification metadata with transcription result
+                        GQuark transcript_quark = g_quark_from_string(transcript.c_str());
+                        gfloat confidence_level = 1.0f; // High confidence for transcription
+                        GstAnalyticsClsMtd cls_mtd = {0, nullptr};
+                        
+                        if (gst_analytics_relation_meta_add_cls_mtd(relation_meta, 1, &confidence_level, 
+                                                                   &transcript_quark, &cls_mtd)) {
+                            GST_INFO_OBJECT(gvaaudiotranscribe, "Added transcription as GstAnalyticsClassification metadata");
+                        } else {
+                            GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add GstAnalyticsClassification metadata");
+                        }
                     } else {
-                        GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add audio event metadata to buffer");
+                        GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to get or create GstAnalyticsRelationMeta");
                     }
                 }
             } else {

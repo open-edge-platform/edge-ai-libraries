@@ -13,7 +13,10 @@
 #include "audioconverter.h"
 #endif
 #include "convert_tensor.h"
+#include "gva_json_meta.h"
 
+#include <gst/analytics/analytics.h>
+#include <gst/analytics/gstanalyticsclassificationmtd.h>
 #include <nlohmann/json.hpp>
 
 #include <iomanip>
@@ -315,6 +318,48 @@ json convert_frame_classification(GstGvaMetaConvert *converter, GstBuffer *buffe
     return jobject;
 }
 
+/**
+ * @return JSON array which contains analytics classification metadata from buffer.
+ */
+json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *buffer) {
+    assert(converter && buffer && "Expected valid pointers GstGvaMetaConvert and GstBuffer");
+
+    json res = json::array();
+    
+    // Get analytics relation metadata
+    GstAnalyticsRelationMeta *relation_meta = gst_buffer_get_analytics_relation_meta(buffer);
+    if (!relation_meta) {
+        return res; // No analytics metadata
+    }
+
+    // Iterate through all classification metadata
+    gpointer state = NULL;
+    GstAnalyticsMtd mtd;
+    while (gst_analytics_relation_meta_iterate(relation_meta, &state, 
+                                             gst_analytics_cls_mtd_get_mtd_type(), &mtd)) {
+        GstAnalyticsClsMtd *cls_mtd = &mtd;
+        gsize length = gst_analytics_cls_mtd_get_length(cls_mtd);
+        
+        for (gsize i = 0; i < length; i++) {
+            gfloat confidence = gst_analytics_cls_mtd_get_level(cls_mtd, i);
+            GQuark label_quark = gst_analytics_cls_mtd_get_quark(cls_mtd, i);
+            const gchar *label = g_quark_to_string(label_quark);
+            
+            json classification = json::object();
+            classification["label"] = label ? label : "";
+            // Only include confidence if it's not 1.0 (to reduce JSON clutter)
+            if (confidence != 1.0f) {
+                classification["confidence"] = confidence;
+            }
+            classification["type"] = "transcription"; // Indicate this is transcription result
+            
+            res.push_back(classification);
+        }
+    }
+    
+    return res;
+}
+
 } // namespace
 
 gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
@@ -331,6 +376,9 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
     }
 
     try {
+        /* analytics classification section (for transcription, etc.) - works for both audio and video */
+        json analytics_classification = convert_analytics_classification(converter, buffer);
+        
         if (converter->info) {
             json jframe = get_frame_data(converter, buffer);
             /* objects section */
@@ -343,13 +391,19 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
             if (!frame_classification.empty()) {
                 jframe_objects.push_back(frame_classification);
             }
+            
+            /* Add analytics classification to frame */
+            if (!analytics_classification.empty()) {
+                jframe["classifications"] = analytics_classification;
+            }
+            
             /* tensors section */
             json jframe_tensors;
             if (converter->add_tensor_data) {
                 jframe_tensors = convert_frame_tensors(converter, buffer);
             }
 
-            if (jframe_objects.empty() && jframe_tensors.empty()) {
+            if (jframe_objects.empty() && jframe_tensors.empty() && analytics_classification.empty()) {
                 if (!converter->add_empty_detection_results) {
                     GST_DEBUG_OBJECT(converter, "No detections found. Not posting JSON message");
                     return TRUE;
@@ -371,7 +425,36 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
         }
 #ifdef AUDIO
         else {
-            return convert_audio_meta_to_json(converter, buffer);
+            // For audio streams, handle analytics classification differently
+            if (!analytics_classification.empty()) {
+                // Create a simple audio JSON message with analytics classification
+                json audio_frame = json::object();
+                GstSegment converter_segment = converter->base_gvametaconvert.segment;
+                GstClockTime timestamp = gst_segment_to_stream_time(&converter_segment, GST_FORMAT_TIME, buffer->pts);
+                
+                if (converter->source)
+                    audio_frame["source"] = converter->source;
+                if (timestamp != G_MAXUINT64)
+                    audio_frame["timestamp"] = timestamp;
+                if (converter->tags && json::accept(converter->tags))
+                    audio_frame["tags"] = json::parse(converter->tags);
+                
+                audio_frame["classifications"] = analytics_classification;
+                
+                std::string json_message = audio_frame.dump(converter->json_indent);
+                
+                // Add as GVA JSON meta
+                GstGVAJSONMeta *json_meta = GST_GVA_JSON_META_ADD(buffer);
+                if (json_meta) {
+                    json_meta->message = g_strdup(json_message.c_str());
+                    GST_INFO_OBJECT(converter, "Audio JSON message: %s", json_message.c_str());
+                } else {
+                    GST_ERROR_OBJECT(converter, "Failed to add GVA JSON meta to audio buffer");
+                }
+                return TRUE;
+            } else {
+                return convert_audio_meta_to_json(converter, buffer);
+            }
         }
 #endif
     } catch (const std::exception &e) {
