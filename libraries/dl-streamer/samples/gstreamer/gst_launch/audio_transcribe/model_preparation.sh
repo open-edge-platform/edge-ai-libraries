@@ -1,4 +1,10 @@
 #!/bin/bash
+# ==============================================================================
+# Copyright (C) 2018-2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
+
 
 # temperary deactivate OPENVINO_DIR LD_LIBRARY_PATH PYTHONPATH envs
 deactivate 2>/dev/null || true
