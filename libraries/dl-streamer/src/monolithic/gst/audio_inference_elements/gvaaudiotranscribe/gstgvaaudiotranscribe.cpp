@@ -27,7 +27,7 @@ GST_DEBUG_CATEGORY_STATIC(gva_audio_transcribe_debug_category);
 #define GST_CAT_DEFAULT gva_audio_transcribe_debug_category
 #define GST_AUDIO_TRANSCRIBE_THRESHOLD_SEC 3
 
-enum { PROP_0, PROP_MODEL_PATH, PROP_DEVICE, PROP_MODEL_TYPE};
+enum { PROP_0, PROP_MODEL_PATH, PROP_DEVICE, PROP_MODEL_TYPE };
 
 static GstStaticPadTemplate sink_factory = GST_STATIC_PAD_TEMPLATE("sink", GST_PAD_SINK, GST_PAD_ALWAYS,
                                                                    GST_STATIC_CAPS("audio/x-raw, "
@@ -71,9 +71,7 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
     // Install properties
     g_object_class_install_property(
         gobject_class, PROP_MODEL_PATH,
-        g_param_spec_string("model", "Model",
-                            "Path to the model directory", NULL,
-                            G_PARAM_READWRITE));
+        g_param_spec_string("model", "Model", "Path to the model directory", NULL, G_PARAM_READWRITE));
 
     g_object_class_install_property(
         gobject_class, PROP_DEVICE,
@@ -82,8 +80,8 @@ void gst_gva_audio_transcribe_class_init(GvaAudioTranscribeClass *gvaaudiotransc
     g_object_class_install_property(
         gobject_class, PROP_MODEL_TYPE,
         g_param_spec_string("model_type", "Model_Type",
-                            "model_type value to use whisper for inference: 'whisper' (supported).",
-                            "whisper", G_PARAM_READWRITE));
+                            "model_type value to use whisper for inference: 'whisper' (supported).", "whisper",
+                            G_PARAM_READWRITE));
 
     // Setup pad templates
     gst_element_class_add_pad_template(element_class, gst_static_pad_template_get(&src_factory));
@@ -163,7 +161,6 @@ static void gst_gva_audio_transcribe_finalize(GObject *object) {
     g_free(gvaaudiotranscribe->device);
     g_free(gvaaudiotranscribe->model_type);
 
-
     // Delete C++ objects
     if (gvaaudiotranscribe->handler) {
         gvaaudiotranscribe->handler->cleanup();
@@ -211,9 +208,9 @@ static gboolean gst_gva_audio_transcribe_start(GstBaseTransform *base) {
 
     try {
 
-        const std::string language = "<|en|>";  // English language
-        const std::string task = "transcribe";   // Transcription task
-        const bool return_timestamps = false;     // Enable timestamps
+        const std::string language = "<|en|>"; // English language
+        const std::string task = "transcribe"; // Transcription task
+        const bool return_timestamps = false;  // Enable timestamps
         if (!gvaaudiotranscribe->handler->initialize(gvaaudiotranscribe->model_path, gvaaudiotranscribe->device,
                                                      language, task, return_timestamps)) {
             GST_ERROR_OBJECT(gvaaudiotranscribe, "Handler initialization returned false (no exception)");
@@ -298,7 +295,7 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                 GstStructure *s =
                     gst_structure_new("gvaaudiotranscribe", "text", G_TYPE_STRING, transcript.c_str(), NULL);
                 gst_element_post_message(GST_ELEMENT(base), gst_message_new_element(GST_OBJECT(base), s));
-                
+
                 // Add GstAnalyticsClassification metadata to buffer
                 if (gst_buffer_is_writable(buf)) {
                     // Get or create analytics relation meta
@@ -306,16 +303,17 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                     if (!relation_meta) {
                         relation_meta = gst_buffer_add_analytics_relation_meta(buf);
                     }
-                    
+
                     if (relation_meta) {
                         // Create classification metadata with transcription result
                         GQuark transcript_quark = g_quark_from_string(transcript.c_str());
                         gfloat confidence_level = 1.0f; // High confidence for transcription
                         GstAnalyticsClsMtd cls_mtd = {0, nullptr};
-                        
-                        if (gst_analytics_relation_meta_add_cls_mtd(relation_meta, 1, &confidence_level, 
-                                                                   &transcript_quark, &cls_mtd)) {
-                            GST_INFO_OBJECT(gvaaudiotranscribe, "Added transcription as GstAnalyticsClassification metadata");
+
+                        if (gst_analytics_relation_meta_add_cls_mtd(relation_meta, 1, &confidence_level,
+                                                                    &transcript_quark, &cls_mtd)) {
+                            GST_INFO_OBJECT(gvaaudiotranscribe,
+                                            "Added transcription as GstAnalyticsClassification metadata");
                         } else {
                             GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add GstAnalyticsClassification metadata");
                         }

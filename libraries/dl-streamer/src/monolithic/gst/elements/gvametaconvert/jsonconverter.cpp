@@ -325,7 +325,7 @@ json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *b
     assert(converter && buffer && "Expected valid pointers GstGvaMetaConvert and GstBuffer");
 
     json res = json::array();
-    
+
     // Get analytics relation metadata
     GstAnalyticsRelationMeta *relation_meta = gst_buffer_get_analytics_relation_meta(buffer);
     if (!relation_meta) {
@@ -335,16 +335,15 @@ json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *b
     // Iterate through all classification metadata
     gpointer state = NULL;
     GstAnalyticsMtd mtd;
-    while (gst_analytics_relation_meta_iterate(relation_meta, &state, 
-                                             gst_analytics_cls_mtd_get_mtd_type(), &mtd)) {
+    while (gst_analytics_relation_meta_iterate(relation_meta, &state, gst_analytics_cls_mtd_get_mtd_type(), &mtd)) {
         GstAnalyticsClsMtd *cls_mtd = &mtd;
         gsize length = gst_analytics_cls_mtd_get_length(cls_mtd);
-        
+
         for (gsize i = 0; i < length; i++) {
             gfloat confidence = gst_analytics_cls_mtd_get_level(cls_mtd, i);
             GQuark label_quark = gst_analytics_cls_mtd_get_quark(cls_mtd, i);
             const gchar *label = g_quark_to_string(label_quark);
-            
+
             json classification = json::object();
             classification["label"] = label ? label : "";
             // Only include confidence if it's not 1.0 (to reduce JSON clutter)
@@ -352,11 +351,11 @@ json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *b
                 classification["confidence"] = confidence;
             }
             classification["type"] = "transcription"; // Indicate this is transcription result
-            
+
             res.push_back(classification);
         }
     }
-    
+
     return res;
 }
 
@@ -378,7 +377,7 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
     try {
         /* analytics classification section (for transcription, etc.) - works for both audio and video */
         json analytics_classification = convert_analytics_classification(converter, buffer);
-        
+
         if (converter->info) {
             json jframe = get_frame_data(converter, buffer);
             /* objects section */
@@ -391,12 +390,12 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
             if (!frame_classification.empty()) {
                 jframe_objects.push_back(frame_classification);
             }
-            
+
             /* Add analytics classification to frame */
             if (!analytics_classification.empty()) {
                 jframe["classifications"] = analytics_classification;
             }
-            
+
             /* tensors section */
             json jframe_tensors;
             if (converter->add_tensor_data) {
@@ -431,18 +430,18 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
                 json audio_frame = json::object();
                 GstSegment converter_segment = converter->base_gvametaconvert.segment;
                 GstClockTime timestamp = gst_segment_to_stream_time(&converter_segment, GST_FORMAT_TIME, buffer->pts);
-                
+
                 if (converter->source)
                     audio_frame["source"] = converter->source;
                 if (timestamp != G_MAXUINT64)
                     audio_frame["timestamp"] = timestamp;
                 if (converter->tags && json::accept(converter->tags))
                     audio_frame["tags"] = json::parse(converter->tags);
-                
+
                 audio_frame["classifications"] = analytics_classification;
-                
+
                 std::string json_message = audio_frame.dump(converter->json_indent);
-                
+
                 // Add as GVA JSON meta
                 GstGVAJSONMeta *json_meta = GST_GVA_JSON_META_ADD(buffer);
                 if (json_meta) {
