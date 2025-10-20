@@ -175,17 +175,15 @@ def sample_pipeline(pipeline, sample_duration):
 ######################################## Preprocess ###############################################
 
 def preprocess_pipeline(pipeline):
-    for element in pipeline:
-        if "decodebin" in element:
-            element = "decodebin3"
+    for i in range(len(pipeline)):
+        if "decodebin" in pipeline[i]:
+            pipeline[i] = "decodebin3"
         
-        if "vaapipostproc" in element:
-            element = "vapostproc"
+        if "vaapipostproc" in pipeline[i]:
+            pipeline[i] = "vapostproc"
 
-        if "vaapi-surface-sharing" in element:
-            element = "va-surface-sharing"
-
-    return pipeline
+        if "vaapi-surface-sharing" in pipeline[i]:
+            pipeline[i] = "va-surface-sharing"
 
 #################################### Gvadetect & Gvaclassify ######################################
 
@@ -232,11 +230,11 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
         fps = sample_pipeline(pipeline, sample_duration)
     except Exception as e:
         logger.error(f"Pipeline failed to start, unable to measure fps: {e}")
-        raise RuntimeError("Provided pipeline is not valid")
+        raise RuntimeError("Provided pipeline is not valid") from e
         
     logger.info(f"FPS: {fps:.2f}")
     
-    pipeline = preprocess_pipeline(pipeline)
+    preprocess_pipeline(pipeline)
 
     # Suggestions structure:
     #   [
