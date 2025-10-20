@@ -135,34 +135,6 @@ jobs:
         fi
       shell: bash
 
-    - name: Fail if vulnerabilities > 0 in Trivy results
-      run: |
-        echo "📁 Checking for Trivy report files..."
-        ls -la security-results/ || echo "security-results/ directory not found"
-        if [ -d "security-results/trivy" ]; then
-          ls -la security-results/trivy/
-        fi
-
-        # Look for the renamed base image report
-        file="security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
-        if [ ! -f "$file" ]; then
-          echo "⚠️ Trivy report file not found: $file"
-          echo "Skipping vulnerability check."
-          exit 0
-        fi
-
-        echo "📄 Found report: $file"
-        cat "$file"
-
-        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1)
-        if [[ -n "$vuln_count" && "$vuln_count" != "0" ]]; then
-          echo "❌ Vulnerabilities found: $vuln_count"
-          exit 1
-        else
-          echo "✅ No vulnerabilities found."
-        fi
-      shell: bash
-
     - name: Scan Docker extended image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
@@ -186,30 +158,6 @@ jobs:
           else
             echo "⚠️ No .table file found to rename"
           fi
-        fi
-      shell: bash
-
-    - name: Fail if vulnerabilities > 0 in Trivy results
-      run: |
-        echo "📁 Checking for Trivy extended report files..."
-
-        # Look for the renamed extended image report
-        file="security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
-        if [ ! -f "$file" ]; then
-          echo "⚠️ Trivy extended report file not found: $file"
-          echo "Skipping vulnerability check."
-          exit 0
-        fi
-
-        echo "📄 Found report: $file"
-        cat "$file"
-
-        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1)
-        if [[ -n "$vuln_count" && "$vuln_count" != "0" ]]; then
-          echo "❌ Vulnerabilities found: $vuln_count"
-          exit 1
-        else
-          echo "✅ No vulnerabilities found."
         fi
       shell: bash
 
@@ -242,6 +190,60 @@ jobs:
         name: DLSPS_trivy-fs-reports
         path: reports/*
 
+    - name: Analyze Trivy results and create summary
+      if: always()
+      run: |
+        echo "### 🔍 Trivy Security Scan Results for ${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        base_file="security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
+        extended_file="security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
+
+        # Function to count vulnerabilities
+        count_vulns() {
+          local file=$1
+          if [ -f "$file" ]; then
+            awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1
+          else
+            echo "N/A"
+          fi
+        }
+
+        base_vulns=$(count_vulns "$base_file")
+        extended_vulns=$(count_vulns "$extended_file")
+
+        # Base image results
+        echo "#### 📦 Base Image: \`intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
+        if [ -f "$base_file" ]; then
+          if [ "$base_vulns" = "0" ] || [ -z "$base_vulns" ]; then
+            echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Vulnerabilities found:** $base_vulns" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+
+        # Extended image results
+        echo "#### 📦 Extended Image: \`intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}\`" >> $GITHUB_STEP_SUMMARY
+        if [ -f "$extended_file" ]; then
+          if [ "$extended_vulns" = "0" ] || [ -z "$extended_vulns" ]; then
+            echo "- ✅ **No HIGH vulnerabilities found**" >> $GITHUB_STEP_SUMMARY
+          else
+            echo "- ❌ **Vulnerabilities found:** $extended_vulns" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "- ⚠️ **Report not found**" >> $GITHUB_STEP_SUMMARY
+        fi
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "---" >> $GITHUB_STEP_SUMMARY
+
+        # Store results for final check
+        echo "BASE_VULNS=$base_vulns" >> $GITHUB_ENV
+        echo "EXTENDED_VULNS=$extended_vulns" >> $GITHUB_ENV
+      shell: bash
+
     - name: Create summary
       if: always()
       run: |
@@ -251,6 +253,25 @@ jobs:
         echo "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}" >> $GITHUB_STEP_SUMMARY
         echo '```' >> $GITHUB_STEP_SUMMARY
         echo "Built on commit id: ${{ github.sha }}" >> $GITHUB_STEP_SUMMARY
+
+    - name: Fail if vulnerabilities found
+      if: always()
+      run: |
+        base_vulns="${BASE_VULNS:-N/A}"
+        extended_vulns="${EXTENDED_VULNS:-N/A}"
+
+        echo "📊 Final vulnerability check:"
+        echo "  Base image: $base_vulns"
+        echo "  Extended image: $extended_vulns"
+
+        if [[ "$base_vulns" != "0" && "$base_vulns" != "N/A" && -n "$base_vulns" ]] || \
+           [[ "$extended_vulns" != "0" && "$extended_vulns" != "N/A" && -n "$extended_vulns" ]]; then
+          echo "❌ Vulnerabilities detected in one or more images!"
+          exit 1
+        else
+          echo "✅ All security scans passed!"
+        fi
+      shell: bash
 
     - name: Clean up
       if: always()
