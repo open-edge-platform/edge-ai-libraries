@@ -124,7 +124,7 @@ jobs:
           mv "${{ env.MODELS_PATH }}/public" "${{ env.MODELS_PATH }}/public_old"
         fi
 
-    - name: Prepare directory for OMZ models
+    - name: Prepare directories - OMZ models
       if: ${{ inputs.models_to_download == 'omz' || inputs.models_to_download == 'all' || github.event_name == 'schedule'  }}
       run: |
         # Prepare directories with backup of existing ones
@@ -236,7 +236,7 @@ jobs:
         event_name: ${{ github.event_name }}
       run: |
         models=$models_to_download
-        event_name: ${{ github.event_name }}
+        event=$event_name
         if [[ "$models" == "public" || "$models" == "all" || "$event" == "schedule" ]]; then
           [ -d "${{ env.MODELS_PATH }}/public" ] && rm -rf "${{ env.MODELS_PATH }}/public"
           [ -d "${{ env.MODELS_PATH }}/public_old" ] && mv "${{ env.MODELS_PATH }}/public_old" "${{ env.MODELS_PATH }}/public"
