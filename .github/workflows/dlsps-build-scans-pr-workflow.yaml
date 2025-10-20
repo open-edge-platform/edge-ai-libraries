@@ -218,7 +218,9 @@ jobs:
       uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
       with:
         name: DLSPS_${{ matrix.ubuntu_version }}-trivy-image-reports
-        path: security-results/trivy/trivy-results-*
+        path: |
+          security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table
+          security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table
 
     - name: Run Trivy Filesystem Scan
       if: matrix.ubuntu_version == 'ubuntu22'
