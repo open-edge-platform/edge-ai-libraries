@@ -192,7 +192,7 @@ pip install --no-cache-dir --upgrade pip
 pip install --no-cache-dir "numpy<2.5.0,>=1.16.6" || handle_error $LINENO
 pip install --no-cache-dir openvino==2025.3.0 || handle_error $LINENO
 
-pip install --no-cache-dir onnx onnxscript || handle_error $LINENO
+pip install --no-cache-dir onnx || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
 pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
@@ -223,7 +223,7 @@ pip install --no-cache-dir "numpy<2.0.0,>=1.16.6" || handle_error $LINENO
 pip install --no-cache-dir openvino==2024.6.0 || handle_error $LINENO
 pip install --no-cache-dir openvino-dev==2024.6.0 || handle_error $LINENO
 
-pip install --no-cache-dir onnx onnxscript || handle_error $LINENO
+pip install --no-cache-dir onnx || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
 pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
@@ -235,7 +235,7 @@ fi
 
 # Install dependencies for CLIP models
 if [[ "${MODEL:-}" =~ clip.* || "${MODEL:-}" == "all" ]]; then
-  pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
+  pip install --no-cache-dir --upgrade torch==2.8.0 torchaudio=2.8.0 torchvision==0.23.0 || handle_error $LINENO
   pip install --no-cache-dir transformers || handle_error $LINENO
   pip install --no-cache-dir pillow || handle_error $LINENO
 fi
@@ -489,7 +489,7 @@ done
 REPO_DIR="$MODELS_PATH/yolov5_repo"
 if [ "$MODEL_IN_LISTv5" = true ] && [ ! -d "$REPO_DIR" ]; then
   git clone https://github.com/ultralytics/yolov5 "$REPO_DIR"
-  pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
+  pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchaudio=2.8.0 torchvision==0.23.0
   pip install --no-cache-dir -r "$REPO_DIR"/requirements.txt
 fi
 
@@ -582,7 +582,7 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
     mv yolov7.bin "$MODEL_DIR/FP32"
     cd ..
     rm -rf yolov7
-    pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
+    pip install --no-cache-dir --upgrade torch==2.8.0 torchaudio=2.8.0 torchvision==0.23.0 || handle_error $LINENO
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
