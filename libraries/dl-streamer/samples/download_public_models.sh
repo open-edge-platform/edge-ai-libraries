@@ -192,7 +192,7 @@ pip install --no-cache-dir --upgrade pip
 pip install --no-cache-dir "numpy<2.5.0,>=1.16.6" || handle_error $LINENO
 pip install --no-cache-dir openvino==2025.3.0 || handle_error $LINENO
 
-pip install --no-cache-dir onnx || handle_error $LINENO
+pip install --no-cache-dir onnx onnxscript || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
 pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
@@ -723,7 +723,7 @@ with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
 os.remove('${MODEL_NAME}.zip')
 "
 
-    mkdir -p FP32 
+    mkdir -p FP32
     cp license-plate-reader/models/yolov8n/yolov8n_retrained.bin FP32/${MODEL_NAME}.bin
     cp license-plate-reader/models/yolov8n/yolov8n_retrained.xml FP32/${MODEL_NAME}.xml
     chmod -R u+w license-plate-reader
@@ -942,7 +942,7 @@ with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
 os.remove('${MODEL_NAME}.zip')
 "
 
-    mkdir -p FP32 
+    mkdir -p FP32
     cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.bin FP32/${MODEL_NAME}.bin
     cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml FP32/${MODEL_NAME}.xml
     chmod -R u+w license-plate-reader
