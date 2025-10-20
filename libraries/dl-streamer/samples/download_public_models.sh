@@ -223,7 +223,7 @@ pip install --no-cache-dir "numpy<2.0.0,>=1.16.6" || handle_error $LINENO
 pip install --no-cache-dir openvino==2024.6.0 || handle_error $LINENO
 pip install --no-cache-dir openvino-dev==2024.6.0 || handle_error $LINENO
 
-pip install --no-cache-dir onnx || handle_error $LINENO
+pip install --no-cache-dir onnx onnxscript || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
 # Install or upgrade NNCF
 pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
