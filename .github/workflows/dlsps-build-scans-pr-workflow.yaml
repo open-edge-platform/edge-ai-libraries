@@ -115,11 +115,25 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: json
+        format: table
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-img"
         scan-scope: all
         timeout: 20m
         ignore_unfixed: true
+
+    - name: Rename Trivy report for base image
+      run: |
+        echo "📝 Renaming Trivy report for base image..."
+        if [ -d "security-results/trivy" ]; then
+          latest=$(ls -t security-results/trivy/trivy-results-*.table 2>/dev/null | head -n 1)
+          if [ -n "$latest" ]; then
+            mv "$latest" "security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
+            echo "✅ Renamed to: trivy-base-${{ matrix.ubuntu_version }}.table"
+          else
+            echo "⚠️ No .table file found to rename"
+          fi
+        fi
+      shell: bash
 
     - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
@@ -129,20 +143,18 @@ jobs:
           ls -la security-results/trivy/
         fi
 
-        # Try to find the report file
-        if [ -f "security-results/trivy/trivy-results-${{ matrix.ubuntu_version }}-DLSPS-img.txt" ]; then
-          file="security-results/trivy/trivy-results-${{ matrix.ubuntu_version }}-DLSPS-img.txt"
-        elif ls security-results/trivy/*DLSPS-img* 1> /dev/null 2>&1; then
-          file=$(ls security-results/trivy/*DLSPS-img* | head -n 1)
-        else
-          echo "⚠️ Trivy report file not found. Skipping vulnerability check."
+        # Look for the renamed base image report
+        file="security-results/trivy/trivy-base-${{ matrix.ubuntu_version }}.table"
+        if [ ! -f "$file" ]; then
+          echo "⚠️ Trivy report file not found: $file"
+          echo "Skipping vulnerability check."
           exit 0
         fi
 
         echo "📄 Found report: $file"
         cat "$file"
 
-        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1)
         if [[ -n "$vuln_count" && "$vuln_count" != "0" ]]; then
           echo "❌ Vulnerabilities found: $vuln_count"
           exit 1
@@ -157,30 +169,42 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: json
+        format: table
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-extended-img"
         scan-scope: all
         timeout: 20m
         ignore_unfixed: true
 
+    - name: Rename Trivy report for extended image
+      run: |
+        echo "📝 Renaming Trivy report for extended image..."
+        if [ -d "security-results/trivy" ]; then
+          latest=$(ls -t security-results/trivy/trivy-results-*.table 2>/dev/null | head -n 1)
+          if [ -n "$latest" ]; then
+            mv "$latest" "security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
+            echo "✅ Renamed to: trivy-extended-${{ matrix.ubuntu_version }}.table"
+          else
+            echo "⚠️ No .table file found to rename"
+          fi
+        fi
+      shell: bash
+
     - name: Fail if vulnerabilities > 0 in Trivy results
       run: |
         echo "📁 Checking for Trivy extended report files..."
 
-        # Try to find the report file
-        if [ -f "security-results/trivy/trivy-results-${{ matrix.ubuntu_version }}-DLSPS-extended-img.txt" ]; then
-          file="security-results/trivy/trivy-results-${{ matrix.ubuntu_version }}-DLSPS-extended-img.txt"
-        elif ls security-results/trivy/*DLSPS-extended-img* 1> /dev/null 2>&1; then
-          file=$(ls security-results/trivy/*DLSPS-extended-img* | head -n 1)
-        else
-          echo "⚠️ Trivy extended report file not found. Skipping vulnerability check."
+        # Look for the renamed extended image report
+        file="security-results/trivy/trivy-extended-${{ matrix.ubuntu_version }}.table"
+        if [ ! -f "$file" ]; then
+          echo "⚠️ Trivy extended report file not found: $file"
+          echo "Skipping vulnerability check."
           exit 0
         fi
 
         echo "📄 Found report: $file"
         cat "$file"
 
-        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '-' | head -n 1)
+        vuln_count=$(awk '/│/ && /Vulnerabilities/ {next} /│/ {gsub(/ /, "", $0); split($0, cols, "│"); print cols[4]}' "$file" | grep -v '^-$' | grep -v '^$' | head -n 1)
         if [[ -n "$vuln_count" && "$vuln_count" != "0" ]]; then
           echo "❌ Vulnerabilities found: $vuln_count"
           exit 1
