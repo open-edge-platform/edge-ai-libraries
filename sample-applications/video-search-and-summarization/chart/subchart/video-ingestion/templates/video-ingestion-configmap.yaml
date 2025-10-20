@@ -42,9 +42,9 @@ data:
 
     def main():
         parser = argparse.ArgumentParser(description="Convert YOLO models to OpenVINO IR format")
-        parser.add_argument("--model-name", type=str, default='yolov8l-worldv2', 
+        parser.add_argument("--model-name", type=str,
                             help="Name of the model (without extension, e.g., 'yolov8l-worldv2')")
-        parser.add_argument("--model-type", type=str, default='yolo_v8', 
+        parser.add_argument("--model-type", type=str, 
                             help="Type of model (e.g., 'yolo_v8', 'YOLOv8-SEG')")
         parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld', 
                             help="Directory to save the converted models")
@@ -61,8 +61,8 @@ data:
     set -e
 
     # Default model settings (can be overridden by environment variables)
-    export OD_MODEL_NAME=${OD_MODEL_NAME:-"yolov8l-worldv2"}
-    export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
+    export OD_MODEL_NAME=${OD_MODEL_NAME}
+    export OD_MODEL_TYPE=${OD_MODEL_TYPE}
     export OD_MODEL_OUTPUT_DIR=${OD_MODEL_OUTPUT_DIR:-"/home/pipeline-server/models/yoloworld"}
 
     # Function to convert object detection models

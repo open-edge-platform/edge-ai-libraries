@@ -95,18 +95,9 @@ Directory (`edge-ai-libraries/microservices/time-series-analytics/`) details is 
   
 ### **`config.json`**:
 
-
 | Key                     | Description                                                                                     | Example Value                          |
 |-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-| `model_registry`        | Configuration for the Model Registry microservice.                                              | See below for details.                 |
 | `udfs`                  | Configuration for the User-Defined Functions (UDFs).                                            | See below for details.                 |
-
-**Model Registry Configuration**:
-
-| Key                     | Description                                                                                     | Example Value                          |
-|-------------------------|-------------------------------------------------------------------------------------------------|----------------------------------------|
-| `enable`                | Boolean flag to enable fetching UDFs and models from the Model Registry microservice.           | `true` or `false`                      |
-| `version`               | Specifies the version of the task or model to use.                                              | `"1.0"`                                |
 
 **UDFs Configuration**:
 

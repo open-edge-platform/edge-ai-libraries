@@ -1,11 +1,15 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 export enum StateActionStatus {
   NA = 'na',
   READY = 'ready',
   IN_PROGRESS = 'inProgress',
   COMPLETE = 'complete',
+}
+
+export enum StateStatus {
+  IDLE,
+  LOADING,
 }
 
 export interface ObjectBoundingBox {
@@ -97,6 +101,7 @@ export interface UIFrameSummary {
   startFrame: string;
   endFrame: string;
   status: StateActionStatus;
+  embeddingsCreated?: boolean;
   stateId: string;
 }
 
@@ -200,6 +205,7 @@ export interface SummaryUserInputs {
 export interface SummaryState {
   summaries: Record<string, UISummaryState>;
   selectedSummary: string | null;
+  status: StateStatus;
 }
 
 export interface VideoChunkState {
@@ -222,6 +228,7 @@ export interface ChunkSummaryStatusFromFrames {
   summaryUsingFrames: number;
   summaryStatus: StateActionStatus;
   summaries: SummaryStatusWithFrames[];
+  hasEmbeddings: boolean;
 }
 
 export interface SummaryStreamChunk {

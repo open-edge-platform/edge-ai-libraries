@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Injectable } from '@nestjs/common';
 import {
   CountStatus,
@@ -14,12 +13,8 @@ import {
   FrameSummary,
   InferenceConfig,
   State,
-  StateActionStatus,
   StateAudio,
-  StateChunkFrame,
 } from '../models/state.model';
-import { ConfigService } from '@nestjs/config';
-import { DatastoreService } from 'src/datastore/services/datastore.service';
 
 @Injectable()
 export class UiService {
@@ -175,7 +170,7 @@ export class UiService {
     const state = this.$state.fetch(stateId);
 
     if (state) {
-      let uiState: UIState = {
+      const uiState: UIState = {
         chunks: [],
         frames: [],
         stateId: state.stateId,

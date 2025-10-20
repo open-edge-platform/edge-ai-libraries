@@ -21,7 +21,7 @@ To learn about object tracking refer this [doc](./object_tracking/object_trackin
 To enable secure REST API, refer this [doc](./https/dlstreamer_pipeline_server_https.md)
 
 ## Performance Analysis
-To learn about performance metrics using GST tracers and logging, refer this [doc](./performance/Processing-Latency.md)
+To learn about performance metrics using GST tracers and logging, refer this [doc](./performance/processing-latency.md)
 
 ## Get tensor vector data
 To learn how to get tensor data during inference, refer this [doc](./get-tensor-vector-data.md)
@@ -38,16 +38,19 @@ To enable Open Telemetry and capture various runtime statistics, refer this [doc
 ## Working with other services
 To learn how DL Streamer Pipeline Server interacts with other microservices such as Model Registry, refer this [doc](./work-with-other-services.md)
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
 model_update/dlstreamer_pipeline_server_model_update.md
 object_tracking/object_tracking.md
 https/dlstreamer_pipeline_server_https.md
-performance/Processing-Latency.md
+performance/processing-latency.md
+performance/core-pinning.md
 get-tensor-vector-data.md
 multistream-pipelines.md
 cross-stream-batching.md
 enable-open-telemetry.md
 work-with-other-services.md
 ```
+hide_directive-->

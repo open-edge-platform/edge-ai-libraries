@@ -62,10 +62,11 @@ To learn how to configure Geti Pallet Defect Detection UDF, refer to this [secti
 ### Add Label
 To learn how to configure Add Label UDF, refer to this [section](./configuring_udfloader.md#add-label).
 
-
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
 UDF_writing_guide.md
 configuring_udfloader.md
 ```
+hide_directive-->

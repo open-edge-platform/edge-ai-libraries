@@ -1,3 +1,5 @@
+// Copyright (C) 2025 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
 import { FC, useEffect, useState } from 'react';
 import { useHorizontalScroll } from '../../utils/horizontalScroller';
 
@@ -14,11 +16,11 @@ import {
   SummaryStatusWithFrames,
   UIChunkForState,
 } from '../../redux/summary/summary';
-import { IconButton, Modal, ModalBody } from '@carbon/react';
+import { Modal, ModalBody, Tooltip } from '@carbon/react';
 import styled from 'styled-components';
 import Markdown from 'react-markdown';
 import { processMD } from '../../utils/util';
-import { ClosedCaption } from '@carbon/icons-react';
+import { ClosedCaption, Information } from '@carbon/icons-react';
 import { getStatusByPriority, StatusIndicator } from './StatusTag';
 
 export interface ChunksContainerProps {}
@@ -47,20 +49,17 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
   const [modalBody, setModalBody] = useState<SummaryStatusWithFrames[]>([]);
   const [showModal, setShowModal] = useState<boolean>(false);
 
-  const detailsClickHandler = (
-    heading: string,
-    text: SummaryStatusWithFrames[],
-  ) => {
+  const detailsClickHandler = (heading: string, text: SummaryStatusWithFrames[]) => {
     setModalHeading(heading);
     setModalBody(text);
     setShowModal(true);
   };
-  const [summaryStatus, setSummaryStatus] =
-    useState<ChunkSummaryStatusFromFrames>(() => ({
-      summaries: [],
-      summaryUsingFrames: 0,
-      summaryStatus: StateActionStatus.NA,
-    }));
+  const [summaryStatus, setSummaryStatus] = useState<ChunkSummaryStatusFromFrames>(() => ({
+    summaries: [],
+    summaryUsingFrames: 0,
+    summaryStatus: StateActionStatus.NA,
+    hasEmbeddings: false,
+  }));
 
   const [uiChunkData, setUIChunkData] = useState<UIChunkForState | null>(null);
 
@@ -72,10 +71,11 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
 
   useEffect(() => {
     if (uiChunkData && frames.length > 0 && frameSummaries.length > 0) {
-      let response: ChunkSummaryStatusFromFrames = {
+      const response: ChunkSummaryStatusFromFrames = {
         summaryUsingFrames: 0,
         summaries: [],
         summaryStatus: StateActionStatus.NA,
+        hasEmbeddings: false,
       };
 
       const chunkFrames = frames
@@ -86,13 +86,11 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
         const lastFrame = chunkFrames[chunkFrames.length - 1];
 
         const relevantSumms = frameSummaries.filter(
-          (el) =>
-            +el.endFrame >= +lastFrame.frameId &&
-            +el.endFrame <= +lastFrame.frameId,
+          (el) => +el.endFrame >= +lastFrame.frameId && +el.endFrame <= +lastFrame.frameId,
         );
 
         for (const summ of relevantSumms) {
-          let statusCount: CountStatus = {
+          const statusCount: CountStatus = {
             complete: 0,
             inProgress: 0,
             na: 0,
@@ -110,6 +108,8 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
             });
           }
         }
+
+        response.hasEmbeddings = frameSummaries.some((el) => el.embeddingsCreated);
       }
 
       setSummaryStatus(response);
@@ -145,7 +145,6 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
           <span className='chunk-name'>
             {t('ChunkPrefix') + ' ' + uiChunkData?.chunkId}
             <span className='spacer'></span>
-            <IconButton label='' kind='ghost' />
 
             {summaryStatus.summaryUsingFrames > 0 && (
               <StatusIndicator
@@ -155,10 +154,16 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
                 action={summaryStatus.summaryStatus}
               />
             )}
+
+            {summaryStatus.hasEmbeddings && (
+              <Tooltip label={t('EmbeddingsCreated')} autoAlign>
+                <Information />
+              </Tooltip>
+            )}
             {summaryStatus.summaries.length > 0 && (
-              <IconButton
+              <Tooltip
                 label={t('showSummaries')}
-                kind='ghost'
+                autoAlign
                 onClick={() => {
                   detailsClickHandler(
                     t('chunkSummaryHeading', {
@@ -169,18 +174,27 @@ export const ChunkContainer: FC<ChunkContainer> = ({ chunkKey }) => {
                 }}
               >
                 <ClosedCaption />
-              </IconButton>
+              </Tooltip>
+              // <IconButton
+              //   label={t('showSummaries')}
+              //   kind='ghost'
+              //   onClick={() => {
+              //     detailsClickHandler(
+              //       t('chunkSummaryHeading', {
+              //         chunkId: uiChunkData?.chunkId,
+              //       }),
+              //       summaryStatus.summaries,
+              //     );
+              //   }}
+              // >
+              // </IconButton>
             )}
           </span>
           {uiChunkData?.duration && (
             <div className='chunk-duration'>
               <span>{uiChunkData.duration.from.toFixed(2) + 's'} </span>
               <span className='spacer'></span>
-              <span>
-                {uiChunkData.duration.to == -1
-                  ? t('endOfVideo')
-                  : uiChunkData.duration.to.toFixed(2) + 's'}
-              </span>
+              <span>{uiChunkData.duration.to == -1 ? t('endOfVideo') : uiChunkData.duration.to.toFixed(2) + 's'}</span>
             </div>
           )}
         </div>

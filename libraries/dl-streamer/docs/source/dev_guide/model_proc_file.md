@@ -10,7 +10,7 @@
 
 ## Table of Contents
 
-- [Overview](#overview)
+- [model-proc Overview](#model-proc-overview)
 - [Pre-processing description](#pre-processing-description)
   - [Pre-processing configuration](#pre-processing-configuration)
   - [Example](#example-of-input-preprocessing)
@@ -18,7 +18,7 @@
   - [Post-processing configuration](#post-processing-configuration)
   - [Example](#example-of-output-post-processing)
 
-## Summary
+## model-proc Overview
 
 A model-proc file is a regular JSON file with pre- and post-processing
 configuration.
@@ -297,8 +297,10 @@ Below is an example of `output_postproc` and its parameters:
 ...
 ```
 
+<!--hide_directive
 :::{toctree}
 :maxdepth: 2
 
 how_to_create_model_proc_file
 :::
+hide_directive-->

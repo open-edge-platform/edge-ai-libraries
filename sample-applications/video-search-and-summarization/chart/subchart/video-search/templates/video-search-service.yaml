@@ -6,8 +6,8 @@ spec:
   type: {{ .Values.videosearch.service.type }}
   ports:
     - port: {{ .Values.videosearch.service.port }}
-      targetPort: {{ .Values.videosearch.service.targetPort }}
+      targetPort: {{ .Values.videosearch.containerPortName }}
       protocol: TCP
-      name: http
+      name: {{ .Values.videosearch.service.portName }}
   selector:
     app: {{ include "videosearch.name" . }}
