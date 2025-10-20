@@ -68,17 +68,6 @@ jobs:
         "${DLS_PATH}"
         echo "BASE_IMAGE=${deb_final_img}" >> $GITHUB_ENV
 
-    # - name: Set BASE_IMAGE
-    #   env:
-    #     BASE_IMAGE22: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu22" # TODO: Use latest available image
-    #     BASE_IMAGE24: "ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu24" # TODO: Use latest available image
-    #   run: |
-    #     if [ "${{ matrix.ubuntu_version }}" == "ubuntu22" ]; then
-    #       echo "BASE_IMAGE=${BASE_IMAGE22}" >> $GITHUB_ENV
-    #     elif [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
-    #       echo "BASE_IMAGE=${BASE_IMAGE24}" >> $GITHUB_ENV
-    #     fi
-
     - name: Build dls-pipeline-server-img
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
@@ -126,7 +115,7 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: table
+        format: json
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-img"
         scan-scope: all
         timeout: 20m
@@ -168,7 +157,7 @@ jobs:
         scan_target: "intel/dlstreamer-pipeline-server:3.1.0-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
-        format: table
+        format: json
         report_suffix: "-${{ matrix.ubuntu_version }}-dlsps-extended-img"
         scan-scope: all
         timeout: 20m
@@ -373,7 +362,7 @@ jobs:
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: microservices/dlstreamer-pipeline-server
-      trivy-report-format: 'table'
+      trivy-report-format: 'json'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: reports/DLSPS_trivy_config_report.txt
       name: DLSPS_trivy_report
