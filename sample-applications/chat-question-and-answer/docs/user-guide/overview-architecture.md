@@ -35,6 +35,9 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 1. **Input Sources**:
    - **Documents**: The document ingestion microservice supports ingesting documents in various formats. Supported formats are word and pdf.    
    - **Web pages**: Contents of accessible web pages can also be parsed and used as input for the RAG pipeline.
+     
+     > **Note**: This application works best with non–JavaScript-heavy pages (e.g., Wikipedia, blogs, news sites) that render most of their content directly in HTML. JavaScript-heavy pages (e.g., social media platforms, single-page applications) load content dynamically via JavaScript, so their raw HTML often lacks useful text. The current implementation only parses raw HTML and does not execute JavaScript, so such pages may return incomplete or inaccurate results and should be avoided or handled separately.
+
 2. **Create the context**
    - **Upload input documents and web links**: The UI microservice allows the developer to interact with the ChatQ&A backend. It provides the interface to upload the documents and weblinks on which the RAG pipeline will be executed. The documents are uploaded and stored in object store. MinIO is the database used for object store.
    - **Convert to embeddings space**: The ChatQ&A backend microservice creates the embeddings out of the uploaded documents and web pages using the document ingestion microservice. The Embeddings microservice is used to create the embeddings. The embeddings are stored in a vector database. PGVector is used in the sample application.

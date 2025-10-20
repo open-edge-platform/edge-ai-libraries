@@ -123,7 +123,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@cd8df4807e6a736f181d20e69ba25791be1e11d7
+    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@aca8b81017baf9d2790e4bf31232895553909970
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}

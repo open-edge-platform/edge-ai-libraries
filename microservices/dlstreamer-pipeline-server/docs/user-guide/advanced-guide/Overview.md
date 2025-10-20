@@ -41,14 +41,15 @@
 -   [Model Update](./detailed_usage/how-to-advanced/model_update/dlstreamer_pipeline_server_model_update.md)
 -   [Object tracking](./detailed_usage/how-to-advanced/object_tracking/object_tracking.md)
 -   [Enable HTTPS for DL Streamer Pipeline Server](./detailed_usage/how-to-advanced/https/dlstreamer_pipeline_server_https.md)
--   [Performance Analysis](./detailed_usage/how-to-advanced/performance/Processing-Latency.md)
+-   [Performance Analysis](./detailed_usage/how-to-advanced/performance/processing-latency.md)
+-   [Core Pinning](./detailed_usage/how-to-advanced/performance/core-pinning.md)
 -   [Get tensor vector data](./detailed_usage/how-to-advanced/get-tensor-vector-data.md)
 -   [Multistream pipelines with shared model instance](./detailed_usage/how-to-advanced/multistream-pipelines.md)
 -   [Cross stream batching](./detailed_usage/how-to-advanced/cross-stream-batching.md)
 -   [Enable Open Telemetry](./detailed_usage/how-to-advanced/enable-open-telemetry.md)
 -   [Working with other services](./detailed_usage/how-to-advanced/work-with-other-services.md)
 
-
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -60,3 +61,4 @@ detailed_usage/udf/Overview
 detailed_usage/publisher/Overview
 detailed_usage/how-to-advanced/Overview
 ```
+hide_directive-->

@@ -1,7 +1,7 @@
 
-```{eval-rst}
+<!--hide_directive```{eval-rst}
 :orphan:
-```
+```hide_directive-->
 
 # MQTT Publishing via gvapython
 
@@ -27,7 +27,7 @@ The python script `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline
 Prior to DL Streamer Pipeline Server publishing, MQTT broker and subscriber needs to be configured and started.
 
 ### Verify MQTT broker has started
-When bringing up DL Streamer Pipeline Server containers in standalone mode using `docker compose up`, MQTT broker is also started listening on port `1883`. 
+When bringing up DL Streamer Pipeline Server containers in standalone mode using `docker compose up`, MQTT broker is also started listening on port `1883`.
 Verify MQTT broker is up and running using `docker ps`.
 
 To configure and start MQTT broker refer [here](./eis_mqtt_publish_doc.md#configure-and-start-mqtt-broker)
@@ -38,9 +38,9 @@ For starting MQTT subscriber, refer [here](./eis_mqtt_publish_doc.md#start-mqtt-
 ## Configure DL Streamer Pipeline Server for MQTT Publishing
 
 ### Configuration options
-Here is a sample configuration which performs Pallet Defect Detection and publishes the inference results to mqtt broker using gvapython script. 
+Here is a sample configuration which performs Pallet Defect Detection and publishes the inference results to mqtt broker using gvapython script.
 
-```bash 
+```bash
 "pipeline": "{auto_source} name=source  ! decodebin ! videoconvert ! gvadetect name=detection ! queue ! gvawatermark ! gvametaconvert name=metaconvert ! gvapython class=MQTTPublisher function=process module=/home/pipeline-server/gvapython/mqtt_publisher/mqtt_publisher.py name=mqtt_publisher ! gvametapublish name=destination ! appsink name=appsink",
 ```
 
@@ -117,10 +117,10 @@ MQTT_HOST=<mqtt broker address>
 MQTT_PORT=1883
 ```
 
-## Secure publishing 
+## Secure publishing
 Publishing to MQTT broker could be over a secure communication channel providing encryption and authentication over TLS.
 
-Follow the steps 1, 2 and 3 from [here](./eis_mqtt_publish_doc.md#secure-publishing). 
+Follow the steps 1, 2 and 3 from [here](./eis_mqtt_publish_doc.md#secure-publishing).
 - Generate certificates
 - Configure and start MQTT broker
 - Configure and start MQTT subscriber
@@ -168,8 +168,8 @@ Upon completing the broker and subscriber setup, refer to the below steps to con
                     }
                 }
     }'
-   
+
     ```
 
 ## Error Handling
-Refer to the section [here](./eis_mqtt_publish_doc.md#error-handling) for error handling details. 
+Refer to the section [here](./eis_mqtt_publish_doc.md#error-handling) for error handling details.

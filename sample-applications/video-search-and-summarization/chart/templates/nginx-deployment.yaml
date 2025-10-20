@@ -17,7 +17,7 @@ data:
 
         # Add specific location for assets to properly handle static files like fonts
         location /assets/ {
-            proxy_pass http://{{ .Values.videosummaryui.name }}:{{ .Values.videosummaryui.service.port }}/assets/;
+            proxy_pass http://{{ include "videosummaryui.name" .Subcharts.videosummaryui }}/assets/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -29,7 +29,7 @@ data:
         }
 
         location / {
-            proxy_pass http://{{ .Values.videosummaryui.name }}:{{ .Values.videosummaryui.service.port }};
+            proxy_pass http://{{ include "videosummaryui.name" .Subcharts.videosummaryui }};
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -41,7 +41,7 @@ data:
         }
         
         location /manager/ {
-            proxy_pass http://{{ .Values.videoSummaryManager.name }}:{{ .Values.videoSummaryManager.service.targetPort }}/;
+            proxy_pass http://{{ .Values.videoSummaryManager.name }}:80/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -56,14 +56,14 @@ data:
             proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
             proxy_set_header Host $host;
 
-            proxy_pass http://{{ .Values.videoSummaryManager.name }}:{{ .Values.videoSummaryManager.service.targetPort }}/ws/;
+            proxy_pass http://{{ .Values.videoSummaryManager.name }}:80/ws/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "upgrade";
         }
 
         location /minio/ {
-            proxy_pass http://{{ .Values.minioServer.name }}:{{ .Values.minioServer.service.port }}/;
+            proxy_pass http://{{ include "minioserver.name" .Subcharts.minioserver }}:{{ .Values.minioserver.service.apiPort }}/;
             proxy_http_version 1.1;
             proxy_set_header Upgrade $http_upgrade;
             proxy_set_header Connection "Upgrade";
@@ -101,6 +101,7 @@ spec:
           name: nginx-config-volume
         ports:
         - containerPort: 80
+          name: {{ .Values.nginx.containerPortName }}
       securityContext: {}
       volumes:
       - configMap:
@@ -114,10 +115,9 @@ metadata:
   name: {{ include "nginx.fullname" . }}
 spec:
   ports:
-  - port: 80
+  - port: {{ .Values.nginx.service.port }}
     protocol: TCP
-    targetPort: 80
-    nodePort: {{ .Values.global.env.UI_NODEPORT }}
+    targetPort: {{ .Values.nginx.containerPortName }}
   selector:
     app: {{ include "nginx.fullname" . }}
   type: NodePort

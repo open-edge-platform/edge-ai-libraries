@@ -72,6 +72,8 @@
 
 #define DEFAULT_CUSTOM_POSTPROC_LIB nullptr
 
+#define DEFAULT_OV_EXTENSION_LIB nullptr
+
 G_DEFINE_TYPE_WITH_PRIVATE(GvaBaseInference, gva_base_inference, GST_TYPE_BASE_TRANSFORM);
 
 GST_DEBUG_CATEGORY_STATIC(gva_base_inference_debug_category);
@@ -104,7 +106,8 @@ enum {
     PROP_LABELS_FILE,
     PROP_SCALE_METHOD,
     PROP_CUSTOM_PREPROC_LIB,
-    PROP_CUSTOM_POSTPROC_LIB
+    PROP_CUSTOM_POSTPROC_LIB,
+    PROP_OV_EXTENSION_LIB
 };
 
 GType gst_gva_base_inference_get_inf_region(void) {
@@ -229,6 +232,11 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
                             "const GstStructure *params, GstAnalyticsRelationMeta *relationMeta);",
                             DEFAULT_CUSTOM_POSTPROC_LIB, param_flags));
 
+    g_object_class_install_property(gobject_class, PROP_OV_EXTENSION_LIB,
+                                    g_param_spec_string("ov-extension-lib", "OpenVINO Extension Library",
+                                                        "Path to the .so file defining custom OpenVINO operations.",
+                                                        DEFAULT_OV_EXTENSION_LIB, param_flags));
+
     g_object_class_install_property(
         gobject_class, PROP_MODEL_INSTANCE_ID,
         g_param_spec_string(
@@ -239,11 +247,12 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
 
     g_object_class_install_property(
         gobject_class, PROP_SCHEDULING_POLICY,
-        g_param_spec_string(
-            "scheduling-policy", "Scheduling Policy",
-            "Scheduling policy across streams sharing same model instance: "
-            "throughput (select first incoming frame), latency (select frames with earliest presentation time)",
-            DEFAULT_SCHEDULING_POLICY, (GParamFlags)(param_flags)));
+        g_param_spec_string("scheduling-policy", "Scheduling Policy",
+                            "Scheduling policy across streams sharing same model instance: "
+                            "throughput (select first incoming frame), "
+                            "latency (select frames with earliest presentation time out of the streams sharing same "
+                            "model-instance-id; recommended batch-size less than or equal to the number of streams) ",
+                            DEFAULT_SCHEDULING_POLICY, (GParamFlags)(param_flags)));
 
     g_object_class_install_property(
         gobject_class, PROP_PRE_PROC_BACKEND,
@@ -442,6 +451,9 @@ void gva_base_inference_cleanup(GvaBaseInference *base_inference) {
 
     g_free(base_inference->custom_postproc_lib);
     base_inference->custom_postproc_lib = nullptr;
+
+    g_free(base_inference->ov_extension_lib);
+    base_inference->ov_extension_lib = nullptr;
 }
 
 void gva_base_inference_init(GvaBaseInference *base_inference) {
@@ -495,6 +507,7 @@ void gva_base_inference_init(GvaBaseInference *base_inference) {
     base_inference->scale_method = nullptr;
     base_inference->custom_preproc_lib = g_strdup(DEFAULT_MODEL_PROC);
     base_inference->custom_postproc_lib = g_strdup(DEFAULT_CUSTOM_POSTPROC_LIB);
+    base_inference->ov_extension_lib = g_strdup(DEFAULT_OV_EXTENSION_LIB);
 }
 
 GstStateChangeReturn gva_base_inference_change_state(GstElement *element, GstStateChange transition) {
@@ -683,6 +696,11 @@ void gva_base_inference_set_property(GObject *object, guint property_id, const G
         base_inference->custom_postproc_lib = g_value_dup_string(value);
         GST_INFO_OBJECT(base_inference, "custom-postproc-lib: %s", base_inference->custom_postproc_lib);
         break;
+    case PROP_OV_EXTENSION_LIB:
+        g_free(base_inference->ov_extension_lib);
+        base_inference->ov_extension_lib = g_value_dup_string(value);
+        GST_INFO_OBJECT(base_inference, "ov-extension-lib: %s", base_inference->ov_extension_lib);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
         break;
@@ -763,6 +781,9 @@ void gva_base_inference_get_property(GObject *object, guint property_id, GValue 
         break;
     case PROP_CUSTOM_POSTPROC_LIB:
         g_value_set_string(value, base_inference->custom_postproc_lib);
+        break;
+    case PROP_OV_EXTENSION_LIB:
+        g_value_set_string(value, base_inference->ov_extension_lib);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);

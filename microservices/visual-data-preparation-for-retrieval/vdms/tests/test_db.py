@@ -14,19 +14,13 @@ def vdms_client(mocker, tmp_path):
     A pytest fixture to use mock VDMS_Client object
     """
     mocker.patch("src.core.db.VDMS_Client", return_value=None)
-    mocker.patch("src.core.db.vCLIPEmbeddings", return_value=object)
+    mocker.patch("src.core.embedding.vCLIPEmbeddings", return_value=object)
 
     mock_vdms = mocker.MagicMock()
     mock_vdms.add_videos.return_value = None
     mocker.patch("src.core.db.VDMS", return_value=mock_vdms)
 
-    client = VDMSClient(
-        host="localhost",
-        port=22222,
-        collection_name="test-index",
-        model="super-model",
-        video_metadata_path=tmp_path,
-    )
+    client = VDMSClient(host="localhost", port=22222, collection_name="test-index", embedder=object)
 
     assert client.client == None
     assert client.video_db == mock_vdms
@@ -46,7 +40,7 @@ def test_vdms_client_props(vdms_client, tmp_path):
     assert vdms_client.embedding_dimensions == 512
     assert vdms_client.video_search_type == "similarity"
     assert vdms_client.constraints is None
-    src.core.db.vCLIPEmbeddings.assert_called_once_with(model="super-model")
+    src.core.embedding.vCLIPEmbeddings.assert_called_once_with(model="super-model")
 
 
 def test_vdms_client_conn(vdms_client):

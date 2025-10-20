@@ -1,0 +1,17 @@
+image:
+  registry: "intel/"
+  pullPolicy: IfNotPresent
+  tags:
+    ui: "core_1.3.0"
+
+
+global:
+  http_proxy: ""
+  https_proxy: ""
+  no_proxy: ""
+  app_backend_url: "/v1/chatqna"
+
+uiService:
+  type: ClusterIP
+  port: 8102
+  targetPort: 8102

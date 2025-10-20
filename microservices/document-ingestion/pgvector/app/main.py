@@ -389,7 +389,7 @@ async def delete_urls(
     url: Optional[str] = None, delete_all: Optional[bool] = False
 ) -> None:
     """
-    Delete a document or all documents from storage and their embeddings from Vector DB.
+    Delete a URL or all URLs from storage and their embeddings from Vector DB.
 
     Args:
         url (str): URL to be deleted

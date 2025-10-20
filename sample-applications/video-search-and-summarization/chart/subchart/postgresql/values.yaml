@@ -1,15 +1,15 @@
 replicaCount: 1
 
 global:
-  proxy:
-    no_proxy:
-    http_proxy:
-    https_proxy: 
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: "/mnt/pgsql"
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  
   env:
     POSTGRES_USER:
     POSTGRES_PASSWORD:
     POSTGRES_DB:
-
 
 postgresql:
   name: postgresql
@@ -19,16 +19,16 @@ postgresql:
     tag: "17.4"
     pullPolicy: IfNotPresent
 
+  containerPort: 5432   # Port on which container application listens internally
+  containerPortName: postgres-port  # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 5432
-  volumeMounts:
-    pvcName: postgresql-pvc
-    egai_postgresql_pvc:
-      size: 20Gi
-      accessMode: ReadWriteOnce
+    port: 5432  # Port on which service listens for incoming connection, if exposed externally
 
   resources: {}
   nodeSelector: {}
   tolerations: []
   affinity: {}
+
+podSecurityContext: {}
+containerSecurityContext: {}

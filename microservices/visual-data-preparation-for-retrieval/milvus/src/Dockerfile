@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12-slim
+FROM python:3.12.10-slim
 
 ENV LANG=C.UTF-8
 

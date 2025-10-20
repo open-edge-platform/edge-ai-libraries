@@ -106,6 +106,9 @@ tensors to a GStreamer representation attached to a frame as metadata.
 If there is no suitable pre- and/or post-processing implementation in the Deep Learning Streamer,
 [Custom Processing](./custom_processing.md) can be used.
 
+For models with custom operations not natively supported by OpenVINO™, see
+[OpenVINO Custom Operations](./openvino_custom_operations.md).
+
 ## 3. Specify model files in GStreamer elements
 
 The path to the .xml model file must be specified by the mandatory `model`
@@ -129,6 +132,7 @@ pre-processing/post-processing rules:
 gvadetect model=MODEL1_FILE_PATH.xml model-proc=MODEL1_FILE_PATH.json ! gvaclassify model=MODEL2_FILE_PATH.xml model-proc=MODEL2_FILE_PATH.json
 ```
 
+<!--hide_directive
 :::{toctree}
 :maxdepth: 2
 
@@ -136,3 +140,4 @@ yolo_models
 lvms
 download_public_models
 :::
+hide_directive-->

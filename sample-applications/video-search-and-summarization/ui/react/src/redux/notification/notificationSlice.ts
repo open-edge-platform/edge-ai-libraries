@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
 import { uuidv4 } from '../../utils/util.ts';
