@@ -7,8 +7,7 @@ import subprocess
 
 import gi
 gi.require_version("Gst", "1.0")
-gi.require_version("GLib", "2.0")
-from gi.repository import Gst, GLib
+from gi.repository import Gst
 
 ####################################### Init ######################################################
 
@@ -17,7 +16,10 @@ logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)8s] - %
 logger = logging.getLogger(__name__)
 logger.info("GStreamer initialized successfully")
 gst_version = Gst.version()
-logger.info(f"GStreamer version: {gst_version.major}.{gst_version.minor}.{gst_version.micro}")
+logger.info("GStreamer version: %d.%d.%d",
+            gst_version.major,
+            gst_version.minor,
+            gst_version.micro)
 
 
 ####################################### Utils #####################################################
@@ -43,17 +45,17 @@ def log_parameters_of_interest(pipeline):
     for element in pipeline:
         if "gvadetect" in element:
             parameters = parse_element_parameters(element)
-            logger.info(f'''Found Gvadetect, 
-                device: {parameters.get("device", "not set")}, 
-                batch size: {parameters.get("batch-size", "not set")}, 
-                nireqs: {parameters.get("nireq", "not set")}''')
+            logger.info("Found Gvadetect, device: %s, batch size: %s, nireqs: %s",
+                        parameters.get("device", "not set"), 
+                        parameters.get("batch-size", "not set"), 
+                        parameters.get("nireq", "not set"))
             
         if "gvaclassify" in element:
             parameters = parse_element_parameters(element)
-            logger.info(f'''Found Gvaclassify, 
-                device: {parameters.get("device", "not set")}, 
-                batch size: {parameters.get("batch-size", "not set")}, 
-                nireqs: {parameters.get("nireq", "not set")}''')
+            logger.info("Found Gvaclassify, device: %s, batch size: %s, nireqs: %s",
+                        parameters.get("device", "not set"), 
+                        parameters.get("batch-size", "not set"), 
+                        parameters.get("nireq", "not set"))
 
 ###################################### System Scanning ############################################
 
@@ -62,11 +64,16 @@ def scan_system():
                "NPU": False}
 
     # check for presence of GPU
-    gpu_dir = "/dev/dri"
-    files = os.listdir(gpu_dir)
-    for file in files:
-        if "render" in file:
-            context["GPU"] = True
+    try:
+        gpu_query = subprocess.run(["dpkg", "-l", "intel-opencl-icd"],
+                                   stderr=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL)
+        gpu_dir = os.listdir("/dev/dri")
+        for file in gpu_dir:
+            if "render" in file and gpu_query.returncode == 0:
+                context["GPU"] = True
+    except Exception: # can happen on missing directory, signifies no GPU support
+        pass
 
     if context["GPU"]:
         logger.info("Detected GPU Device")
@@ -74,14 +81,22 @@ def scan_system():
         logger.info("No GPU Device detected")
 
     # check for presence of NPU
-    npu_query = subprocess.run(["dpkg", "-l", "intel-driver-compiler-npu"], stderr=subprocess.DEVNULL)
-    if npu_query.returncode == 0:
-        context["NPU"] = True
+    try:
+        npu_query = subprocess.run(["dpkg", "-l", "intel-driver-compiler-npu"],
+                                   stderr=subprocess.DEVNULL,
+                                   stdout=subprocess.DEVNULL)
+        npu_dir = os.listdir("/dev/accel/")
+        for file in npu_dir:
+            if "accel" in file and npu_query.returncode == 0:
+                context["NPU"] = True
+    except Exception: # can happen on missing directory, signifies no NPU support
+        pass
+
+    if context["NPU"]:
         logger.info("Detected NPU Device")
     else:
         logger.info("No NPU Device detected")
 
-    
     return context
 
 ##################################### Pipeline Running ############################################
@@ -102,7 +117,7 @@ def explore_pipelines(suggestions, base_fps, search_duration, sample_duration):
                 best_pipeline = combination
 
         except Exception as e:
-            logger.debug(f"Pipeline failed to start: {e}")
+            logger.debug("Pipeline failed to start: %s", e)
 
         cur_time = time.time()
         if cur_time - start_time > search_duration:
@@ -122,13 +137,13 @@ def sample_pipeline(pipeline, sample_duration):
             pipeline.insert(len(pipeline) - i, "gvafpscounter")
 
     pipeline = "!".join(pipeline)
-    logger.debug(f"Testing: {pipeline}")
+    logger.debug("Testing: %s", pipeline)
 
 
     pipeline = Gst.parse_launch(pipeline)
 
-    logger.info(f"Sampling for {str(sample_duration)} seconds...")
-    fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, reversed(pipeline.children)))
+    logger.info("Sampling for %s seconds...", str(sample_duration))
+    fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, reversed(pipeline.children))) # pylint: disable
 
     bus = pipeline.get_bus()
 
@@ -155,34 +170,34 @@ def sample_pipeline(pipeline, sample_duration):
     message = bus.pop()
     while message is not None:
         if message.type == Gst.MessageType.ERROR:
-            error, debug = message.parse_error()
-            logger.error(f"Pipeline error: {error.message}")
+            error, _ = message.parse_error()
+            logger.error("Pipeline error: %s", error.message)
         elif message.type == Gst.MessageType.WARNING:
-            warning, debug = message.parse_warning()
-            logger.warning(f"Pipeline warning: {warning.message}")
+            warning, _ = message.parse_warning()
+            logger.warning("Pipeline warning: %s", warning.message)
         elif message.type == Gst.MessageType.STATE_CHANGED:
-            old, new, pending = message.parse_state_changed()
-            logger.debug(f"State changed: {old} -> {new}")
+            old, new, _ = message.parse_state_changed()
+            logger.debug("State changed: %s -> %s ", old, new)
         else:
-            logger.error(f"Other message: {str(message)}")
+            logger.error("Other message: %s", str(message))
         message = bus.pop()
 
     del pipeline
     fps = fps_counter.get_property("avg-fps")
-    logger.debug(f"Sampled fps: {fps}")
+    logger.debug("Sampled fps: %f.2", fps)
     return fps
 
 ######################################## Preprocess ###############################################
 
 def preprocess_pipeline(pipeline):
-    for i in range(len(pipeline)):
-        if "decodebin" in pipeline[i]:
+    for i, element in enumerate(pipeline):
+        if "decodebin" in element:
             pipeline[i] = "decodebin3"
         
-        if "vaapipostproc" in pipeline[i]:
+        if "vaapipostproc" in element:
             pipeline[i] = "vapostproc"
 
-        if "vaapi-surface-sharing" in pipeline[i]:
+        if "vaapi-surface-sharing" in element:
             pipeline[i] = "va-surface-sharing"
 
 #################################### Gvadetect & Gvaclassify ######################################
@@ -221,21 +236,31 @@ def add_parameter_suggestions(element, device, backend, suggestions):
 
 ####################################### Main Logic ################################################
 
+# Steps of pipeline optimization:
+# 1. Measure the baseline pipeline's performace.
+# 2. Pre-process the pipeline to cover cases where we're certain of the best alternative.
+# 3. Run the pipeline through generators that provide suggestions for element alternatives.
+# 4. Create a cartesian product of the suggestions and start running the combinations to measure performance.
+# 5. Any time a better pipeline is found, save it and its performance information.
+# 6. Return the best discovered pipeline.
 def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10):
     context = scan_system()
 
     pipeline = " ".join(pipeline).split("!")
 
+    # Measure the performance of the original pipeline
     try:
         fps = sample_pipeline(pipeline, sample_duration)
     except Exception as e:
-        logger.error(f"Pipeline failed to start, unable to measure fps: {e}")
+        logger.error("Pipeline failed to start, unable to measure fps: $s", e)
         raise RuntimeError("Provided pipeline is not valid") from e
         
-    logger.info(f"FPS: {fps:.2f}")
+    logger.info("FPS: %f.2", fps)
     
+    # Replace any elements that we're sure have a best-in-class alternatives.
     preprocess_pipeline(pipeline)
 
+    # Prepare the suggestions structure
     # Suggestions structure:
     #   [
     #       ["element1 param1=value1", "element1 param1=value2", ...other variants],
@@ -247,14 +272,19 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
     for element in pipeline:
         suggestions.append([element])
 
+    # Collect suggestions for pipeline improvements
     add_gvadetect_suggestions(suggestions, context)
     add_gvaclassify_suggestions(suggestions, context)
+
+    # Explore the suggestions and try to discover pipelines with better performance
     best_pipeline, best_fps = explore_pipelines(suggestions, fps, search_duration, sample_duration)
     
+    # Fall back in case no better pipeline was found.
     if best_pipeline == []:
        best_pipeline = pipeline
        best_fps = fps
 
+    # Reconstruct the pipeline as a single string and return it.
     return "!".join(best_pipeline), best_fps
 
 def main():
@@ -272,9 +302,9 @@ def main():
 
     try:
         best_pipeline, best_fps = get_optimized_pipeline(args.pipeline, args.search_duration, args.sample_duration)
-        logger.info(f"Best found pipeline: {best_pipeline} with fps: {best_fps}")
+        logger.info("Best found pipeline: %s with fps: %f.2", best_pipeline, best_fps)
     except Exception as e:
-        logger.error(f"Failed to optimize pipeline: {e}")
+        logger.error("Failed to optimize pipeline: %s", e)
 
 if __name__ == "__main__":
     main()
