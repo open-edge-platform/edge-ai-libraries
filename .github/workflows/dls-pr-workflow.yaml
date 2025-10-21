@@ -378,31 +378,3 @@ jobs:
       packages: read
     name: "DLS BUILD & TEST: Windows DLLs"
     uses: ./.github/workflows/dls-build-and-test-windows.yaml
-
-  # ----------------------------------------------------- DL Streamer Pipeline Server SCANs -----------------------------------------------------
-  dlsps-coverity:
-    permissions:
-      contents: read
-      packages: write
-    name: "DLSPS SCAN: static C/C++ code analysis"
-    uses: ./.github/workflows/dlsps_coverity.yaml
-    secrets:
-      DLSPS_COVERITY_TOKEN: ${{ secrets.DLSPS_COVERITY_TOKEN }}
-      DLSPS_COVERITY_EMAIL: ${{ secrets.DLSPS_COVERITY_EMAIL }}
-      DLSPS_COVERITY_PROJECT: ${{ secrets.DLSPS_COVERITY_PROJECT }}
-
-  # ------------------------------------------------ DL Streamer Pipeline Server BUILDS & TESTS -------------------------------------------------
-  dlsps-sanity-test:
-    permissions:
-      contents: read
-      packages: write
-    name: "DLSPS TEST: sanity tests"
-    uses: ./.github/workflows/dlsps_sanity_test.yaml
-
-  dlsps-build-scans-tests:
-    permissions:
-      contents: read
-      packages: write
-      pull-requests: write
-    name: "DLSPS BUILD & SCAN & TEST"
-    uses: ./.github/workflows/dlsps-build-scans-pr-workflow.yaml
