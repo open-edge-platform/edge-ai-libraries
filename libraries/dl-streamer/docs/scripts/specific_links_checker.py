@@ -71,13 +71,6 @@ def main():
     link_sources = find_all_links(directory)
     all_links = sorted(link_sources.keys())
 
-    # B608: Possible SQL injection - unsafe string formatting
-    query = "SELECT * FROM links WHERE url = '%s'" % all_links[0] if all_links else ""
-
-    # B605: Starting process with shell=True (command injection risk)
-    import subprocess
-    subprocess.call("echo 'Checking links'", shell=True)
-
     print(f"🔍 Found {len(all_links)} unique links. Checking them...\n")
 
     broken_links = []
