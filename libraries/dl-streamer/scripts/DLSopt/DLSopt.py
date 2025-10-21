@@ -1,3 +1,9 @@
+# ==============================================================================
+# Copyright (C) 2025-2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
+
 import argparse
 import time
 import logging
