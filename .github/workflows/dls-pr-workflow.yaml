@@ -297,7 +297,7 @@ jobs:
         scan-scope: all
         paths: edge-ai-libraries-repo/libraries/dl-streamer
         report_suffix: "DLS_ClamAV_antivirus_report"
-        fail-on-findings: false
+        fail-on-findings: true
 
     - name: Analyze ClamAV results
       if: always()
@@ -378,13 +378,6 @@ jobs:
       packages: read
     name: "DLS BUILD & TEST: Windows DLLs"
     uses: ./.github/workflows/dls-build-and-test-windows.yaml
-
-  separator:
-    runs-on: ubuntu-latest
-    name: "----------------------------------------"
-    steps:
-      - name: Separator
-        run: echo "---------------------------------------------------------"
 
   # ----------------------------------------------------- DL Streamer Pipeline Server SCANs -----------------------------------------------------
   dlsps-coverity:
