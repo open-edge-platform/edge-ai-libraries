@@ -21,7 +21,6 @@ logger.info("GStreamer version: %d.%d.%d",
             gst_version.minor,
             gst_version.micro)
 
-
 ####################################### Utils #####################################################
 
 def parse_element_parameters(element):
@@ -49,7 +48,7 @@ def log_parameters_of_interest(pipeline):
                         parameters.get("device", "not set"), 
                         parameters.get("batch-size", "not set"), 
                         parameters.get("nireq", "not set"))
-            
+
         if "gvaclassify" in element:
             parameters = parse_element_parameters(element)
             logger.info("Found Gvaclassify, device: %s, batch size: %s, nireqs: %s",
@@ -139,11 +138,10 @@ def sample_pipeline(pipeline, sample_duration):
     pipeline = "!".join(pipeline)
     logger.debug("Testing: %s", pipeline)
 
-
     pipeline = Gst.parse_launch(pipeline)
 
     logger.info("Sampling for %s seconds...", str(sample_duration))
-    fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, reversed(pipeline.children))) # pylint: disable
+    fps_counter = next(filter(lambda element: "gvafpscounter" in element.name, reversed(pipeline.children))) # pylint: disable=line-too-long
 
     bus = pipeline.get_bus()
 
@@ -193,7 +191,7 @@ def preprocess_pipeline(pipeline):
     for i, element in enumerate(pipeline):
         if "decodebin" in element:
             pipeline[i] = "decodebin3"
-        
+
         if "vaapipostproc" in element:
             pipeline[i] = "vapostproc"
 
@@ -233,7 +231,6 @@ def add_parameter_suggestions(element, device, backend, suggestions):
                     parameters["nireq"] = str(nireq)
                     suggestion.append(f"{element} {assemble_parameters(parameters)}")
 
-
 ####################################### Main Logic ################################################
 
 # Steps of pipeline optimization:
@@ -254,9 +251,9 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
     except Exception as e:
         logger.error("Pipeline failed to start, unable to measure fps: $s", e)
         raise RuntimeError("Provided pipeline is not valid") from e
-        
+
     logger.info("FPS: %f.2", fps)
-    
+
     # Replace any elements that we're sure have a best-in-class alternatives.
     preprocess_pipeline(pipeline)
 
@@ -278,11 +275,11 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 
     # Explore the suggestions and try to discover pipelines with better performance
     best_pipeline, best_fps = explore_pipelines(suggestions, fps, search_duration, sample_duration)
-    
+
     # Fall back in case no better pipeline was found.
     if best_pipeline == []:
-       best_pipeline = pipeline
-       best_fps = fps
+        best_pipeline = pipeline
+        best_fps = fps
 
     # Reconstruct the pipeline as a single string and return it.
     return "!".join(best_pipeline), best_fps
@@ -290,18 +287,20 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 def main():
     parser = argparse.ArgumentParser(
         prog="DL Streamer Pipeline Optimization Tool",
-        description="Use this tool to try and find versions of your pipeline that will run with increased performance."
+        description="Use this tool to try and find versions of your pipeline that will run with increased performance." # pylint: disable=line-too-long
     )
     parser.add_argument("--search-duration", default=300,
-                        help="Duration of time which should be spent searching for optimized pipelines (default: %(default)ss)")
+                        help="Duration of time which should be spent searching for optimized pipelines (default: %(default)ss)") # pylint: disable=line-too-long
     parser.add_argument("--sample-duration", default=10,
-                        help="Duration of sampling individual pipelines. Longer duration should offer more stable results (default: %(default)ss)")
+                        help="Duration of sampling individual pipelines. Longer duration should offer more stable results (default: %(default)ss)") # pylint: disable=line-too-long
     parser.add_argument("pipeline", nargs="+",
                         help="Pipeline to be analyzed")
     args=parser.parse_args()
 
     try:
-        best_pipeline, best_fps = get_optimized_pipeline(args.pipeline, args.search_duration, args.sample_duration)
+        best_pipeline, best_fps = get_optimized_pipeline(args.pipeline,
+                                                         args.search_duration,
+                                                         args.sample_duration)
         logger.info("Best found pipeline: %s with fps: %f.2", best_pipeline, best_fps)
     except Exception as e:
         logger.error("Failed to optimize pipeline: %s", e)
