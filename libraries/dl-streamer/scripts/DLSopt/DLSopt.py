@@ -249,7 +249,7 @@ def add_parameter_suggestions(element, device, backend, suggestions):
 # 1. Measure the baseline pipeline's performace.
 # 2. Pre-process the pipeline to cover cases where we're certain of the best alternative.
 # 3. Run the pipeline through generators that provide suggestions for element alternatives.
-# 4. Create a cartesian product of the suggestions 
+# 4. Create a cartesian product of the suggestions
 #    and start running the combinations to measure performance.
 # 5. Any time a better pipeline is found, save it and its performance information.
 # 6. Return the best discovered pipeline.
