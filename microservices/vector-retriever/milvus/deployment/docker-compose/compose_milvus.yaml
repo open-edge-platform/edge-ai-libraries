@@ -116,8 +116,6 @@ services:
       - https_proxy=${https_proxy}
       - HF_ENDPOINT=${HF_ENDPOINT}
       - DEVICE=${DEVICE}
-      - LOCAL_EMBED_MODEL_ID=${LOCAL_EMBED_MODEL_ID}
-      - MODEL_DIR=${MODEL_DIR}
       - MILVUS_HOST=${MILVUS_HOST}
       - MILVUS_PORT=${MILVUS_PORT}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL}
@@ -135,11 +133,11 @@ services:
       timeout: 10s
       retries: 30
       start_period: 30s
+    depends_on:
+      - milvus-standalone
+      - multimodal-embedding-serving
     networks:
       - default
-    volumes:
-      - $HOME/.cache/huggingface:/home/user/.cache/huggingface:rw
-      - ${MODEL_DIR}:/home/user/models:rw
 
 volumes:
   ov-models:

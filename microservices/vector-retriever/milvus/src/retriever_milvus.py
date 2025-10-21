@@ -3,9 +3,6 @@
 
 from pymilvus import MilvusClient
 
-from dependency.clip_ov.mm_embedding import EmbeddingModel
-from utils import decode_base64_image
-
 import os
 import requests
 
@@ -21,51 +18,40 @@ class MilvusRetriever:
         self.collection_name = collection_name
         self.client = MilvusClient(uri=MILVUS_URI)
         self.embed_url = EMBEDDING_BASE_URL
-        if not self.embed_url:
-            self.embedding_model = EmbeddingModel()
 
     def get_text_embedding(self, query):
-        if self.embed_url:
-            headers = { 'Content-Type': 'application/json'}
+        headers = { 'Content-Type': 'application/json'}
 
-            payload = {
-                "input": {
-                    "type": "text",
-                    "text": query
-                },
-                "model": VCLIP_MODEL,
-                "encoding_format": "float"
-            }
-        
-            response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
-            data = response.json()
-            embedding = data["embedding"]
-            return [embedding]
-        else:
-            embedding = self.embedding_model.get_text_embedding(query)
-            return embedding
+        payload = {
+            "input": {
+                "type": "text",
+                "text": query
+            },
+            "model": VCLIP_MODEL,
+            "encoding_format": "float"
+        }
+    
+        response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
+        data = response.json()
+        embedding = data["embedding"]
+        return [embedding]
         
     def get_image_embedding(self, image_base64):
-        if self.embed_url:
-            headers = {'Content-Type': 'application/json'}
+        headers = {'Content-Type': 'application/json'}
 
-            payload = {
-                "model": VCLIP_MODEL,
-                "encoding_format": "float",
-                "input": {
-                    "type": "image_base64",
-                    "image_base64": image_base64
-                }
+        payload = {
+            "model": VCLIP_MODEL,
+            "encoding_format": "float",
+            "input": {
+                "type": "image_base64",
+                "image_base64": image_base64
             }
+        }
 
-            response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
-            data = response.json()
-            embedding = data.get("embedding")
-            return [embedding]
-        else:
-            image = decode_base64_image(image_base64)
-            embedding = self.embedding_model.get_image_embedding(image)
-            return embedding
+        response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
+        data = response.json()
+        embedding = data.get("embedding")
+        return [embedding]
 
     def search(self, query=None, image_base64=None, filters=None, top_k=5):
         # Validate input

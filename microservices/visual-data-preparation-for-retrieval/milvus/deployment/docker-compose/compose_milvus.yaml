@@ -117,8 +117,6 @@ services:
       - HF_ENDPOINT=${HF_ENDPOINT}
       - DEVICE=${DEVICE}
       - HOST_DATA_PATH=${HOST_DATA_PATH}
-      - LOCAL_EMBED_MODEL_ID=${LOCAL_EMBED_MODEL_ID}
-      - MODEL_DIR=${MODEL_DIR}
       - MILVUS_HOST=${MILVUS_HOST}
       - MILVUS_PORT=${MILVUS_PORT}
       - EMBEDDING_BASE_URL=${EMBEDDING_BASE_URL}
@@ -140,9 +138,9 @@ services:
       - default
     depends_on:
       - milvus-standalone
+      - multimodal-embedding-serving
     volumes:
-      - $HOME/.cache/huggingface:/home/user/.cache/huggingface:rw
-      - ${MODEL_DIR}:/home/user/models:rw
+      - ov-models:/home/user/models
       - ${HOST_DATA_PATH}:/home/user/data:rw
 
 volumes:

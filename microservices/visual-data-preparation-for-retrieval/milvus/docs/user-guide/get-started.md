@@ -27,8 +27,6 @@ docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https
 ### Step 2: Prepare host directories for models and data
 
 ```
-mkdir -p $HOME/.cache/huggingface
-mkdir -p $HOME/models
 mkdir -p $HOME/data
 ```
 
@@ -46,30 +44,11 @@ Note: supported media types: jpg, png, mp4
     cd deployment/docker-compose/
     ```
 
-2.  Set up environment variables with either one of the following options, make sure the same option is applied for both `dataprep` service and `retriever` service if they both used:
-
-    A. To use the independent multi-modal embedding service for embedding extraction, run
+2.  Set up environment variables
 
     ``` bash
-    source env_embed_service.sh 
+    source env.sh 
     ```
-
-    B. To use a local embedding model, run
-    
-    ``` bash
-    source env_local_embed_model.sh 
-    ```
-
-    When prompting `Please enter the LOCAL_EMBED_MODEL_ID`, choose one model name from table below and input
-
-    ##### Supported Local Embedding Models
-
-    | Model Name                          | Search in English | Search in Chinese | Remarks|
-    |-------------------------------------|----------------------|---------------------|---------------|
-    | CLIP-ViT-H-14                        | Yes                  | No                 |            |
-    | CN-CLIP-ViT-H-14              | Yes                  | Yes                  | Supports search text query in Chinese       | 
-
-Note: if the service is deployed with one of the options above, and later deployed again with the other option, you need to clean the local Milvus cache data by deleting `/volumes/minio/`, `/volumes/milvus/`, and `/volumes/etcd/` before the second deployment.
 
 3.  Deploy with docker compose
 
@@ -151,5 +130,6 @@ curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 
 -    Check the [API reference](./api-reference.md)
 -    The visual data preparation microservice usually pairs with a retriever microservice, check the retriever's [get-started-guide](../../../retriever/docs/user-guide/get-started.md)
+-    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
 
 
