@@ -45,15 +45,15 @@ def log_parameters_of_interest(pipeline):
         if "gvadetect" in element:
             parameters = parse_element_parameters(element)
             logger.info("Found Gvadetect, device: %s, batch size: %s, nireqs: %s",
-                        parameters.get("device", "not set"), 
-                        parameters.get("batch-size", "not set"), 
+                        parameters.get("device", "not set"),
+                        parameters.get("batch-size", "not set"),
                         parameters.get("nireq", "not set"))
 
         if "gvaclassify" in element:
             parameters = parse_element_parameters(element)
             logger.info("Found Gvaclassify, device: %s, batch size: %s, nireqs: %s",
-                        parameters.get("device", "not set"), 
-                        parameters.get("batch-size", "not set"), 
+                        parameters.get("device", "not set"),
+                        parameters.get("batch-size", "not set"),
                         parameters.get("nireq", "not set"))
 
 ###################################### System Scanning ############################################
@@ -66,12 +66,15 @@ def scan_system():
     try:
         gpu_query = subprocess.run(["dpkg", "-l", "intel-opencl-icd"],
                                    stderr=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL)
+                                   stdout=subprocess.DEVNULL,
+                                   check=False)
         gpu_dir = os.listdir("/dev/dri")
         for file in gpu_dir:
             if "render" in file and gpu_query.returncode == 0:
                 context["GPU"] = True
-    except Exception: # can happen on missing directory, signifies no GPU support
+
+    # can happen on missing directory, signifies no GPU support
+    except Exception: # pylint: disable=broad-exception-caught
         pass
 
     if context["GPU"]:
@@ -83,12 +86,15 @@ def scan_system():
     try:
         npu_query = subprocess.run(["dpkg", "-l", "intel-driver-compiler-npu"],
                                    stderr=subprocess.DEVNULL,
-                                   stdout=subprocess.DEVNULL)
+                                   stdout=subprocess.DEVNULL,
+                                   check=False)
         npu_dir = os.listdir("/dev/accel/")
         for file in npu_dir:
             if "accel" in file and npu_query.returncode == 0:
                 context["NPU"] = True
-    except Exception: # can happen on missing directory, signifies no NPU support
+
+    # can happen on missing directory, signifies no NPU support
+    except Exception: # pylint: disable=broad-exception-caught
         pass
 
     if context["NPU"]:
@@ -249,7 +255,7 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
     try:
         fps = sample_pipeline(pipeline, sample_duration)
     except Exception as e:
-        logger.error("Pipeline failed to start, unable to measure fps: $s", e)
+        logger.error("Pipeline failed to start, unable to measure fps: %s", e)
         raise RuntimeError("Provided pipeline is not valid") from e
 
     logger.info("FPS: %f.2", fps)
@@ -277,7 +283,7 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
     best_pipeline, best_fps = explore_pipelines(suggestions, fps, search_duration, sample_duration)
 
     # Fall back in case no better pipeline was found.
-    if best_pipeline == []:
+    if not best_pipeline:
         best_pipeline = pipeline
         best_fps = fps
 
