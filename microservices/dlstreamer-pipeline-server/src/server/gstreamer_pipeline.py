@@ -277,6 +277,7 @@ class GStreamerPipeline(Pipeline):
             "avg_fps": self.get_avg_fps(),
             "start_time": self.start_time,
             "elapsed_time": elapsed_time,
+            "frame_count": self.frame_count,
             "message": message
         }
         if self.count_pipeline_latency != 0:
