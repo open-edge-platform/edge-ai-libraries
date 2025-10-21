@@ -1,14 +1,6 @@
-name: "[DLSPS] PR workflow"
-run-name: "[DLSPS] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+name: "[DLSPS] Build, scan and test"
+run-name: "[DLSPS] Build, scan and test (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
-  pull_request:
-    paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
   workflow_call:
   workflow_dispatch:
 permissions: {}

@@ -1,14 +1,6 @@
 name: "[DLSPS] PR Sanity workflow"
 run-name: "[DLSPS] PR  Sanity workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 on:
-  push:
-    branches:
-      - 'main'
-    paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
-  pull_request:
-    paths:
-      - 'microservices/dlstreamer-pipeline-server/**'
   workflow_call:
   workflow_dispatch:
 permissions: {}
