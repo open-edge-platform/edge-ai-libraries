@@ -353,7 +353,7 @@ jobs:
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
-        fail-on-findings: false
+        fail-on-findings: true
         paths: libraries/dl-streamer
         report_suffix: dlstreamer
 
