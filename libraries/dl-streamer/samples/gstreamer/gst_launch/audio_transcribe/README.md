@@ -83,7 +83,10 @@ chmod a+x /audio_transcribe.sh
 ## Audio Transcription Pipeline Using `gvametaconvert` and `gvametapublish`
 
 ```bash
-GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=${HOME}/path/to/whisper-model-dir device=CPU model_type=whisper  ! gvametaconvert format=json ! gvametapublish method=file file-path=transcriptions.json ! fakesink
+#(Optional) if you want info logs export GST_DEBUG  
+export GST_DEBUG=gvaaudiotranscribe:4
+
+gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=${HOME}/path/to/whisper-model-dir device=CPU model_type=whisper  ! gvametaconvert format=json ! gvametapublish method=file file-path=transcriptions.json ! fakesink
 ```
 
 ### Properties
