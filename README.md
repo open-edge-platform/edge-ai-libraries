@@ -165,7 +165,14 @@ environments effectively.
 
   Showcase, monitor, and optimize the scalability and performance of
   AI workloads on Intel edge hardware. Configure models, choose
-  performance modes, and visualize resource metrics in real time .
+  performance modes, and visualize resource metrics in real time.
+
+- [Edge System Qualification](https://github.com/open-edge-platform/edge-system-qualification)
+
+  Command Line Interface (CLI) tool that provides a collection of test suites to
+  qualify Edge AI system. It enables users to perform targeted tests, supporting
+  a wide range of use cases from system evaluation to data
+  extraction and reporting.
 
 ### Edge Control Libraries  
 

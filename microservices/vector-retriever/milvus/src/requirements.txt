@@ -1,17 +1,7 @@
-cn-clip==1.5.1
 fastapi==0.115.12
-huggingface-hub==0.31.1
-moviepy==1.0.3
-openai==1.70.0
-opencv-python==4.11.0.86
-open_clip_torch @ git+https://github.com/mlfoundations/open_clip@1be2c8993b3f2628d495dfa791061e92f1cd4d0e
-openvino==2024.5.0
-openvino-tokenizers==2024.5.0.0
-optimum-intel==1.15.0
 pydantic==2.9.1
 pymilvus==2.5.8
 pytest==8.3.5
 PyYAML==6.0.2
 requests==2.32.3
-tqdm==4.67.0
 uvicorn==0.30.6

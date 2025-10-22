@@ -128,6 +128,8 @@ RUN . /etc/os-release && \
     if [ "$VERSION_ID" = "24.04" ]; then \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        cpuid \
+        util-linux \
         python3-venv \
         libglib2.0-0 \
         libusb-1.0-0 \
@@ -141,6 +143,8 @@ RUN . /etc/os-release && \
     else \
         export no_proxy= && \
         apt-get update --allow-releaseinfo-change && apt-get install -y --no-install-recommends \
+        cpuid \
+        util-linux \
         python3-venv \
         libglib2.0-0 \
         libusb-1.0-0 \
@@ -208,7 +212,7 @@ RUN mkdir -p $XDG_RUNTIME_DIR && chmod -R g+s $XDG_RUNTIME_DIR && chown ${USER}:
 USER $USER
 
 # Copy source code
-COPY ./docker/run.sh .
+COPY ./docker/run.sh ./docker/detect-cores.sh ./
 COPY ./utils/*.py ./utils/
 COPY ./src/ ./src
 
