@@ -40,7 +40,6 @@ These steps are adapted from the original whisper_speech_recognition sample in O
 
 ```bash
 cd ~/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer/gst_launch/audio_transcribe
-chmod a+x /model_preparation.sh
 ./model_preparation.sh
 ```
 
@@ -57,10 +56,9 @@ There are few prerequisites that is required follow the Documentation for more d
 
 ## Demo Script Execution:
 
-### Permission of the script
+### Go to samples
 ```bash
 cd ~/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer/gst_launch/audio_transcribe
-chmod a+x /audio_transcribe.sh
 ``` 
 
 ### Launch on a test WAV file:
