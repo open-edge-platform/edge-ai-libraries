@@ -4,15 +4,15 @@
 
 1. [Overview](#overview)
    - [Model Type Support](#model-type-support)
-2. [Audio Transcription Pipeline Using GVA Elements](#audio-transcription-pipeline-using-gvametaconvert-and-gvametapublish)
-3. [Install DLstreamer](#install-dlstreamer)
-4. [Model Preparation](#model-preparation)
-5. [GPU Prerequisites](#to-use-gpu-device-for-inference)
-6. [Demo Script Execution](#demo-script-execution)
+2. [Install DLstreamer](#install-dlstreamer)
+3. [Model Preparation](#model-preparation)
+4. [GPU Prerequisites](#to-use-gpu-device-for-inference)
+5. [Demo Script Execution](#demo-script-execution)
    - [Script Permissions](#permission-of-the-script)
    - [WAV File Transcription](#launch-on-a-test-wav-file)
    - [Live Microphone Transcription](#launch-using-the-microphone)
    - [Video Audio Transcription](#launch-using-video-demux)
+6. [Audio Transcription Pipeline Using GVA Elements](#audio-transcription-pipeline-using-gvametaconvert-and-gvametapublish)
 7. [Configuration](#configuration)
    - [Properties](#properties)
 8. [Troubleshooting](#troubleshooting)
@@ -27,12 +27,6 @@ This element provides audio transcription capabilities with an extensible handle
 ### Model Type Support
 
 - `whisper` - Fully supported (OpenVINO GenAI)
-
-## Audio Transcription Pipeline Using `gvametaconvert` and `gvametapublish`
-
-```bash
-GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=${HOME}/path/to/whisper-model-dir device=CPU model_type=whisper  ! gvametaconvert format=json ! gvametapublish method=file file-path=transcriptions.json ! fakesink
-```
 
 ## Install DLstreamer
 
@@ -84,6 +78,12 @@ chmod a+x /audio_transcribe.sh
 ### Launch using video demux:
 ```bash
 ./audio_transcribe.sh --input-source=${HOME}/<filename.mp4> --models-path=${HOME}/path/to/model-directory/ --device=CPU --mode=video
+```
+
+## Audio Transcription Pipeline Using `gvametaconvert` and `gvametapublish`
+
+```bash
+GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux demux.audio_0 ! decodebin ! audioconvert ! audioresample ! audio/x-raw,channels=1,format=S16LE,rate=16000 ! audiomixer output-buffer-duration=100000000 ! gvaaudiotranscribe model=${HOME}/path/to/whisper-model-dir device=CPU model_type=whisper  ! gvametaconvert format=json ! gvametapublish method=file file-path=transcriptions.json ! fakesink
 ```
 
 ### Properties
