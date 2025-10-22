@@ -159,8 +159,8 @@ echo "Press Ctrl+C to stop"
 echo ""
 
 # Execute the GStreamer pipeline
-echo "Executing: GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 $PIPELINE"
-GST_DEBUG=gvaaudiotranscribe:4 gst-launch-1.0 $PIPELINE
+echo "gst-launch-1.0 $PIPELINE"
+gst-launch-1.0 $PIPELINE
 
 # Check the exit status
 if [ $? -eq 0 ]; then
