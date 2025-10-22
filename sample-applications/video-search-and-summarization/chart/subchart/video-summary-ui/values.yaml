@@ -7,16 +7,17 @@ global:
     APP_ENDPOINT_URL: "/manager"
     APP_ASSETS_URL: "/minio"
 
-videosummaryui: 
-  name: videosummaryui
+name: videosummaryui
 image:
   repository: intel/vss-ui
-  tag: "1.2.0"
+  tag: "1.2.1"
   pullPolicy: IfNotPresent
+
+containerPortName: vs-ui-port  # Optional name to refer containerPort
 service:
   type: ClusterIP
-  port: 8100
-  targetPort: 80
+  port: 80  # Port on which service listens for incoming connection
+
 feature:
   summary: "FEATURE_OFF"
   search: "FEATURE_ON"

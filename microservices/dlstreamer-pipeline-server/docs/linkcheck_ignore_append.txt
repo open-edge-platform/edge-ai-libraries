@@ -1,8 +1,6 @@
 https://github.com/openvinotoolkit/anomalib/tree/v0.7.0?tab=readme-ov-file#training
 https://github.com/eclipse/paho.mqtt.python#subscribe-1
 https://www.emva.org/standards-technology/genicam
-https://docs.edgeplatform.intel.com/model-registry-as-a-service/user-guide/Tutorials.html#step-3-store-a-new-model-post
-https://docs.edgeplatform.intel.com/model-registry-as-a-service/user-guide/Tutorials.html#tutorial-1-storing-and-retrieving-models-in-the-registry
 https://docs.openvino.ai/2022.3/omz_tools_downloader.html
 https://docs.openvino.ai/2022.3/openvino_docs_MO_DG_IR_and_opsets.html
 https://docs.openvino.ai/2022.3/openvino_docs_MO_DG_Deep_Learning_Model_Optimizer_DevGuide.html

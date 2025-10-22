@@ -13,7 +13,7 @@ To enable HTTPS for DL Streamer Pipeline Server, you'll need to provide the nece
 
     To learn more about the supported arguments for the `generate_tls_certs_keys.sh` script, please refer `README.md` file present at `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/utils/` detailing the shell scripts or execute `./generate_tls_certs_keys.sh --help` in the Terminal.
 
-1. Set the `HTTPS` environment variable to `true` in the `docker-compose.yml` file.
+2. Set the `HTTPS` environment variable to `true` in the `docker-compose.yml` file.
     ```YAML
     version: "3"
       services:
@@ -24,6 +24,11 @@ To enable HTTPS for DL Streamer Pipeline Server, you'll need to provide the nece
             - HTTPS=true 
     ```
     **Note**: When HTTPS is enabled, you will need to use the `-k` flag with `curl` which disables attempts to verify self-signed certificates against a certificate authority.
+
+3. Bring up the containers.
+    ```sh
+    docker compose up -d
+    ```
     
     Example `curl` command to view all pipelines:
     ```bash

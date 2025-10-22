@@ -6,78 +6,303 @@
 
 # Edge-AI-Libraries
 
-## Overview
+Welcome to **Edge AI Libraries** - highly optimized libraries, microservices,
+and tools designed for building and deploying real-time AI solutions
+on edge devices.
 
-The **Edge AI Libraries** project hosts a collection of libraries, microservices, and tools for Edge application development. This project also includes sample applications to showcase the generic AI use cases.
+If you are an AI developer, data scientist, or system integrator, these assets
+help you organize data, train models, run efficient inference, and deliver
+robust, industry-grade automation systems for computer vision, multimedia,
+and industrial use cases.
 
-Some of these components are available as git submodules, and can be fetched with `git submodule update --init --recursive`
+## Spotlight - Key Components
 
-Key components of the **Edge AI Libraries**:
+These flagship components represent the most advanced, widely adopted, and
+impactful tools in the repository:
 
-| Component | Category | Get Started | Developers Docs |
-|:----------|:---------|:------------|:-----------------|
-| [Anomalib](https://github.com/open-edge-platform/anomalib) | Library | [Link](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-introduction) | [API Reference](https://github.com/open-edge-platform/anomalib?tab=readme-ov-file#-training) |
-| [Dataset Management Framework (Datumaro)](https://github.com/open-edge-platform/datumaro)[`*`](#license) | Library | [Link](https://github.com/open-edge-platform/datumaro?tab=readme-ov-file#features) | [API Reference](https://open-edge-platform.github.io/datumaro/latest/docs/reference/datumaro_module.html) |
-| [Deep Learning Streamer](libraries/dl-streamer) | Library | [Link](https://dlstreamer.github.io/get_started/get_started_index.html) | [API Reference](https://dlstreamer.github.io/elements/elements.html) |
-| [ECAT EnableKit](libraries/edge-control-libraries/fieldbus/ecat-enablekit) | Library | [Link](libraries/edge-control-libraries/fieldbus/ecat-enablekit/README.md) | [API Reference](libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/ecat_intro.md) |
-| [EtherCAT Masterstack w/Intel silicon support](libraries/edge-control-libraries/fieldbus/ethercat-masterstack) | Library | [Link](libraries/edge-control-libraries/fieldbus/ethercat-masterstack/README.md) | [API Reference](https://docs.etherlab.org/ethercat/1.6/pdf/ethercat_doc.pdf) |
-| [FLANN optimized with oneAPI DPC++](libraries/robotics-ai-libraries/flann) | Library | [Link](libraries/robotics-ai-libraries/flann/README.md) | [API Reference](https://www.cs.ubc.ca/research/flann/uploads/FLANN/flann_manual-1.8.4.pdf) |
-| [Intel&reg; Geti&trade; SDK](https://github.com/open-edge-platform/geti-sdk) | Library | [Link](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#getting-started) | [API Reference](https://github.com/open-edge-platform/geti-sdk?tab=readme-ov-file#high-level-api-reference) |
-| [OpenVINO&trade; toolkit](https://github.com/openvinotoolkit/openvino) | Library | [Link](https://docs.openvino.ai/2025/index.html) | [API Reference](https://docs.openvino.ai/2025/api/api_reference.html) |
-| [OpenVINO&trade; Training Extensions](https://github.com/open-edge-platform/training_extensions) | Library | [Link](https://github.com/open-edge-platform/training_extensions?tab=readme-ov-file#introduction) | [API Reference](https://github.com/open-edge-platform/training_extensions?tab=readme-ov-file#quick-start) |
-| [OpenVINO&trade; Model API](https://github.com/open-edge-platform/model_api) | Library | [Link](https://github.com/open-edge-platform/model_api?tab=readme-ov-file#installation) | [API Reference](https://github.com/open-edge-platform/model_api?tab=readme-ov-file#usage) |
-| [Audio Analyzer](microservices/audio-analyzer) | Microservice | [Link](microservices/audio-analyzer/docs/user-guide/get-started.md) | [API Reference](microservices/audio-analyzer/docs/user-guide/api-reference.md) |
-| [ORB Extractor](libraries/robotics-ai-libraries/orb-extractor) | Library | [Link](libraries/robotics-ai-libraries/orb-extractor/README.md) | [API Reference](libraries/robotics-ai-libraries/orb-extractor/include/orb_extractor.h)
-| [PCL optimized with oneAPI DPC++](libraries/robotics-ai-libraries/pcl) | Library | [Link](libraries/robotics-ai-libraries/pcl) | [API Reference](https://pointclouds.org/documentation/annotated.html)
-| [PLCopen Servo](plcopen-servo) | Library | [Link](libraries/edge-control-libraries/plcopen-motion-control/plcopen-servo) | [API Reference](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html#run-rtmotion-with-ethercat-servo) |
-| [Real-time Data Agent](libraries/edge-control-libraries/rt-data-agent) | Library | [Link](libraries/edge-control-libraries/rt-data-agent/README.md) | [API Reference](libraries/edge-control-libraries/rt-data-agent/README.md) |
-| [RTmotion](libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion) | Library | [Link](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html) | [API Reference](https://docs.openedgeplatform.intel.com/edge-ai-libraries/plcopen-motion-control/main/rt-motion/rt-motion.html#rtmotion-function-blocks) |
-| [Audio Intelligence](microservices/audio-intelligence) | Microservice | [Link](microservices/audio-intelligence/docs/user-guide/get-started.md) | [API Reference](microservices/audio-intelligence/docs/user-guide/api-reference.md) |
-| [Deep Learning Streamer Pipeline Server](microservices/dlstreamer-pipeline-server) | Microservice | [Link](microservices/dlstreamer-pipeline-server#quick-try-out) | [API Reference](microservices/dlstreamer-pipeline-server/docs/user-guide/api-docs/pipeline-server.yaml) |
-| [Document Ingestion](microservices/document-ingestion) | Microservice | [Link](microservices/document-ingestion/pgvector/docs/get-started.md) | [API Reference](microservices/document-ingestion/pgvector/docs/dataprep-api.yml) |
-| [Model Registry](microservices/model-registry) | Microservice | [Link](microservices/model-registry/docs/user-guide/get-started.md) | [API Reference](microservices/model-registry/docs/user-guide/api-docs/openapi.yaml) |
-| [Multimodal Embedding Serving](microservices/multimodal-embedding-serving) | Microservice | [Link](microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) | [API Reference](microservices/multimodal-embedding-serving/docs/user-guide/api-docs/openapi.yaml) |
-| [Time Series Analytics Microservice](microservices/time-series-analytics) | Microservice |  [Link](microservices/time-series-analytics/docs/user-guide/Overview.md) | [API Reference](microservices/time-series-analytics/docs/user-guide/api-reference.md), [Usage](microservices/time-series-analytics/docs/user-guide/get-started.md) |
-| [Vector Retriever (with Milvus)](microservices/vector-retriever/milvus/) | Microservice | [Link](microservices/vector-retriever/milvus/docs/user-guide/get-started.md) | [API Reference](microservices/vector-retriever/milvus/docs/user-guide/api-reference.md) |
-| [Visual-Data Preparation for Retrieval (with Milvus)](microservices/visual-data-preparation-for-retrieval/milvus/) | Microservice | [Link](microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) | [API Reference](microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/api-reference.md) |
-| [Visual-Data Preparation for Retrieval (with VDMS)](microservices/visual-data-preparation-for-retrieval/vdms/) | Microservice | [Link](microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/get-started.md) | [API Reference](microservices/visual-data-preparation-for-retrieval/vdms/docs/user-guide/api-reference.md) |
-| [VLM Inference Serving](microservices/vlm-openvino-serving) | Microservice |  [Link](microservices/vlm-openvino-serving/README.md) | [Usage](microservices/vlm-openvino-serving/README.md) |
-| [Intel® Geti™](https://github.com/open-edge-platform/geti)[`*`](#license) | Tool | [Link](https://geti.intel.com/) | [Docs](https://docs.geti.intel.com) |
-| [Intel® SceneScape](https://github.com/open-edge-platform/scenescape)[`*`](#license) | Tool | [Link](https://docs.openedgeplatform.intel.com/scenescape/main/user-guide/Getting-Started-Guide.html) | [Docs](https://docs.openedgeplatform.intel.com/scenescape/main/toc.html) |
-| [Visual Pipeline and Platform Evaluation Tool](tools/visual-pipeline-and-platform-evaluation-tool) | Tool | [Link](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/get-started.md) | [Build](tools/visual-pipeline-and-platform-evaluation-tool/docs/user-guide/how-to-build-source.md) instructions |
-| [Chat Question and Answer](sample-applications/chat-question-and-answer) | Sample Application |  [Link](sample-applications/chat-question-and-answer/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer/docs/user-guide/build-from-source.md) instructions |
-| [Chat Question and Answer Core](sample-applications/chat-question-and-answer-core) | Sample Application | [Link](sample-applications/chat-question-and-answer-core/docs/user-guide/get-started.md) | [Build](sample-applications/chat-question-and-answer-core/docs/user-guide/build-from-source.md) instructions |
-| [Document Summarization](sample-applications/document-summarization) | Sample Application | [Link](sample-applications/document-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/document-summarization/docs/user-guide/build-from-source.md) instructions |
-| [PLCopen Benchmark](plcopen-benchmark) | Sample Application | [Link](sample-applications/plcopen-benchmark) | [Build](sample-applications/plcopen-benchmark/README.md) |
-| [PLCopen Databus](plcopen-databus) | Sample Application | [Link](sample-applications/plcopen-databus) | [Build](sample-applications/plcopen-databus/README.md) |
-| [Video Search and Summarization](sample-applications/video-search-and-summarization) | Sample Application | [Link](sample-applications/video-search-and-summarization/docs/user-guide/get-started.md) | [Build](sample-applications/video-search-and-summarization/docs/user-guide/build-from-source.md) instructions |
-| [Optimized Isolation Forest Classifier Training and Inference Microservice](https://github.com/intel/isolation-forest-microservice) | Microservice| [Link](https://github.com/intel/isolation-forest-microservice/blob/main/README.md)| [Build](https://github.com/intel/isolation-forest-microservice/blob/main/README.md) |
-| [Optimizied Random Forest Training and Inference Microservice](https://github.com/intel/random-forest-microservice) | Microservice | [Link](https://github.com/intel/random-forest-microservice/blob/main/README.md) | [Build](https://github.com/intel/random-forest-microservice/blob/main/README.md) |
+- [Deep Learning Streamer](./libraries/dl-streamer/README.md)
 
-> Intel, the Intel logo, OpenVINO, and the OpenVINO logo are trademarks of Intel Corporation or its subsidiaries.
+  Build efficient media analytics pipelines using streaming AI pipelines for
+  audio/video media analytics using GStreamer for optimized media operations
+  and OpenVINO for optimized inferencing
 
-Visit each library, microservice, tool, or sample sub-directory for the respective **Getting Started**, **Build** instructions and **Development** guides.
+- [Intel® SceneScape](https://github.com/open-edge-platform/scenescape)
 
-## More Sample Applications
+  Create 3D/4D dynamic digital twins from multimodal sensor data for advanced
+  spatial analytics.
 
-Visit the [**Edge AI Suites**](https://github.com/open-edge-platform/edge-ai-suites) project for a broader set of sample applications targeted at specific industry segments.
+- [Geti™](https://github.com/open-edge-platform/geti)
+
+  Build computer vision AI models enabling rapid dataset management, model
+  training, and deployment to the edge.
+
+- [Anomalib](https://github.com/open-edge-platform/anomalib)
+
+  Deploy visual anomaly detection with this state-of-the-art library, offering
+  algorithms for segmentation, classification, and reconstruction, plus features
+  like experiment management and hyperparameter optimization.
+
+- [OpenVINO Toolkit](https://github.com/openvinotoolkit/openvino)
+
+  Optimize, run, and deploy AI models with this industry-standard toolkit,
+  accelerating inference on Intel CPUs, GPUs, and NPUs. Supports a broad range
+  of AI solutions including vision-based applications, generative AI,
+  and vision-language models.
+
+## Component Categories
+
+### Model Training and Optimization
+
+This group provides core AI libraries and tools focused on computer vision
+model building, training, optimization, and deployment for Intel hardware.
+They address challenges such as dataset curation, model lifecycle management,
+and high-performance inference on edge devices.
+
+- [Geti™](https://github.com/open-edge-platform/geti)
+
+  Build computer vision AI models enabling rapid dataset management, model
+  training, and deployment to the edge.
+
+- [Anomalib](https://github.com/open-edge-platform/anomalib)
+
+  Deploy visual anomaly detection with this state-of-the-art library, offering
+  algorithms for segmentation, classification, and reconstruction, plus features
+  like experiment management and hyperparameter optimization.
+
+- [Geti™ SDK](https://github.com/open-edge-platform/geti-sdk)
+
+  Software for efficient model training and deployment.
+
+- [OpenVINO Toolkit](https://github.com/openvinotoolkit/openvino)
+
+  Toolkit for optimizing and deploying AI inference, offering performance boost
+  on Intel CPU, GPU, and NPU devices.
+
+- [OpenVINO Training Extensions](https://github.com/open-edge-platform/training_extensions) 
+  & [Model API](https://github.com/open-edge-platform/model_api)
+
+  A set of advanced algorithms for model training and conversion.
+
+- [Datumaro](https://github.com/open-edge-platform/datumaro)
+
+  Dataset management framework to curate and convert vision datasets.
+
+- [Edge AI Tuning Kit](https://github.com/open-edge-platform/edge-ai-tuning-kit)
+
+  Create, tailor, and implement custom AI models directly on edge platforms.
+
+### Streaming and Multimedia AI
+
+Handling large-scale media analytics workloads, these components support
+real-time audio and video AI pipeline processing, transcription, and multimodal
+embedding generation, addressing common use cases like surveillance, content
+indexing, and audio analysis.
+
+- [Deep Learning Streamer](./libraries/dl-streamer)
+  & [Deep Learning Streamer Pipeline Server](./microservices/dlstreamer-pipeline-server)
+
+  Streaming AI pipeline builder with scalable server for media
+  inferencing. 
+
+- [Audio Analyzer](./microservices/audio-analyzer)
+
+  Microservices providing real-time audio transcription and
+  intelligence extraction. 
+
+- [VLM Inference Serving](./microservices/vlm-openvino-serving)
+  & [Multimodal Embedding](./microservices/multimodal-embedding-serving)
+
+  Services handling vision-language models and embedding generation
+  for multimodal search.
+
+- [Intel® SceneScape](https://github.com/open-edge-platform/scenescape)
+
+  Software for creating dynamic 3D/4D digital twins for spatial
+  analytics.
+
+- [Time Series Analytics Microservice](./microservices/time-series-analytics)
+
+  Real-time analytics microservice designed for anomaly detection
+  and forecasting on sensor time-series data.
+
+### Data Preparation and Retrieval 
+
+Efficient data management and retrieval are crucial for AI performance
+and scalability. This group offers components for dataset curation,
+vector search, and document ingestion across multimodal data. 
+
+- [Vector Retriever (Milvus)](./microservices/visual-data-preparation-for-retrieval/milvus)
+  & [Visual Data Preparation (Milvus and VDMS)](./microservices/visual-data-preparation-for-retrieval/vdms)
+
+  High-performance vector similarity search and visual data indexing. 
+
+- [Model Registry](./microservices/model-registry)
+  & [Document Ingestion](./microservices/document-ingestion/pgvector)
+
+  Tools for managing AI model versions and preparing documents for AI
+  workflows. 
+
+- [Video Chunking Utils](./libraries/video-chunking-utils)
+
+  Splits/segments video streams into chunks, supporting batch and
+  pipeline-based analytics.
+
+### Benchmarking Tools 
+
+These support tools provide visual pipeline evaluation and performance
+benchmarking to help analyze AI workloads and industrial
+environments effectively.
+
+- [Visual Pipeline and Platform Evaluation Tool](./tools/visual-pipeline-and-platform-evaluation-tool)
+
+  Benchmark and analyze AI pipeline performance on various edge platforms. 
+
+- [PLCopen Benchmark](./sample-applications/plcopen-benchmark)
+
+  Compliance and performance testing toolkit for motion control. 
+
+- [Edge AI Sizing Tool](https://github.com/open-edge-platform/edge-ai-sizing-tool)
+
+  Showcase, monitor, and optimize the scalability and performance of
+  AI workloads on Intel edge hardware. Configure models, choose
+  performance modes, and visualize resource metrics in real time .
+
+### Edge Control Libraries  
+
+Focused on real-time industrial automation, motion control, and fieldbus
+communication, these components provide reliable, standards-compliant
+building blocks for manufacturing and factory automation applications. 
+
+- [ECAT EnableKit](./libraries/edge-control-libraries/fieldbus/ecat-enablekit)
+  & [EtherCAT Masterstack](./libraries/edge-control-libraries/fieldbus/ethercat-masterstack)
+
+  EtherCAT communication protocol stack and development tools. 
+
+- [PLCopen Servo](./libraries/edge-control-libraries/plcopen-motion-control/plcopen-servo)
+  and
+  [RTmotion](./libraries/edge-control-libraries/plcopen-motion-control/plcopen-motion)
+
+  Libraries implementing motion control standards for servo drives
+  and real-time trajectory management. 
+
+- [PLCopen Databus](./sample-applications/plcopen-databus)
+
+  Tools for data communication in automation networks. 
+
+- [Real-time Data Agent](./libraries/edge-control-libraries/rt-data-agent)
+
+  Microservice for collecting, processing, and distributing
+  real-time sensor and industrial device data; supports both edge
+  analytics and integration with operational systems.
+     
+### Robotics Libraries
+
+Optimized libraries for robotic perception, localization, mapping,
+and 3D point cloud analytics. These tools are designed to maximize
+performance on heterogeneous Intel hardware using oneAPI DPC++, enabling
+advanced robotic workloads at the edge.
+
+- [FLANN optimized with oneAPI DPC++](./libraries/robotics-ai-libraries/flann)
+
+  High-speed nearest neighbor library, optimized for Intel
+  architectures; supports scalable feature matching, search, and
+  clustering in robotic vision and SLAM.
+
+- [ORB Extractor](./libraries/robotics-ai-libraries/orb-extractor)
+
+  Efficient ORB feature and descriptor extraction for visual
+  SLAM, mapping, and tracking; designed for multicamera and GPU
+  acceleration scenarios.
+
+- [Point Cloud Library Optimized with Intel oneAPI DPC++](./libraries/robotics-ai-libraries/pcl)
+
+  Accelerated modules from PCL for real-time 2D/3D point cloud
+  processing—supports object detection, mapping, segmentation, and
+  scene understanding in automation and robotics.
+
+- [Motion Control Gateway](./libraries/robotics-ai-libraries/motion-control-gateway)
+
+  Unified interface library bridging motion control commands
+  between AI modules and industrial/robotic devices; simplifies
+  real-time control integration and system interoperability in mixed
+  hardware environments.
+
+### Sample Applications and Reference Implementations
+
+Ready-to-use example applications demonstrating real-world AI use cases
+to help users get started quickly and understand integration patterns: 
+
+- [Chat Question and Answer](./sample-applications/chat-question-and-answer) 
+
+  Conversational AI application integrating retrieval-augmented generation for
+  question answering. 
+
+- [Chat Question and Answer Core](./sample-applications/chat-question-and-answer-core) 
+
+  Conversational AI application integrating retrieval-augmented
+  generation for question answering.Optimized for Intel(R) Core.
+
+- [Document Summarization](./sample-applications/document-summarization) 
+
+  AI pipeline for automated summarization of textual documents. 
+
+- [Video Search and Summarization](./sample-applications/video-search-and-summarization) 
+
+  Application combining video content analysis with search and
+  summarization capabilities. 
+
+- [Edge Developer Kit Reference Scripts](https://github.com/open-edge-platform/edge-developer-kit-reference-scripts) 
+
+  Automate the setup of edge AI development environments using these
+  proven reference scripts. Quickly install required drivers,
+  configure hardware, and validate platform readiness for Intel-based
+  edge devices.
+
+> Visit the [Edge AI Suites](https://github.com/open-edge-platform/edge-ai-suites)
+> repository for a broader set of sample applications targeted at
+> specific industry segments. 
+     
+### Edge Analytics Microservices
+
+Specialized microservices delivering machine learning-powered
+analytics optimized for edge deployment. These microservices support
+scalable anomaly detection, classification, and predictive analytics on
+structured and time-series data.
+
+- [isolation-forest-microservice](https://github.com/intel/isolation-forest-microservice)
+
+  An efficient Isolation Forest microservice for unsupervised
+  anomaly detection supporting high-performance training and inference
+  on tabular and streaming data.
+
+- [random-forest-microservice](https://github.com/intel/random-forest-microservice)
+
+  High-speed Random Forest microservice for supervised
+  classification tasks, optimized for edge and industrial use cases
+  with rapid training and low-latency inference.
 
 ## Contribute
 
-To learn how to contribute to the project, see [CONTRIBUTING.md](CONTRIBUTING.md).
+To learn how to contribute to the project, see
+[CONTRIBUTING.md](./CONTRIBUTING.md).
 
 ## Community and Support
 
-For support, please submit your bug report and feature request to [Github Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues).
+If you need help, want to suggest a new feature, or report a bug, please use
+the following channels:
+
+- **Questions & Discussions:** Join the conversation in
+  [GitHub Discussions](https://github.com/open-edge-platform/edge-ai-libraries/discussions)
+  to ask questions, share ideas, or get help from the community.
+- **Bug Reports & Feature Requests:** Submit issues via
+  [Github Issues](https://github.com/open-edge-platform/edge-ai-libraries/issues)
+  for bugs or feature requests.
 
 ## License
 
-The **Edge AI Libraries** project is licensed under the [APACHE 2.0](LICENSE) license, except for the following components:
+The **Edge AI Libraries** project is licensed under the [APACHE 2.0](./LICENSE) license, except for the following components:
 
 | Component | License |
 |:----------|:--------|
 | Dataset Management Framework (Datumaro) | [MIT License](https://github.com/open-edge-platform/datumaro/blob/develop/LICENSE) |
 | Intel® Geti™ | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/geti/blob/main/LICENSE) |
-| Intel® SceneScape | [Limited Edge Software Distribution License](https://github.com/open-edge-platform/scenescape/blob/main/LICENSE) |
-
-

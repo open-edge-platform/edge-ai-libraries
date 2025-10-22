@@ -10,4 +10,5 @@ spec:
     app: {{ .Values.audioanalyzer.name }}
   ports:
     - port: {{ .Values.audioanalyzer.service.port }}
-      targetPort: {{ .Values.audioanalyzer.service.targetPort }}
+      targetPort: {{ .Values.audioanalyzer.containerPortName }}
+      name: {{ .Values.audioanalyzer.service.portName }}

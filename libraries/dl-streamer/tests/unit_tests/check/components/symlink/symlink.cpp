@@ -38,6 +38,8 @@ TEST(symlink_test, model_file) {
     bi.model_proc = nullptr;
     bi.labels = nullptr;
     bi.custom_preproc_lib = nullptr;
+    bi.custom_postproc_lib = nullptr;
+    bi.ov_extension_lib = nullptr;
 
     try {
         InferenceImpl ii(&bi);
@@ -72,6 +74,8 @@ TEST(symlink_test, model_proc_file) {
     bi.model_proc = (char *)link_path.c_str();
     bi.labels = nullptr;
     bi.custom_preproc_lib = nullptr;
+    bi.custom_postproc_lib = nullptr;
+    bi.ov_extension_lib = nullptr;
 
     try {
         InferenceImpl ii(&bi);
@@ -106,6 +110,8 @@ TEST(symlink_test, labels_file) {
     bi.model_proc = nullptr;
     bi.labels = (char *)link_path.c_str();
     bi.custom_preproc_lib = nullptr;
+    bi.custom_postproc_lib = nullptr;
+    bi.ov_extension_lib = nullptr;
 
     try {
         InferenceImpl ii(&bi);
@@ -121,6 +127,18 @@ TEST(symlink_test, labels_file) {
 
 int main(int argc, char *argv[]) {
     std::cout << "Running Components::symlink_test from " << __FILE__ << std::endl;
-    ::testing::InitGoogleTest(&argc, argv);
-    return RUN_ALL_TESTS();
+    try {
+        testing::InitGoogleTest(&argc, argv);
+        return RUN_ALL_TESTS();
+    } catch (const std::exception &e) {
+        std::cerr << "Caught std::exception in " << __FILE__ << " at line " << __LINE__ << " in function "
+                  << __FUNCTION__ << std::endl;
+        std::cerr << "Context: Failed during GoogleTest initialization: " << e.what() << std::endl;
+        return 1;
+    } catch (...) {
+        std::cerr << "Caught unknown exception in " << __FILE__ << " at line " << __LINE__ << " in function "
+                  << __FUNCTION__ << std::endl;
+        std::cerr << "Context: Failed during GoogleTest initialization with unknown exception type" << std::endl;
+        return 1;
+    }
 }

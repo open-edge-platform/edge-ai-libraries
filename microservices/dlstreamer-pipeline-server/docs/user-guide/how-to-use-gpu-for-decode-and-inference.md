@@ -33,10 +33,10 @@ Gstreamer has a variety of hardware specific encoders and decoders elements such
 
 Additionally, one can also enforce zero-copy of buffers using GStreamer caps (capabilities) to the pipeline by adding `video/x-raw(memory: VAMemory)` for Intel GPUs (integrated and discrete).
 
-Read DLStreamer [docs](https://dlstreamer.github.io/dev_guide/gpu_device_selection.html) for more details.
+Read DLStreamer [docs](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/dev_guide/gpu_device_selection.md).
 
 ### GPU specific element properties
-DLStreamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read DLStreamer [docs](https://dlstreamer.github.io/dev_guide/model_preparation.html#model-pre-and-post-processing) for more details.
+DLStreamer inference elements also provides property such as `pre-process-backend=va-surface-sharing` and `device=GPU` to pre-process and infer on GPU. Read DLStreamer [docs](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/dev_guide/model_preparation.md#2-model-pre--and-post-processing) for more details.
 
 ## Tutorial on how to use GPU specific pipelines
 
@@ -48,6 +48,14 @@ DLStreamer inference elements also provides property such as `pre-process-backen
         volumes:
         # Volume mount [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/configs/sample_gpu_decode_and_inference/config.json to config file that DL Streamer Pipeline Server container loads.
         - "../configs/sample_gpu_decode_and_inference/config.json:/home/pipeline-server/config.json"
+    ```
+
+- Restart DL Streamer pipeline server
+
+    ```sh
+        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
+        docker compose down
+        docker compose up
     ```
 
 - In the pipeline string in the above config file, we have added GPU specific elements/properties for decoding and inferencing on GPU backend. We will now start the pipeline with a curl request
@@ -72,15 +80,6 @@ DLStreamer inference elements also provides property such as `pre-process-backen
         }
     }'
     ```
-
-- Restart DL Streamer pipeline server
-
-    ```sh
-        cd [WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/
-        docker compose down
-        docker compose up
-    ```
 - We should see the metadata results in `/tmp/results.jsonl` file.
 
-- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://dlstreamer.github.io/dev_guide/performance_guide.html)
-
+- To perform decode and inference on CPU, please see [this document](./how-to-use-cpu-for-decode-and-inference.md). For more combinations of different devices for decode and inference, please see [this document](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/libraries/dl-streamer/docs/source/dev_guide/performance_guide.md).

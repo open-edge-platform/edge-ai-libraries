@@ -11,10 +11,10 @@ data:
     model=$0
     weight_format=$1
     gpu_enabled=$3
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/requirements.txt
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
     pip3 install -U huggingface_hub[hf_xet]
     # Log in to Hugging Face using the provided token
-    huggingface-cli login --token $2
+    hf auth login --token $2
 
     # Check if the login was successful
     if [ $? -eq 0 ]; then
@@ -22,7 +22,7 @@ data:
     else
         echo "Failed to log in to Hugging Face. Please check your token and try again."
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/0/demos/common/export_models/export_model.py -o export_model.py
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"

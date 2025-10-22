@@ -1,4 +1,4 @@
-ARG BASE_IMAGE=ghcr.io/open-edge-platform/edge-ai-libraries/intel/edge-ai-dlstreamer:20250805_EAL1.2-ubuntu22
+ARG BASE_IMAGE=intel/dlstreamer:2025.1.2-ubuntu22
 FROM ${BASE_IMAGE} AS gstudfloader-builder
 
 USER root

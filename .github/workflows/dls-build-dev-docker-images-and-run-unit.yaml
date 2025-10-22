@@ -11,7 +11,7 @@ env:
 jobs:
   build:
     name: Build dev ${{ matrix.ubuntu_version }} imgs and run unit
-    runs-on: dls
+    runs-on: [dls, ubuntu]
     permissions:
       contents: read
       packages: read
@@ -27,7 +27,7 @@ jobs:
     - name: Clean before
       run: |
         sudo rm -rf edge-ai-libraries-repo
-    
+
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
       with:
@@ -63,18 +63,8 @@ jobs:
           --build-arg BUILD_ARG=Debug \
           -f ${{ matrix.path_dockerfile }} \
           ./edge-ai-libraries-repo/libraries/dl-streamer
-  
+
     # ====================================================== UNIT TESTS ============================================================
-
-    - name: Print system information
-      run: |
-        echo "## System information" >> $GITHUB_STEP_SUMMARY
-        echo "Runner name: ${{ runner.name }}" >> $GITHUB_STEP_SUMMARY
-        echo "OS Type: $(uname -o)" >> $GITHUB_STEP_SUMMARY
-        echo "OS version: $(. /etc/os-release && echo "$PRETTY_NAME")" >> $GITHUB_STEP_SUMMARY
-        echo "Kernel Version: $(uname -r)" >> $GITHUB_STEP_SUMMARY
-        echo "CPU Name: $(lscpu | grep 'Model name' | sed 's/Model name:[ \t]*//')" >> $GITHUB_STEP_SUMMARY
-
     - name: Check models
       run: |
         echo "## Basic checks" >> $GITHUB_STEP_SUMMARY
@@ -99,7 +89,7 @@ jobs:
     - name: Create test results folder
       env:
         RESULTS_DIR: test-results
-      run: | 
+      run: |
         mkdir -p ${RESULTS_DIR}
         chmod -R 777 ${RESULTS_DIR}
 
@@ -154,3 +144,13 @@ jobs:
       env:
         RESULTS_DIR: test-results
       run: sudo rm -rf ${RESULTS_DIR} edge-ai-libraries-repo
+
+    # - name: Schedule reboot
+    #   if: always()
+    #   run: |
+    #     echo "Scheduling reboot in 15 seconds..."
+    #     if [ -x /usr/local/bin/reboot_runner.sh ]; then
+    #       sudo /usr/local/bin/reboot_runner.sh 15
+    #     else
+    #       echo "WARNING: /usr/local/bin/reboot_runner.sh not found or not executable. Skipping reboot."
+    #     fi

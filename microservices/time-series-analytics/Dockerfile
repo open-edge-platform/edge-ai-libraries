@@ -6,25 +6,47 @@
 
 # Use the Kapacitor image as the base image
 ARG KAPACITOR_VERSION
-FROM kapacitor:$KAPACITOR_VERSION
+FROM kapacitor:$KAPACITOR_VERSION as builder
 
 # Install Python and necessary packages in a single layer, minimize image size
 RUN apt-get update && \
-    apt-get install -y --no-install-recommends \
-        python3 python3-pip git ca-certificates && \
-    python3 -m pip install --no-cache-dir --upgrade pip && \
-    apt-get purge -y --auto-remove && \
-    rm -rf /var/lib/apt/lists/*
-
-WORKDIR /app
+    apt-get install -y --no-install-recommends git
 
 # Clone only the required files to reduce image size
 RUN git clone --depth 1 --filter=blob:none --sparse --branch v${KAPACITOR_VERSION} \
     https://github.com/influxdata/kapacitor.git /tmp/kapacitor && \
     cd /tmp/kapacitor && \
-    git sparse-checkout set udf/agent/py && \
-    mv /tmp/kapacitor/udf/agent/py /app/kapacitor_python && \
-    rm -rf /tmp/kapacitor
+    git sparse-checkout set udf/agent/py
+
+FROM kapacitor:$KAPACITOR_VERSION as runtime
+
+WORKDIR /app
+
+RUN apt-get update && \
+    apt-get install -y --no-install-recommends \
+        python3 python3-pip intel-gpu-tools && \
+    apt-get purge -y --auto-remove && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
+
+# Copy kapacitor Python UDF agent files from builder image
+COPY --from=builder /tmp/kapacitor/udf/agent/py /app/kapacitor_python
+
+# Install Intel GPU tools and clean up
+RUN export no_proxy= && \
+    apt-get update && \
+    . /etc/os-release && \
+    if [[ ! "jammy" =~ ${VERSION_CODENAME} ]]; then \
+        echo "Ubuntu version ${VERSION_CODENAME} not supported"; \
+    else \
+        wget --no-check-certificate -qO- https://repositories.intel.com/gpu/intel-graphics.key | gpg --dearmor --output /usr/share/keyrings/gpu-intel-graphics.gpg && \
+        echo "deb [arch=amd64 signed-by=/usr/share/keyrings/gpu-intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
+        tee /etc/apt/sources.list.d/intel-gpu-"${VERSION_CODENAME}".list && \
+        apt-get update; \
+    fi && \
+    apt-get install -y --no-install-recommends \
+    intel-opencl-icd intel-level-zero-gpu && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/* 
 
 ARG TIMESERIES_UID
 ARG TIMESERIES_USER_NAME
@@ -40,12 +62,11 @@ COPY ./requirements.txt .
 RUN pip3 install --no-cache-dir -r requirements.txt
 
 # Set environment variables in a single ENV instruction for better layer caching
-ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/" \
-    LD_LIBRARY_PATH="$LD_LIBRARY_PATH:/app/idp/lib"
+ENV PYTHONPATH="$PYTHONPATH:/tmp/py_package:/app/kapacitor_python/"
 
 # Adding classifier program
 # Copy Python source files in a single layer for better caching
-COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/mr_interface.py ./src/main.py /app/
+COPY ./src/classifier_startup.py ./src/opcua_alerts.py ./src/main.py /app/
 
 # Copy configuration files and directories efficiently
 COPY ./config.json /app/
@@ -73,7 +94,7 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         # Get source code for installed Python packages with copyleft licenses \
         mkdir -p /copyleft_sources/python && \
         cd /copyleft_sources/python && \
-        apt-get update && apt-get install -y --no-install-recommends gcc build-essential libffi-dev python3-dev && \
+        apt-get update && apt-get install -y --no-install-recommends gcc libffi-dev python3-dev && \
         # Download python package sources with relevant licenses \
         pip3 freeze | cut -d= -f1 | while read pkg; do \
             meta=$(pip3 show $pkg 2>/dev/null); \
@@ -83,13 +104,13 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
                 pip3 download --no-binary :all: $pkg || true; \
             fi; \
         done; \
-        apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
+        apt-get remove --purge -y gcc libffi-dev python3-dev; \
     fi
 
 WORKDIR /app
 # Remove git and clean up to reduce image size
-RUN apt-get purge -y --auto-remove git && \
-    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip
+RUN apt-get purge -y --auto-remove && \
+    rm -rf /var/lib/apt/lists/* /tmp/* /var/tmp/* /root/.cache/pip /timeseries_user/.cache/pip
 
 # Switch to non-root user for security
 USER $TIMESERIES_USER_NAME
@@ -97,4 +118,4 @@ USER $TIMESERIES_USER_NAME
 # Simple healthcheck to verify container is running
 HEALTHCHECK --interval=5m CMD exit 0
 
-ENTRYPOINT ["python3", "./main.py"]
+ENTRYPOINT ["python3", "main.py"]

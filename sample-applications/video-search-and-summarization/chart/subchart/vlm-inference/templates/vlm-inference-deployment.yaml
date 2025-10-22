@@ -18,12 +18,20 @@ spec:
         runAsUser: 1000
         runAsGroup: 1000
         fsGroup: 1000
+      {{- with .Values.nodeAffinity }}
+      affinity:
+        nodeAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
         - name: {{ .Values.vlminference.name }}
           image: "{{ .Values.vlminference.image.repository }}:{{ .Values.vlminference.image.tag }}"
           imagePullPolicy: {{ .Values.vlminference.image.pullPolicy }}
           ports:
-            - containerPort: {{ .Values.vlminference.service.targetPort }}
+            - containerPort: {{ .Values.containerPort }}
+              name: {{ .Values.containerPortName }}
+          startupProbe:
+            {{- toYaml .Values.startupProbe | nindent 12 }}
           env:
             - name: VLM_MODEL_NAME
               value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
@@ -52,11 +60,21 @@ spec:
           volumeMounts:
           - name: workspace
             mountPath: /app/ov-model
+            subPath: ov-models
           - name: workspace
             mountPath: /home/appuser/.cache/huggingface
+            subPath: huggingface
           securityContext:
             readOnlyRootFilesystem: false
       volumes:
         - name: workspace
+          {{- if .Values.global.pvcName }}
           persistentVolumeClaim:
-            claimName: {{ .Values.vlminference.volumeMounts.pvcName }}
+            claimName: {{ .Values.global.pvcName }}
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}

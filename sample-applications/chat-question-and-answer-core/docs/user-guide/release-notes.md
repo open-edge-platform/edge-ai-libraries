@@ -2,6 +2,18 @@
 
 ## Current Release
 
+**Version**: 1.3.0 \
+**Release Date**: WW42 2025
+
+- Ollama Integration with Expanded Model Support. Enabling support for a broader range of models beyond the previously supported OpenVINO toolkit. This allows users to seamlessly switch between OpenVINO toolkit and Ollama-supported models.
+- Package Vulnerability Fixes. Upgraded dependencies to latest versions.
+
+## Known Issues/Behavior (Consolidated):
+- Validation on the latest version of Edge Manageability Framework has not been done. Hence, Edge Manageability Framework should be considered as not supported. - Open
+- Helm deployment with GPU support has not been validated due to internal cluster node issues. GPU-specific configurations may require manual testing or adjustments until cluster stability is restored. - Open
+
+## Previous Releases
+
 **Version**: 1.2.2 \
 **Release Date**: WW32 2025
 
@@ -10,11 +22,7 @@
 - Renamed `stream_log/` endpoint to `chat/`, reflecting its functionality more accurately.
 - Functional on EMT 3.0.
 
-## Known Issues/Behavior (Consolidated):
-- Validation on the latest version of EMF has not been done. Hence, EMF should be considered as not supported. - Open
-- Not validated on EMT edge node - Closed
-
-## Previous Releases
+## Earlier releases
 
 **Version**: 1.2.1 \
 **Release Date**: WW27 2025
@@ -33,8 +41,6 @@
 - Docker images for this release:
   - CPU-only support: intel/chatqna:core_1.2.0
   - GPU-enabled support: intel/chatqna:core_gpu_1.2.0
-
-## Earlier releases
 
 **Version**: 1.1.2 \
 **Release Date**: WW16 2025

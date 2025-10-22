@@ -6,7 +6,7 @@ Ensure to build/pull the DL Streamer Pipeline Server extended image.
 
 [Build instructions](./how-to-build-from-source.md)
 
-Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server) or [ghcr](https://github.com/open-edge-platform/edge-ai-libraries/pkgs/container/edge-ai-libraries%2Fintel%2Fedge-ai-dlstreamer-pipeline-server)
+Pull DL Streamer Pipeline Server extended image from [dockerhub](https://hub.docker.com/r/intel/dlstreamer-pipeline-server)
 - Ensure to update the `DLSTREAMER_PIPELINE_SERVER_IMAGE` value in `[WORKDIR]/edge-ai-libraries/microservices/dlstreamer-pipeline-server/docker/.env` file accordingly, in order to run the pulled image.
 
 ## Steps

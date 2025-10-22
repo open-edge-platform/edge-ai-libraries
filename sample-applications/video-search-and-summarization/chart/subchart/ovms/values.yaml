@@ -1,16 +1,18 @@
 global:
-  huggingface:
-    apiToken: 
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: "/mnt/ovms"
+  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+  pvcName: ""
+  
+  # huggingfaceToken should be set during installation if gated models need to be accessed.
+  huggingfaceToken: ""
+  # llmName is the Large Language Model used by OVMS
+  llmName: ""
+
   proxy:
     no_proxy: 
     http_proxy: 
     https_proxy:
-
-  # llmName is the Large Language Model used by OVMS
-  llmName: ""
-
-  egai_ovms_pvc:
-    size: 40Gi
     
 ovms:
   name: ovms
@@ -18,16 +20,13 @@ ovms:
     repository: openvino/model_server
     tag: "2025.1"
     pullPolicy: IfNotPresent
-  readinessProbe:
-    httpGet:
-      path: /v2/health/ready
-      port: 8300
-    initialDelaySeconds: 60
-    periodSeconds: 30
+
+  containerPort: 8300   # Port on which container application listens internally
+  containerPortName: ovms-port    # Optional name to refer containerPort
   service:
     type: ClusterIP
-    port: 8300
-    targetPort: 8300
+    port: 8300    # Port on which service listens for incoming connection, if exposed externally
+    portName: http    # Service port name. Useful when service exposes multiple ports.
   
   # scriptconfigmap: ovms-configmap.yaml
   env:
@@ -35,3 +34,30 @@ ovms:
     model_directory_name: "converted_model"
   script:
     name: "ovms-model-preparation"
+
+livenessProbe:
+  httpGet:
+    path: /v2/health/live
+    port: ovms-port
+  initialDelaySeconds: 10
+  periodSeconds: 20
+  failureThreshold: 3
+
+readinessProbe:
+  httpGet:
+    path: /v2/health/ready
+    port: ovms-port
+  initialDelaySeconds: 5
+  periodSeconds: 20
+  failureThreshold: 3
+
+# Wait for startup till max ~ 50Mins
+startupProbe:
+  tcpSocket:
+    port: ovms-port
+  initialDelaySeconds: 10
+  periodSeconds: 30
+  failureThreshold: 100
+
+# Node affinity to schedule pods on specific nodes only
+nodeAffinity: {}

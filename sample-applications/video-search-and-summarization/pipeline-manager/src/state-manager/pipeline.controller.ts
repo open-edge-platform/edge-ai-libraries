@@ -1,6 +1,5 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
-
 import { Controller, Get, Req } from '@nestjs/common';
 import { ChunkingService } from './queues/chunking.service';
 import { EvamService } from 'src/evam/services/evam.service';

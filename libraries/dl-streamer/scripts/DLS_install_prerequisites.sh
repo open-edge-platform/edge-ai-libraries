@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-npu_driver_version='1.19.0'
+npu_driver_version='1.23.0'
 reinstall_npu_driver='no'  # Default value for reinstalling the NPU driver
 on_host_or_docker='host'
 
@@ -339,13 +339,11 @@ setup_gpu(){
             ;;
     esac
     $SUDO_PREFIX apt update
-    # Install common packages for Intel GPU
-    install_packages libze-intel-gpu1 libze1 clinfo intel-media-va-driver-non-free
     # Additional packages for Ubuntu 22.04/24.04
     if [ "$ubuntu_version" == "24.04" ]; then
-        install_packages intel-gsc intel-opencl-icd=25.05.32567.19-1099~24.04
-    else
-        install_packages intel-opencl-icd
+        install_packages clinfo libze-intel-gpu1=25.18.33578.15-1146~24.04 libze1=1.21.9.0-1136~24.04 intel-media-va-driver-non-free=25.2.4-1146~24.04 intel-gsc=0.9.5-123~u24.04 intel-opencl-icd=25.05.32567.19-1099~24.04
+    elif [ "$ubuntu_version" == "22.04" ]; then
+        install_packages clinfo libze-intel-gpu1=25.18.33578.15-1146~22.04 libze1=1.21.9.0-1136~22.04 intel-media-va-driver-non-free=25.2.4-1146~22.04 intel-opencl-icd=25.18.33578.15-1146~22.04
     fi
 }
 # Function to get .deb package URLs from the latest release of a GitHub repository
@@ -531,15 +529,21 @@ setup_npu() {
 install_npu() {
     local ubuntu_version="${1:-$(lsb_release -rs)}"
     $SUDO_PREFIX rm -rf ./npu_debs
-    mkdir -p ./npu_debs
+    mkdir -p ./npu_debs && cd npu_debs
     dpkg --purge --force-remove-reinstreq intel-driver-compiler-npu intel-fw-npu intel-level-zero-npu
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-driver-compiler-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-fw-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
-    wget https://github.com/intel/linux-npu-driver/releases/download/v1.19.0/intel-level-zero-npu_1.19.0.20250707-16111289554_ubuntu${ubuntu_version}_amd64.deb -P ./npu_debs
-    wget https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u${ubuntu_version}_amd64.deb -P ./npu_debs
+    if [ "$ubuntu_version" == "22.04" ]; then
+        wget https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u22.04_amd64.deb
+        wget https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2204.tar.gz
+        tar -xf linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2204.tar.gz
+    elif [ "$ubuntu_version" == "24.04" ]; then
+        wget https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb
+        wget https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz
+        tar -xf linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz
+    fi
     $SUDO_PREFIX apt update
     $SUDO_PREFIX apt install libtbb12
-    $SUDO_PREFIX  dpkg -i ./npu_debs/*.deb
+    $SUDO_PREFIX  $SUDO_PREFIX dpkg -i *.deb
+    cd ..
     rm -rf ./npu_debs
     $SUDO_PREFIX apt-get clean
     $SUDO_PREFIX rm -rf /var/lib/apt/lists/*
@@ -590,7 +594,7 @@ if [ "$on_host_or_docker" == "host" ]; then
             echo_color " Kernel 6.12 or higher detected." "green"
         else
             echo_color "\n WARNING!" "red"
-            echo_color "\n Intel® Deep Learning Streamer on Lunar Lake family processors has only been tested with the 6.12 kernel. We strongly recommend updating the kernel version before proceeding." "red"
+            echo_color "\n Deep Learning Streamer on Lunar Lake family processors has only been tested with the 6.12 kernel. We strongly recommend updating the kernel version before proceeding." "red"
             read -p " Quit installation? [y/n] " -n 1 -r
             echo
             if [[ $REPLY =~ ^[Yy]$ ]]; then
@@ -867,7 +871,7 @@ if [ "$need_to_reboot" -eq 1 ]; then
   fi
 else
     echo_color "\n Environment setup completed successfully. " "bgreen"
-    echo_color " You may now proceed with the installation of Intel® DL Streamer." "green"
+    echo_color " You may now proceed with the installation of DL Streamer." "green"
 
     echo " ---------------------------------------------------"
     echo  " The following hardware will be enabled: "

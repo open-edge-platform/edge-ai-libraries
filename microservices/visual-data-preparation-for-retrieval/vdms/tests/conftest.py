@@ -9,9 +9,10 @@ from unittest.mock import MagicMock
 import pytest
 from fastapi.testclient import TestClient
 
-# application packages
-from src.app import app
 from src.core.minio_client import MinioClient
+
+# application packages
+from src.main import app
 
 
 @pytest.fixture(scope="function")

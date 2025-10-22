@@ -72,6 +72,8 @@
 
 #define DEFAULT_CUSTOM_POSTPROC_LIB nullptr
 
+#define DEFAULT_OV_EXTENSION_LIB nullptr
+
 G_DEFINE_TYPE_WITH_PRIVATE(GvaBaseInference, gva_base_inference, GST_TYPE_BASE_TRANSFORM);
 
 GST_DEBUG_CATEGORY_STATIC(gva_base_inference_debug_category);
@@ -104,7 +106,8 @@ enum {
     PROP_LABELS_FILE,
     PROP_SCALE_METHOD,
     PROP_CUSTOM_PREPROC_LIB,
-    PROP_CUSTOM_POSTPROC_LIB
+    PROP_CUSTOM_POSTPROC_LIB,
+    PROP_OV_EXTENSION_LIB
 };
 
 GType gst_gva_base_inference_get_inf_region(void) {
@@ -158,6 +161,33 @@ static bool is_roi_inference_needed(GvaBaseInference *gva_base_inference, guint6
     return true;
 }
 
+static GstCaps *gva_base_inference_transform_caps(GstBaseTransform *trans, GstPadDirection direction, GstCaps *caps,
+                                                  GstCaps *filter) {
+    GvaBaseInference *base_inference = GVA_BASE_INFERENCE(trans);
+
+    // Get the default transformed caps from the parent class
+    GstCaps *result =
+        GST_BASE_TRANSFORM_CLASS(gva_base_inference_parent_class)->transform_caps(trans, direction, caps, filter);
+
+    // If device is CPU, filter out memory:VASurface, memory:VAMemory, memory:DMABuf
+    if (base_inference->device && g_strcmp0(base_inference->device, "CPU") == 0) {
+        GstCaps *filtered = gst_caps_copy(result);
+        for (gint i = gst_caps_get_size(filtered) - 1; i >= 0; --i) {
+            GstCapsFeatures *features = gst_caps_get_features(filtered, i);
+            if ((gst_caps_features_contains(features, "memory:VASurface")) ||
+                (gst_caps_features_contains(features, "memory:VAMemory")) ||
+                (gst_caps_features_contains(features, "memory:DMABuf"))) {
+                gst_caps_remove_structure(filtered, i);
+                GST_WARNING("Filtered out structure %d from caps, it contains unsupported memory type", i);
+            }
+        }
+        gst_caps_unref(result);
+        result = filtered;
+    }
+
+    return result;
+}
+
 void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
     GObjectClass *gobject_class = G_OBJECT_CLASS(klass);
     GstBaseTransformClass *base_transform_class = GST_BASE_TRANSFORM_CLASS(klass);
@@ -170,6 +200,7 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
     gobject_class->get_property = gva_base_inference_get_property;
     gobject_class->dispose = gva_base_inference_dispose;
     gobject_class->finalize = gva_base_inference_finalize;
+    base_transform_class->transform_caps = GST_DEBUG_FUNCPTR(gva_base_inference_transform_caps);
     base_transform_class->set_caps = GST_DEBUG_FUNCPTR(gva_base_inference_set_caps);
     base_transform_class->start = GST_DEBUG_FUNCPTR(gva_base_inference_start);
     base_transform_class->stop = GST_DEBUG_FUNCPTR(gva_base_inference_stop);
@@ -201,6 +232,11 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
                             "const GstStructure *params, GstAnalyticsRelationMeta *relationMeta);",
                             DEFAULT_CUSTOM_POSTPROC_LIB, param_flags));
 
+    g_object_class_install_property(gobject_class, PROP_OV_EXTENSION_LIB,
+                                    g_param_spec_string("ov-extension-lib", "OpenVINO Extension Library",
+                                                        "Path to the .so file defining custom OpenVINO operations.",
+                                                        DEFAULT_OV_EXTENSION_LIB, param_flags));
+
     g_object_class_install_property(
         gobject_class, PROP_MODEL_INSTANCE_ID,
         g_param_spec_string(
@@ -211,11 +247,12 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
 
     g_object_class_install_property(
         gobject_class, PROP_SCHEDULING_POLICY,
-        g_param_spec_string(
-            "scheduling-policy", "Scheduling Policy",
-            "Scheduling policy across streams sharing same model instance: "
-            "throughput (select first incoming frame), latency (select frames with earliest presentation time)",
-            DEFAULT_SCHEDULING_POLICY, (GParamFlags)(param_flags)));
+        g_param_spec_string("scheduling-policy", "Scheduling Policy",
+                            "Scheduling policy across streams sharing same model instance: "
+                            "throughput (select first incoming frame), "
+                            "latency (select frames with earliest presentation time out of the streams sharing same "
+                            "model-instance-id; recommended batch-size less than or equal to the number of streams) ",
+                            DEFAULT_SCHEDULING_POLICY, (GParamFlags)(param_flags)));
 
     g_object_class_install_property(
         gobject_class, PROP_PRE_PROC_BACKEND,
@@ -414,6 +451,9 @@ void gva_base_inference_cleanup(GvaBaseInference *base_inference) {
 
     g_free(base_inference->custom_postproc_lib);
     base_inference->custom_postproc_lib = nullptr;
+
+    g_free(base_inference->ov_extension_lib);
+    base_inference->ov_extension_lib = nullptr;
 }
 
 void gva_base_inference_init(GvaBaseInference *base_inference) {
@@ -467,6 +507,7 @@ void gva_base_inference_init(GvaBaseInference *base_inference) {
     base_inference->scale_method = nullptr;
     base_inference->custom_preproc_lib = g_strdup(DEFAULT_MODEL_PROC);
     base_inference->custom_postproc_lib = g_strdup(DEFAULT_CUSTOM_POSTPROC_LIB);
+    base_inference->ov_extension_lib = g_strdup(DEFAULT_OV_EXTENSION_LIB);
 }
 
 GstStateChangeReturn gva_base_inference_change_state(GstElement *element, GstStateChange transition) {
@@ -655,6 +696,11 @@ void gva_base_inference_set_property(GObject *object, guint property_id, const G
         base_inference->custom_postproc_lib = g_value_dup_string(value);
         GST_INFO_OBJECT(base_inference, "custom-postproc-lib: %s", base_inference->custom_postproc_lib);
         break;
+    case PROP_OV_EXTENSION_LIB:
+        g_free(base_inference->ov_extension_lib);
+        base_inference->ov_extension_lib = g_value_dup_string(value);
+        GST_INFO_OBJECT(base_inference, "ov-extension-lib: %s", base_inference->ov_extension_lib);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
         break;
@@ -736,6 +782,9 @@ void gva_base_inference_get_property(GObject *object, guint property_id, GValue 
     case PROP_CUSTOM_POSTPROC_LIB:
         g_value_set_string(value, base_inference->custom_postproc_lib);
         break;
+    case PROP_OV_EXTENSION_LIB:
+        g_value_set_string(value, base_inference->ov_extension_lib);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
         break;
@@ -785,6 +834,36 @@ gboolean gva_base_inference_set_caps(GstBaseTransform *trans, GstCaps *incaps, G
             return FALSE;
     }
 
+    // Check if the caps are compatible with the device
+    if ((base_inference->device && g_strcmp0(base_inference->device, "CPU") == 0 &&
+         ((gst_caps_features_contains(gst_caps_get_features(incaps, 0), "memory:VASurface")) ||
+          (gst_caps_features_contains(gst_caps_get_features(incaps, 0), "memory:VAMemory")) ||
+          (gst_caps_features_contains(gst_caps_get_features(incaps, 0), "memory:DMABuf"))))) {
+        GST_ELEMENT_WARNING(base_inference, RESOURCE, SETTINGS,
+                            ("Refusing caps other than SYSTEM_MEMORY_CAPS because device is set to CPU"),
+                            ("Set device property to a hardware accelerator (e.g., GPU) to enable VA memory types."));
+        return FALSE;
+    }
+
+    auto element_name = GST_ELEMENT_NAME(GST_ELEMENT(base_inference));
+    // convert element_name to std::string and remove trailing numbers from element name
+    std::string element_name_str = std::string(element_name);
+    auto pos = element_name_str.find_last_of("0123456789");
+    if (pos != std::string::npos)
+        element_name_str = element_name_str.substr(0, pos);
+
+    if (base_inference->device && g_strcmp0(base_inference->device, "CPU") != 0 &&
+        (gst_caps_features_contains(gst_caps_get_features(incaps, 0), "memory:SystemMemory"))) {
+        GST_ELEMENT_WARNING(
+            base_inference, RESOURCE, SETTINGS,
+            ("\n\nSystem memory is being used for inference on device '%s'. For optimal performance, use "
+             "VA memory in the pipeline:\n\nvapostproc ! \"video/x-raw(memory:VAMemory)\" ! %s device=%s model=%s.\n",
+             base_inference->device, element_name_str.c_str(), base_inference->device, base_inference->model),
+            ("System memory transfers are less efficient than VA memory for device '%s'. Consider "
+             "using memory:VAMemory for better performance. \n",
+             base_inference->device));
+    }
+
     if (base_inference->inference && base_inference->info &&
         gst_video_info_is_equal(base_inference->info, &video_info) && base_inference->caps_feature == caps_feature) {
         // We alredy have an inference model instance.
@@ -805,13 +884,6 @@ gboolean gva_base_inference_set_caps(GstBaseTransform *trans, GstCaps *incaps, G
     base_inference->caps_feature = caps_feature;
 
     base_inference->priv->buffer_mapper.reset();
-
-    // If pre-process-backend property not set and SYSTEM_MEMORY_CAPS, set preproc to "ie".
-    // Added due to VAAPI media driver stability issues, this emulates behaviour of 2021.x releases
-    if (!base_inference->pre_proc_type || !*base_inference->pre_proc_type) {
-        if (caps_feature == SYSTEM_MEMORY_CAPS_FEATURE)
-            base_inference->pre_proc_type = g_strdup("ie");
-    }
 
     // Need to acquire inference model instance
     try {

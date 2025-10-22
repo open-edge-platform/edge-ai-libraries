@@ -16,10 +16,9 @@ from .chain import (
     delete_embedding_from_vectordb,
     get_retriever,
     build_chain,
-    process_query,
+    process_query
 )
 from .document import validate_document, save_document
-from .utils import get_available_devices, get_device_property
 
 app = FastAPI(title="Chat Question and Answer Core", root_path="/v1/chatqna")
 
@@ -35,8 +34,26 @@ app.add_middleware(
 
 
 class ChatRequest(BaseModel):
+    '''
+    Represents a chat request containing the input question and options for response type.
+    This model is used to process the input question and return a response based on the configured models.
+
+    Attributes:
+        input (str): The input question text to be processed.
+        stream (bool): Flag indicating whether to return the response as a stream or not. Defaults to True.
+    '''
     input: str
     stream: bool = True
+
+
+# Conditionally include OpenVINO routes
+if config.MODEL_RUNTIME == "openvino":
+    from .openvino_routes import router as openvino_router
+    app.include_router(openvino_router)
+
+elif config.MODEL_RUNTIME == "ollama":
+    from .ollama_routes import router as ollama_router
+    app.include_router(ollama_router)
 
 
 @app.get("/health", tags=["Health API"], summary="Check API health status")
@@ -65,55 +82,6 @@ async def get_llm_model():
     return {"status": "Success", "llm_model": llm_model}
 
 
-@app.get("/devices", tags=["Device API"], summary="Get available devices list")
-async def get_devices():
-    """
-    Retrieve a list of devices.
-    Returns:
-        dict: A dictionary with a key "devices" containing the list of devices.
-    Raises:
-        HTTPException: If an error occurs while retrieving the devices, an HTTP 500 exception is raised with the error details.
-    """
-
-    try:
-        devices = get_available_devices()
-
-        return {"devices": devices}
-
-    except Exception as e:
-        logger.exception("Error getting devices list.", error=e)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
-@app.get("/devices/{device}", tags=["Device API"], summary="Get device property")
-async def get_device_info(device: str = ""):
-    """
-    Retrieve information about a specific device.
-    Args:
-        device (str): The name of the device to retrieve information for. Defaults to an empty string.
-    Returns:
-        JSONResponse: A JSON response containing the properties of the specified device.
-    Raises:
-        HTTPException: If the device is not found or if there is an error retrieving the device properties.
-    """
-
-    try:
-        available_devices = get_available_devices()
-
-        if device not in available_devices:
-            raise HTTPException(
-                status_code=404, detail=f"Device {device} not found. Available devices: {available_devices}"
-            )
-
-        device_props = get_device_property(device)
-
-        return JSONResponse(content=device_props)
-
-    except Exception as e:
-        logger.exception("Error getting properties for device.", error=e)
-        raise HTTPException(status_code=500, detail=str(e))
-
-
 @app.get(
     "/documents",
     tags=["Document Ingestion API"],
@@ -133,7 +101,7 @@ async def get_documents():
         return {"status": "Success", "metadata": {"documents": documents}}
 
     except Exception as e:
-        logger.exception("Error getting documents.", error=e)
+        logger.exception("Error getting documents.")
         raise HTTPException(
             status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
             detail="Error getting documents.",
@@ -183,7 +151,7 @@ async def ingest_document(
             # Save document in /tmp/ to ingest it
             tmp_file, err_message = await save_document(file_obj)
             if tmp_file is None:
-                logger.exception("Error saving file.", error=err_message)
+                logger.exception("Error saving file.")
                 raise HTTPException(
                     status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                     detail=f"Error saving file: {err_message}",
@@ -201,7 +169,7 @@ async def ingest_document(
                     )
 
             except Exception as err:
-                logger.exception("Error creating embedding.", error=err)
+                logger.exception("Error creating embedding.")
                 raise HTTPException(
                     status_code=HTTPStatus.INTERNAL_SERVER_ERROR,
                     detail=f"Error creating embedding: {err}",
@@ -221,7 +189,7 @@ async def ingest_document(
         raise ex
 
     except Exception as e:
-        logger.exception("Error ingesting document.", error=e)
+        logger.exception("Error ingesting document.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
     finally:
@@ -246,7 +214,7 @@ async def delete_embedding(document: str = "", delete_all: bool = False):
         delete_all (bool): Flag indicating whether to delete all embeddings. Defaults to False.
 
     Returns:
-        status_code: HTTP status code of 204 indicating the success of the deletion process.
+        status_code: HTTP status code of NO_CONTENT indicating the success of the deletion process.
 
     Raises:
         HTTPException: If there is an error during the deletion process.
@@ -273,7 +241,7 @@ async def delete_embedding(document: str = "", delete_all: bool = False):
         raise ex
 
     except Exception as e:
-        logger.exception("Error deleting embeddings.", error=e)
+        logger.exception("Error deleting embeddings.")
         raise HTTPException(status_code=HTTPStatus.INTERNAL_SERVER_ERROR, detail=str(e))
 
 
@@ -299,7 +267,7 @@ async def query_chat(request: ChatRequest):
 
     st = time.perf_counter()
 
-    retriever = get_retriever(config.ENABLE_RERANK)
+    retriever = get_retriever()
 
     rag_chain = build_chain(retriever)
 

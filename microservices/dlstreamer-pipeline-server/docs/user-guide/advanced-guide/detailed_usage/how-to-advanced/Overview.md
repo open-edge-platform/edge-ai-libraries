@@ -38,6 +38,7 @@ To enable Open Telemetry and capture various runtime statistics, refer this [doc
 ## Working with other services
 To learn how DL Streamer Pipeline Server interacts with other microservices such as Model Registry, refer this [doc](./work-with-other-services.md)
 
+<!--hide_directive
 ```{toctree}
 :maxdepth: 5
 :hidden:
@@ -51,3 +52,4 @@ cross-stream-batching.md
 enable-open-telemetry.md
 work-with-other-services.md
 ```
+hide_directive-->
