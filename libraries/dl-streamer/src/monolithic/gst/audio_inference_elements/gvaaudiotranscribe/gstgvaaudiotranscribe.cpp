@@ -290,6 +290,8 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
             if (!transcript.empty()) {
                 // Log transcript to console (visible with GST_DEBUG level >= INFO for this category)
                 GST_INFO_OBJECT(gvaaudiotranscribe, "Transcript: %s", transcript.c_str());
+                g_print("gvaaudiotranscribe: Transcript: %s\n", transcript.c_str());
+
 
                 // Post a bus message so gst-launch -m displays it without needing debug categories
                 GstStructure *s =
