@@ -11,6 +11,18 @@
 #include <vector>
 
 /**
+ * Structure to hold transcription results with confidence score.
+ */
+struct TranscriptionResult {
+    std::string text;        // The transcribed text
+    float confidence;        // Confidence score (0.0 to 1.0)
+    
+    // Constructor for convenience
+    TranscriptionResult(const std::string& txt = "", float conf = 1.0f) 
+        : text(txt), confidence(conf) {}
+};
+
+/**
  * Base class for audio transcription handlers.
  *
  * This interface allows users to implement custom model inference handlers
@@ -44,9 +56,9 @@ class GvaAudioTranscribeHandler {
      * Perform transcription on audio data.
      * @param audio_data Vector of normalized float audio samples (16kHz, mono)
      * @param buf GStreamer buffer containing the audio data (for metadata)
-     * @return Transcribed text string
+     * @return TranscriptionResult containing transcribed text and confidence score
      */
-    virtual std::string transcribe(const std::vector<float> &audio_data, GstBuffer *buf) = 0;
+    virtual TranscriptionResult transcribe(const std::vector<float> &audio_data, GstBuffer *buf) = 0;
 
     /**
      * Clean up resources and shut down the handler.

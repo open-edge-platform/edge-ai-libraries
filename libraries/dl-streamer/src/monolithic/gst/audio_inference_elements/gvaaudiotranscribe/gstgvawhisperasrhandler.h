@@ -19,7 +19,7 @@ class WhisperHandler : public GvaAudioTranscribeHandler {
     bool initialize(const std::string &model_path, const std::string &device, const std::string &language,
                     const std::string &task, bool return_timestamps) override;
 
-    std::string transcribe(const std::vector<float> &audio_data, GstBuffer *buf) override;
+    TranscriptionResult transcribe(const std::vector<float> &audio_data, GstBuffer *buf) override;
 
     void cleanup() override;
 
