@@ -301,7 +301,7 @@ def get_optimized_pipeline(pipeline, search_duration = 300, sample_duration = 10
 
 def main():
     parser = argparse.ArgumentParser(
-        prog="DL Streamer Pipeline Optimization Tool",
+        prog="DLStreamer Pipeline Optimization Tool",
         description="Use this tool to try and find versions of your pipeline that will run with increased performance." # pylint: disable=line-too-long
     )
     parser.add_argument("--search-duration", default=300,
@@ -316,7 +316,7 @@ def main():
         best_pipeline, best_fps = get_optimized_pipeline(args.pipeline,
                                                          args.search_duration,
                                                          args.sample_duration)
-        logger.info("Best found pipeline: %s with fps: %f.2", best_pipeline, best_fps)
+        logger.info("\nBest found pipeline: %s \nwith fps: %f.2", best_pipeline, best_fps)
     except Exception as e: # pylint: disable=broad-exception-caught
         logger.error("Failed to optimize pipeline: %s", e)
 

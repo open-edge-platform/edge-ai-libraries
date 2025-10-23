@@ -8,14 +8,14 @@ Multi-stream pipelines are also currently not supported.
 
 # Usage
 ```
-python3 DLSOptimizer.py [OPT] -- PIPELINE
+python3 optimizer.py [OPT] -- PIPELINE
 
 Options:
     --search-duration SEARCH_DURATION   How long should the optimizer search for better pipelines
     --sample-duration SAMPLE_DURATION   How long should every pipeline be sampled for performance
 ```
 
-Increasing the search duration will increase the chances of discovering more performant pipelines. Increasing the sample duration Will improve the stability of the search, but less pipelines will potentially be explored. 
+Increasing the search duration will increase the chances of discovering more performant pipelines. Increasing the sample duration will improve the stability of the search, but less pipelines will potentially be explored. 
 
 # Example
 ```
