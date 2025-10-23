@@ -18,7 +18,7 @@ from gi.repository import Gst
 ####################################### Init ######################################################
 
 Gst.init()
-logging.basicConfig(level=logging.DEBUG, format="[%(name)s] [%(levelname)8s] - %(message)s")
+logging.basicConfig(level=logging.INFO, format="[%(name)s] [%(levelname)8s] - %(message)s")
 logger = logging.getLogger(__name__)
 logger.info("GStreamer initialized successfully")
 gst_version = Gst.version()
@@ -137,6 +137,8 @@ def explore_pipelines(suggestions, base_fps, search_duration, sample_duration):
     return best_pipeline, best_fps
 
 def sample_pipeline(pipeline, sample_duration):
+    pipeline = pipeline.copy()
+
     # check if there is an fps counter after the last inference element
     for i, element in enumerate(reversed(pipeline)):
         # exit early if one is found before other elements
