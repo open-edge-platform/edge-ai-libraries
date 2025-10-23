@@ -4,6 +4,8 @@ DLSOptimizer is a tool for helping users discover more optimal versions of the p
 # Limitations
 Currently the DLSOptimizer focuses mainly on DL Streamers elements, specifically the `gvadetect` and `gvaclassify` elements. The produced pipeline could still have potential for further optimization by transforming other elements.
 
+Multi-stream pipelienes are also currently not supported.
+
 # Usage
 ```
 python3 DLSOptimizer.py [OPT] -- PIPELINE
