@@ -32,7 +32,7 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
 fi
 
 export EMBEDDING_SERVER_PORT=9777
-export USE_ONLY_TEXT_EMBEDDINGS=${USE_ONLY_TEXT_EMBEDDINGS}  # Setup multimodal embedding models, not just text models.
+export USE_ONLY_TEXT_EMBEDDINGS=${USE_ONLY_TEXT_EMBEDDINGS:-False}  # Setup multimodal embedding models, not just text models.
 
 # Check if VCLIP_MODEL is not defined or empty
 if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
