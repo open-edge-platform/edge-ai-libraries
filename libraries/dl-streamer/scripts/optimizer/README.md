@@ -4,7 +4,7 @@ DLSOptimizer is a tool for helping users discover more optimal versions of the p
 # Limitations
 Currently the DLSOptimizer focuses mainly on DL Streamers elements, specifically the `gvadetect` and `gvaclassify` elements. The produced pipeline could still have potential for further optimization by transforming other elements.
 
-Multi-stream pipelienes are also currently not supported.
+Multi-stream pipelines are also currently not supported.
 
 # Usage
 ```
@@ -19,7 +19,7 @@ Increasing the search duration will increase the chances of discovering more per
 
 # Example
 ```
- python3 DLSOptimizer.py -- urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin ! gvadetect model=/home/optimizer/models/public/yolo11s/INT8/yolo11s.xml ! queue ! gvawatermark ! vah264enc ! h264parse ! mp4mux ! fakesink
+ python3 optimizer.py -- urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin ! gvadetect model=/home/optimizer/models/public/yolo11s/INT8/yolo11s.xml ! queue ! gvawatermark ! vah264enc ! h264parse ! mp4mux ! fakesink
 [__main__] [    INFO] - GStreamer initialized successfully
 [__main__] [    INFO] - GStreamer version: 1.26.6
 [__main__] [    INFO] - Detected GPU Device
