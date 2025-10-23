@@ -30,6 +30,11 @@ odModelType: ""
 # claimSize should be set based on the size of models and files expected to be stored.
 claimSize: ""
 
+# odModelName defines the name of Object Detection Model
+odModelName: ""
+# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
+odModelType: ""
+
 videoingestion:
   name: videoingestion
   fullnameOverride: videoingestion

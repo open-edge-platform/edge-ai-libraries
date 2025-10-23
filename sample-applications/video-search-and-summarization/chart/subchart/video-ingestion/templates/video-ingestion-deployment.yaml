@@ -56,6 +56,7 @@ spec:
               mountPath: /scripts
             - name: models-volume
               mountPath: /models
+              subPath: ov-models/videoingestion
           securityContext:
             privileged: true
       containers:
@@ -117,6 +118,7 @@ spec:
             mountPath: /run/udev
           - name: models-volume
             mountPath: /home/pipeline-server/models
+            subPath: ov-models/videoingestion
           securityContext:
             readOnlyRootFilesystem: false
             privileged: true

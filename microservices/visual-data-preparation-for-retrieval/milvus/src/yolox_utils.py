@@ -1,21 +1,18 @@
-# Copied from YOLOX repo: https://github.com/Megvii-BaseDetection/YOLOX
-
-import cv2
+from PIL import Image
 import numpy as np
 
 def preproc(img, input_size, swap=(2, 0, 1)):
-    if len(img.shape) == 3:
-        padded_img = np.ones((input_size[0], input_size[1], 3), dtype=np.uint8) * 114
-    else:
-        padded_img = np.ones(input_size, dtype=np.uint8) * 114
+    if not isinstance(img, Image.Image):
+        img = Image.fromarray(img)
+    padded_img = np.ones((input_size[0], input_size[1], 3), dtype=np.uint8) * 114
 
-    r = min(input_size[0] / img.shape[0], input_size[1] / img.shape[1])
-    resized_img = cv2.resize(
-        img,
-        (int(img.shape[1] * r), int(img.shape[0] * r)),
-        interpolation=cv2.INTER_LINEAR,
-    ).astype(np.uint8)
-    padded_img[: int(img.shape[0] * r), : int(img.shape[1] * r)] = resized_img
+    r = min(input_size[0] / img.height, input_size[1] / img.width)
+    resized_img = img.resize(
+        (int(img.width * r), int(img.height * r)),
+        Image.Resampling.BILINEAR
+    )
+    resized_img = np.array(resized_img, dtype=np.uint8)
+    padded_img[:resized_img.shape[0], :resized_img.shape[1]] = resized_img
 
     padded_img = padded_img.transpose(swap)
     padded_img = np.ascontiguousarray(padded_img, dtype=np.float32)

@@ -10,6 +10,9 @@ from fastapi.testclient import TestClient
 from src.core.minio_client import MinioClient
 from src.main import app
 
+# application packages
+from src.main import app
+
 
 @pytest.fixture(scope="function")
 def video_file(tmp_path):

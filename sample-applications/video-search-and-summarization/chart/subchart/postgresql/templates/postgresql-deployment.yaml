@@ -33,6 +33,7 @@ spec:
           volumeMounts:
             - name: postgresql-data
               mountPath: /var/lib/postgresql/data/
+              subPath: pgdata
           env:
             - name: HTTP_PROXY
               value: {{ .Values.global.proxy.http_proxy }}

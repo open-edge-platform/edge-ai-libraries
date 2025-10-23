@@ -39,7 +39,7 @@ ARG BUILD_ARG=Release
 LABEL description="This is the development image of Deep Learning Streamer (DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
 
-ARG GST_VERSION=1.26.4
+ARG GST_VERSION=1.26.6
 ARG OPENVINO_VERSION=2025.3.0
 
 ARG DLSTREAMER_VERSION=2025.1.2
@@ -94,7 +94,7 @@ RUN \
     libssh2-1-dev=\* cmake=\* git=\* valgrind=\* numactl=\* libvpx-dev=\* libopus-dev=\* libsrtp2-dev=\* libxv-dev=\* \
     linux-libc-dev=\* libpmix2=\* libhwloc15=\* libhwloc-plugins=\* libxcb1-dev=\* libx11-xcb-dev=\* \
     ffmpeg=\* libpaho-mqtt-dev=\* libpostproc-dev=\* libavfilter-dev=\* libavdevice-dev=\* \
-    libswscale-dev=\* libswresample-dev=\* libavutil-dev=\* libavformat-dev=\* libavcodec-dev=\* libxml2-dev=\* && \
+    libswscale-dev=\* libswresample-dev=\* libavutil-dev=\* libavformat-dev=\* libavcodec-dev=\* libxml2-dev=\* libsoup-3.0-0=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -173,6 +173,9 @@ FROM opencv-builder AS gstreamer-builder
 
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 
+# Copy GStreamer patch for vacompositor and vafilter fixes
+COPY dependencies/patches/gstreamer-1-26-6-vacompositor-vafilter-fixes.patch /tmp/gstreamer-patch.patch
+
 # Build GStreamer
 WORKDIR /home/dlstreamer
 
@@ -187,6 +190,7 @@ WORKDIR /home/dlstreamer/gstreamer
 
 RUN \
     git switch -c "$GST_VERSION" "tags/$GST_VERSION" && \
+    git apply /tmp/gstreamer-patch.patch && \
     meson setup \
     -Dexamples=disabled \
     -Dtests=disabled \
@@ -210,7 +214,7 @@ RUN \
     -Dgst-plugins-good:lame=disabled \
     -Dgst-plugins-good:flac=disabled \
     -Dgst-plugins-good:dv=disabled \
-    -Dgst-plugins-good:soup=disabled \
+    -Dgst-plugins-good:soup=enabled \
     -Dgst-plugins-bad:gpl=enabled \
     -Dgst-plugins-bad:va=enabled \
     -Dgst-plugins-bad:doc=disabled \
@@ -264,7 +268,8 @@ RUN \
     build/ && \
     ninja -C build && \
     meson install -C build/ && \
-    rm -r subprojects/gst-devtools subprojects/gst-examples
+    rm -r subprojects/gst-devtools subprojects/gst-examples && \
+    rm /tmp/gstreamer-patch.patch
 
 ENV PKG_CONFIG_PATH="${GSTREAMER_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 

@@ -39,7 +39,7 @@ ARG BUILD_ARG=Release
 LABEL description="This is the development image of Deep Learning Streamer (DL Streamer) Pipeline Framework"
 LABEL vendor="Intel Corporation"
 
-ARG GST_VERSION=1.26.4
+ARG GST_VERSION=1.26.6
 ARG FFMPEG_VERSION=6.1.1
 
 ARG OPENVINO_VERSION=2025.3.0
@@ -67,7 +67,7 @@ RUN \
     gobject-introspection-devel x265-devel x264-devel libde265-devel libgudev-devel libusb1 libusb1-devel nasm python3-virtualenv \
     cairo-devel cairo-gobject-devel libXt-devel mesa-libGLES-devel wayland-protocols-devel libcurl-devel which \
     libssh2-devel cmake git valgrind numactl libvpx-devel opus-devel libsrtp-devel libXv-devel paho-c-devel \
-    kernel-headers pmix pmix-devel hwloc hwloc-libs hwloc-devel libxcb-devel libX11-devel libatomic intel-media-driver && \
+    kernel-headers pmix pmix-devel hwloc hwloc-libs hwloc-devel libxcb-devel libX11-devel libatomic intel-media-driver libsoup3 && \
     dnf clean all
 
 RUN \
@@ -215,7 +215,7 @@ RUN \
     -Dgst-plugins-good:lame=disabled \
     -Dgst-plugins-good:flac=disabled \
     -Dgst-plugins-good:dv=disabled \
-    -Dgst-plugins-good:soup=disabled \
+    -Dgst-plugins-good:soup=enabled \
     -Dgst-plugins-bad:gpl=enabled \
     -Dgst-plugins-bad:va=enabled \
     -Dgst-plugins-bad:doc=disabled \

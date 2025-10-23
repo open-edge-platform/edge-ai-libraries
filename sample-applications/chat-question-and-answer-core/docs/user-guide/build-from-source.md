@@ -8,8 +8,8 @@ If you want to build the images via `docker compose`, please refer to the sectio
 
 Once all the images are built, you can proceed to start the service using the `docker compose` command as described in the [Get Started](./get-started.md) page.
 
-> **Note:** 
-> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit (EMT)](https://github.com/open-edge-platform/edge-microvisor-toolkit). The user is recommended to use prebuilt images on EMT. 
+> **Note:**
+> - The build instruction is applicable only on an Ubuntu system. Build from source is not supported for the sample application on [Edge Microvisor Toolkit](https://github.com/open-edge-platform/edge-microvisor-toolkit). Intel recommends using prebuilt images on Edge Microvisor Toolkit.
 
 ## Building the Backend Image
 To build the Docker image for the `Chat Question-and-Answer Core` application, follow these steps:
@@ -20,25 +20,37 @@ To build the Docker image for the `Chat Question-and-Answer Core` application, f
    cd sample-applications/chat-question-and-answer-core
    ```
 
-2. Build the Docker image using the provided `Dockerfile` based on your setup.
+2. Build the Docker image using the provided `Dockerfile` based on your setup and prefered model framework.
 
    Choose one of the following options:
 
-   - CPU-only inferencing (default configuration):
+   - **OpenVINO™ toolkit framework**
 
-     ```bash
-     docker build -t chatqna:latest -f docker/Dockerfile .
-     ```
+     - CPU-only inferencing (Default Configuration):
 
-     This build the image to support CPU-based inferencing, suitable for hardware setups without GPU support.
+       ```bash
+       docker build -t chatqna:latest -f docker/Dockerfile .
+       ```
 
-   - GPU-enabled inferencing (also support CPU):
+       This build the image using OpenVINO toolkit to support CPU-based inferencing, suitable for hardware setups without GPU support.
 
-     ```bash
-     docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
-     ```
+     - GPU-enabled inferencing (Intel GPUs support):
 
-     This build the image with additional GPU support for accelerated inferencing. It still works on CPU-only systems, offering flexibility across different hardware setups.
+       ```bash
+       docker build -t chatqna:latest --build-arg USE_GPU=true --build-arg GPU_TYPE=dgpu -f docker/Dockerfile .
+       ```
+
+       This build the image using OpenVINO toolkit with additional GPU support for accelerated inferencing. It remains compatible with CPU-only systems, offering flexibility across different hardware setups.
+
+   - **Ollama framework**
+
+     - CPU-only inferencing
+
+        ```bash
+        docker build -t chatqna:latest -f docker/Dockerfile.ollama .
+        ```
+
+        This build the image with Ollama framework to support CPU-based inferencing. Currently, Ollama is enabled only for CPU-based inferencing in this sample application.
 
 3. Verify that the Docker image has been built successfully:
 
@@ -88,23 +100,33 @@ This guide explains how to build the images using the `compose.yaml` file via th
 
 2. Set Up Environment Variables:
 
-   Choose one of the following options depends on your hardware setups:
+   Choose one of the following options based on your hardware setups:
 
-   - For CPU-only setup (default):
+   - **OpenVINO™ toolkit framework**
 
-     ```bash
-     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-     source scripts/setup_env.sh
-     ```
+     - CPU-only setup (Default):
 
-   - For GPU-enabled setup:
+       ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh
+       ```
 
-     ```bash
-     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-     source scripts/setup_env.sh -d gpu
-     ```
+     - GPU-enabled setup:
 
-   ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
+       ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh -d gpu
+       ```
+
+       ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
+
+   - **Ollama framework**
+
+     - CPU-only supported
+
+       ```bash
+       source scripts/setup_env.sh -b ollama
+       ```
 
 3. Build the Docker images defined in the `compose.yaml` file:
 
@@ -124,25 +146,37 @@ After building the images for the `Chat Question-and-Answer Core` application, y
 
 1. **Set Up Environment Variables**:
 
-   Choose one of the following options depends on your hardware setups:
+   Choose one of the following options based on your hardware setups:
 
-   - For CPU-only setup (default):
+   - **OpenVINO™ toolkit framework**
 
-     ```bash
-     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-     source scripts/setup_env.sh
-     ```
+     - CPU-only setup (Default):
 
-   - For GPU-enabled setup:
+       ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh
+       ```
 
-     ```bash
-     export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
-     source scripts/setup_env.sh -d gpu
-     ```
+     - GPU-enabled setup:
+
+       ```bash
+       export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
+       source scripts/setup_env.sh -d gpu
+       ```
+
+       ℹ️ The `-d gpu` flag enables the GPU-DEVICE profile required for GPU-based execution.
+
+   - **Ollama framework**
+
+     - CPU-only supported
+
+       ```bash
+       source scripts/setup_env.sh -b ollama
+       ```
 
    Configure the models to be used (LLM, Embeddings, Rerankers) through a YAML configuration file, as outlined in the [Get-Started: Running The Application using Docker Compose](./get-started.md#running-the-application-using-docker-compose) section.
 
-   Refer to and use the same list of models as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
+   Refer to and use the same list of models for OpenVINO toolkit framework as documented in [Chat Question-and-Answer](../../../chat-question-and-answer/docs/user-guide/get-started.md#supported-models).
 
 
 2. Start the Docker containers with the previously built images:

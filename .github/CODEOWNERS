@@ -8,7 +8,7 @@ README.md           @xwu2intel
 
 
 # libraries
-/libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac
+/libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60
@@ -39,8 +39,8 @@ README.md           @xwu2intel
 
 
 # documentation content: libraries
-/libraries/dl-streamer/docs/                                         @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
-/libraries/dl-streamer/README.md                                     @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/docs/                                         @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/README.md                                     @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @open-edge-platform/open-edge-platform-docs-write
 
 /libraries/edge-control-libraries/README.md                                                                  @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/                                              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write

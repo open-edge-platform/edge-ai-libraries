@@ -38,34 +38,46 @@ tar -xvf chat-question-and-answer-core-<version-no>.tgz
 cd chat-question-and-answer-core
 ```
 
-#### Step 3: Configure `values.yaml`
+#### Step 3: Configure the `values.yaml` files
 
 Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and `proxy settings` as required.
 
+Next, choose the appropriate `values*.yaml` file based on the model framework you want to use:
+
+- OpenVINO toolkit: Use `values-openvino.yaml`
+
+- Ollama: Use `values-ollama.yaml`
+
+For OpenVINO toolkit framework, models (embedding, reranker and LLM) are downloaded from [HuggingFace Hub](https://huggingface.co/). For Ollama framework, models (embdding and LLM) are pulled from the [Ollama model registry](https://ollama.com/library).
+
 To enable GPU support, set the configuration parameter `gpu.enabled` to `true` and provide the corresponding `gpu.key` that assigned in your cluster node in the `values.yaml` file.
+
+GPU support only enabled for OpenVINO toolkit framework.
 
 For detailed information on supported and validated hardware platforms and configurations, please refer to the [Validated Hardware Platform](./system-requirements.md) section.
 
 
-| Key | Description | Example Value | Required When |
-| --- | ----------- | ------------- | ------------- |
-| `configmap.enabled` | Enable use of ConfigMap for model configuration. Set to true to use ConfigMap; otherwise, defaults in the application are used. (true/false) | true | Always. Default to `true` in `values.yaml` |
-| `global.huggingface.apiToken` | Hugging Face API token | `<your-huggingface-token>` | Always |
-| `global.EMBEDDING_MODEL` | Embedding Model Name | BAAI/bge-small-en-v1.5 | if `configmap.enabled = true` |
-| `global.RERANKER_MODEL` | Reranker model name	| BAAI/bge-reranker-base | if `configmap.enabled = true` |
-| `global.LLM_MODEL	` | LLM model for OVMS | microsoft/Phi-3.5-mini-instruct | if `configmap.enabled = true` |
-| `global.PROMPT_TEMPLATE` | RAG template for formatting input to the LLM. Supports {context} and {question}. Leave empty to use default. | See `values.yaml` for example | Optional |
-| `global.UI_NODEPORT` | Static port for UI service (30000–32767). Leave empty for automatic assignment. |  | Optional |
-| `global.keeppvc` | Persist storage (true/false) | false | Optional. Default to `false` in `values.yaml` |
-| `global.EMBEDDING_DEVICE` | Device for embedding (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` |
-| `global.RERANKER_DEVICE` | Device for reranker (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` |
-| `global.LLM_DEVICE` | Device for LLM (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` |
-| `gpu.enabled` | Deploy on GPU (true/false) | false | Optional |
-| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin. Example - `gpu.intel.com/i915`, `gpu.intel.com/xe`. Identify by running `kubectl describe node` | `<your-node-key-on-cluster>` | If `gpu.enabled = true` |
+| Key | Description | Example Value | Required When | Supported Framework (OpenVINO/Ollama) |
+| --- | ----------- | ------------- | ------------- | ------------------- |
+| `configmap.enabled` | Enable use of ConfigMap for model configuration. Set to true to use ConfigMap; otherwise, defaults in the application are used. (true/false) | true | Always. Default to `true` in `values.yaml` | Both |
+| `global.huggingface.apiToken` | Hugging Face API token | `<your-huggingface-token>` | Always | OpenVINO |
+| `global.EMBEDDING_MODEL` | Embedding Model Name | OpenVINO:<br> - BAAI/bge-small-en-v1.5<br> <br> Ollama:<br> - bge-large | If `configmap.enabled = true` | Both |
+| `global.LLM_MODEL	` | LLM model for OVMS | OpenVINO:<br> - microsoft/Phi-3.5-mini-instruct<br> <br> Ollama:<br> - phi3 | If `configmap.enabled = true` | Both |
+| `global.RERANKER_MODEL` | Reranker model name	| BAAI/bge-reranker-base | If `configmap.enabled = true` | OpenVINO |
+| `global.PROMPT_TEMPLATE` | RAG template for formatting input to the LLM. Supports {context} and {question}. Leave empty to use default. | See `values.yaml` for example | Optional | Both |
+| `global.UI_NODEPORT` | Static port for UI service (30000–32767). Leave empty for automatic assignment. |  | Optional | Both |
+| `global.keeppvc` | Persist storage (true/false) | false | Optional. Default to `false` in `values.yaml` | Both |
+| `global.EMBEDDING_DEVICE` | Device for embedding (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` | OpenVINO |
+| `global.RERANKER_DEVICE` | Device for reranker (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` | OpenVINO |
+| `global.LLM_DEVICE` | Device for LLM (CPU/GPU) | CPU | Always. Default to `CPU` in `values.yaml` | OpenVINO |
+| `global.MAX_TOKENS` | Number of output tokens | 1024 | Optional. Default to `1024`. Not more than 1024. | Both |
+| `global.keep_alive` | Controls how long a loaded model remains in memory after it has been used. | Example:<br> - "1h" (str) - 1 hour<br> - "30m" (str) - 30 minutes<br> - 1800 (int) - 1800 seconds/30 minutes<br> - 0 (int) - unload immediately after use<br> - -1 (int) - forever | Optional. Default to `-1` in `values-ollama.yaml` | Ollama |
+| `gpu.enabled` | Deploy on GPU (true/false) | false | Optional | OpenVINO |
+| `gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin. Example - `gpu.intel.com/i915`, `gpu.intel.com/xe`. Identify by running `kubectl describe node` | `<your-node-key-on-cluster>` | If `gpu.enabled = true` | OpenVINO |
 
 **🔍NOTE**:
 
-- If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template [here](../../model_config/sample/template.yaml).
+- If `configmap.enabled` is set to false, the application will use its default internal configuration. You can view the default configuration template [here](../../model_config/sample/).
 
 - If `gpu.enabled` is set to `false`, the parameters `global.EMBEDDING_DEVICE`, `global.RERANKER_DEVICE`, and `global.LLM_DEVICE` must not be set to `GPU`.
 A validation check is included and will throw an error if any of these parameters are incorrectly set to `GPU` while `GPU support is disabled`.
@@ -110,9 +122,17 @@ helm dependency build
 
 Deploy the Chat Question-and-Answer Core Helm chart:
 
-```bash
-helm install chatqna-core . --namespace <your-namespace>
-```
+- Deploy with OpenVINO toolkit:
+
+   ```bash
+   helm install chatqna-core -f values.yaml -f values-openvino.yaml . --namespace <your-namespace>
+   ```
+
+- Deploy with Ollama:
+
+   ```bash
+   helm install chatqna-core -f values.yaml -f values-ollama.yaml . --namespace <your-namespace>
+   ```
 
 ### Step 6: Verify the Deployment
 

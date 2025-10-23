@@ -30,6 +30,7 @@ spec:
           volumeMounts:
             - mountPath: /data
               name: minio-data
+              subPath: miniodata
           env:
             - name: MINIO_ROOT_USER
               value: {{ .Values.global.env.MINIO_ROOT_USER }}

@@ -30,6 +30,7 @@ RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID
 
 # Add poetry and venv to path
 ENV PATH="$PATH:$POETRY_HOME/bin:$VENV_PATH/bin"
+ENV HOME=/home/appuser
 
 # Install curl to be used for health checks in final stages
 RUN apt update -y && apt install -y curl
@@ -103,6 +104,9 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 WORKDIR $SETUP_PATH
 # Install remaining dev dependencies
+USER appuser
+# Create models and data directories
+RUN mkdir -p $HOME/models $HOME/data
 RUN poetry install --no-interaction --no-ansi
 
 # Create directories and set ownership

@@ -51,6 +51,7 @@ spec:
               mountPath: /config
             - name: workspace
               mountPath: /opt/data
+              subPath: ov-models
       containers:
         - name: {{ .Chart.Name }}
           image: {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}
@@ -70,6 +71,7 @@ spec:
               mountPath: /config
             - name: workspace
               mountPath: /opt/data
+              subPath: ov-models
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
