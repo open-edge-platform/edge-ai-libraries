@@ -81,15 +81,17 @@ services:
         https_proxy:
         no_proxy:
     container_name: collector
+    ports:
+      - "9273:9273"
     privileged: true
     devices:
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
-    network_mode: host
-    ipc: host
-    pid: host
+#    network_mode: host
+#    ipc: host
+#    pid: host
     volumes:
       - "collector-signals:/app/.collector-signals"
     restart: on-failure:5
