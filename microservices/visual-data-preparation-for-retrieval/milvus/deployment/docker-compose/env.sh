@@ -22,7 +22,7 @@ export MILVUS_PORT=19530
 export HF_ENDPOINT=https://hf-mirror.com
 
 export DEVICE="GPU.1"
-export MODEL_DIR="$HOME/models"
+export HOST_DATA_PATH="$HOME/data"
 
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
@@ -36,7 +36,7 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
     export EMBEDDING_USE_OV=true
 fi
 
-export RETRIEVER_SERVICE_PORT=7770
+export DATAPREP_SERVICE_PORT=9990
 export EMBEDDING_SERVER_PORT=9777
 export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
@@ -48,3 +48,4 @@ if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]
     echo -e "ERROR: VCLIP_MODEL is either not set or is set to an invalid value in your shell environment."
     return
 fi
+

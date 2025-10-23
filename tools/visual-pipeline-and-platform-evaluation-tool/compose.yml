@@ -52,11 +52,11 @@ services:
     command: './model_manager.sh'
   vippet-cpu:
     <<: *vippet
-    container_name: vippet-cpu
+    container_name: vippet
     profiles: [cpu]
   vippet-gpu:
     <<: *vippet
-    container_name: vippet-gpu
+    container_name: vippet
     group_add:
      - ${RENDER_GROUP_ID}
     devices:
@@ -64,7 +64,7 @@ services:
     profiles: [gpu]
   vippet-npu:
     <<: *vippet
-    container_name: vippet-npu
+    container_name: vippet
     group_add:
      - ${RENDER_GROUP_ID}
     devices:
