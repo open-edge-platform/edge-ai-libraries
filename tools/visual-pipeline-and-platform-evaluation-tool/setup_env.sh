@@ -1,69 +1,31 @@
 #!/bin/bash
 
-# This script sets up the environment for the Visual Pipeline and Platform Evaluation Tool.
-# It accepts one optional parameter:
-# -d or --device: Specify the device (default is cpu)
-# Usage:
-# ./setup_env.sh
-# OR
-# ./setup_env.sh -d gpu
+# This script automatically detects the available device (NPU, GPU, or CPU)
+# and writes COMPOSE_PROFILES, RENDER_GROUP_ID, and DOCKER_TAG to the .env file.
 
-# Default values
-DEVICE="CPU"
-PROFILE="CPU"
+VERSION=v1.2
+COMPOSE_PROFILES=""
+RENDER_GROUP_ID=""
 
-# Parse named arguments using getopts
-# -d for DEVICE
-while [[ "$#" -gt 0 ]]; do
-    case $1 in
-        -d|--device) DEVICE="$2"; shift ;;
-        *)
-            echo "Unknown parameter passed: $1"
-            echo "Accepted parameters are:"
-            echo "  -d  --device : Specify the device"
-            return 1
-            ;;
-    esac
-    shift
-done
-
-# Convert DEVICE to uppercase to handle both uppercase and lowercase inputs
-DEVICE=$(echo "$DEVICE" | tr '[:lower:]' '[:upper:]')
-# Check if DEVICE value is valid
-if [[ "$DEVICE" != "CPU" && "$DEVICE" != "GPU" && "$DEVICE" != "NPU" ]]; then
-    echo "Error: Invalid device value '$DEVICE'. Valid values are 'cpu' or 'gpu' or 'npu'."
-    return 1
+# Check for NPU device
+if compgen -G "/dev/accel*" > /dev/null; then
+    # NPU device found, using NPU profile and render group
+    COMPOSE_PROFILES="npu"
+    RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+elif compgen -G "/dev/dri/render*" > /dev/null; then
+    # GPU device found, using GPU profile and render group
+    COMPOSE_PROFILES="gpu"
+    RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+else
+    # No NPU or GPU device found, falling back to CPU
+    echo "No GPU or NPU device was found in the system, so only CPU will be used. This may be because the appropriate drivers have not been installed."
+    COMPOSE_PROFILES="cpu"
+    RENDER_GROUP_ID=""
 fi
 
-# Export environment variables based on the specified device
-case "$DEVICE" in
-  GPU)
-    # Check if GPU rendering device exists
-    if compgen -G "/dev/dri/render*" > /dev/null; then
-        echo "GPU rendering device found. Getting the GID..."
-        export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-        PROFILE="gpu"
-    else
-        echo -e "No GPU rendering device found. \nSwitching to CPU processing..."
-        PROFILE="cpu"
-    fi
-    ;;
-  NPU)
-    # Check if NPU rendering device exists
-    if compgen -G "/dev/accel*" > /dev/null; then
-        echo "NPU rendering device found. Getting the GID..."
-        export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
-        PROFILE="npu"
-    else
-        echo -e "No NPU rendering device found. \nSwitching to CPU processing..."
-        PROFILE="cpu"
-    fi
-    ;;
-  CPU)
-    echo "CPU processing configured."
-    PROFILE="cpu"
-    ;;
-esac
-
-export COMPOSE_PROFILES=$PROFILE
-export DEVICE_TYPE=$DEVICE
+# Write variables to .env file
+cat > .env <<EOF
+COMPOSE_PROFILES=${COMPOSE_PROFILES}
+RENDER_GROUP_ID=${RENDER_GROUP_ID}
+DOCKER_TAG=${VERSION}
+EOF
