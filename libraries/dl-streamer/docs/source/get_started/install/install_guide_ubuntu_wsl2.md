@@ -39,16 +39,20 @@ wsl --install Ubuntu-24.04
 wsl --set-default Ubuntu-24.04
 ```
 
-## On Linux WSL System - setup proxy (optional steps)
+## On Linux WSL System
 
-### Step 1: Edit /etc/bash.bashrc and append lines with http_proxy and https_proxy
+Open an Ubuntu WSL terminal and follow the instructions.
+
+### Step 1: [OPTIONAL] Setup proxy
+
+Edit /etc/bash.bashrc and append lines with http_proxy and https_proxy:
 
 ```bash
 export http_proxy=""
 export https_proxy=""
 ```
 
-### Step 2: Run command
+Open a visudo:
 
 ```bash
 sudo visudo
@@ -66,15 +70,15 @@ Add this line:
 Defaults        env_keep = "http_proxy https_proxy"
 ```
 
-### Step 3: Run command
+Apply changes by sourcing the file:
 
 ```bash
 source /etc/profile
 ```
 
-## On Linux WSL System
+### Step 2: Provide access to /dev/dri directory
 
-### Step 1: Check if /dev/dri directory is present, output should look similar to this
+Check that the `renderD12\*` directory exists. The output from `ls` command should be similar to this:
 
 ```bash
 ls -ltrah /dev/dri
@@ -87,8 +91,6 @@ drwxr-xr-x  2 root root         80 Mar 24 16:00 by-path
 drwxr-xr-x 16 root root       3.5K Mar 24 16:00 ..
 ```
 
-### Step 2: If you don't have renderD12\* device, please update GPU drivers and update WSL
-
 If there is no /dev/dri directory please try running:
 
 ```bash
@@ -97,18 +99,40 @@ sudo modprobe vgem
 
 and please check once again.
 
-### Step 3: Install GPU libraries
+### Step 3: Add user to the `render` group
+
+To have permission to use GPU device, the user has to belong to the `render` group.
+Please follow the instructions:
 
 ```bash
-/wget -qO - https://repositories.intel.com/graphics/intel-graphics.key |   sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
-echo 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/graphics/ubuntu noble arc' |   sudo tee  /etc/apt/sources.list.d/intel.gpu.noble.list
+sudo gpasswd -a ${USER} render
+newgrp render
+```
+
+Confirm that listed groups to which you belong contain the `render` group:
+
+```bash
+groups ${USER}
+```
+
+### Step 4: Install GPU libraries
+
+Follow the instructions to add necessary repositories and install GPU libraries:
+
+```bash
+cd $HOME
+wget -qO - https://repositories.intel.com/gpu/intel-graphics.key |   sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+echo 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified' |   sudo tee  /etc/apt/sources.list.d/intel.gpu.noble.list
 sudo apt update
 sudo apt-get install -y  libze-dev intel-opencl-icd  intel-media-va-driver-non-free libmfx1  libvpl2   libegl-mesa0 libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri   libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers   mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all
 ```
 
-### Step 4: Add OpenVINO™ Toolkit and Deep Learning Streamer repositories
+### Step 5: Add OpenVINO™ Toolkit and Deep Learning Streamer repositories
+
+Follow the instructions to add necessary repositories for Deep Learning Streamer Framework and OpenVINO™ Toolkit:
 
 ```bash
+cd $HOME
 sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/oneapi-archive-keyring.gpg > /dev/null
 sudo wget -O- https://eci.intel.com/sed-repos/gpg-keys/GPG-PUB-KEY-INTEL-SED.gpg | sudo tee /usr/share/keyrings/sed-archive-keyring.gpg > /dev/null
 sudo echo "deb [signed-by=/usr/share/keyrings/sed-archive-keyring.gpg] https://eci.intel.com/sed-repos/$(source /etc/os-release && echo $VERSION_CODENAME) sed main" | sudo tee /etc/apt/sources.list.d/sed.list
@@ -116,16 +140,47 @@ sudo bash -c 'echo -e "Package: *\nPin: origin eci.intel.com\nPin-Priority: 1000
 sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/oneapi-archive-keyring.gpg] https://apt.repos.intel.com/openvino/2025 ubuntu24 main" | sudo tee /etc/apt/sources.list.d/intel-openvino-2025.list'
 ```
 
-### Step 5: Install Deep Learning Streamer Pipeline Framework
+### Step 6: Install Deep Learning Streamer Pipeline Framework
+
+Follow the instructions to install Deep Learning Streamer and its dependencies:
 
 ```bash
 sudo apt update
-sudo apt-get install intel-dlstreamer
+sudo apt install intel-dlstreamer
 ```
 
-### [Optional] Step 6: Do optional steps.
+### Step 7: Download yolo11s model
 
-All optional steps, including downloading models and running the sample application, can be completed by following the instructions in the [Install Guide Ubuntu](./install_guide_ubuntu.md)
+If you would like to execute sample pipelines, please download yolo11s model as the sample one for these pipelines:
+
+```bash
+mkdir $HOME/models
+export MODELS_PATH=$HOME/models
+sudo apt install -y python3.12-venv
+/opt/intel/dlstreamer/samples/download_public_models.sh yolo11s coco128
+```
+
+### Step 8: Execute sample pipelines
+
+The Deep Learning Streamer Framework is ready to use. Now you can source the environment setup:
+
+```bash
+source /opt/intel/dlstreamer/scripts/setup_dls_env.sh
+```
+
+and execute a sample pipeline with inference on the CPU:
+
+```bash
+gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
+```
+
+The inference can be done on a GPU device with a better overall performance:
+
+```bash
+gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=opencv  ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
+```
+
+> **NOTE:** There is no current support for Video Acceleration API (VA-API) within WSL.
 
 ------------------------------------------------------------------------
 
