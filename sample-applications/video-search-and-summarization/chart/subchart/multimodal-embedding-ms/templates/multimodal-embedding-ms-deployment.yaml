@@ -21,8 +21,6 @@ spec:
         {{- toYaml . | nindent 8 }}
         {{- end }}
     spec:
-      securityContext:
-        fsGroup: {{ .Values.gpu.videoGroupID }}
       {{- with .Values.imagePullSecrets }}
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
@@ -34,7 +32,7 @@ spec:
       {{- end }}
       containers:
         - name: {{ .Chart.Name }}
-          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.gpu.enabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
+          image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.global.gpu.multimodalembeddingmsEnabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - name: {{ .Values.containerPortName }}
@@ -57,21 +55,24 @@ spec:
           envFrom:
             - configMapRef:
                 name: {{ include "multimodal-embedding-ms.fullname" . }}-config
-          env:
-            - name: EMBEDDING_DEVICE
-              value: {{ if .Values.gpu.enabled }}"GPU"{{ else }}"CPU"{{ end }}
-            - name: EMBEDDING_USE_OV
-              value: {{ if .Values.gpu.enabled }}"true"{{ else }}"false"{{ end }}
+      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+          resources:
+            requests:
+              {{ .Values.global.gpu.key}}: 1
+            limits:
+              {{ .Values.global.gpu.key}}: 1
+          devices:
+            - name: dri-devices
+              containerPath: /dev/dri
           securityContext:
+            privilleged: true
             runAsUser: 0
-            runAsGroup: {{ .Values.gpu.renderGroupID }}
-            {{- if .Values.gpu.group_add }}
-            capabilities:
-              add:
-                {{- toYaml .Values.gpu.group_add | nindent 16 }}
-            {{- end }}
+            runAsGroup: 0
+            fsGroup: 0
+      {{- else }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- end }}
           volumeMounts:
             - name: tmp
               mountPath: /tmp
@@ -84,13 +85,18 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
-            {{- if .Values.gpu.enabled }}
-            - name: gpu-devices
-              mountPath: /dev/dri
-            {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
+      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "multimodal-embedding-ms.fullname" . }}-gpu-pvc
+      {{- end }}
         - name: volume-data
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
@@ -102,12 +108,6 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
-        {{- if .Values.gpu.enabled }}
-        - name: gpu-devices
-          hostPath:
-            path: /dev/dri
-            type: Directory
-        {{- end }}
       tolerations:
         {{- toYaml .Values.tolerations | nindent 8 }}
       affinity:
