@@ -45,7 +45,7 @@ Open an Ubuntu WSL terminal and follow the instructions.
 
 ### Step 1: [OPTIONAL] Setup proxy
 
-Edit /etc/bash.bashrc and append lines with http_proxy and https_proxy:
+Edit `/etc/bash.bashrc` and append lines with http_proxy and https_proxy:
 
 ```bash
 export http_proxy=""
@@ -76,7 +76,7 @@ Apply changes by sourcing the file:
 source /etc/profile
 ```
 
-### Step 2: Provide access to /dev/dri directory
+### Step 2: Provide access to `/dev/dri` directory
 
 Check that the `renderD12\*` directory exists. The output from `ls` command should be similar to this:
 
@@ -91,13 +91,13 @@ drwxr-xr-x  2 root root         80 Mar 24 16:00 by-path
 drwxr-xr-x 16 root root       3.5K Mar 24 16:00 ..
 ```
 
-If there is no /dev/dri directory please try running:
+If there is no `/dev/dri` directory please try running:
 
 ```bash
 sudo modprobe vgem
 ```
 
-and please check once again.
+and check once again.
 
 ### Step 3: Add user to the `render` group
 
@@ -177,10 +177,11 @@ gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video
 The inference can be done on a GPU device with a better overall performance:
 
 ```bash
-gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=opencv  ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
+gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=opencv ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
 ```
 
 > **NOTE:** There is no current support for Video Acceleration API (VA-API) within WSL.
+
 
 ------------------------------------------------------------------------
 
