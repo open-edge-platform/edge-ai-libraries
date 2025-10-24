@@ -76,9 +76,9 @@ Apply changes by sourcing the file:
 source /etc/profile
 ```
 
-### Step 2: Provide access to `/dev/dri` directory
+### Step 2: Provide access to `/dev/dri/renderD12*` directory
 
-Check that the `renderD12\*` directory exists. The output from `ls` command should be similar to this:
+Check that the `/dev/dri/renderD12*` directory exists. The output from `ls` command should be similar to this:
 
 ```bash
 ls -ltrah /dev/dri
@@ -91,7 +91,7 @@ drwxr-xr-x  2 root root         80 Mar 24 16:00 by-path
 drwxr-xr-x 16 root root       3.5K Mar 24 16:00 ..
 ```
 
-If there is no `/dev/dri` directory please try running:
+If there is no `/dev/dri/renderD12*` directory please try running:
 
 ```bash
 sudo modprobe vgem
@@ -124,7 +124,7 @@ cd $HOME
 wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
 echo 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified' | sudo tee /etc/apt/sources.list.d/intel.gpu.noble.list
 sudo apt update
-sudo apt-get install -y  libze-dev intel-opencl-icd  intel-media-va-driver-non-free libmfx1  libvpl2   libegl-mesa0 libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri   libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers   mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all
+sudo apt-get install -y libze-dev intel-opencl-icd intel-media-va-driver-non-free libmfx1 libvpl2 libegl-mesa0 libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all
 ```
 
 ### Step 5: Add OpenVINO™ Toolkit and Deep Learning Streamer repositories
