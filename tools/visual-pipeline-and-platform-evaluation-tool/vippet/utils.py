@@ -32,6 +32,9 @@ VIDEO_STREAM_META_PATH = "/tmp/shared_memory/video_stream.meta"
 # Path to the directory where models are stored
 MODELS_PATH = os.environ.get("MODELS_PATH", "/models/output")
 
+# Path to the FPS file
+FPS_FILE_PATH = "/home/dlstreamer/vippet/.collector-signals/fps.txt"
+
 
 def prepare_video_and_constants(
     **kwargs: dict[str, Any],
@@ -94,7 +97,7 @@ def prepare_video_and_constants(
         )
 
     # Reset the FPS file
-    with open("/home/dlstreamer/vippet/.collector-signals/fps.txt", "w") as f:
+    with open(FPS_FILE_PATH, "w") as f:
         f.write("0.0\n")
 
     param_grid = {
@@ -440,10 +443,7 @@ def run_pipeline_and_extract_metrics(
                                     latest_fps = result["per_stream_fps"]
 
                                     # Write latest FPS to a file
-                                    with open(
-                                        "/home/dlstreamer/vippet/.collector-signals/fps.txt",
-                                        "w",
-                                    ) as f:
+                                    with open(FPS_FILE_PATH, "w") as f:
                                         f.write(f"{latest_fps}\n")
                             elif r == process.stderr:
                                 process_stderr.append(line)

@@ -25,5 +25,8 @@ COPY qmassa_reader.py qmassa_reader.py
 COPY read_cpu_freq.sh read_cpu_freq.sh
 RUN chmod +x read_cpu_freq.sh
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # nosemgrep: missing-user-entrypoint
-ENTRYPOINT ["/usr/bin/telegraf", "--config", "/etc/telegraf/telegraf.conf"]
+CMD ["/entrypoint.sh"]

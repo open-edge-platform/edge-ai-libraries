@@ -56,8 +56,10 @@ pyright: $(VENV_DIR) ## Run pyright type checker
 	pyright --version ;\
 	pyright .
 
-# Environment setup target: always run before build/run targets that need .env
+# Environment setup target: always run before build/run targets that need .env and shared dirs
 env-setup:
+	mkdir -p shared/models/output && chmod o+w shared/models/output
+	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
 	./setup_env.sh
 
 build: env-setup ## Build core images (vippet-app, vippet-collector)
@@ -78,7 +80,6 @@ run: env-setup install-models-once ## Run the docker compose services
 	docker compose up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
-	mkdir -p shared/videos && chmod o+w shared/videos
 	docker compose up -d videogenerator
 
 run-dev: env-setup install-models-once ## Run the docker compose services for development
@@ -94,30 +95,27 @@ test: env-setup ## Run tests and generate coverage report
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 
 install-models-once: env-setup ## Handle models download and installation (once)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=once docker compose run --rm -it models
 
 install-models-force: env-setup ## Handle models download and installation (force)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=force docker compose run --rm -it models
 
 install-models-all: env-setup ## Install all models automatically (no dialog)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
 	MODEL_INSTALLATION=all docker compose run --rm -it models
 
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
 
-shell-vippet: env-setup ## Open shell in vippet container
+shell-vippet: ## Open shell in vippet container
 	$(MAKE) shell SERVICE=vippet
 
-shell-models: env-setup ## Open shell in models container
+shell-models: ## Open shell in models container
 	$(MAKE) shell SERVICE=models
 
-shell-collector: env-setup ## Open shell in collector container
+shell-collector: ## Open shell in collector container
 	$(MAKE) shell SERVICE=collector
 
-shell-videogenerator: env-setup ## Open shell in videogenerator container
+shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
@@ -125,7 +123,7 @@ stop: ## Stop the docker compose services
 	docker compose down models collector videogenerator $$VIPPET_SERVICE
 
 clean: ## Clean all build artifacts
-	rm -rf shared/models/output/ shared/videos/
+	rm -rf shared/collector-signals shared/models/output/ shared/videos/
 
 help: ## Print help for each target
 	@echo ViPPET make targets
