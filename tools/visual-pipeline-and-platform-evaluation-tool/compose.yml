@@ -89,6 +89,7 @@ services:
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
+    pid: host # qmassa needs it
     volumes:
       - "./shared/collector-signals:/app/.collector-signals"
     restart: on-failure:5
