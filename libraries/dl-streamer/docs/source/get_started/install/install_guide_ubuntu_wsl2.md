@@ -30,7 +30,7 @@ Visit
 [install-ubuntu-wsl2](https://documentation.ubuntu.com/wsl/en/latest/howto/install-ubuntu-wsl2)
 in case of any Ubuntu-WSL2 installation issues.
 
-### Step 3: Install Ubuntu 24.04.1 LTS
+### Step 3: Install Ubuntu 24.04 LTS
 
 Open a PowerShell prompt as an Administrator and run
 
