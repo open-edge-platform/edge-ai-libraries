@@ -121,8 +121,8 @@ Follow the instructions to add necessary repositories and install GPU libraries:
 
 ```bash
 cd $HOME
-wget -qO - https://repositories.intel.com/gpu/intel-graphics.key |   sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
-echo 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified' |   sudo tee  /etc/apt/sources.list.d/intel.gpu.noble.list
+wget -qO - https://repositories.intel.com/gpu/intel-graphics.key | sudo gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg
+echo 'deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified' | sudo tee /etc/apt/sources.list.d/intel.gpu.noble.list
 sudo apt update
 sudo apt-get install -y  libze-dev intel-opencl-icd  intel-media-va-driver-non-free libmfx1  libvpl2   libegl-mesa0 libegl1-mesa-dev libgbm1 libgl1-mesa-dev libgl1-mesa-dri   libglapi-mesa libgles2-mesa-dev libglx-mesa0 libigdgmm12 libxatracker2 mesa-va-drivers   mesa-vdpau-drivers mesa-vulkan-drivers va-driver-all
 ```
