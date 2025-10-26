@@ -32,14 +32,15 @@ on:
 permissions: {}
 
 jobs:
-  code-style:
+  # ------------------------------------------------------------- SCANs -------------------------------------------------------------
+  dls-code-style:
     permissions:
       contents: read
-    name: SCAN code-style
+    name: "DLS SCAN: code-style"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
           persist-credentials: false
 
@@ -50,74 +51,63 @@ jobs:
         uses: ./.github/actions/common/code-style
         with:
           target_dir: "libraries/dl-streamer"
+          name: 'DLS_code-style-check-report'
+          fail-on-findings: true
 
-  check-license-headers:
+  dls-check-license-headers:
     permissions:
       contents: read
-    name: SCAN check license headers
+    name: "DLS SCAN: check license headers"
     runs-on: ubuntu-latest
     steps:
-    - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+    - name: Check out edge-ai-libraries repository (sparse)
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         persist-credentials: false
+        sparse-checkout: |
+          libraries/dl-streamer
+          .github
+        fetch-depth: 0
 
     - name: Check license headers
       uses: ./.github/actions/common/license-namespace-checker
+      with:
+        name: 'DLS_license-check-report'
+        path: '.'
+        fail-on-findings: true
 
-  # static-code-analysis:
+  # dls-static-code-analysis:
   #   permissions:
   #     security-events: write
   #     actions: read
   #     contents: read
   #     packages: read
-  #   name: SCAN static code analysis
+  #   name: "DLS SCAN: static code analysis"
   #   uses: ./.github/workflows/codeql.yaml
 
-  static-code-analysis-for-c-cpp:
+  dls-static-code-analysis-for-c-cpp:
     permissions:
       security-events: write
       actions: read
       contents: read
       packages: read
-    name: SCAN DLS static C/C++ code analysis
+    name: "DLS SCAN: static C/C++ code analysis"
     uses: ./.github/workflows/dls-coverity.yaml
     secrets:
       DLS_COVERITY_TOKEN: ${{ secrets.DLS_COVERITY_TOKEN }}
       DLS_COVERITY_EMAIL: ${{ secrets.DLS_COVERITY_EMAIL }}
       DLS_COVERITY_PROJECT: ${{ secrets.DLS_COVERITY_PROJECT }}
 
-  build-dev-images-and-run-unit-tests:
+  dls-filter-docker-related-changes:
     permissions:
       contents: read
-      packages: read
-    name: BUILD dev imgs & run unit tests
-    uses: ./.github/workflows/dls-build-dev-docker-images-and-run-unit.yaml
-
-  build-and-test-deb-and-deb_img:
-    permissions:
-      contents: read
-      packages: read
-    name: BUILD & TEST .deb pkgs & img
-    uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
-
-  build-and-test-windows:
-    permissions:
-      contents: read
-      packages: read
-    name: BUILD & TEST Windows DLLs
-    uses: ./.github/workflows/dls-build-and-test-windows.yaml
-
-  filter-docker-related-changes:
-    permissions:
-      contents: read
-    name: SCAN detect changes in docker dir
+    name: "DLS SCAN: detect changes in docker dir"
     runs-on: ubuntu-latest
     outputs:
       docker_changed: ${{ steps.check.outputs.docker_changed }}
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
           persist-credentials: false
           fetch-depth: 0
@@ -125,58 +115,59 @@ jobs:
       - name: Fetch main branch for comparison
         run: git fetch origin main
 
-      - id: check
-        name: Detect changes in docker directory
+      - name: Detect changes in docker directory
+        id: check
         run: |
           echo "🔍 Checking for changes in 'libraries/dl-streamer/docker/'..."
-          CHANGED_FILES=$(git diff --name-only origin/main HEAD)
-          echo "📄 Changed files:"
-          echo "$CHANGED_FILES"
-          if echo "$CHANGED_FILES" | grep -q '^libraries/dl-streamer/docker/'; then
+          CHANGED_FILES=$(git diff --name-only origin/main...HEAD -- 'libraries/dl-streamer/docker/')
+
+          if [ -n "${CHANGED_FILES}" ]; then
+            echo "📄 Changed Docker-related files:"
+            echo "${CHANGED_FILES}"
             echo "docker_changed=true" >> "$GITHUB_OUTPUT"
             echo "🟡 Docker-related changes detected."
           else
-            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
             echo "✅ No docker-related changes."
+            echo "docker_changed=false" >> "$GITHUB_OUTPUT"
           fi
 
-  trivy-config-scan:
+  dls-trivy-config-scan:
     permissions:
       contents: read
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: SCAN Trivy ${{ matrix.name }}
+    needs: [dls-filter-docker-related-changes]
+    if: needs.dls-filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: "DLS SCAN: Trivy ${{ matrix.name }}"
     strategy:
       fail-fast: false
       matrix:
         include:
           - name: dlstreamer_ubuntu22
             path: libraries/dl-streamer/docker/ubuntu/ubuntu22.Dockerfile
-            output: reports/trivy-dlstreamer_ubuntu22.json
+            output: reports/trivy-DLS_ubuntu22.json
           - name: dlstreamer_ubuntu24
             path: libraries/dl-streamer/docker/ubuntu/ubuntu24.Dockerfile
-            output: reports/trivy-dlstreamer_ubuntu24.json
+            output: reports/trivy-DLS_ubuntu24.json
           - name: dlstreamer_fedora41
             path: libraries/dl-streamer/docker/fedora41/fedora41.Dockerfile
-            output: reports/trivy-dlstreamer_fedora41.json
+            output: reports/trivy-DLS_fedora41.json
           - name: dlstreamer-testing-ubuntu
             path: libraries/dl-streamer/docker/ubuntu/ubuntu-testing.Dockerfile
-            output: reports/trivy-dlstreamer-testing-ubuntu.json
+            output: reports/trivy-DLS-testing-ubuntu.json
     uses: ./.github/workflows/trivy-config-mode.yaml
     with:
       dockerfile-path: ${{ matrix.path }}
       trivy-report-format: 'json'
       severity-levels: 'HIGH,CRITICAL'
       output-report-path: ${{ matrix.output }}
-      name: ${{ matrix.name }}
+      name: DLS_${{ matrix.name }}
 
-  hadolint:
+  dls-hadolint:
     permissions:
       contents: read
       pull-requests: write
-    needs: [filter-docker-related-changes]
-    if: needs.filter-docker-related-changes.outputs.docker_changed == 'true'
-    name: SCAN Hadolint
+    needs: [dls-filter-docker-related-changes]
+    if: needs.dls-filter-docker-related-changes.outputs.docker_changed == 'true'
+    name: "DLS SCAN: Hadolint"
     runs-on: ubuntu-latest
     strategy:
       fail-fast: false
@@ -196,7 +187,7 @@ jobs:
             output-file: hadolint-dlstreamer-testing-ubuntu.json
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
           persist-credentials: false
 
@@ -205,41 +196,42 @@ jobs:
         with:
           dockerfile: ${{ matrix.dockerfile }}
           output-file: ${{ matrix.output-file }}
-          name: ${{ matrix.name }}
+          name: DLS_${{ matrix.name }}
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
-  pylint:
+  dls-pylint:
     permissions:
       contents: read
       pull-requests: write
-    name: SCAN pylint
+    name: "DLS SCAN: pylint"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
-          path: edge-ai-libraries-repo
           persist-credentials: false
 
       - name: Run pylint
-        uses: ./edge-ai-libraries-repo/.github/actions/common/pylint
+        uses: ./.github/actions/common/pylint
         with:
-          path: edge-ai-libraries-repo/libraries/dl-streamer
+          path: libraries/dl-streamer
           output-file: pylint-report.txt
-          name: dls
+          name: DLS_pylint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
-  shellcheck:
+  dls-shellcheck:
     permissions:
       contents: read
       pull-requests: write
-    name: SCAN shellcheck
+    name: "DLS SCAN: shellcheck"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
           path: edge-ai-libraries-repo
           persist-credentials: false
@@ -250,19 +242,24 @@ jobs:
         with:
           path: edge-ai-libraries-repo/libraries/dl-streamer
           output-file: shellcheck-report.txt
-          name: dls
+          name: DLS_shellcheck
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
-  yamllint:
+      - name: Clean up
+        run: |
+          sudo rm -rf edge-ai-libraries-repo
+
+  dls-yamllint:
     permissions:
       contents: read
       pull-requests: write
-    name: SCAN yamllint
+    name: "DLS SCAN: yamllint"
     runs-on: ubuntu-latest
     steps:
       - name: Check out edge-ai-libraries repository
-        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
         with:
           path: edge-ai-libraries-repo
           persist-credentials: false
@@ -272,48 +269,112 @@ jobs:
         with:
           path: edge-ai-libraries-repo/libraries/dl-streamer
           output-file: yamllint-report.txt
-          name: dls
+          name: DLS_yamlint
           enable-reviewdog: true
           github_token: ${{ secrets.GITHUB_TOKEN }}
+          fail-on-findings: true
 
-  clamav:
+      - name: Clean up
+        run: |
+          sudo rm -rf edge-ai-libraries-repo
+
+  dls-clamav:
     permissions:
       contents: read
-    name: SCAN ClamAV antivirus
+    name: "DLS SCAN: ClamAV antivirus"
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         persist-credentials: false
         path: edge-ai-libraries-repo
 
-    - uses: open-edge-platform/orch-ci/.github/actions/clamav@37eef2d2a0909dfe8ff26bb0730ab2f13dfbcaf6
+    - name: ClamAV scan
+      id: clamav-dls-scan
+      uses: open-edge-platform/orch-ci/.github/actions/security/clamav@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        project-folder: edge-ai-libraries-repo/libraries/dl-streamer
-        report-path: clamav_scan_report-dlstreamer.txt
+        scan-scope: all
+        paths: edge-ai-libraries-repo/libraries/dl-streamer
+        report_suffix: "DLS_ClamAV_antivirus_report"
+        fail-on-findings: true
 
-    - name: Upload ClamAV Scan Report
-      uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02  # v4.6.2
-      with:
-        name: ${{ env.CLAMAV_ARTIFACT_NAME }}
-        path: ${{ env.SANITIZED_CLAMAV_REPORT_PATH }}
+    - name: Analyze ClamAV results
+      if: always()
+      env:
+        REPORT_PATH: ${{ steps.clamav-dls-scan.outputs.report_path }}
+      run: |
+        if [ -n "$REPORT_PATH" ] && [ -f "$REPORT_PATH" ]; then
+          echo "📄 Found ClamAV report: $REPORT_PATH"
 
-  bandit:
+          # Extract scan summary using jq
+          files_scanned=$(jq -r '.scan_summary.files_scanned // 0' "$REPORT_PATH" 2>/dev/null || echo "0")
+          threats_found=$(jq -r '.scan_summary.threats_found // 0' "$REPORT_PATH" 2>/dev/null || echo "0")
+
+          echo "### ClamAV Antivirus Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "- 📁 **Files scanned**: $files_scanned" >> $GITHUB_STEP_SUMMARY
+          echo "- 🦠 **Threats found**: $threats_found" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+
+          if [ "$threats_found" -gt 0 ]; then
+            echo "❌ **Security Alert**: Malware or threats detected!" >> $GITHUB_STEP_SUMMARY
+            echo "" >> $GITHUB_STEP_SUMMARY
+            echo "⚠️ **Action Required**: Review the ClamAV report artifact for details." >> $GITHUB_STEP_SUMMARY
+          else
+            echo "✅ **All files are clean - no threats detected!**" >> $GITHUB_STEP_SUMMARY
+          fi
+        else
+          echo "### ClamAV Antivirus Scan Results" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "⚠️ **ClamAV report not found at path: ${REPORT_PATH:-not provided}**" >> $GITHUB_STEP_SUMMARY
+        fi
+
+    - name: Clean up
+      if: always()
+      run: |
+        sudo rm -rf edge-ai-libraries-repo
+
+  dls-bandit:
     permissions:
       contents: read
-    name: SCAN Bandit
+    name: "DLS SCAN: Bandit"
     runs-on: ubuntu-latest
     steps:
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         persist-credentials: false
 
     - name: Run Bandit scan
-      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@d475e84f8b0b7bff118f0e8f56712390ef8d2828
+      uses: open-edge-platform/orch-ci/.github/actions/security/bandit@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
         scan-scope: "changed"
         severity-level: "HIGH"
         confidence-level: "HIGH"
         output-format: "txt"
+        fail-on-findings: true
+        paths: libraries/dl-streamer
+        report_suffix: dlstreamer
+
+  # -------------------------------------------------------- BUILDS & TESTS ---------------------------------------------------------
+  dls-build-dev-images-and-run-unit-tests:
+    permissions:
+      contents: read
+      packages: read
+    name: "DLS BUILD: dev imgs & run unit tests"
+    uses: ./.github/workflows/dls-build-dev-docker-images-and-run-unit.yaml
+
+  dls-build-and-test-deb-and-deb_img:
+    permissions:
+      contents: read
+      packages: read
+    name: "DLS BUILD & TEST: .deb pkgs & img"
+    uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
+
+  dls-build-and-test-windows:
+    permissions:
+      contents: read
+      packages: read
+    name: "DLS BUILD & TEST: Windows DLLs"
+    uses: ./.github/workflows/dls-build-and-test-windows.yaml

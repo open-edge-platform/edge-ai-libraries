@@ -3,31 +3,29 @@
 
 import os
 import copy
-import faiss
+import json
 import requests
+import numpy as np
 from pathlib import Path
 
 from moviepy.editor import VideoFileClip
 from PIL import Image
 
-
-from dependency.clip_ov.mm_embedding import EmbeddingModel
 from detector import Detector
-from utils import preprocess_image, generate_unique_id
+from utils import generate_unique_id, encode_image_to_base64
 from milvus_client import MilvusClientWrapper
 
 
-
 DEVICE = os.getenv("DEVICE", "CPU")
-LOCAL_EMBED_MODEL_ID = os.getenv("LOCAL_EMBED_MODEL_ID", "CLIP-ViT-H-14")
-MODEL_DIR = "/home/user/models"
+EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", None)
+VCLIP_MODEL = os.getenv("VCLIP_MODEL", "openai/clip-vit-base-patch32")
 
 
 def create_milvus_data(embedding, meta=None):
     data = {}
     data["id"] = generate_unique_id()
     data["meta"] = meta
-    data["vector"] = embedding.tolist()[0]
+    data["vector"] = embedding
     return data
 
 class Indexer:
@@ -36,21 +34,13 @@ class Indexer:
         #     print("DB service is not available. Exiting.")
         #     exit(1)
 
-        self.model_id = LOCAL_EMBED_MODEL_ID
-        self.model_path = MODEL_DIR
-        self.device = DEVICE
+        self.embed_url = EMBEDDING_BASE_URL
 
-        self.model = EmbeddingModel().image_model
-        self.ireq = self.model.create_infer_request()
         self.detector = Detector(device=DEVICE)
 
-        _, _, self.h, self.w = self.model.inputs[0].shape
-
-        self.init_db_client()
-
         self.id_map = {}
+        self.db_inited = False
 
-        self.recover_id_map()
 
     def check_db_service(self, url="http://localhost:9091/healthz"):
         try:
@@ -64,11 +54,12 @@ class Indexer:
             print(f"Failed to connect to the service: {e}")
             return False
 
-    def init_db_client(self, collection_name="default"):
+    def init_db_client(self, dim, collection_name="default"):
         self.client = MilvusClientWrapper()
         self.collection_name = collection_name
-        m, dim = self.model.outputs[0].shape
         self.client.create_collection(dim, collection_name=self.collection_name)
+        self.db_inited = True
+        self.recover_id_map()
 
     def update_id_map(self, file_path, node_id):
         if file_path not in self.id_map:
@@ -136,7 +127,25 @@ class Indexer:
         self.id_map.clear()
 
         return res, ids
-            
+    
+    def get_image_embedding(self, image):
+        base64_img = encode_image_to_base64(image)
+        headers = { 'Content-Type': 'application/json'}
+
+        payload = {
+            "model": VCLIP_MODEL,
+            "encoding_format": "float",
+            "input": {
+                "type": "image_base64",
+                "image_base64": base64_img
+            }
+        }
+    
+        response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
+        data = response.json()
+        embedding = data["embedding"]
+        return embedding
+        
     def process_video(self, video_path, meta, frame_interval=15, minimal_duration=1, do_detect_and_crop=True):
         entities = []
         video = VideoFileClip(video_path)
@@ -153,13 +162,16 @@ class Indexer:
                 if do_detect_and_crop:
                     crops = self.detector.get_cropped_images(image)
                     for crop in crops:
-                        crop = preprocess_image(crop, shape=[self.w, self.h])
-                        embedding = self.ireq.infer({'x': crop[None]}).to_tuple()[0]
+                        embedding = self.get_image_embedding(crop)
+                        if not self.db_inited:
+                            self.init_db_client(len(embedding))
                         node = create_milvus_data(embedding, meta_data)
                         entities.append(node)
                         self.update_id_map(meta_data["file_path"], node["id"])
-                image = preprocess_image(image, shape=[self.w, self.h])
-                embedding = self.ireq.infer({'x': image[None]}).to_tuple()[0]
+
+                embedding = self.get_image_embedding(image)
+                if not self.db_inited:
+                    self.init_db_client(len(embedding))
                 node = create_milvus_data(embedding, meta_data)
                 entities.append(node)
                 self.update_id_map(meta_data["file_path"], node["id"])
@@ -174,14 +186,16 @@ class Indexer:
         if do_detect_and_crop:
             crops = self.detector.get_cropped_images(image)
             for crop in crops:
-                crop = preprocess_image(crop, shape=[self.w, self.h])
-                embedding = self.ireq.infer({'x': crop[None]}).to_tuple()[0]
+                embedding = self.get_image_embedding(crop)
+                if not self.db_inited:
+                    self.init_db_client(len(embedding))
                 node = create_milvus_data(embedding, meta_data)
                 entities.append(node)
                 self.update_id_map(meta_data["file_path"], node["id"])
         
-        image = preprocess_image(image, shape=[self.w, self.h])
-        embedding = self.ireq.infer({'x': image[None]}).to_tuple()[0]
+        embedding = self.get_image_embedding(image)
+        if not self.db_inited:
+            self.init_db_client(len(embedding))
         node = create_milvus_data(embedding, meta_data)
         entities.append(node)
         self.update_id_map(meta_data["file_path"], node["id"])

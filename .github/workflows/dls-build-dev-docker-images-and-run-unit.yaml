@@ -29,7 +29,7 @@ jobs:
         sudo rm -rf edge-ai-libraries-repo
 
     - name: Check out edge-ai-libraries repository
-      uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false
@@ -41,10 +41,10 @@ jobs:
         git submodule update --init libraries/dl-streamer/thirdparty/googletest
 
     - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@b5ca514318bd6ebac0fb2aedd5d36ec1b5c232a2 #3.10.0
+      uses: docker/setup-buildx-action@e468171a9de216ec08956ac3ada2f0791b6bd435 #3.11.1
 
     - name: Log in to GitHub Container Registry
-      uses: docker/login-action@74a5d142397b4f367a81961eba4e8cd7edddf772 #3.4.0
+      uses: docker/login-action@5e57cd118135c172c3672efd75eb46360885c0ef #3.6.0
       with:
         registry: ghcr.io
         username: ${{ github.actor }}
@@ -136,7 +136,7 @@ jobs:
       env:
         RESULTS_DIR: test-results
       with:
-        name: unit_tests_tgl_${{ matrix.ubuntu_version }}
+        name: DLS_unit_tests_tgl_${{ matrix.ubuntu_version }}
         path: ${{ env.RESULTS_DIR }}/*.xml
 
     - name: Clean up

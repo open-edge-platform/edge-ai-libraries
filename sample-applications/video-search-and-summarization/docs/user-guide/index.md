@@ -1,8 +1,7 @@
-# Video Search and Summary (VSS)
+# Video Search and Summarization (VSS)
 
 Video Search and Summarization (VSS) is a foundational sample application that provides
-video analytics, using a combination of different AI models. It offers three distinct modes
-in which its capabilities can be utilized:
+video analytics, using a combination of different AI models. It offers three distinct modes:
 
 - Video Search ([overview](./overview-search.md) | [architecture](./overview-architecture-search.md))
 - Video Summary ([overview](./overview-summary.md) | [architecture](./overview-architecture-summary.md))

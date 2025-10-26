@@ -41,10 +41,10 @@ By following this guide, you will learn how to:
       ```
 
 2. **Start the Application**:
-    - Set the appropriate device type (CPU, GPU, or NPU) and run the following command:
+    - Run the following command:
 
       ```bash
-      make build-models run DEVICE_TYPE=<CPU/GPU/NPU>
+      make build-models run
       ```
 
 3. **Verify the Application**:

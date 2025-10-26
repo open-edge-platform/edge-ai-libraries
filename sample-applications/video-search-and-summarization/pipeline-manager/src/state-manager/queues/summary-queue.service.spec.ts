@@ -9,6 +9,7 @@ import { ConfigService } from '@nestjs/config';
 import { PipelineEvents, SummaryCompleteRO } from 'src/events/Pipeline.events';
 import { Subject } from 'rxjs';
 import { TemplateService } from 'src/language-model/services/template.service';
+import { InferenceCountService } from 'src/language-model/services/inference-count.service';
 
 describe('SummaryQueueService', () => {
   let service: SummaryQueueService;
@@ -72,6 +73,12 @@ describe('SummaryQueueService', () => {
       // Add template service methods if needed
     };
 
+    const inferenceCountServiceMock = {
+      incrementLlmProcessCount: jest.fn(),
+      decrementLlmProcessCount: jest.fn(),
+      hasLlmSlots: jest.fn().mockReturnValue(true),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         SummaryQueueService,
@@ -79,6 +86,8 @@ describe('SummaryQueueService', () => {
         { provide: LlmService, useValue: llmServiceMock },
         { provide: EventEmitter2, useValue: eventEmitterMock },
         { provide: ConfigService, useValue: configServiceMock },
+  { provide: 'InferenceCountService', useValue: inferenceCountServiceMock },
+  { provide: InferenceCountService, useValue: inferenceCountServiceMock },
         { provide: TemplateService, useValue: templateServiceMock },
       ],
     }).compile();
@@ -91,6 +100,10 @@ describe('SummaryQueueService', () => {
     templateService = module.get(
       TemplateService,
     ) as jest.Mocked<TemplateService>;
+    // Make hasLlmSlots reflect current processing queue length (capacity = 2)
+    (inferenceCountServiceMock.hasLlmSlots as jest.Mock).mockImplementation(
+      () => service.processing.length < 2,
+    );
 
     // Reset arrays and properties before each test
     service.waiting = [];
@@ -329,7 +342,7 @@ describe('SummaryQueueService', () => {
       // Arrange
       service.waiting = [{ stateId: 'state-1' }, { stateId: 'state-2' }];
       service.processing = [{ stateId: 'state-3' }, { stateId: 'state-4' }];
-      service.maxConcurrent = 2;
+  // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
 
@@ -346,7 +359,7 @@ describe('SummaryQueueService', () => {
       // Arrange
       service.waiting = [{ stateId: 'state-1' }, { stateId: 'state-2' }];
       service.processing = [{ stateId: 'state-3' }];
-      service.maxConcurrent = 2;
+  // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
 
@@ -363,7 +376,7 @@ describe('SummaryQueueService', () => {
       // Arrange
       service.waiting = [];
       service.processing = [{ stateId: 'state-3' }];
-      service.maxConcurrent = 2;
+  // service.maxConcurrent = 2; // Removed: property does not exist
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
 
@@ -384,7 +397,6 @@ describe('SummaryQueueService', () => {
         { stateId: 'state-3' },
       ];
       service.processing = [];
-      service.maxConcurrent = 2;
 
       const startVideoSummarySpy = jest.spyOn(service, 'startVideoSummary');
 

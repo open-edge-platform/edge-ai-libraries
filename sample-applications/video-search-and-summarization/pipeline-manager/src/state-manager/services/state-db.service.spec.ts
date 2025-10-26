@@ -7,6 +7,7 @@ import { StateEntity } from '../models/state.entity';
 import { ObjectLiteral, Repository } from 'typeorm';
 import { NotFoundException } from '@nestjs/common';
 import { EVAMPipelines } from 'src/evam/models/evam.model';
+import { StateActionStatus } from '../models/state.model';
 
 // Create a mock type for the Repository
 type MockRepository<T extends ObjectLiteral = Object> = Partial<
@@ -53,20 +54,15 @@ describe('StateDbService', () => {
       // Arrange
       const mockState: StateEntity = {
         stateId: 'test-state-id',
+        title: 'Test Video Title',
+        videoId: 'test-video-id',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        fileInfo: {
-          filename: 'test.mp4',
-          mimetype: 'video/mp4',
-          destination: 'uploads/',
-          fieldname: 'file',
-          originalname: 'original.mp4',
-          path: '/',
-        },
         userInputs: {
           chunkDuration: 10,
           samplingFrame: 4,
-          videoName: 'some_name',
+          frameOverlap: 2,
+          multiFrame: 1,
         },
         chunks: {},
         frames: {},
@@ -82,9 +78,9 @@ describe('StateDbService', () => {
           audioModel: 'whisper',
         },
         status: {
-          dataStoreUpload: 'pending',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.IN_PROGRESS,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
       };
       const mockCreatedState = { ...mockState, dbId: 1 };
@@ -126,20 +122,15 @@ describe('StateDbService', () => {
 
       const mockState: StateEntity = {
         stateId: 'test-state-id',
+        title: 'Test Video Title',
+        videoId: 'test-video-id',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-        fileInfo: {
-          filename: 'test.mp4',
-          mimetype: 'video/mp4',
-          destination: 'uploads/',
-          fieldname: 'file',
-          originalname: 'original.mp4',
-          path: '/',
-        },
         userInputs: {
           chunkDuration: 10,
           samplingFrame: 4,
-          videoName: 'some_name',
+          frameOverlap: 2,
+          multiFrame: 1,
         },
         chunks: {},
         frames: {},
@@ -155,9 +146,9 @@ describe('StateDbService', () => {
           audioModel: 'whisper',
         },
         status: {
-          dataStoreUpload: 'pending',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.IN_PROGRESS,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
       };
 
@@ -211,21 +202,15 @@ describe('StateDbService', () => {
       const existingState: StateEntity = {
         dbId: 1,
         stateId,
+        title: 'Test Video Title',
+        videoId: 'test-video-id',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-
-        fileInfo: {
-          filename: 'test.mp4',
-          mimetype: 'video/mp4',
-          destination: 'uploads/',
-          fieldname: 'file',
-          originalname: 'original.mp4',
-          path: '/',
-        },
         userInputs: {
           chunkDuration: 10,
           samplingFrame: 4,
-          videoName: 'some_name',
+          frameOverlap: 2,
+          multiFrame: 1,
         },
         chunks: {},
         frames: {},
@@ -242,17 +227,17 @@ describe('StateDbService', () => {
         },
 
         status: {
-          dataStoreUpload: 'pending',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.IN_PROGRESS,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
       };
 
       const stateUpdate = {
         status: {
-          dataStoreUpload: 'completed',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.COMPLETE,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
         summary: 'This is a test summary',
       };
@@ -307,21 +292,15 @@ describe('StateDbService', () => {
       const existingState: StateEntity = {
         dbId: 1,
         stateId,
+        title: 'Test Video Title',
+        videoId: 'test-video-id',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-
-        fileInfo: {
-          filename: 'test.mp4',
-          mimetype: 'video/mp4',
-          destination: 'uploads/',
-          fieldname: 'file',
-          originalname: 'original.mp4',
-          path: '/',
-        },
         userInputs: {
           chunkDuration: 10,
           samplingFrame: 4,
-          videoName: 'some_name',
+          frameOverlap: 2,
+          multiFrame: 1,
         },
         chunks: {},
         frames: {},
@@ -338,15 +317,15 @@ describe('StateDbService', () => {
         },
 
         status: {
-          dataStoreUpload: 'pending',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.IN_PROGRESS,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
       };
 
       // Only updating one field
       const stateUpdate = {
-        videoURI: 'https://example.com/video.mp4',
+        videoId: 'https://example.com/video.mp4',
       };
 
       const expectedUpdatedState = {
@@ -372,7 +351,7 @@ describe('StateDbService', () => {
         }),
       );
       expect(result).toEqual(expectedUpdatedState);
-      expect(result?.videoURI).toEqual('https://example.com/video.mp4');
+      expect(result?.videoId).toEqual('https://example.com/video.mp4');
     });
 
     it('should propagate errors from the repository during update', async () => {
@@ -381,21 +360,15 @@ describe('StateDbService', () => {
       const existingState: StateEntity = {
         dbId: 1,
         stateId,
+        title: 'Test Video Title',
+        videoId: 'test-video-id',
         createdAt: new Date().toISOString(),
         updatedAt: new Date().toISOString(),
-
-        fileInfo: {
-          filename: 'test.mp4',
-          mimetype: 'video/mp4',
-          destination: 'uploads/',
-          fieldname: 'file',
-          originalname: 'original.mp4',
-          path: '/',
-        },
         userInputs: {
           chunkDuration: 10,
           samplingFrame: 4,
-          videoName: 'some_name',
+          frameOverlap: 2,
+          multiFrame: 1,
         },
         chunks: {},
         frames: {},
@@ -412,9 +385,9 @@ describe('StateDbService', () => {
         },
 
         status: {
-          dataStoreUpload: 'pending',
-          summarizing: 'pending',
-          chunking: 'pending',
+          dataStoreUpload: StateActionStatus.IN_PROGRESS,
+          summarizing: StateActionStatus.IN_PROGRESS,
+          chunking: StateActionStatus.IN_PROGRESS,
         },
       };
 

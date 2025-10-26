@@ -58,6 +58,11 @@ SUPPORTED_MODELS=(
   "yolov8m-seg"
   "yolov8l-seg"
   "yolov8x-seg"
+  "yolov8n-pose"
+  "yolov8s-pose"
+  "yolov8m-pose"
+  "yolov8l-pose"
+  "yolov8x-pose"
   "yolov8_license_plate_detector"
   "yolov9t"
   "yolov9s"
@@ -235,7 +240,7 @@ fi
 
 # Install dependencies for CLIP models
 if [[ "${MODEL:-}" =~ clip.* || "${MODEL:-}" == "all" ]]; then
-  pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
+  pip install --no-cache-dir --upgrade torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 || handle_error $LINENO
   pip install --no-cache-dir transformers || handle_error $LINENO
   pip install --no-cache-dir pillow || handle_error $LINENO
 fi
@@ -489,7 +494,7 @@ done
 REPO_DIR="$MODELS_PATH/yolov5_repo"
 if [ "$MODEL_IN_LISTv5" = true ] && [ ! -d "$REPO_DIR" ]; then
   git clone https://github.com/ultralytics/yolov5 "$REPO_DIR"
-  pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch torchvision torchaudio
+  pip install --no-cache-dir --index-url https://download.pytorch.org/whl/cpu torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0
   pip install --no-cache-dir -r "$REPO_DIR"/requirements.txt
 fi
 
@@ -582,7 +587,7 @@ if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all"
     mv yolov7.bin "$MODEL_DIR/FP32"
     cd ..
     rm -rf yolov7
-    pip install --no-cache-dir --upgrade torch torchaudio torchvision || handle_error $LINENO
+    pip install --no-cache-dir --upgrade torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 || handle_error $LINENO
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
@@ -618,7 +623,7 @@ converted_model = converted_path + '/' + model_name + '.xml'
 core = openvino.Core()
 ov_model = core.read_model(model=converted_model)
 
-if model_type in ["YOLOv8-SEG", "yolo_v11_seg"]:
+if model_type in ["yolo_v8_seg", "yolo_v11_seg"]:
     ov_model.output(0).set_names({"boxes"})
     ov_model.output(1).set_names({"masks"})
 
@@ -643,26 +648,31 @@ EOF
 # List of models and their types
 declare -A YOLO_MODELS
 YOLO_MODELS=(
-  ["yolov8n"]="YOLOv8"
-  ["yolov8s"]="YOLOv8"
-  ["yolov8m"]="YOLOv8"
-  ["yolov8l"]="YOLOv8"
-  ["yolov8x"]="YOLOv8"
-  ["yolov8n-obb"]="YOLOv8-OBB"
-  ["yolov8s-obb"]="YOLOv8-OBB"
-  ["yolov8m-obb"]="YOLOv8-OBB"
-  ["yolov8l-obb"]="YOLOv8-OBB"
-  ["yolov8x-obb"]="YOLOv8-OBB"
-  ["yolov8n-seg"]="YOLOv8-SEG"
-  ["yolov8s-seg"]="YOLOv8-SEG"
-  ["yolov8m-seg"]="YOLOv8-SEG"
-  ["yolov8l-seg"]="YOLOv8-SEG"
-  ["yolov8x-seg"]="YOLOv8-SEG"
-  ["yolov9t"]="YOLOv8"
-  ["yolov9s"]="YOLOv8"
-  ["yolov9m"]="YOLOv8"
-  ["yolov9c"]="YOLOv8"
-  ["yolov9e"]="YOLOv8"
+  ["yolov8n"]="yolo_v8"
+  ["yolov8s"]="yolo_v8"
+  ["yolov8m"]="yolo_v8"
+  ["yolov8l"]="yolo_v8"
+  ["yolov8x"]="yolo_v8"
+  ["yolov8n-obb"]="yolo_v8_obb"
+  ["yolov8s-obb"]="yolo_v8_obb"
+  ["yolov8m-obb"]="yolo_v8_obb"
+  ["yolov8l-obb"]="yolo_v8_obb"
+  ["yolov8x-obb"]="yolo_v8_obb"
+  ["yolov8n-seg"]="yolo_v8_seg"
+  ["yolov8s-seg"]="yolo_v8_seg"
+  ["yolov8m-seg"]="yolo_v8_seg"
+  ["yolov8l-seg"]="yolo_v8_seg"
+  ["yolov8x-seg"]="yolo_v8_seg"
+  ["yolov8n-pose"]="yolo_v8_pose"
+  ["yolov8s-pose"]="yolo_v8_pose"
+  ["yolov8m-pose"]="yolo_v8_pose"
+  ["yolov8l-pose"]="yolo_v8_pose"
+  ["yolov8x-pose"]="yolo_v8_pose"
+  ["yolov9t"]="yolo_v8"
+  ["yolov9s"]="yolo_v8"
+  ["yolov9m"]="yolo_v8"
+  ["yolov9c"]="yolo_v8"
+  ["yolov9e"]="yolo_v8"
   ["yolov10n"]="yolo_v10"
   ["yolov10s"]="yolo_v10"
   ["yolov10m"]="yolo_v10"
@@ -723,7 +733,7 @@ with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
 os.remove('${MODEL_NAME}.zip')
 "
 
-    mkdir -p FP32 
+    mkdir -p FP32
     cp license-plate-reader/models/yolov8n/yolov8n_retrained.bin FP32/${MODEL_NAME}.bin
     cp license-plate-reader/models/yolov8n/yolov8n_retrained.xml FP32/${MODEL_NAME}.xml
     chmod -R u+w license-plate-reader
@@ -942,7 +952,7 @@ with zipfile.ZipFile('${MODEL_NAME}.zip', 'r') as zip_ref:
 os.remove('${MODEL_NAME}.zip')
 "
 
-    mkdir -p FP32 
+    mkdir -p FP32
     cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.bin FP32/${MODEL_NAME}.bin
     cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml FP32/${MODEL_NAME}.xml
     chmod -R u+w license-plate-reader

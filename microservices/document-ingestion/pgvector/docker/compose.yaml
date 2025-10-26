@@ -20,6 +20,10 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
+      args:
+        http_proxy: ${http_proxy}
+        https_proxy: ${https_proxy}
+        no_proxy: ${no_proxy}
     image: intel/document-ingestion:1.2.0
     environment:
       http_proxy: ${http_proxy}

@@ -141,7 +141,7 @@ describe('EventsGateway', () => {
       expect(uiService.getUiState).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}`,
+        `summary:sync/${mockStateId}`,
         mockUiState,
       );
     });
@@ -172,7 +172,7 @@ describe('EventsGateway', () => {
       expect(uiService.getStateStatus).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/status`,
+        `summary:sync/${mockStateId}/status`,
         mockStateStatus,
       );
     });
@@ -209,7 +209,7 @@ describe('EventsGateway', () => {
       expect(uiService.getUIFrames).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/chunks`,
+        `summary:sync/${mockStateId}/chunks`,
         {
           chunks: mockChunksData.chunks,
           frames: mockChunksData.frames,
@@ -238,7 +238,7 @@ describe('EventsGateway', () => {
       );
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/frameSummary`,
+        `summary:sync/${mockStateId}/frameSummary`,
         {
           stateId: mockStateId,
           ...mockFrameSummary,
@@ -282,7 +282,7 @@ describe('EventsGateway', () => {
       expect(uiService.getInferenceConfig).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/inferenceConfig`,
+        `summary:sync/${mockStateId}/inferenceConfig`,
         mockInferenceConfig,
       );
     });
@@ -302,7 +302,7 @@ describe('EventsGateway', () => {
       // Assert
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/summary`,
+        `summary:sync/${mockStateId}/summary`,
         summaryData,
       );
     });
@@ -322,7 +322,7 @@ describe('EventsGateway', () => {
       // Assert
       expect(mockServer.to).toHaveBeenCalledWith(mockStateId);
       expect(mockServer.emit).toHaveBeenCalledWith(
-        `sync/${mockStateId}/summaryStream`,
+        `summary:sync/${mockStateId}/summaryStream`,
         summaryStreamData.streamChunk,
       );
     });
@@ -338,31 +338,7 @@ describe('EventsGateway', () => {
     });
   });
 
-  describe('handleStop', () => {
-    it('should return stop confirmation message', () => {
-      // Arrange
-      const payload = { stateId: mockStateId };
 
-      // Act
-      const result = gateway.handleStop(mockClient, payload);
-
-      // Assert
-      expect(result).toBe('Pipeline stop registered');
-    });
-  });
-
-  describe('handleMessage', () => {
-    it('should return hello world message', () => {
-      // Arrange
-      const payload = { message: 'test' };
-
-      // Act
-      const result = gateway.handleMessage(mockClient, payload);
-
-      // Assert
-      expect(result).toBe('Hello world!');
-    });
-  });
 
   describe('error handling', () => {
     it('should handle errors during state sync', () => {
