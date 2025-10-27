@@ -115,9 +115,9 @@ Confirm that listed groups to which you belong contain the `render` group:
 groups ${USER}
 ```
 
-### Step 4: Install GPU libraries
+### Step 4: Install drivers
 
-Follow the instructions to add necessary repositories and install GPU libraries:
+Follow the instructions to add necessary repositories and install libraries:
 
 ```bash
 cd $HOME
@@ -170,13 +170,7 @@ source /opt/intel/dlstreamer/scripts/setup_dls_env.sh
 and execute a sample pipeline with inference on the CPU:
 
 ```bash
-gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=CPU pre-process-backend=ie ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
-```
-
-The inference can be done on a GPU device with a better overall performance:
-
-```bash
-gst-launch-1.0 urisourcebin buffer-size=4096 uri=https://videos.pexels.com/video-files/1192116/1192116-sd_640_360_30fps.mp4 ! decodebin3 ! gvadetect model=$MODELS_PATH/public/yolo11s/INT8/yolo11s.xml device=GPU pre-process-backend=opencv ! queue ! gvawatermark ! videoconvertscale ! gvafpscounter ! autovideosink sync=false
+/opt/intel/dlstreamer/scripts/hello_dlstreamer.sh --device=CPU
 ```
 
 > **NOTE:** There is no current support for Video Acceleration API (VA-API) within WSL.
