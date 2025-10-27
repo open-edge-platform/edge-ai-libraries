@@ -16,4 +16,4 @@ services:
     volumes:
       - ${MODEL_PATH:-~/models}:/opt/models
     group_add:
-      - ${USER_GROUP_ID:-1000}
+      - ${USER_GROUP_ID:-1001}

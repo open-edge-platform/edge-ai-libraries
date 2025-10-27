@@ -17,7 +17,6 @@ venv.bak/
 dist/
 build/
 tests/
-docs/
 models/
 **/.cache
 **/.coverage

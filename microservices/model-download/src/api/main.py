@@ -2,9 +2,11 @@
 
 import os
 import gc
+import yaml
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.openapi.utils import get_openapi
 from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
@@ -13,7 +15,29 @@ import importlib
 from .models import ModelDownloadRequest, ModelHub
 from ..utils.logging import logger
 
-app = FastAPI(root_path="/api/v1", title="Model Download Service", version="1.0.0")
+app = FastAPI(
+    root_path="/api/v1",
+    title="Model Download Service",
+    version="1.0.0",
+)
+
+# Custom OpenAPI schema loader
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_yaml_path = os.path.join(
+        os.path.dirname(__file__), 
+        "../../docs/user-guide/api-docs/openapi.yaml"
+    )
+    
+    with open(openapi_yaml_path, 'r') as f:
+        app.openapi_schema = yaml.safe_load(f)
+    
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 plugin_registry = PluginRegistry()
 plugins_package = importlib.import_module("src.plugins")
 plugin_registry.discover_plugins(plugins_package)
@@ -58,7 +82,7 @@ async def download_models(
     Models are downloaded from the specified hub (huggingface, ollama, etc.).
     Models will be converted to OpenVINO format if:
     1. is_ovms is set to true in the request for openvino conversion, or
-    2. type can be set to 'vlm/llm/embeddings/reranker' in the request
+    2. type can be set to 'llm,embeddings,reranker or vision' in the request
     
     The config object is optional and used only for conversion.
     

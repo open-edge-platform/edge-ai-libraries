@@ -8,7 +8,7 @@ info:
     
     **Features:**
     - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics)
-    - Convert models to OpenVINO IR format with configurable precision and device targets
+    - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
     
@@ -99,7 +99,7 @@ components:
           example: main
         config:
           $ref: '#/components/schemas/Config'
-          description: Configuration for OpenVINO conversion (required if is_ovms is true or type is vlm)
+          description: Configuration for OpenVINO conversion (required if is_ovms is true)
 
     ModelDownloadRequest:
       type: object
@@ -328,12 +328,12 @@ paths:
       summary: Download and optionally convert models
       description: |
         Downloads one or more models from HuggingFace, Ollama, or Ultralytics and optionally converts them
-        to OpenVINO IR format. This endpoint processes requests asynchronously and returns job IDs immediately.
+        to OpenVINO IR format for huggingface hub models. This endpoint processes requests asynchronously and returns job IDs immediately.
         
         **Conversion Behavior:**
         Models will be converted to OpenVINO format if:
-        1. `is_ovms` is set to `true` in the request, OR
-        2. `type` is set to `vlm` (Vision-Language Model)
+        1. `is_ovms` is set to `true` in the request
+        2. `type` can be set to 'llm,embeddings,reranker or vision' in the request
         
         **Authentication:**
         - HF_TOKEN is optional for public HuggingFace models
@@ -389,13 +389,13 @@ paths:
                 summary: Download Ollama model
                 value:
                   models:
-                    - name: llama3.2
+                    - name: deepseek-r1
                       hub: ollama
               ultralytics_download:
                 summary: Download Ultralytics model
                 value:
                   models:
-                    - name: yolov8n.pt
+                    - name: yolov8s
                       hub: ultralytics
               multiple_models:
                 summary: Download multiple models
@@ -404,9 +404,9 @@ paths:
                     - name: microsoft/Phi-3.5-mini-instruct
                       hub: huggingface
                       type: llm
-                    - name: llama3.2
+                    - name: deepseek-r1
                       hub: ollama
-                  parallel_downloads: false
+                  parallel_downloads: true
       responses:
         '200':
           description: Request accepted and processing started

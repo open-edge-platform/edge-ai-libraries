@@ -12,10 +12,16 @@ class DeviceType(str, Enum):
     CPU = "CPU"
     GPU = "GPU"
 
-class ModelHub(Enum):
+class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
     ULTRALYTICS = "ultralytics"
     OLLAMA = "ollama"
+
+class ModelType(str, Enum):
+    LLM = "llm"
+    EMBEDDINGS = "embeddings"
+    RERANKER = "rerank"
+    VISION = "vision"
 
 class Config(BaseModel):
     precision: ModelPrecision = ModelPrecision.INT8
@@ -38,9 +44,12 @@ class DownloadResponse(BaseModel):
 
 
 class ModelRequest(BaseModel):
-    name: str
-    hub: str
-    type: Optional[str] = None
+    name: str = Field(
+        ...,
+        min_length=1
+    )
+    hub: ModelHub
+    type: Optional[ModelType] = None
     is_ovms: bool = False
     revision: Optional[str] = None
     config: Optional[Config] = None

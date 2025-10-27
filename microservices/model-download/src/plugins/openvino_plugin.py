@@ -62,6 +62,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             return {
                 "model_name": model_name,
                 "source": "openvino",
+                "type": model_type,
                 "conversion_path": host_path,
                 "is_ovms": True,
                 "config": {
@@ -69,7 +70,6 @@ class OpenVINOConverter(ModelDownloadPlugin):
                     "device": target_device,
                     "cache": cache_size if cache_size is not None else None
                 },
-                "type": model_type,
                 "success": True,
                 "message": "Model successfully converted to OVMS format."
             }
@@ -212,6 +212,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         return {
             "model_name": model_name,
             "source": "openvino",
+            "type": model_type,
             "conversion_path": output_dir,
             "is_ovms": True,
             "config": {
@@ -219,7 +220,6 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "device": target_device,
                 "cache": cache_size if cache_size is not None else None
             },
-            "type": model_type,
             "success": True,
             "message": "Model conversion completed successfully."
         }

@@ -28,8 +28,10 @@ RUN poetry config virtualenvs.create false && poetry install --no-root
 # ---- Stage 2: Final slim image ----
 FROM python:3.11-slim
 
-ARG UID=1000
-ARG GID=1000
+ARG UID=1001
+ARG GID=1001
+ENV PYTHONPATH=/opt
+ENV MODELS_DIR=/opt/models
 
 RUN apt-get update && apt-get install -y \
     curl \
@@ -54,12 +56,11 @@ COPY . /opt
 
 WORKDIR /opt
 
-# Change the user of working directory to non-root user
-RUN chown -R appuser:appuser /opt
-
-# Make the entrypoint script executable
 COPY docker/entrypoint.sh /opt/entrypoint.sh
-RUN chmod +x /opt/entrypoint.sh
+
+
+RUN chown -R appuser:appuser /opt && \
+    chmod +x /opt/entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -67,8 +68,5 @@ USER appuser
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONPATH=/opt
-ENV MODELS_DIR=/opt/models
 # Use our entrypoint script
 ENTRYPOINT ["/opt/entrypoint.sh"]

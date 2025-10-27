@@ -12,6 +12,7 @@ BOLD='\033[1m'        # Bold
 # Default values
 DEFAULT_MODEL_PATH="$HOME/models/"
 BUILD=false
+BUILD_ONLY=false
 REBUILD=false
 PLUGINS=""
 MODEL_PATH=""
@@ -43,8 +44,8 @@ show_usage() {
     echo -e "  ${CYAN}up${NC}                     Start the services (default)"
     echo -e "  ${CYAN}down${NC}                   Stop the services"
     echo -e "${BOLD}Options:${NC}"
-    echo -e "  ${CYAN}--build${NC}                Build the Docker image before running"
-    echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache"
+    echo -e "  ${CYAN}--build${NC}                Build the Docker image only (without starting services)"
+    echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache (without starting services)"
     echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
     echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics) or 'all' to enable all"
     #echo -e "  ${CYAN}--tag${NC} <tag>            Docker image tag (default: latest)"
@@ -65,11 +66,13 @@ while [[ $# -gt 0 ]]; do
             ;;
         --build)
             BUILD=true
+            BUILD_ONLY=true
             shift
             ;;
         --rebuild)
             REBUILD=true
             BUILD=true
+            BUILD_ONLY=true
             shift
             ;;
         --model-path)
@@ -195,6 +198,12 @@ case "$ACTION" in
             log_info "Building Docker image: ${BOLD}$BUILD_COMMAND${NC}"
             eval "$BUILD_COMMAND" || { log_error "Docker build failed"; return 1; }
             log_success "Docker image built successfully."
+            
+            # If build-only mode, exit here
+            if [[ "$BUILD_ONLY" == true ]]; then
+                log_success "Build completed. Use 'source scripts/run_service.sh up' to start the service."
+                return 0
+            fi
         fi
 
         # Run the Docker container

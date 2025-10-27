@@ -20,109 +20,140 @@ The Model Download Service is a microservice that enables downloading models fro
 
 ## Quick Start
 
-1. Clone the repository and navigate to the `model-download` directory:
-```bash
-cd microservices/model-download
-```
-2. Configure the environment variables and launch the service
-```bash
-export REGISTRY=""
-export TAG=""
-export HF_TOKEN=<your huggingface token>
-source scripts/run_service.sh --plugins all --model-path <host path>
-```
-__NOTE__: For public models, no token is needed. Set the Hugging Face token via the `HF_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format
+1. **Clone the Repository**:
+    - Clone the model-download repository:
+      ```bash
+      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+      ```
+2. **Navigate to the directory**:
+    - Go to the model-download microservice directory
+      ```bash
+      cd microservices/model-download
+      ```
+3. **Configure the environment variables**
+    - Set the belwo environment variables
+      ```bash
+      export REGISTRY=""
+      export TAG=""
+      export HF_TOKEN=<your huggingface token>
+      ```
+4. **Launch the service**
+    - Use the run script to start the service and enable the plugins
+      ```bash
+      source scripts/run_service.sh up --plugins all --model-path <host path>
+      ```
+      __NOTE__: For public models, no token is needed. Set the Hugging Face token via the `HF_TOKEN` environment variable to download GATED models and for conversion to Openvino IR format
 
-The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
+      The `run_service.sh` script is a Docker Compose wrapper that builds and manages the model download service container with configurable plugins, model paths, and deployment options.
 
-#### Options available with the script:
+      #### Options available with the script:
 
-```text
-Usage: source scripts/run_service.sh [options] [action]
+        __Usage__: 
+        ```bash
+          source scripts/run_service.sh [options] [action]
+        ```
 
-Actions:
-  up                     Start the services (default)
-  down                   Stop the services
+        __Actions__:
+        ```text
+            up                     Start the services (default)
+            down                   Stop the services
+        ```
+        __Options__:
+        | Option                   | Description                                                                                      |
+        |--------------------------|--------------------------------------------------------------------------------------------------|
+        | `--build`                | Build the Docker image before running                                                            |
+        | `--rebuild`              | Force rebuild the Docker image without cache                                                     |
+        | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
+        | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins |
+        | `--help`                 | Show this help message                                                                           |
 
-Options:
-  --build                Build the Docker image before running
-  --rebuild              Force rebuild the Docker image without cache
-  --model-path <path>    Set custom model path (default: /home/intel/models/)
-  --plugins <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics) or all to enable all available plugins
-  --help                 Show this help message
-```
 
-3. Start the service using Docker Compose:
-```bash
-docker compose -f docker/compose.yaml up
-```
+5. **Access the service**
+    - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the Swagger documentation for all available APIs.
 
-The service will be available at `http://localhost:8200/api/v1/docs`, where you can view the Swagger documentation for all available APIs.
+## Verification
+
+- Ensure that the application is running by checking the Docker container status:
+  ```bash
+  docker ps
+  ```
+- Access the application dashboard and verify that it is functioning as expected.
+
 
 ##  API Documentation
 
-### Endpoints
-
-#### Download Models
+#### Download Model Endpoint
 
 `POST /api/v1/models/download`
 
 Downloads one or more models from Hugging Face, Ollama, or Ultralytics. Hugging Face models can optionally be converted to OVMS format.
 
+**Query Parameter**:
+- download_path (string, optional): The local file system path where the downloaded model should be saved. If not provided, the model will be saved to a default location.
+
 **Request Body:**
-To download the models available on Hugging Face hub. Also conversion to Openvino IR format is supported with __is_ovms__ flag with more details added in the config section of the payload
-```json
-{
-  "models": [
+- To download the models available on Hugging Face hub.
+    ```json
     {
-      "name": "microsoft/Phi-3.5-mini-instruct",
-      "hub": "huggingface",
-      "type": "llm",
-      "is_ovms": true,
-      "config": {
-        "precision": "int8",
-        "device": "CPU",
-        "cache_size": 10
-      }
-    }
-  ],
-  "parallel_downloads": false
-}
-```
-
-To download the models available on Ollama hub. 
-```json
-{
-  "models": [
-    {
-      "name": "tinyllama",
-      "hub": "ollama",
-      "type": "llm",
-    }
-  ],
-  "parallel_downloads": false
-}
-```
-To download a yolo vision models
-```json
-{
-    "models": [
+      "models": [
         {
-            "name": "yolov8s",
-            "hub":"ultralytics",
-            "type": "vision",
-            "is_ovms": false,
-            "config": {
-                "precision": "fp16",
-                "device": "CPU"
-            }
+          "name": "microsoft/Phi-3.5-mini-instruct",
+          "hub": "huggingface",
+          "type": "llm",
         }
-    ],
-    "parallel_downloads": true
-}
-```
+      ],
+      "parallel_downloads": false
+    }
+    ```
 
-**Parameters:**
+- To download the models available on Ollama hub. 
+    ```json
+    {
+      "models": [
+        {
+          "name": "tinyllama",
+          "hub": "ollama",
+          "type": "llm",
+        }
+      ],
+      "parallel_downloads": false
+    }
+    ```
+- To download a yolo vision models
+    ```json
+    {
+        "models": [
+            {
+                "name": "yolov8s",
+                "hub":"ultralytics",
+                "type": "vision",
+            }
+        ],
+        "parallel_downloads": true
+    }
+    ```
+    __NOTE__: Yolo vision models from ultralytics will be downloaded and converted to openvino IR format with fp32 and fp16 precision by default.
+- To download model from huggingface and convert to Openvino IR format. Conversion to Openvino IR format is supported with __is_ovms__ flag with more details added in the config section of the payload
+    ```json
+    {
+        "models": [
+            {
+                "name": "BAAI/bge-reranker-base",
+                "hub":"huggingface",
+                "type": "rerank",
+                "is_ovms": true,
+                "config": {
+                    "precision": "fp32",
+                    "device": "cpu",
+                    "cache_size": 10
+                }
+            }
+        ],
+        "parallel_downloads": false
+    }
+    ```
+
+**Parameter details:**
 - `name` (required): The name/ID of the model (Hugging Face, Ollama, or Ultralytics)
 - `hub` (required): The model hub to download from (Options: huggingface, ollama, ultralytics)
 - `type`: Model type (e.g., llm, embeddings, rerank)
@@ -133,19 +164,40 @@ To download a yolo vision models
   - `cache_size`: Cache size for model optimization
 
 **Response:**
-```json
-{
-  "message": "Model download completed",
-  "results": [
+  ```json
     {
-      "status": "success",
-      "model_name": "microsoft/Phi-3.5-mini-instruct",
-      "model_path": "/app/models/microsoft_Phi-3.5-mini-instruct",
-      "is_ovms": true
+        "message": "Started processing 1 model(s)",
+        "job_ids": [
+            "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0"
+        ],
+        "status": "processing"
     }
-  ]
-}
-```
+  ```
+  - The job_id id created for each model download request. To get the status of a download request make the below jod details request
+
+    `GET http://<host>:8200/api/v1/jobs/:job_id`
+
+  - The response is as below once the request is completed
+  ```json
+      {
+        "id": "5f0d4eba-c79c-4d02-97a6-43c3d0168ca0",
+        "operation_type": "download",
+        "model_name": "yolov8s",
+        "hub": "ultralytics",
+        "output_dir": "/opt/models/ultra_folder",
+        "status": "completed",
+        "start_time": "2025-10-27T08:24:23.510870",
+        "plugin_name": "ultralytics",
+        "plugin": "ultralytics",
+        "completion_time": "2025-10-27T08:30:14.443898",
+        "result": {
+            "model_name": "yolov8s",
+            "source": "ultralytics",
+            "download_path": "model/download/path",
+            "return_code": 0
+        }
+      }
+  ```
 
 ### Configuration
 
@@ -168,12 +220,19 @@ The API returns appropriate HTTP status codes:
 - `401`: Authentication token missing or invalid (only for gated Hugging Face models)
 - `422`: Validation error in request
 
-Error responses include a detail message explaining the error:
-```json
-{
-  "detail": "Error message here"
-}
-```
+  Error responses include a detail message explaining the error:
+    ```json
+      {
+        "detail": "Error message here"
+      }
+    ```
+
+## Troubleshooting
+
+- If you encounter any issues during the build or run process, check the Docker logs for errors:
+  ```bash
+  docker logs <container-id>
+  ```
 
 ## Best Practices
 
