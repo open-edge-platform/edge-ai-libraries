@@ -5,10 +5,9 @@ metadata:
   labels:
     app: {{ .Chart.Name }}
 spec:
-  type: NodePort
+  type: {{ .Values.service.type }}
   ports:
-    - port: 8000
+    - port: {{ .Values.service.port }}
       targetPort: 8000
-      nodePort: {{ .Values.service.nodePort }}
   selector:
     app: {{ .Chart.Name }}
