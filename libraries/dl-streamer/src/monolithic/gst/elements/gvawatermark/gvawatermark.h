@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2021-2024 Intel Corporation
+ * Copyright (C) 2021-2025 Intel Corporation
  *
  * SPDX-License-Identifier: MIT
  ******************************************************************************/
@@ -25,6 +25,7 @@ enum WatermarkPath {
     WatermarkPathNone = 0,
     WatermarkPathVaVaapi,
     WatermarkPathDirect,
+    WatermarkPathTransparent
 };
 
 struct _GstGvaWatermark {
@@ -35,13 +36,16 @@ struct _GstGvaWatermark {
     gchar *device;
     bool obb;
 
+    bool use_watermarkimpl_only;
+
     enum WatermarkPath preferred_path;
     enum WatermarkPath active_path;
+    WatermarkPath block_pad_source;
     bool is_active_nv12;
     bool have_vaapi;
     bool have_va;
     gulong block_probe_id;
-
+    
     /* for all */
     GstElement *identity;
     GstElement *watermarkimpl;
