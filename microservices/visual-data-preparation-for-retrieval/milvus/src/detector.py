@@ -6,8 +6,7 @@ import os
 import sys
 import subprocess
 
-from PIL import Image
-import cv2
+from PIL import Image, ImageDraw
 import numpy as np
 
 import openvino as ov
@@ -38,12 +37,12 @@ class Detector:
             print(f"Model path {self.model_path} does not exist.")
             os.makedirs(self.model_path)
             # Download the model from a remote location
-            download_cmd = ["wget", 
-                            "--tries=5",  # Retry up to 5 times if the download fails
-                            "--timeout=30",  # Set a timeout of 30 seconds for each attempt
-                            "--continue",  # Resume partially downloaded files
-                            "--no-check-certificate",  # Skip SSL certificate validation (if necessary)
-                            "-O", os.path.join(self.model_path, "yolox_s_openvino.tar.gz"),  # Specify output file name"
+            download_cmd = ["curl", 
+                            "-L",  # Follow redirects
+                            "--retry", "5",  # Retry up to 5 times if the download fails
+                            "--retry-delay", "5",  # Wait 5 seconds between retries
+                            "--connect-timeout", "30",  # Set a timeout of 30 seconds for connection
+                            "-o", os.path.join(self.model_path, "yolox_s_openvino.tar.gz"),  # Specify output file name
                             "https://github.com/Megvii-BaseDetection/YOLOX/releases/download/0.1.1rc0/yolox_s_openvino.tar.gz"]
             subprocess.run(download_cmd, capture_output=True, text=True)
 
@@ -81,21 +80,18 @@ class Detector:
     
     def get_cropped_images(self, image):
         do_convert = isinstance(image, Image.Image)
-        if do_convert:
-            image = cv2.cvtColor(np.array(image), cv2.COLOR_RGB2BGR)
-        boxes, _, _ = self.get_det_results(image)
+        if not do_convert:
+            image = Image.fromarray(image)
+        boxes, _, _ = self.get_det_results(np.array(image))
         cropped_images = []
         for box in boxes:
             x1, y1, x2, y2 = map(int, box)
             x1 = max(0, x1)
             y1 = max(0, y1)
-            x2 = min(image.shape[1], x2)
-            y2 = min(image.shape[0], y2)
+            x2 = min(image.width, x2)
+            y2 = min(image.height, y2)
             if x1 >= x2 or y1 >= y2:
                 continue
-            cropped_image = image[y1:y2, x1:x2]
-            if do_convert:
-                cropped_image = cv2.cvtColor(cropped_image, cv2.COLOR_BGR2RGB)
-                cropped_image = Image.fromarray(cropped_image)
+            cropped_image = image.crop((x1, y1, x2, y2))
             cropped_images.append(cropped_image)
         return cropped_images

@@ -210,6 +210,50 @@ To uninstall the Video Summary Helm chart, use the following command:
 helm uninstall vss -n $my_namespace
 ```
 
+## Updating PVC Storage Size
+
+If any of the microservice requires more or less storage than the default allotted storage in values file, this can be overridden for one or more services.
+
+### Updating storage for VDMS-Dataprep and MultiModal Embedding Service
+
+Set the required `sharedClaimSize` value while installing the helm chart. 
+
+For example, if installing chart in search only mode :
+
+```bash
+helm install vss . -f search_override.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+```
+
+If installing the chart in combined search and summary mode :
+
+```bash
+helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+```
+
+### Updating storage for other microservices
+
+To update storage for other microservices we can, override the corresponding `claimSize` value in the main chart values file, while installing the chart.
+
+For example, for updating storage for VLM-Inference Microservice in summary mode :
+
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml --set vlminference.claimSize=50Gi -n $my_namespace
+```
+
+Similarly, for updating storage for OVMS in summary mode, we can install the chart in following ways :
+
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -f ovms_override.yaml --set ovms.claimSize=10Gi -n $my_namespace
+```
+
+Let's look at one more example, for updating storage for Minio Server in combined search and summary mode :
+
+```bash
+helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml --set minioserver.claimSize=10Gi -n $my_namespace
+```
+
+If not set while installing the chart, all services will claim a default amount of storage set in the values file.
+
 ## Verification
 
 - Ensure that all pods are running and the services are accessible.

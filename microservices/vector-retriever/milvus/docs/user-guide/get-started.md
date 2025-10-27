@@ -24,14 +24,7 @@ Run the command to build image:
 docker build -t retriever-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f vector-retriever/milvus/src/Dockerfile .
 ```
 
-### Step 2: Prepare host directories for models
-
-```
-mkdir -p $HOME/.cache/huggingface
-mkdir -p $HOME/models
-```
-
-### Step 3: Deploy
+### Step 2: Deploy
 
 #### Deploy the application together with the Milvus Server
 
@@ -41,27 +34,11 @@ mkdir -p $HOME/models
     cd deployment/docker-compose/
     ```
 
-2.  Set up environment variables with either one of the following options, make sure the same option is applied for both `dataprep` service and `retriever` service if they both used:
-
-    A. To use the independent multi-modal embedding service for embedding extraction, run
+2.  Set up environment variables
 
     ``` bash
-    source env_embed_service.sh 
+    source env.sh 
     ```
-
-    B. To use a local embedding model, run
-    
-    ``` bash
-    source env_local_embed_model.sh 
-    ```
-
-    When prompting `Please enter the LOCAL_EMBED_MODEL_ID`, choose one model name from table below and input
-
-    | Model Name                          | Search in English | Search in Chinese | Remarks|
-    |-------------------------------------|----------------------|---------------------|---------------|
-    | CLIP-ViT-H-14                        | Yes                  | No                 |            |
-    | CN-CLIP-ViT-H-14              | Yes                  | Yes                  | Supports search text query in Chinese       |
-
 
 3.  Deploy with docker compose
 
@@ -69,7 +46,7 @@ mkdir -p $HOME/models
     docker compose -f compose_milvus.yaml up -d
     ```
 
-It might take a while to start the services for the first time, as there are some models to be prepare.
+It might take a while to start the services for the first time, as there are some models to be prepared.
 
 Check if all microservices are up and runnning
     ```bash
@@ -117,5 +94,6 @@ curl -X POST http://<host>:$RETRIEVER_SERVICE_PORT/v1/retrieval \
 ## Learn More
 
 -    Check the [API reference](./api-reference.md)
+-    This microservice depends on the [multimodal embedding service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/multimodal-embedding-serving/docs/user-guide/get-started.md) for embedding extraction.
 
 

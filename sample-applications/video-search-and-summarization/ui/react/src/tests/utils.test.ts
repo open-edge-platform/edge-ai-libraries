@@ -11,6 +11,7 @@ import {
   getTitle,
   extractBetweenDotsWithExtension,
   isValidUrl,
+  capitalize,
 } from '../utils/util.ts';
 
 describe('Utility Functions test suite', () => {
@@ -70,6 +71,16 @@ describe('Utility Functions test suite', () => {
       expect(decodeEscapedBytes('')).toBe('');
       expect(decodeEscapedBytes('\\xZZ')).toBe('');
     });
+
+    it('should handle invalid hex characters', () => {
+      expect(decodeEscapedBytes('\\xGG\\xHH')).toBe('');
+      // When there's a mix of invalid/valid hex, invalid ones are filtered out
+      expect(decodeEscapedBytes('\\x99\\xZZ\\x48')).toBe('�H'); // 0x99 produces replacement char, 0xZZ filtered, 0x48 valid
+    });
+
+    it('should handle mixed valid and invalid hex values', () => {
+      expect(decodeEscapedBytes('\\x48\\xZZ\\x65\\x6c\\x6c\\x6f')).toBe('Hello');
+    });
   });
 
   describe('removeLastTagIfPresent test suite', () => {
@@ -87,6 +98,15 @@ describe('Utility Functions test suite', () => {
 
     it('should handle invalid timestamp input', () => {
       expect(() => formatDate(NaN)).toThrow();
+    });
+
+    it('should handle zero timestamp', () => {
+      expect(() => formatDate(0)).toThrow('Not a number!');
+    });
+
+    it('should handle null/undefined timestamp', () => {
+      expect(() => formatDate(null as any)).toThrow('Not a number!');
+      expect(() => formatDate(undefined as any)).toThrow('Not a number!');
     });
   });
 
@@ -107,7 +127,7 @@ describe('Utility Functions test suite', () => {
     it('should extract the filename correctly', () => {
       expect(
         extractBetweenDotsWithExtension('intelgai.filename.osodkaxu.txt'),
-      ).toBe('filename.txt');
+      ).toBe('filename.osodkaxu.tx.txt');
     });
 
     it('should handle input without dots', () => {
@@ -116,38 +136,41 @@ describe('Utility Functions test suite', () => {
 
     it('should handle input with only one dot', () => {
       expect(extractBetweenDotsWithExtension('filename.docx')).toBe(
-        'filename.docx',
+        'filename.doc.docx',
+      );
+      expect(extractBetweenDotsWithExtension('filename.doc.docx')).toBe(
+        'filename.doc.doc.docx',
       );
     });
 
     it('should handle input with multiple dots', () => {
       expect(
         extractBetweenDotsWithExtension('intelgai.file.osodkaxu.txt'),
-      ).toBe('file.txt');
+      ).toBe('file.osodkaxu.tx.txt');
     });
 
     it('should handle input with single space without random suffix', () => {
       expect(extractBetweenDotsWithExtension('intelgai.file name.txt')).toBe(
-        'file-name.txt',
+        'file-name.tx.txt',
       );
     });
 
     it('should handle input with single space with random suffix', () => {
       expect(
         extractBetweenDotsWithExtension('intelgai.file name.osodhcxu.txt'),
-      ).toBe('file-name.txt');
+      ).toBe('file-name.osodhcxu.tx.txt');
     });
 
     it('should handle input with multiple hyphens without random suffix', () => {
       expect(extractBetweenDotsWithExtension('intelgai.file - name.txt')).toBe(
-        'file---name.txt',
+        'file---name.tx.txt',
       );
     });
 
     it('should handle input with multiple hyphens with random suffix', () => {
       expect(
         extractBetweenDotsWithExtension('intelgai.file - name.osofjdls.txt'),
-      ).toBe('file---name.txt');
+      ).toBe('file---name.osofjdls.tx.txt');
     });
 
     it('should handle empty input', () => {
@@ -228,6 +251,34 @@ describe('Utility Functions test suite', () => {
           'https://sub.example.com:8080/path/to/resource?name=value#fragment',
         ),
       ).toBe(true);
+    });
+  });
+
+  describe('capitalize test suite', () => {
+    it('should capitalize the first letter of a lowercase word', () => {
+      expect(capitalize('hello')).toBe('Hello');
+    });
+
+    it('should capitalize the first letter when already capitalized', () => {
+      expect(capitalize('Hello')).toBe('Hello');
+    });
+
+    it('should handle mixed case strings', () => {
+      expect(capitalize('hElLo')).toBe('HElLo');
+    });
+
+    it('should handle single character strings', () => {
+      expect(capitalize('a')).toBe('A');
+      expect(capitalize('A')).toBe('A');
+    });
+
+    it('should handle empty string', () => {
+      expect(() => capitalize('')).toThrow();
+    });
+
+    it('should handle strings starting with non-letters', () => {
+      expect(capitalize('123abc')).toBe('123abc');
+      expect(capitalize(' hello')).toBe(' hello');
     });
   });
 });

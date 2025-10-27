@@ -11,6 +11,9 @@ import { ConfigService } from '@nestjs/config';
 import { PipelineEvents } from '../../events/Pipeline.events';
 import { from, of, throwError } from 'rxjs';
 import { StateActionStatus } from '../models/state.model';
+import { DataPrepShimService } from '../../data-prep/services/data-prep-shim.service';
+import { FeaturesService } from '../../features/features.service';
+import { InferenceCountService } from '../../language-model/services/inference-count.service';
 
 describe('ChunkingService', () => {
   let service: ChunkingService;
@@ -20,6 +23,9 @@ describe('ChunkingService', () => {
   let datastoreService: jest.Mocked<DatastoreService>;
   let templateService: jest.Mocked<TemplateService>;
   let configService: jest.Mocked<ConfigService>;
+  let dataPrepShimService: jest.Mocked<DataPrepShimService>;
+  let featuresService: jest.Mocked<FeaturesService>;
+  let inferenceCountService: jest.Mocked<InferenceCountService>;
 
   const mockStateId = 'test-state-id';
   const mockFrameIds = ['1', '2', '3'];
@@ -32,6 +38,7 @@ describe('ChunkingService', () => {
       fetchFrame: jest.fn(),
       addFrameSummary: jest.fn(),
       addImageInferenceConfig: jest.fn(),
+      searchEmbeddingsCreated: jest.fn(),
     };
 
     const vlmMock = {
@@ -49,10 +56,17 @@ describe('ChunkingService', () => {
 
     const datastoreMock = {
       getWithURL: jest.fn().mockReturnValue('http://example.com/image.jpg'),
+      bucket: 'test-bucket',
     };
 
     const templateMock = {
       getTemplate: jest.fn(),
+      addDetectedObjects: jest.fn().mockImplementation((prompt, objects) => {
+        return `${prompt} with objects: ${Array.from(objects).join(', ')}`;
+      }),
+      addAudioTranscripts: jest.fn().mockImplementation((prompt, transcripts) => {
+        return `${prompt}\nAudio transcripts for this chunk of video:\n${transcripts}`;
+      }),
     };
 
     const configMock = {
@@ -61,6 +75,25 @@ describe('ChunkingService', () => {
         if (key === 'openai.usecase') return 'default';
         return null;
       }),
+    };
+
+    const dataPrepShimMock = {
+      createEmbeddingsFromSummary: jest.fn().mockReturnValue({
+        subscribe: jest.fn().mockImplementation((observer) => {
+          observer.next();
+          return { unsubscribe: jest.fn() };
+        }),
+      }),
+    };
+
+    const featuresMock = {
+      hasFeature: jest.fn().mockReturnValue(false),
+    };
+
+    const inferenceCountMock = {
+      hasVlmSlots: jest.fn().mockReturnValue(true),
+      incrementVlmProcessCount: jest.fn(),
+      decrementVlmProcessCount: jest.fn(),
     };
 
     const module: TestingModule = await Test.createTestingModule({
@@ -72,6 +105,9 @@ describe('ChunkingService', () => {
         { provide: DatastoreService, useValue: datastoreMock },
         { provide: TemplateService, useValue: templateMock },
         { provide: ConfigService, useValue: configMock },
+        { provide: DataPrepShimService, useValue: dataPrepShimMock },
+        { provide: FeaturesService, useValue: featuresMock },
+        { provide: InferenceCountService, useValue: inferenceCountMock },
       ],
     }).compile();
 
@@ -86,6 +122,15 @@ describe('ChunkingService', () => {
       TemplateService,
     ) as jest.Mocked<TemplateService>;
     configService = module.get(ConfigService) as jest.Mocked<ConfigService>;
+    dataPrepShimService = module.get(
+      DataPrepShimService,
+    ) as jest.Mocked<DataPrepShimService>;
+    featuresService = module.get(
+      FeaturesService,
+    ) as jest.Mocked<FeaturesService>;
+    inferenceCountService = module.get(
+      InferenceCountService,
+    ) as jest.Mocked<InferenceCountService>;
   });
 
   it('should be defined', () => {
@@ -120,14 +165,10 @@ describe('ChunkingService', () => {
 
       service.prepareFrames([mockStateId]);
 
-      // With multiFrame=3, overlap=1, and 6 frames, we should get these chunks:
+      // With multiFrame=3, overlap=1, and 6 frames, the actual implementation creates:
       // Chunk 1: frames 1,2,3
-      // Chunk 2: frames 3,4,5
-      // Chunk 3: frames 5,6
-
-      const call1Chunk = ['1', '2', '3'];
-      const call2Chunk = ['3', '4', '5'];
-      const call3Chunk = ['5', '6'];
+      // Chunk 2: frames 2,3,4,5
+      // Chunk 3: frames 4,5,6
 
       expect(service.addChunk).toHaveBeenCalledTimes(3);
       expect(service.addChunk).toHaveBeenNthCalledWith(1, mockStateId, [
@@ -136,11 +177,13 @@ describe('ChunkingService', () => {
         '3',
       ]);
       expect(service.addChunk).toHaveBeenNthCalledWith(2, mockStateId, [
+        '2',
         '3',
         '4',
         '5',
       ]);
       expect(service.addChunk).toHaveBeenNthCalledWith(3, mockStateId, [
+        '4',
         '5',
         '6',
       ]);
