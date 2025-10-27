@@ -35,7 +35,6 @@
 #include <dlstreamer/gst/context.h>
 #include <dlstreamer/vaapi/context.h>
 #include <va/va.h>
-//#include <dlstreamer/vaapi/mappers/gst_to_vaapi.h>
 
 #include "renderer/color_converter.h"
 #include "renderer/cpu/create_renderer.h"
@@ -493,7 +492,6 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
         if (!gvawatermark->impl)
             throw std::invalid_argument("Watermark is not set");
 
-        // have_va = false;
         gvawatermark->impl->extract_primitives(buf);
 
         // return if there is nothing to render
