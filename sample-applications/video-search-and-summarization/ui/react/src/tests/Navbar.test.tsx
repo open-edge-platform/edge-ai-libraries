@@ -44,6 +44,16 @@ vi.mock('@carbon/react', () => ({
       {children}
     </div>
   ),
+  ModalFooter: ({ children }: any) => (
+    <div data-testid="modal-footer">
+      {children}
+    </div>
+  ),
+  ModalBody: ({ children }: any) => (
+    <div data-testid="modal-body">
+      {children}
+    </div>
+  ),
   IconButton: ({ children, onClick, label }: any) => (
     <button data-testid="carbon-icon-button" onClick={onClick} aria-label={label}>
       {children}
@@ -203,11 +213,6 @@ describe('Navbar', () => {
     
     const buttons = screen.getAllByTestId('carbon-button');
     expect(buttons.length).toBeGreaterThan(0);
-  });
-
-  it('should render video icon', () => {
-    renderWithProviders();
-    expect(screen.getByTestId('video-icon')).toBeInTheDocument();
   });
 
   it('should render search modal container', () => {

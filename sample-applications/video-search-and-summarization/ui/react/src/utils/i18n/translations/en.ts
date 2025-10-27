@@ -1,10 +1,10 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 export const enTranslations = {
-  VideoSummary: 'Video Summary',
-  VSSBrand: 'Video Summary & Search',
+  VideoSummary: 'Video Summarization',
+  VSSBrand: 'Video Summarization & Search',
   VSearchBrand: 'Video Search',
-  VSummBrand: 'Video Summary',
+  VSummBrand: 'Video Summarization',
   videoTags: 'Video tags (separated by commas)',
 
   SearchVideo: 'Search Videos',
@@ -66,7 +66,7 @@ export const enTranslations = {
   readyTag: 'In Queue',
   completeTag: 'Completed',
   progressTag: 'In Progress',
-  summaryLabel: 'Video Summary',
+  summaryLabel: 'Video Summarization',
   chunkingLabel: 'Video Chunking',
   chunkingSummaryLabel: 'Video Chunks Summary',
   sampleRate: 'Sample Rate: {{frames}} frames every {{interval}} seconds',

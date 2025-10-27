@@ -10,6 +10,12 @@ import { VideoFrameReducer } from '../redux/summary/videoFrameSlice';
 // Mock config
 vi.mock('../config', () => ({
   ASSETS_ENDPOINT: 'http://localhost:8080/assets/',
+  FEATURE_SEARCH: 'ON',
+  FEATURE_SUMMARY: 'ON',
+  FEATURE_STATE: {
+    ON: 'ON',
+    OFF: 'OFF'
+  }
 }));
 
 
