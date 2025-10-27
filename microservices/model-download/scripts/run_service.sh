@@ -38,7 +38,7 @@ log_error() {
 
 # Function to display script usage
 show_usage() {
-    echo -e "${BOLD}Usage:${NC} $0 [options] [action]"
+    echo -e "${BOLD}Usage:${NC}source scripts/run_service.sh [options] [action]"
     echo -e "${BOLD}Actions:${NC}"
     echo -e "  ${CYAN}up${NC}                     Start the services (default)"
     echo -e "  ${CYAN}down${NC}                   Stop the services"
@@ -46,9 +46,9 @@ show_usage() {
     echo -e "  ${CYAN}--build${NC}                Build the Docker image before running"
     echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache"
     echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
-    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics)"
-    echo -e "  ${CYAN}--tag${NC} <tag>            Docker image tag (default: latest)"
-    echo -e "  ${CYAN}--registry${NC} <registry>  Docker registry prefix (default: none)"
+    echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics) or 'all' to enable all"
+    #echo -e "  ${CYAN}--tag${NC} <tag>            Docker image tag (default: latest)"
+    #echo -e "  ${CYAN}--registry${NC} <registry>  Docker registry prefix (default: none)"
     echo -e "  ${CYAN}--help${NC}                 Show this help message"
 }
 

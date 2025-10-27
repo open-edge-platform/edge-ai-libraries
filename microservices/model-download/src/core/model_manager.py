@@ -63,7 +63,7 @@ class ModelManager:
         if output_dir is None:
             # Create a safe directory name from the model name
             safe_name = model_name.replace("/", "_")
-            output_dir = os.path.join(self.default_dir, hub, safe_name)
+            output_dir = os.path.join(self.default_dir, safe_name)
 
         output_dir = os.path.abspath(output_dir)
         os.makedirs(output_dir, exist_ok=True)
