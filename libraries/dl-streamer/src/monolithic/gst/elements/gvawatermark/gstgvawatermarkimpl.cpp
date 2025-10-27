@@ -106,6 +106,7 @@ InferenceBackend::MemoryType memoryTypeFromCaps(GstCaps *caps) {
 struct Impl {
     Impl(GstVideoInfo *info);
     bool extract_primitives(GstBuffer *buffer);
+    int get_num_primitives() const;
     bool render(GstBuffer *buffer);
     bool render_va(cv::Mat *buffer);
     const std::string &getBackendType() const {
@@ -495,6 +496,12 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
         // have_va = false;
         gvawatermark->impl->extract_primitives(buf);
 
+        // return if there is nothing to render
+        if (gvawatermark->impl->get_num_primitives() == 0) {
+            GST_DEBUG_OBJECT(gvawatermark, "No primitives to render");
+            return GST_FLOW_OK;
+        }
+
         if (use_gpu_path) {
             GST_TRACE_OBJECT(gvawatermark, "Using VA/GPU render path");
 
@@ -687,6 +694,10 @@ bool Impl::extract_primitives(GstBuffer *buffer) {
         prims.emplace_back(render::Text(ff_text.str(), _ff_text_position, _font.type, _font.scale, _default_color));
 
     return true;
+}
+
+int Impl::get_num_primitives() const {
+    return static_cast<int>(prims.size());
 }
 
 bool Impl::render(GstBuffer *buffer) {
