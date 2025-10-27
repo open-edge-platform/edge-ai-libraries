@@ -10,7 +10,6 @@ metadata:
 spec:
   accessModes:
     - ReadWriteOnce
-    - ReadWriteMany
   resources:
     requests:
       storage: {{ .Values.claimSize | default "10Gi" }}

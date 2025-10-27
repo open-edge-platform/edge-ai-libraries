@@ -9,7 +9,6 @@ Before you begin, ensure that you have the following:
 - Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
 - Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
 - **Storage Requirement :** Application requests for **50GiB** of storage in its default configuration. (This should change with choice of models and needs to be properly configured). Please make sure that required storage is available in you cluster.
-- Video Search and Summarization requires PVC storage class to support `RWMany` mode. In case the default storage class used does not support it, consider using storage solution like [LongHorn](https://longhorn.io/docs/) that provides this support. Video Search and Summarization intends to remove this prerequisite in future release and use only `RWOnce` mode. 
 
 ## Helm Chart Installation
 
