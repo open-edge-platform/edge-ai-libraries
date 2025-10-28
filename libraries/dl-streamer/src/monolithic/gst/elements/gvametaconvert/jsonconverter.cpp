@@ -320,6 +320,7 @@ json convert_frame_classification(GstGvaMetaConvert *converter, GstBuffer *buffe
 
 /**
  * @return JSON array which contains analytics classification metadata from buffer.
+ * This is a generic converter that works for any analytics metadata (transcription, classification, etc.)
  */
 json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *buffer) {
     assert(converter && buffer && "Expected valid pointers GstGvaMetaConvert and GstBuffer");
@@ -346,11 +347,12 @@ json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *b
 
             json classification = json::object();
             classification["label"] = label ? label : "";
-            // Only include confidence if it's not 1.0 (to reduce JSON clutter)
-            if (confidence != 1.0f) {
+            
+            // Only include confidence for actual results (non-zero confidence)
+            // Descriptors with 0.0 confidence are metadata markers
+            if (confidence != 0.0f) {
                 classification["confidence"] = confidence;
             }
-            classification["type"] = "transcription"; // Indicate this is transcription result
 
             res.push_back(classification);
         }
@@ -375,7 +377,7 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
     }
 
     try {
-        /* analytics classification section (for transcription, etc.) - works for both audio and video */
+        /* Generic analytics classification section - works for both audio and video */
         json analytics_classification = convert_analytics_classification(converter, buffer);
 
         if (converter->info) {
@@ -391,7 +393,7 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
                 jframe_objects.push_back(frame_classification);
             }
 
-            /* Add analytics classification to frame */
+            /* Add analytics classification to frame if present */
             if (!analytics_classification.empty()) {
                 jframe["classifications"] = analytics_classification;
             }
@@ -424,9 +426,9 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
         }
 #ifdef AUDIO
         else {
-            // For audio streams, handle analytics classification differently
+            // For audio streams, handle analytics classification first, then fall back to traditional audio metadata
             if (!analytics_classification.empty()) {
-                // Create a simple audio JSON message with analytics classification
+                // Create audio JSON message with analytics classification
                 json audio_frame = json::object();
                 GstSegment converter_segment = converter->base_gvametaconvert.segment;
                 GstClockTime timestamp = gst_segment_to_stream_time(&converter_segment, GST_FORMAT_TIME, buffer->pts);
@@ -452,6 +454,7 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
                 }
                 return TRUE;
             } else {
+                // Fall back to traditional audio metadata conversion
                 return convert_audio_meta_to_json(converter, buffer);
             }
         }
