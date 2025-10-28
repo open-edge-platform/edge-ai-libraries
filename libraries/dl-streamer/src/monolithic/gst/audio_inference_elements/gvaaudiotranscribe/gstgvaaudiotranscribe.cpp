@@ -288,16 +288,8 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
             }
             TranscriptionResult result = gvaaudiotranscribe->handler->transcribe(*audio_data, buf);
             if (!result.text.empty()) {
-                // Log transcript to console (visible with GST_DEBUG level >= INFO for this category)
+                // Log transcript (visible with GST_DEBUG level >= INFO for this category)
                 GST_INFO_OBJECT(gvaaudiotranscribe, "Transcript: %s (confidence: %.3f)", result.text.c_str(), result.confidence);
-                g_print("gvaaudiotranscribe: Transcript: %s (confidence: %.3f)\n", result.text.c_str(), result.confidence);
-
-
-                // Post a bus message so gst-launch -m displays it without needing debug categories
-                GstStructure *s =
-                    gst_structure_new("gvaaudiotranscribe", "text", G_TYPE_STRING, result.text.c_str(), 
-                                    "confidence", G_TYPE_FLOAT, result.confidence, NULL);
-                gst_element_post_message(GST_ELEMENT(base), gst_message_new_element(GST_OBJECT(base), s));
 
                 // Add GstAnalyticsClassification metadata to buffer
                 if (gst_buffer_is_writable(buf)) {
