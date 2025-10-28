@@ -100,12 +100,6 @@ gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux dem
 ## Troubleshooting 
 
 ```bash 
-Failed to load plugin '/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so': 
-/home/intel/edge-ai-libraries/libraries/dl-streamer/build/intel64/Release/lib/libgstvideoanalytics.so: undefined symbol: _ZTVN2ov5genai11PerfMetricsE
-```
-- If you get this error, it's mostly because the OpenVINO and OpenVINO GenAI versions do not match. Make sure you have the same version of openvino_toolkit and openvino_genAI [in this case 2025.3.0]
-
-```bash 
 gst-inspect: command not found
 or 
 no element named gvaaudiotranscribe
