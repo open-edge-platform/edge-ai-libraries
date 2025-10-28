@@ -6,16 +6,15 @@
    - [Model Type Support](#model-type-support)
 2. [Install DLstreamer](#install-dlstreamer)
 3. [Model Preparation](#model-preparation)
-4. [GPU Prerequisites](#to-use-gpu-device-for-inference)
-5. [Demo Script Execution](#demo-script-execution)
+4. [Demo Script Execution](#demo-script-execution)
    - [Script Permissions](#permission-of-the-script)
    - [WAV File Transcription](#launch-on-a-test-wav-file)
    - [Live Microphone Transcription](#launch-using-the-microphone)
    - [Video Audio Transcription](#launch-using-video-demux)
-6. [Audio Transcription Pipeline Using GVA Elements](#audio-transcription-pipeline-using-gvametaconvert-and-gvametapublish)
-7. [Configuration](#configuration)
+5. [Audio Transcription Pipeline Using GVA Elements](#audio-transcription-pipeline-using-gvametaconvert-and-gvametapublish)
+6. [Configuration](#configuration)
    - [Properties](#properties)
-8. [Troubleshooting](#troubleshooting)
+7. [Troubleshooting](#troubleshooting)
 ---
 
 ## Overview
@@ -42,17 +41,6 @@ These steps are adapted from the original whisper_speech_recognition sample in O
 cd ~/edge-ai-libraries/libraries/dl-streamer/samples/gstreamer/gst_launch/audio_transcribe
 ./model_preparation.sh
 ```
-
-## To use GPU device for inference 
-
-There are few prerequisites that is required follow the Documentation for more details 
-- [GPU driver installation](../../../../docs/source/get_started/install/install_guide_ubuntu.md#step-1-install-prerequisites), after running [DLS_install_prerequisites.sh](../../../../scripts/DLS_install_prerequisites.sh) script and reboot your machine 
-```bash
-    #verify if the GPU device is popping up
-     clinfo | grep 'Device'
-```
-- [GPU Device selection](../../../../docs/source/dev_guide/gpu_device_selection.md)
-
 
 ## Demo Script Execution:
 
