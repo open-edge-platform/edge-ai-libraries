@@ -1,10 +1,8 @@
-{{- if .Values.global.usePvc }}
+{{- if and (.Values.global.usePvc) (.Values.global.gpu.multimodalembeddingmsEnabled) }}
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
-{{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
   name: {{ include "multimodal-embedding-ms.fullname" . }}-gpu-pvc
-{{- end }}
   {{- if .Values.global.keepPvc }}
   annotations:
     helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall
