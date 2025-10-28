@@ -5,12 +5,15 @@ services:
       context: ..
       dockerfile: docker/Dockerfile
     container_name: model_download
+    command: --plugins ${ENABLED_PLUGINS:-all}
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
-      - LOG_LEVEL=INFO
+      - HF_TOKEN=${HF_TOKEN}
+      - ENABLED_PLUGINS=${ENABLED_PLUGINS}
+      - MODEL_PATH=${MODEL_PATH}
     ports:
-      - "8200:8000"  # Map container port 8000 to host port 8200
+      - "8200:8000"
     volumes:
-      - ~/models:/app/models
+      - ${MODEL_PATH:-~/models}:/opt/models
     group_add:
-      - ${USER_GROUP_ID:-1000}
+      - ${USER_GROUP_ID:-1001}

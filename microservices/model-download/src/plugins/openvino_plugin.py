@@ -25,7 +25,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         # Check if the hub is openvino or if is_ovms is True
         return hub.lower() == "huggingface" or kwargs.get("is_ovms", False)
 
-    def convert(self, model_name: str, output_dir: str, hf_token: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def convert(self, model_name: str, output_dir: str, hf_token: str, **kwargs) -> Dict[str, Any]:
         """
         Convert a model to OpenVINO Model Server (OVMS) format.
         This is the main conversion method expected by the model manager.
@@ -54,17 +54,22 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 model_name=model_name 
             )
 
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+            
             return {
                 "model_name": model_name,
                 "source": "openvino",
-                "conversion_path": output_dir,
+                "type": model_type,
+                "conversion_path": host_path,
                 "is_ovms": True,
                 "config": {
                     "precision": weight_format,
                     "device": target_device,
                     "cache": cache_size if cache_size is not None else None
                 },
-                "type": model_type,
                 "success": True,
                 "message": "Model successfully converted to OVMS format."
             }
@@ -72,7 +77,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
             logger.error(f"Failed to convert model to OVMS format: {str(e)}")
             raise RuntimeError(f"Failed to convert model to OVMS format: {str(e)}")
             
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """
         This plugin is a converter, not a downloader, but implementing this method for compatibility.
         Raises NotImplementedError as this plugin does not support direct downloads.
@@ -132,53 +137,13 @@ class OpenVINOConverter(ModelDownloadPlugin):
             raise RuntimeError(
                 "Failed to authenticate with Hugging Face. Please check your token."
             )
-        #logger.info("Starting to install required packages...")           
-        # Step 1: Create a virtual environment if it doesn't exist
-        #venv_path = os.path.join(os.getcwd(), ".venv")
-        #venv_python = os.path.join(venv_path, "bin", "python")
-        #venv_pip = os.path.join(venv_path, "bin", "pip")
-        
-        # Delete existing venv if it exists
-        # if os.path.exists(venv_path):
-        #     logger.info(f"Removing existing virtual environment at {venv_path}...")
-        #     try:
-        #         subprocess.run(["rm", "-rf", venv_path], check=True)
-        #         logger.info("Existing virtual environment removed successfully.")
-        #     except subprocess.CalledProcessError as e:
-        #         raise RuntimeError(f"Failed to remove existing virtual environment: {str(e)}")
-        
-        # Create new virtual environment
-        # logger.info(f"Creating fresh virtual environment at {venv_path}...")
-        # try:
-        #     subprocess.run(["python3", "-m", "venv", venv_path], check=True)
-        #     logger.info("Virtual environment created successfully.")
-        # except subprocess.CalledProcessError as e:
-        #     raise RuntimeError(f"Failed to create virtual environment: {str(e)}")
-        
-        # Step 2: Install dependencies in the virtual environment
-        # logger.info("Installing required packages in virtual environment...")
-        # try:
-        #     requirements_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt"
-        #     subprocess.run(
-        #         ["pip3", "install","-r", requirements_url],
-        #     check=True,
-        #     text=True,
-        #     capture_output=True
-        #     )
 
-        #     logger.info("Dependencies installed successfully.")
-        # except subprocess.CalledProcessError as e:
-        #     raise RuntimeError(f"Failed to install dependencies: {str(e)}")
-        
-        # Step 3: Download the export_model.py script
         logger.info("Checking for export_model.py script...")
         export_script_url = "https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py"
-        
-        #export_script_path = os.path.join(model_directory, "export_model.py")
+      
         if not os.path.exists("export_model.py"):
             logger.info(f"Downloading export_model.py script...")
             try:
-                #os.makedirs(os.path.dirname(export_script_path), exist_ok=True)
                 subprocess.run(["curl", export_script_url, "-o", "export_model.py"], check=True)
             except subprocess.CalledProcessError as e:
                 raise RuntimeError(f"Failed to download export script: {str(e)}")
@@ -201,11 +166,6 @@ class OpenVINOConverter(ModelDownloadPlugin):
             "--target_device", target_device
         ]
 
-        # command_bash = f"""
-        #     curl -o export_model.py https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py && \
-        #     python3 export_model.py {export_type} --source_model {model_name} --weight-format {weight_format} --config_file_path {model_directory}/config.json --model_repository_path {model_directory} --target_device {target_device}
-        # """
-        # Add optional parameters if provided
         if export_type == "text_generation" and cache_size is not None:
             command += ["--cache_size", cache_size]
 
@@ -252,6 +212,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         return {
             "model_name": model_name,
             "source": "openvino",
+            "type": model_type,
             "conversion_path": output_dir,
             "is_ovms": True,
             "config": {
@@ -259,7 +220,6 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 "device": target_device,
                 "cache": cache_size if cache_size is not None else None
             },
-            "type": model_type,
             "success": True,
             "message": "Model conversion completed successfully."
         }

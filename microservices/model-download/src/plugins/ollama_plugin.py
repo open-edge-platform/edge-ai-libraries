@@ -27,22 +27,25 @@ class OllamaPlugin(ModelDownloadPlugin):
             return True
         return False
     
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """Download the Ollama model"""
         process = None
-        model_downloaded_path = os.path.join(output_dir, model_name.replace("/", "_"))
+        
+        # Create hub-specific directory under the output directory
+        hub_dir = os.path.join(output_dir, "ollama")
+        model_download_path = os.path.join(hub_dir, model_name.replace("/", "_"))
         
         try:
             
-            logger.info(f"Model will be downloaded to: {model_downloaded_path}")
+            logger.info(f"Model will be downloaded to: {model_download_path}")
             
-            os.environ["OLLAMA_MODELS"] = model_downloaded_path
+            os.environ["OLLAMA_MODELS"] = model_download_path
 
-            logger.info(f"Directory for Ollama model: {model_downloaded_path}")
+            logger.info(f"Directory for Ollama model: {model_download_path}")
             try:
-                os.makedirs(model_downloaded_path, exist_ok=True)
+                os.makedirs(model_download_path, exist_ok=True)
             except OSError as e:
-                logger.error(f"Failed to create directory {model_downloaded_path}: {str(e)}")
+                logger.error(f"Failed to create directory {model_download_path}: {str(e)}")
                 raise RuntimeError(f"Failed to create model directory: {str(e)}")
 
             logger.info("Starting ollama server")
@@ -55,10 +58,14 @@ class OllamaPlugin(ModelDownloadPlugin):
             subprocess.run(["ollama", "pull", model_name], check=True)
             logger.info(f"Ollama model {model_name} downloaded successfully.")
 
+            host_path = hub_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
             return {
                 "model_name": model_name,
                 "source": "ollama",
-                "download_path": model_downloaded_path,
+                "download_path": host_path,
                 "success": True
             }
         

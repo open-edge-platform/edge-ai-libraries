@@ -19,10 +19,13 @@ class HuggingFacePlugin(ModelDownloadPlugin):
         return hub.lower() == "huggingface"
     
 
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> dict:
+    def download(self, model_name: str, output_dir: str, **kwargs) -> dict:
         hf_token = kwargs.get("hf_token")
         revision = kwargs.get("revision")
-        model_specific_path = os.path.join(output_dir, model_name.replace("/", "_"))
+        
+        # Create hub-specific directory under the output directory
+        hub_dir = os.path.join(output_dir, "huggingface")
+        model_specific_path = os.path.join(hub_dir, model_name.replace("/", "_"))
         os.makedirs(model_specific_path, exist_ok=True)
 
         logger.info(f"Downloading HuggingFace model {model_name} to {model_specific_path}")
@@ -33,10 +36,15 @@ class HuggingFacePlugin(ModelDownloadPlugin):
             revision=revision,
         )
 
+        host_path = hub_dir
+        if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+            host_prefix = os.getenv("MODEL_PATH", "models")
+            host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+
         return {
             "model_name": model_name,
             "source": "huggingface",
-            "download_path": model_downloaded_path,
+            "download_path": host_path,
             "success": True
         }
 

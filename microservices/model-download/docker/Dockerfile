@@ -2,7 +2,7 @@
 FROM python:3.11-slim AS python-base
 
 # Set the working directory in the container
-WORKDIR /app
+WORKDIR /opt
 
 # Install system dependencies required for Poetry and the application
 RUN apt-get update && apt-get install -y \
@@ -10,8 +10,9 @@ RUN apt-get update && apt-get install -y \
     libsm6 \
     curl \
     git \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    build-essential && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
 
 # Install Poetry
 RUN curl -sSL https://install.python-poetry.org | python3 -
@@ -19,32 +20,30 @@ RUN curl -sSL https://install.python-poetry.org | python3 -
 # Add Poetry to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
-# Install Ollama
-RUN curl -fsSL https://ollama.com/install.sh | sh
-
-
-
 # Copy only the Poetry configuration files first to leverage Docker caching
-COPY pyproject.toml poetry.lock /app/
+COPY pyproject.toml poetry.lock /opt/
 
 # Install dependencies using Poetry
-RUN poetry config virtualenvs.create false && poetry install --no-root
+RUN poetry config virtualenvs.create false && poetry install --no-root \
+    && rm -rf ~/.cache
 
 # ---- Stage 2: Final slim image ----
 FROM python:3.11-slim
 
-ARG UID=1000
-ARG GID=1000
+ARG UID=1001
+ARG GID=1001
+ENV PYTHONPATH=/opt
+ENV MODELS_DIR=/opt/models
 
-RUN apt-get update && apt-get install -y \
-    curl \
+RUN apt-get update -y && apt-get install -y --no-install-recommends \
     libmagic-dev \
+    libglib2.0-0 \
     libgl1 \
     libsm6 \
-    libglib2.0-0 \
+    curl \
     git \
-    build-essential \
-    && rm -rf /var/lib/apt/lists/*
+    && rm -rf /var/lib/apt/lists/* \
+    && apt-get clean
     
 # Create a non-root user
 RUN groupadd -g ${GID} appuser && \
@@ -55,12 +54,17 @@ COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/p
 COPY --from=python-base /usr/local/bin /usr/local/bin
 
 
-COPY . /app
+COPY src /opt/src
+COPY scripts /opt/scripts
+COPY pyproject.toml /opt/
 
-WORKDIR /app
+WORKDIR /opt
 
-# Change the user of working directory to non-root user
-RUN chown -R appuser:appuser /app
+COPY docker/entrypoint.sh /opt/entrypoint.sh
+
+
+RUN chown -R appuser:appuser /opt && \
+    chmod +x /opt/entrypoint.sh
 
 # Switch to non-root user
 USER appuser
@@ -68,9 +72,5 @@ USER appuser
 # Expose the port the app runs on
 EXPOSE 8000
 
-# Set environment variables
-ENV PYTHONPATH=/app
-ENV MODELS_DIR=/app/models
-
-# Command to run the application
-CMD ["uvicorn", "src.api.main:app", "--host", "0.0.0.0", "--port", "8000"]
+# Use our entrypoint script
+ENTRYPOINT ["/opt/entrypoint.sh"]

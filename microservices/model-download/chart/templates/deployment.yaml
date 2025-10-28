@@ -21,19 +21,19 @@ spec:
           ports:
             - containerPort: 8000
           env:
-            - name: HUGGINGFACE_HUB_CACHE
-              value: "/root/.cache/huggingface"
             - name: HF_HUB_ENABLE_HF_TRANSFER
               value: "1"
+            - name: HF_TOKEN
+              value: "{{ .Values.env.HF_TOKEN }}"
+            - name: MODEL_PATH
+              value: "/opt/models"
+            - name: ENABLED_PLUGINS
+              value: "{{ .Values.env.ENABLED_PLUGINS }}"
+          command: ["--plugins", "{{ .Values.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:
-            - name: huggingface-cache
-              mountPath: /root/.cache/huggingface
             - name: models
               mountPath: /opt/models
       volumes:
-        - name: huggingface-cache
-          persistentVolumeClaim:
-            claimName: huggingface-cache-pvc
         - name: models
           persistentVolumeClaim:
             claimName: models-pvc

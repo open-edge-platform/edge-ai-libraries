@@ -2,10 +2,11 @@
 
 import os
 import gc
+import yaml
 from typing import Optional, Dict, Any
 from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
+from fastapi.openapi.utils import get_openapi
 from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
@@ -14,12 +15,41 @@ import importlib
 from .models import ModelDownloadRequest, ModelHub
 from ..utils.logging import logger
 
-app = FastAPI(root_path="/api/v1", title="Model Download Service", version="1.0.0")
+app = FastAPI(
+    root_path="/api/v1",
+    title="Model Download Service",
+    version="1.0.0",
+)
+
+# Custom OpenAPI schema loader
+def custom_openapi():
+    if app.openapi_schema:
+        return app.openapi_schema
+    
+    openapi_yaml_path = os.path.join(
+        os.path.dirname(__file__), 
+        "../../docs/user-guide/api-docs/openapi.yaml"
+    )
+    
+    with open(openapi_yaml_path, 'r') as f:
+        app.openapi_schema = yaml.safe_load(f)
+    
+    return app.openapi_schema
+
+app.openapi = custom_openapi
+
 plugin_registry = PluginRegistry()
 plugins_package = importlib.import_module("src.plugins")
 plugin_registry.discover_plugins(plugins_package)
-model_manager = ModelManager(plugin_registry, default_dir=os.getenv("MODELS_DIR", "./models"))
-auth_token = HTTPBearer(auto_error=False)
+models_dir = os.getenv("MODELS_DIR", "/opt/models")
+model_manager = ModelManager(plugin_registry, default_dir=models_dir)
+
+# Log which plugins are activated at startup
+for plugin_type in plugin_registry.plugins:
+    for plugin_name in plugin_registry.get_plugin_names(plugin_type):
+        is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+        status = "AVAILABLE" if is_available else f"NOT AVAILABLE: {reason}"
+        logger.info(f"Plugin {plugin_name} ({plugin_type}): {status}")
 
 
 # Add CORS middleware
@@ -45,7 +75,6 @@ async def download_models(
     request: ModelDownloadRequest,
     download_path: str,
     background_tasks: BackgroundTasks,
-    Authorization: Optional[HTTPAuthorizationCredentials] = Depends(auth_token),
 ) -> Dict[str, Any]:
     """
     Download and optionally convert models.
@@ -53,9 +82,12 @@ async def download_models(
     Models are downloaded from the specified hub (huggingface, ollama, etc.).
     Models will be converted to OpenVINO format if:
     1. is_ovms is set to true in the request for openvino conversion, or
-    2. type can be set to 'vlm/llm/embeddings/reranker' in the request
+    2. type can be set to 'llm,embeddings,reranker or vision' in the request
     
     The config object is optional and used only for conversion.
+    
+    Note: HF_TOKEN environment variable is optional and only required for downloading 
+    gated models from HuggingFace. Public models can be downloaded without authentication.
     """
     try:
         supported_hubs = set()
@@ -69,33 +101,42 @@ async def download_models(
                     detail=f"Unsupported model download/conversion detected. Supported methods are {supported_hubs}.",
                 )
 
-        # Authorization for HuggingFace
-        huggingface_models = any(model.hub == "huggingface" for model in request.models)
-        if huggingface_models and (not Authorization or not Authorization.credentials):
-            raise HTTPException(
-                status_code=401,
-                detail="Authorization token is required for Hugging Face models",
-            )
+        # Get HuggingFace token from environment variable (optional - only needed for gated models)
+        hf_token = os.getenv("HF_TOKEN")
+        
+        # Note: HF_TOKEN is optional and only required for downloading gated models from HuggingFace
+        # No validation needed here as the HuggingFace API will handle authentication errors
 
         logger.info(f"Initiating model download for {len(request.models)} model(s)")
         job_ids = []
         
         for model in request.models:
+            # Check if the plugin's dependencies are installed
+            is_plugin_available, error_reason = plugin_registry.check_plugin_dependencies(model.hub)
+            if not is_plugin_available:
+                raise HTTPException(
+                    status_code=400,
+                    detail=f"Plugin '{model.hub}' is not available: {error_reason}"
+                )
+            
             # Pass token for HuggingFace
             extra_kwargs = model.dict()
             needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
+            
+            # Define common paths that both download and conversion might need
+            model_download_path = os.path.join(models_dir, download_path)
+            
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
-                
-                extra_kwargs["token"] = Authorization.credentials if Authorization else None
-                download_path = os.path.join(
-                    "models", download_path, model.hub
+                extra_kwargs["token"] = hf_token
+                model_download_path = os.path.join(
+                    models_dir, download_path
                 )
                 # First, register download job
                 download_job_id = model_manager.register_job(
                     operation_type="download",
                     model_name=model.name,
                     hub=model.hub,
-                    output_dir=download_path,
+                    output_dir=model_download_path,
                     plugin_name=model.hub,
                 )
                 
@@ -107,18 +148,27 @@ async def download_models(
                     model_manager.process_download,
                     job_id=download_job_id,
                     model_name=model.name,
-                    output_dir=download_path,
+                    output_dir=model_download_path,
                     downloader=model.hub,
                     **extra_kwargs
                 )
 
             if needs_conversion:
+                # Check if OpenVINO plugin is available for conversion
+                is_openvino_available, openvino_error = plugin_registry.check_plugin_dependencies("openvino")
+                if not is_openvino_available:
+                    raise HTTPException(
+                        status_code=400,
+                        detail=f"OpenVINO conversion requested but plugin is not available: {openvino_error}"
+                    )
+                
                 # Get configuration for conversion
-                extra_kwargs["token"] = Authorization.credentials if Authorization else None
+                extra_kwargs["token"] = hf_token
                 config = model.config.dict() if model.config else {}
 
                 # Create a unique output directory for the converted model
-                convert_output_dir = os.path.join( "models",
+                convert_output_dir = os.path.join(
+                    models_dir,
                     download_path,
                     "openvino_models",
                     config['device'],
@@ -141,7 +191,6 @@ async def download_models(
                 background_tasks.add_task(
                     model_manager.process_conversion,
                     job_id=convert_job_id,
-                    #hf_token=
                     model_path=download_path,
                     hub=model.hub,
                     output_dir=convert_output_dir,
@@ -248,17 +297,31 @@ async def list_plugins():
             # Get plugin capabilities
             can_handle_parallel = hasattr(plugin, "get_download_tasks") and callable(getattr(plugin, "get_download_tasks"))
             
+            # Check if plugin dependencies are installed
+            is_available, reason = plugin_registry.check_plugin_dependencies(plugin_name)
+            
             plugin_info = {
                 "name": plugin_name,
                 "type": plugin_type,
                 "description": getattr(plugin, "__doc__", "No description available").strip(),
                 "capabilities": {
                     "supports_parallel_downloads": can_handle_parallel,
-                }
+                },
+                "available": is_available,
+                "unavailable_reason": reason if not is_available else None
             }
             plugins_info[plugin_type].append(plugin_info)
     
+    # Count available plugins
+    total_plugins = sum(len(plugins) for plugins in plugins_info.values())
+    available_plugins = sum(
+        1 for plugin_type in plugins_info for plugin in plugins_info[plugin_type] 
+        if plugin.get("available", False)
+    )
+    
     return {
         "available_plugins": plugins_info,
-        "total_count": sum(len(plugins) for plugins in plugins_info.values())
+        "total_count": total_plugins,
+        "available_count": available_plugins,
+        "activation_instructions": "To enable/disable plugins, restart the container with the --plugins option specifying the plugins you need (e.g. huggingface,openvino,ultralytics,ollama) or use 'all' to enable all plugins"
     }

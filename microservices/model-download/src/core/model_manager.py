@@ -20,7 +20,6 @@ class ModelManager:
     - Select appropriate plugins for model downloads or conversions
     - Create and manage job records
     - Coordinate parallel operations
-    - Track job status and progress
     """
 
     def __init__(self, plugin_registry: PluginRegistry, default_dir: str = "./models"):
@@ -64,7 +63,7 @@ class ModelManager:
         if output_dir is None:
             # Create a safe directory name from the model name
             safe_name = model_name.replace("/", "_")
-            output_dir = os.path.join(self.default_dir, hub, safe_name)
+            output_dir = os.path.join(self.default_dir, safe_name)
 
         output_dir = os.path.abspath(output_dir)
         os.makedirs(output_dir, exist_ok=True)
@@ -78,8 +77,7 @@ class ModelManager:
             "output_dir": output_dir,
             "status": "queued",
             "start_time": datetime.now().isoformat(),
-            "plugin_name": plugin_name,  # Rename from 'downloader' to more generic 'plugin_name'
-            "progress": {"current": 0, "total": 0, "percentage": 0},
+            "plugin_name": plugin_name,
         }
 
         logger.info(
@@ -93,20 +91,6 @@ class ModelManager:
 
     def update_progress(self, job_id: str, current: int, total: int) -> None:
         """Update the progress of a job."""
-        if job_id in self._jobs:
-            percentage = int((current / total) * 100) if total > 0 else 0
-            self._jobs[job_id]["progress"] = {
-                "current": current,
-                "total": total,
-                "percentage": percentage,
-            }
-            logger.debug(
-                "job_progress_updated",
-                job_id=job_id,
-                current=current,
-                total=total,
-                percentage=percentage,
-            )
 
     def process_download(
         self,
@@ -134,10 +118,6 @@ class ModelManager:
         try:
             # Update job status
             self._jobs[job_id]["status"] = "downloading"
-            logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
-            # Create progress callback
-            def progress_callback(model_name, current, total):
-                self.update_progress(job_id, current, total)
             logger.info(f"Request details: {model_name}, {hub}, {kwargs}")
             # Find appropriate downloader plugin
             download_plugin = None
@@ -188,7 +168,6 @@ class ModelManager:
                             model_path=output_dir,
                             tasks=download_tasks,
                             max_workers=max_workers,
-                            progress_callback=progress_callback,
                             **kwargs,
                         )
                 except NotImplementedError:
@@ -210,7 +189,7 @@ class ModelManager:
             )
 
             result = download_plugin.download(
-                model_name, output_dir, progress_callback=progress_callback, **kwargs
+                model_name, output_dir, **kwargs
             )
 
             # Update job status
@@ -219,12 +198,19 @@ class ModelManager:
             self._jobs[job_id]["result"] = result
 
             logger.info("download_completed", job_id=job_id, model_name=model_name)
+            
+            # Convert container path to host path if applicable
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
 
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_name": model_name,
-                "download_path": output_dir,
+                "download_path": host_path,
                 "details": result,
             }
 
@@ -272,10 +258,6 @@ class ModelManager:
             # Update job status
             self._jobs[job_id]["status"] = "converting"
 
-            # Create progress callback
-            def progress_callback(model_path, current, total):
-                self.update_progress(job_id, current, total)
-
             # Find appropriate converter plugin
             convert_plugin = None
             if converter:
@@ -313,7 +295,7 @@ class ModelManager:
             logger.info(f"Request details: {model_path}, {hub}, {kwargs}")
 
             result = convert_plugin.convert(
-                model_name, output_dir, progress_callback=progress_callback,hf_token=hf_token, **kwargs
+                model_name, output_dir,hf_token=hf_token, **kwargs
             )
 
             # Update job status
@@ -322,12 +304,19 @@ class ModelManager:
             self._jobs[job_id]["result"] = result
 
             logger.info("conversion_completed", job_id=job_id, model_path=model_path)
+            
+            # Convert container path to host path if applicable
+            host_path = output_dir
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
 
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_path": model_path,
-                "conversion_path": output_dir,
+                "conversion_path": host_path,
                 "details": result,
             }
 
@@ -354,7 +343,6 @@ class ModelManager:
         model_path: str,
         tasks: List[DownloadTask],
         max_workers: int,
-        progress_callback: Optional[Callable] = None,
         **kwargs,
     ) -> Dict[str, Any]:
         """
@@ -367,7 +355,6 @@ class ModelManager:
             model_path: Directory to save the model
             tasks: List of download tasks
             max_workers: Maximum number of parallel workers
-            progress_callback: Callback for progress updates
             **kwargs: Additional parameters
 
         Returns:
@@ -400,12 +387,6 @@ class ModelManager:
 
                     # Call the plugin to download this task
                     path = plugin.download_task(task, model_path, **kwargs)
-
-                    # Update progress
-                    completed_tasks += 1
-                    if progress_callback:
-                        progress_callback(model_name, completed_tasks, total_tasks)
-
                     return path
                 except Exception as e:
                     logger.error(
@@ -451,12 +432,19 @@ class ModelManager:
                 model_name=model_name,
                 files=len(downloaded_paths),
             )
-
+            
+            # Convert container path to host path if applicable
+            host_path = model_path
+            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                host_prefix = os.getenv("MODEL_PATH", "models")
+                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+                
+            logger.info("download_completed to host_path", host_path=host_path)
             return {
                 "job_id": job_id,
                 "status": "completed",
                 "model_name": model_name,
-                "download_path": model_path,
+                "download_path": host_path,
                 "details": result,
             }
 
@@ -535,7 +523,7 @@ class ModelManager:
         """
         # Extract model name from path for job registration
         model_name = os.path.basename(model_path)
-        job_id = self.register_job("convert", model_name, output_dir, converter)
+        job_id = self.register_job("convert", model_name, "convert", output_dir, converter)
         return self.process_conversion(
             job_id=job_id, model_path=model_path, model_name=model_name, output_dir=output_dir, converter=converter, **kwargs
         )
@@ -544,7 +532,6 @@ class ModelManager:
         """Get the status of a specific job."""
         if job_id not in self._jobs:
             return None
-
         job = self._jobs[job_id].copy()  # Return a copy to prevent modification
         return job
 

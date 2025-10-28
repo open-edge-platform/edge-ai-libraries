@@ -31,8 +31,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
             return model_name in supported_models or model_name == "all"
         except:
             return False
-    
-    def download(self, model_name: str, output_dir: str, progress_callback=None, **kwargs) -> Dict[str, Any]:
+
+    def download(self, model_name: str, output_dir: str, **kwargs) -> Dict[str, Any]:
         """Download the model using the bash script"""
         # Remove prefix if present
         #model_without_prefix = model_name.split(":")[-1] if ":" in model_name else model_name
@@ -40,16 +40,24 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         # Extract quantization from kwargs
         quantize = kwargs.get("quantize", "")
         
+        # Create hub-specific directory under the output directory
+        hub_dir = os.path.join(output_dir, "ultralytics")
+        
         # Call the download script
-        return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=output_dir)
+        return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
 
         if return_code != 0:
             raise RuntimeError(f"Failed to download Ultralytics model {model_name}")
         
+        host_path = hub_dir
+        if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+            host_prefix = os.getenv("MODEL_PATH", "models")
+            host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+        
         return {
             "model_name": model_name,
             "source": "ultralytics",
-            "download_path": output_dir,
+            "download_path": host_path,
             "return_code": return_code
         }
     
@@ -149,6 +157,8 @@ class UltralyticsDownloader(ModelDownloadPlugin):
                 break
         
         return_code = process.poll()
+        if return_code is None:
+            return_code = 0  # If process is still running, assume success
         if return_code != 0:
             logger.error(f"Script execution failed with return code {return_code}")
 

@@ -1,12 +1,16 @@
 replicaCount: 1
 
 image:
-  repository: your-dockerhub-username/model-download
-  tag: latest
+  repository: intel/model-download
+  tag: 1.0.0
   pullPolicy: IfNotPresent
 
+env:
+  HF_TOKEN: ""
+  ENABLED_PLUGINS: "all"
+
 service:
-  type: NodePort
-  nodePort: 32004
+  type: ClusterIP
+  port: 8000
 
 resources: {}
