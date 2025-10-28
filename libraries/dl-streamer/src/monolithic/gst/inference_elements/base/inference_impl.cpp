@@ -314,7 +314,7 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
         break;
     case VA_SURFACE_CAPS_FEATURE:
     case VA_MEMORY_CAPS_FEATURE:
-        if (device.find("NPU") != std::string::npos) {
+        if ((device.find("NPU") != std::string::npos) || (device.find("AUTO") != std::string::npos)) {
             result = ImagePreprocessorType::VAAPI_SYSTEM;
         } else {
             result = ImagePreprocessorType::VAAPI_SURFACE_SHARING;
