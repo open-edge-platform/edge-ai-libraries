@@ -14,7 +14,6 @@
 5. [Audio Transcription Pipeline Using GVA Elements](#audio-transcription-pipeline-using-gvametaconvert-and-gvametapublish)
 6. [Configuration](#configuration)
    - [Properties](#properties)
-7. [Troubleshooting](#troubleshooting)
 ---
 
 ## Overview
@@ -83,34 +82,6 @@ gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux dem
 - `language` - Language code (e.g., `<|en|>` for English), currently supoports english
 - `task` - Task type: `transcribe` or `translate`, currently supports transcription 
 
-
-
-## Troubleshooting 
-
-```bash 
-gst-inspect: command not found
-or 
-no element named gvaaudiotranscribe
-```
-- Recheck and set your environment using [Environment Setup](https://dlstreamer.github.io/dev_guide/advanced_install/advanced_install_guide_compilation.html#step-10-set-up-environment), [Environment SetupScript](../../../../scripts/setup_env.sh)
-
-- If you try to use an unsupported model type:
-
-```bash
-# This will show a helpful error message
-gst-launch-1.0 audiotestsrc ! audioconvert ! audioresample ! \
-    "audio/x-raw,format=S16LE,rate=16000,channels=1" ! \
-    gvaaudiotranscribe model=/path/to/model model_type=custom_model ! \
-    fakesink
-```
-
-**Error output:**
-```bash
-Model type 'custom_model' is not currently supported. 
-Currently supported: 'whisper'. 
-Feel free to implement support for 'custom_model' by extending the GvaAudioTranscribeHandler interface! 
-See gstgvaaudiotranscribehandler.h for the extensible interface.
-```
 
 
 
