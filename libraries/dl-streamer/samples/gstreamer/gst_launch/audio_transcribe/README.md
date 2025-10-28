@@ -79,8 +79,6 @@ gst-launch-1.0  filesrc location=${HOME}/<filename>.mp4 ! qtdemux name=demux dem
 - `model` - Path to model (directory for Whisper, custom path for other models)
 - `model_type` - Model type: `whisper` (supported), or your custom type
 - `device` - Inference device: `CPU`, `GPU`
-- `language` - Language code (e.g., `<|en|>` for English), currently supoports english
-- `task` - Task type: `transcribe` or `translate`, currently supports transcription 
 
 
 
