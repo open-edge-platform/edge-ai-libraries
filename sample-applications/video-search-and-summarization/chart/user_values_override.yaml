@@ -1,12 +1,10 @@
 # DO NOT COMMIT/PUSH THIS FILE TO ANY REPO WITH UPDATED VALUES. IT CAN LEAD TO CREDENTIAL LEAKS.
 # RESET ALL THE VALUES HERE TO DEFAULT, BEFORE COMMITING/PUSHING.
-
 global:
-  # Update pvcName to a non-empty value if a common PVC storage is desired for application to persist data.
-  pvcName: "vss-shared-pvc"
+  # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
+  usePvc: true
 
-  # Update keepPvc to true if the PVC should be retained after uninstalling the chart.
-  # Specifically, set this to true if you want to persist the downloaded models and avoid re-downloading them when re-installing the chart.
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
 
   # Update huggingfaceToken if access to gated models is required. (This is needed in case OVMS is used for final summarization)

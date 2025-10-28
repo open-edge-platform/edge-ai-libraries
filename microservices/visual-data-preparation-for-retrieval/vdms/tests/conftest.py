@@ -2,14 +2,13 @@
 # SPDX-License-Identifier: Apache-2.0
 
 import io
-import pathlib
 from unittest.mock import MagicMock
 
-# third-party installed packages
 import pytest
 from fastapi.testclient import TestClient
 
 from src.core.minio_client import MinioClient
+from src.main import app
 
 # application packages
 from src.main import app
@@ -17,18 +16,18 @@ from src.main import app
 
 @pytest.fixture(scope="function")
 def video_file(tmp_path):
-    content = b"$bindary content$"
+    content = b"$binary content$"
     file = tmp_path / "sample-video.mp4"
     file.write_bytes(content)
-    yield {"files": ("sample-video.mp4", open(file, "rb"), "aplication/octet-stream")}
+    yield {"file": ("sample-video.mp4", open(file, "rb"), "video/mp4")}
 
 
 @pytest.fixture(scope="function")
 def invalid_video_file(tmp_path):
-    content = b"$bindary content$"
+    content = b"$binary content$"
     file = tmp_path / "sample-video.txt"
     file.write_bytes(content)
-    yield {"files": ("sample-video.txt", open(file, "rb"), "aplication/octet-stream")}
+    yield {"file": ("sample-video.txt", open(file, "rb"), "aplication/octet-stream")}
 
 
 @pytest.fixture(scope="module")

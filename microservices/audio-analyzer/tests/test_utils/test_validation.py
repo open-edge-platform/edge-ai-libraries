@@ -30,11 +30,15 @@ def test_validate_form_data_with_file_and_filesystem(mock_upload_file, mock_sett
 
 
 @pytest.mark.unit
-def test_validate_form_data_with_minio_and_minio_backend(mock_settings):
+def test_validate_form_data_with_minio_and_minio_backend(mock_settings, mocker):
     """Test validating form data with MinIO parameters and MinIO storage"""
     
+    # Set storage backend to MinIO
+    mocker.patch("audio_analyzer.utils.validation.settings.STORAGE_BACKEND", StorageBackend.MINIO)
+
     # Create a valid request with MinIO parameters
     request = TranscriptionFormData()
+
     request.file = None
     request.minio_bucket = "videos"
     request.video_id = "test-id"
@@ -63,19 +67,20 @@ def test_validate_form_data_without_file_and_filesystem(mock_settings):
     
     with patch("audio_analyzer.utils.validation.settings", mock_settings):   
         # Should raise an exception
-        with pytest.raises(HTTPException) as excinfo:
+        with pytest.raises(HTTPException) as ex:
             RequestValidation.validate_form_data(request)
     
     # Check the exception details
-    assert excinfo.value.status_code == 400
-    assert "Missing file upload" in excinfo.value.detail["error_message"]
+    assert ex.value.status_code == 400
+    assert "Missing file upload" in ex.value.detail["error_message"]
 
 
 @pytest.mark.unit
-def test_validate_form_data_without_minio_params_and_minio_backend(mock_settings):
+def test_validate_form_data_without_minio_params_and_minio_backend(mock_settings, mocker):
     """Test validating form data without MinIO parameters using MinIO storage"""
-    # Configure storage backend to MinIO
-    mock_settings.STORAGE_BACKEND = StorageBackend.MINIO
+
+    # Set storage backend to MinIO
+    mocker.patch("audio_analyzer.utils.validation.settings.STORAGE_BACKEND", StorageBackend.MINIO)
     
     # Create an invalid request without MinIO parameters
     request = TranscriptionFormData()
@@ -87,12 +92,12 @@ def test_validate_form_data_without_minio_params_and_minio_backend(mock_settings
     request.device = "cpu"
     
     # Should raise an exception
-    with pytest.raises(HTTPException) as excinfo:
+    with pytest.raises(HTTPException) as ex:
         RequestValidation.validate_form_data(request)
     
     # Check the exception details
-    assert excinfo.value.status_code == 400
-    assert "Missing source parameters" in excinfo.value.detail["error_message"]
+    assert ex.value.status_code == 400
+    assert "Missing source parameters" in ex.value.detail["error_message"]
 
 
 @pytest.mark.unit

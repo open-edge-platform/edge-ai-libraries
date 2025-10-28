@@ -47,26 +47,6 @@ def read_config(config_file: str | pathlib.Path, type: str = "yaml") -> dict | N
     return config
 
 
-def save_video_to_temp(data: io.BytesIO, filename: str, temp_dir: str) -> pathlib.Path:
-    """Save the video data to a temporary directory.
-
-    Args:
-        data (io.BytesIO): The video data
-        filename (str): The filename to use
-        temp_dir (str): The directory path string where videofile needs to be temporarily saved
-
-    Returns:
-        pathlib.Path: Path to the saved file
-    """
-    temp_file = pathlib.Path(temp_dir) / filename
-    temp_file.parent.mkdir(parents=True, exist_ok=True)
-
-    with open(temp_file, "wb") as file:
-        file.write(data.read())
-
-    return temp_file
-
-
 def get_minio_client() -> MinioClient:
     """Get a configured Minio client instance.
 
@@ -166,7 +146,6 @@ def get_video_fps_and_frames(video_local_path: pathlib.Path) -> tuple[float, int
     cap.release()
 
     return fps, total_frames
-
 
 def extract_video_metadata(
     temp_video_path: pathlib.Path,

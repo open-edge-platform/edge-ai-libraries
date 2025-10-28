@@ -11,8 +11,7 @@ services:
     ports:
       - "8000:8000"
     volumes:
-      - audio_analyzer_data:/home/appuser/models
-      - audio_analyzer_data:/home/appuser/data
+      - audio_analyzer_data:/data
       - /dev/dri:/dev/dri
     environment:
       - http_proxy

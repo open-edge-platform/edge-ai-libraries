@@ -1,5 +1,33 @@
 # Default values for VDMS DataPrep Service.
 
+global:
+  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+  volumeHostPath: ""
+
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
+
+  # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+  sharedPvcName: ""
+
+  # Common release tags to be used for several dependencies 
+  commonTag: ""
+
+  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
+  vdmsIndexName: ""
+  
+  proxy:
+  # setup proxy settings
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
+  env:
+    MINIO_ROOT_USER:
+    MINIO_ROOT_PASSWORD:
+
 replicaCount: 1
 
 image:
@@ -50,19 +78,29 @@ readinessProbe:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 6
+  periodSeconds: 10
+  failureThreshold: 12
 startupProbe:
   httpGet:
     path: /health
     port: dataprep-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 6
+  periodSeconds: 10
+  failureThreshold: 12
 
 nodeSelector: {}
 tolerations: []
 affinity: {}
+
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+              - vdmsdataprep
+      topologyKey: "kubernetes.io/hostname"
 
 # Values required to configure DataPrep service
 indexName: "videosearch-index"
@@ -70,31 +108,6 @@ vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
 multimodalEmbeddingModelName: "openai/clip-vit-base-patch32"
 multimodalEmbeddingNumFrames: 64
-
-global:
-  # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/dataprep"
-
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
-  
-  # Nodes on which pods using the PV will be scheduled
-  storageNodeAffinity: []
-
-  # Common release tags to be used for several dependencies 
-  commonTag: ""
-
-  # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
-  vdmsIndexName: ""
-  
-  proxy:
-  # setup proxy settings
-    no_proxy: ""
-    http_proxy: ""
-    https_proxy: ""
-  env:
-    MINIO_ROOT_USER:
-    MINIO_ROOT_PASSWORD:
 
 
 minioServer:
