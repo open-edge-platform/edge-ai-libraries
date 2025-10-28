@@ -317,6 +317,26 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                                                                     &transcript_quark, &cls_mtd)) {
                             GST_INFO_OBJECT(gvaaudiotranscribe,
                                             "Added transcription as GstAnalyticsClassification metadata (confidence: %.3f)", confidence_level);
+
+                            // Add model descriptor metadata
+                            GQuark transcription_quark = g_quark_from_string("transcription");
+                            gfloat descriptor_confidence = 0.0f;
+                            GstAnalyticsClsMtd cls_descriptor_mtd = {0, nullptr};
+
+                            if (gst_analytics_relation_meta_add_cls_mtd(relation_meta, 1, &descriptor_confidence,
+                                                                        &transcription_quark, &cls_descriptor_mtd)) {
+                                GST_INFO_OBJECT(gvaaudiotranscribe, "Added model descriptor metadata");
+
+                                // Create relation between transcription result and model descriptor
+                                if (gst_analytics_relation_meta_set_relation(relation_meta, GST_ANALYTICS_REL_TYPE_RELATE_TO,
+                                                                            cls_mtd.id, cls_descriptor_mtd.id)) {
+                                    GST_INFO_OBJECT(gvaaudiotranscribe, "Created relation between transcription result and model descriptor");
+                                } else {
+                                    GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to create relation between transcription result and model descriptor");
+                                }
+                            } else {
+                                GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add model descriptor metadata");
+                            }
                         } else {
                             GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add GstAnalyticsClassification metadata");
                         }
