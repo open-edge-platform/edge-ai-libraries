@@ -1,3 +1,5 @@
+{{- include "vlminference.validateDeploymentOptions" . }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
