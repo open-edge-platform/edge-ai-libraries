@@ -46,7 +46,7 @@ Video Search and Summarization application is a unified pipeline that provides b
 The VLM, LLM, and Embedding microservices are provided as part of Intel's Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs like [Hugging Face OpenVINO](https://huggingface.co/OpenVINO). The video ingestion microservice provides capability to ingest common video formats, chunk the video, feed the extracted frames to configurable capabilities like object detection, and provide the output to both the VLM microservice for captioning and the embedding microservice for search indexing. The individual captions are then summarized by the LLM microservice to provide the final summary, while simultaneously being converted to embeddings and stored in a vector database for semantic search. The audio transcription microservice provides ability to transcribe the audio using Whisper model, contributing to both summary generation and search capabilities. An object store is used to save the raw videos, frames, and generated metadata, while a vector database stores the embeddings for fast semantic search.
 
 ### Architecture Diagram
-![Technical Architecture Diagram of video search and summary](./images/TEAI_VideoSearchSumm_Arch.png)
+![Technical Architecture Diagram of Video Search and Summarization](./images/TEAI_VideoSearchSumm_Arch.png)
 *Figure 2: Microservices used in Video Search and Summarization sample application
 
 ### Application Flow
