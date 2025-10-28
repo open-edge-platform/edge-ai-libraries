@@ -57,6 +57,7 @@ COPY --from=python-base /usr/local/bin /usr/local/bin
 COPY src /opt/src
 COPY scripts /opt/scripts
 COPY pyproject.toml /opt/
+COPY docs/user-guide/api-docs/openapi.yaml /opt/docs/user-guide/api-docs/openapi.yaml
 
 WORKDIR /opt
 
