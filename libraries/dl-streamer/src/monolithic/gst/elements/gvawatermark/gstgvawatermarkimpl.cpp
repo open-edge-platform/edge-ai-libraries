@@ -25,15 +25,10 @@
 #include "so_loader.h"
 #include "utils.h"
 #include "video_frame.h"
-#include <dlstreamer/gst/context.h>
-#include <dlstreamer/gst/frame.h>
-#include <dlstreamer/memory_mapper_factory.h>
+
 #ifdef ENABLE_VAAPI
 #include <dlstreamer/vaapi/mappers/vaapi_to_dma.h>
 #endif
-
-#include <dlstreamer/gst/context.h>
-#include <dlstreamer/vaapi/context.h>
 
 #include "renderer/color_converter.h"
 #include "renderer/cpu/create_renderer.h"
