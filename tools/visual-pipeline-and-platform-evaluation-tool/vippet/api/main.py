@@ -1,6 +1,12 @@
+import os
+import logging
 from fastapi import FastAPI
+
 from api.routes import pipelines, devices, models, metrics
 
+# Configure logging
+loglevel = os.environ.get("LOG_LEVEL", "INFO").upper()
+logging.basicConfig(level=loglevel)
 
 # Initialize FastAPI app
 app = FastAPI(

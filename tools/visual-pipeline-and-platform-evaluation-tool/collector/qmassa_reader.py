@@ -67,7 +67,7 @@ def emit_engine_usage(eng_usage, gpu_id, ts):
     for eng, vals in eng_usage.items():
         if vals:
             print(
-                f"engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id} usage={vals[-1]} {ts}"
+                f"gpu_engine_usage,engine={eng},type={eng},host={HOSTNAME},gpu_id={gpu_id} usage={vals[-1]} {ts}"
             )
 
 
@@ -83,7 +83,9 @@ def emit_frequency(freqs, gpu_id, ts):
 def emit_power(power, gpu_id, ts):
     if power:
         for key, val in power[-1].items():
-            print(f"power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}")
+            print(
+                f"gpu_power,type={key},host={HOSTNAME},gpu_id={gpu_id} value={val} {ts}"
+            )
 
 
 def process_device_metrics(dev, gpu_id, current_ts_ns):

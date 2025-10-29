@@ -10,8 +10,6 @@ from typing import List, Dict, Tuple
 
 from utils import run_pipeline_and_extract_metrics
 
-logging.basicConfig(level=logging.INFO)
-
 
 class Benchmark:
     """Benchmarking class for pipeline evaluation."""

@@ -5,8 +5,6 @@ from typing import Dict, List
 from gstpipeline import GstPipeline
 from utils import run_pipeline_and_extract_metrics
 
-logging.basicConfig(level=logging.INFO)
-
 
 @dataclass
 class OptimizationResult:

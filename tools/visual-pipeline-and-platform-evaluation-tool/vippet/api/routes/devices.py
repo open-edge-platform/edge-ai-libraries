@@ -7,7 +7,7 @@ from device import DeviceDiscovery
 router = APIRouter()
 
 
-@router.get("", response_model=List[schemas.Device])
+@router.get("", operation_id="get_devices", response_model=List[schemas.Device])
 def get_devices():
     device_list = DeviceDiscovery().list_devices()
     return [

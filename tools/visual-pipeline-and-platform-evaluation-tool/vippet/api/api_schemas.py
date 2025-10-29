@@ -106,7 +106,7 @@ class PipelineRequestOptimize(BaseModel):
 
 
 class PipelineInstanceStatus(BaseModel):
-    id: int
+    id: str
     start_time: int
     elapsed_time: int
     state: PipelineInstanceState
@@ -117,8 +117,8 @@ class PipelineInstanceStatus(BaseModel):
 
 
 class PipelineInstanceSummary(BaseModel):
-    id: int
-    request: PipelineRequestRun
+    id: str
+    request: PipelineRequestRun | PipelineRequestBenchmark
     type: str
 
 

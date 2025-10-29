@@ -18,13 +18,14 @@ x-vippet: &vippet
   restart: on-failure:5
   environment:
     GST_DEBUG: "1"
+    LOG_LEVEL: INFO
     TZ: America/Los_Angeles
     MODELS_PATH: /models/output
     http_proxy: ${http_proxy}
     https_proxy: ${https_proxy}
     no_proxy: ${no_proxy}
   volumes:
-    - collector-signals:/home/dlstreamer/vippet/.collector-signals
+    - ./shared/collector-signals:/home/dlstreamer/vippet/.collector-signals
     - ./shared/models/:/models
 
 services:
@@ -100,17 +101,17 @@ services:
         https_proxy:
         no_proxy:
     container_name: collector
+    ports:
+      - "9273:9273"
     privileged: true
     devices:
       - "/sys:/sys"
       - "/dev:/dev"
       - "/run:/run"
       - "/proc:/proc"
-    network_mode: host
-    ipc: host
-    pid: host
+    pid: host # qmassa needs it
     volumes:
-      - "collector-signals:/app/.collector-signals"
+      - "./shared/collector-signals:/app/.collector-signals"
     restart: on-failure:5
     environment:
       http_proxy: ${http_proxy}
@@ -136,10 +137,3 @@ services:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       no_proxy: ${no_proxy}
-
-volumes:
-  collector-signals:
-    driver: local
-    driver_opts:
-      type: tmpfs
-      device: tmpfs

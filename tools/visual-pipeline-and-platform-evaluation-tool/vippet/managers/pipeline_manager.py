@@ -1,3 +1,5 @@
+import logging
+
 from gstpipeline import PipelineLoader
 from api.api_schemas import PipelineType, Pipeline, PipelineDefinition
 from explore import GstInspector
@@ -7,6 +9,7 @@ gst_inspector = GstInspector()
 
 class PipelineManager:
     def __init__(self):
+        self.logger = logging.getLogger(__name__)
         self.pipelines = self.load_predefined_pipelines()
 
     def add_pipeline(self, new_pipeline: PipelineDefinition):
@@ -29,6 +32,7 @@ class PipelineManager:
         )
 
         self.pipelines.append(pipeline)
+        self.logger.debug(f"Pipeline added: {pipeline}")
 
     def get_pipelines(self) -> list[Pipeline]:
         return self.pipelines
@@ -73,4 +77,5 @@ class PipelineManager:
                     parameters=None,
                 )
             )
+        self.logger.debug("Loaded predefined pipelines: %s", predefined_pipelines)
         return predefined_pipelines

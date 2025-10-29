@@ -5,6 +5,6 @@ from fastapi import APIRouter
 router = APIRouter()
 
 
-@router.get("", response_model=List[schemas.MetricSample])
+@router.get("", operation_id="get_metrics", response_model=List[schemas.MetricSample])
 def get_metrics():
     return []
