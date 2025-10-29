@@ -27,6 +27,10 @@ global:
     multimodalembeddingmsEnabled: false
     ovmsEnabled: false
 
+    key:
+    device:
+    group_add: $(stat -c "%g" /dev/dri/render*)
+
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
     http_proxy: ""
