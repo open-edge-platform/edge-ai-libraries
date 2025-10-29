@@ -34,7 +34,6 @@
 
 #include <dlstreamer/gst/context.h>
 #include <dlstreamer/vaapi/context.h>
-#include <va/va.h>
 
 #include "renderer/color_converter.h"
 #include "renderer/cpu/create_renderer.h"
