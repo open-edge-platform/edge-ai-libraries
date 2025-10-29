@@ -36,7 +36,7 @@ After pulling the chart, extract the `.tgz` file:
 tar -xvf document-summarization-<version-no>.tgz
 ```
 
-This will create a directory named `document-summarization` containing the chart files. Navigate to the extracted directory. 
+This will create a directory named `document-summarization` containing the chart files. Navigate to the extracted directory.
 ```bash
 cd document-summarization
 ```
@@ -111,11 +111,24 @@ To access a docsum-nginx service running in your Kubernetes cluster using NodePo
 - NodeIP – The internal IP of a worker node.
 - NodePort – The port exposed by the service.
 
-Run the following command after replacing \<ui-node-port\> with your actual values:
+Run the following command by replacing \<namespace\> with your actual values:
 ```bash
-  kubectl get nodes -o wide | awk '$2 == "Ready" {print $6 ":<ui-node-port>"; exit}'
+  # Step 1: List all the pods for the deployment and identify where docsum-nginx is running
+  kubectl get pods -n <namespace> -o wide
+  # Look for document-summarization-nginx pod to understand which node it is being deployed to.
+
+  # Step 2: Get the node IP of the node where the service deployed to.
+  kubectl get nodes -o wide
+  # Look for the INTERNAL-IP value of the node deployed with the service
+
+  # Step 3: Get the NodePort for the service deployed
+  kubectl get svc document-summarization-nginx -n <namespace>
+  # In the output, find the port listed as 80:<node-port>.
+  # For example, in 80:30009/TCP, the NodePort is 30009.
+
+  ## Step 4: Collect all the information above and paste it into your browser to access the service UI
+  http://<node-ip>:<node-port>
 ```
-Simply copy and paste the output into your browser.
 
 ### Step 8: Update Helm Dependencies
 
