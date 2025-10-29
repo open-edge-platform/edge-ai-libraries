@@ -2,7 +2,17 @@ name: "[DLS] [U22/24] Build and test .deb pkgs & deb imgs"
 run-name: "[DLS] [U22/24] Build and test .deb pkgs & deb imgs (by ${{ github.actor }})"
 on:
   workflow_call:
+    test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
+    test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
 permissions: {}
 env:
   dlstreamer-version: "2025.1.2"
@@ -43,7 +53,7 @@ jobs:
       with:
         repository: open-edge-platform/dl-streamer-tests
         persist-credentials: false
-        ref: f0718807b76b3d6717dc8f20a6ddb7dbab837057
+        ref: ${{ inputs.test-repo-branch }}
         path: dl-streamer-tests-repo
 
     - name: Check out edge-ai-libraries repository
@@ -246,7 +256,7 @@ jobs:
         docker rmi ${deb_final_img} || true
         sudo rm -f $HOME/dl-streamer
         rm -rf edge-ai-libraries-repo
-        rm -rf $HOME/dl-streamer-tests-repo 
+        rm -rf $HOME/dl-streamer-tests-repo
 
     # - name: Schedule reboot
     #   if: always()
