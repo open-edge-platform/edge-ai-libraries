@@ -21,12 +21,7 @@ G_BEGIN_DECLS
 typedef struct _GstGvaWatermark GstGvaWatermark;
 typedef struct _GstGvaWatermarkClass GstGvaWatermarkClass;
 
-enum WatermarkPath {
-    WatermarkPathNone = 0,
-    WatermarkPathVaVaapi,
-    WatermarkPathDirect,
-    WatermarkPathTransparent
-};
+enum WatermarkPath { WatermarkPathNone = 0, WatermarkPathVaVaapi, WatermarkPathDirect, WatermarkPathTransparent };
 
 struct _GstGvaWatermark {
     GstBin base_gvawatermark;
@@ -45,7 +40,7 @@ struct _GstGvaWatermark {
     bool have_vaapi;
     bool have_va;
     gulong block_probe_id;
-    
+
     /* for all */
     GstElement *identity;
     GstElement *watermarkimpl;

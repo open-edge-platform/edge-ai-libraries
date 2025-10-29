@@ -89,10 +89,8 @@ static void gst_gva_watermark_class_init(GstGvaWatermarkClass *klass) {
 
     g_object_class_install_property(
         gobject_class, PROP_DEVICE,
-        g_param_spec_string("device", "Target device", 
-                        "CPU or GPU. Default is CPU.",
-                        DEFAULT_DEVICE,
-                        static_cast<GParamFlags>(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
+        g_param_spec_string("device", "Target device", "CPU or GPU. Default is CPU.", DEFAULT_DEVICE,
+                            static_cast<GParamFlags>(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 
     g_object_class_install_property(gobject_class, PROP_OBB,
                                     g_param_spec_boolean("obb", "Oriented Bounding Box",
@@ -237,8 +235,7 @@ static void gva_watermark_block_sink(GstGvaWatermark *self, gboolean enable_bloc
         return;
 
     GstPad *pad = nullptr;
-    WatermarkPath pad_path =
-        enable_block ? self->active_path : self->block_pad_source;
+    WatermarkPath pad_path = enable_block ? self->active_path : self->block_pad_source;
 
     if (pad_path == WatermarkPathTransparent) {
         pad = gst_element_get_static_pad(self->watermarkimpl, "sink");
@@ -446,7 +443,7 @@ static gboolean gva_watermark_link_transparent_path(GstGvaWatermark *self) {
         return FALSE;
     }
 
-    self->active_path = WatermarkPathTransparent; 
+    self->active_path = WatermarkPathTransparent;
     GST_INFO_OBJECT(self, "Transparent path linked (identity bypassed)");
     return TRUE;
 }
@@ -455,7 +452,6 @@ static void gva_watermark_unlink_transparent_path(GstGvaWatermark *self) {
     gst_ghost_pad_set_target(GST_GHOST_PAD_CAST(self->sinkpad), NULL);
     gst_ghost_pad_set_target(GST_GHOST_PAD_CAST(self->srcpad), NULL);
 }
-
 
 // Direct path:
 // |ghost sink| -> <identity> -> <watermarkimpl> -> |ghost src|
@@ -574,7 +570,6 @@ static gboolean gva_watermark_switch_path(GstGvaWatermark *self, enum WatermarkP
     return result;
 }
 
-
 static gboolean gst_gva_watermark_sink_event(GstPad *pad, GstObject *parent, GstEvent *event) {
     GstGvaWatermark *self = GST_GVA_WATERMARK(parent);
 
@@ -595,7 +590,7 @@ static gboolean gst_gva_watermark_sink_event(GstPad *pad, GstObject *parent, Gst
 
             self->is_active_nv12 = is_caps_format_equal(incaps, "NV12");
 
-            // save preferred path here to change on GST_EVENT_SEGMENT if needed 
+            // save preferred path here to change on GST_EVENT_SEGMENT if needed
             if (target_memtype == SYSTEM_MEMORY_CAPS_FEATURE)
                 self->preferred_path = WatermarkPathDirect;
             else
@@ -647,7 +642,6 @@ static gboolean gva_watermark_start(GstGvaWatermark *self) {
 
     if (self->use_watermarkimpl_only)
         return gva_watermark_switch_path(self, WatermarkPathTransparent, in_memory_type);
-   
 
     if (self->have_vaapi || self->have_va) {
         if (gva_watermark_switch_path(self, WatermarkPathVaVaapi, in_memory_type) && link_videoconvert(self))
@@ -674,7 +668,6 @@ static GstStateChangeReturn gva_watermark_change_state(GstElement *element, GstS
 
     return GST_ELEMENT_CLASS(gst_gva_watermark_parent_class)->change_state(element, transition);
 }
-   
 
 static gboolean plugin_init(GstPlugin *plugin) {
     if (!gst_element_register(plugin, "gvawatermark", GST_RANK_NONE, GST_TYPE_GVA_WATERMARK))
