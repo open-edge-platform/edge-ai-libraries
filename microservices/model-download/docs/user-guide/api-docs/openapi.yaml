@@ -20,12 +20,15 @@ info:
 servers:
   - url: http://localhost:8200/api/v1
     description: Local development server
-  - url: http://{host}:8200/api/v1
+  - url: http://{host}:{port}/api/v1
     description: Custom host deployment
     variables:
       host:
         default: localhost
         description: Server hostname or IP address
+      port:
+        default: 8200
+        description: Server port
 
 components:
   schemas:
