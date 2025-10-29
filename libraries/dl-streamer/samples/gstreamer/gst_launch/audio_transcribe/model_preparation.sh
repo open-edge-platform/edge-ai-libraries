@@ -12,7 +12,7 @@ unset OPENVINO_DIR LD_LIBRARY_PATH PYTHONPATH
 
 # Create workspace
 mkdir -p ~/ov-model-prep
-cd ~/ov-model-prep
+cd ~/ov-model-prep || exit
 
 # Download Whisper model requirements files
 wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads/releases/2025/3/samples/requirements.txt
@@ -21,6 +21,7 @@ wget https://raw.githubusercontent.com/openvinotoolkit/openvino.genai/refs/heads
 
 # Create and activate Python virtual environment
 python3 -m venv ~/ov-whisper-env
+# shellcheck source=/dev/null
 source ~/ov-whisper-env/bin/activate
 
 # Install requirements
@@ -31,7 +32,7 @@ optimum-cli export openvino --trust-remote-code --model openai/whisper-base whis
 
 deactivate
 # Clean up
-rm -rf *.txt __pycache__ ~/ov-whisper-env
+rm -rf ./*.txt __pycache__ ~/ov-whisper-env
 
 echo "Model preparation complete."
 

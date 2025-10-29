@@ -161,14 +161,15 @@ echo ""
 # Execute the GStreamer pipeline
 echo "gst-launch-1.0 $PIPELINE"
 gst-launch-1.0 $PIPELINE
+exit_code=$?
 
 # Check the exit status
-if [ $? -eq 0 ]; then
+if [ $exit_code -eq 0 ]; then
     echo ""
     echo "Transcription completed successfully!"
 else
     echo ""
-    echo "Transcription failed with exit code $?"
+    echo "Transcription failed with exit code $exit_code"
     exit 1
 fi
 
