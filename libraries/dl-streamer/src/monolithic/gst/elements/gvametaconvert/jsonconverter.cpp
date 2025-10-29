@@ -350,7 +350,9 @@ json convert_analytics_classification(GstGvaMetaConvert *converter, GstBuffer *b
             
             // Only include confidence for actual results (non-zero confidence)
             // Descriptors with 0.0 confidence are metadata markers
-            if (confidence != 0.0f) {
+            // Use epsilon for floating-point comparison
+            const gfloat epsilon = 1e-6f;
+            if (confidence > epsilon) {
                 classification["confidence"] = confidence;
             }
 
