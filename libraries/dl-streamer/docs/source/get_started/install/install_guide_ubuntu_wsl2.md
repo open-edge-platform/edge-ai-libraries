@@ -45,14 +45,14 @@ Open an Ubuntu WSL terminal and follow the instructions.
 
 ### Step 1: [OPTIONAL] Setup proxy
 
-Edit `/etc/bash.bashrc` and append lines with http_proxy and https_proxy:
+Edit `/etc/bash.bashrc` and add two lines with http_proxy and https_proxy:
 
 ```bash
 export http_proxy=""
 export https_proxy=""
 ```
 
-Open a visudo:
+Open visudo:
 
 ```bash
 sudo visudo
@@ -76,7 +76,7 @@ Apply changes by sourcing the file:
 source /etc/profile
 ```
 
-### Step 2: Provide access to `/dev/dri/renderD12*` directory
+### Step 2: Provide access to the `/dev/dri/renderD12*` directory
 
 Check that the `/dev/dri/renderD12*` directory exists. The output from `ls` command should be similar to this:
 
@@ -91,33 +91,31 @@ drwxr-xr-x  2 root root         80 Mar 24 16:00 by-path
 drwxr-xr-x 16 root root       3.5K Mar 24 16:00 ..
 ```
 
-If there is no `/dev/dri/renderD12*` directory please try running:
+If `/dev/dri/renderD12*` is not there, run:
 
 ```bash
 sudo modprobe vgem
 ```
 
-and check once again.
+and check again.
 
-### Step 3: Add user to the `render` group
+### Step 3: Add a user to the `render` group
 
-To have permission to use GPU device, the user has to belong to the `render` group.
-Please follow the instructions:
+To use a GPU device, the user has to belong to the `render` group.
+Follow these steps:
 
 ```bash
 sudo gpasswd -a ${USER} render
 newgrp render
 ```
 
-Confirm that listed groups to which you belong contain the `render` group:
+Confirm that the list of groups to which you belong includes the `render` group:
 
 ```bash
 groups ${USER}
 ```
 
 ### Step 4: Install drivers
-
-Follow the instructions to add necessary repositories and install libraries:
 
 ```bash
 cd $HOME
@@ -129,8 +127,6 @@ sudo apt-get install -y libze-dev intel-opencl-icd intel-media-va-driver-non-fre
 
 ### Step 5: Add OpenVINO™ Toolkit and Deep Learning Streamer repositories
 
-Follow the instructions to add necessary repositories for Deep Learning Streamer Framework and OpenVINO™ Toolkit:
-
 ```bash
 cd $HOME
 sudo -E wget -O- https://apt.repos.intel.com/intel-gpg-keys/GPG-PUB-KEY-INTEL-SW-PRODUCTS.PUB | gpg --dearmor | sudo tee /usr/share/keyrings/intel-gpg-archive-keyring.gpg > /dev/null
@@ -141,16 +137,14 @@ sudo bash -c 'echo "deb [signed-by=/usr/share/keyrings/intel-gpg-archive-keyring
 
 ### Step 6: Install Deep Learning Streamer Pipeline Framework
 
-Follow the instructions to install Deep Learning Streamer and its dependencies:
-
 ```bash
 sudo apt update
 sudo apt install intel-dlstreamer
 ```
 
-### Step 7: Download yolo11s model
+### Step 7: Download the yolo11s model
 
-If you would like to execute sample pipelines, please download yolo11s model as the sample one for these pipelines:
+If you want to execute sample pipelines, download the yolo11s model as the sample one for these pipelines:
 
 ```bash
 mkdir $HOME/models
