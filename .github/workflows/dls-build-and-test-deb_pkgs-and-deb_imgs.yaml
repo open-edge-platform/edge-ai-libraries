@@ -241,7 +241,7 @@ jobs:
         dls_tests_results_path: ${{ env.DLS_TESTS_RESULTS_PATH }}
       run: |
         echo "## Tests summary" >> $GITHUB_STEP_SUMMARY
-        echo "Test repo branch:** ${{ inputs.test-repo-branch }}" >> $GITHUB_STEP_SUMMARY
+        echo "Test repo branch: ${{ inputs.test-repo-branch }}" >> $GITHUB_STEP_SUMMARY
         echo "" >> $GITHUB_STEP_SUMMARY
         sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${dls_tests_results_path}"/DLS_functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
 
