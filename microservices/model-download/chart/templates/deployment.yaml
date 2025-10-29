@@ -20,7 +20,19 @@ spec:
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.readinessProbe.httpGet.path }}
+              port: {{ .Values.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
           env:
+            - name: HTTP_PROXY
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: HTTPS_PROXY
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: NO_PROXY
+              value: "{{ .Values.global.proxy.no_proxy }}"
             - name: HF_HUB_ENABLE_HF_TRANSFER
               value: "1"
             - name: HF_TOKEN
@@ -29,7 +41,8 @@ spec:
               value: "/opt/models"
             - name: ENABLED_PLUGINS
               value: "{{ .Values.env.ENABLED_PLUGINS }}"
-          command: ["--plugins", "{{ .Values.env.ENABLED_PLUGINS | default "all" }}"]
+          command: ["/opt/entrypoint.sh"]
+          args: ["--plugins", "{{ .Values.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:
             - name: models
               mountPath: /opt/models
