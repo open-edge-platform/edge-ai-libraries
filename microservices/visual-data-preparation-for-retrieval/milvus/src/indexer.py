@@ -18,7 +18,7 @@ from milvus_client import MilvusClientWrapper
 
 DEVICE = os.getenv("DEVICE", "CPU")
 EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", None)
-VCLIP_MODEL = os.getenv("VCLIP_MODEL", "openai/clip-vit-base-patch32")
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 
 def create_milvus_data(embedding, meta=None):
@@ -133,8 +133,7 @@ class Indexer:
         headers = { 'Content-Type': 'application/json'}
 
         payload = {
-            "model": VCLIP_MODEL,
-            "encoding_format": "float",
+            "model": EMBEDDING_MODEL_NAME,
             "input": {
                 "type": "image_base64",
                 "image_base64": base64_img

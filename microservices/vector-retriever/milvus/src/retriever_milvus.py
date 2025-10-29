@@ -11,7 +11,7 @@ MILVUS_PORT = int(os.getenv("MILVUS_PORT", 19530))
 MILVUS_URI = f"http://{MILVUS_HOST}:{MILVUS_PORT}"
 
 EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", None)
-VCLIP_MODEL = os.getenv("VCLIP_MODEL", "openai/clip-vit-base-patch32")
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 class MilvusRetriever:
     def __init__(self, collection_name="default"):
@@ -27,8 +27,7 @@ class MilvusRetriever:
                 "type": "text",
                 "text": query
             },
-            "model": VCLIP_MODEL,
-            "encoding_format": "float"
+            "model": EMBEDDING_MODEL_NAME,
         }
     
         response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
@@ -40,8 +39,7 @@ class MilvusRetriever:
         headers = {'Content-Type': 'application/json'}
 
         payload = {
-            "model": VCLIP_MODEL,
-            "encoding_format": "float",
+            "model": EMBEDDING_MODEL_NAME,
             "input": {
                 "type": "image_base64",
                 "image_base64": image_base64

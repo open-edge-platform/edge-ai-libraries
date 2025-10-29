@@ -44,12 +44,15 @@ Note: supported media types: jpg, png, mp4
     cd deployment/docker-compose/
     ```
 
-2.  Set up environment variables
+2.  Set up environment variables, note that you need to set an embedding model first
 
     ``` bash
+    export EMBEDDING_MODEL_NAME="your-chosen-model" # Replace with your preferred model
     source env.sh 
     ```
 
+    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](../../../../multimodal-embedding-serving/docs/user-guide/supported_models.md) for available options.
+    
 3.  Deploy with docker compose
 
     ``` bash

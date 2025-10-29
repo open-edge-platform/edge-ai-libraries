@@ -40,12 +40,12 @@ export DATAPREP_SERVICE_PORT=9990
 export EMBEDDING_SERVER_PORT=9777
 export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
-export VCLIP_MODEL="openai/clip-vit-base-patch32"
+export EMBEDDING_MODEL_NAME="openai/clip-vit-base-patch32"
 
 docker volume create ov-models
 
-if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-    echo -e "ERROR: VCLIP_MODEL is either not set or is set to an invalid value in your shell environment."
+if [ -z "$EMBEDDING_MODEL_NAME" ] || [ "$EMBEDDING_MODEL_NAME" != "openai/clip-vit-base-patch32" ]; then
+    echo -e "ERROR: EMBEDDING_MODEL_NAME is either not set or is set to an invalid value in your shell environment."
     return
 fi
 
