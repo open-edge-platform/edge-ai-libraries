@@ -25,6 +25,13 @@ describe('AudioQueueService', () => {
     systemConfig: {
       audioModel: 'whisper-large-v3',
     },
+    video: {
+      dataStore: {
+        objectName: 'test-state-id',
+        fileName: 'test-video.mp4',
+      },
+      videoId: 'test-state-id',
+    },
   };
 
   const mockTranscripts: any[] = [

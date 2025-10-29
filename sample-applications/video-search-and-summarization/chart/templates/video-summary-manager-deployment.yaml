@@ -15,6 +15,41 @@ spec:
         app: {{ .Values.videoSummaryManager.name }}
     spec:
       initContainers:
+        {{- if .Values.videosearch.enabled }}
+        - name: wait-for-videosearch
+          image: curlimages/curl:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for Video Search service to be ready..."
+              until curl -s -f http://{{ include "videosearch.name" .Subcharts.videosearch  }}:{{ .Values.videosearch.service.port }}/health; do
+                echo "Video Search service is not ready yet, waiting..."
+                sleep 10
+              done
+              echo "Video Search service is ready!"
+        {{- end }}
+        {{- if .Values.ovms.enabled }}
+        - name: wait-for-ovms
+          image: curlimages/curl:latest
+          command: 
+            - sh
+            - -c
+            - |
+              echo "Waiting for OVMS service to be ready..."
+              RETRIES=0
+              MAX_RETRIES=120
+              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
+                RETRIES=$((RETRIES+1))
+                echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
+                if [ $RETRIES -ge $MAX_RETRIES ]; then
+                  echo "OVMS service health check failed after $MAX_RETRIES attempts"
+                  exit 1
+                fi
+                sleep 10
+              done
+              echo "OVMS service is ready!"
+        {{- end }}
         {{- if .Values.vlminference.enabled }}
         - name: wait-for-vlm
           image: curlimages/curl:latest
@@ -29,29 +64,8 @@ spec:
               done
               echo "VLM service is ready!"
         {{ end }}
-        {{- if .Values.ovms.enabled }}
-        - name: wait-for-ovms
-          image: curlimages/curl:latest
-          command: 
-            - sh
-            - -c
-            - |
-              echo "Waiting for OVMS service to be ready..."
-              RETRIES=0
-              MAX_RETRIES=10
-              until [ $RETRIES -ge $MAX_RETRIES ] || curl -s -f -m 10 http://{{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready; do
-                RETRIES=$((RETRIES+1))
-                echo "OVMS service is not ready yet, waiting... (Attempt $RETRIES of $MAX_RETRIES) on {{ .Values.ovms.name }}:{{ .Values.ovms.service.port }}/v2/health/ready"
-                if [ $RETRIES -ge $MAX_RETRIES ]; then
-                  echo "OVMS service health check failed after $MAX_RETRIES attempts"
-                  exit 1
-                fi
-                sleep 120
-              done
-              echo "OVMS service is ready!"
-        {{- end }}
       containers:
-        - name: {{ .Values.videoSummaryManager.name }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.videoSummaryManager.image.repository }}:{{ .Values.videoSummaryManager.image.tag }}"
           imagePullPolicy: {{ .Values.videoSummaryManager.image.pullPolicy }}
           ports:

@@ -20,13 +20,16 @@ async def lifespan(app: FastAPI):
     """
     # Create necessary directories
     logger.debug("Creating required directories")
-    pathlib.Path(settings.UPLOAD_DIR).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(settings.AUDIO_DIR).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(settings.OUTPUT_DIR).mkdir(parents=True, exist_ok=True)
+    for dir in [
+        settings.OUTPUT_DIR,
+        settings.UPLOAD_DIR,
+        settings.AUDIO_DIR,
+        settings.GGML_MODEL_DIR,
+        settings.OPENVINO_MODEL_DIR,
+    ]:
+        pathlib.Path(dir).mkdir(parents=True, exist_ok=True)
+        logger.debug(f"Created directory: {dir}")
 
-    pathlib.Path(settings.GGML_MODEL_DIR).mkdir(parents=True, exist_ok=True)
-    pathlib.Path(settings.OPENVINO_MODEL_DIR).mkdir(parents=True, exist_ok=True)
-    
     # Download required models before the application starts
     logger.info("Starting model download for enabled models")
     await ModelManager.download_models()

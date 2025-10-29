@@ -14,8 +14,12 @@ spec:
       labels:
         app: {{ .Values.name }}
     spec:
+      {{- with .Values.securityContext }}
+      securityContext:
+        {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
-        - name: {{ include "minioserver.name" . }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -43,9 +47,9 @@ spec:
           command: ["minio","server", "/data", "--address", ":9000", "--console-address", ":9001"]
       volumes:
         - name: minio-data
-          {{- if .Values.global.pvcName }}
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ include "minioserver.fullname" . }}-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

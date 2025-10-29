@@ -1,3 +1,27 @@
+
+global:
+    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
+    volumeHostPath: ""
+
+    # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+    usePvc: false
+
+    # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+    keepPvc: false
+
+    # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
+    sharedPvcName: ""
+
+    # Common release tags to be used for several dependencies
+    commonTag: ""
+
+    proxy:
+    # setup proxy settings
+        no_proxy: ""
+        http_proxy: ""
+        https_proxy: ""
+
+
 replicaCount: 1
 
 image:
@@ -50,8 +74,8 @@ readinessProbe:
     path: /health
     port: mm-embed-port
   initialDelaySeconds: 5
-  periodSeconds: 20
-  failureThreshold: 3
+  periodSeconds: 10
+  failureThreshold: 6
 
 # Wait for startup till max ~ 30Mins 
 startupProbe:
@@ -59,24 +83,34 @@ startupProbe:
     path: /health
     port: mm-embed-port
   initialDelaySeconds: 10
-  periodSeconds: 20
-  failureThreshold: 90
+  periodSeconds: 10
+  failureThreshold: 180
 
 # Starting up MME service with TextEmebedding Model can take a while, so we set a longer startup probe
-# Wait for startup till max ~ 45Mins
+# Wait for startup till max ~ 50Mins
 startupProbeWithTextEmbeddingModel:
   httpGet:
     port: mm-embed-port
     path: /health
   initialDelaySeconds: 10
-  periodSeconds: 30
-  failureThreshold: 90
+  periodSeconds: 10
+  failureThreshold: 300
 
 nodeSelector: {}
 
 tolerations: []
 
 affinity: {}
+# Deploy this on the node where vdms-dataprep runs
+podAffinity:
+  requiredDuringSchedulingIgnoredDuringExecution:
+    - labelSelector:
+        matchExpressions:
+          - key: app.kubernetes.io/name
+            operator: In
+            values:
+              - vdmsdataprep
+      topologyKey: "kubernetes.io/hostname"
 
 # Environment variables
 imageEmbeddingModel: ""
@@ -97,25 +131,4 @@ gpu:
     renderGroupID: 109  # Replace with actual group ID
     group_add: []  # Add additional groups if required
 
-global:
-    # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-    volumeHostPath: "/mnt/embeddingms"
-
-    # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-    pvcName: ""
-    
-    # Nodes on which pods using the PV will be scheduled
-    storageNodeAffinity: []
-
-    # Common release tags to be used for several dependencies
-    commonTag: ''
-
-    proxy:
-    # setup proxy settings
-        no_proxy: ''
-        http_proxy: ''
-        https_proxy: ''
-
-# Node affinity to schedule pods on specific nodes only
-nodeAffinity: {}
 

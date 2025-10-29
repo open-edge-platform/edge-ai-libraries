@@ -33,7 +33,7 @@ See details on the system architecture and customizable options [here](./overvie
 3. How components interact and support extensibility.
 -->
 
-Video Search pipeline is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the video search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The Embedding microservice is provided as part of Intel Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face\* Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The visual data prep. microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
+Video Search pipeline is a combination of the core LangChain application logic that implements the Video Search pipeline and the set of microservices that implements the salient blocks of the Video Search pipeline. The following figures illustrate the setup. The Video Search UI communicates with the Video Search backend microservice. The Embedding microservice is provided as part of Intel's Edge AI inference microservices catalog supporting a rich set of open-source models that can be downloaded from popular model hubs. For example, the [Hugging Face OpenVINO toolkit](https://huggingface.co/OpenVINO), a model from Hugging Face\* Model Hub that has been optimized using Intel's OpenVINO™ toolkit. The visual data prep. microservice can ingest common video formats, convert it into embedding space, and store it in the vector database. You can also save a copy of the video to the object store.
 
 ### Technical Architecture Diagram
 ![Technical Architecture Diagram of video ingestion](./images/TEAI_VideoSearch_Arch-ingest.png)
@@ -58,7 +58,7 @@ Video Search pipeline is a combination of the core LangChain application logic t
 
    - **Ask a query**: The UI microservice provides a prompt window for user queries. The queries can be saved for any future reference and usage. It is possible to enable up to 8 queries to run in the background continuously on any new video being ingested. This is a critical capability required in using this pipeline for agentic reasoning.
    
-   - **Execute the search pipeline**: The Video Search backend microservice does the following to generate the output response using the search pipeline:
+   - **Execute the Video Search pipeline**: The Video Search backend microservice does the following to generate the output response using the Video Search pipeline:
       - Converts the query into an embedding space using the Embeddings microservice.
 	  
       - Does a semantic retrieval to fetch the relevant videos from the vector database. Currently, the top-k (with k being configurable) video is used. Does not use a reranker microservice currently.
@@ -79,7 +79,7 @@ The following figure shows the application flow, including the APIs and data sha
 - Explain how it contributes to the application and its benefits.
 -->
 
-1. **Intel Edge AI Inference microservices**:
+1. **Intel's Edge AI Inference microservices**:
    - **What it is**: Inference microservices are the embeddings and reranker microservices that run the chosen models on the hardware, optimally. 
    - **How it is used**: Each microservice uses OpenAI\* APIs to support their functionality. The microservices are configured to use the required models and are ready. The Video Search backend accesses these microservices in the LangChain\* application which creates a chain out of these microservices.
    - **Benefits**: Intel guarantees that the sample application's default microservices configuration is optimal for the chosen models and the target deployment hardware. Standard OpenAI APIs ensure easy portability of different inference microservices.
@@ -91,11 +91,11 @@ The following figure shows the application flow, including the APIs and data sha
 
 3. **Video Search backend microservice**:
    - **What it is**: Video Search backend microservice is a LangChain framework-based implementation of Video Search's RAG pipeline, which handles user queries.
-   - **How it is used**: The UI frontend uses a REST API endpoint to send user queries and trigger the search pipeline.
-   - **Benefits**: The microservice provides a reference on using the LangChain framework for implementing Video Search through Intel Edge AI inference microservices.
+   - **How it is used**: The UI frontend uses a REST API endpoint to send user queries and trigger the Video Search pipeline.
+   - **Benefits**: The microservice provides a reference on using the LangChain framework for implementing Video Search through Intel's Edge AI inference microservices.
 
 4. **Video Search UI**:
-   - **What it is**: A reference frontend providing an interface for you to interact with the Video Search search pipeline.
+   - **What it is**: A reference frontend providing an interface for you to interact with the Video Search pipeline.
    - **How it is used**: The UI microservice runs on the deployed platform on a certain configured port. Accessing the specific URL allows you to use the UI.
    - **Benefits**: This microservice must be treated as a sample reference implementation.
 

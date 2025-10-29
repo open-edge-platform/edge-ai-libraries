@@ -1,18 +1,34 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/videoingestion"
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
-  
+  volumeHostPath: ""
+
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
+
   proxy:
-    no_proxy:
-    http_proxy:
-    https_proxy: 
+    no_proxy: ""
+    http_proxy: ""
+    https_proxy: ""
   env:
-    RABBITMQ_DEFAULT_USER: 
-    RABBITMQ_DEFAULT_PASS: 
-    MINIO_ROOT_USER: 
-    MINIO_ROOT_PASSWORD: 
+    RABBITMQ_DEFAULT_USER: ""
+    RABBITMQ_DEFAULT_PASS: ""
+    MINIO_ROOT_USER: ""
+    MINIO_ROOT_PASSWORD: ""
+
+# pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
+pvcName: ""
+
+# odModelName defines the name of Object Detection Model
+odModelName: ""
+# odModelType defines the type of Object Detection Model. e.g., 'yolo_v8', 'YOLOv8-SEG'
+odModelType: ""
+
+# claimSize is the storage size claimed by PVC if usePvc is set to true.
+# claimSize should be set based on the size of models and files expected to be stored.
+claimSize: ""
 
 # odModelName defines the name of Object Detection Model
 odModelName: ""
