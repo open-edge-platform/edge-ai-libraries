@@ -2,7 +2,19 @@ name: "[DLS] [U22/24] Build and test .deb pkgs & deb imgs"
 run-name: "[DLS] [U22/24] Build and test .deb pkgs & deb imgs (by ${{ github.actor }})"
 on:
   workflow_call:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
 permissions: {}
 env:
   dlstreamer-version: "2025.1.2"
@@ -43,7 +55,7 @@ jobs:
       with:
         repository: open-edge-platform/dl-streamer-tests
         persist-credentials: false
-        ref: f0718807b76b3d6717dc8f20a6ddb7dbab837057
+        ref: ${{ inputs.test-repo-branch }}
         path: dl-streamer-tests-repo
 
     - name: Check out edge-ai-libraries repository
@@ -227,8 +239,11 @@ jobs:
       if: steps.run_tests.outcome == 'success'
       env:
         dls_tests_results_path: ${{ env.DLS_TESTS_RESULTS_PATH }}
+        test_repo_branch: ${{ inputs.test-repo-branch }}
       run: |
         echo "## Tests summary" >> $GITHUB_STEP_SUMMARY
+        echo "Test repo branch: $test_repo_branch" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
         sed 's/\[pass\]/:white_check_mark:/g; s/\[\! FAIL \!\]/:x:/g' "${dls_tests_results_path}"/DLS_functional_tests_${{ matrix.runner_print_label }}_on_host_${{ matrix.ubuntu_version }}_results.txt >> $GITHUB_STEP_SUMMARY
 
     - name: Uninstall dlstreamer
@@ -246,7 +261,7 @@ jobs:
         docker rmi ${deb_final_img} || true
         sudo rm -f $HOME/dl-streamer
         rm -rf edge-ai-libraries-repo
-        rm -rf $HOME/dl-streamer-tests-repo 
+        rm -rf $HOME/dl-streamer-tests-repo
 
     # - name: Schedule reboot
     #   if: always()

@@ -172,7 +172,11 @@ http://localhost:8000/docs
 
 1. Clone the repository and change directory to the audio-analyzer microservice:
 ```bash
+# Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+# Access the code
 cd edge-ai-libraries/microservices/audio-analyzer
 ```
 

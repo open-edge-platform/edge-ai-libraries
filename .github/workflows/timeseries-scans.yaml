@@ -261,7 +261,7 @@ jobs:
       - name: Build Time Series Analytics microservice
         run: |
           cd microservices/time-series-analytics/docker
-          sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
+          TIME_SERIES_ANALYTICS_IMAGE=$(grep '^TIME_SERIES_ANALYTICS_IMAGE=' .env | cut -d'=' -f2)   
           docker compose build
 
       - name: Deploy Time Series Analytics microservice
@@ -346,7 +346,11 @@ jobs:
               pwd
               echo "Building Time Series Analytics scanning"
               cd microservices/time-series-analytics/docker
-              sed -i -e "s|TIME_SERIES_ANALYTICS_IMAGE=.*|TIME_SERIES_ANALYTICS_IMAGE=ia-time-series-analytics-microservice:latest|g" .env
+              TIME_SERIES_ANALYTICS_IMAGE=$(grep '^TIME_SERIES_ANALYTICS_IMAGE=' .env | cut -d'=' -f2)
+              IMAGE_SUFFIX=$(grep '^IMAGE_SUFFIX=' .env | cut -d'=' -f2 | tr -d '"')
+              if [ -n "$IMAGE_SUFFIX" ]; then
+                TIME_SERIES_ANALYTICS_IMAGE="${TIME_SERIES_ANALYTICS_IMAGE}-${IMAGE_SUFFIX}"
+              fi
               docker compose build
               curl -sfL https://raw.githubusercontent.com/aquasecurity/trivy/main/contrib/html.tpl -o trivy-html.tpl
 
@@ -381,9 +385,9 @@ jobs:
               {{ end }}
               {{ end }}
               EOF
-              trivy image ia-time-series-analytics-microservice:latest --list-all-pkgs --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
-              trivy image --quiet --list-all-pkgs --format spdx-json --output trivy_image_scan.spdx.json ia-time-series-analytics-microservice:latest
-              trivy image ia-time-series-analytics-microservice:latest --list-all-pkgs --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
+              trivy image ${TIME_SERIES_ANALYTICS_IMAGE} --list-all-pkgs --ignore-unfixed --format template --template "@trivy-html.tpl" -o trivy_image_scan.html
+              trivy image --quiet --list-all-pkgs --format spdx-json --output trivy_image_scan.spdx.json ${TIME_SERIES_ANALYTICS_IMAGE}
+              trivy image ${TIME_SERIES_ANALYTICS_IMAGE} --list-all-pkgs --format template --template "@csv.tpl" -o trivy_image_scan_time-series-analytics-microservice.csv
               echo "completed Time Series Analytics scanning"
             
       - name: Upload Trivy Image Scan Report
