@@ -1,0 +1,1397 @@
+{
+  "openapi": "3.1.0",
+  "info": {
+    "title": "Visual Pipeline and Platform Evaluation Tool API",
+    "description": "API for Visual Pipeline and Platform Evaluation Tool",
+    "version": "1.0.0"
+  },
+  "paths": {
+    "/pipelines": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipelines",
+        "operationId": "get_pipelines",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Pipeline"
+                  },
+                  "type": "array",
+                  "title": "Response Get Pipelines"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Create Pipeline",
+        "description": "Create a custom pipeline from a launch string.",
+        "operationId": "create_pipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineDefinition"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "description": "Pipeline created",
+            "headers": {
+              "Location": {
+                "description": "URL of the created pipeline",
+                "schema": {
+                  "type": "string"
+                }
+              }
+            },
+            "content": {
+              "application/json": {
+                "schema": {
+
+                },
+                "example": {
+                  "message": "Pipeline created"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/validate": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Validate Pipeline",
+        "description": "Validate launch string pipeline.",
+        "operationId": "validate_pipeline",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineValidation"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "200": {
+            "description": "Pipeline is valid",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid launch string"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/status": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipeline Statuses",
+        "description": "Get status of all pipeline instances.",
+        "operationId": "get_pipeline_statuses",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineInstanceStatus"
+                  },
+                  "type": "array",
+                  "title": "Response Get Pipeline Statuses"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{instance_id}": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Instance Summary",
+        "description": "Get summary of a specific pipeline instance.",
+        "operationId": "get_pipeline_instance_summary",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineInstanceSummary"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Stop Pipeline Instance",
+        "operationId": "stop_pipeline_instance",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "type": "array",
+                  "items": {
+                    "$ref": "#/components/schemas/PipelineInstanceStatus"
+                  },
+                  "title": "Response Stop Pipeline Instance"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{instance_id}/status": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipeline Instance Status",
+        "description": "Get status of a specific pipeline instance.",
+        "operationId": "get_pipeline_instance_status",
+        "parameters": [
+          {
+            "name": "instance_id",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Instance Id"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PipelineInstanceStatus"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{name}/{version}": {
+      "get": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Get Pipeline",
+        "operationId": "get_pipeline",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Pipeline"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Run Pipeline",
+        "description": "Run a pipeline.",
+        "operationId": "run_pipeline",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequestRun-Input"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "202": {
+            "description": "Pipeline execution started",
+            "content": {
+              "application/json": {
+                "example": {
+                  "instance_id": "a1b2c3d4e5f6"
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      },
+      "delete": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Delete Pipeline",
+        "operationId": "delete_pipeline",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "description": "Pipeline deleted",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Cannot delete pipeline"
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{name}/{version}/benchmark": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Benchmark Pipeline",
+        "description": "Benchmark a pipeline.",
+        "operationId": "benchmark_pipeline",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequestBenchmark-Input"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/pipelines/{name}/{version}/optimize": {
+      "post": {
+        "tags": [
+          "pipelines"
+        ],
+        "summary": "Optimize Pipeline",
+        "operationId": "optimize_pipeline",
+        "parameters": [
+          {
+            "name": "name",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Name"
+            }
+          },
+          {
+            "name": "version",
+            "in": "path",
+            "required": true,
+            "schema": {
+              "type": "string",
+              "title": "Version"
+            }
+          }
+        ],
+        "requestBody": {
+          "required": true,
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/PipelineRequestOptimize"
+              }
+            }
+          }
+        },
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+
+                }
+              }
+            }
+          },
+          "422": {
+            "description": "Validation Error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HTTPValidationError"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/devices": {
+      "get": {
+        "tags": [
+          "devices"
+        ],
+        "summary": "Get Devices",
+        "operationId": "get_devices",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Device"
+                  },
+                  "type": "array",
+                  "title": "Response Get Devices"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/models": {
+      "get": {
+        "tags": [
+          "models"
+        ],
+        "summary": "Get Models",
+        "operationId": "get_models",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/Model"
+                  },
+                  "type": "array",
+                  "title": "Response Get Models"
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "/metrics": {
+      "get": {
+        "tags": [
+          "metrics"
+        ],
+        "summary": "Get Metrics",
+        "operationId": "get_metrics",
+        "responses": {
+          "200": {
+            "description": "Successful Response",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "items": {
+                    "$ref": "#/components/schemas/MetricSample"
+                  },
+                  "type": "array",
+                  "title": "Response Get Metrics"
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  },
+  "components": {
+    "schemas": {
+      "Device": {
+        "properties": {
+          "device_name": {
+            "type": "string",
+            "title": "Device Name"
+          },
+          "full_device_name": {
+            "type": "string",
+            "title": "Full Device Name"
+          },
+          "device_type": {
+            "$ref": "#/components/schemas/DeviceType"
+          },
+          "device_family": {
+            "$ref": "#/components/schemas/DeviceFamily"
+          },
+          "gpu_id": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Gpu Id"
+          }
+        },
+        "type": "object",
+        "required": [
+          "device_name",
+          "full_device_name",
+          "device_type",
+          "device_family",
+          "gpu_id"
+        ],
+        "title": "Device"
+      },
+      "DeviceFamily": {
+        "type": "string",
+        "enum": [
+          "CPU",
+          "GPU",
+          "NPU"
+        ],
+        "title": "DeviceFamily"
+      },
+      "DeviceType": {
+        "type": "string",
+        "enum": [
+          "DISCRETE",
+          "INTEGRATED"
+        ],
+        "title": "DeviceType"
+      },
+      "HTTPValidationError": {
+        "properties": {
+          "detail": {
+            "items": {
+              "$ref": "#/components/schemas/ValidationError"
+            },
+            "type": "array",
+            "title": "Detail"
+          }
+        },
+        "type": "object",
+        "title": "HTTPValidationError"
+      },
+      "MetricSample": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "timestamp": {
+            "type": "integer",
+            "title": "Timestamp"
+          },
+          "value": {
+            "type": "number",
+            "title": "Value"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "description",
+          "timestamp",
+          "value"
+        ],
+        "title": "MetricSample"
+      },
+      "Model": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "display_name": {
+            "type": "string",
+            "title": "Display Name"
+          },
+          "category": {
+            "$ref": "#/components/schemas/ModelCategory"
+          },
+          "precision": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Precision"
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "display_name",
+          "category",
+          "precision"
+        ],
+        "title": "Model"
+      },
+      "ModelCategory": {
+        "type": "string",
+        "enum": [
+          "classification",
+          "detection"
+        ],
+        "title": "ModelCategory"
+      },
+      "Pipeline": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "$ref": "#/components/schemas/PipelineType"
+          },
+          "launch_config": {
+            "additionalProperties": true,
+            "type": "object",
+            "title": "Launch Config"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "type",
+          "launch_config",
+          "parameters"
+        ],
+        "title": "Pipeline"
+      },
+      "PipelineDefinition": {
+        "properties": {
+          "name": {
+            "type": "string",
+            "title": "Name"
+          },
+          "version": {
+            "type": "string",
+            "title": "Version"
+          },
+          "description": {
+            "type": "string",
+            "title": "Description"
+          },
+          "type": {
+            "$ref": "#/components/schemas/PipelineType"
+          },
+          "launch_string": {
+            "type": "string",
+            "title": "Launch String"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "name",
+          "version",
+          "description",
+          "type",
+          "launch_string",
+          "parameters"
+        ],
+        "title": "PipelineDefinition"
+      },
+      "PipelineInstanceState": {
+        "type": "string",
+        "enum": [
+          "RUNNING",
+          "COMPLETED",
+          "ERROR",
+          "ABORTED"
+        ],
+        "title": "PipelineInstanceState"
+      },
+      "PipelineInstanceStatus": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "start_time": {
+            "type": "integer",
+            "title": "Start Time"
+          },
+          "elapsed_time": {
+            "type": "integer",
+            "title": "Elapsed Time"
+          },
+          "state": {
+            "$ref": "#/components/schemas/PipelineInstanceState"
+          },
+          "total_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Total Fps"
+          },
+          "per_stream_fps": {
+            "anyOf": [
+              {
+                "type": "number"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Per Stream Fps"
+          },
+          "ai_streams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Ai Streams"
+          },
+          "non_ai_streams": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Non Ai Streams"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "start_time",
+          "elapsed_time",
+          "state",
+          "total_fps",
+          "per_stream_fps",
+          "ai_streams",
+          "non_ai_streams"
+        ],
+        "title": "PipelineInstanceStatus"
+      },
+      "PipelineInstanceSummary": {
+        "properties": {
+          "id": {
+            "type": "string",
+            "title": "Id"
+          },
+          "request": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineRequestRun-Output"
+              },
+              {
+                "$ref": "#/components/schemas/PipelineRequestBenchmark-Output"
+              }
+            ],
+            "title": "Request"
+          },
+          "type": {
+            "type": "string",
+            "title": "Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "id",
+          "request",
+          "type"
+        ],
+        "title": "PipelineInstanceSummary"
+      },
+      "PipelineParameters": {
+        "properties": {
+          "default": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Default"
+          }
+        },
+        "type": "object",
+        "required": [
+          "default"
+        ],
+        "title": "PipelineParameters"
+      },
+      "PipelineParametersBenchmark": {
+        "properties": {
+          "fps_floor": {
+            "type": "integer",
+            "title": "Fps Floor",
+            "default": 30
+          },
+          "ai_stream_rate": {
+            "type": "integer",
+            "title": "Ai Stream Rate",
+            "default": 100
+          },
+          "launch_config": {
+            "type": "string",
+            "title": "Launch Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "launch_config"
+        ],
+        "title": "PipelineParametersBenchmark"
+      },
+      "PipelineParametersRun": {
+        "properties": {
+          "inferencing_channels": {
+            "type": "integer",
+            "title": "Inferencing Channels",
+            "default": 1
+          },
+          "recording_channels": {
+            "type": "integer",
+            "title": "Recording Channels",
+            "default": 0
+          },
+          "launch_config": {
+            "type": "string",
+            "title": "Launch Config"
+          }
+        },
+        "type": "object",
+        "required": [
+          "launch_config"
+        ],
+        "title": "PipelineParametersRun"
+      },
+      "PipelineRequestBenchmark-Input": {
+        "properties": {
+          "async_": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Async",
+            "default": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/PipelineParametersBenchmark"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "parameters",
+          "tags"
+        ],
+        "title": "PipelineRequestBenchmark"
+      },
+      "PipelineRequestBenchmark-Output": {
+        "properties": {
+          "async_": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Async",
+            "default": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/PipelineParametersBenchmark"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "parameters",
+          "tags"
+        ],
+        "title": "PipelineRequestBenchmark"
+      },
+      "PipelineRequestOptimize": {
+        "properties": {
+          "async_": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Async",
+            "default": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "additionalProperties": true,
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Parameters"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "parameters",
+          "tags"
+        ],
+        "title": "PipelineRequestOptimize"
+      },
+      "PipelineRequestRun-Input": {
+        "properties": {
+          "async_": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Async",
+            "default": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/PipelineParametersRun"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "parameters",
+          "tags"
+        ],
+        "title": "PipelineRequestRun"
+      },
+      "PipelineRequestRun-Output": {
+        "properties": {
+          "async_": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Async",
+            "default": true
+          },
+          "source": {
+            "$ref": "#/components/schemas/Source"
+          },
+          "parameters": {
+            "$ref": "#/components/schemas/PipelineParametersRun"
+          },
+          "tags": {
+            "anyOf": [
+              {
+                "additionalProperties": {
+                  "type": "string"
+                },
+                "type": "object"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Tags"
+          }
+        },
+        "type": "object",
+        "required": [
+          "source",
+          "parameters",
+          "tags"
+        ],
+        "title": "PipelineRequestRun"
+      },
+      "PipelineType": {
+        "type": "string",
+        "enum": [
+          "GStreamer",
+          "FFmpeg"
+        ],
+        "title": "PipelineType"
+      },
+      "PipelineValidation": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/PipelineType"
+          },
+          "launch_string": {
+            "type": "string",
+            "title": "Launch String"
+          },
+          "parameters": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PipelineParameters"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "launch_string",
+          "parameters"
+        ],
+        "title": "PipelineValidation"
+      },
+      "Source": {
+        "properties": {
+          "type": {
+            "$ref": "#/components/schemas/SourceType"
+          },
+          "uri": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Uri"
+          }
+        },
+        "type": "object",
+        "required": [
+          "type",
+          "uri"
+        ],
+        "title": "Source"
+      },
+      "SourceType": {
+        "type": "string",
+        "enum": [
+          "uri",
+          "gst"
+        ],
+        "title": "SourceType"
+      },
+      "ValidationError": {
+        "properties": {
+          "loc": {
+            "items": {
+              "anyOf": [
+                {
+                  "type": "string"
+                },
+                {
+                  "type": "integer"
+                }
+              ]
+            },
+            "type": "array",
+            "title": "Location"
+          },
+          "msg": {
+            "type": "string",
+            "title": "Message"
+          },
+          "type": {
+            "type": "string",
+            "title": "Error Type"
+          }
+        },
+        "type": "object",
+        "required": [
+          "loc",
+          "msg",
+          "type"
+        ],
+        "title": "ValidationError"
+      }
+    }
+  }
+}

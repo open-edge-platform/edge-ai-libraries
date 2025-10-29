@@ -28,6 +28,25 @@ x-vippet: &vippet
     - ./shared/models/:/models
 
 services:
+  vippet-ui:
+    image: docker.io/intel/vippet-ui:${DOCKER_TAG}
+    build:
+      context: .
+      target: ${TARGET:-prod}
+      dockerfile: ui/Dockerfile
+      args:
+        http_proxy:
+        https_proxy:
+        no_proxy:
+    container_name: ui
+    ports:
+      - "80:80"
+    restart: on-failure:5
+    environment:
+      TZ: America/Los_Angeles
+      http_proxy: ${http_proxy}
+      https_proxy: ${https_proxy}
+      no_proxy: ${no_proxy}
   models:
     profiles: [do-not-start]
     image: docker.io/intel/vippet-models:${DOCKER_TAG}
