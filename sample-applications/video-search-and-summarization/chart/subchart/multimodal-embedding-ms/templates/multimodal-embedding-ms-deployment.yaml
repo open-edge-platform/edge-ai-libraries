@@ -85,6 +85,11 @@ spec:
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
+      {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+            - name: workspace
+              mountPath: /opt/data
+              subPath: embeddingmodels
+      {{- end }}
       volumes:
         - name: tmp
           emptyDir: {}
