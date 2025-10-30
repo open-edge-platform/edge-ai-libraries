@@ -4,5 +4,5 @@
 .env
 docs/
 examples/
-ovmodels/
+ov_models/
 tests/
