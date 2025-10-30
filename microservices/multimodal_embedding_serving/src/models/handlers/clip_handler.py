@@ -19,7 +19,7 @@ performance on Intel hardware.
 """
 
 from pathlib import Path
-from typing import List, Union, Dict, Any
+from typing import List, Union, Dict, Any, Optional
 import torch
 import torch.nn.functional as F
 import types
@@ -78,6 +78,7 @@ class CLIPHandler(BaseEmbeddingModel):
         # OpenVINO models
         self.ov_image_encoder = None
         self.ov_text_encoder = None
+        self._embedding_dim: Optional[int] = None
         
     def load_model(self) -> None:
         """
@@ -97,6 +98,7 @@ class CLIPHandler(BaseEmbeddingModel):
             Exception: If model loading fails for any reason
         """
         try:
+            self._embedding_dim = None
             logger.info(f"Loading CLIP model: {self.model_name} with pretrained: {self.pretrained}")
             
             if self.use_openvino:
@@ -345,11 +347,64 @@ class CLIPHandler(BaseEmbeddingModel):
             This method performs a forward pass with a dummy input to determine
             the actual embedding dimension of the loaded model.
         """
-        if self.model is None:
-            raise RuntimeError("Model not loaded. Call load_model() first.")
-        
-        # Get embedding dimension from the model
-        sample_image = torch.randn(1, 3, 224, 224)
-        with torch.no_grad():
-            features = self.model.encode_image(sample_image)
-        return features.shape[-1]
+        if self._embedding_dim is not None:
+            return self._embedding_dim
+
+        if self.preprocess is None:
+            raise RuntimeError("Preprocessing pipeline not initialized. Call load_model() first.")
+
+        image_size = self._get_preprocess_image_size()
+        dummy_image = Image.new("RGB", (image_size, image_size), color=0)
+        image_tensor = self.preprocess(dummy_image).unsqueeze(0)
+
+        if self.use_openvino:
+            if self.ov_image_encoder is None:
+                raise RuntimeError("OpenVINO image encoder not initialized. Call load_model() first.")
+
+            input_data = image_tensor.detach().cpu().numpy()
+            result = self.ov_image_encoder.infer_new_request({self.ov_image_encoder.inputs[0]: input_data})
+            output_array = next(iter(result.values()))
+            if hasattr(output_array, "to_numpy"):
+                output_array = output_array.to_numpy()
+            self._embedding_dim = int(output_array.shape[-1])
+        else:
+            if self.model is None:
+                raise RuntimeError("Model not loaded. Call load_model() first.")
+
+            try:
+                sample_param = next(self.model.parameters())
+                device = sample_param.device
+                dtype = sample_param.dtype
+            except StopIteration:
+                device = torch.device("cpu")
+                dtype = torch.float32
+
+            image_tensor = image_tensor.to(device=device, dtype=dtype)
+            with torch.no_grad():
+                features = self.model.encode_image(image_tensor)
+            self._embedding_dim = int(features.shape[-1])
+
+        return self._embedding_dim
+
+    def _get_preprocess_image_size(self) -> int:
+        """Infer the expected image resolution from the preprocess pipeline."""
+        default_size = 224
+
+        if self.preprocess is None:
+            return default_size
+
+        transforms = getattr(self.preprocess, "transforms", None)
+        if not transforms:
+            return default_size
+
+        for transform in transforms:
+            size = getattr(transform, "size", None)
+            if size is None:
+                continue
+
+            if isinstance(size, (tuple, list)) and len(size) > 0:
+                return int(size[0])
+            if isinstance(size, int):
+                return int(size)
+
+        return default_size
