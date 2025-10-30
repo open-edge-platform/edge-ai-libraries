@@ -11,7 +11,6 @@ global:
   huggingfaceToken: ""
 
   # vlmName is Vision-Language Model Name used by VLM Inference Microservice
-  # vlmName: "Qwen/Qwen2.5-VL-3B-Instruct"
   vlmName: ""
   # llmName is Large Language Model Name used by OVMS service
   llmName: ""
