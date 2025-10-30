@@ -317,7 +317,12 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
         break;
     case VA_SURFACE_CAPS_FEATURE:
     case VA_MEMORY_CAPS_FEATURE:
-        result = ImagePreprocessorType::VAAPI_SYSTEM;
+        if ((device.find("NPU") != std::string::npos) || (device.find("AUTO") != std::string::npos) ||
+            (device.find("MULTI") != std::string::npos)) {
+            result = ImagePreprocessorType::VAAPI_SYSTEM;
+        } else {
+            result = ImagePreprocessorType::VAAPI_SURFACE_SHARING;
+        }
         break;
     case DMA_BUF_CAPS_FEATURE:
 #ifdef ENABLE_VPUX
@@ -650,6 +655,13 @@ int getGPURenderDevId(GvaBaseInference *gva_base_inference) {
 bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference, size_t max_streams) {
 
     const std::string device(gva_base_inference->device);
+
+    if (!gva_base_inference->share_va_display_ctx) {
+        GVA_INFO("\n[%s] Do not share VADisplay ctx (%p) for [ gva_base_inference {%s} model_instance_id {%s} ]\n",
+                 __FUNCTION__, static_cast<void *>(gva_base_inference->priv->va_display.get()),
+                 GST_ELEMENT_NAME(gva_base_inference), std::string(gva_base_inference->model_instance_id).c_str());
+        return false;
+    }
 
     // Check reference count if display is set
     if (gva_base_inference->priv->va_display) {
