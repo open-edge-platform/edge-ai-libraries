@@ -111,25 +111,48 @@ export class SearchStateService {
     this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
 
     try {
+      console.log('=== RUNNING SEARCH ===');
+      console.log(`Query ID: ${queryId}, Query: ${query}, Tags: ${JSON.stringify(query.tags)}`);
+      
       const results = await this.runSearch(queryId, query.query, query.tags);
+      
+      console.log('=== SEARCH RESULTS PROCESSING ===');
+      console.log('Results structure:', JSON.stringify(results, null, 2));
+      console.log('Results.results length:', results.results?.length || 0);
+      
       if (results.results.length > 0) {
         const relevantResults = results.results.find(
           (el) => el.query_id === queryId,
         );
 
+        console.log('=== RELEVANT RESULTS CHECK ===');
+        console.log('Looking for query_id:', queryId);
+        console.log('Found relevant results:', !!relevantResults);
         if (relevantResults) {
+          console.log('Relevant results count:', relevantResults.results?.length || 0);
+        } else {
+          console.log('Available query_ids in results:', results.results.map(r => r.query_id));
+        }
+
+        if (relevantResults) {
+          console.log('=== UPDATING RESULTS ===');
           const freshEntity = await this.updateResults(
             queryId,
             relevantResults,
           );
+          console.log('Fresh entity after update:', JSON.stringify(freshEntity, null, 2));
           return freshEntity;
         }
+        console.log('=== NO RELEVANT RESULTS FOUND ===');
         return null;
       } else {
+        console.log('=== NO RESULTS FROM SEARCH API ===');
         Logger.warn(`No results found for query ID ${queryId}`);
         return null;
       }
     } catch (error) {
+      console.log('=== SEARCH ERROR ===');
+      console.log('Error details:', error);
       Logger.error(`Error running search for query ID ${queryId}`, error);
       const errorMessage =
         'No videos found in search database. Please upload relevant videos before running queries.';
@@ -138,6 +161,7 @@ export class SearchStateService {
         SearchQueryStatus.ERROR,
         errorMessage,
       );
+      console.log('Updated query with error:', JSON.stringify(updatedQuery, null, 2));
       const enrichedQuery = await this.enrichQueryWithVideos(updatedQuery);
       this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
       return null;
@@ -151,20 +175,34 @@ export class SearchStateService {
       tags,
     };
 
+    console.log('=== SEARCH STATE SERVICE ===');
+    console.log('Running search with payload:', JSON.stringify([queryShim], null, 2));
+
     const results = await lastValueFrom(this.$searchShim.search([queryShim]));
+
+    console.log('=== SEARCH API RESPONSE ===');
+    console.log('Raw response:', JSON.stringify(results.data, null, 2));
 
     return results.data || { results: [] };
   }
 
   async updateResults(queryId: string, results: SearchResultBody) {
+    console.log('=== UPDATE RESULTS METHOD ===');
+    console.log('Query ID:', queryId);
+    console.log('Results body:', JSON.stringify(results, null, 2));
+    console.log('Results count:', results.results?.length || 0);
+    
     const query = await this.$searchDB.addResults(queryId, results.results);
     if (query) {
+      console.log('=== UPDATING QUERY STATUS TO IDLE ===');
       await this.$searchDB.updateQueryStatus(
         query.queryId,
         SearchQueryStatus.IDLE,
       );
 
       const enrichedQuery = await this.enrichQueryWithVideos(query);
+      console.log('=== EMITTING SOCKET UPDATE ===');
+      console.log('Enriched query:', JSON.stringify(enrichedQuery, null, 2));
       this.$emitter.emit(SocketEvent.SEARCH_UPDATE, enrichedQuery);
     }
     return query;

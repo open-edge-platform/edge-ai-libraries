@@ -1,0 +1,63 @@
+# Video Search Microservice Configuration
+# Frame-to-Video Aggregation Settings
+
+# Search Configuration
+search:
+  max_results_before_aggregation: 10000  # AGGREGATION_INITIAL_K
+  
+# Aggregation Configuration
+aggregation:
+  # Enable/disable frame-to-video aggregation
+  enabled: true  # AGGREGATION_ENABLED
+  
+  # Temporal segment clustering strategy
+  strategy: "temporal_segment_clustering"
+  
+  # Segment duration in seconds for temporal clustering
+  segment_duration_seconds: 8  # AGGREGATION_SEGMENT_DURATION
+  
+  # Minimum gap between segments from same video (Metro AI Suite inspired)
+  min_temporal_gap_seconds: 5  # AGGREGATION_MIN_GAP
+  
+  # Maximum number of final video results to return
+  final_max_results: 20  # AGGREGATION_MAX_RESULTS
+  
+  # Length normalization to prevent bias toward longer videos
+  length_normalization:
+    enabled: true
+    baseline_duration_seconds: 30  # 30-second baseline for normalization
+  
+  # Scoring configuration
+  scoring:
+    density_bonus_cap: 0.3  # Maximum bonus for multiple high-scoring frames (30%)
+    object_detection_bonus: 0.05  # Bonus per detected object crop (5%)
+    context_seek_offset_seconds: 1.5  # Seek before best frame for context
+  
+  # Filtering configuration
+  filtering:
+    overlap_filter_enabled: true  # Enable temporal overlap filtering
+    min_frame_score_threshold: 0.5  # Minimum relevance score to consider
+
+# Environment Variable Mapping
+# These can be overridden via environment variables:
+#
+# AGGREGATION_ENABLED=true
+# AGGREGATION_SEGMENT_DURATION=8
+# AGGREGATION_MIN_GAP=5
+# AGGREGATION_MAX_RESULTS=20
+# AGGREGATION_INITIAL_K=100
+
+# Example Docker Compose Override:
+# environment:
+#   - AGGREGATION_ENABLED=true
+#   - AGGREGATION_SEGMENT_DURATION=8
+#   - AGGREGATION_MIN_GAP=5
+#   - AGGREGATION_MAX_RESULTS=20
+#   - AGGREGATION_INITIAL_K=100
+
+# Performance Notes:
+# - segment_duration_seconds: 8 seconds provides good balance for traffic videos
+# - min_temporal_gap_seconds: 5 seconds prevents duplicate nearby results
+# - initial_k: 100 ensures sufficient frames for good aggregation
+# - length_normalization prevents bias toward longer videos
+# - object_detection_bonus rewards precise object matches

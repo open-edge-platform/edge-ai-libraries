@@ -66,6 +66,13 @@ class Settings(BaseSettings):
     CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
     EMBEDDING_LENGTH: int = 0
 
+    # Frame-to-Video Aggregation Settings
+    AGGREGATION_SEGMENT_DURATION: int = Field(default=8, env="AGGREGATION_SEGMENT_DURATION")
+    AGGREGATION_MIN_GAP: int = Field(default=5, env="AGGREGATION_MIN_GAP")
+    AGGREGATION_MAX_RESULTS: int = Field(default=20, env="AGGREGATION_MAX_RESULTS")
+    AGGREGATION_INITIAL_K: int = Field(default=1000, env="AGGREGATION_INITIAL_K")
+    AGGREGATION_ENABLED: bool = Field(default=True, env="AGGREGATION_ENABLED")
+
 
 settings = Settings()
 logger.debug(f"Settings: {settings.dict()}")
