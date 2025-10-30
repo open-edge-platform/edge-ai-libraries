@@ -10,8 +10,8 @@ data:
   {{- else }}
   IMAGE_EMBEDDING_MODEL_NAME: {{ required "imageEmbeddingModel is required and cannot be empty" .Values.imageEmbeddingModel | quote }}
   {{- end }}
-  EMBEDDING_USE_OV: {{ if .Values.global.gpu.multimodalembeddingmsEnabled }}"true"{{ else }}"false"{{ end }}
-  EMBEDDING_DEVICE: {{ if .Values.global.gpu.multimodalembeddingmsEnabled }}"GPU"{{ else }}"CPU"{{ end }}
+  EMBEDDING_USE_OV: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "true" "false" }}'
+  EMBEDDING_DEVICE: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "GPU" "CPU" }}'
   USE_ONLY_TEXT_EMBEDDINGS: {{ .Values.useOnlyTextEmbeddings | quote }}
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
