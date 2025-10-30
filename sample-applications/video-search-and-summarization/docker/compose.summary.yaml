@@ -88,7 +88,7 @@ services:
       - vs_network
 
   ovms-service:
-    image: openvino/model_server:2025.1
+    image: openvino/model_server:2025.3
     profiles:
       - ovms
     environment:
