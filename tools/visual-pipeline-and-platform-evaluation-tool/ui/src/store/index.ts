@@ -4,7 +4,6 @@ import { api } from "@/api/api.generated.ts";
 export const store = configureStore({
   reducer: {
     [api.reducerPath]: api.reducer,
-    // ...inne reducery
   },
   middleware: (getDefaultMiddleware) =>
     getDefaultMiddleware().concat(api.middleware),
