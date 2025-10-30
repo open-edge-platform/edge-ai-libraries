@@ -1,4 +1,4 @@
-FROM docker.io/library/rust:1.87 AS qmassa
+FROM docker.io/library/rust:1.88 AS qmassa
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -6,9 +6,9 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked qmassa
+RUN cargo install --locked qmassa@1.0.1
 
-FROM docker.io/library/telegraf:1.36.1 AS collector
+FROM docker.io/library/telegraf:1.36.3 AS collector
 
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
 
@@ -25,5 +25,8 @@ COPY qmassa_reader.py qmassa_reader.py
 COPY read_cpu_freq.sh read_cpu_freq.sh
 RUN chmod +x read_cpu_freq.sh
 
+COPY entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
 # nosemgrep: missing-user-entrypoint
-ENTRYPOINT ["/usr/bin/telegraf", "--config", "/etc/telegraf/telegraf.conf"]
+CMD ["/entrypoint.sh"]

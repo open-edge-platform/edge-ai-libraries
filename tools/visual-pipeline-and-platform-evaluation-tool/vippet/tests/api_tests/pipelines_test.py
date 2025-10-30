@@ -103,7 +103,7 @@ class TestPipelinesAPI(unittest.TestCase):
             response.headers["Location"],
             "/pipelines/user-defined-pipelines/test-pipeline",
         )
-        self.assertEqual(response.json(), "Pipeline created")
+        self.assertEqual(response.json(), {"message": "Pipeline created"})
 
     @patch("api.routes.pipelines.pipeline_manager")
     def test_create_pipeline_duplicate(self, mock_pipeline_manager):

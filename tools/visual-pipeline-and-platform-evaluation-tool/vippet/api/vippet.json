@@ -60,9 +60,7 @@
             },
             "content": {
               "application/json": {
-                "schema": {
-
-                },
+                "schema": {},
                 "example": {
                   "message": "Pipeline created"
                 }
@@ -108,9 +106,7 @@
             "description": "Pipeline is valid",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           },
@@ -378,9 +374,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           },
@@ -437,9 +431,7 @@
             "description": "Pipeline deleted",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           },
@@ -502,9 +494,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           },
@@ -563,9 +553,7 @@
             "description": "Successful Response",
             "content": {
               "application/json": {
-                "schema": {
-
-                }
+                "schema": {}
               }
             }
           },

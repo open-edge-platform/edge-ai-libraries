@@ -7,7 +7,7 @@ from models import SupportedModelsManager
 router = APIRouter()
 
 
-@router.get("", response_model=List[schemas.Model])
+@router.get("", operation_id="get_models", response_model=List[schemas.Model])
 def get_models():
     models = SupportedModelsManager().get_all_available_models()
     return [

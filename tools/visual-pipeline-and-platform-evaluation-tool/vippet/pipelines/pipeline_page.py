@@ -1,13 +1,10 @@
 import logging
 import sys
-from typing import List
 
 import gradio as gr
 
 import utils
 from benchmark import Benchmark
-from chart import Chart, create_charts
-from telemetry import Telemetry
 from device import DeviceDiscovery, DeviceFamily, DeviceType
 from explore import GstInspector
 from gstpipeline import PipelineLoader
@@ -23,8 +20,6 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
-charts: List[Chart] = create_charts(device_discovery.list_devices())
-telemetry = Telemetry(charts)
 
 try:
     supported_models_manager = SupportedModelsManager()
@@ -336,20 +331,6 @@ class Pipeline:
         # Stop button
         self.stop_button = gr.Button("Stop", variant="stop", visible=False)
 
-        # Metrics plots
-        self.plots = [
-            gr.Plot(
-                value=charts[i].create_empty_fig(),
-                label=charts[i].title,
-                min_width=500,
-                show_label=False,
-            )
-            for i in range(len(charts))
-        ]
-
-        # Timer for stream data
-        self.timer = gr.Timer(1, active=False)
-
         self.pipeline_information = gr.Markdown(
             f"### {self.config['name']}\n{self.config['definition']}"
         )
@@ -459,12 +440,6 @@ class Pipeline:
                 queue=False,
             )
 
-            # Handle timer ticks
-            self.timer.tick(
-                telemetry.generate_stream_data,
-                outputs=self.plots,
-            )
-
             # Handle run button clicks
             self.run_button.click(
                 # Update the state of the buttons
@@ -476,24 +451,6 @@ class Pipeline:
                 outputs=[self.run_button, self.benchmark_button, self.stop_button],
                 queue=True,
             ).then(
-                # Reset the telemetry plots
-                lambda: (
-                    [c.reset() for c in charts]
-                    or [
-                        self.plots[i].value.update(data=[])
-                        for i in range(len(self.plots))
-                        if hasattr(self.plots[i], "value")
-                        and self.plots[i].value is not None
-                    ]
-                    or self.plots
-                ),
-                outputs=self.plots,
-            ).then(
-                # Start the telemetry timer
-                lambda: gr.update(active=True),
-                inputs=None,
-                outputs=self.timer,
-            ).then(
                 # Execute the pipeline and stream live preview (if enabled)
                 self._on_run,
                 inputs=self.components,
@@ -502,16 +459,6 @@ class Pipeline:
                     self.output_video_player,
                     self.best_config_textbox,
                 ],
-            ).then(
-                # Stop the telemetry timer
-                lambda: gr.update(active=False),
-                inputs=None,
-                outputs=self.timer,
-            ).then(
-                # Generate the persistent telemetry data
-                telemetry.generate_stream_data,
-                inputs=None,
-                outputs=self.plots,
             ).then(
                 # Update the visibility of the buttons
                 lambda: [
@@ -541,38 +488,10 @@ class Pipeline:
                 None,
                 [self.best_config_textbox, self.output_video_player],
             ).then(
-                # Reset the telemetry plots
-                lambda: (
-                    [c.reset() for c in charts]
-                    or [
-                        self.plots[i].value.update(data=[])
-                        for i in range(len(self.plots))
-                        if hasattr(self.plots[i], "value")
-                        and self.plots[i].value is not None
-                    ]
-                    or self.plots
-                ),
-                outputs=self.plots,
-            ).then(
-                # Start the telemetry timer
-                lambda: gr.update(active=True),
-                inputs=None,
-                outputs=self.timer,
-            ).then(
                 # Execute the benchmark
                 self._on_benchmark,
                 inputs=self.components,
                 outputs=[self.best_config_textbox],
-            ).then(
-                # Stop the telemetry timer
-                lambda: gr.update(active=False),
-                inputs=None,
-                outputs=self.timer,
-            ).then(
-                # Generate the persistent telemetry data
-                telemetry.generate_stream_data,
-                inputs=None,
-                outputs=self.plots,
             ).then(
                 # Reset the state of the buttons
                 lambda: [
@@ -623,15 +542,6 @@ class Pipeline:
 
                     # Render the best configuration textbox
                     self.best_config_textbox.render()
-
-                    # Metrics plots
-                    with gr.Row():
-                        # Render plots
-                        for i in range(len(self.plots)):
-                            self.plots[i].render()
-
-                        # Render the timer
-                        self.timer.render()
 
                 # Right column
                 with gr.Column(scale=1, min_width=150):

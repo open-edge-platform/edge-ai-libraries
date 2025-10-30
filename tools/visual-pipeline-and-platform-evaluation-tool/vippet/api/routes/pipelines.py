@@ -1,32 +1,27 @@
-import os
 import tempfile
 from typing import List
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import JSONResponse
-from uuid import UUID
 
 import api.api_schemas as schemas
 from managers.pipeline_manager import PipelineManager
-from gstpipeline import PipelineLoader
-from optimize import PipelineOptimizer
-from explore import GstInspector
-from utils import download_file, replace_file_path
-from benchmark import Benchmark
+from managers.instance_manager import InstanceManager
 
 TEMP_DIR = tempfile.gettempdir()
 
 router = APIRouter()
-gst_inspector = GstInspector()
 pipeline_manager = PipelineManager()
+instance_manager = InstanceManager()
 
 
-@router.get("", response_model=List[schemas.Pipeline])
+@router.get("", operation_id="get_pipelines", response_model=List[schemas.Pipeline])
 def get_pipelines():
     return pipeline_manager.get_pipelines()
 
 
 @router.post(
     "",
+    operation_id="create_pipeline",
     status_code=201,
     responses={
         201: {
@@ -36,6 +31,9 @@ def get_pipelines():
                     "description": "URL of the created pipeline",
                     "schema": {"type": "string"},
                 }
+            },
+            "content": {
+                "application/json": {"example": {"message": "Pipeline created"}}
             },
         },
         500: {"description": "Internal server error"},
@@ -49,7 +47,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
 
         location = f"/pipelines/{body.name}/{body.version}"
         return JSONResponse(
-            content="Pipeline created",
+            content={"message": "Pipeline created"},
             status_code=201,
             headers={"Location": location},
         )
@@ -63,6 +61,7 @@ def create_pipeline(body: schemas.PipelineDefinition):
 
 @router.post(
     "/validate",
+    operation_id="validate_pipeline",
     status_code=200,
     responses={
         200: {"description": "Pipeline is valid"},
@@ -75,7 +74,45 @@ def validate_pipeline(body: schemas.PipelineValidation):
     return JSONResponse(content={"message": "Pipeline valid"}, status_code=200)
 
 
-@router.get("/{name}/{version}", response_model=schemas.Pipeline)
+@router.get(
+    "/status",
+    operation_id="get_pipeline_statuses",
+    response_model=List[schemas.PipelineInstanceStatus],
+)
+def get_pipeline_statuses():
+    """Get status of all pipeline instances."""
+    return instance_manager.get_all_instance_statuses()
+
+
+@router.get(
+    "/{instance_id}",
+    operation_id="get_pipeline_instance_summary",
+    response_model=schemas.PipelineInstanceSummary,
+)
+def get_instance_summary(instance_id: str):
+    """Get summary of a specific pipeline instance."""
+    summary = instance_manager.get_instance_summary(instance_id)
+    if summary is None:
+        raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
+    return summary
+
+
+@router.get(
+    "/{instance_id}/status",
+    operation_id="get_pipeline_instance_status",
+    response_model=schemas.PipelineInstanceStatus,
+)
+def get_pipeline_instance_status(instance_id: str):
+    """Get status of a specific pipeline instance."""
+    status = instance_manager.get_instance_status(instance_id)
+    if status is None:
+        raise HTTPException(status_code=404, detail=f"Instance {instance_id} not found")
+    return status
+
+
+@router.get(
+    "/{name}/{version}", operation_id="get_pipeline", response_model=schemas.Pipeline
+)
 def get_pipeline(name: str, version: str):
     try:
         return pipeline_manager.get_pipeline_by_name_and_version(name, version)
@@ -85,103 +122,32 @@ def get_pipeline(name: str, version: str):
         raise HTTPException(status_code=500, detail=f"Unexpected error: {str(e)}")
 
 
-@router.post("/{name}/{version}")
+@router.post(
+    "/{name}/{version}",
+    operation_id="run_pipeline",
+    responses={
+        202: {
+            "description": "Pipeline execution started",
+            "content": {
+                "application/json": {"example": {"instance_id": "a1b2c3d4e5f6"}}
+            },
+        },
+    },
+)
 def run_pipeline(name: str, version: str, body: schemas.PipelineRequestRun):
-    # Download the pipeline recording file
-    file_name = os.path.basename(str(body.source.uri))
-    file_path = download_file(
-        body.source.uri,
-        file_name,
-    )
-
-    launch_string = (
-        body.parameters.launch_config
-    )  # TODO: Convert launch_config in JSON format to launch_string
-
-    # Replace file path in launch string if needed
-    launch_string = replace_file_path(launch_string, file_path)
-
-    # Initialize pipeline object from launch string
-    gst_pipeline, config = PipelineLoader.load_from_launch_string(
-        launch_string, name=version
-    )
-
-    inferencing_channels = body.parameters.inferencing_channels
-    recording_channels = body.parameters.recording_channels
-
-    if recording_channels + inferencing_channels == 0:
-        return {"error": "At least one channel must be enabled"}
-
-    # TODO: Enable live preview when implemented
-    param_grid = {"live_preview_enabled": ["false"]}
-
-    optimizer = PipelineOptimizer(
-        pipeline=gst_pipeline,
-        param_grid=param_grid,
-        channels=(recording_channels, inferencing_channels),
-        elements=gst_inspector.get_elements(),
-    )
-
-    optimizer.run_without_live_preview()
-
-    best_result = optimizer.evaluate()
-    if best_result is None:
-        best_result_message = "No valid result was returned by the optimizer."
-    else:
-        best_result_message = (
-            f"Total FPS: {best_result.total_fps:.2f}, "
-            f"Per Stream FPS: {best_result.per_stream_fps:.2f}"
-        )
-
-    return best_result_message
+    """Run a pipeline."""
+    instance_id = instance_manager.run_pipeline(name, version, body)
+    return JSONResponse(content={"instance_id": instance_id}, status_code=202)
 
 
-@router.post("/{name}/{version}/benchmark")
+@router.post("/{name}/{version}/benchmark", operation_id="benchmark_pipeline")
 def benchmark_pipeline(name: str, version: str, body: schemas.PipelineRequestBenchmark):
-    # Download the pipeline recording file
-    file_name = os.path.basename(str(body.source.uri))
-    file_path = download_file(
-        body.source.uri,
-        file_name,
-    )
-
-    launch_string = (
-        body.parameters.launch_config
-    )  # TODO: Convert launch_config in JSON format to launch_string
-
-    # Replace file path in launch string if needed
-    launch_string = replace_file_path(launch_string, file_path)
-
-    # Initialize pipeline object from launch string
-    gst_pipeline, config = PipelineLoader.load_from_launch_string(
-        launch_string, name=version
-    )
-
-    # Disable live preview for benchmarking
-    param_grid = {"live_preview_enabled": ["false"]}
-
-    # Initialize the benchmark class
-    bm = Benchmark(
-        pipeline_cls=gst_pipeline,
-        fps_floor=body.parameters.fps_floor,
-        rate=body.parameters.ai_stream_rate,
-        parameters=param_grid,
-        elements=gst_inspector.get_elements(),
-    )
-
-    # Run the benchmark
-    s, ai, non_ai, fps = bm.run()
-
-    # Return results
-    try:
-        result = config["parameters"]["benchmark"]["result_format"]
-    except KeyError:
-        result = "Best Config: {s} streams ({ai} AI, {non_ai} non_AI) -> {fps:.2f} FPS"
-
-    return result.format(s=s, ai=ai, non_ai=non_ai, fps=fps)
+    """Benchmark a pipeline."""
+    benchmark_id = instance_manager.benchmark_pipeline(name, version, body)
+    return JSONResponse(content={"benchmark_id": benchmark_id}, status_code=202)
 
 
-@router.post("/{name}/{version}/optimize")
+@router.post("/{name}/{version}/optimize", operation_id="optimize_pipeline")
 def optimize_pipeline(
     name: str, version: str, request: schemas.PipelineRequestOptimize
 ):
@@ -190,6 +156,7 @@ def optimize_pipeline(
 
 @router.delete(
     "/{name}/{version}",
+    operation_id="delete_pipeline",
     status_code=200,
     responses={
         200: {"description": "Pipeline deleted"},
@@ -200,21 +167,10 @@ def delete_pipeline(name: str, version: str):
     return {"message": "Pipeline deleted"}
 
 
-@router.get("/status", response_model=List[schemas.PipelineInstanceStatus])
-def get_pipeline_status():
-    return []
-
-
-@router.delete("/{instance_id}", response_model=List[schemas.PipelineInstanceStatus])
-def stop_pipeline_instance(instance_id: UUID):
-    return []
-
-
-@router.get("/{instance_id}", response_model=schemas.PipelineInstanceSummary)
-def get_pipeline_summary(instance_id: UUID):
-    return []
-
-
-@router.get("/{instance_id}/status", response_model=schemas.PipelineInstanceStatus)
-def get_pipeline_instance_status(instance_id: UUID):
+@router.delete(
+    "/{instance_id}",
+    operation_id="stop_pipeline_instance",
+    response_model=List[schemas.PipelineInstanceStatus],
+)
+def stop_pipeline_instance(instance_id: str):
     return []
