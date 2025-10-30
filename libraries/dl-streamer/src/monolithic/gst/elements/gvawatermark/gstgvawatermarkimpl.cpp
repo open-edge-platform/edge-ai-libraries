@@ -348,7 +348,9 @@ static VADisplay resolve_va_display_from_gst_display(GstObject *gst_display_obj)
     return get_va ? get_va((gpointer)gst_display_obj) : nullptr;
 }
 #else
-static VADisplay resolve_va_display_from_gst_display(GstObject *) { return nullptr; }
+static VADisplay resolve_va_display_from_gst_display(GstObject *) {
+    return nullptr;
+}
 #endif
 
 // Grab VADisplay from GstContext (handles both pointer and object cases)
@@ -476,7 +478,9 @@ static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     return VA_INVALID_SURFACE;
 }
 #else
-static VASurfaceID get_surface_from_buffer(GstBuffer *) { return VA_INVALID_SURFACE; }
+    static VASurfaceID get_surface_from_buffer(GstBuffer *) {
+        return VA_INVALID_SURFACE;
+    }
 #endif
 
 static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans, GstBuffer *buf) {
@@ -624,7 +628,7 @@ static void gst_gva_watermark_impl_class_init(GstGvaWatermarkImplClass *klass) {
                                                          (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
-Impl::Impl(GstVideoInfo *info, InferenceBackend::MemoryType mem_type) : _vinfo(info),  _mem_type(mem_type) {
+Impl::Impl(GstVideoInfo *info, InferenceBackend::MemoryType mem_type) : _vinfo(info), _mem_type(mem_type) {
     assert(_vinfo);
     if (GST_VIDEO_INFO_COLORIMETRY(_vinfo).matrix == GstVideoColorMatrix::GST_VIDEO_COLOR_MATRIX_UNKNOWN)
         throw std::runtime_error("GST_VIDEO_COLOR_MATRIX_UNKNOWN");
