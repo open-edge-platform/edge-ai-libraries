@@ -58,13 +58,7 @@ Open visudo:
 sudo visudo
 ```
 
-After the line:
-
-```bash
-Defaults        env_reset
-```
-
-Add this line:
+After the line with: `Defaults env_reset`, add another line with:
 
 ```bash
 Defaults        env_keep = "http_proxy https_proxy"
@@ -78,7 +72,7 @@ source /etc/profile
 
 ### Step 2: Provide access to the `/dev/dri/renderD12*` directory
 
-Check that the `/dev/dri/renderD12*` directory exists. The output from `ls` command should be similar to this:
+Check if the `/dev/dri/renderD12*` directory exists. The output from the `ls` command should be similar to this:
 
 ```bash
 ls -ltrah /dev/dri
