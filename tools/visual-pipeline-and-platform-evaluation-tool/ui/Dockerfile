@@ -19,9 +19,6 @@ RUN npm run build
 # Use Nginx for serving the built app
 FROM nginx:alpine
 
-# Set non-root user
-USER nginx
-
 # Copy the build output to Nginx's html directory (Vite builds to dist/, not build/)
 COPY --from=build /app/dist /usr/share/nginx/html
 
