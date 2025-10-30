@@ -4,6 +4,9 @@ FROM node:18 AS build
 # Set working directory
 WORKDIR /app
 
+# Set non-root user
+USER nginx
+
 # Copy package.json and package-lock.json
 COPY ui/package*.json ./
 
