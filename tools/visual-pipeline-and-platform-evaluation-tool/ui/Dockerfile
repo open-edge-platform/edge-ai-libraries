@@ -13,8 +13,6 @@ RUN npm ci
 # Copy the rest of the application code
 COPY ui/ .
 
-# CMD ["tail", "-f", "/dev/null"]
-
 # Build the React app for production
 RUN npm run build
 
