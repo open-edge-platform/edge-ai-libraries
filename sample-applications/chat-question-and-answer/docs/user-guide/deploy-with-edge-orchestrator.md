@@ -27,8 +27,12 @@ To deploy the **ChatQ&A** Application with the Edge Orchestrator, follow the ste
 1. Clone the **ChatQ&A** repository:
 
     ```bash
-    git clone <repository-url>
-    cd <repository-url>/sample-applications/chat-question-and-answer
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer
     ```
 
     The official `repository-url` is `https://github.com/open-edge-platform/edge-ai-libraries`. In case of forked repos, please ensure the right url is used when cloning the repo.

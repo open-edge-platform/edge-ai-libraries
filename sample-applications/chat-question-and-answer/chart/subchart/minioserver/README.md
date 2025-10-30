@@ -15,7 +15,11 @@ This guide provides the steps to deploy the MinIO server using the provided Helm
    Clone the repository containing the Helm chart to your local machine.
 
    ```sh
-   git clone git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   
    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/minioserver
    ```
    Adjust the repo link appropriately in case of forked repo.

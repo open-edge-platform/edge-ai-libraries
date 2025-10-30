@@ -8,7 +8,7 @@ services:
   broker:
     image: eclipse-mosquitto
     hostname: mqtt
-    container_name: mqtt_broker
+    container_name: mqtt-broker
     volumes:
       - ../utils/mosquitto:/mosquitto/config
     ports:
