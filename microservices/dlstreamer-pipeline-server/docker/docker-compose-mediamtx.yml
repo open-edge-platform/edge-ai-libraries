@@ -45,7 +45,8 @@ services:
       - RTSP_PORT=8554
       - ENABLE_WEBRTC=true
       - WEBRTC_SIGNALING_SERVER=http://${WHIP_SERVER_IP}:${WHIP_SERVER_PORT}
-      - no_proxy=$no_proxy,${RTSP_CAMERA_IP},otel-collector
+      - no_proxy=$no_proxy,${RTSP_CAMERA_IP},otel-collector,mediamtx-server
+      - NO_PROXY=$no_proxy,${RTSP_CAMERA_IP},otel-collector,mediamtx-server
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
       - GST_DEBUG=1
@@ -116,6 +117,15 @@ services:
       - MTX_SRT=no
       - MTX_WEBRTCTRACKGATHERTIMEOUT=${WHIP_SERVER_TIMEOUT}
       - MTX_WEBRTCADDRESS=:${WHIP_SERVER_PORT}
+      - MTX_WEBRTCICESERVERS2_0_URL=turn:${WHIP_SERVER_IP}:3478
+      - MTX_WEBRTCICESERVERS2_0_USERNAME=${MTX_WEBRTCICESERVERS2_0_USERNAME}
+      - MTX_WEBRTCICESERVERS2_0_PASSWORD=${MTX_WEBRTCICESERVERS2_0_PASSWORD}
+    ports:
+      - "${WHIP_SERVER_PORT}:8889"
+      - "8189:8189"
+      - "9997:9997"
+    networks:
+      - app_network
     network_mode: host
 
 networks:
@@ -128,3 +138,13 @@ volumes:
     driver_opts:
       type: tmpfs
       device: tmpfs
+
+  coturn:
+    image: coturn/coturn:latest
+    container_name: coturn
+    ports:
+      - "3478:3478"
+      - "3478:3478/udp"
+    command: ["-v"]  # Verbose mode for logging
+    networks:
+      - app_network

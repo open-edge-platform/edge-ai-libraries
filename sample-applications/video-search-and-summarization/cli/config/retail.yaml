@@ -1,0 +1,57 @@
+# Retail Store Video Analysis Configuration
+
+# Core processing settings
+chunkDuration: 10         # Duration of each video chunk in seconds
+samplingFrame: 7          # Frame sampling rate (analyze every Nth frame)
+
+# Advanced override settings
+overlapOverride: 0         # Seconds of overlap between consecutive video chunks
+# Multi-frame window is derived as samplingFrame + overlapOverride.
+
+
+# Generates detailed captions for multi-frame batches using VLM.
+framePromptOverride: |
+  You are a retail analytics specialist. The images are sequential frames of a video. Analyze the sequence of frames to provide a short description of the activities observed relevant to retail performance analysis.
+
+# Creates the final summary from individual multi-batch results.
+mapPromptOverride: |
+  You are provided with summaries of video segments of single video. Your task is to generate a concise summary of the entire video. Ensure that the summary:
+  - Clearly describes key actions, interactions, and notable details.
+  - Highlights important objects, people, and contextual information.
+  - Avoids unnecessary repetition and maintains coherence.
+  Don't treat internal video segments as checkpoints as those are just random segments and avoid referencing internal frames or segments, but rather create chronological or logical order of events. Format the output in Markdown.
+  Video Segments:
+
+  %data%
+
+# Reduces input size for final summary generation when multi-frame summaries exceed model limits
+reducePromptOverride: |
+  You are provided with multiple summaries of video segments. Your task is to combine these summaries into a single, cohesive and concise narrative. The final summary should:
+
+  - Accurately describe the key activities, events, interactions, and notable details observed across the entire video.
+  - Maintain temporal continuity to reflect the progression of events logically.
+  - Highlight significant details while avoiding redundancy or unnecessary repetition.
+  - Focus on capturing the most important and relevant information from the provided summaries.
+
+  %data%
+
+# Reduces input size for final summary generation when multi-frame summaries exceed model limits
+singlePromptOverride: |
+  Condense the following video summary into a shorter version while retaining all critical details, key activities, and important context. Ensure the reduced summary remains clear, coherent, and includes any identified objects or people where relevant. Focus on preserving the essence of the original summary in a more concise format:
+
+  %data%
+
+# Override for the Video Ingestion pipeline (e.g., object detection)
+ingestionPipelineOverride: "object_detection"  
+
+# Audio transcription model to use
+audioModelOverride: "medium.en"    
+
+# Path to the retail store video file to be analyzed
+videoPath: "resources/ceramic_store.mp4"
+
+# Backend endpoint for video processing
+backendEndpoint: "http://localhost:12345"  
+
+# Enable debug mode for detailed logging
+debug: true

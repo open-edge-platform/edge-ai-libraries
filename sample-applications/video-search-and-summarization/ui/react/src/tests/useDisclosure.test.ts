@@ -40,6 +40,34 @@ describe('useDisclosure hook test suite', () => {
     expect(onClose).toHaveBeenCalled();
   });
 
+  it('should not call onOpen when already open', () => {
+    const onOpen = vi.fn();
+    const { result } = renderHook(() => useDisclosure(true, { onOpen }));
+
+    act(() => {
+      const [, { open }] = result.current;
+      open();
+    });
+
+    const [isOpen] = result.current;
+    expect(isOpen).toBe(true);
+    expect(onOpen).not.toHaveBeenCalled();
+  });
+
+  it('should not call onClose when already closed', () => {
+    const onClose = vi.fn();
+    const { result } = renderHook(() => useDisclosure(false, { onClose }));
+
+    act(() => {
+      const [, { close }] = result.current;
+      close();
+    });
+
+    const [isOpen] = result.current;
+    expect(isOpen).toBe(false);
+    expect(onClose).not.toHaveBeenCalled();
+  });
+
   it('should toggle the disclosure state correctly', () => {
     const { result } = renderHook(() => useDisclosure());
 

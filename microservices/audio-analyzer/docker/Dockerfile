@@ -68,11 +68,11 @@ RUN pip install --upgrade pip
 ENV INTEL_OPENVINO_DIR=/opt/intel/openvino
 ENV LD_LIBRARY_PATH=/opt/intel/openvino/runtime/lib/intel64:/opt/intel/openvino/runtime/3rdparty/tbb/lib:/opt/intel/openvino/runtime/3rdparty/hddl/lib:$LD_LIBRARY_PATH
 ENV PYTHONPATH=/opt/intel/openvino/python:$PYTHONPATH
-ENV OUTPUT_DIR=$HOME/data
-ENV UPLOAD_DIR=$HOME/data/uploads
-ENV AUDIO_DIR=$HOME/data/audio
-ENV GGML_MODEL_DIR=$HOME/models/ggml
-ENV OPENVINO_MODEL_DIR=$HOME/models/openvino
+ENV OUTPUT_DIR=/data
+ENV UPLOAD_DIR=/data/upload
+ENV AUDIO_DIR=/data/audio
+ENV GGML_MODEL_DIR=/data/models/ggml
+ENV OPENVINO_MODEL_DIR=/data/models/openvino
 
 
 FROM python-base AS builder-base
@@ -98,24 +98,24 @@ RUN poetry lock --no-update && poetry install --no-dev --no-interaction --no-ans
 FROM python-base AS dev
 
 ENV FASTAPI_ENV=development
-
-# Create directories and set ownership
-RUN mkdir -p $SETUP_PATH /app && chown -R appuser:appuser $SETUP_PATH /app
-
-WORKDIR $SETUP_PATH
-
 # Copy the poetry installation and the virtual env to current image
 COPY --from=builder-base $POETRY_HOME $POETRY_HOME
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
+WORKDIR $SETUP_PATH
 # Install remaining dev dependencies
 USER appuser
 # Create models and data directories
 RUN mkdir -p $HOME/models $HOME/data
 RUN poetry install --no-interaction --no-ansi
 
+# Create directories and set ownership
+RUN mkdir -p $OUTPUT_DIR /app && chown -R appuser:appuser $OUTPUT_DIR /app
+
 # In dev mode, the application code will be mounted to /app from host to allow hot-reloads
 WORKDIR /app
+
+USER appuser
 
 EXPOSE 8000
 # Run with reload for development and increased timeout
@@ -123,13 +123,6 @@ CMD ["uvicorn", "audio_analyzer.main:app", "--host", "0.0.0.0", "--port", "8000"
 
 # Production stage - optimized for deployment
 FROM python-base AS prod
-
-ENV FASTAPI_ENV=production
-COPY --from=builder-base $SETUP_PATH $SETUP_PATH
-
-WORKDIR /app
-# Copy the application code for production
-COPY . /app/
 
 # Optionally download copyleft sources if requested
 ARG COPYLEFT_SOURCES=false
@@ -164,7 +157,16 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
 
-RUN chown -R appuser:appuser /app 
+ENV FASTAPI_ENV=production
+COPY --from=builder-base $SETUP_PATH $SETUP_PATH
+
+RUN mkdir -p $OUTPUT_DIR /app && chown -R appuser:appuser $OUTPUT_DIR /app
+
+WORKDIR /app
+# Copy the application code for production
+COPY . .
+
+USER appuser
 
 # Create a mini script on-the-fly to run Gunicorn with Uvicorn worker
 RUN echo '#!/bin/bash\n\
@@ -178,10 +180,6 @@ exec gunicorn audio_analyzer.main:app \
 --forwarded-allow-ips="*" \
 --access-logfile=- \
 --error-logfile=-\n' > /app/gunicorn_start.sh && chmod +x /app/gunicorn_start.sh
-
-USER appuser
-# Create models and data directories
-RUN mkdir -p $HOME/models $HOME/data
 
 EXPOSE 8000
 # Run Gunicorn with Uvicorn workers for production

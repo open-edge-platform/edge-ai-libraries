@@ -9,10 +9,10 @@ Video Search is a foundational retrieval-augmented generation (RAG) pipeline for
 ## Purpose
 
 The Video Search pipeline is designed to:
-- Demonstrate how you can use Intel® Edge AI catalog of inference microservices to quickly build and deploy on Intel Edge AI systems' portfolio. 
-- Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel Edge AI systems.
-- Showcase how popular frameworks like LangChain framework can be used to quickly implement or customize a video search pipeline and deploy the same on Intel Edge AI systems.
-- Showcase the competitiveness of Intel Edge AI systems to address varied deployment scenario requirements (edge-to-cloud).
+- Demonstrate how you can use Intel's Edge AI catalog of inference microservices to quickly build and deploy on Intel's Edge AI systems portfolios. 
+- Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel's Edge AI systems.
+- Showcase how popular frameworks like LangChain framework can be used to quickly implement or customize a Video Search pipeline and deploy the same on Intel's Edge AI systems.
+- Showcase the competitiveness of Intel's Edge AI systems to address varied deployment scenario requirements (edge-to-cloud).
 - Provide reference sample microservices for capabilities like video ingestion and UI frontend that reduces the effort to customize the application.
 
 ## Key Features
@@ -23,9 +23,9 @@ Key features include:
 
 - **Natural Language Querying**: The application enables users to search for or query video content using natural-language queries, making the search process intuitive and user-friendly.
 
-- **Optimized pipeline on Intel Edge® AI Systems hardware**: The application is optimized to run efficiently on Intel Edge AI systems, ensuring high performance, reliability, and cost of ownership. Refer to [system requirements](./system-requirements.md) for the list of hardware on which the pipeline is validated and optimized.
+- **Optimized pipeline on Intel Edge® AI Systems hardware**: The application is optimized to run efficiently on Intel's Edge AI systems, ensuring high performance, reliability, and cost of ownership. Refer to [system requirements](./system-requirements.md) for the list of hardware on which the pipeline is validated and optimized.
 
-- **Customizable pipeline with optimized microservices**: The application allows for customization of various components of the pipeline, such as video ingestion, model selection, and deployment options to suit specific use cases and deployment scenarios. Intel's edge AI inference microservices allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
+- **Customizable pipeline with optimized microservices**: The application allows for customization of various components of the pipeline, such as video ingestion, model selection, and deployment options to suit specific use cases and deployment scenarios. Intel's Edge AI inference microservices allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
 
 - **Flexible deployment options**: The application provides options for deployment using Docker\* Compose tool and Helm\* charts, enabling developers to choose the best deployment environment for their needs.
 

@@ -14,7 +14,7 @@ data:
     # FLATTENED_MODEL_NAME=$(echo ${model} | tr '/' '-')
     pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
     
-    pip3 install -U huggingface_hub[hf_xet]
+    pip3 install -U huggingface_hub[hf_xet]==0.36.0
 
     # Log in to Hugging Face using the provided token
     hf auth login --token $2

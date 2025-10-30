@@ -2,7 +2,19 @@ name: "[DLS] [WIN] Build Windows DLLs"
 run-name: "[DLS] [WIN] Build Windows DLLs (by ${{ github.actor }})"
 on:
   workflow_call:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
 permissions: {}
 env:
   DLS_TARGET_DIRECTORY: C:\dlstreamer
@@ -23,7 +35,7 @@ jobs:
             runner_print_label: ARL
     steps:
     - name: Checkout repository
-      uses: actions/checkout@v4.2.0
+      uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
         path: edge-ai-libraries-repo
         persist-credentials: false

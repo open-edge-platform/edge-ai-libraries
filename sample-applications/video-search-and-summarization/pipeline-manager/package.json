@@ -35,7 +35,7 @@
     "@opentelemetry/exporter-trace-otlp-http": "^0.203.0",
     "@opentelemetry/sdk-node": "^0.203.0",
     "@opentelemetry/sdk-trace-base": "^2.0.1",
-    "axios": "^1.11.0",
+    "axios": "^1.12.2",
     "base64-js": "^1.5.1",
     "https-proxy-agent": "^7.0.6",
     "luxon": "^3.7.1",
@@ -80,6 +80,9 @@
     "typescript": "^5.9.2",
     "typescript-eslint": "^8.39.0"
   },
+  "overrides": {
+    "sha.js": ">=2.4.12"
+  },
   "jest": {
     "moduleFileExtensions": [
       "js",
@@ -100,7 +103,10 @@
     "coverageDirectory": "./coverage",
     "testEnvironment": "node",
     "collectCoverageFrom": [
-      "**/*.(t|j)s"
+      "src/**/*.ts",
+      "!src/**/*.spec.ts",
+      "!src/**/*.test.ts",
+      "!src/**/*.d.ts"
     ]
   }
 }

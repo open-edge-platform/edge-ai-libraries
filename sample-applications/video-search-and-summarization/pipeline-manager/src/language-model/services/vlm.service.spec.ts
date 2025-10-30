@@ -8,6 +8,9 @@ import { TemplateService } from './template.service';
 import { HttpsProxyAgent } from 'https-proxy-agent';
 import { OpenAI } from 'openai';
 import { of } from 'rxjs';
+import { OpenaiHelperService } from './openai-helper.service';
+import { FeaturesService } from 'src/features/features.service';
+import { InferenceCountService } from './inference-count.service';
 
 // Mock OpenAI Client
 jest.mock('openai', () => {
@@ -75,12 +78,33 @@ describe('VlmService', () => {
       getMultipleFrameCaptionTemplateWithoutObjects: jest.fn().mockReturnValue('Describe these images:'),
     };
 
+    const mockOpenaiHelper = {
+      initializeClient: jest.fn().mockReturnValue({
+        client: new (OpenAI as any)(),
+        openAiConfig: {},
+        proxyAgent: {},
+      }),
+    };
+
+    const mockFeaturesService = {
+      hasFeature: jest.fn().mockReturnValue(true),
+    };
+
+    const mockInferenceCountService = {
+      setVlmConfig: jest.fn(),
+      incrementVlmProcessCount: jest.fn(),
+      decrementVlmProcessCount: jest.fn(),
+    };
+
     const module: TestingModule = await Test.createTestingModule({
       providers: [
         VlmService,
         { provide: DatastoreService, useValue: mockDatastoreService },
         { provide: ConfigService, useValue: mockConfigService },
-        { provide: TemplateService, useValue: mockTemplateService },
+  { provide: TemplateService, useValue: mockTemplateService },
+  { provide: OpenaiHelperService, useValue: mockOpenaiHelper },
+  { provide: FeaturesService, useValue: mockFeaturesService },
+  { provide: InferenceCountService, useValue: mockInferenceCountService },
       ],
     }).compile();
 
@@ -102,12 +126,9 @@ describe('VlmService', () => {
       // Force initialization
       await (service as any).initialize();
 
-      // Check if OpenAI was instantiated correctly
-      expect(OpenAI).toHaveBeenCalledWith({
-        apiKey: 'test-api-key',
-        baseURL: 'https://api.openai.com/v1',
-        httpAgent: expect.any(Object),
-      });
+  // Check that the OpenaiHelper.initializeClient was called and inference config set
+  expect((service as any).$openAiHelper.initializeClient).toHaveBeenCalledWith('test-api-key', 'https://api.openai.com/v1');
+  expect((service as any).$inferenceCount.setVlmConfig).toHaveBeenCalled();
     });
 
     it('should set the model from the available models', async () => {
@@ -130,8 +151,8 @@ describe('VlmService', () => {
       // Force initialization
       await (service as any).initialize();
 
-      // Check if HttpsProxyAgent was called
-      expect(HttpsProxyAgent).toHaveBeenCalledWith('http://proxy.example.com:8080');
+  // Ensure OpenaiHelper initializeClient was invoked (it handles proxy internally)
+  expect((service as any).$openAiHelper.initializeClient).toHaveBeenCalled();
     });
   });
 
@@ -207,18 +228,17 @@ describe('VlmService', () => {
       
       const result = await service.imageInference(userQuery, imageUri);
       
-      expect(service.client.chat.completions.create).toHaveBeenCalledWith({
+  expect(service.client.chat.completions.create).toHaveBeenCalledWith({
         messages: [
           {
             role: 'user',
             content: [
-              { type: 'text', text: userQuery },
-              { type: 'image_url', image_url: { url: 'https://example.com/image1.jpg' } },
-              { type: 'image_url', image_url: { url: 'https://example.com/image2.jpg' } },
+      { type: 'text', text: userQuery },
+      { type: 'video', video: ['https://example.com/image1.jpg', 'https://example.com/image2.jpg'] },
             ],
           },
         ],
-        model: expect.any(String),
+    model: service.model,
         do_sample: true,
         seed: 42,
         temperature: 0.7,
@@ -244,8 +264,8 @@ describe('VlmService', () => {
 
   describe('runSingleImage', () => {
     it('should encode image to base64 and call OpenAI API', async () => {
-      // Mock the encodeBase64ContentFromUrl method
-      jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockResolvedValueOnce('base64-encoded-image');
+  // Mock the encodeBase64ContentFromUrl method (synchronous return expected by implementation)
+  jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockReturnValueOnce('base64-encoded-image');
       
       const params = {
         fileNameOrUrl: 'test-image.jpg',
@@ -279,8 +299,8 @@ describe('VlmService', () => {
     });
 
     it('should use custom user query when provided', async () => {
-      // Mock the encodeBase64ContentFromUrl method
-      jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockResolvedValueOnce('base64-encoded-image');
+  // Mock the encodeBase64ContentFromUrl method (synchronous return expected by implementation)
+  jest.spyOn(service as any, 'encodeBase64ContentFromUrl').mockReturnValueOnce('base64-encoded-image');
       
       const params = {
         user_query: 'Custom query about this image:',
