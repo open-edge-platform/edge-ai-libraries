@@ -4,9 +4,6 @@ FROM node:18 AS build
 # Set working directory
 WORKDIR /app
 
-# Set non-root user
-USER nginx
-
 # Copy package.json and package-lock.json
 COPY ui/package*.json ./
 
@@ -21,6 +18,9 @@ RUN npm run build
 
 # Use Nginx for serving the built app
 FROM nginx:alpine
+
+# Set non-root user
+USER nginx
 
 # Copy the build output to Nginx's html directory (Vite builds to dist/, not build/)
 COPY --from=build /app/dist /usr/share/nginx/html
