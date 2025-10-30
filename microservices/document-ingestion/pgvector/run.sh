@@ -88,7 +88,7 @@ convert_pg_password() {
     password="${password//','/'%2C'}"
     password="${password//'{'/'%7B'}"
     password="${password//'}'/'%7D'}"
-    #echo "$password"
+    echo "$password"
 }
 CONVERTED_PGVECTOR_PASSWORD=$(convert_pg_password "$PGVECTOR_PASSWORD")
 
