@@ -56,11 +56,28 @@ else
 fi
 export IMAGE_REGISTRY="${REGISTRY}${PROJECT_NAME}/"
 
+# Handle the special characters in password for connection string
+convert_pg_password() {
+    local password="$1"
+    password="${password//'%'/'%25'}"
+    password="${password//':'/'%3A'}"
+    password="${password//'@'/'%40'}"
+    password="${password//'/'/'%2F'}"
+    password="${password//'+'/'%2B'}"
+    password="${password//' '/'%20'}"
+    password="${password//'?'/'%3F'}"
+    password="${password//'#'/'%23'}"
+    password="${password//'['/'%5B'}"
+    password="${password//']'/'%5D'}"
+    echo "$password"
+}
+CONVERTED_PGVECTOR_PASSWORD=$(convert_pg_password "$PGVECTOR_PASSWORD")
 
 # ---------------------------------------------------------------------------------------
 
 # This is setup based on previously set PGDB values
-export PG_CONNECTION_STRING="postgresql+psycopg://$PGVECTOR_USER:$PGVECTOR_PASSWORD@$PGVECTOR_HOST:5432/$PGVECTOR_DBNAME"
+export PG_CONNECTION_STRING="postgresql+psycopg://$PGVECTOR_USER:$CONVERTED_PGVECTOR_PASSWORD@$PGVECTOR_HOST:5432/$PGVECTOR_DBNAME"
+echo "Connection string is: $PG_CONNECTION_STRING"
 
 # Updating no_proxy to add required service names. Containers need to bypass proxy while connecting to these services.
 if ! [[ $no_proxy == *"${PGVECTOR_HOST}"* ]]; then
