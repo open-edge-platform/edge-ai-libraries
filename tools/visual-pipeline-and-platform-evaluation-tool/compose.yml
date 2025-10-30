@@ -32,7 +32,6 @@ services:
     image: docker.io/intel/vippet-ui:${DOCKER_TAG}
     build:
       context: .
-      target: ${TARGET:-prod}
       dockerfile: ui/Dockerfile
       args:
         http_proxy:
