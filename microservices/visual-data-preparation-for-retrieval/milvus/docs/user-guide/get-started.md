@@ -47,7 +47,7 @@ Note: supported media types: jpg, png, mp4
 2.  Set up environment variables, note that you need to set an embedding model first
 
     ``` bash
-    export EMBEDDING_MODEL_NAME="your-chosen-model" # Replace with your preferred model
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
     source env.sh 
     ```
 
@@ -85,6 +85,7 @@ curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ```
 
 ### Ingest Files
+**Note**: the file directory or single file sent in the request should be under the specific host directory created in Step 2.
 
 -    For Directory:
         ```curl
@@ -102,7 +103,7 @@ curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
         curl -X POST http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
         -H "Content-Type: application/json" \
         -d '{
-            "file_path": "/path/to/file.mp4",
+            "file_path": "/path/to/file",
             "meta": {
                 "key": "value"
             },
@@ -114,13 +115,13 @@ curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ### Get File Info
 
 ```curl
-curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file.mp4
+curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file
 ```
 
 ### Delete File in Database
 
 ```curl
-curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file.mp4
+curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file
 ```
 
 ### Clear Database

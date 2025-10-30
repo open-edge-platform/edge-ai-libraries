@@ -37,7 +37,7 @@ docker build -t retriever-milvus:latest --build-arg https_proxy=$https_proxy --b
 2.  Set up environment variables, note that you need to set an embedding model first
 
     ``` bash
-    export EMBEDDING_MODEL_NAME="your-chosen-model" # Replace with your preferred model
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
     source env.sh 
     ```
 

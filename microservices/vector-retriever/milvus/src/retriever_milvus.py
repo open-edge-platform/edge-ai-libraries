@@ -17,6 +17,7 @@ class MilvusRetriever:
     def __init__(self, collection_name="default"):
         self.collection_name = collection_name
         self.client = MilvusClient(uri=MILVUS_URI)
+        self.model_name = EMBEDDING_MODEL_NAME
         self.embed_url = EMBEDDING_BASE_URL
 
     def get_text_embedding(self, query):
@@ -28,6 +29,7 @@ class MilvusRetriever:
                 "text": query
             },
             "model": EMBEDDING_MODEL_NAME,
+            "encoding_format": "float"
         }
     
         response = requests.post(f"{self.embed_url}/embeddings", json=payload, headers=headers, timeout=10)
@@ -40,6 +42,7 @@ class MilvusRetriever:
 
         payload = {
             "model": EMBEDDING_MODEL_NAME,
+            "encoding_format": "float",
             "input": {
                 "type": "image_base64",
                 "image_base64": image_base64
