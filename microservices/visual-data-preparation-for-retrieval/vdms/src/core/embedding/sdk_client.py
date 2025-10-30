@@ -120,8 +120,15 @@ class SDKVDMSClient:
         
         # Get embedding dimensions - use handler's get_embedding_dim() if available
         if hasattr(self.model_handler, 'get_embedding_dim'):
-            self.embedding_dimensions = self.model_handler.get_embedding_dim()
-            logger.info(f"Using embedding dimensions from model handler: {self.embedding_dimensions}")
+            try:
+                self.embedding_dimensions = self.model_handler.get_embedding_dim()
+                logger.info(f"Using embedding dimensions from model handler: {self.embedding_dimensions}")
+            except Exception as exc:
+                logger.warning(
+                    "Model handler get_embedding_dim() failed with %s. Falling back to auto-detection.",
+                    exc,
+                )
+                self.embedding_dimensions = self._detect_embedding_dimensions()
         else:
             # Fallback to auto-detection for handlers without get_embedding_dim()
             self.embedding_dimensions = self._detect_embedding_dimensions()

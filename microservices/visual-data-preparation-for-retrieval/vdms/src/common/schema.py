@@ -106,7 +106,7 @@ class VideoRequest(BaseModel):
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
-    ] = None
+    ]
     object_detection: Optional[ObjectDetectionConfig] = Field(
         default=None,
         description="Object detection configuration for enhanced frame extraction"
@@ -183,4 +183,4 @@ class VideoSummaryRequest(BaseModel):
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
-    ] = None
+    ]

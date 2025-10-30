@@ -6,7 +6,7 @@ authors = []
 readme = "README.md"
 
 [tool.poetry.dependencies]
-python = ">=3.10,<3.13"
+python = ">=3.10,<3.14"
 fastapi = "^0.115.5"
 uvicorn = "^0.35.0"
 gunicorn = "^23.0.0"
@@ -49,8 +49,8 @@ isort = "^5.13.2"
 
 [tool.poetry.group.cpu.dependencies]
 numpy = { version = ">=2.1.2", source = "pytorch-cpu" }
-torch = { version = ">=2.8.0", source = "pytorch-cpu" }
-torchvision = { version = ">=0.23.0", source = "pytorch-cpu" }
+torch = { version = "==2.8.0", source = "pytorch-cpu" }
+torchvision = { version = "==0.23.0", source = "pytorch-cpu" }
 
 [[tool.poetry.source]]
 name = "pytorch-cpu"

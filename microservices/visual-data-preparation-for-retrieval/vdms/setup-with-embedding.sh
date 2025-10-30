@@ -21,7 +21,6 @@ export TAG=${TAG:-latest}
 
 # Registry handling
 [[ -n "$REGISTRY_URL" ]] && REGISTRY_URL="${REGISTRY_URL%/}/"
-[[ -n "$PROJECT_NAME" ]] && PROJECT_NAME="${PROJECT_NAME%/}/"
 export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 echo -e "${GREEN}Using Registry : ${YELLOW}$REGISTRY ${NC}"
 export no_proxy=${no_proxy},multimodal-embedding-serving,minio-server,vdms-vector-db
@@ -56,7 +55,7 @@ export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
 export DEVICE=${DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${OV_MODELS_DIR}
-export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"LATENCY"}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 
 # Device Configuration Helper Functions
 configure_device() {

@@ -14,14 +14,44 @@ export PROJECT_NAME=${PROJECT_NAME}
 export COVERAGE_REQ=80
 export PROJ_TEST_DIR=./tests
 host_ip=$(ip route get 1 | awk '{print $7}')
+export HOST_IP=${HOST_IP:-$host_ip}
+export TAG=${TAG:-latest}
 
 # Env vars for vdms-dataprep -----------------------------------------
 export INDEX_NAME="video-rag"
 export DEFAULT_BUCKET_NAME="vdms-bucket"
 export VDMS_DATAPREP_HOST_PORT=6007
 
+# Embedding and processing configuration -----------------------------
+export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
+export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
+export DEVICE=${DEVICE:-"CPU"}
+export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
+export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
+export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
+export DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
+export FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-"/tmp/dataprep"}
+export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+
+# Embedding microservice configuration -------------------------------
+export EMBEDDING_SERVER_PORT=${EMBEDDING_SERVER_PORT:-9777}
+export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-true}
+export DEFAULT_START_OFFSET_SEC=${DEFAULT_START_OFFSET_SEC:-0}
+export DEFAULT_FRAME_INTERVAL=${DEFAULT_FRAME_INTERVAL:-15}
+export DEFAULT_NUM_FRAMES=${DEFAULT_NUM_FRAMES:-64}
+export MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT:-"http://multimodal-embedding-serving:8000/embeddings"}
+
+# System user / group identifiers -----------------------------------
+export USER_ID=$(id -u)
+export USER_GROUP_ID=$(id -g)
+export VIDEO_GROUP_ID=$(getent group video | awk -F: '{printf "%s\n", $3}')
+export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
+
 # Model storage configuration for object detection
-export YOLOX_MODELS_VOLUME_NAME="${PROJECT_NAME:-}vdms-yolox-models"
+export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"
 export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 
 # Env vars for minio service ---------------------------
@@ -91,13 +121,25 @@ fi
 
 #------------------------------------------------------------------------------------------
 
+add_no_proxy_host() {
+    local host="$1"
+    if [[ -z "$host" ]]; then
+        return
+    fi
+    if [[ ",${no_proxy}," != *",${host},"* ]]; then
+        if [[ -n "$no_proxy" ]]; then
+            export no_proxy="${no_proxy},${host}"
+        else
+            export no_proxy="${host}"
+        fi
+    fi
+}
+
 # Updating no_proxy to add required service names. Containers need to bypass proxy while connecting to these services.
-if ! [[ $no_proxy == *"${VDMS_VDB_HOST}"* ]]; then
-    export no_proxy="${no_proxy},${VDMS_VDB_HOST}"
-fi
-if ! [[ $no_proxy == *"${MINIO_HOST}"* ]]; then
-    export no_proxy="${no_proxy},${MINIO_HOST}"
-fi
+add_no_proxy_host "${VDMS_VDB_HOST}"
+add_no_proxy_host "${MINIO_HOST}"
+add_no_proxy_host "multimodal-embedding-serving"
+export no_proxy_env=${no_proxy}
 
 # Run linter
 if [ "$1" = "lint" ] && [ $# -ge 1 ] && [ $# -le 2 ]; then
