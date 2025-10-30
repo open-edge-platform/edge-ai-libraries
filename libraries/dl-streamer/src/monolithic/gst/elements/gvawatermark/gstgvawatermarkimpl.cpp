@@ -7,8 +7,10 @@
 #include "gstgvawatermarkimpl.h"
 #include "gvawatermarkcaps.h"
 
+#ifndef _WIN32
 #include <dlstreamer/image_info.h>
 #include <gmodule.h>
+#endif
 
 #include <gst/allocators/gstdmabuf.h>
 #include <gst/base/gstbasetransform.h>
@@ -321,6 +323,7 @@ static gboolean gst_gva_watermark_impl_set_caps(GstBaseTransform *trans, GstCaps
     return true;
 }
 
+#ifndef _WIN32
 static VADisplay resolve_va_display_from_gst_display(GstObject *gst_display_obj) {
     if (!gst_display_obj)
         return nullptr;
@@ -344,6 +347,9 @@ static VADisplay resolve_va_display_from_gst_display(GstObject *gst_display_obj)
     }
     return get_va ? get_va((gpointer)gst_display_obj) : nullptr;
 }
+#else
+static VADisplay resolve_va_display_from_gst_display(GstObject *) { return nullptr; }
+#endif
 
 // Grab VADisplay from GstContext (handles both pointer and object cases)
 static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *context) {
@@ -355,6 +361,7 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
         self->gst_ctx = std::make_shared<dlstreamer::GSTContext>(GST_ELEMENT(self));
 
     if (!self->va_dpy && g_strcmp0(ctx_type, "gst.va.display.handle") == 0) {
+#ifndef _WIN32
         if (gst_structure_has_field(s, "va-display")) {
             self->va_dpy = (VADisplay)g_value_get_pointer(gst_structure_get_value(s, "va-display"));
             GST_INFO_OBJECT(self, "Acquired VADisplay pointer: %p", self->va_dpy);
@@ -367,9 +374,11 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
                 gst_object_unref(gst_disp);
             }
         }
+#endif
     }
 
     if (self->va_dpy && (!self->vaapi_ctx || !self->gst_to_vaapi)) {
+#ifndef _WIN32
         self->vaapi_ctx = std::make_shared<dlstreamer::VAAPIContext>(self->va_dpy);
         self->gst_to_vaapi = std::make_shared<dlstreamer::MemoryMapperGSTToVAAPI>(self->gst_ctx, self->vaapi_ctx);
         GST_INFO_OBJECT(self, "Initialized VAAPI context and GST->VAAPI mapper");
@@ -403,6 +412,7 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
     }
 
     GST_ELEMENT_CLASS(gst_gva_watermark_impl_parent_class)->set_context(elem, context);
+#endif
 }
 
 static bool buffer_has_va(GstBuffer *buf) {
@@ -422,6 +432,7 @@ static bool buffer_has_va(GstBuffer *buf) {
 }
 
 // Minimal fallback: resolve VASurfaceID from GstVA at runtime (no unstable headers)
+#ifndef _WIN32
 static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     if (!buf)
         return VA_INVALID_SURFACE;
@@ -464,6 +475,9 @@ static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     }
     return VA_INVALID_SURFACE;
 }
+#else
+static VASurfaceID get_surface_from_buffer(GstBuffer *) { return VA_INVALID_SURFACE; }
+#endif
 
 static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans, GstBuffer *buf) {
     GstGvaWatermarkImpl *gvawatermark = GST_GVA_WATERMARK_IMPL(trans);
@@ -481,6 +495,9 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
     bool have_va_context = (gvawatermark->vaapi_ctx || gvawatermark->va_dpy);
     bool force_cpu = (gvawatermark->device && g_strcmp0(gvawatermark->device, "CPU") == 0);
     bool use_gpu_path = have_va_context && buffer_is_va_like && !force_cpu;
+#ifdef _WIN32
+    use_gpu_path = false; // Force CPU path on Windows build
+#endif
 
     try {
         if (!gvawatermark->impl)
