@@ -99,7 +99,7 @@ InferenceBackend::MemoryType memoryTypeFromCaps(GstCaps *caps) {
 } // namespace
 
 struct Impl {
-    Impl(GstVideoInfo *info);
+    Impl(GstVideoInfo *info, InferenceBackend::MemoryType mem_type);
     bool extract_primitives(GstBuffer *buffer);
     int get_num_primitives() const;
     bool render(GstBuffer *buffer);
@@ -308,7 +308,7 @@ static gboolean gst_gva_watermark_impl_set_caps(GstBaseTransform *trans, GstCaps
     }
 
     try {
-        gvawatermark->impl = std::make_shared<Impl>(&gvawatermark->info);
+        gvawatermark->impl = std::make_shared<Impl>(&gvawatermark->info, mem_type);
     } catch (const std::exception &e) {
         GST_ELEMENT_ERROR(gvawatermark, CORE, FAILED, ("Could not initialize"),
                           ("Cannot create watermark instance. %s", Utils::createNestedErrorMsg(e).c_str()));
@@ -624,7 +624,7 @@ static void gst_gva_watermark_impl_class_init(GstGvaWatermarkImplClass *klass) {
                                                          (GParamFlags)(G_PARAM_READWRITE | G_PARAM_STATIC_STRINGS)));
 }
 
-Impl::Impl(GstVideoInfo *info) : _vinfo(info) {
+Impl::Impl(GstVideoInfo *info, InferenceBackend::MemoryType mem_type) : _vinfo(info),  _mem_type(mem_type) {
     assert(_vinfo);
     if (GST_VIDEO_INFO_COLORIMETRY(_vinfo).matrix == GstVideoColorMatrix::GST_VIDEO_COLOR_MATRIX_UNKNOWN)
         throw std::runtime_error("GST_VIDEO_COLOR_MATRIX_UNKNOWN");
@@ -660,20 +660,7 @@ size_t get_keypoint_index_by_name(const gchar *target_name, GValueArray *names) 
 bool Impl::extract_primitives(GstBuffer *buffer) {
     ITT_TASK(__FUNCTION__);
 
-    // For D3D11 input, map to system memory temporarily for rendering
-    GstBuffer *render_buffer = buffer;
-    GstMapInfo map_info;
-    bool mapped = false;
-
-    if (_mem_type == InferenceBackend::MemoryType::D3D11) {
-        // Map D3D11 buffer to system memory for CPU rendering
-        if (!gst_buffer_map(buffer, &map_info, GST_MAP_READWRITE)) {
-            return false;
-        }
-        mapped = true;
-    }
-
-    GVA::VideoFrame video_frame(render_buffer, _vinfo);
+    GVA::VideoFrame video_frame(buffer, _vinfo);
     auto video_frame_rois = video_frame.regions();
 
     prims.clear();
@@ -711,6 +698,18 @@ int Impl::get_num_primitives() const {
 
 bool Impl::render(GstBuffer *buffer) {
     ITT_TASK(__FUNCTION__);
+
+    // For D3D11 input, map to system memory temporarily for rendering
+    GstMapInfo map_info;
+    bool mapped = false;
+
+    if (_mem_type == InferenceBackend::MemoryType::D3D11) {
+        // Map D3D11 buffer to system memory for CPU rendering
+        if (!gst_buffer_map(buffer, &map_info, GST_MAP_READWRITE)) {
+            return false;
+        }
+        mapped = true;
+    }
 
     // Skip render if there are no primitives to draw
     if (!prims.empty()) {
