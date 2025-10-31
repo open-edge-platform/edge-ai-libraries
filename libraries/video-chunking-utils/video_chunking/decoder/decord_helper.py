@@ -2,8 +2,10 @@ import os
 import logging
 import numpy as np
 import threading
-import decord
-from decord import cpu
+from decord import VideoReader, cpu
+from urllib.parse import urlparse
+import requests
+import tempfile
 from typing import List, Tuple, Optional
 
 from video_chunking.decoder import BaseVideoDecoder
@@ -30,7 +32,7 @@ class DecordVideoDecoder(BaseVideoDecoder):
         # Initialize video reader without resize first to get original info
         # use lock to prevent concurrent access issues
         with vr_lock:
-            self.vr = decord.VideoReader(self._video_path, ctx=cpu(0), num_threads=DECORD_NUM_THREADS)
+            self.vr = self.robust_video_reader(self._video_path, ctx=cpu(0), num_threads=DECORD_NUM_THREADS)
             # Get video information
             self.original_fps = self.vr.get_avg_fps()
             self._total_frames = len(self.vr)
@@ -53,7 +55,7 @@ class DecordVideoDecoder(BaseVideoDecoder):
         # Reinitialize video reader with resize if needed
         if self.resize_size is not None:
             with vr_lock:
-                self.vr = decord.VideoReader(
+                self.vr = self.robust_video_reader(
                     self._video_path, 
                     ctx=cpu(0), 
                     num_threads=DECORD_NUM_THREADS, 
@@ -85,6 +87,33 @@ class DecordVideoDecoder(BaseVideoDecoder):
                 raise NotImplementedError("Unsupported video input, support 'file://', 'http://', 'https://' and local path")
         return video_path
     
+    @staticmethod
+    def robust_video_reader(url, ctx=cpu(0), width=-1, height=-1, num_threads=0, verify_ssl=True):
+        """
+        Robust video loading functions, supporting HTTPS.
+        """
+        # For local file and HTTP files, directly use decord
+        if not urlparse(url).scheme in ['https']:
+            return VideoReader(url, ctx=ctx, width=width, height=height, num_threads=num_threads)
+        
+        # For HTTPS URL, download first
+        response = requests.get(url, stream=True, verify=verify_ssl, timeout=30)
+        response.raise_for_status()
+        
+        # Create temporary files
+        with tempfile.NamedTemporaryFile(delete=False, suffix='.mp4') as temp_file:
+            for chunk in response.iter_content(chunk_size=8192):
+                if chunk:
+                    temp_file.write(chunk)
+            temp_path = temp_file.name
+        
+        vr = VideoReader(temp_path, ctx=ctx, width=width, height=height, num_threads=num_threads)
+        
+        # Clean up temporary files
+        os.unlink(temp_path)
+        
+        return vr
+
     def decode_next(self, num_frames: int = 1) -> Tuple[List[np.ndarray], List[float]]:
         """
         Decode and return the next n frames at target FPS.
