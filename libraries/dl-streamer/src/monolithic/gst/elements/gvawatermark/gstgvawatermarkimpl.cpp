@@ -10,6 +10,13 @@
 #ifndef _WIN32
 #include <dlstreamer/image_info.h>
 #include <gmodule.h>
+#else
+// Windows stubs for VA types to allow conditional compilation
+typedef void *VADisplay; // Opaque placeholder
+typedef int VASurfaceID; // Placeholder numeric surface identifier
+#ifndef VA_INVALID_SURFACE
+#define VA_INVALID_SURFACE (-1)
+#endif
 #endif
 
 #include <gst/allocators/gstdmabuf.h>
@@ -362,8 +369,9 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
     if (!self->gst_ctx)
         self->gst_ctx = std::make_shared<dlstreamer::GSTContext>(GST_ELEMENT(self));
 
-    if (!self->va_dpy && g_strcmp0(ctx_type, "gst.va.display.handle") == 0) {
 #ifndef _WIN32
+    // Acquire VA display (Linux only)
+    if (!self->va_dpy && g_strcmp0(ctx_type, "gst.va.display.handle") == 0) {
         if (gst_structure_has_field(s, "va-display")) {
             self->va_dpy = (VADisplay)g_value_get_pointer(gst_structure_get_value(s, "va-display"));
             GST_INFO_OBJECT(self, "Acquired VADisplay pointer: %p", self->va_dpy);
@@ -376,11 +384,9 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
                 gst_object_unref(gst_disp);
             }
         }
-#endif
     }
 
     if (self->va_dpy && (!self->vaapi_ctx || !self->gst_to_vaapi)) {
-#ifndef _WIN32
         self->vaapi_ctx = std::make_shared<dlstreamer::VAAPIContext>(self->va_dpy);
         self->gst_to_vaapi = std::make_shared<dlstreamer::MemoryMapperGSTToVAAPI>(self->gst_ctx, self->vaapi_ctx);
         GST_INFO_OBJECT(self, "Initialized VAAPI context and GST->VAAPI mapper");
@@ -388,12 +394,10 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
         static bool ocl_ctx_inited = false;
         if (!ocl_ctx_inited && !g_getenv("VA_GPU_DISABLE_VA_OCL_INIT")) {
             try {
-                // true = request interop (zero-copy); false would force fallback copy mode
                 cv::va_intel::ocl::initializeContextFromVA(self->va_dpy, /*interop*/ true);
                 GST_INFO_OBJECT(self, "OpenCV VA/OpenCL context initialized (zero-copy requested)");
                 ocl_ctx_inited = true;
 
-                // Optional: log selected OpenCL device
                 if (cv::ocl::useOpenCL()) {
                     cv::ocl::Device dev = cv::ocl::Device::getDefault();
 #if defined(CV_VERSION_MAJOR)
@@ -412,9 +416,9 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
             }
         }
     }
+#endif // !_WIN32
 
     GST_ELEMENT_CLASS(gst_gva_watermark_impl_parent_class)->set_context(elem, context);
-#endif
 }
 
 static bool buffer_has_va(GstBuffer *buf) {
@@ -434,7 +438,9 @@ static bool buffer_has_va(GstBuffer *buf) {
 }
 
 // Minimal fallback: resolve VASurfaceID from GstVA at runtime (no unstable headers)
-#ifndef _WIN32
+#ifdef _WIN32
+static VASurfaceID get_surface_from_buffer(GstBuffer *) { return VA_INVALID_SURFACE; }
+#else
 static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     if (!buf)
         return VA_INVALID_SURFACE;
@@ -477,10 +483,6 @@ static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     }
     return VA_INVALID_SURFACE;
 }
-#else
-    static VASurfaceID get_surface_from_buffer(GstBuffer *) {
-        return VA_INVALID_SURFACE;
-    }
 #endif
 
 static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans, GstBuffer *buf) {
