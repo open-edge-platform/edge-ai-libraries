@@ -75,7 +75,7 @@ class SupportedModel:
         self.default: bool = bool(default)
 
         self.model_path_full: str = os.path.join(MODELS_PATH, self.model_path)
-        # Set full_model_proc to the absolute path if model_proc is provided and not empty, otherwise empty string
+        # Set model_proc_full to the absolute path if model_proc is provided and not empty, otherwise empty string
         if self.model_proc is not None and self.model_proc.strip() != "":
             self.model_proc_full: str = os.path.join(MODELS_PATH, self.model_proc)
         else:

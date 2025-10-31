@@ -110,7 +110,7 @@
   display_name: Human Pose Estimation 0001 (FP16)
   source: omz
   type: classification
-  model_path: omz/human-pose-estimation-0001/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
+  model_path: omz/human-pose-estimation-0001/FP16/human-pose-estimation-0001.xml
   model_proc: omz/human-pose-estimation-0001/human-pose-estimation-0001.json
   unsupported_devices: ""
   precision: FP16
