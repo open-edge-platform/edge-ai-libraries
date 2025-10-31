@@ -160,19 +160,15 @@ def get_model_path_and_proc(display_name: str) -> tuple[str, str]:
     Returns the model path and model proc path for a given model display name.
 
     Raises:
-        ValueError: If the model is not supported (not found in supported models).
-        FileNotFoundError: If the model is supported but not installed.
+        ValueError: If the model is not supported (not found in installed models).
     """
     if display_name == "Disabled":
         return "Disabled", "Disabled"
 
-    for model in supported_models_manager.get_all_supported_models():
-        if model.display_name == display_name:
-            if not model.exists_on_disk():
-                raise FileNotFoundError(
-                    f"Model '{display_name}' is supported but not installed."
-                )
-            return model.model_path_full, model.model_proc_full
+    model = supported_models_manager.find_installed_model_by_display_name(display_name)
+    if model is not None:
+        return model.model_path_full, model.model_proc_full
+
     raise ValueError(f"Model '{display_name}' is not supported.")
 
 

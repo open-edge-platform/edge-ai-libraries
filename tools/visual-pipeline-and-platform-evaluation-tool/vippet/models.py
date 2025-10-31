@@ -292,3 +292,52 @@ class SupportedModelsManager:
                 return True
         # If model not found, treat as not supported
         return False
+
+    def find_installed_model_by_name(self, name: str) -> Optional[SupportedModel]:
+        """
+        Finds an installed model by its internal name.
+
+        Args:
+            name (str): The internal name of the model.
+
+        Returns:
+            Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
+        """
+        for model in self._models:
+            if model.name == name and model.exists_on_disk():
+                return model
+        return None
+
+    def find_installed_model_by_display_name(
+        self, display_name: str
+    ) -> Optional[SupportedModel]:
+        """
+        Finds an installed model by its display name.
+
+        Args:
+            display_name (str): The human-readable display name of the model.
+
+        Returns:
+            Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
+        """
+        for model in self._models:
+            if model.display_name == display_name and model.exists_on_disk():
+                return model
+        return None
+
+    def find_installed_model_by_model_path_full(
+        self, model_path_full: str
+    ) -> Optional[SupportedModel]:
+        """
+        Finds an installed model by its full model path.
+
+        Args:
+            model_path_full (str): The absolute path to the model file.
+
+        Returns:
+            Optional[SupportedModel]: The installed SupportedModel instance if found, otherwise None.
+        """
+        for model in self._models:
+            if model.model_path_full == model_path_full and model.exists_on_disk():
+                return model
+        return None
