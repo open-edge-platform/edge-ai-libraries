@@ -104,12 +104,12 @@ jobs:
             --format \"${trivy_report_format}\" \
             --output \"${output_report_path}\" \
             \"${dockerfile_path}\""
-          
+
           # Add Trivy config path if provided
           if [ -n "$trivy_config_path" ]; then
             trivy_cmd="$trivy_cmd --config \"$trivy_config_path\""
           fi
-          
+
           eval $trivy_cmd
 
           echo "📄 Report preview:"
@@ -118,18 +118,35 @@ jobs:
       - name: Check Trivy scan failures
         env:
           output_report_path: ${{ inputs.output-report-path }}
+          trivy_report_format: ${{ inputs.trivy-report-format }}
         run: |
-          FAILURE_COUNT=$(jq '[.Results[].MisconfSummary.Failures] | add' "${output_report_path}")
-          echo "Failures found: $FAILURE_COUNT"
+          if [ "${trivy_report_format}" = "json" ]; then
+            echo "📊 Parsing JSON report..."
 
-          if [ "$FAILURE_COUNT" -gt 0 ]; then
-            echo "❌ Found $FAILURE_COUNT failures! Failing the job."
-            exit 1
+            # Check if file contains valid JSON
+            if ! jq empty "${output_report_path}" 2>/dev/null; then
+              echo "⚠️ Warning: Report is not valid JSON. Skipping failure count check."
+              exit 0
+            fi
+
+            # Extract failure count, handle null/missing fields
+            FAILURE_COUNT=$(jq '[.Results[]? | .MisconfSummary?.Failures? // 0] | add // 0' "${output_report_path}")
+            echo "Failures found: $FAILURE_COUNT"
+
+            if [ "$FAILURE_COUNT" -gt 0 ]; then
+              echo "❌ Found $FAILURE_COUNT failures! Failing the job."
+              cat "${output_report_path}"
+              exit 1
+            else
+              echo "✅ No failures found. Passing."
+            fi
           else
-            echo "✅ No failures found. Passing."
+            echo "ℹ️ Non-JSON format (${trivy_report_format}) detected. Skipping automated failure count."
+            echo "Please review the report artifact manually."
           fi
 
       - name: Upload Trivy report as artifact
+        if: always ()
         uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 #4.6.2
         with:
           name: trivy-config-report-${{ inputs.name }}

@@ -27,13 +27,13 @@ spec:
       imagePullSecrets:
         {{- toYaml . | nindent 8 }}
       {{- end }}
-      {{- with .Values.nodeAffinity }}
+      {{- with .Values.podAffinity }}
       affinity:
-        nodeAffinity:
+        podAffinity:
           {{- toYaml . | nindent 10 }}
       {{- end }}
       containers:
-        - name: {{ .Release.Name }}
+        - name: {{ .Chart.Name }}
           image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.gpu.enabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
@@ -80,10 +80,10 @@ spec:
               subPath: huggingface
             - name: volume-data
               mountPath: /app/ov-models
-              subPath: ov-models/embeddingms
+              subPath: embeddingmodels
             - name: volume-data
               mountPath: /tmp/dataprep
-              subPath: dataprep
+              subPath: tmpvideos
             {{- if .Values.gpu.enabled }}
             - name: gpu-devices
               mountPath: /dev/dri
@@ -92,9 +92,9 @@ spec:
         - name: tmp
           emptyDir: {}
         - name: volume-data
-          {{- if .Values.global.pvcName }}
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

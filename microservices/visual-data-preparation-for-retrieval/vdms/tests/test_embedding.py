@@ -24,8 +24,7 @@ def test_validate_environment_import_error(mocker):
         vCLIPEmbeddings.validate_environment(values)
 
 
-def test_validate_environment_handle_import_error(mocker):
+def test_validate_environment_handle_value_error(mocker):
     values = {"no-model": "zero-model"}
-    mocker.patch("src.core.embedding.ValueError", side_effect=ImportError)
-    with pytest.raises(ImportError):
+    with pytest.raises(ValueError):
         vCLIPEmbeddings.validate_environment(values)

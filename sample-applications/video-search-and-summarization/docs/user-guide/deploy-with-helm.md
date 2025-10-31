@@ -1,6 +1,6 @@
 # How to deploy with Helm\* Chart
 
-This section shows how to deploy the Video Search and Summary Sample Application using Helm chart.
+This section shows how to deploy the Video Search and Summarization Sample Application using Helm chart.
 
 ## Prerequisites
 Before you begin, ensure that you have the following:
@@ -9,7 +9,6 @@ Before you begin, ensure that you have the following:
 - Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
 - Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
 - **Storage Requirement :** Application requests for **50GiB** of storage in its default configuration. (This should change with choice of models and needs to be properly configured). Please make sure that required storage is available in you cluster.
-- Video Search and Summary requires PVC storage class to support `RWMany` mode. In case the default storage class used does not support it, consider using storage solution like [LongHorn](https://longhorn.io/docs/) that provides this support. Video Search and Summary intends to remove this prerequisite in future release and use only `RWOnce` mode. 
 
 ## Helm Chart Installation
 
@@ -49,7 +48,10 @@ cd video-search-and-summarization
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+# Clone the latest on mainline
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 ##### Step 2: Change to the Chart Directory
@@ -90,7 +92,7 @@ Update or edit the values in YAML file as follows:
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
-| `multimodalembeddingms.textEmbeddingModel` | Embedding model name used in unified video search and summary | `Qwen/Qwen3-Embedding-0.6B` |
+| `multimodalembeddingms.textEmbeddingModel` | Embedding model name used in unified video search and summarization | `Qwen/Qwen3-Embedding-0.6B` |
 | `multimodalembeddingms.imageEmbeddingModel` | Embedding model name used in standalone video search application | `openai/clip-vit-base-patch32` |
 
 
@@ -210,11 +212,55 @@ To uninstall the Video Summary Helm chart, use the following command:
 helm uninstall vss -n $my_namespace
 ```
 
+## Updating PVC Storage Size
+
+If any of the microservice requires more or less storage than the default allotted storage in values file, this can be overridden for one or more services.
+
+### Updating storage for VDMS-Dataprep and MultiModal Embedding Service
+
+Set the required `sharedClaimSize` value while installing the helm chart. 
+
+For example, if installing chart in search only mode :
+
+```bash
+helm install vss . -f search_override.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+```
+
+If installing the chart in the combined Video Search and Summarization mode :
+
+```bash
+helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml --set sharedClaimSize=10Gi -n $my_namespace
+```
+
+### Updating storage for other microservices
+
+To update storage for other microservices we can, override the corresponding `claimSize` value in the main chart values file, while installing the chart.
+
+For example, for updating storage for VLM-Inference Microservice in Video Summarization mode :
+
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml --set vlminference.claimSize=50Gi -n $my_namespace
+```
+
+Similarly, for updating storage for OVMS in Video Summarization mode, we can install the chart in following ways :
+
+```bash
+helm install vss . -f summary_override.yaml -f user_values_override.yaml -f ovms_override.yaml --set ovms.claimSize=10Gi -n $my_namespace
+```
+
+Let's look at one more example, for updating storage for Minio Server in the combined Video Search and Summarization mode :
+
+```bash
+helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml --set minioserver.claimSize=10Gi -n $my_namespace
+```
+
+If not set while installing the chart, all services will claim a default amount of storage set in the values file.
+
 ## Verification
 
 - Ensure that all pods are running and the services are accessible.
-- Access the Video Summary application dashboard and verify that it is functioning as expected.
-- Upload a test video to verify that the ingestion, processing, and summary pipeline works correctly.
+- Access the Video Summarization application dashboard and verify that it is functioning as expected.
+- Upload a test video to verify that the ingestion, processing, and summarization pipeline works correctly.
 - Check that all components (MinIO, PostgreSQL, RabbitMQ, video ingestion, VLM inference, audio analyzer) are functioning properly.
 
 ## Troubleshooting
@@ -223,7 +269,7 @@ helm uninstall vss -n $my_namespace
 
   There could be several possible reasons for this. Most likely reasons are storage unavailability, node unavailability, network slow-down or faulty network etc. Please check with your cluster admin or try fresh installation of charts, **after deleting the PVC _(see next issue)_ and un-installing the current chart**.
 
-- **All containers Ready, all Pods in Running state, application UI is accessible but search or summary is failing.**
+- **All containers Ready, all Pods in Running state, application UI is accessible but search or summarization is failing.**
 
   If PVC has been configured to be retained, most common reason for application to fail to work is a stale PVC. This problem most likely occurs when helm charts are re-installed after some updates to helm chart or the application image. To fix this, delete the PVC before re-installing the helm chart by following command:
 

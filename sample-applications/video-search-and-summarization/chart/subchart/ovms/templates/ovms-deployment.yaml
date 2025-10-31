@@ -53,7 +53,7 @@ spec:
               mountPath: /opt/data
               subPath: ov-models
       containers:
-        - name: {{ .Values.ovms.name }}
+        - name: {{ .Chart.Name }}
           image: {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           livenessProbe:
@@ -84,9 +84,9 @@ spec:
           args: ["--port", "9300", "--rest_port", "8300", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
       volumes:
         - name: workspace
-          {{- if .Values.global.pvcName }}
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ include "ovms.fullname" . }}-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

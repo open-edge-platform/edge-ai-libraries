@@ -12,7 +12,8 @@ services:
       - "${EMBEDDING_SERVER_PORT}:8000"
     ipc: host
     environment:
-      no_proxy_env: ${no_proxy_env},vdms-dataprep-ms
+      no_proxy: ${no_proxy_env},vdms-dataprep-ms,localhost
+      no_proxy_env: ${no_proxy_env},vdms-dataprep-ms,localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}

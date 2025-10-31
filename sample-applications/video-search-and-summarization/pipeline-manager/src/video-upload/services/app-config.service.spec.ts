@@ -52,6 +52,7 @@ describe('AppConfigService', () => {
                 'openai.usecase': 'default',
                 'openai.vlmCaptioning.frameOverlap': 3,
                 'openai.vlmCaptioning.multiFrame': 12,
+                'audio.host': 'http://localhost:8080',
               };
               return config[key];
             }),

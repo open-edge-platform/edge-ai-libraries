@@ -87,7 +87,7 @@ AC_SUBST(plugindir)
 
 dnl set proper LDFLAGS for plugins
 GST_PLUGIN_LDFLAGS='-Wl, -module -avoid-version -export-symbols-regex [_]*\(gst_\|Gst\|GST_\).*'
-GST_LICENSE_PLUGIN_LDFLAGS='-Wl,--whole-archive,/home/pipeline-server/libLicensingLinkLibrary.a,--no-whole-archive -rdynamic -Wl'
+GST_LICENSE_PLUGIN_LDFLAGS='-Wl,--whole-archive,--no-whole-archive -rdynamic -Wl'
 AC_SUBST(GST_PLUGIN_LDFLAGS)
 AC_SUBST(GST_LICENSE_PLUGIN_LDFLAGS)
 
