@@ -30,11 +30,27 @@ RUN apk update && apk upgrade --no-cache && \
           /usr/bin/wget \
           /usr/bin/curl
 
+# Create nginx user and required directories with proper permissions
+RUN adduser -D -s /bin/sh nginx || true && \
+    mkdir -p /var/cache/nginx/client_temp \
+             /var/cache/nginx/proxy_temp \
+             /var/cache/nginx/fastcgi_temp \
+             /var/cache/nginx/uwsgi_temp \
+             /var/cache/nginx/scgi_temp && \
+    chown -R nginx:nginx /var/cache/nginx && \
+    chown -R nginx:nginx /var/log/nginx && \
+    chown -R nginx:nginx /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R nginx:nginx /var/run/nginx.pid
+
 # Copy the build output to Nginx's html directory (Vite builds to dist/, not build/)
 COPY --from=build /app/dist /usr/share/nginx/html
 
 # Copy custom Nginx configuration
 COPY ui/nginx.conf /etc/nginx/conf.d/default.conf
+
+# Ensure nginx user owns the html directory
+RUN chown -R nginx:nginx /usr/share/nginx/html
 
 # Expose port 80
 EXPOSE 80
