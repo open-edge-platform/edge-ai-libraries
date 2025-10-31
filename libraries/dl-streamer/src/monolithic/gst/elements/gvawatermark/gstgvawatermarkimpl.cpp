@@ -11,9 +11,10 @@
 #include <dlstreamer/image_info.h>
 #include <gmodule.h>
 #else
-// Windows stubs for VA types to allow conditional compilation
-typedef void *VADisplay; // Opaque placeholder
-typedef int VASurfaceID; // Placeholder numeric surface identifier
+// On Windows try to include libva headers if available; otherwise fall back to minimal constants.
+#if __has_include(<va/va.h>)
+#include <va/va.h>
+#endif
 #ifndef VA_INVALID_SURFACE
 #define VA_INVALID_SURFACE (-1)
 #endif
