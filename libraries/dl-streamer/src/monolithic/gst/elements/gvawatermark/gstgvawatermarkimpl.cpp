@@ -46,6 +46,14 @@
 #include <exception>
 #include <string>
 #include <typeinfo>
+#ifndef ENABLE_VAAPI
+// VAAPI disabled: provide minimal stub types/constants to satisfy signatures without libva.
+#ifndef VA_INVALID_SURFACE
+#define VA_INVALID_SURFACE (-1)
+#endif
+typedef int VASurfaceID; // simple integral placeholder
+typedef void *VADisplay; // opaque pointer placeholder
+#endif
 
 #define ELEMENT_LONG_NAME "Implementation for detection/classification/recognition results labeling"
 #define ELEMENT_DESCRIPTION "Implements gstgvawatermark element functionality."
@@ -331,6 +339,8 @@ static gboolean gst_gva_watermark_impl_set_caps(GstBaseTransform *trans, GstCaps
     return true;
 }
 
+// Resolve VA display only when VAAPI enabled (Linux path); otherwise stub.
+#ifdef ENABLE_VAAPI
 #ifndef _WIN32
 static VADisplay resolve_va_display_from_gst_display(GstObject *gst_display_obj) {
     if (!gst_display_obj)
@@ -356,9 +366,10 @@ static VADisplay resolve_va_display_from_gst_display(GstObject *gst_display_obj)
     return get_va ? get_va((gpointer)gst_display_obj) : nullptr;
 }
 #else
-static VADisplay resolve_va_display_from_gst_display(GstObject *) {
-    return nullptr;
-}
+static VADisplay resolve_va_display_from_gst_display(GstObject *) { return nullptr; }
+#endif
+#else
+static VADisplay resolve_va_display_from_gst_display(GstObject *) { return nullptr; }
 #endif
 
 // Grab VADisplay from GstContext (handles both pointer and object cases)
@@ -370,8 +381,8 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
     if (!self->gst_ctx)
         self->gst_ctx = std::make_shared<dlstreamer::GSTContext>(GST_ELEMENT(self));
 
-#ifndef _WIN32
-    // Acquire VA display (Linux only)
+// VAAPI context acquisition (Linux only) guarded by ENABLE_VAAPI
+#if defined(ENABLE_VAAPI) && !defined(_WIN32)
     if (!self->va_dpy && g_strcmp0(ctx_type, "gst.va.display.handle") == 0) {
         if (gst_structure_has_field(s, "va-display")) {
             self->va_dpy = (VADisplay)g_value_get_pointer(gst_structure_get_value(s, "va-display"));
@@ -417,7 +428,7 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
             }
         }
     }
-#endif // !_WIN32
+#endif // ENABLE_VAAPI && !WIN32
 
     GST_ELEMENT_CLASS(gst_gva_watermark_impl_parent_class)->set_context(elem, context);
 }
@@ -439,6 +450,7 @@ static bool buffer_has_va(GstBuffer *buf) {
 }
 
 // Minimal fallback: resolve VASurfaceID from GstVA at runtime (no unstable headers)
+#ifdef ENABLE_VAAPI
 #ifdef _WIN32
 static VASurfaceID get_surface_from_buffer(GstBuffer *) { return VA_INVALID_SURFACE; }
 #else
@@ -485,6 +497,9 @@ static VASurfaceID get_surface_from_buffer(GstBuffer *buf) {
     return VA_INVALID_SURFACE;
 }
 #endif
+#else
+static VASurfaceID get_surface_from_buffer(GstBuffer *) { return VA_INVALID_SURFACE; }
+#endif
 
 static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans, GstBuffer *buf) {
     GstGvaWatermarkImpl *gvawatermark = GST_GVA_WATERMARK_IMPL(trans);
@@ -502,8 +517,9 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
     bool have_va_context = (gvawatermark->vaapi_ctx || gvawatermark->va_dpy);
     bool force_cpu = (gvawatermark->device && g_strcmp0(gvawatermark->device, "CPU") == 0);
     bool use_gpu_path = have_va_context && buffer_is_va_like && !force_cpu;
-#ifdef _WIN32
-    use_gpu_path = false; // Force CPU path on Windows build
+// Disable GPU/VA render path when VAAPI feature disabled at build time.
+#ifndef ENABLE_VAAPI
+    use_gpu_path = false;
 #endif
 
     try {
@@ -518,7 +534,9 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
             return GST_FLOW_OK;
         }
 
-        if (use_gpu_path) {
+    // VA/GPU render path only when VAAPI enabled
+#ifdef ENABLE_VAAPI
+    if (use_gpu_path) {
             GST_TRACE_OBJECT(gvawatermark, "Using VA/GPU render path");
 
             VASurfaceID sid = VA_INVALID_SURFACE;
@@ -564,7 +582,8 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
                     cv::va_intel::convertToVASurface(gvawatermark->va_dpy, u, sid, cv::Size(width, height));
                 }
             }
-        }
+    }
+#endif // ENABLE_VAAPI
 
         if (!use_gpu_path) {
             GST_TRACE_OBJECT(gvawatermark, "Using CPU/System render path");
