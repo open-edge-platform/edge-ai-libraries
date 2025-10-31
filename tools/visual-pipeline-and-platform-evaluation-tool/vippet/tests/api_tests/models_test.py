@@ -14,26 +14,56 @@ class TestModelsAPI(unittest.TestCase):
         app.include_router(models_router, prefix="/models")
         cls.client = TestClient(app)
 
-    def _make_model(self, name, display_name, model_type):
-        """Helper method to create a mock model."""
+    @staticmethod
+    def _make_model(
+        name,
+        display_name,
+        model_type,
+        precision=None,
+        model_path_full=None,
+        model_proc_full=None,
+    ):
+        """Helper method to create a mock model with real string attributes."""
         m = MagicMock()
         m.name = name
         m.display_name = display_name
         m.model_type = model_type
+        m.precision = precision if precision is not None else None
+        m.model_path_full = (
+            model_path_full if model_path_full is not None else "/fake/path/model.xml"
+        )
+        m.model_proc_full = (
+            model_proc_full
+            if model_proc_full is not None
+            else "/fake/path/model_proc.json"
+        )
         return m
 
     def test_get_models_returns_models_with_precision(self):
         """Test GET /models returns models with precision extracted from display_name."""
         mock_models = [
             self._make_model(
-                "resnet-50-tf_INT8", "ResNet-50 TF (INT8)", "classification"
+                "resnet-50-tf_INT8",
+                "ResNet-50 TF (INT8)",
+                "classification",
+                "INT8",
+                "/fake/path/resnet.xml",
+                "/fake/path/resnet_proc.json",
             ),
-            self._make_model("yolov10m", "YOLO v10m 640x640 (FP16)", "detection"),
+            self._make_model(
+                "yolov10m",
+                "YOLO v10m 640x640 (FP16)",
+                "detection",
+                "FP16",
+                "/fake/path/yolo.xml",
+                "/fake/path/yolo_proc.json",
+            ),
         ]
         with patch(
-            "api.routes.models.SupportedModelsManager"
-        ) as MockSupportedModelsManager:
-            MockSupportedModelsManager.return_value.get_all_available_models.return_value = mock_models
+            "api.routes.models.get_supported_models_manager"
+        ) as mock_get_manager:
+            mock_manager_instance = mock_get_manager.return_value
+            mock_manager_instance.get_all_installed_models.return_value = mock_models
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)
@@ -56,10 +86,20 @@ class TestModelsAPI(unittest.TestCase):
     def test_get_models_returns_models_without_precision(self):
         """Test GET /models returns models without precision when not in display_name."""
         mock_models = [
-            self._make_model("mobilenet", "MobileNetV2", "classification"),
+            self._make_model(
+                "mobilenet",
+                "MobileNetV2",
+                "classification",
+                None,
+                "/fake/path/mobilenet.xml",
+                "/fake/path/mobilenet_proc.json",
+            ),
         ]
-        with patch("api.routes.models.SupportedModelsManager") as MockManager:
-            MockManager.return_value.get_all_available_models.return_value = mock_models
+        with patch(
+            "api.routes.models.get_supported_models_manager"
+        ) as mock_get_manager:
+            mock_manager_instance = mock_get_manager.return_value
+            mock_manager_instance.get_all_installed_models.return_value = mock_models
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)
@@ -69,8 +109,11 @@ class TestModelsAPI(unittest.TestCase):
 
     def test_get_models_empty_list(self):
         """Test GET /models returns empty list when no models available."""
-        with patch("api.routes.models.SupportedModelsManager") as MockManager:
-            MockManager.return_value.get_all_available_models.return_value = []
+        with patch(
+            "api.routes.models.get_supported_models_manager"
+        ) as mock_get_manager:
+            mock_manager_instance = mock_get_manager.return_value
+            mock_manager_instance.get_all_installed_models.return_value = []
             response = self.client.get("/models")
 
             self.assertEqual(response.status_code, 200)

@@ -1,5 +1,4 @@
 import logging
-import sys
 
 import gradio as gr
 
@@ -8,7 +7,7 @@ from benchmark import Benchmark
 from device import DeviceDiscovery, DeviceFamily, DeviceType
 from explore import GstInspector
 from gstpipeline import PipelineLoader
-from models import SupportedModelsManager
+from models import get_supported_models_manager
 from optimize import PipelineOptimizer
 from utils import prepare_video_and_constants
 
@@ -21,11 +20,7 @@ logging.getLogger("httpx").setLevel(logging.WARNING)
 device_discovery = DeviceDiscovery()
 gst_inspector = GstInspector()
 
-try:
-    supported_models_manager = SupportedModelsManager()
-except Exception as e:
-    logging.error(str(e))
-    sys.exit(1)
+supported_models_manager = get_supported_models_manager()
 
 
 class Pipeline:

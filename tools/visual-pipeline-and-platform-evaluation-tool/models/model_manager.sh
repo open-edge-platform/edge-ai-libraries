@@ -12,9 +12,9 @@ if [ ! -d "$MODELS_PATH" ]; then
 fi
 
 # Script to manage installation/removal of models using dialog.
-# Requires: dialog, supported_models.lst
+# Requires: dialog, yq, supported_models.yaml
 
-SUPPORTED_MODELS_FILE="/models/supported_models.lst"
+SUPPORTED_MODELS_FILE="/models/supported_models.yaml"
 MODEL_MANAGER_TMP_DIR="/tmp/model_manager"
 
 MODEL_INSTALLATION="${MODEL_INSTALLATION:-once}"
@@ -40,6 +40,12 @@ if [ "$MODEL_INSTALLATION" != "all" ]; then
         echo "Error: 'dialog' is not installed. Please install it before running this script."
         exit 4
     fi
+fi
+
+# Check if yq is installed
+if ! command -v yq &>/dev/null; then
+    echo "Error: 'yq' is not installed. Please install it before running this script."
+    exit 5
 fi
 
 function cleanup {
@@ -71,7 +77,7 @@ download_public_models() {
         echo "Installing public model: $model"
         if ! bash /opt/intel/dlstreamer/samples/download_public_models.sh "$model"; then
             echo "Error: Failed to download public model $model"
-            cleanup_and_exit 9
+            cleanup_and_exit 14
         fi
         echo "Model $model installed."
     done
@@ -89,7 +95,7 @@ download_omz_models() {
     python3 -m venv "$venv_dir"
     source "$venv_dir/bin/activate"
 
-    pip install --no-cache-dir openvino-dev[onnx] torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install --no-cache-dir openvino-dev[onnx] torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 --extra-index-url https://download.pytorch.org/whl/cpu
 
     for model in $models; do
         echo "Installing OMZ model: $model"
@@ -98,26 +104,33 @@ download_omz_models() {
         echo "Downloading model $model using omz_downloader..."
         if ! omz_downloader --name "$model" --output_dir "$tmp_models_dir"; then
             echo "Error: Failed to download OMZ model $model"
-            cleanup_and_exit 10
+            cleanup_and_exit 15
         fi
 
         echo "Converting model $model using omz_converter..."
         if ! omz_converter --name "$model" --output_dir "$tmp_models_dir" --download_dir "$tmp_models_dir"; then
             echo "Error: Failed to convert OMZ model $model"
-            cleanup_and_exit 11
+            cleanup_and_exit 16
         fi
 
         mkdir -p "$target_dir"
         # Custom handling for specific models
         if [ "$model" == "vehicle-attributes-recognition-barrier-0039" ]; then
-            mv "$tmp_models_dir/intel/$model" "$target_dir"
+            mv "$tmp_models_dir/intel/$model/"* "$target_dir"
             local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json"
             if [ -f "$proc_src" ]; then
                 cp "$proc_src" "$target_dir/vehicle-attributes-recognition-barrier-0039.json"
                 echo "Copied model_proc file for $model."
             fi
+        elif [ "$model" == "human-pose-estimation-0001" ]; then
+            mv "$tmp_models_dir/intel/$model/"* "$target_dir"
+            local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/human-pose-estimation-0001.json"
+            if [ -f "$proc_src" ]; then
+                cp "$proc_src" "$target_dir/human-pose-estimation-0001.json"
+                echo "Copied model_proc file for $model."
+            fi
         elif [ "$model" == "mobilenet-v2-pytorch" ]; then
-            mv "$tmp_models_dir/public/$model" "$target_dir"
+            mv "$tmp_models_dir/public/$model/"* "$target_dir"
             local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json"
             if [ -f "$proc_src" ]; then
                 cp "$proc_src" "$target_dir/mobilenet-v2.json"
@@ -163,7 +176,7 @@ download_pipeline_zoo_models() {
         echo "Downloading pipeline-zoo-models repository archive..."
         if ! curl -L "$archive_url" -o "$archive_path"; then
             echo "Error: Failed to download $archive_url"
-            cleanup_and_exit 12
+            cleanup_and_exit 17
         fi
         echo "Extracting pipeline-zoo-models archive..."
         tar -xzf "$archive_path" -C "$MODEL_MANAGER_TMP_DIR"
@@ -179,7 +192,7 @@ download_pipeline_zoo_models() {
         local target_dir="$MODELS_PATH/pipeline-zoo-models/$model"
         if [ ! -d "$src_dir" ]; then
             echo "Error: Model $model not found in pipeline-zoo-models repository."
-            cleanup_and_exit 13
+            cleanup_and_exit 18
         fi
         mkdir -p "$target_dir"
         cp -r "$src_dir/"* "$target_dir/"
@@ -187,65 +200,107 @@ download_pipeline_zoo_models() {
     done
 }
 
-# Parse supported_models.lst and validate columns
-declare -a MODEL_LINES
+# Parse supported_models.yaml and validate fields
+# Declare arrays for storing model data
 declare -a MODEL_NAMES
 declare -a MODEL_DISPLAY_NAMES
 declare -a MODEL_SOURCES
 declare -a MODEL_TYPES
 declare -a MODEL_DEFAULTS
 
-while IFS= read -r line || [ -n "$line" ]; do
-    # Ignore empty lines
-    [[ -z "$line" ]] && continue
+# Use process substitution to avoid subshell issues with arrays
+while IFS=$'\t' read -r name display_name source type model_path default_flag; do
+    # Helper function: Checks if a YAML field is invalid
+    # Returns true if:
+    # - The field is missing or null in YAML (represented as "__MISSING__")
+    # - The field is an empty string
+    # - The field contains only whitespace (spaces, tabs, etc.)
+    is_invalid() {
+        local val="$1"
+        # Remove all whitespace; if result is empty or field is "__MISSING__", treat as invalid
+        [[ "$val" == "__MISSING__" ]] || [[ -z "${val//[[:space:]]/}" ]]
+    }
 
-    # Split line into columns
-    IFS='|' read -r name display_name source type default_flag extra <<<"$line"
-
-    # Check for correct number of columns (5, no more, no less)
-    if [ -z "$name" ] || [ -z "$display_name" ] || [ -z "$source" ] || [ -z "$type" ] || [ -z "$default_flag" ] || [ -n "$extra" ]; then
-        echo "Error: Invalid line in $SUPPORTED_MODELS_FILE: '$line'"
-        echo "Each line must contain 5 columns separated by '|': name|display_name|source|type|default_flag"
-        cleanup_and_exit 5
+    # Validate 'name' field
+    if is_invalid "$name"; then
+        echo "Error: Missing or invalid required field 'name'"
+        cleanup_and_exit 10
+    fi
+    # Validate 'display_name' field
+    if is_invalid "$display_name"; then
+        echo "Error: Missing or invalid required field 'display_name' for model $name"
+        cleanup_and_exit 10
+    fi
+    # Validate 'source' field
+    if is_invalid "$source"; then
+        echo "Error: Missing or invalid required field 'source' for model $name"
+        cleanup_and_exit 10
+    fi
+    # Validate 'type' field
+    if is_invalid "$type"; then
+        echo "Error: Missing or invalid required field 'type' for model $name"
+        cleanup_and_exit 10
+    fi
+    # Validate 'model_path' field
+    if is_invalid "$model_path"; then
+        echo "Error: Missing or invalid required field 'model_path' for model $name"
+        cleanup_and_exit 10
     fi
 
-    MODEL_LINES+=("$line")
+    # All validations passed, store values in arrays
     MODEL_NAMES+=("$name")
     MODEL_DISPLAY_NAMES+=("$display_name")
     MODEL_SOURCES+=("$source")
     MODEL_TYPES+=("$type")
-    MODEL_DEFAULTS+=("$default_flag")
-done < "$SUPPORTED_MODELS_FILE"
+    # Store model default type as "default" or "optional"
+    if [ "$default_flag" = "true" ]; then
+        MODEL_DEFAULTS+=("default")
+    else
+        MODEL_DEFAULTS+=("optional")
+    fi
+# Use yq to convert YAML to tab-separated values:
+# - For each model, output fields or "__MISSING__" if field is missing/null
+# - The last field is the boolean 'default', defaulting to false if missing
+done < <(yq -r '
+  .[] | [
+    (if .name // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .name end),
+    (if .display_name // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .display_name end),
+    (if .source // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .source end),
+    (if .type // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .type end),
+    (if .model_path // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .model_path end),
+    (if .default // null | tostring | test("^[ \t\r\n]*$") then "__MISSING__" else .default end)
+  ] | @tsv
+' "$SUPPORTED_MODELS_FILE")
 
 # SORT MODELS BY MODEL_TYPE
 # 1. Find all unique MODEL_TYPES and sort them
 mapfile -t SORTED_TYPES < <(printf "%s\n" "${MODEL_TYPES[@]}" | sort -u)
 
 # 2. Reorder all model arrays according to sorted MODEL_TYPES, preserving file order within each type
-declare -a SORTED_MODEL_LINES
 declare -a SORTED_MODEL_NAMES
 declare -a SORTED_MODEL_DISPLAY_NAMES
 declare -a SORTED_MODEL_SOURCES
 declare -a SORTED_MODEL_TYPES
+declare -a SORTED_MODEL_DEFAULTS
 
 for type in "${SORTED_TYPES[@]}"; do
     for i in "${!MODEL_NAMES[@]}"; do
         if [ "${MODEL_TYPES[$i]}" == "$type" ]; then
-            SORTED_MODEL_LINES+=("${MODEL_LINES[$i]}")
             SORTED_MODEL_NAMES+=("${MODEL_NAMES[$i]}")
             SORTED_MODEL_DISPLAY_NAMES+=("${MODEL_DISPLAY_NAMES[$i]}")
             SORTED_MODEL_SOURCES+=("${MODEL_SOURCES[$i]}")
             SORTED_MODEL_TYPES+=("${MODEL_TYPES[$i]}")
+            SORTED_MODEL_DEFAULTS+=("${MODEL_DEFAULTS[$i]}")
         fi
     done
 done
 
 # Overwrite original arrays with sorted ones
-MODEL_LINES=("${SORTED_MODEL_LINES[@]}")
 MODEL_NAMES=("${SORTED_MODEL_NAMES[@]}")
 MODEL_DISPLAY_NAMES=("${SORTED_MODEL_DISPLAY_NAMES[@]}")
 MODEL_SOURCES=("${SORTED_MODEL_SOURCES[@]}")
 MODEL_TYPES=("${SORTED_MODEL_TYPES[@]}")
+MODEL_DEFAULTS=("${SORTED_MODEL_DEFAULTS[@]}")
 
 echo "Parsed supported models from $SUPPORTED_MODELS_FILE. Found ${#MODEL_NAMES[@]} models."
 
@@ -296,13 +351,13 @@ else
     # Validate that there are models to show
     if [ "${#MODEL_NAMES[@]}" -eq 0 ]; then
         echo "Error: No models found in $SUPPORTED_MODELS_FILE."
-        cleanup_and_exit 6
+        cleanup_and_exit 11
     fi
 
     # Ensure script is run in an interactive terminal
     if [ ! -t 1 ]; then
         echo "Error: No interactive terminal detected. Please run with 'docker compose run -it models' or 'make shell-models'."
-        cleanup_and_exit 7
+        cleanup_and_exit 12
     fi
 
     # Always show dialog for interactive selection
@@ -368,7 +423,7 @@ for i in "${!MODEL_NAMES[@]}"; do
                     ;;
                 *)
                     echo "Error: Unknown model source for ${MODEL_NAMES[$i]}: ${MODEL_SOURCES[$i]}"
-                    cleanup_and_exit 8
+                    cleanup_and_exit 13
                     ;;
             esac
         fi

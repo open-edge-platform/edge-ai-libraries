@@ -14,11 +14,11 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/dlstreamer:weekly-2025.2-20251007-ubuntu24
+FROM intel/dlstreamer:weekly-2025.2-20251028-ubuntu24
 
 USER root
 
-RUN apt-get update && apt-get install --yes --no-install-recommends dialog
+RUN apt-get update && apt-get install --yes --no-install-recommends dialog yq
 
 USER dlstreamer
 

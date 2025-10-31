@@ -133,8 +133,10 @@ class Device(BaseModel):
 class Model(BaseModel):
     name: str
     display_name: str
-    category: ModelCategory
+    category: Optional[ModelCategory]
     precision: Optional[str]
+    model_path_full: str
+    model_proc_full: str
 
 
 class MetricSample(BaseModel):
