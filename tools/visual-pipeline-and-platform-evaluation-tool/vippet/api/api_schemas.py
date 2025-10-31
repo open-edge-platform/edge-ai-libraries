@@ -135,8 +135,6 @@ class Model(BaseModel):
     display_name: str
     category: Optional[ModelCategory]
     precision: Optional[str]
-    model_path_full: str
-    model_proc_full: str
 
 
 class MetricSample(BaseModel):

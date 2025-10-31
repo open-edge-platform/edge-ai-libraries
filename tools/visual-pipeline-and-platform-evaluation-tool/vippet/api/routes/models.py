@@ -28,8 +28,6 @@ def get_models():
             display_name=m.display_name,
             category=to_model_category(m.model_type),
             precision=m.precision,
-            model_path_full=m.model_path_full,
-            model_proc_full=m.model_proc_full,
         )
         for m in models
     ]
