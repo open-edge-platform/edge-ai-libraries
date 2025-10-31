@@ -1,9 +1,8 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-
 import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock
@@ -33,7 +32,7 @@ class TestPipelineManager:
         assert pipeline_manager.max_running_pipelines == 5
         assert pipeline_manager.model_manager is not None
         assert pipeline_manager.pipeline_dir == "user_pipeline"
-        
+
     def test_init_failed_load(self,mocker):
         mocker.patch.object(PipelineManager, '_load_pipelines', return_value=False)
         with pytest.raises(Exception, match="Error Initializing Pipelines"):
@@ -43,7 +42,7 @@ class TestPipelineManager:
         mocker.patch('src.server.gstreamer_pipeline.GStreamerPipeline', return_value=MagicMock())
         pipeline_types = pipeline_manager._import_pipeline_types()
         assert "GStreamer" in pipeline_types
-        mocker.patch.dict('sys.modules',{'src.server.gstreamer_pipeline.GStreamerPipeline':None}, clear=True)
+        mocker.patch.dict('sys.modules',{'src.server.gstreamer_pipeline':None})
         pipeline_types = pipeline_manager._import_pipeline_types()
         assert {} == pipeline_types
 
@@ -88,7 +87,7 @@ class TestPipelineManager:
         mock_get_pipeline_params = mocker.patch('src.server.pipeline_manager.PipelineManager.get_pipeline_parameters', return_value = {'name':'pipeline1', 'version': 'v1', "type": "GStreamer"})
         pipeline_manager.pipelines = {'pipeline1': {'v1': {'type': 'GStreamer', 'description': 'Test Pipeline'}}}
         loaded_pipelines = pipeline_manager.get_loaded_pipelines()
-        assert len(loaded_pipelines) == 1   
+        assert len(loaded_pipelines) == 1
         assert loaded_pipelines[0]["name"] == "pipeline1"
         assert loaded_pipelines[0]["version"] == "v1"
         assert loaded_pipelines[0]["type"] == "GStreamer"
@@ -158,7 +157,7 @@ class TestPipelineManager:
         assert pipeline_manager.pipeline_queue == deque(["instance2"])
         pipeline_manager.instance_exists.assert_called_once_with("instance1",None,None)
         result = pipeline_manager.stop_instance('instance3')
-        assert result 
+        assert result
         pipeline_manager.instance_exists = MagicMock(return_value=False)
         result = pipeline_manager.stop_instance('instance2')
         assert result is None
@@ -218,7 +217,7 @@ class TestPipelineManager:
         assert pipeline_manager.running_pipelines == 1
         pipeline_manager._get_next_pipeline_identifier.assert_called_once()
         mock_instance.start.assert_called_once()
-    
+
     def test_validate_config(self,pipeline_manager,mocker):
         mock_set_defaults = mocker.patch.object(pipeline_manager,'set_defaults')
         pipeline_manager.model_manager.model_manager = {"models":"model1"}
@@ -405,4 +404,3 @@ class TestPipelineManager:
         success = pipeline_manager_for_load_pipelines._load_pipelines()
         assert success is False
         assert pipeline_manager_for_load_pipelines.pipelines == {}
-    

@@ -126,7 +126,9 @@ ImagePreprocessorType ImagePreprocessorTypeFromString(const std::string &image_p
         {"vaapi-surface-sharing", ImagePreprocessorType::VAAPI_SURFACE_SHARING},
         {"va", ImagePreprocessorType::VAAPI_SYSTEM},
         {"va-surface-sharing", ImagePreprocessorType::VAAPI_SURFACE_SHARING},
-        {"opencv", ImagePreprocessorType::OPENCV}};
+        {"opencv", ImagePreprocessorType::OPENCV},
+        {"d3d11", ImagePreprocessorType::D3D11},
+        {"d3d11-surface-sharing", ImagePreprocessorType::D3D11_SURFACE_SHARING}};
 
     for (auto &elem : preprocessor_types) {
         if (image_preprocessor_name == elem.first)
@@ -294,6 +296,7 @@ bool IsPreprocSupported(ImagePreprocessorType preproc,
         return !isNpu && !isCustomLib &&
                IsModelProcSupportedForVaapiSurfaceSharing(model_input_processor_info, input_video_info);
     case ImagePreprocessorType::OPENCV:
+    case ImagePreprocessorType::D3D11:
         return true;
     case ImagePreprocessorType::AUTO:
     default:
@@ -314,7 +317,12 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
         break;
     case VA_SURFACE_CAPS_FEATURE:
     case VA_MEMORY_CAPS_FEATURE:
-        result = ImagePreprocessorType::VAAPI_SYSTEM;
+        if ((device.find("NPU") != std::string::npos) || (device.find("AUTO") != std::string::npos) ||
+            (device.find("MULTI") != std::string::npos)) {
+            result = ImagePreprocessorType::VAAPI_SYSTEM;
+        } else {
+            result = ImagePreprocessorType::VAAPI_SURFACE_SHARING;
+        }
         break;
     case DMA_BUF_CAPS_FEATURE:
 #ifdef ENABLE_VPUX
@@ -322,6 +330,9 @@ GetPreferredImagePreproc(CapsFeature caps, const std::vector<ModelInputProcessor
 #else
         result = ImagePreprocessorType::VAAPI_SYSTEM;
 #endif
+        break;
+    case D3D11_MEMORY_CAPS_FEATURE:
+        result = ImagePreprocessorType::D3D11;
         break;
     default:
         throw std::runtime_error("Unsupported caps have been detected for image preprocessor!");
@@ -493,7 +504,7 @@ void ApplyImageBoundaries(std::shared_ptr<InferenceBackend::Image> &image, GstVi
         throw std::invalid_argument("Region of interest meta is null.");
     }
     if (inference_region == FULL_FRAME) {
-        image->rect = Rectangle<uint32_t>(meta->x, meta->y, meta->w, meta->h);
+        image->rect = InferenceBackend::Rectangle<uint32_t>(meta->x, meta->y, meta->w, meta->h);
         return;
     }
 
@@ -552,6 +563,8 @@ MemoryType GetMemoryType(CapsFeature caps_feature) {
     case CapsFeature::VA_SURFACE_CAPS_FEATURE:
     case CapsFeature::VA_MEMORY_CAPS_FEATURE:
         return MemoryType::VAAPI;
+    case CapsFeature::D3D11_MEMORY_CAPS_FEATURE:
+        return MemoryType::D3D11;
     case CapsFeature::ANY_CAPS_FEATURE:
     default:
         return MemoryType::ANY;
@@ -588,6 +601,9 @@ MemoryType GetMemoryType(MemoryType input_image_memory_type, ImagePreprocessorTy
         }
         break;
     }
+    case MemoryType::D3D11:
+        type = MemoryType::D3D11;
+        break;
     default:
         break;
     }
@@ -630,12 +646,22 @@ int getGPURenderDevId(GvaBaseInference *gva_base_inference) {
         }
         gst_query_unref(gstQueryLcl);
     }
+    if (gva_base_inference->caps_feature == D3D11_MEMORY_CAPS_FEATURE) {
+        return 32081;
+    }
     return gpuRenderDevId;
 }
 
 bool canReuseSharedVADispCtx(GvaBaseInference *gva_base_inference, size_t max_streams) {
 
     const std::string device(gva_base_inference->device);
+
+    if (!gva_base_inference->share_va_display_ctx) {
+        GVA_INFO("\n[%s] Do not share VADisplay ctx (%p) for [ gva_base_inference {%s} model_instance_id {%s} ]\n",
+                 __FUNCTION__, static_cast<void *>(gva_base_inference->priv->va_display.get()),
+                 GST_ELEMENT_NAME(gva_base_inference), std::string(gva_base_inference->model_instance_id).c_str());
+        return false;
+    }
 
     // Check reference count if display is set
     if (gva_base_inference->priv->va_display) {
@@ -791,6 +817,8 @@ InferenceImpl::Model InferenceImpl::CreateModel(GvaBaseInference *gva_base_infer
                 ie_config[KEY_BASE][KEY_IMAGE_FORMAT] = "NV12";
             }
         }
+    } else if (memory_type == MemoryType::D3D11) {
+        va_dpy = gva_base_inference->priv->d3d11_device;
     }
 
     if (gva_base_inference->inference_region == FULL_FRAME) {
@@ -848,7 +876,11 @@ InferenceImpl::InferenceImpl(GvaBaseInference *gva_base_inference) {
 }
 
 dlstreamer::ContextPtr InferenceImpl::GetDisplay(GvaBaseInference *gva_base_inference) {
+#ifdef _MSC_VER
+    return gva_base_inference->priv->d3d11_device;
+#else
     return gva_base_inference->priv->va_display;
+#endif
 }
 void InferenceImpl::SetDisplay(GvaBaseInference *gva_base_inference, const dlstreamer::ContextPtr &display) {
     gva_base_inference->priv->va_display = display;

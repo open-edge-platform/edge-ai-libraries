@@ -8,6 +8,9 @@ import { Subject } from 'rxjs';
 import { ServiceUnavailableException } from '@nestjs/common';
 import { LlmService } from './llm.service';
 import { TemplateService } from './template.service';
+import { FeaturesService } from 'src/features/features.service';
+import { OpenaiHelperService } from './openai-helper.service';
+import { InferenceCountService } from './inference-count.service';
 
 // Mock OpenAI
 jest.mock('openai', () => {
@@ -58,6 +61,10 @@ describe('LlmService', () => {
 
   // Mock config values
   const mockConfig = {
+    'openai.url': 'http://localhost:3001',
+    'openai.vlmCaptioning.concurrent': 5,
+  'openai.llmSummarization.concurrent': 3,
+  'openai.useOVMS': 'CONFIG_ON',
     'openai.llmSummarization.apiKey': 'mock-api-key',
     'openai.llmSummarization.apiBase': 'https://api.mock.com',
     'openai.llmSummarization.modelsAPI': 'models',
@@ -70,7 +77,6 @@ describe('LlmService', () => {
     'openai.llmSummarization.defaults.frequencyPenalty': 0.5,
     'openai.llmSummarization.defaults.maxCompletionTokens': 500,
     'openai.llmSummarization.maxContextLength': 10000,
-    'openai.llmSummarization.concurrent': 2,
     'proxy.url': 'http://proxy.example.com',
     'proxy.noProxy': '',
   };
@@ -124,8 +130,42 @@ describe('LlmService', () => {
           useValue: configService,
         },
         {
+          provide: FeaturesService,
+          useValue: {
+            hasFeature: jest.fn().mockReturnValue(true),
+          },
+        },
+        {
           provide: TemplateService,
           useValue: templateService,
+        },
+        {
+          provide: OpenaiHelperService,
+          useValue: {
+            initializeClient: jest.fn().mockImplementation((apiKey, baseURL) => ({
+              client: {
+                chat: {
+                  completions: {
+                    create: mockClientCompletionCreate,
+                  },
+                },
+                models: {
+                  list: mockClientModelsList,
+                },
+              },
+              openAiConfig: {},
+              proxyAgent: new HttpsProxyAgent(mockConfig['proxy.url']),
+            })),
+            getConfigUrl: jest.fn().mockReturnValue('http://localhost:8080/config'),
+          },
+        },
+        {
+          provide: InferenceCountService,
+          useValue: {
+            canProcess: jest.fn().mockReturnValue(true),
+            releaseSlot: jest.fn(),
+            setLlmConfig: jest.fn(),
+          },
         },
       ],
     }).compile();
@@ -438,6 +478,320 @@ describe('LlmService', () => {
       );
       expect(streamSpy).toHaveBeenCalledWith('Summary');
       expect(streamSpy).toHaveBeenCalledWith(' of texts');
+    });
+
+    it('should handle empty texts array', async () => {
+      const texts: string[] = [];
+      const streamer = new Subject<string>();
+
+      const mockChunks = [
+        { choices: [{ delta: { content: 'Empty summary' } }] },
+      ];
+
+      mockClientCompletionCreate.mockResolvedValueOnce({
+        [Symbol.asyncIterator]: async function* () {
+          for (const chunk of mockChunks) {
+            yield chunk;
+          }
+        },
+      });
+
+      await service.summarizeMapReduce(
+        texts,
+        'summarizeTemplate',
+        'reduceTemplate',
+        'reduceSingleTextTemplate',
+        streamer,
+      );
+
+      expect(templateService.createUserQuery).toHaveBeenCalledWith(
+        'summarizeTemplate',
+        texts,
+      );
+    });
+
+    it('should handle single text input', async () => {
+      const texts = ['Single text input'];
+      const streamer = new Subject<string>();
+
+      const mockChunks = [
+        { choices: [{ delta: { content: 'Single summary' } }] },
+      ];
+
+      mockClientCompletionCreate.mockResolvedValueOnce({
+        [Symbol.asyncIterator]: async function* () {
+          for (const chunk of mockChunks) {
+            yield chunk;
+          }
+        },
+      });
+
+      await service.summarizeMapReduce(
+        texts,
+        'summarizeTemplate',
+        'reduceTemplate',
+        'reduceSingleTextTemplate',
+        streamer,
+      );
+
+      expect(templateService.createUserQuery).toHaveBeenCalledWith(
+        'summarizeTemplate',
+        texts,
+      );
+    });
+  });
+
+  describe('fetchModelsFromConfig', () => {
+    it('should handle model in non-AVAILABLE state', async () => {
+      const unavailableModelResponse = {
+        'unavailable-model': {
+          model_version_status: [
+            {
+              version: '1.0',
+              state: 'LOADING',
+              status: {
+                error_code: '',
+                error_message: '',
+              },
+            },
+          ],
+        },
+      };
+
+      mockFetch.mockResolvedValueOnce({
+        ok: true,
+        json: () => Promise.resolve(unavailableModelResponse),
+      });
+
+      await service['fetchModelsFromConfig']('http://test-url', {});
+
+      expect(service.model).toBe('unavailable-model');
+    });
+
+    it('should throw error when config endpoint returns non-ok response', async () => {
+      mockFetch.mockResolvedValueOnce({
+        ok: false,
+        status: 404,
+      });
+
+      await expect(
+        service['fetchModelsFromConfig']('http://test-url', {}),
+      ).rejects.toThrow('Failed to retrieve model from endpoint: http://test-url');
+    });
+
+    it('should handle network errors when fetching config', async () => {
+      mockFetch.mockRejectedValueOnce(new Error('Network error'));
+
+      await expect(
+        service['fetchModelsFromConfig']('http://test-url', {}),
+      ).rejects.toThrow('Network error');
+    });
+  });
+
+  describe('fetchModelsFromOpenai', () => {
+    it('should throw error when no models are available', async () => {
+      mockClientModelsList.mockResolvedValueOnce({
+        data: [],
+      });
+
+      await expect(service['fetchModelsFromOpenai']()).rejects.toThrow(
+        'No models available',
+      );
+    });
+
+    it('should handle OpenAI API errors', async () => {
+      mockClientModelsList.mockRejectedValueOnce(new Error('OpenAI API error'));
+
+      await expect(service['fetchModelsFromOpenai']()).rejects.toThrow(
+        'OpenAI API error',
+      );
+    });
+
+    it('should handle undefined client', async () => {
+      service.client = undefined as any;
+
+      // Should not throw, method returns early when client is falsy
+      await service['fetchModelsFromOpenai']();
+      expect(mockClientModelsList).not.toHaveBeenCalled();
+    });
+  });
+
+  describe('getChatCompletions', () => {
+    it('should create chat completions with correct parameters for streaming', () => {
+      const userQuery = 'Test query';
+      
+      service['getChatCompletions'](userQuery, true);
+
+      expect(mockClientCompletionCreate).toHaveBeenCalledWith({
+        messages: [{ role: 'user', content: userQuery }],
+        model: 'test-model',
+        do_sample: true,
+        seed: 42,
+        temperature: 0.7,
+        top_p: 0.95,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.5,
+        max_completion_tokens: 500,
+        max_tokens: 500,
+        stream: true,
+      });
+    });
+
+    it('should create chat completions with correct parameters for non-streaming', () => {
+      const userQuery = 'Test query';
+      
+      service['getChatCompletions'](userQuery, false);
+
+      expect(mockClientCompletionCreate).toHaveBeenCalledWith({
+        messages: [{ role: 'user', content: userQuery }],
+        model: 'test-model',
+        do_sample: true,
+        seed: 42,
+        temperature: 0.7,
+        top_p: 0.95,
+        presence_penalty: 0.5,
+        frequency_penalty: 0.5,
+        max_completion_tokens: 500,
+        max_tokens: 500,
+        stream: false,
+      });
+    });
+  });
+
+  describe('error handling', () => {
+    it('should handle initialization errors during service creation', async () => {
+      // Mock the client to return undefined to simulate initialization errors
+      mockClientCompletionCreate.mockResolvedValueOnce(undefined);
+      
+      // Test graceful handling of undefined client responses
+      try {
+        await service.generateResponse('test text');
+      } catch (error) {
+        expect(error).toBeInstanceOf(Error);
+      }
+    });
+
+    it('should handle chat completion errors gracefully', async () => {
+      mockClientCompletionCreate.mockRejectedValueOnce(new Error('OpenAI API error'));
+
+      await expect(
+        service.generateResponse('Test query').toPromise(),
+      ).rejects.toThrow('OpenAI API error');
+    });
+
+    it('should handle streaming errors gracefully', async () => {
+      const streamer = new Subject<string>();
+
+      mockClientCompletionCreate.mockRejectedValueOnce(new Error('Streaming error'));
+
+      await expect(
+        service.generateStreamingResponse('Test query', streamer),
+      ).rejects.toThrow('Streaming error');
+    });
+  });
+
+  describe('edge cases', () => {
+    it('should handle null or undefined user query', async () => {
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content: 'Response to empty query',
+            },
+          },
+        ],
+      };
+
+      mockClientCompletionCreate.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.generateResponse('').toPromise();
+      expect(result).toBe('Response to empty query');
+    });
+
+    it('should handle very long user queries', async () => {
+      const longQuery = 'A'.repeat(100000);
+      const mockResponse = {
+        choices: [
+          {
+            message: {
+              content: 'Response to long query',
+            },
+          },
+        ],
+      };
+
+      mockClientCompletionCreate.mockResolvedValueOnce(mockResponse);
+
+      const result = await service.generateResponse(longQuery).toPromise();
+      expect(result).toBe('Response to long query');
+    });
+
+    it('should handle malformed streaming chunks', async () => {
+      const streamer = new Subject<string>();
+      const streamSpy = jest.spyOn(streamer, 'next');
+
+      const mockChunks = [
+        { choices: undefined },
+        { choices: [] },
+        { choices: [{ delta: undefined }] }, 
+      ];
+
+      mockClientCompletionCreate.mockResolvedValueOnce({
+        [Symbol.asyncIterator]: async function* () {
+          for (const chunk of mockChunks) {
+            yield chunk;
+          }
+        },
+      });
+
+      // Expect the method to throw an error when encountering undefined delta
+      await expect(
+        service.generateStreamingResponse('Test query', streamer)
+      ).rejects.toThrow();
+      
+      // Stream should not have been called due to error
+      expect(streamSpy).not.toHaveBeenCalled();
+    });
+
+    it('should handle service when feature is disabled', async () => {
+      const moduleWithDisabledFeature: TestingModule = await Test.createTestingModule({
+        providers: [
+          LlmService,
+          {
+            provide: ConfigService,
+            useValue: configService,
+          },
+          {
+            provide: FeaturesService,
+            useValue: {
+              hasFeature: jest.fn().mockReturnValue(false), // Feature disabled
+            },
+          },
+          {
+            provide: TemplateService,
+            useValue: templateService,
+          },
+          {
+            provide: OpenaiHelperService,
+            useValue: {
+              initializeClient: jest.fn(),
+              getConfigUrl: jest.fn(),
+            },
+          },
+          {
+            provide: InferenceCountService,
+            useValue: {
+              canProcess: jest.fn().mockReturnValue(true),
+              releaseSlot: jest.fn(),
+              setLlmConfig: jest.fn(),
+            },
+          },
+        ],
+      }).compile();
+
+      const serviceWithDisabledFeature = moduleWithDisabledFeature.get<LlmService>(LlmService);
+      expect(serviceWithDisabledFeature).toBeDefined();
+      expect(serviceWithDisabledFeature.serviceReady).toBeFalsy();
     });
   });
 });

@@ -19,7 +19,7 @@ spec:
         {{- toYaml . | nindent 8 }}
       {{- end }}
       containers:
-        - name: {{ include "postgresql.name" . }}
+        - name: {{ .Chart.Name }}
           image: "{{ .Values.postgresql.image.repository }}:{{ .Values.postgresql.image.tag }}"
           imagePullPolicy: {{ .Values.postgresql.image.pullPolicy }}
           {{- with .Values.containerSecurityContext }}
@@ -52,9 +52,9 @@ spec:
           resources: {{ toYaml .Values.postgresql.resources | nindent 12 }}
       volumes:
         - name: postgresql-data
-          {{- if .Values.global.pvcName }}
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ include "postgresql.fullname" . }}-pvc
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

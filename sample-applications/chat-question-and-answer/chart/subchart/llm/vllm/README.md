@@ -13,7 +13,11 @@ This guide provides instructions for deploying the vLLM Inference Server using H
 1. **Clone the repository:**
 
    ```sh
+   # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   
    cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart/subchart/llm/vllm
    ```
    Adjust the repo link appropriately in case of forked repo.

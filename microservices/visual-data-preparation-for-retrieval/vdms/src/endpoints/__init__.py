@@ -5,7 +5,6 @@ from .document_processing import process_document_router
 from .health import check_health_router
 from .video_management import delete_video_router, download_video_router, list_videos_router
 from .video_processing import (
-    prep_video_router_legacy,
     process_minio_video_router,
     upload_and_process_video_router,
 )
@@ -13,7 +12,6 @@ from .video_processing import (
 __all__ = [
     "check_health_router",
     "process_document_router",
-    "prep_video_router_legacy",
     "process_minio_video_router",
     "upload_and_process_video_router",
     "list_videos_router",

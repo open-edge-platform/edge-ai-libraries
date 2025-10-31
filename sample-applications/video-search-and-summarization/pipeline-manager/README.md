@@ -21,7 +21,11 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 ## Setup
 1. Clone the repository:
    ```sh
+   # Clone the latest on mainline
    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+   
    cd edge-ai-libraries/sample-applications/video-search-and-summarization/pipeline-manager
    ```
 2. Build the Docker image:
@@ -43,6 +47,19 @@ The Pipeline Manager Service is a core component of the Intel EGAI Video Summary
 - `RABBITMQ_HOST`: RabbitMQ host
 - `RABBITMQ_AMQP_PORT`: RabbitMQ AMQP port
 - `VLM_CAPTIONING_DEVICE`: VLM captioning device
+
+## Testing
+
+### Test Commands
+- `npm test`: Run all tests
+- `npm run test:cov`: Run tests with coverage (src folder only)
+- `npm run test:watch`: Run tests in watch mode
+- `npm run test:e2e`: Run end-to-end tests
+
+### Coverage
+- Coverage is collected from `src/**/*.ts` files only
+- Test files and declaration files are excluded
+- Coverage reports are generated in `./coverage` directory
 
 ## Usage
 - Upload videos through the UI

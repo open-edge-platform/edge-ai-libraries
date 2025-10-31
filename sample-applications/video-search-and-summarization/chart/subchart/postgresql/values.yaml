@@ -2,14 +2,22 @@ replicaCount: 1
 
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
-  volumeHostPath: "/mnt/pgsql"
-  # pvcName is the name of common PVC used by multiple microservices for persisting models, cache and other files.
-  pvcName: ""
+  volumeHostPath: ""
+  
+  # usePvc should be set to true to use a PVC for persisting models, cache and other files.
+  usePvc: false
+
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
   
   env:
-    POSTGRES_USER:
-    POSTGRES_PASSWORD:
-    POSTGRES_DB:
+    POSTGRES_USER: ""
+    POSTGRES_PASSWORD: ""
+    POSTGRES_DB: ""
+
+# claimSize is the storage size claimed by PVC if usePvc is set to true.
+# claimSize should be set based on the size of models and files expected to be stored.
+claimSize: ""
 
 postgresql:
   name: postgresql

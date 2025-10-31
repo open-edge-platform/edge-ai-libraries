@@ -24,7 +24,10 @@ Following options are provided to build the microservice.
 
 1. Clone the repository:
 ```bash
+# Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 2. Set the required environment variables:
@@ -107,7 +110,10 @@ Host setup by default uses local filesystem storage backend.
 
 1. Clone the repository:
 ```bash
+# Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 2. Run the setup script with desired options:
