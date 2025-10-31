@@ -30,11 +30,20 @@ class TestUtils(unittest.TestCase):
     @patch("utils.discover_video_codec")
     @patch("utils.os.path.exists")
     @patch("utils.os.remove")
+    @patch("utils.get_model_path_and_proc")
     def test_prepare_video_and_constants_output_file_removed(
-        self, mock_remove, mock_exists, mock_discover_video_codec
+        self,
+        mock_get_model_path_and_proc,
+        mock_remove,
+        mock_exists,
+        mock_discover_video_codec,
     ):
         mock_exists.return_value = True
         mock_discover_video_codec.return_value = "h264"
+        mock_get_model_path_and_proc.side_effect = [
+            ("/fake/path/detection.xml", "/fake/path/detection.proc"),
+            ("/fake/path/classification.xml", "/fake/path/classification.proc"),
+        ]
         output_path, constants, param_grid = prepare_video_and_constants(
             **{
                 "input_video_player": self.input_video,
