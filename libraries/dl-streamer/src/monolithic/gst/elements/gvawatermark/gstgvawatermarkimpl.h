@@ -12,9 +12,11 @@
 #include <gst/video/video.h>
 #include <memory>
 
+#ifndef _MSC_VER
 #include <dlstreamer/gst/context.h>
 #include <dlstreamer/vaapi/context.h>
 #include <va/va.h>
+#endif
 
 #include <opencv2/core.hpp>
 #include <opencv2/core/ocl.hpp>
@@ -42,10 +44,12 @@ struct _GstGvaWatermarkImpl {
     std::shared_ptr<struct Impl> impl;
     InferenceBackend::MemoryType negotiated_mem_type = InferenceBackend::MemoryType::ANY;
 
+#ifndef _MSC_VER
     VADisplay va_dpy = nullptr;
     std::shared_ptr<dlstreamer::GSTContext> gst_ctx;
     std::shared_ptr<dlstreamer::VAAPIContext> vaapi_ctx;
     std::shared_ptr<dlstreamer::MemoryMapperGSTToVAAPI> gst_to_vaapi;
+#endif
 
     bool overlay_ready = false;
     cv::Mat overlay_cpu;

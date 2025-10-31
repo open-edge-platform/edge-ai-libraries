@@ -7,7 +7,7 @@
 #include "gstgvawatermarkimpl.h"
 #include "gvawatermarkcaps.h"
 
-#ifndef _WIN32
+#ifndef _MSC_VER
 #include <dlstreamer/image_info.h>
 #include <gmodule.h>
 #else
@@ -306,6 +306,7 @@ static gboolean gst_gva_watermark_impl_set_caps(GstBaseTransform *trans, GstCaps
 
     gvawatermark->impl.reset();
 
+#if defined(ENABLE_VAAPI) && !defined(_MSC_VER)
     VaApiDisplayPtr va_dpy;
     if (mem_type == MemoryType::VAAPI) {
         // Prefer context obtained via set_context
@@ -322,6 +323,7 @@ static gboolean gst_gva_watermark_impl_set_caps(GstBaseTransform *trans, GstCaps
             }
         }
     }
+#endif
 
     try {
         gvawatermark->impl = std::make_shared<Impl>(&gvawatermark->info, mem_type);
@@ -378,11 +380,10 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
     const gchar *ctx_type = gst_context_get_context_type(context);
     const GstStructure *s = gst_context_get_structure(context);
 
+#if defined(ENABLE_VAAPI) && !defined(_MSC_VER)
     if (!self->gst_ctx)
         self->gst_ctx = std::make_shared<dlstreamer::GSTContext>(GST_ELEMENT(self));
 
-// VAAPI context acquisition (Linux only) guarded by ENABLE_VAAPI
-#if defined(ENABLE_VAAPI) && !defined(_WIN32)
     if (!self->va_dpy && g_strcmp0(ctx_type, "gst.va.display.handle") == 0) {
         if (gst_structure_has_field(s, "va-display")) {
             self->va_dpy = (VADisplay)g_value_get_pointer(gst_structure_get_value(s, "va-display"));
@@ -428,7 +429,7 @@ static void gst_gva_watermark_impl_set_context(GstElement *elem, GstContext *con
             }
         }
     }
-#endif // ENABLE_VAAPI && !WIN32
+#endif // ENABLE_VAAPI && !_MSC_VER
 
     GST_ELEMENT_CLASS(gst_gva_watermark_impl_parent_class)->set_context(elem, context);
 }
@@ -514,7 +515,11 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
     bool negotiated_is_va =
         (mt == InferenceBackend::MemoryType::VAAPI || mt == InferenceBackend::MemoryType::DMA_BUFFER);
     bool buffer_is_va_like = negotiated_is_va && buffer_has_va(buf);
+#if defined(ENABLE_VAAPI) && !defined(_MSC_VER)
     bool have_va_context = (gvawatermark->vaapi_ctx || gvawatermark->va_dpy);
+#else
+    bool have_va_context = false;
+#endif
     bool force_cpu = (gvawatermark->device && g_strcmp0(gvawatermark->device, "CPU") == 0);
     bool use_gpu_path = have_va_context && buffer_is_va_like && !force_cpu;
 // Disable GPU/VA render path when VAAPI feature disabled at build time.
@@ -535,7 +540,7 @@ static GstFlowReturn gst_gva_watermark_impl_transform_ip(GstBaseTransform *trans
         }
 
     // VA/GPU render path only when VAAPI enabled
-#ifdef ENABLE_VAAPI
+#if defined(ENABLE_VAAPI) && !defined(_MSC_VER)
     if (use_gpu_path) {
             GST_TRACE_OBJECT(gvawatermark, "Using VA/GPU render path");
 
