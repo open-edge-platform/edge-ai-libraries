@@ -4,12 +4,11 @@ const Home = () => {
   const { data: pipelines, isSuccess } = useGetPipelinesQuery();
 
   if (isSuccess && pipelines) {
-    console.log(pipelines);
     return (
       <div>
         <ul>
           {pipelines.map((pipeline) => {
-            const id = `${pipeline.name}${pipeline.description}`;
+            const id = `${pipeline.name}-${pipeline.version}`;
             return (
               <li key={id}>
                 <h1>{pipeline.version}</h1>
