@@ -457,7 +457,7 @@ static bool buffer_has_va(GstBuffer *buf) {
 // Minimal fallback: resolve VASurfaceID from GstVA at runtime (no unstable headers)
 #ifdef ENABLE_VAAPI
 #ifdef _WIN32
-static VASurfaceID get_surface_from_buffer(GstBuffer *){
+static VASurfaceID get_surface_from_buffer(GstBuffer *) {
     return VA_INVALID_SURFACE;
 }
 #else
