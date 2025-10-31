@@ -12,7 +12,7 @@ rabbitmq:
 vlminference:
   enabled: true
 videoingestion:
-  enabled: true 
+  enabled: true
 audioanalyzer:
   enabled: true
 

@@ -34,11 +34,25 @@ global:
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
 
+  # Update these values to deploy on GPU. Leave empty if want to keep default deployment on CPU.
+  gpu:
+    vlminferenceEnabled:
+    multimodalembeddingmsEnabled:
+    ovmsEnabled:
+
+    # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled or ovmsEnabled is set to true
+    # Update as per the cluster node label key for GPU assigned by the device plugin
+    key:
+    # Set value to `GPU` to deploy on GPU
+    device:
+
+
 videoingestion:
   # odModelName defines the name of Object Detection Model
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
   odModelType: ""
+
 
 multimodalembeddingms:
   # Update textEmbeddingModel for unified video search and summary setup. Keep imageEmbeddingModel empty. See docs for sample value.

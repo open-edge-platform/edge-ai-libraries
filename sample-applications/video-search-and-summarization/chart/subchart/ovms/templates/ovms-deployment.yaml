@@ -38,7 +38,7 @@ spec:
                   echo "No config.json found, running init script. /config/init-script.sh "{{ .Values.global.llmName }}" "{{ .Values.ovms.env.WEIGHT_FORMAT }}" "{{ .Values.global.huggingfaceToken }}""
                   . /config/init-script.sh
                 fi
-          args: [{{ required "Value for `global.llmName` is required!" .Values.global.llmName | quote }},"{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingfaceToken }}"]
+          args: [{{ required "Value for `global.llmName` is required!" .Values.global.llmName | quote }},"{{ .Values.ovms.env.WEIGHT_FORMAT }}","{{ .Values.global.huggingfaceToken }}","{{ .Values.global.gpu.ovmsEnabled }}"]
           env:
             - name: http_proxy
               value: {{ .Values.global.proxy.http_proxy }}
@@ -54,7 +54,7 @@ spec:
               subPath: ov-models
       containers:
         - name: {{ .Chart.Name }}
-          image: {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }}
+          image: "{{- if .Values.global.gpu.ovmsEnabled -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.Gputag }} {{- else -}} {{ .Values.ovms.image.repository }}:{{ .Values.ovms.image.tag }} {{- end -}}"
           imagePullPolicy: {{ .Values.ovms.image.pullPolicy }}
           livenessProbe:
             {{- toYaml .Values.livenessProbe | nindent 12 }}
@@ -82,7 +82,31 @@ spec:
             - name: WEIGHT_FORMAT
               value: {{ .Values.ovms.env.WEIGHT_FORMAT }}
           args: ["--port", "9300", "--rest_port", "8300", "--log_level", "DEBUG", "--config_path", "/opt/data/models/config.json"]
+      {{- if .Values.global.gpu.ovmsEnabled }}
+          resources:
+            requests:
+              {{ .Values.global.gpu.key }}: 1
+            limits:
+              {{ .Values.global.gpu.key }}: 1
+          devices:
+            - name: dri-device
+              containerPath: /dev/dri
+          securityContext:
+            privileged: true
+            runAsUser: 0
+            runAsGroup: 0
+            fsGroup: 0
+      {{- end }}
       volumes:
+      {{- if .Values.global.gpu.ovmsEnabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "ovms.fullname" . }}-gpu-pvc
+      {{- else }}
         - name: workspace
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
@@ -94,6 +118,7 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+      {{- end }}
         - name: scripts-volume
           configMap:
             name: {{ .Values.ovms.script.name }}

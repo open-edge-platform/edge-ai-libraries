@@ -1,3 +1,5 @@
+{{- include "vlminference.validateDeploymentOptions" . }}
+
 apiVersion: apps/v1
 kind: Deployment
 metadata:
@@ -38,11 +40,11 @@ spec:
             {{- toYaml .Values.startupProbe | nindent 12 }}
           env:
             - name: VLM_MODEL_NAME
-              value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
+              value: {{ required "Value for `vlmName` is required!" .Values.global.vlmName | quote }}
             - name: VLM_COMPRESSION_WEIGHT_FORMAT
-              value: {{ .Values.vlminference.env.VLM_COMPRESSION_WEIGHT_FORMAT | quote }}
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}int4{{ else }}int8{{ end }}"
             - name: VLM_DEVICE
-              value: {{ .Values.vlminference.env.VLM_DEVICE | quote }}
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}CPU{{ end }}"
             - name: VLM_SEED
               value: {{ .Values.vlminference.env.VLM_SEED | quote }}
             - name: http_proxy
@@ -56,11 +58,28 @@ spec:
             - name: no_proxy_env
               value: "{{ .Values.global.proxy.no_proxy }},localhost,127.0.0.1,audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch,.svc.cluster.local"
             - name: MULTI_FRAME_COUNT
-              value: {{ .Values.vlminference.env.MULTI_FRAME_COUNT | quote }}
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}6{{ else }}12{{ end }}"
             - name: VLM_CONCURRENT
-              value: {{ .Values.vlminference.env.VLM_CONCURRENT | quote }}
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}4{{ end }}"
+            - name: WORKERS
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}6{{ end }}"
             - name: VLM_HOST_PORT
               value: {{ .Values.vlminference.env.VLM_HOST_PORT | quote }}
+      {{- if .Values.global.gpu.vlminferenceEnabled }}
+          resources:
+            requests:
+              {{ .Values.global.gpu.key }}: 1
+            limits:
+              {{ .Values.global.gpu.key }}: 1
+          devices:
+            name: dri-device
+            containerPath: /dev/dri
+            securityContext:
+              privileged: true
+              runAsUser: 0
+              runAsGroup: 0
+              fsGroup: 0
+      {{- end }}
           volumeMounts:
           - name: workspace
             mountPath: /app/ov-model
@@ -71,6 +90,15 @@ spec:
           securityContext:
             readOnlyRootFilesystem: false
       volumes:
+      {{- if .Values.global.gpu.vlminferenceEnabled }}
+        - name: dri-device
+          hostPath:
+            path: /dev/dri
+            type: Directory
+        - name: workspace
+          persistentVolumeClaim:
+            claimName: {{ include "vlminference.fullname" . }}-gpu-pvc
+      {{- else }}
         - name: workspace
           {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
@@ -82,3 +110,4 @@ spec:
           {{- else }}
           emptyDir: {}
           {{- end }}
+      {{- end }}
