@@ -23,6 +23,9 @@ const createMockStore = (promptEditing: PromptEditing | null = null) => {
       ui: {
         ...uiInitialState,
         promptEditing,
+        selectedMux: 1,
+        groupByTag: false,
+        showVideoGroups: false,
       },
     },
   });

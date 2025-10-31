@@ -71,7 +71,7 @@ export const SummarySidebar: FC = () => {
 
   return (
     <>
-      <SidebarContainer disabled={false}>
+      <SidebarContainer disabled={false} data-tour="previous-summaries">
         <Navigation>{t('Summaries')}</Navigation>
         <ScrollableContainer>{sidebarList}</ScrollableContainer>
       </SidebarContainer>

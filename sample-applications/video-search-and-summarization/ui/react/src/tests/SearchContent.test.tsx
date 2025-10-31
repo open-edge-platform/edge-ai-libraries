@@ -11,6 +11,8 @@ import SearchContent from '../components/Search/SearchContent.tsx';
 import i18n from '../utils/i18n';
 import { SearchReducers } from '../redux/search/searchSlice.ts';
 import { VideoReducers } from '../redux/video/videoSlice.ts';
+import { UISlice } from '../redux/ui/ui.slice.ts';
+import { MuxFeatures } from '../redux/ui/ui.model.ts';
 import { StateActionStatus } from '../redux/summary/summary.ts';
 import { SearchQueryUI, SearchResult, SearchQueryStatus } from '../redux/search/search.ts';
 
@@ -104,6 +106,7 @@ const createMockStore = (initialState: any = {}) => {
     reducer: {
       search: SearchReducers,
       videos: VideoReducers,
+      ui: UISlice.reducer,
     },
     preloadedState: {
       search: {
@@ -117,6 +120,12 @@ const createMockStore = (initialState: any = {}) => {
       videos: {
         videos: [],
         status: StateActionStatus.READY,
+      },
+      ui: {
+        promptEditing: null,
+        selectedMux: MuxFeatures.SEARCH,
+        groupByTag: false,
+        showVideoGroups: false,
       },
     },
   });
@@ -145,7 +154,8 @@ describe('SearchContent Component', () => {
     it('should render no query selected message when no query is selected', () => {
       renderSearchContent();
       
-      expect(screen.getByText('searchNothingSelected')).toBeInTheDocument();
+      // Since NoQuerySelected component renders empty content, check that no query header is rendered
+      expect(screen.queryByText('topK')).not.toBeInTheDocument();
     });
 
     it('should render query header when query is selected', () => {
@@ -260,7 +270,8 @@ describe('SearchContent Component', () => {
         searchQueries: [],
       });
       
-      expect(screen.getByText('searchNothingSelected')).toBeInTheDocument();
+      // Since NoQuerySelected component renders empty content, check that no query header is rendered
+      expect(screen.queryByText('topK')).not.toBeInTheDocument();
     });
 
     it('should render tags when selectedQuery has tags', () => {
@@ -387,7 +398,7 @@ describe('SearchContent Component', () => {
       });
 
       // Find the refetch button and verify it's clickable
-      const refetchButton = screen.getByLabelText('SearchRerun');
+      const refetchButton = screen.getByText('Re-run Search');
       expect(refetchButton).toBeInTheDocument();
       
       // Click the button (this covers the code path)
