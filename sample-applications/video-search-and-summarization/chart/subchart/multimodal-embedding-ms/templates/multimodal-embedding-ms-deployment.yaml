@@ -30,10 +30,16 @@ spec:
         podAffinity:
           {{- toYaml . | nindent 10 }}
       {{- end }}
+      securityContext:
+        runAsUser: 1000
+        runAsGroup: 1000
+        fsGroup: 1000
       containers:
         - name: {{ .Chart.Name }}
           image: "{{ ternary .Values.image.gpu.repository .Values.image.cpu.repository .Values.global.gpu.multimodalembeddingmsEnabled }}:{{ ternary .Values.image.tag .Values.global.commonTag (empty .Values.global.commonTag) | default .Chart.AppVersion }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
+          securityContext:
+            privileged: false
           ports:
             - name: {{ .Values.containerPortName }}
               containerPort: {{ .Values.containerPort }}
@@ -64,11 +70,6 @@ spec:
           devices:
             - name: dri-devices
               containerPath: /dev/dri
-          securityContext:
-            privilleged: true
-            runAsUser: 0
-            runAsGroup: 0
-            fsGroup: 0
       {{- else }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
