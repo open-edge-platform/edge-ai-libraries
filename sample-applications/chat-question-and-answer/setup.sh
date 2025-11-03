@@ -12,7 +12,47 @@ export PGVECTOR_PORT=5432
 export PGVECTOR_USER=langchain
 export PGVECTOR_PASSWORD=langchain
 export PGVECTOR_DBNAME=langchain
-export PG_CONNECTION_STRING=postgresql+psycopg://$PGVECTOR_USER:$PGVECTOR_PASSWORD@pgvector_db:$PGVECTOR_PORT/$PGVECTOR_DBNAME
+
+# Handle the special characters in password for connection string
+convert_pg_password() {
+    local password="$1"
+    password="${password//'%'/'%25'}"
+    password="${password//':'/'%3A'}"
+    password="${password//'@'/'%40'}"
+    password="${password//'/'/'%2F'}"
+    password="${password//'+'/'%2B'}"
+    password="${password//' '/'%20'}"
+    password="${password//'?'/'%3F'}"
+    password="${password//'#'/'%23'}"
+    password="${password//'['/'%5B'}"
+    password="${password//']'/'%5D'}"
+    password="${password//'&'/'%26'}"
+    password="${password//'='/'%3D'}"
+    password="${password//';'/'%3B'}"
+    password="${password//'!'/'%21'}"
+    password="${password//'$'/'%24'}"
+    password="${password//'*'/'%2A'}"
+    password="${password//'^'/'%5E'}"
+    password="${password//'('/'%28'}"
+    password="${password//')'/'%29'}"
+    password="${password//'"'/'%22'}"
+    password="${password//"'"/'%27'}"
+    password="${password//'`'/'%60'}"
+    password="${password//'|'/'%7C'}"
+    password="${password//'\\'/'%5C'}"
+    password="${password//'<'/'%3C'}"
+    password="${password//'>'/'%3E'}"
+    password="${password//','/'%2C'}"
+    password="${password//'{'/'%7B'}"
+    password="${password//'}'/'%7D'}"
+    echo "$password"
+}
+CONVERTED_PGVECTOR_PASSWORD=$(convert_pg_password "$PGVECTOR_PASSWORD")
+
+# ---------------------------------------------------------------------------------------
+
+# This is setup based on previously set PGDB values
+export PG_CONNECTION_STRING="postgresql+psycopg://$PGVECTOR_USER:$CONVERTED_PGVECTOR_PASSWORD@$PGVECTOR_HOST:$PGVECTOR_PORT/$PGVECTOR_DBNAME"
 export INDEX_NAME=intel-rag
 
 #Embedding service required configurations
