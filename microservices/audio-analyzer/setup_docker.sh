@@ -52,12 +52,12 @@ while [[ $# -gt 0 ]]; do
     --build)
       BUILD_ONLY=true
       shift
-      ;;      
+      ;;
     --build-dev)
       BUILD_ONLY=true
       DEV_MODE=true
       shift
-      ;;    
+      ;;
     --down)
       DOWN_CONTAINERS=true
       shift
