@@ -43,8 +43,8 @@ export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
 export LOAD_QUANTIZATION=fp8
 export VLLM_PORT=41091
-export ONEAPI_DEVICE_SELECTOR="level_zero:0"
-export TENSOR_PARALLEL_SIZE=1
+export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:0"
+export TENSOR_PARALLEL_SIZE=2
 ```
 
 Then, check existence of serving:
@@ -76,7 +76,7 @@ export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
 export LOAD_QUANTIZATION=awq
 export VLLM_PORT=41090
-export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
+export ONEAPI_DEVICE_SELECTOR="level_zero:2;level_zero:3"
 export TENSOR_PARALLEL_SIZE=2
 ```
 
