@@ -56,14 +56,15 @@ chmod +x ./setup_docker.sh
 
 #### Docker Setup Options
 
-The `setup_docker.sh` script supports the following options:
+The `setup_docker.sh` script when run without any parameters builds and runs the production docker images. It additionally supports the following options:
 
 ```
 Options:
   --dev                 Build and run development environment
-  --build-only          Only build Docker images (don't run containers)
   --build-dev           Only build development Docker image
   --build-prod          Only build production Docker image
+  --down                Stop and remove all contianers, networks, 
+                        and volumes  
   -h, --help            Show this help message
 ```
 
@@ -72,6 +73,7 @@ Examples:
 - Development setup: `./setup_docker.sh --dev`
 - Build production image only: `./setup_docker.sh --build-prod`
 - Build development image only: `./setup_docker.sh --build-dev`
+- Stop and remove all contianers: `./setup_docer.sh --down`
 
 #### Additional Configuration
 
