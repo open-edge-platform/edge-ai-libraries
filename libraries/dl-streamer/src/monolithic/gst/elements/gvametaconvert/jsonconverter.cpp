@@ -480,7 +480,7 @@ gboolean to_json(GstGvaMetaConvert *converter, GstBuffer *buffer) {
                 if (converter->tags && json::accept(converter->tags))
                     audio_frame["tags"] = json::parse(converter->tags);
 
-                audio_frame["classifications"] = audio_transcription_classification;
+                audio_frame["transcription"] = audio_transcription_classification;
 
                 std::string json_message = audio_frame.dump(converter->json_indent);
 
