@@ -26,18 +26,18 @@ show_help() {
   echo "Options:"
   echo "  (no options)          Build and run production environment"
   echo "  --dev                 Build and run development environment"
-  #echo "  --build               Only build production Docker images (alias for --build-prod)"
+  echo "  --build               Only build production Docker images"
   echo "  --build-dev           Only build development Docker image"
-  echo "  --build-prod          Only build production Docker image"
+  #echo "  --build-prod          Only build production Docker image"
   echo "  --down                Stop and remove all containers, networks, and volumes"
   echo "  -h, --help            Show this help message"
   echo ""
   echo "Examples:"
   echo "  $0                    Build and run production environment"
   echo "  $0 --dev              Build and run development environment"
-  #echo "  $0 --build            Build production Docker image only"
+  echo "  $0 --build            Build production Docker image only"
   echo "  $0 --build-dev        Build development Docker image only"
-  echo "  $0 --build-prod       Build production Docker image only"
+  #echo "  $0 --build-prod       Build production Docker image only"
   echo "  $0 --down             Stop and remove all containers"
   echo ""
 }
@@ -49,15 +49,15 @@ while [[ $# -gt 0 ]]; do
       DEV_MODE=true
       shift
       ;;
+    --build)
+      BUILD_ONLY=true
+      shift
+      ;;      
     --build-dev)
       BUILD_ONLY=true
       DEV_MODE=true
       shift
-      ;;
-    --build-prod)
-      BUILD_ONLY=true
-      shift
-      ;;
+      ;;    
     --down)
       DOWN_CONTAINERS=true
       shift

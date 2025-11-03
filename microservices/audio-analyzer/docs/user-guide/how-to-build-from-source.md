@@ -61,8 +61,8 @@ The `setup_docker.sh` script when run without any parameters builds and runs the
 ```
 Options:
   --dev                 Build and run development environment
-  --build-dev           Only build development Docker image
-  --build-prod          Only build production Docker image
+  --build               Only build production Docker image
+  --build-dev           Only build development Docker image  
   --down                Stop and remove all contianers, networks, 
                         and volumes  
   -h, --help            Show this help message
@@ -71,7 +71,7 @@ Options:
 Examples:
 - Production setup: `./setup_docker.sh`
 - Development setup: `./setup_docker.sh --dev`
-- Build production image only: `./setup_docker.sh --build-prod`
+- Build production image only: `./setup_docker.sh --build`
 - Build development image only: `./setup_docker.sh --build-dev`
 - Stop and remove all contianers: `./setup_docker.sh --down`
 
