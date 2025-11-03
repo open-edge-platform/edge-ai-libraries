@@ -289,7 +289,8 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
             TranscriptionResult result = gvaaudiotranscribe->handler->transcribe(*audio_data, buf);
             if (!result.text.empty()) {
                 // Log transcript (visible with GST_DEBUG level >= INFO for this category)
-                GST_INFO_OBJECT(gvaaudiotranscribe, "Transcript: %s (confidence: %.3f)", result.text.c_str(), result.confidence);
+                GST_INFO_OBJECT(gvaaudiotranscribe, "Transcript: %s (confidence: %.3f)", result.text.c_str(),
+                                result.confidence);
 
                 // Add GstAnalyticsClassification metadata to buffer
                 if (gst_buffer_is_writable(buf)) {
@@ -307,8 +308,10 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
 
                         if (gst_analytics_relation_meta_add_cls_mtd(relation_meta, 1, &confidence_level,
                                                                     &transcript_quark, &cls_mtd)) {
-                            GST_INFO_OBJECT(gvaaudiotranscribe,
-                                            "Added transcription as GstAnalyticsClassification metadata (confidence: %.3f)", confidence_level);
+                            GST_INFO_OBJECT(
+                                gvaaudiotranscribe,
+                                "Added transcription as GstAnalyticsClassification metadata (confidence: %.3f)",
+                                confidence_level);
 
                             // Add model descriptor metadata
                             GQuark transcription_quark = g_quark_from_string("transcription");
@@ -320,11 +323,16 @@ static GstFlowReturn gst_gva_audio_transcribe_transform_ip(GstBaseTransform *bas
                                 GST_INFO_OBJECT(gvaaudiotranscribe, "Added model descriptor metadata");
 
                                 // Create relation between transcription result and model descriptor
-                                if (gst_analytics_relation_meta_set_relation(relation_meta, GST_ANALYTICS_REL_TYPE_RELATE_TO,
-                                                                            cls_mtd.id, cls_descriptor_mtd.id)) {
-                                    GST_INFO_OBJECT(gvaaudiotranscribe, "Created relation between transcription result and model descriptor");
+                                if (gst_analytics_relation_meta_set_relation(relation_meta,
+                                                                             GST_ANALYTICS_REL_TYPE_RELATE_TO,
+                                                                             cls_mtd.id, cls_descriptor_mtd.id)) {
+                                    GST_INFO_OBJECT(
+                                        gvaaudiotranscribe,
+                                        "Created relation between transcription result and model descriptor");
                                 } else {
-                                    GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to create relation between transcription result and model descriptor");
+                                    GST_ERROR_OBJECT(
+                                        gvaaudiotranscribe,
+                                        "Failed to create relation between transcription result and model descriptor");
                                 }
                             } else {
                                 GST_ERROR_OBJECT(gvaaudiotranscribe, "Failed to add model descriptor metadata");

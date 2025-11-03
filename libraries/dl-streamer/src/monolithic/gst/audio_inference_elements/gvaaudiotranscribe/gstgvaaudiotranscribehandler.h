@@ -14,12 +14,12 @@
  * Structure to hold transcription results with confidence score.
  */
 struct TranscriptionResult {
-    std::string text;        // The transcribed text
-    float confidence;        // Confidence score (0.0 to 1.0)
-    
+    std::string text; // The transcribed text
+    float confidence; // Confidence score (0.0 to 1.0)
+
     // Constructor for convenience
-    TranscriptionResult(const std::string& txt = "", float conf = 1.0f) 
-        : text(txt), confidence(conf) {}
+    TranscriptionResult(const std::string &txt = "", float conf = 1.0f) : text(txt), confidence(conf) {
+    }
 };
 
 /**

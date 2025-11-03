@@ -50,7 +50,7 @@ TranscriptionResult WhisperHandler::transcribe(const std::vector<float> &audio_d
         float confidence = result.scores.empty() ? 1.0f : result.scores[0];
 
         GST_DEBUG("WhisperHandler: Transcribed '%s' with confidence %.3f", text.c_str(), confidence);
-        
+
         return TranscriptionResult(text, confidence);
     } catch (const std::exception &e) {
         GST_ERROR("WhisperHandler transcription failed: %s", e.what());
