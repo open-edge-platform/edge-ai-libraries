@@ -1,5 +1,5 @@
 x-nginx-common: &nginx-common
-  image: nginxinc/nginx-unprivileged:1.29.1
+  image: nginxinc/nginx-unprivileged:1.29.2
   container_name: chatqna-core-nginx
   ports:
     - "8102:8102"
