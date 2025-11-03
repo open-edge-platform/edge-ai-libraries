@@ -14,7 +14,7 @@ class TestPipelineManager(unittest.TestCase):
             version="test-pipeline",
             description="A test pipeline",
             type=PipelineType.GSTREAMER,
-            launch_string="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+            launch_string="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             parameters=None,
         )
 
@@ -37,7 +37,7 @@ class TestPipelineManager(unittest.TestCase):
             version="test-pipeline",
             description="A test pipeline",
             type=PipelineType.GSTREAMER,
-            launch_string="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+            launch_string="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             parameters=None,
         )
 

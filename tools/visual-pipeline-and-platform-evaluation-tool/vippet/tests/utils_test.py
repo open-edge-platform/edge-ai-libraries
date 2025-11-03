@@ -137,7 +137,7 @@ class TestUtils(unittest.TestCase):
                 inference_channels,
                 elements,
             ):
-                return "gst-launch-1.0 videotestsrc ! fakesink"
+                return "videotestsrc ! fakesink"
 
         # Mock process
         process_mock = MagicMock()
@@ -193,7 +193,7 @@ class TestUtils(unittest.TestCase):
                 inference_channels,
                 elements,
             ):
-                return "gst-launch-1.0 videotestsrc ! fakesink"
+                return "videotestsrc ! fakesink"
 
         # Mock process
         process_mock = MagicMock()

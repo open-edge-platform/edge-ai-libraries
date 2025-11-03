@@ -289,7 +289,7 @@ def get_video_resolution(video_path):
 
 
 def run_pipeline_and_extract_metrics(
-    pipeline_cmd: GstPipeline,
+    pipeline_description: GstPipeline,
     constants: Dict[str, str],
     parameters: Dict[str, List[str]],
     channels: int | tuple[int, int] = 1,
@@ -302,7 +302,7 @@ def run_pipeline_and_extract_metrics(
     Runs a GStreamer pipeline and extracts FPS metrics.
 
     Args:
-        pipeline_cmd (str): The GStreamer pipeline command to execute.
+        pipeline_description (GstPipeline): The GStreamer pipeline description to execute.
         poll_interval (int): Interval to poll the process for metrics.
         channels (int): Number of channels to match in the FPS metrics.
 
@@ -325,7 +325,7 @@ def run_pipeline_and_extract_metrics(
         live_preview_enabled = params.get("live_preview_enabled", False)
 
         # Evaluate the pipeline with the given parameters, constants, and channels
-        _pipeline = pipeline_cmd.evaluate(
+        _pipeline = "gst-launch-1.0 -q " + pipeline_description.evaluate(
             constants, params, regular_channels, inference_channels, elements
         )
 

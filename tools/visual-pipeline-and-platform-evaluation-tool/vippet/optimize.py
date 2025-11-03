@@ -79,7 +79,7 @@ class PipelineOptimizer:
 
     def _run_and_collect_metrics(self, live_preview=False):
         result = run_pipeline_and_extract_metrics(
-            pipeline_cmd=self.pipeline,
+            pipeline_description=self.pipeline,
             constants=self.constants,
             parameters=self.param_grid,
             channels=(self.regular_channels, self.inference_channels),

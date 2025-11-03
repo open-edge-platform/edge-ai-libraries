@@ -21,8 +21,8 @@ class TestSimpleVideoStructurizationPipeline(unittest.TestCase):
         # Check if the result is a string
         self.assertIsInstance(result, str)
 
-        # Check that gst-launch-1.0 command is present
-        self.assertTrue(result.startswith("gst-launch-1.0"))
+        # Check that gst-launch-1.0 command is not present
+        self.assertFalse(result.startswith("gst-launch-1.0"))
 
         # Check that input is set
         self.assertIn("location=input.mp4", result)

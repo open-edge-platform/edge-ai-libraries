@@ -20,7 +20,7 @@ class TestPipeline(GstPipeline):
     def evaluate(
         self, constants, parameters, regular_channels, inference_channels, elements
     ):
-        return "gst-launch-1.0 -q " + " ".join(
+        return " ".join(
             [self._pipeline.format(**parameters, **constants)]
             * (inference_channels + regular_channels)
         )

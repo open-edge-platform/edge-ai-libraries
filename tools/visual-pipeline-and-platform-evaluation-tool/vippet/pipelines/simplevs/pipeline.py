@@ -243,7 +243,7 @@ class SimpleVideoStructurizationPipeline(GstPipeline):
             else:
                 streams += "fakesink "
 
-        return "gst-launch-1.0 -q " + streams
+        return streams
 
     def get_default_gst_launch(
         self,
