@@ -73,7 +73,7 @@ Examples:
 - Development setup: `./setup_docker.sh --dev`
 - Build production image only: `./setup_docker.sh --build-prod`
 - Build development image only: `./setup_docker.sh --build-dev`
-- Stop and remove all contianers: `./setup_docer.sh --down`
+- Stop and remove all contianers: `./setup_docker.sh --down`
 
 #### Additional Configuration
 
