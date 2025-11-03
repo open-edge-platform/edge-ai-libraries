@@ -6,7 +6,7 @@ RUN apt-get update && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-RUN cargo install --locked qmassa@1.0.1
+RUN cargo install --locked --git https://github.com/ulissesf/qmassa.git --tag v1.0.1
 
 FROM docker.io/library/telegraf:1.36.3 AS collector
 
