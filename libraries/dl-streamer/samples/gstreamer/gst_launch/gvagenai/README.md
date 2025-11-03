@@ -61,6 +61,9 @@ Set the model path:
 export GENAI_MODEL_PATH=/path/to/your/Gemma3
 ```
 
+> [!NOTE]
+> For installation of `optimum-cli` and other required dependencies needed to export the models, please refer to the respective OpenVINO™ notebook tutorials linked in each model preparation section above.
+
 ## Running the Sample
 
 **Usage:**
