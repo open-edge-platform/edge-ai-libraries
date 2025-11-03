@@ -60,7 +60,7 @@ class MQTTClient():
         if rc == 0:
             self.log.info("Connection to MQTT Broker successful")
         else:
-            self.log.info("Connection to MQTT Broker error")
+            self.log.error("Connection to MQTT Broker error")
 
     def on_log(self, client, userdata, level, buf):
         """ Callback for log messages """

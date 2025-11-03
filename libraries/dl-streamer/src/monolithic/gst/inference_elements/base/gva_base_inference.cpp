@@ -74,6 +74,8 @@
 
 #define DEFAULT_OV_EXTENSION_LIB nullptr
 
+#define DEFAULT_SHARE_VADISPLAY_CTX TRUE
+
 G_DEFINE_TYPE_WITH_PRIVATE(GvaBaseInference, gva_base_inference, GST_TYPE_BASE_TRANSFORM);
 
 GST_DEBUG_CATEGORY_STATIC(gva_base_inference_debug_category);
@@ -107,7 +109,8 @@ enum {
     PROP_SCALE_METHOD,
     PROP_CUSTOM_PREPROC_LIB,
     PROP_CUSTOM_POSTPROC_LIB,
-    PROP_OV_EXTENSION_LIB
+    PROP_OV_EXTENSION_LIB,
+    PROP_SHARE_VADISPLAY_CTX
 };
 
 GType gst_gva_base_inference_get_inf_region(void) {
@@ -382,6 +385,13 @@ void gva_base_inference_class_init(GvaBaseInferenceClass *klass) {
                                                         " Only default and scale-method=fast (VAAPI based) supported "
                                                         "in this element",
                                                         nullptr, param_flags));
+
+    g_object_class_install_property(
+        gobject_class, PROP_SHARE_VADISPLAY_CTX,
+        g_param_spec_boolean("share-va-display-ctx", "Share VA Display Context",
+                             "Whether to share VA Display context across inference elements: "
+                             "true (share context, default), false (do not share context)",
+                             DEFAULT_SHARE_VADISPLAY_CTX, param_flags));
 }
 
 void gva_base_inference_cleanup(GvaBaseInference *base_inference) {
@@ -508,6 +518,8 @@ void gva_base_inference_init(GvaBaseInference *base_inference) {
     base_inference->custom_preproc_lib = g_strdup(DEFAULT_MODEL_PROC);
     base_inference->custom_postproc_lib = g_strdup(DEFAULT_CUSTOM_POSTPROC_LIB);
     base_inference->ov_extension_lib = g_strdup(DEFAULT_OV_EXTENSION_LIB);
+
+    base_inference->share_va_display_ctx = DEFAULT_SHARE_VADISPLAY_CTX;
 }
 
 GstStateChangeReturn gva_base_inference_change_state(GstElement *element, GstStateChange transition) {
@@ -701,6 +713,9 @@ void gva_base_inference_set_property(GObject *object, guint property_id, const G
         base_inference->ov_extension_lib = g_value_dup_string(value);
         GST_INFO_OBJECT(base_inference, "ov-extension-lib: %s", base_inference->ov_extension_lib);
         break;
+    case PROP_SHARE_VADISPLAY_CTX:
+        base_inference->share_va_display_ctx = g_value_get_boolean(value);
+        break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
         break;
@@ -784,6 +799,9 @@ void gva_base_inference_get_property(GObject *object, guint property_id, GValue 
         break;
     case PROP_OV_EXTENSION_LIB:
         g_value_set_string(value, base_inference->ov_extension_lib);
+        break;
+    case PROP_SHARE_VADISPLAY_CTX:
+        g_value_set_boolean(value, base_inference->share_va_display_ctx);
         break;
     default:
         G_OBJECT_WARN_INVALID_PROPERTY_ID(object, property_id, pspec);
@@ -902,6 +920,18 @@ gboolean gva_base_inference_set_caps(GstBaseTransform *trans, GstCaps *incaps, G
                                           "gstreamer-vaapi isn't built with required patches");
             }
         }
+#ifdef _MSC_VER
+        if (!base_inference->priv->d3d11_device && (base_inference->caps_feature == D3D11_MEMORY_CAPS_FEATURE)) {
+            // Try to query D3D11Device from decoder. Select dlstreamer::MemoryType::D3D11 memory type as default.
+            try {
+                base_inference->priv->d3d11_device =
+                    std::make_shared<dlstreamer::GSTContextQuery>(trans, dlstreamer::MemoryType::D3D11);
+                GST_INFO_OBJECT(trans, "Got D3D11Device (%p) from query", base_inference->priv->d3d11_device.get());
+            } catch (...) {
+                GST_WARNING_OBJECT(trans, "Couldn't query D3D11Device from gstreamer-d3d11 elements.");
+            }
+        }
+#endif
 
         base_inference->inference = acquire_inference_instance(base_inference).get();
         if (!base_inference->inference)
@@ -916,9 +946,21 @@ gboolean gva_base_inference_set_caps(GstBaseTransform *trans, GstCaps *incaps, G
         }
 
         // Create a buffer mapper once we know the target memory type
+#ifdef _MSC_VER
+        if (base_inference->caps_feature == D3D11_MEMORY_CAPS_FEATURE) {
+            base_inference->priv->buffer_mapper =
+                BufferMapperFactory::createMapper(base_inference->inference->GetInferenceMemoryType(),
+                                                  base_inference->info, base_inference->priv->d3d11_device);
+        } else {
+            base_inference->priv->buffer_mapper =
+                BufferMapperFactory::createMapper(base_inference->inference->GetInferenceMemoryType(),
+                                                  base_inference->info, base_inference->priv->va_display);
+        }
+#else
         base_inference->priv->buffer_mapper =
             BufferMapperFactory::createMapper(base_inference->inference->GetInferenceMemoryType(), base_inference->info,
                                               base_inference->priv->va_display);
+#endif
 
         if (!base_inference->priv->buffer_mapper)
             throw std::runtime_error("couldn't create buffer mapper");

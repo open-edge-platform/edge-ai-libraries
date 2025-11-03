@@ -1,9 +1,8 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2024-2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
-
 import pytest
 from unittest import mock
 from unittest.mock import patch, MagicMock

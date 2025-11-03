@@ -35,6 +35,7 @@ jobs:
       run_reuse_check: false
       project_folder: 'tools/visual-pipeline-and-platform-evaluation-tool'
       trivy_config_path: 'tools/visual-pipeline-and-platform-evaluation-tool/trivy.yaml'
+      trivy_image_skip: "intel/vippet-app:test"
   filter-docker-related-changes:
     permissions:
       contents: read

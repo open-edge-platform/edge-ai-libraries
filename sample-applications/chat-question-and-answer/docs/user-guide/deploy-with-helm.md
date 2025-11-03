@@ -86,14 +86,17 @@ NOTE: GPU is only enabled for openvino model server (OVMS)
 
 Clone the repository containing the Helm chart:
 ```bash
-git clone <repository-url>
+# Clone the latest on mainline
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
 ```bash
-cd <repository-url>/sample-applications/chat-question-and-answer/chart
+cd edge-ai-libraries/sample-applications/chat-question-and-answer/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File

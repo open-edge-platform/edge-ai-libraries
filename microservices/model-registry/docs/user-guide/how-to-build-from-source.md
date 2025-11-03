@@ -30,9 +30,12 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
 
 1. **Clone the Repository**:
     ```bash
-    git clone https://github.com/{{repo-path}}.git
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 
-    cd {{repo-name}}
+    cd edge-ai-libraries/microservices/model-registry
     ```
 
 2. **Install Python 3.10**
@@ -41,15 +44,13 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
     ```
 1. **Rename the `.env.template` file to `.env`**
     ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/docker
+    cd docker
 
     mv .env.template .env
     ```
 1. **Create the directories to be used as persistent storage for the `PostgreSQL` and `MinIO` containers**
     ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/scripts
+    cd ../scripts
 
     sudo ./init_mr_data_dirs.sh
     ```
@@ -60,8 +61,7 @@ This guide assumes basic familiarity with Git commands, Python virtual environme
     3. `MR_PSQL_PASSWORD`
 
     ```bash
-    # Replace `{{path_to}}` with the actual path to the directory
-    cd {{path_to}}/docker
+    cd ../docker
 
     vi .env
     ```

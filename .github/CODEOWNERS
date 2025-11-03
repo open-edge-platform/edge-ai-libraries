@@ -15,7 +15,7 @@ README.md           @xwu2intel
 
 # microservices
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey
-/microservices/dlstreamer-pipeline-server/             @sajeevrajput @ajagadi1
+/microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni
 /microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
 # lack of owners - /microservices/model-registry/
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
@@ -34,7 +34,7 @@ README.md           @xwu2intel
 /sample-applications/video-search-and-summarization/          @bharagha @yogeshmpandey @bhardwaj-nakul @krish918
 
 # tools
-/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac
+/tools/visual-pipeline-and-platform-evaluation-tool/   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac
 
 
 
@@ -106,7 +106,7 @@ README.md           @xwu2intel
 /sample-applications/video-search-and-summarization/README.md   @bharagha @yogeshmpandey @bhardwaj-nakul @krish918  @open-edge-platform/open-edge-platform-docs-write
 
 # documentation content: tools
-/tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
-/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
+/tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
 
 

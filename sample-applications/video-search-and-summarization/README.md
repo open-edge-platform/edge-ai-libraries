@@ -10,14 +10,14 @@ This foundational sample application provides three modes:
 | 📝 Video Summarization | Create concise summaries of long-form videos or live streams, automatically. | Improve searchability. Combine insights from different data types using Generative AI Vision Language Models (VLMs), computer vision, and audio analysis. |
 | 🔗 Combined Video Search and Summarization | Find specific content and create concise summaries of videos - ideal for a comprehensive video analysis. | Search quickly and directly over generated video summaries. Using the summary as a knowledge base makes the search results more relevant and accurate. |
 
-The detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices are as follows.
-
 ## Why Use VSS?
 
 - **Data privacy**: Local processing ensures your data stays private.
 - **Ease of use**: You can search using natural language.
 - **Improved accuracy**: Multi-modal analysis works on video, audio, and text at the same time, which improves the results.
 - **Scalability**: You can work on one or multiple videos automatically.
+
+The detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices are as follows.
 
 ## Documentation
   
