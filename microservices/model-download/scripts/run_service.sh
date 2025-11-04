@@ -16,8 +16,6 @@ BUILD_ONLY=false
 REBUILD=false
 PLUGINS=""
 MODEL_PATH=""
-TAG="latest"
-REGISTRY=""
 ACTION="up"
 
 # Function to log messages with color
@@ -48,8 +46,6 @@ show_usage() {
     echo -e "  ${CYAN}--rebuild${NC}              Force rebuild the Docker image without cache (without starting services)"
     echo -e "  ${CYAN}--model-path${NC} <path>    Set custom model path (default: $DEFAULT_MODEL_PATH)"
     echo -e "  ${CYAN}--plugins${NC} <list>       Comma-separated list of plugins to enable (e.g., huggingface,ollama,ultralytics) or 'all' to enable all"
-    #echo -e "  ${CYAN}--tag${NC} <tag>            Docker image tag (default: latest)"
-    #echo -e "  ${CYAN}--registry${NC} <registry>  Docker registry prefix (default: none)"
     echo -e "  ${CYAN}--help${NC}                 Show this help message"
 }
 
@@ -90,28 +86,6 @@ while [[ $# -gt 0 ]]; do
                 shift 2
             else
                 log_error "--plugins requires a comma-separated list"
-                return 1
-            fi
-            ;;
-        --tag)
-            if [[ -n "$2" && "$2" != --* ]]; then
-                TAG="$2"
-                shift 2
-            else
-                log_error "--tag requires a value"
-                return 1
-            fi
-            ;;
-        --registry)
-            if [[ -n "$2" && "$2" != --* ]]; then
-                REGISTRY="$2"
-                # Make sure registry ends with a slash if not empty
-                if [[ -n "$REGISTRY" && ! "$REGISTRY" == */ ]]; then
-                    REGISTRY="${REGISTRY}/"
-                fi
-                shift 2
-            else
-                log_error "--registry requires a value"
                 return 1
             fi
             ;;
