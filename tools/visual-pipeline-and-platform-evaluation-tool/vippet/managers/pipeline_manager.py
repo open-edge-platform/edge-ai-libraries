@@ -26,7 +26,7 @@ class PipelineManager:
             version=new_pipeline.version,
             description=new_pipeline.description,
             type=new_pipeline.type,
-            launch_config=LaunchConfig(nodes=cfg["nodes"], edges=cfg["edges"]),
+            launch_config=LaunchConfig.model_validate(cfg),
             parameters=new_pipeline.parameters,
         )
 
@@ -70,7 +70,7 @@ class PipelineManager:
                     ),
                     description=config.get("name", "Unnamed Pipeline"),
                     type=PipelineType.GSTREAMER,
-                    launch_config=LaunchConfig(nodes=cfg["nodes"], edges=cfg["edges"]),
+                    launch_config=LaunchConfig.model_validate(cfg),
                     parameters=None,
                 )
             )

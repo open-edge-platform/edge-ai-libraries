@@ -1,15 +1,36 @@
 import re
-from collections.abc import Iterator, Mapping
+from collections import defaultdict
+from collections.abc import Iterator
 from dataclasses import dataclass
 
 
 @dataclass
-class _Token:
+class Node:
+    id: str
+    type: str
+    data: dict[str, str]
+
+
+@dataclass
+class Edge:
+    id: str
+    source: str
+    target: str
+
+
+@dataclass
+class Config:
+    nodes: list[Node]
+    edges: list[Edge]
+
+
+@dataclass
+class Token:
     kind: str | None
     value: str
 
 
-def _tokenize(element: str) -> Iterator[_Token]:
+def _tokenize(element: str) -> Iterator[Token]:
     token_specification = [
         ("PROPERTY", r"\S+\s*=\s*\S+"),  # Property in key=value format
         ("TEE_END", r"\S+\.(?:\s|\Z)"),  # End of tee
@@ -18,25 +39,24 @@ def _tokenize(element: str) -> Iterator[_Token]:
         ("MISMATCH", r"."),  # Any other character
     ]
 
-    tok_regex = "|".join("(?P<%s>%s)" % pair for pair in token_specification)
+    tok_regex = "|".join(
+        f"(?P<{name}>{pattern})" for name, pattern in token_specification
+    )
 
     for mo in re.finditer(tok_regex, element):
         kind = mo.lastgroup
         value = mo.group().strip()
         if kind == "SKIP":
             continue
-        yield _Token(kind, value)
+        yield Token(kind, value)
 
 
-def string_to_config(launch_string: str) -> Mapping:
-    result = {
-        "nodes": [],
-        "edges": [],
-    }
+def string_to_config(launch_string: str) -> Config:
+    nodes: list[Node] = []
+    edges: list[Edge] = []
 
-    tee_indices = []
-    prev_node = {"id": "", "data": {}}
-    prev_token = _Token("", "")
+    tee_indices: list[str] = []
+    prev_token = Token("", "")
 
     launch_string = launch_string.replace(",", " ")
 
@@ -44,21 +64,19 @@ def string_to_config(launch_string: str) -> Mapping:
         for token in _tokenize(element):
             match token.kind:
                 case "TYPE":
-                    result["nodes"].append(
-                        {"id": str(i), "type": token.value, "data": {}}
-                    )
+                    nodes.append(Node(id=str(i), type=token.value, data={}))
 
                     if i > 0:
-                        result["edges"].append(
-                            {
-                                "id": str(i - 1),
-                                "source": (
-                                    str(i - 1)
-                                    if prev_token.kind != "TEE_END"
-                                    else tee_indices.pop()
+                        edges.append(
+                            Edge(
+                                id=str(i - 1),
+                                source=(
+                                    tee_indices.pop()
+                                    if prev_token.kind == "TEE_END"
+                                    else str(i - 1)
                                 ),
-                                "target": str(i),
-                            }
+                                target=str(i),
+                            )
                         )
 
                     if token.value == "tee":
@@ -66,85 +84,77 @@ def string_to_config(launch_string: str) -> Mapping:
 
                 case "PROPERTY":
                     k, v = re.split(r"\s*=\s*", token.value, maxsplit=1)
-                    prev_node["data"][k] = v
+                    if nodes:
+                        nodes[-1].data[k] = v
 
                 case "MISMATCH":  # TODO
                     print(f"MISMATCH: {token}")
 
-            # TODO This line will raise an IndexError if no nodes have been added yet.
-            # The code assumes result["nodes"] is non-empty, but this may not be true depending on the input.
-            prev_node = result["nodes"][-1]
             prev_token = token
 
-    return result
+    return Config(nodes, edges)
 
 
-def config_to_string(pipeline: Mapping) -> str:
-    nodes = pipeline.get("nodes", [])
+def config_to_string(pipeline: Config) -> str:
+    nodes = pipeline.nodes
     if not nodes:
         return ""
 
-    edges = pipeline.get("edges", [])
+    edges = pipeline.edges
+    node_by_id = {node.id: node for node in nodes}
 
     # Build adjacency map for efficient edge lookup
-    edges_from: dict[str, list[str]] = {}
+    edges_from: dict[str, list[str]] = defaultdict(list)
     for edge in edges:
-        source = edge["source"]
-        target = edge["target"]
-        if source not in edges_from:
-            edges_from[source] = []
-        edges_from[source].append(target)
+        edges_from[edge.source].append(edge.target)
 
     # Find tee elements and their names
-    tee_names: dict[str, str] = {}
-    for node in nodes:
-        if node["type"] == "tee" and "name" in node["data"]:
-            tee_names[node["id"]] = node["data"]["name"]
+    tee_names = {
+        node.id: node.data["name"]
+        for node in nodes
+        if node.type == "tee" and "name" in node.data
+    }
 
     # Find start nodes (nodes with no incoming edges)
-    all_node_ids = {node["id"] for node in nodes}
-    target_node_ids = {edge["target"] for edge in edges}
+    all_node_ids = set(node_by_id.keys())
+    target_node_ids = {edge.target for edge in edges}
     start_nodes = all_node_ids - target_node_ids
 
     # TODO log error for circular graphs
-    # If no start nodes found (circular graph), pick the first node
     if not start_nodes:
-        start_nodes = {nodes[0]["id"]}
+        print(
+            "Warning: Circular graph detected or no start nodes found. Starting from the first node."
+        )
+        return ""
 
-    result_parts = []
-    visited = set()
+    result_parts: list[str] = []
+    visited: set[str] = set()
 
     def build_chain(start_id: str) -> None:
         current_id = start_id
 
         while current_id and current_id not in visited:
             visited.add(current_id)
-            node = next((n for n in nodes if n["id"] == current_id), None)
+            node = node_by_id.get(current_id)
             if not node:
                 break
 
-            # Add element type
-            result_parts.append(node["type"])
+            result_parts.append(node.type)
 
-            # Add properties
-            for key, value in node["data"].items():
+            for key, value in node.data.items():
                 result_parts.append(f"{key}={value}")
 
-            # Get outgoing edges
             targets = edges_from.get(current_id, [])
 
             if not targets:
                 break
-            elif len(targets) == 1:
+            if len(targets) == 1:
                 result_parts.append("!")
                 current_id = targets[0]
             else:
-                # Tee element with multiple branches
                 result_parts.append("!")
-                # Process first branch inline
                 build_chain(targets[0])
 
-                # Process remaining branches with tee reference
                 for target_id in targets[1:]:
                     tee_name = tee_names.get(current_id, "t")
                     result_parts.append(f"{tee_name}.")
@@ -153,7 +163,6 @@ def config_to_string(pipeline: Mapping) -> str:
 
                 return
 
-    # Process all connected components
     for start_id in sorted(start_nodes):
         if start_id not in visited:
             build_chain(start_id)

@@ -198,7 +198,7 @@ class InstanceManager:
             )
 
             launch_string = config_to_string(
-                pipeline_request.parameters.launch_config.model_dump()
+                **pipeline_request.parameters.launch_config.model_dump()
             )
 
             # Replace file path in launch string if needed
@@ -266,7 +266,7 @@ class InstanceManager:
             )
 
             launch_string = config_to_string(
-                pipeline_request.parameters.launch_config.model_dump()
+                **pipeline_request.parameters.launch_config.model_dump()
             )
 
             # Replace file path in launch string if needed
