@@ -12,7 +12,7 @@ info:
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
 
-    **Note:** HF_TOKEN environment variable is optional and only required for downloading 
+    **Note:** HUGGINGFACEHUB_API_TOKEN environment variable is optional and only required for downloading 
     gated models from HuggingFace or for model conversion. Public models can be downloaded without authentication.
   version: 1.0.0
   contact:
@@ -327,8 +327,8 @@ paths:
         2. `type` can be set to 'llm,embeddings,reranker or vision' in the request
 
         **Authentication:**
-        - HF_TOKEN is optional for public HuggingFace models
-        - HF_TOKEN is required for gated/private HuggingFace models and for conversion
+        - HUGGINGFACEHUB_API_TOKEN is optional for public HuggingFace models
+        - HUGGINGFACEHUB_API_TOKEN is required for gated/private HuggingFace models and for conversion
         - No authentication needed for Ollama or Ultralytics models
 
         **Job Processing:**

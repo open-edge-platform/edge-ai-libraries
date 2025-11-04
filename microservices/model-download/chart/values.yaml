@@ -25,5 +25,5 @@ env:
 
 service:
   type: NodePort
-  nodePort: 32000
+  nodePort: 
   port: 8000
