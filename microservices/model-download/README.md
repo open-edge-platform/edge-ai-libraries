@@ -7,7 +7,7 @@ The Model Download Microservice provides a unified solution for downloading AI/M
 The diagram below illustrates the high-level architecture of the Model Download Microservice, showcasing its core components and their interactions with external systems.
 
 <p align="center">
-    <img src="./images/architecture.png" alt="Architecture" />
+    <img src="./docs/user-guide/images/architecture.png" alt="Architecture" />
 </p>
 
 ## Components
