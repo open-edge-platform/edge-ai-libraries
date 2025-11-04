@@ -65,13 +65,13 @@ cd edge-ai-libraries/microservices/model-download/chart
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `env.HF_TOKEN` and proxy settings as required
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `env.HUGGINGFACEHUB_API_TOKEN` and proxy settings as required
 
 Below is a summary of key configuration options available in the `values.yaml` file:
 
 | Parameter           | Description                                 | Example Value            | Required |
 |---------------------|---------------------------------------------|--------------------------|----------|
-| `env.HF_TOKEN`      | Hugging Face access token                   | `hf_xxx`                 | Yes      |
+| `env.HUGGINGFACEHUB_API_TOKEN`      | Hugging Face access token                   | `hf_xxx`                 | Yes      |
 | `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
 | `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins | `all` | Yes |
 | `image.repository`	| image repository url	| intel/model-download | Yes |
@@ -80,17 +80,9 @@ Below is a summary of key configuration options available in the `values.yaml` f
 
 > **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.
 
-
-#### Step 4: Build Helm Dependencies
-
-Navigate to the chart directory and build the Helm dependencies using the following command:
-
-```bash
-helm dependency build
-```
 ## Common Steps after configuration
 
-### Step 5: Deploy the Helm Chart
+### Step 4: Deploy the Helm Chart
 
 Deploy the Model-Download Helm chart:
 
@@ -98,7 +90,7 @@ Deploy the Model-Download Helm chart:
 helm install model-download . -n <your-namespace>
 ```
 
-### Step 6: Verify the Deployment
+### Step 5: Verify the Deployment
 
 Check the status of the deployed resources to ensure everything is running correctly
 
@@ -107,18 +99,11 @@ kubectl get pods -n <your-namespace>
 kubectl get services -n <your-namespace>
 ```
 
-### Step 7: Access the Application
+### Step 6: Access the Application
 
 Open the application swagger documentation in a browser at `http://\<node-ip\>:\<node-port\>/api/v1/docs`
 
-### Step 8: Update Helm Dependencies
-
-If any changes are made to the subcharts, update the Helm dependencies using the following command:
-
-```bash
-helm dependency update
-```
-### Step 9: Uninstall Helm chart
+### Step 7: Uninstall Helm chart
 
 To uninstall helm charts deployed, use the following command:
 
