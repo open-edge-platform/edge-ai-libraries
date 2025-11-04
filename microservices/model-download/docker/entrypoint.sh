@@ -38,56 +38,19 @@ print_header() {
 # Function to install dependencies for specific plugins
 install_dependencies() {
     local plugin=$1
-    print_header "Installing dependencies for $plugin plugin"
-    
-    # First, update the pyproject.toml file to include the dependencies
-    update_pyproject() {
-        local dep_group=$1
-        local dependencies=$2
-        
-        print_info "Updating pyproject.toml with $dep_group dependencies"
-        
-        # Check if the dependency group already exists
-        if grep -q "\[tool.poetry.group.$dep_group\]" /opt/pyproject.toml; then
-            print_info "Dependency group $dep_group already exists in pyproject.toml"
-        else
-            # Add the dependency group
-            echo -e "\n[tool.poetry.group.$dep_group]\noptional = true\n\n[tool.poetry.group.$dep_group.dependencies]$dependencies" >> /opt/pyproject.toml
-            print_success "Added dependency group $dep_group to pyproject.toml"
-        fi
-    }
+    print_header "Preparing $plugin plugin"
     
     case $plugin in
         openvino)
-            print_info "Installing OpenVINO dependencies..."
-            
-            # Update pyproject.toml
-            update_pyproject "openvino" "\nopenvino = \"^2025.0.0\"\nopenvino-dev = \"^2025.0.0\""
-
-            if pip install --user --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt; then
-                print_success "OpenVINO dependencies installed successfully"
-            else
-                print_error "Failed to install OpenVINO dependencies"
-                return 1
-            fi
+            print_info "OpenVINO dependencies will be installed via uv sync"
             ;;
         huggingface)
-            print_info "Installing HuggingFace dependencies..."
-            
-            # Update pyproject.toml
-            update_pyproject "huggingface" "\nhuggingface_hub = {version = \"0.35.3\", extras = [\"cli\", \"hf-transfer\", \"hf-xet\"]}\nsentence-transformers = \"5.1.1\"\neinops = \"0.8.1\""
-            
-            if pip install --user --no-cache-dir "huggingface_hub[cli,hf-transfer,hf-xet]==0.35.3" sentence-transformers==5.1.1 einops==0.8.1; then
-                print_success "HuggingFace dependencies installed successfully"
-            else
-                print_error "Failed to install HuggingFace dependencies"
-                return 1
-            fi
+            print_info "HuggingFace dependencies will be installed via uv sync"
+            # Additional setup can be added here if needed
             ;;
         ollama)
-            print_info "Installing Ollama dependencies..."            
-            # Install Ollama binary as non-root user
-            print_info "Installing Ollama binary..."
+            print_info "Installing Ollama binary..."            
+            # Install Ollama binary
             if curl -LO https://ollama.com/download/ollama-linux-amd64.tgz && \
                tar -xzf ollama-linux-amd64.tgz -C "/opt/" && \
                rm ollama-linux-amd64.tgz && \
@@ -99,17 +62,17 @@ install_dependencies() {
             fi
             ;;
         ultralytics)
-            print_info "Installing Ultralytics dependencies..."
-            
-            # Update pyproject.toml
-            update_pyproject "ultralytics" "\nultralytics = \"8.3.196\"\ntorch = \"2.7.1\"\ntorchvision = \"^0.18.1\""
-            
-            if pip install --user --no-cache-dir ultralytics==8.3.196 torch==2.7.1 torchvision; then
-                print_success "Ultralytics dependencies installed successfully"
+            print_info "Downloading Ultralytics public models script from GitHub"
+            mkdir -p /opt/scripts
+            if curl -fsSL -o /opt/scripts/download_public_models.sh https://raw.githubusercontent.com/open-edge-platform/edge-ai-libraries/main/libraries/dl-streamer/samples/download_public_models.sh; then
+                chmod +x /opt/scripts/download_public_models.sh
+                print_success "Ultralytics public models script downloaded to /opt/scripts/download_public_models.sh"
             else
-                print_error "Failed to install Ultralytics dependencies"
+                print_error "Failed to download Ultralytics public models script"
                 return 1
             fi
+            print_info "Ultralytics dependencies will be installed via uv sync"
+            # Additional setup can be added here if needed
             ;;
         *)
             print_error "Unknown plugin: $plugin"
@@ -167,28 +130,36 @@ else
     print_success "Activated plugins: $PLUGINS"
 fi
 
-# Update the poetry.lock file based on pyproject.toml
-print_header "Updating poetry.lock"
+# Sync dependencies using UV
+print_header "Syncing dependencies with UV"
 cd /opt
-print_info "Generating poetry.lock from pyproject.toml..."
+print_info "Installing dependencies from pyproject.toml..."
 
-# Add Poetry and ollama to PATH if it's not already there
-export PATH="$HOME/.local/bin:/opt/bin/:$PATH"
+# Add UV and ollama to PATH if it's not already there
+export PATH="/usr/local/bin:$HOME/.local/bin:/opt/bin/:$PATH"
 
-if command -v poetry &> /dev/null; then
-    if poetry lock --no-update; then
-        print_success "poetry.lock updated successfully"
-        
-        # Activate the Python virtual environment if it exists
-        if [ -d "/opt/.venv" ]; then
-            print_info "Activating Python virtual environment"
-            source /opt/.venv/bin/activate
-        fi
-    else
-        print_warning "Failed to update poetry.lock, but continuing anyway"
+# Build the list of --extra arguments from the activated plugins
+EXTRA_ARGS=()
+if [ "$PLUGINS" = "all" ]; then
+    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
+        EXTRA_ARGS+=(--extra "$plugin")
+    done
+else
+    for plugin in "${PLUGIN_LIST[@]}"; do
+        EXTRA_ARGS+=(--extra "$plugin")
+    done
+fi
+
+if uv sync "${EXTRA_ARGS[@]}"; then
+    print_success "Dependencies synced successfully"
+    # Activate the virtual environment created by uv sync
+    if [ -d "/opt/.venv" ]; then
+        print_info "Activating virtual environment"
+        source /opt/.venv/bin/activate
     fi
 else
-    print_warning "Poetry command not found, skipping lock file update"
+    print_error "Failed to sync dependencies"
+    exit 1
 fi
 
 # Start the service if requested

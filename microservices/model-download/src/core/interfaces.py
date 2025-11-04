@@ -1,6 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Optional, Dict, Any, List, Callable
-from ..api.models import ModelRequest, ModelResult
+from typing import Optional, Dict, Any, List
 
 class DownloadTask:
     """

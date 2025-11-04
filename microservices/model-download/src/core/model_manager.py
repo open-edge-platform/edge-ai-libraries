@@ -1,9 +1,8 @@
 import os
 import uuid
-import logging
 import concurrent.futures
 from datetime import datetime
-from typing import Dict, Any, Optional, List, Callable
+from typing import Dict, Any, Optional, List
 
 from .plugin_registry import PluginRegistry
 from .interfaces import ModelDownloadPlugin, DownloadTask

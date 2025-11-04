@@ -48,21 +48,37 @@ Edit only the `values.yaml` file to set the necessary environment variables. Ens
 
 #### Step 1: Clone the Repository
 
-Clone the repository containing the Helm chart:
+*Clone the repository containing the Helm chart*:
 ```bash
-git clone <repository-url>
-```
+      # Clone the latest on mainline
+        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+      # Alternatively, Clone a specific release branch
+        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+      ```
 
 #### Step 2: Change to the Chart Directory
 
 Navigate to the chart directory:
 ```bash
-cd <repository-url>/microservices/model-download/chart
+cd edge-ai-libraries/microservices/model-download/chart
 ```
 
 #### Step 3: Configure the `values.yaml` File
 
-Edit the `values.yaml` file located in the chart directory to set the necessary environment variables.
+Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `env.HF_TOKEN` and proxy settings as required
+
+Below is a summary of key configuration options available in the `values.yaml` file:
+
+| Parameter           | Description                                 | Example Value            | Required |
+|---------------------|---------------------------------------------|--------------------------|----------|
+| `env.HF_TOKEN`      | Hugging Face access token                   | `hf_xxx`                 | Yes      |
+| `service.nodePort`  | Sets the static port (in the 30000–32767 range) | 32000                | Yes      |
+| `env.ENABLED_PLUGINS`| Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins | `all` | Yes |
+| `image.repository`	| image repository url	| intel/model-download | Yes |
+| `image.tag`	        | latest image tag	    | 1.0.0                | Yes |
+
+
+> **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.
 
 
 #### Step 4: Build Helm Dependencies

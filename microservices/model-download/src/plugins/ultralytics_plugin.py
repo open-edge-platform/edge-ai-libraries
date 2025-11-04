@@ -1,8 +1,7 @@
 import os
-import sys
 import subprocess
 from pathlib import Path
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, List
 
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
@@ -63,7 +62,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
     
     def get_supported_models(self) -> List[str]:
         """Get list of supported models from the bash script"""
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "download_models_ultralytics.sh"
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "download_public_models.sh"
         
         if not script_path.exists():
             raise FileNotFoundError(f"Bash script not found at {script_path}")
@@ -87,7 +86,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
     
     def get_supported_quantization_datasets(self) -> Dict[str, str]:
         """Get dict of supported quantization datasets from the bash script"""
-        script_path = Path(__file__).parent.parent.parent / "scripts" / "download_models_ultralytics.sh"
+        script_path = Path(__file__).parent.parent.parent / "scripts" / "download_public_models.sh"
         
         if not script_path.exists():
             raise FileNotFoundError(f"Bash script not found at {script_path}")
@@ -114,9 +113,9 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         return datasets
     
     def _call_bash_script(self, model: str = "all", quantize: str = "", models_path: str = "") -> int:
-        """Call the download_models_ultralytics.sh bash script with arguments"""
+        """Call the download_public_models.sh bash script with arguments"""
         # Find script path relative to this file
-        script_path = str(Path(__file__).parent.parent.parent / "scripts" / "download_models_ultralytics.sh")
+        script_path = str(Path(__file__).parent.parent.parent / "scripts" / "download_public_models.sh")
 
         if not os.path.exists(script_path):
             raise FileNotFoundError(f"Bash script not found at {script_path}")

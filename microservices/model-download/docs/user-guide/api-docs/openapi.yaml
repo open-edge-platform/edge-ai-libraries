@@ -5,13 +5,13 @@ info:
     API for downloading models from HuggingFace, Ollama, and Ultralytics hubs and converting models to OpenVINO IR format.
     This service provides endpoints to download models and optionally convert them to 
     OpenVINO Intermediate Representation (IR) format for optimized inference on Intel hardware.
-    
+
     **Features:**
     - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics)
     - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
     - Asynchronous job processing with status tracking
     - Plugin-based architecture for extensibility
-    
+
     **Note:** HF_TOKEN environment variable is optional and only required for downloading 
     gated models from HuggingFace or for model conversion. Public models can be downloaded without authentication.
   version: 1.0.0
@@ -38,6 +38,7 @@ components:
         - huggingface
         - ollama
         - ultralytics
+        - openvino
       description: The model hub source to download from
 
     ModelType:
@@ -67,10 +68,10 @@ components:
       type: object
       properties:
         precision:
-          $ref: '#/components/schemas/ModelPrecision'
+          $ref: "#/components/schemas/ModelPrecision"
           default: int8
         device:
-          $ref: '#/components/schemas/DeviceType'
+          $ref: "#/components/schemas/DeviceType"
           default: CPU
         cache_size:
           type: integer
@@ -89,9 +90,9 @@ components:
           description: The name/ID of the model (e.g., microsoft/Phi-3.5-mini-instruct)
           example: microsoft/Phi-3.5-mini-instruct
         hub:
-          $ref: '#/components/schemas/ModelHub'
+          $ref: "#/components/schemas/ModelHub"
         type:
-          $ref: '#/components/schemas/ModelType'
+          $ref: "#/components/schemas/ModelType"
         is_ovms:
           type: boolean
           default: false
@@ -101,7 +102,7 @@ components:
           description: Specific model revision/version to download
           example: main
         config:
-          $ref: '#/components/schemas/Config'
+          $ref: "#/components/schemas/Config"
           description: Configuration for OpenVINO conversion (required if is_ovms is true)
 
     ModelDownloadRequest:
@@ -112,7 +113,7 @@ components:
         models:
           type: array
           items:
-            $ref: '#/components/schemas/ModelRequest'
+            $ref: "#/components/schemas/ModelRequest"
           description: List of models to download and/or convert
           minItems: 1
         parallel_downloads:
@@ -146,7 +147,7 @@ components:
           type: string
           description: Model hub source
         status:
-          $ref: '#/components/schemas/JobStatus'
+          $ref: "#/components/schemas/JobStatus"
         output_dir:
           type: string
           description: Output directory for the operation
@@ -216,7 +217,7 @@ components:
         jobs:
           type: array
           items:
-            $ref: '#/components/schemas/Job'
+            $ref: "#/components/schemas/Job"
           description: List of jobs
 
     ModelResultsResponse:
@@ -278,7 +279,7 @@ components:
           additionalProperties:
             type: array
             items:
-              $ref: '#/components/schemas/PluginInfo'
+              $ref: "#/components/schemas/PluginInfo"
         total_count:
           type: integer
           description: Total number of plugins
@@ -297,19 +298,6 @@ components:
           enum: [ok]
           description: Health status of the service
 
-  securitySchemes:
-    ApiKeyAuth:
-      type: apiKey
-      in: header
-      name: Authorization
-      description: |
-        Hugging Face API token for authentication. 
-        Optional - only required for:
-        - Downloading gated/private models from HuggingFace
-        - Converting models to OpenVINO IR format
-        
-        Format: Bearer <token> or just <token>
-
 paths:
   /health:
     get:
@@ -319,12 +307,12 @@ paths:
       tags:
         - Health
       responses:
-        '200':
+        "200":
           description: Service is healthy
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/HealthResponse'
+                $ref: "#/components/schemas/HealthResponse"
 
   /models/download:
     post:
@@ -332,25 +320,22 @@ paths:
       description: |
         Downloads one or more models from HuggingFace, Ollama, or Ultralytics and optionally converts them
         to OpenVINO IR format for huggingface hub models. This endpoint processes requests asynchronously and returns job IDs immediately.
-        
+
         **Conversion Behavior:**
         Models will be converted to OpenVINO format if:
         1. `is_ovms` is set to `true` in the request
         2. `type` can be set to 'llm,embeddings,reranker or vision' in the request
-        
+
         **Authentication:**
         - HF_TOKEN is optional for public HuggingFace models
         - HF_TOKEN is required for gated/private HuggingFace models and for conversion
         - No authentication needed for Ollama or Ultralytics models
-        
+
         **Job Processing:**
         - Each model download creates a separate job
         - If conversion is requested, an additional conversion job is created
         - Use the returned job IDs to track progress via `/jobs/{job_id}` endpoint
       operationId: downloadModels
-      security:
-        - ApiKeyAuth: []
-        - {}
       parameters:
         - in: query
           name: download_path
@@ -366,7 +351,7 @@ paths:
         content:
           application/json:
             schema:
-              $ref: '#/components/schemas/ModelDownloadRequest'
+              $ref: "#/components/schemas/ModelDownloadRequest"
             examples:
               huggingface_download:
                 summary: Download HuggingFace model
@@ -411,17 +396,17 @@ paths:
                       hub: ollama
                   parallel_downloads: true
       responses:
-        '200':
+        "200":
           description: Request accepted and processing started
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/DownloadResponse'
+                $ref: "#/components/schemas/DownloadResponse"
               example:
                 message: "Started processing 1 model(s)"
                 job_ids: ["download_abc123", "convert_def456"]
                 status: processing
-        '400':
+        "400":
           description: Bad request - invalid hub, missing dependencies, or plugin not available
           content:
             application/json:
@@ -439,7 +424,7 @@ paths:
                   summary: Plugin dependencies not installed
                   value:
                     detail: "Plugin 'huggingface' is not available: Missing required dependencies: huggingface_hub"
-        '422':
+        "422":
           description: Validation error in request
           content:
             application/json:
@@ -459,7 +444,7 @@ paths:
                           type: string
                         type:
                           type: string
-        '500':
+        "500":
           description: Internal server error
           content:
             application/json:
@@ -485,13 +470,13 @@ paths:
           description: The unique job identifier
           example: download_abc123
       responses:
-        '200':
+        "200":
           description: Job details retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/Job'
-        '404':
+                $ref: "#/components/schemas/Job"
+        "404":
           description: Job not found
           content:
             application/json:
@@ -510,14 +495,14 @@ paths:
       tags:
         - Jobs
       responses:
-        '200':
+        "200":
           description: List of all jobs
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobListResponse'
+                $ref: "#/components/schemas/JobListResponse"
 
-  /models/{model_name}/jobs:
+  /models/jobs:
     get:
       summary: Get jobs for a specific model
       description: Retrieve all jobs (downloads and conversions) related to a specific model
@@ -525,7 +510,7 @@ paths:
       tags:
         - Jobs
       parameters:
-        - in: path
+        - in: query
           name: model_name
           required: true
           schema:
@@ -533,13 +518,13 @@ paths:
           description: The model name
           example: microsoft/Phi-3.5-mini-instruct
       responses:
-        '200':
+        "200":
           description: Jobs for the model retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/JobListResponse'
-        '404':
+                $ref: "#/components/schemas/JobListResponse"
+        "404":
           description: No jobs found for the model
           content:
             application/json:
@@ -558,12 +543,12 @@ paths:
       tags:
         - Models
       responses:
-        '200':
+        "200":
           description: List of completed operations
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/ModelResultsResponse'
+                $ref: "#/components/schemas/ModelResultsResponse"
 
   /plugins:
     get:
@@ -575,9 +560,9 @@ paths:
       tags:
         - Plugins
       responses:
-        '200':
+        "200":
           description: Plugins information retrieved successfully
           content:
             application/json:
               schema:
-                $ref: '#/components/schemas/PluginsResponse'
+                $ref: "#/components/schemas/PluginsResponse"
