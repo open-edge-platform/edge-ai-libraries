@@ -55,7 +55,7 @@ class ImageIngestor:
             try:
                 item = request_queue.get(timeout=1)
                 blob = None
-                self.log.info("Recevied request by image ingestor queue")
+                self.log.debug("Received request by image ingestor queue")
 
                 # fetch any user metadata from the request
                 additional_meta = item.get("custom_meta_data", {})
@@ -91,7 +91,7 @@ class ImageIngestor:
                 gva_blob = Gst.Sample(buf, None, None, None)
 
                 self.gst_queue.put(gva_blob)
-                self.log.info("Gst Sample sent to gst queue")
+                self.log.debug("Gst Sample sent to gst queue")
             except queue.Empty:
                 time.sleep(0.005)
                 continue

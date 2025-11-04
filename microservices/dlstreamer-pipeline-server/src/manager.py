@@ -268,7 +268,7 @@ class PipelineInstance:
         try:
             # clear response queue to remove any stale data
             while not self.publisher.image_publisher.response_queue.empty():
-                self.log.info("{} Clearing stale data from response queue".format(MSG_PREFIX))
+                self.log.debug("{} Clearing stale data from response queue".format(MSG_PREFIX))
                 try:
                     self.publisher.image_publisher.response_queue.get_nowait()
                 except queue.Empty:

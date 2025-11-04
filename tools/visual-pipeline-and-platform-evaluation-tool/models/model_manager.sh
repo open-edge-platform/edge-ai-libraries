@@ -89,7 +89,7 @@ download_omz_models() {
     python3 -m venv "$venv_dir"
     source "$venv_dir/bin/activate"
 
-    pip install --no-cache-dir openvino-dev[onnx] torch torchvision --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install --no-cache-dir openvino-dev[onnx] torch==2.8.0 torchaudio==2.8.0 torchvision==0.23.0 --extra-index-url https://download.pytorch.org/whl/cpu
 
     for model in $models; do
         echo "Installing OMZ model: $model"
@@ -110,14 +110,14 @@ download_omz_models() {
         mkdir -p "$target_dir"
         # Custom handling for specific models
         if [ "$model" == "vehicle-attributes-recognition-barrier-0039" ]; then
-            mv "$tmp_models_dir/intel/$model" "$target_dir"
+            mv "$tmp_models_dir/intel/$model/"* "$target_dir"
             local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/intel/vehicle-attributes-recognition-barrier-0039.json"
             if [ -f "$proc_src" ]; then
                 cp "$proc_src" "$target_dir/vehicle-attributes-recognition-barrier-0039.json"
                 echo "Copied model_proc file for $model."
             fi
         elif [ "$model" == "mobilenet-v2-pytorch" ]; then
-            mv "$tmp_models_dir/public/$model" "$target_dir"
+            mv "$tmp_models_dir/public/$model/"* "$target_dir"
             local proc_src="/opt/intel/dlstreamer/samples/gstreamer/model_proc/public/preproc-aspect-ratio.json"
             if [ -f "$proc_src" ]; then
                 cp "$proc_src" "$target_dir/mobilenet-v2.json"
@@ -227,6 +227,7 @@ declare -a SORTED_MODEL_NAMES
 declare -a SORTED_MODEL_DISPLAY_NAMES
 declare -a SORTED_MODEL_SOURCES
 declare -a SORTED_MODEL_TYPES
+declare -a SORTED_MODEL_DEFAULTS
 
 for type in "${SORTED_TYPES[@]}"; do
     for i in "${!MODEL_NAMES[@]}"; do
@@ -236,6 +237,7 @@ for type in "${SORTED_TYPES[@]}"; do
             SORTED_MODEL_DISPLAY_NAMES+=("${MODEL_DISPLAY_NAMES[$i]}")
             SORTED_MODEL_SOURCES+=("${MODEL_SOURCES[$i]}")
             SORTED_MODEL_TYPES+=("${MODEL_TYPES[$i]}")
+            SORTED_MODEL_DEFAULTS+=("${MODEL_DEFAULTS[$i]}")
         fi
     done
 done
@@ -246,6 +248,7 @@ MODEL_NAMES=("${SORTED_MODEL_NAMES[@]}")
 MODEL_DISPLAY_NAMES=("${SORTED_MODEL_DISPLAY_NAMES[@]}")
 MODEL_SOURCES=("${SORTED_MODEL_SOURCES[@]}")
 MODEL_TYPES=("${SORTED_MODEL_TYPES[@]}")
+MODEL_DEFAULTS=("${SORTED_MODEL_DEFAULTS[@]}")
 
 echo "Parsed supported models from $SUPPORTED_MODELS_FILE. Found ${#MODEL_NAMES[@]} models."
 

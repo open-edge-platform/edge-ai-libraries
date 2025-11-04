@@ -122,7 +122,7 @@ class Udf:
         else:
             metadata['predictions'] = prediction
         end = time()
-        self.log.info(
+        self.log.debug(
             "Inference time: {} \nViz time: {} \nTotal time: {}".format(
                 ((inf - start) * 1000), ((end - inf) * 1000),
                 ((end - start) * 1000)))

@@ -87,7 +87,7 @@ run-dev: env-setup install-models-once ## Run the docker compose services for de
 test: env-setup ## Run tests and generate coverage report
     # Run tests using the vippet-cpu container (tests are device agnostic)
     # Override DOCKER_TAG with '-test' suffix only for this docker compose run
-	TARGET=test DOCKER_TAG="$$(grep '^DOCKER_TAG=' .env | cut -d= -f2)-test" docker compose -f $(COMPOSE_FILE) run \
+	TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) run \
 	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet-cpu bash -c "\
 		cd $(PROJECT_NAME) && \
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
