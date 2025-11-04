@@ -11,6 +11,8 @@ services:
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
         no_proxy: ${no_proxy}
+        USER_ID: 1000
+        USER_GROUP_ID: 1000
     image: ${REGISTRY:-}multilevel-video-understanding:${TAG:-latest}
     ports:
       - ${SERVICE_PORT:-8000}:8000

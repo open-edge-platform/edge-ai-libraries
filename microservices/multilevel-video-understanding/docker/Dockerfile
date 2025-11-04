@@ -4,14 +4,8 @@
 # Common base image with system dependencies
 FROM python:3.13-slim AS python-base
 
-ARG http_proxy
-ARG https_proxy
-ARG no_proxy
-
-# Setting env vars proxy
-ENV http_proxy=${http_proxy}
-ENV https_proxy=${https_proxy}
-ENV no_proxy=${no_proxy}
+ARG USER_ID
+ARG USER_GROUP_ID
 
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
@@ -31,9 +25,6 @@ ENV PYTHONUNBUFFERED=1 \
     SETUP_PATH="/opt/projsetup" \
     # Location where virtual env is created
     VENV_PATH="/opt/projsetup/.venv"
-
-ARG USER_ID=1000
-ARG USER_GROUP_ID=1000
 
 RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
