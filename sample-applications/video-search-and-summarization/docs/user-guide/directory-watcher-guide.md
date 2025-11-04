@@ -131,33 +131,13 @@ The service will automatically:
 The Directory Watcher provides upload status information that can be monitored through the application logs:
 
 - **Total files**: Total number of files detected for processing
-- **Completed files**: Number of successfully processed files  
+- **Completed files**: Number of successfully processed files
 - **Pending files**: Number of files waiting to be processed
 - **Last updated timestamp**: When the last file processing operation completed
 
 ## File Processing Flow
 
-```mermaid
-graph TD
-    A[New MP4 file detected] --> B{File size > 512KB?}
-    B -->|No| C[Ignore file]
-    B -->|Yes| D[Add to processing queue]
-    D --> E[Wait for debounce period]
-    E --> F[Start batch processing]
-    F --> G[Upload video to dataprep service]
-    G --> H{Upload successful?}
-    H -->|No| I[Retry with exponential backoff]
-    I --> H
-    H -->|Yes| J[Generate search embeddings]
-    J --> K{Embeddings successful?}
-    K -->|No| I
-    K -->|Yes| L[Mark as completed]
-    L --> M{DELETE_PROCESSED_FILES enabled?}
-    M -->|Yes| N[Delete original file]
-    M -->|No| O[Keep original file]
-    N --> P[File ready for search]
-    O --> P
-```
+![File Processing Flow](./images/file-processing-flow.drawio.svg)
 
 ## Best Practices
 

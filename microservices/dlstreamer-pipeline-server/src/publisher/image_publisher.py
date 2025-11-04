@@ -64,7 +64,7 @@ class ImagePublisher():
             while not self.stop_ev.is_set():
                 try:
                     frame, meta_data = self.queue.popleft()
-                    self.log.info('Received data from gst queue')
+                    self.log.debug('Received data from gst queue')
                     self._publish(frame, meta_data)
                 except IndexError:
                     self.log.debug("No data in request publisher queue")
@@ -85,7 +85,7 @@ class ImagePublisher():
         msg = meta_data
 
         self.response_queue.put((frame, msg))
-        self.log.info('Message Sent {} to ImagePublisher: {}'.format(meta_data))
+        self.log.debug('Message Sent to ImagePublisher: {}'.format(meta_data))
 
 
     def close(self):

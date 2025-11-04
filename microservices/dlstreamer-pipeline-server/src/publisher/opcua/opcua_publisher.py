@@ -136,13 +136,13 @@ class OPCUAPublisher():
         msg = json.dumps(msg)
         try:
             if self.publish_frame:
-                self.log.info(f'Publishing frames along with meta data to OPCUA variable {self.opcua_variable}')
+                self.log.debug(f'Publishing frames along with meta data to OPCUA variable {self.opcua_variable}')
             else:
-                self.log.info(f'Publishing meta data to OPCUA variable {self.opcua_variable}')
+                self.log.debug(f'Publishing meta data to OPCUA variable {self.opcua_variable}')
             opcua_publisher_node = self.client.get_node(self.opcua_variable)
             data_value = ua.DataValue(ua.Variant(msg, VariantType=ua.VariantType.String, is_array=False), SourceTimestamp=None)
             opcua_publisher_node.write_value(data_value)
         except Exception as e:
-            self.log.info(e)
+            self.log.error(f"Failed to publish to OPCUA: {e}")
         # Discarding publish message
         del msg
