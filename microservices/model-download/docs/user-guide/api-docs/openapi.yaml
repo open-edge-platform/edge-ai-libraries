@@ -366,7 +366,7 @@ paths:
                 value:
                   models:
                     - name: microsoft/Phi-3.5-mini-instruct
-                      hub: huggingface
+                      hub: openvino
                       type: llm
                       is_ovms: true
                       config:

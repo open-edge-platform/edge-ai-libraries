@@ -13,4 +13,4 @@
 - Streamlines the setup process for users and ensures that all necessary components are available for the chosen plugins.
 
 ## Known Issues/Behavior:
-
+- EMF deployment is not supported right now
