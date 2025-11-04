@@ -11,7 +11,8 @@ setup(
         'opencv-python',
         'numpy',
         'scikit-image',
-        'decord'
+        'decord',
+        'requests'
     ],
     author='LinJiaojiao',
     author_email='jiaojiao.lin@intel.com',
