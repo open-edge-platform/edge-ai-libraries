@@ -12,7 +12,47 @@ export PGVECTOR_PORT=5432
 export PGVECTOR_USER=langchain
 export PGVECTOR_PASSWORD=langchain
 export PGVECTOR_DBNAME=langchain
-export PG_CONNECTION_STRING=postgresql+psycopg://$PGVECTOR_USER:$PGVECTOR_PASSWORD@pgvector_db:$PGVECTOR_PORT/$PGVECTOR_DBNAME
+
+# Handle the special characters in password for connection string
+convert_pg_password() {
+    local password="$1"
+    password="${password//'%'/'%25'}"
+    password="${password//':'/'%3A'}"
+    password="${password//'@'/'%40'}"
+    password="${password//'/'/'%2F'}"
+    password="${password//'+'/'%2B'}"
+    password="${password//' '/'%20'}"
+    password="${password//'?'/'%3F'}"
+    password="${password//'#'/'%23'}"
+    password="${password//'['/'%5B'}"
+    password="${password//']'/'%5D'}"
+    password="${password//'&'/'%26'}"
+    password="${password//'='/'%3D'}"
+    password="${password//';'/'%3B'}"
+    password="${password//'!'/'%21'}"
+    password="${password//'$'/'%24'}"
+    password="${password//'*'/'%2A'}"
+    password="${password//'^'/'%5E'}"
+    password="${password//'('/'%28'}"
+    password="${password//')'/'%29'}"
+    password="${password//'"'/'%22'}"
+    password="${password//"'"/'%27'}"
+    password="${password//'`'/'%60'}"
+    password="${password//'|'/'%7C'}"
+    password="${password//'\\'/'%5C'}"
+    password="${password//'<'/'%3C'}"
+    password="${password//'>'/'%3E'}"
+    password="${password//','/'%2C'}"
+    password="${password//'{'/'%7B'}"
+    password="${password//'}'/'%7D'}"
+    echo "$password"
+}
+CONVERTED_PGVECTOR_PASSWORD=$(convert_pg_password "$PGVECTOR_PASSWORD")
+
+# ---------------------------------------------------------------------------------------
+
+# This is setup based on previously set PGDB values
+export PG_CONNECTION_STRING="postgresql+psycopg://$PGVECTOR_USER:$CONVERTED_PGVECTOR_PASSWORD@$PGVECTOR_HOST:$PGVECTOR_PORT/$PGVECTOR_DBNAME"
 export INDEX_NAME=intel-rag
 
 #Embedding service required configurations
@@ -119,7 +159,7 @@ if [[ "${1,,}" == *"llm=ovms"* || "${2,,}" == *"embed=ovms"* ]]; then
         if ! python3 -m pip show openvino >/dev/null 2>&1; then
                 echo "Installing OpenVINO and required dependencies..."
                 python3 -m pip install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
-                python3 -m pip install -U "huggingface_hub[hf_xet]"
+		python3 -m pip install -U "huggingface_hub[hf_xet]==0.36.0"
         fi
         mkdir -p ./ovms/models
         cd ovms || { echo "Failed to change to ovms directory"; exit 1; }

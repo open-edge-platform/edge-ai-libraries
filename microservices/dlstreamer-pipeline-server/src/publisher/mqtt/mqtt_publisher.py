@@ -118,7 +118,7 @@ class MQTTPublisher():
 
         if self.filter:
             if not self.filter.check_filter_criteria(meta_data):
-                self.log.info("Filter criteria not met, skipping...")
+                self.log.debug("Filter criteria not met, skipping...")
                 return
 
         
@@ -127,16 +127,16 @@ class MQTTPublisher():
         if self.publish_frame:
             # Encode frame and convert to utf-8 string
             msg["blob"]=base64.b64encode(frame).decode('utf-8') 
-            self.log.info(
+            self.log.debug(
                 f"Publishing frames along with meta data: {meta_data}")
         else:
             msg["blob"]=""
-            self.log.info(
+            self.log.debug(
                 f"Publishing meta data: {meta_data}")
          
         msg = json.dumps(msg)
 
-        self.log.info(f'Publishing message to topic: {self.topic}')
+        self.log.debug(f'Publishing message to topic: {self.topic}')
         self.client.publish(self.topic, payload=msg)
 
         # Discarding publish message

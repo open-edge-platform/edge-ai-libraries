@@ -2,7 +2,19 @@ name: "[DLS] [WIN] Build Windows DLLs"
 run-name: "[DLS] [WIN] Build Windows DLLs (by ${{ github.actor }})"
 on:
   workflow_call:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
 permissions: {}
 env:
   DLS_TARGET_DIRECTORY: C:\dlstreamer

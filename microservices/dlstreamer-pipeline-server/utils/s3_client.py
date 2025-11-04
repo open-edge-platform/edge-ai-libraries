@@ -69,7 +69,7 @@ class S3Client():
                 self.log.debug(f"Uploaded frame data at uri: s3://{s3_bucket_name}/{object_name} to S3 storage")
             
         except botocore.exceptions.ClientError as e:
-            self.log.info(f"Error uploading frame data: {e}")
+            self.log.error(f"Error uploading frame data: {e}")
 
     def publish(self, s3_bucket_name, object_name, payload):
         """Store frame in S3 storage

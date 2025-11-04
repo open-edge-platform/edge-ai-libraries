@@ -24,7 +24,10 @@ Following options are provided to build the microservice.
 
 1. Clone the repository:
 ```bash
+# Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 2. Set the required environment variables:
@@ -53,22 +56,24 @@ chmod +x ./setup_docker.sh
 
 #### Docker Setup Options
 
-The `setup_docker.sh` script supports the following options:
+The `setup_docker.sh` script when run without any parameters builds and runs the production docker images. It additionally supports the following options:
 
 ```
 Options:
   --dev                 Build and run development environment
-  --build-only          Only build Docker images (don't run containers)
-  --build-dev           Only build development Docker image
-  --build-prod          Only build production Docker image
+  --build               Only build production Docker image
+  --build-dev           Only build development Docker image  
+  --down                Stop and remove all contianers, networks, 
+                        and volumes  
   -h, --help            Show this help message
 ```
 
 Examples:
 - Production setup: `./setup_docker.sh`
 - Development setup: `./setup_docker.sh --dev`
-- Build production image only: `./setup_docker.sh --build-prod`
+- Build production image only: `./setup_docker.sh --build`
 - Build development image only: `./setup_docker.sh --build-dev`
+- Stop and remove all contianers: `./setup_docker.sh --down`
 
 #### Additional Configuration
 
@@ -107,7 +112,10 @@ Host setup by default uses local filesystem storage backend.
 
 1. Clone the repository:
 ```bash
+# Clone the latest on mainline
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+# Alternatively, Clone a specific release branch
+git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
 2. Run the setup script with desired options:

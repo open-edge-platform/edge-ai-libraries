@@ -28,7 +28,19 @@ on:
       - 'libraries/dl-streamer/tests/**'
       - 'libraries/dl-streamer/thirdparty/**'
   workflow_call:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
   workflow_dispatch:
+    inputs:
+      test-repo-branch:
+        description: "Branch in dl-streamer-tests repo (default is main)"
+        required: false
+        type: string
+        default: "main"
 permissions: {}
 
 jobs:
@@ -371,6 +383,8 @@ jobs:
       packages: read
     name: "DLS BUILD & TEST: .deb pkgs & img"
     uses: ./.github/workflows/dls-build-and-test-deb_pkgs-and-deb_imgs.yaml
+    with:
+      test-repo-branch: ${{ inputs.test-repo-branch }}
 
   dls-build-and-test-windows:
     permissions:
@@ -378,3 +392,5 @@ jobs:
       packages: read
     name: "DLS BUILD & TEST: Windows DLLs"
     uses: ./.github/workflows/dls-build-and-test-windows.yaml
+    with:
+      test-repo-branch: ${{ inputs.test-repo-branch }}

@@ -47,7 +47,7 @@ class GetiDetectionInference:
                     confidence=annotation['labels'][0]['probability'],
                     normalized=False)
         end = time()
-        self.log.info("Processing time for frame: {}".format(
+        self.log.debug("Processing time for frame: {}".format(
             (end - start) * 1000))
 
         return True

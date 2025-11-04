@@ -45,7 +45,11 @@ _Document how to get prebuilt docker image_
 1. Clone the repo and change to the `multimodal-embedding-serving` directory:
 
     ```bash
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    
     cd edge-ai-libraries/microservices/multimodal-embedding-serving
     ```
 
