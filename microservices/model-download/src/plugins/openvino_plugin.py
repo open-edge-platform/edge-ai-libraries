@@ -1,8 +1,6 @@
 import os
 import subprocess
 from typing import Dict, Any, Optional, List
-from pathlib import Path
-from src.api.models import ModelPrecision, DeviceType
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger
 
@@ -36,10 +34,11 @@ class OpenVINOConverter(ModelDownloadPlugin):
         logger.info(f"Payload {model_name}, {output_dir}, {kwargs}")
         logger.info(f"Conversion config: {kwargs.get('config', {})}")
         # Extract parameters with fallbacks to maintain backward compatibility
-        weight_format = config.get("precision", kwargs.get("weight_format", "fp16"))
+        weight_format = config.get("precision", kwargs.get("precision", "fp16"))
         huggingface_token = hf_token
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
-        target_device = config.get("device", kwargs.get("target_device", "CPU"))
+        version = kwargs.get("version", "")
+        target_device = config.get("device", kwargs.get("device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))
         
         try:
@@ -51,6 +50,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
                 target_device=target_device,
                 model_directory=output_dir,
                 cache_size=cache_size,
+                version=version,
                 model_name=model_name 
             )
 
@@ -92,6 +92,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         model_type: str,
         target_device: str,
         model_directory: str,
+        version: str = "",
         cache_size: Optional[int] = None,
     ):
         """
@@ -132,7 +133,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
         # Step 1: Log in to Hugging Face
         logger.info("Logging in to Hugging Face...")
-        result = subprocess.run(["huggingface-cli", "login", "--token", huggingface_token])
+        result = subprocess.run(["hf", "auth", "login", "--token", huggingface_token])
         if result.returncode != 0:
             raise RuntimeError(
                 "Failed to authenticate with Hugging Face. Please check your token."
@@ -162,26 +163,48 @@ class OpenVINOConverter(ModelDownloadPlugin):
             "--source_model", model_name,
             "--weight-format", weight_format,
             "--config_file_path", f"{model_directory}/config.json",
-            "--model_repository_path", model_directory,
+            "--model_repository_path", f"{model_directory}/",
             "--target_device", target_device
         ]
 
+        if version:
+            command += ["--version", version]
         if export_type == "text_generation" and cache_size is not None:
-            command += ["--cache_size", cache_size]
+            command += ["--cache_size", f"{cache_size}"]
 
         logger.info(f"Executing command with virtual environment: {command}")
         try:
-            result = subprocess.run(command, check=True, text=True)
-            logger.info(f"Model conversion output: {result.stdout}")
-            if result.stderr:
-                logger.warning(f"Model conversion warnings/errors: {result.stderr}")    
+            result = subprocess.Popen(
+                command,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+                universal_newlines=True,
+                text=True
+            )
+            # Stream output in real-time
+            while True:
+                stdout_line = result.stdout.readline() if result.stdout else ""
+                stderr_line = result.stderr.readline() if result.stderr else ""
+
+                if stdout_line:
+                    logger.info(stdout_line.strip())
+                if stderr_line:
+                    logger.error(stderr_line.strip())
+
+                if not stdout_line and not stderr_line and result.poll() is not None:
+                    break
+            return_code = result.poll()
+            if return_code is None:
+                return_code = 0  # If process is still running, assume success
+            if return_code != 0:
+                logger.error(f"Script execution failed with return code {return_code}")
+
+            return return_code
+           
         except subprocess.CalledProcessError as e:
             raise RuntimeError(
                 f"Model conversion failed: {str(e)}. Check if the model is compatible with the specified format and device."
             )
-
-        logger.info(f"Model successfully converted to OVMS format and saved to {model_directory}")
-        return {"message": f"Model successfully downloaded, converted, and prepared for OVMS deployment as {export_type}."}
 
     def get_download_tasks(self, model_name: str, **kwargs) -> List[DownloadTask]:
         """
@@ -204,7 +227,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
         """
         # Extract parameters to maintain consistent response structure
         config = kwargs.get("config", {})
-        weight_format = config.get("precision", kwargs.get("weight_format", "fp16"))
+        weight_format = config.get("precision", kwargs.get("precision", "fp16"))
         model_type = kwargs.get("type", kwargs.get("model_type", "llm"))
         target_device = config.get("device", kwargs.get("target_device", "CPU"))
         cache_size = config.get("cache", kwargs.get("cache_size"))

@@ -3,6 +3,7 @@ from typing import List, Optional, TypedDict, Dict, Any
 from pydantic import BaseModel, Field
 
 class ModelPrecision(str, Enum):
+    INT4 = "int4"
     INT8 = "int8"
     FP16 = "fp16"
     FP32 = "fp32"
@@ -16,6 +17,7 @@ class ModelHub(str, Enum):
     HUGGINGFACE = "huggingface"
     ULTRALYTICS = "ultralytics"
     OLLAMA = "ollama"
+    OPENVINO = "openvino"
 
 class ModelType(str, Enum):
     LLM = "llm"

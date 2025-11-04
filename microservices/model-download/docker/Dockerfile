@@ -4,7 +4,7 @@ FROM python:3.11-slim AS python-base
 # Set the working directory in the container
 WORKDIR /opt
 
-# Install system dependencies required for Poetry and the application
+# Install system dependencies required for uv and the application
 RUN apt-get update && apt-get install -y \
     libgl1 \
     libsm6 \
@@ -14,17 +14,17 @@ RUN apt-get update && apt-get install -y \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
-# Install Poetry
-RUN curl -sSL https://install.python-poetry.org | python3 -
+# Install uv
+RUN curl -LsSf https://astral.sh/uv/install.sh | sh
 
-# Add Poetry to PATH
+# Add uv to PATH
 ENV PATH="/root/.local/bin:$PATH"
 
-# Copy only the Poetry configuration files first to leverage Docker caching
-COPY pyproject.toml poetry.lock /opt/
+# Copy project files
+COPY pyproject.toml uv.lock /opt/
 
-# Install dependencies using Poetry
-RUN poetry config virtualenvs.create false && poetry install --no-root \
+# Install base dependencies using uv pip with system flag
+RUN uv sync \
     && rm -rf ~/.cache
 
 # ---- Stage 2: Final slim image ----
@@ -52,7 +52,7 @@ RUN groupadd -g ${GID} appuser && \
 # Copy installed dependencies from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
-
+COPY --from=python-base /root/.local/bin/uv /usr/local/bin/uv
 
 COPY src /opt/src
 COPY scripts /opt/scripts
@@ -63,9 +63,9 @@ WORKDIR /opt
 
 COPY docker/entrypoint.sh /opt/entrypoint.sh
 
-
 RUN chown -R appuser:appuser /opt && \
-    chmod +x /opt/entrypoint.sh
+    chmod +x /opt/entrypoint.sh && \
+    chown -R appuser:appuser /usr/local
 
 # Switch to non-root user
 USER appuser

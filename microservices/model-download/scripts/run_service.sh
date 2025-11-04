@@ -133,8 +133,7 @@ if [[ "$ACTION" != "down" ]]; then
     if [[ -z "$MODEL_PATH" ]]; then
         MODEL_PATH="$DEFAULT_MODEL_PATH"
     fi
-
-    # Setup the model path (similar to setup_model_path.sh)
+    
     log_info "Setting up model path: ${BOLD}$MODEL_PATH${NC}"
 
     if [[ "$MODEL_PATH" != /* ]]; then

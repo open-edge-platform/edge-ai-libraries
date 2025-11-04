@@ -2,7 +2,8 @@ global:
   proxy:
     no_proxy: 
     http_proxy: 
-    https_proxy: 
+    https_proxy:
+  keeppvc: false
 
 replicaCount: 1
 
@@ -19,7 +20,7 @@ readinessProbe:
     periodSeconds: 30
 
 env:
-  HF_TOKEN: ""
+  HUGGINGFACEHUB_API_TOKEN: ""
   ENABLED_PLUGINS: "all"   #Comma separated list of plugins to enable, or "all"
 
 service:

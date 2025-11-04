@@ -23,19 +23,22 @@ The Model Download Service is a microservice that enables downloading models fro
 1. **Clone the Repository**:
     - Clone the model-download repository:
       ```bash
-      git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+      # Clone the latest on mainline
+        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+      # Alternatively, Clone a specific release branch
+        git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
       ```
 2. **Navigate to the directory**:
     - Go to the model-download microservice directory
       ```bash
-      cd microservices/model-download
+      cd edge-ai-libraries/microservices/model-download
       ```
 3. **Configure the environment variables**
-    - Set the belwo environment variables
+    - Set the below environment variables
       ```bash
-      export REGISTRY=""
-      export TAG=""
-      export HF_TOKEN=<your huggingface token>
+      export REGISTRY=<provide-registry-url>
+      export TAG=<provide-tag>
+      export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
       ```
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
@@ -62,11 +65,19 @@ The Model Download Service is a microservice that enables downloading models fro
         | Option                   | Description                                                                                      |
         |--------------------------|--------------------------------------------------------------------------------------------------|
         | `--build`                | Build the Docker image before running                                                            |
-        | `--rebuild`              | Force rebuild the Docker image without cache                                                     |
+        | `--rebuild`              | This flag instructs to ignore any existing cached images and rebuild them from scratch using the Dockerfile definitions|
         | `--model-path <path>`    | Set custom model path (default: `/home/intel/models/`)                                           |
         | `--plugins <list>`       | Comma-separated list of plugins to enable (e.g., `huggingface,ollama,ultralytics`) or `all` to enable all available plugins |
         | `--help`                 | Show this help message                                                                           |
-
+      
+      **Examples**:
+        - Start the service with default settings: `source scripts/run_service.sh up`
+        - Stop the service: `source scripts/run_service.sh down`
+        - Enable specific plugins: `source scripts/run_service.sh up --plugins huggingface`
+        - Enable multiple plugins: `source scripts/run_service.sh up --plugins huggingface,ollama,ultralytics`
+        - Use a custom model storage location: `source scripts/run_service.sh up --model-path /data/my-models`
+        - Production deployment with all plugins: `source scripts/run_service.sh up --plugins all --model-path /opt/production/models`
+        - Display usage information: `source scripts/run_service.sh --help`
 
 5. **Access the service**
     - The service will be available at `http://<host-ip>:8200/api/v1/docs`, where you can view the Swagger documentation for all available APIs.
@@ -133,13 +144,13 @@ Downloads one or more models from Hugging Face, Ollama, or Ultralytics. Hugging 
     }
     ```
     __NOTE__: Yolo vision models from ultralytics will be downloaded and converted to openvino IR format with fp32 and fp16 precision by default.
-- To download model from huggingface and convert to Openvino IR format. Conversion to Openvino IR format is supported with __is_ovms__ flag with more details added in the config section of the payload
+- To download model from huggingface and convert to Openvino IR format. Conversion to Openvino IR format is supported with __is_ovms__ flag with more details added in the config section of the payload. Set the **hub** as **openvino**. 
     ```json
     {
         "models": [
             {
                 "name": "BAAI/bge-reranker-base",
-                "hub":"huggingface",
+                "hub":"openvino",
                 "type": "rerank",
                 "is_ovms": true,
                 "config": {
@@ -173,7 +184,7 @@ Downloads one or more models from Hugging Face, Ollama, or Ultralytics. Hugging 
         "status": "processing"
     }
   ```
-  - The job_id id created for each model download request. To get the status of a download request make the below jod details request
+  - The job_id id created for each model download request. To get the status of a download request make the below job details request
 
     `GET http://<host>:8200/api/v1/jobs/:job_id`
 
@@ -241,3 +252,14 @@ The API returns appropriate HTTP status codes:
 3. Select model precision according to your performance requirements.
 4. Mount volumes for both Hugging Face cache and model storage to persist data.
 5. Use appropriate model types and configurations for OVMS conversion.
+
+## Running in Kubernetes
+
+Refer to [Deploy with Helm](./deploy-with-helm.md) for the details. Ensure the prerequisites mentioned on this page are addressed before proceeding to deploy with Helm.
+
+
+## Advanced Setup Options
+
+For alternative ways to set up the sample application, see:
+
+- [How to Build from Source](./build-from-source.md)

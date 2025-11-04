@@ -2,9 +2,7 @@
 import os
 import subprocess
 import time
-from typing import Optional, Dict, Any, List, Callable
-from pathlib import Path
-from src.utils.helper import cleanup_model_directory
+from typing import Dict, Any, List
 from src.utils.logging import logger
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 
@@ -33,8 +31,12 @@ class OllamaPlugin(ModelDownloadPlugin):
         
         # Create hub-specific directory under the output directory
         hub_dir = os.path.join(output_dir, "ollama")
-        model_download_path = os.path.join(hub_dir, model_name.replace("/", "_"))
-        
+        revision = kwargs.get("revision")
+        model_download_path = os.path.join(
+            hub_dir,
+            model_name.replace("/", "_") , (f"{revision}" if revision else "")
+        )
+        model_name = model_name + (f":{revision}" if revision else "")
         try:
             
             logger.info(f"Model will be downloaded to: {model_download_path}")

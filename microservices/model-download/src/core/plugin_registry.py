@@ -1,8 +1,6 @@
-
-import importlib
 import inspect
 import os
-from typing import Dict, Type, Any, Tuple, List
+from typing import Any, Tuple, List
 from .interfaces import ModelDownloadPlugin
 
 class PluginRegistry:

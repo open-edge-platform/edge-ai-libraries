@@ -1,12 +1,10 @@
 # FastAPI application entry point
 
 import os
-import gc
 import yaml
-from typing import Optional, Dict, Any
-from fastapi import FastAPI, HTTPException, Depends, BackgroundTasks
+from typing import Dict, Any
+from fastapi import FastAPI, HTTPException, BackgroundTasks
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.openapi.utils import get_openapi
 from pydantic import ValidationError
 
 from ..core.plugin_registry import PluginRegistry
@@ -222,7 +220,7 @@ async def download_models(
         )
 
 
-@app.get("/models/{model_name}/jobs", tags=["Jobs"])
+@app.get("/models/jobs", tags=["Jobs"])
 async def get_model_jobs(model_name: str):
     """
     Get all jobs related to a specific model.

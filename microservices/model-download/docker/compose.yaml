@@ -4,11 +4,11 @@ services:
     build:
       context: ..
       dockerfile: docker/Dockerfile
-    container_name: model_download
+    container_name: model-download
     command: --plugins ${ENABLED_PLUGINS:-all}
     environment:
       - HF_HUB_ENABLE_HF_TRANSFER=1
-      - HF_TOKEN=${HF_TOKEN}
+      - HF_TOKEN=${HUGGINGFACEHUB_API_TOKEN}
       - ENABLED_PLUGINS=${ENABLED_PLUGINS}
       - MODEL_PATH=${MODEL_PATH}
     healthcheck:
