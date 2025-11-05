@@ -1,12 +1,11 @@
-name: "[Multilevel Video Understanding] SDLe Scans - Scan Trivy Bandit Virus"
-run-name: "[Multilevel Video Understanding] SDLe Scans - Scan Trivy Bandit Virus"
-
+name: "[GEN-AI] Multilevel-Video-Understanding-CI"
+run-name: "[GEN-AI-Multilevel-Video-Understanding-CI] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
 
 
 # Only run at most 1 workflow concurrently per PR, unlimited for branches
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
-#   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   workflow_call:
