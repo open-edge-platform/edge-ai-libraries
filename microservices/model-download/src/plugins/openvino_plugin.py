@@ -58,6 +58,9 @@ class OpenVINOConverter(ModelDownloadPlugin):
             if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
                 host_prefix = os.getenv("MODEL_PATH", "models")
                 host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+            #Check the result of conversion
+            if result != 0:
+                raise RuntimeError(f"Model conversion failed with return code {result}, Check if the model is compatible to be converted with Openvino and the configuration provided. ")
             
             return {
                 "model_name": model_name,
