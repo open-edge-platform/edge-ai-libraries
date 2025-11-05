@@ -24,19 +24,19 @@ Before you begin, ensure that you have the following prerequisites:
 3. **Configure the environment variables**
     - Set the below environment variable
       ```bash
-        export HF_TOKEN=<your huggingface token>
+      export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
       ```
 4. **Build the docker image**
     - Build the Docker image for the Model Download Microservice:
       ```bash
       source scripts/run_service.sh --build
       ``` 
+      - Once the service is built as shown in the below screenshot.
+    ![alt text](./images/image.png)
     **Examples**
       - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
       - Display usage information: `source scripts/run_service.sh --help`
 
-    - Once the service is built as shown in the below screenshot.
-    ![alt text](./images/image.png)
 
 
 5. **Run the Docker Container**: 

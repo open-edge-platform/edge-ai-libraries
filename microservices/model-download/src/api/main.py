@@ -2,8 +2,9 @@
 
 import os
 import yaml
+import asyncio
 from typing import Dict, Any
-from fastapi import FastAPI, HTTPException, BackgroundTasks
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from pydantic import ValidationError
 
@@ -72,7 +73,6 @@ async def health_check():
 async def download_models(
     request: ModelDownloadRequest,
     download_path: str,
-    background_tasks: BackgroundTasks,
 ) -> Dict[str, Any]:
     """
     Download and optionally convert models.
@@ -99,11 +99,8 @@ async def download_models(
                     detail=f"Unsupported model download/conversion detected. Supported methods are {supported_hubs}.",
                 )
 
-        # Get HuggingFace token from environment variable (optional - only needed for gated models)
+        # Get HuggingFace token from environment variable
         hf_token = os.getenv("HF_TOKEN")
-        
-        # Note: HF_TOKEN is optional and only required for downloading gated models from HuggingFace
-        # No validation needed here as the HuggingFace API will handle authentication errors
 
         logger.info(f"Initiating model download for {len(request.models)} model(s)")
         job_ids = []
@@ -117,11 +114,15 @@ async def download_models(
                     detail=f"Plugin '{model.hub}' is not available: {error_reason}"
                 )
             
-            # Pass token for HuggingFace
             extra_kwargs = model.dict()
             needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
-            
-            # Define common paths that both download and conversion might need
+
+            # if needs_conversion and model.hub.lower() != ModelHub.OPENVINO.value.lower():
+            #     raise HTTPException(
+            #         status_code=400,
+            #         detail=f"OpenVINO conversion requested but model hub is '{model.hub}'. Please set hub to 'openvino' for OpenVINO conversion."
+            #     )
+
             model_download_path = os.path.join(models_dir, download_path)
             
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
@@ -129,7 +130,7 @@ async def download_models(
                 model_download_path = os.path.join(
                     models_dir, download_path
                 )
-                # First, register download job
+                # Register download job
                 download_job_id = model_manager.register_job(
                     operation_type="download",
                     model_name=model.name,
@@ -141,14 +142,15 @@ async def download_models(
                 # Add to job_ids for response
                 job_ids.append(download_job_id)
                 
-                # Start download in background
-                background_tasks.add_task(
-                    model_manager.process_download,
-                    job_id=download_job_id,
-                    model_name=model.name,
-                    output_dir=model_download_path,
-                    downloader=model.hub,
-                    **extra_kwargs
+                # Start download in background (async parallel execution)
+                asyncio.create_task(
+                    model_manager.process_download(
+                        job_id=download_job_id,
+                        model_name=model.name,
+                        output_dir=model_download_path,
+                        downloader=model.hub,
+                        **extra_kwargs
+                    )
                 )
 
             if needs_conversion:
@@ -185,18 +187,19 @@ async def download_models(
                 # Add to job_ids for response
                 job_ids.append(convert_job_id)
                 
-                # Start conversion in background
-                background_tasks.add_task(
-                    model_manager.process_conversion,
-                    job_id=convert_job_id,
-                    model_path=download_path,
-                    hub=model.hub,
-                    output_dir=convert_output_dir,
-                    converter="openvino",
-                    model_name=model.name,
-                    model_type=model.type,
-                    **config,
-                    hf_token=extra_kwargs["token"]
+                # Start conversion in background (async parallel execution)
+                asyncio.create_task(
+                    model_manager.process_conversion(
+                        job_id=convert_job_id,
+                        model_path=download_path,
+                        hub=model.hub,
+                        output_dir=convert_output_dir,
+                        converter="openvino",
+                        model_name=model.name,
+                        model_type=model.type,
+                        hf_token=extra_kwargs["token"],
+                        **config
+                    )
                 )
 
         # Return response immediately with job IDs

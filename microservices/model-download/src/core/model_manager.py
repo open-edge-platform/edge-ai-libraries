@@ -1,5 +1,6 @@
 import os
 import uuid
+import asyncio
 import concurrent.futures
 from datetime import datetime
 from typing import Dict, Any, Optional, List
@@ -90,8 +91,9 @@ class ModelManager:
 
     def update_progress(self, job_id: str, current: int, total: int) -> None:
         """Update the progress of a job."""
+        pass
 
-    def process_download(
+    async def process_download(
         self,
         job_id: str,
         model_name: str,
@@ -160,7 +162,8 @@ class ModelManager:
 
                     # If we have tasks, proceed with parallel download
                     if download_tasks:
-                        return self._parallel_download(
+                        return await asyncio.to_thread(
+                            self._parallel_download,
                             job_id=job_id,
                             plugin=download_plugin,
                             model_name=model_name,
@@ -187,7 +190,8 @@ class ModelManager:
                 model_name=model_name,
             )
 
-            result = download_plugin.download(
+            result = await asyncio.to_thread(
+                download_plugin.download,
                 model_name, output_dir, **kwargs
             )
 
@@ -228,7 +232,7 @@ class ModelManager:
                 "error": str(e),
             }
 
-    def process_conversion(
+    async def process_conversion(
         self,
         job_id: str,
         model_path: str,
@@ -254,6 +258,20 @@ class ModelManager:
             Dictionary with job details and status
         """
         try:
+            # Check if hub is 'openvino'
+            if hub != "openvino":
+                err_msg = f"Conversion failed: incorrect hub '{hub}' provided. Only 'openvino' is supported for conversion."
+                self._jobs[job_id]["status"] = "failed"
+                self._jobs[job_id]["error"] = err_msg
+                self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+                logger.error("conversion_failed_incorrect_hub", job_id=job_id, model_path=model_path, hub=hub)
+                return {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "model_path": model_path,
+                    "error": err_msg,
+                }
+
             # Update job status
             self._jobs[job_id]["status"] = "converting"
 
@@ -262,16 +280,16 @@ class ModelManager:
             if converter:
                 # User specifically requested a converter
                 convert_plugin = self.registry.get_plugin("converter", converter)
-                if not convert_plugin:
-                    err_msg = f"Requested converter '{converter}' not found"
-                    self._jobs[job_id]["status"] = "failed"
-                    self._jobs[job_id]["error"] = err_msg
-                    logger.error("converter_not_found", converter=converter)
-                    raise ValueError(err_msg)
+            if not convert_plugin:
+                err_msg = f"Requested converter '{converter}' not found"
+                self._jobs[job_id]["status"] = "failed"
+                self._jobs[job_id]["error"] = err_msg
+                logger.error("converter_not_found", converter=converter)
+                raise ValueError(err_msg)
             else:
                 # Auto-detect appropriate converter based on model path and kwargs
                 convert_plugin = self.registry.find_plugin_for_model(
-                    "converter", model_path, **kwargs
+                    "converter", hub=hub, model_name=model_name, **kwargs
                 )
 
             if not convert_plugin:
@@ -293,8 +311,9 @@ class ModelManager:
 
             logger.info(f"Request details: {model_path}, {hub}, {kwargs}")
 
-            result = convert_plugin.convert(
-                model_name, output_dir,hf_token=hf_token, **kwargs
+            result = await asyncio.to_thread(
+                convert_plugin.convert,
+                model_name, output_dir, hf_token=hf_token, **kwargs
             )
 
             # Update job status
@@ -367,110 +386,104 @@ class ModelManager:
         )
 
         downloaded_paths = []
-        total_tasks = len(tasks)
-        completed_tasks = 0
 
-        # Store the executor for potential cancellation
-        executor = concurrent.futures.ThreadPoolExecutor(max_workers=max_workers)
-        self._executors[job_id] = executor
+        # Use context manager to ensure proper cleanup of executor
+        with concurrent.futures.ThreadPoolExecutor(max_workers=max_workers) as executor:
+            # Store the executor for potential cancellation
+            self._executors[job_id] = executor
 
-        try:
-            # Define the worker function to download a single task
-            def download_task_wrapper(task):
-                nonlocal completed_tasks
-                try:
-                    # Check if job has been canceled
-                    if self._jobs.get(job_id, {}).get("status") == "canceled":
-                        logger.info("download_task_canceled", task=task.destination)
-                        raise InterruptedError("Download was canceled")
+            try:
+                # Define the worker function to download a single task
+                def download_task_wrapper(task):
+                    try:
+                        # Check if job has been canceled
+                        if self._jobs.get(job_id, {}).get("status") == "canceled":
+                            logger.info("download_task_canceled", task=task.destination)
+                            raise InterruptedError("Download was canceled")
 
-                    # Call the plugin to download this task
-                    path = plugin.download_task(task, model_path, **kwargs)
-                    return path
-                except Exception as e:
-                    logger.error(
-                        "task_download_error", task=task.destination, error=str(e)
-                    )
-                    raise
-
-            # Submit all tasks to the executor
-            future_to_task = {
-                executor.submit(download_task_wrapper, task): task for task in tasks
-            }
-
-            # Process results as they complete
-            for future in concurrent.futures.as_completed(future_to_task):
-                task = future_to_task[future]
-                try:
-                    path = future.result()
-                    downloaded_paths.append(path)
-                    logger.debug("task_downloaded", file=task.destination, path=path)
-                except Exception as e:
-                    # If any task fails, we cancel pending tasks and fail the job
-                    if self._jobs[job_id]["status"] != "canceled":
-                        logger.error("task_failure", task=task.destination, error=str(e))
+                        # Call the plugin to download this task
+                        path = plugin.download_task(task, model_path, **kwargs)
+                        return path
+                    except Exception as e:
+                        logger.error(
+                            "task_download_error", task=task.destination, error=str(e)
+                        )
                         raise
 
-            # All tasks completed successfully, perform any post-processing
-            result = plugin.post_process(
-                model_name, model_path, downloaded_paths, **kwargs
-            )
+                # Submit all tasks to the executor
+                future_to_task = {
+                    executor.submit(download_task_wrapper, task): task for task in tasks
+                }
 
-            # Update job status
-            self._jobs[job_id]["status"] = "completed"
-            self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
-            self._jobs[job_id]["result"] = result
+                # Process results as they complete
+                for future in concurrent.futures.as_completed(future_to_task):
+                    task = future_to_task[future]
+                    try:
+                        path = future.result()
+                        downloaded_paths.append(path)
+                        logger.debug("task_downloaded", file=task.destination, path=path)
+                    except Exception as e:
+                        # If any task fails, we cancel pending tasks and fail the job
+                        if self._jobs[job_id]["status"] != "canceled":
+                            logger.error("task_failure", task=task.destination, error=str(e))
+                            raise
 
-            # Cleanup
-            if job_id in self._executors:
-                del self._executors[job_id]
+                # All tasks completed successfully, perform any post-processing
+                result = plugin.post_process(
+                    model_name, model_path, downloaded_paths, **kwargs
+                )
 
-            logger.info(
-                "parallel_download_completed",
-                job_id=job_id,
-                model_name=model_name,
-                files=len(downloaded_paths),
-            )
-            
-            # Convert container path to host path if applicable
-            host_path = model_path
-            if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
-                host_prefix = os.getenv("MODEL_PATH", "models")
-                host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
-                
-            logger.info("download_completed to host_path", host_path=host_path)
-            return {
-                "job_id": job_id,
-                "status": "completed",
-                "model_name": model_name,
-                "download_path": host_path,
-                "details": result,
-            }
-
-        except Exception as e:
-            # Update job status with error if not already canceled
-            if self._jobs[job_id]["status"] != "canceled":
-                self._jobs[job_id]["status"] = "failed"
-                self._jobs[job_id]["error"] = str(e)
+                # Update job status
+                self._jobs[job_id]["status"] = "completed"
                 self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
+                self._jobs[job_id]["result"] = result
 
-            # Cleanup
-            if job_id in self._executors:
-                del self._executors[job_id]
+                logger.info(
+                    "parallel_download_completed",
+                    job_id=job_id,
+                    model_name=model_name,
+                    files=len(downloaded_paths),
+                )
+                
+                # Convert container path to host path if applicable
+                host_path = model_path
+                if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
+                    host_prefix = os.getenv("MODEL_PATH", "models")
+                    host_path = host_path.replace("/opt/models/", f"{host_prefix}/")
+                    
+                logger.info("download_completed to host_path", host_path=host_path)
+                return {
+                    "job_id": job_id,
+                    "status": "completed",
+                    "model_name": model_name,
+                    "download_path": host_path,
+                    "details": result,
+                }
 
-            logger.error(
-                "parallel_download_failed",
-                job_id=job_id,
-                model_name=model_name,
-                error=str(e),
-            )
+            except Exception as e:
+                # Update job status with error if not already canceled
+                if self._jobs[job_id]["status"] != "canceled":
+                    self._jobs[job_id]["status"] = "failed"
+                    self._jobs[job_id]["error"] = str(e)
+                    self._jobs[job_id]["completion_time"] = datetime.now().isoformat()
 
-            return {
-                "job_id": job_id,
-                "status": "failed",
-                "model_name": model_name,
-                "error": str(e),
-            }
+                logger.error(
+                    "parallel_download_failed",
+                    job_id=job_id,
+                    model_name=model_name,
+                    error=str(e),
+                )
+
+                return {
+                    "job_id": job_id,
+                    "status": "failed",
+                    "model_name": model_name,
+                    "error": str(e),
+                }
+            finally:
+                # Cleanup - remove from tracking dict
+                if job_id in self._executors:
+                    del self._executors[job_id]
 
     def download_model(
         self,
@@ -494,10 +507,10 @@ class ModelManager:
         Returns:
             Dictionary with job details and status
         """
-        job_id = self.register_job("download", model_name, output_dir, downloader)
-        return self.process_download(
-            job_id, model_name,hub, output_dir, downloader, **kwargs
-        )
+        job_id = self.register_job("download", model_name, hub, output_dir, downloader)
+        return asyncio.run(self.process_download(
+            job_id, model_name, hub, output_dir, downloader, **kwargs
+        ))
 
     def convert_model(
         self,
@@ -522,10 +535,10 @@ class ModelManager:
         """
         # Extract model name from path for job registration
         model_name = os.path.basename(model_path)
-        job_id = self.register_job("convert", model_name, "convert", output_dir, converter)
-        return self.process_conversion(
-            job_id=job_id, model_path=model_path, model_name=model_name, output_dir=output_dir, converter=converter, **kwargs
-        )
+        job_id = self.register_job("convert", model_name, "openvino", output_dir, converter)
+        return asyncio.run(self.process_conversion(
+            job_id=job_id, model_path=model_path, model_name=model_name, hub="openvino", hf_token=kwargs.get("hf_token", ""), output_dir=output_dir, converter=converter, **kwargs
+        ))
 
     def get_job_status(self, job_id: str) -> Optional[Dict[str, Any]]:
         """Get the status of a specific job."""
