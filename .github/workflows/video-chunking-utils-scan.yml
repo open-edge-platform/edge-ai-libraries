@@ -4,9 +4,9 @@ run-name: "[Video Chunking Utils] SDLe Scans - Scan Bandit Virus"
 
 
 # Only run at most 1 workflow concurrently per PR, unlimited for branches
-# concurrency:
-#   group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
-#   cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
 
 on:
   workflow_call:
