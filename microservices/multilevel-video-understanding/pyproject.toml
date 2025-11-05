@@ -1,0 +1,111 @@
+# Project metadata
+[tool.poetry]
+name = "multilevel-video-understanding"
+version = "0.1.0"
+description = "A microservice for intelligent video understanding based multi-level processing."
+authors = []
+readme = "README.md"
+packages = [{include = "video_analyzer"}]
+
+# ------------------------------------------------------------
+# Runtime dependencies
+# ------------------------------------------------------------
+[tool.poetry.dependencies]
+python = "^3.10"
+Pillow = "11.3.0"
+transformers = "^4.53.1"
+fastapi = "^0.115.5"
+uvicorn = "^0.32.1"
+gunicorn = "^23.0.0"
+python-multipart = "^0.0.18"
+pydantic = "^2.11.5"
+pydantic-settings = "^2.9.1"
+setuptools = "^80.9.0"
+decord = "^0.6.0"
+openai = "^1.93.1"
+huggingface-hub = {version = "^0.30.2", extras = ["hf_xet"]}
+
+# ------------------------------------------------------------
+# Optional package sources (e.g., private PyPI mirrors)
+# ------------------------------------------------------------
+# [[tool.poetry.source]]
+# name = "pypi"
+# url = "https://pypi.org/simple"
+# default = true
+
+# ------------------------------------------------------------
+# Black configuration (code formatter)
+# ------------------------------------------------------------
+[tool.black]
+line-length = 88
+target-version = ["py39"]
+skip-string-normalization = false
+include = '\.pyi?$'
+exclude = '''
+/(
+    \.git
+
+  | \.hg
+  | \.mypy_cache
+  | \.tox
+  | \.venv
+  | _build
+  | buck-out
+  | build
+  | dist
+)/
+'''
+
+# ------------------------------------------------------------
+# isort configuration (import sorter)
+# ------------------------------------------------------------
+[tool.isort]
+profile = "black"
+line_length = 88
+
+# ------------------------------------------------------------
+# mypy configuration (static type checker)
+# ------------------------------------------------------------
+[tool.mypy]
+python_version = "3.10"
+warn_return_any = true
+warn_unused_configs = true
+disallow_untyped_defs = true
+disallow_incomplete_defs = true
+
+# ------------------------------------------------------------
+# pytest configuration
+# ------------------------------------------------------------
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = "test_*.py"
+python_classes = "Test*"
+python_functions = "test_*"
+asyncio_mode = "auto"
+markers = [
+    "unit: marks test as a unit test",
+    "integration: marks test as an integration test",
+    "api: marks test as an API test"
+]
+
+# ------------------------------------------------------------
+# coverage configuration
+# ------------------------------------------------------------
+source = ["video_analyzer"]
+omit = [
+    "*/tests/*",
+    "*/venv/*",
+    "*/__init__.py",
+]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "pass",
+    "raise ImportError",
+]
+show_missing = true
+fail_under = 80

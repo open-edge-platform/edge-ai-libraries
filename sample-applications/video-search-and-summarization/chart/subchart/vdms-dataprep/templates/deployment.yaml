@@ -29,8 +29,13 @@ spec:
       securityContext:
         {{- toYaml . | nindent 8 }}
       {{- end }}
+      {{- with .Values.podAffinity }}
+      affinity:
+        podAffinity:
+          {{- toYaml . | nindent 10 }}
+      {{- end }}
       containers:
-        - name: {{ .Release.Name }}
+        - name: {{ .Chart.Name }}
           env:
             - name: APP_HOST
               valueFrom:
@@ -62,17 +67,17 @@ spec:
               mountPath: /tmp
             - name: volume-data
               mountPath: /root/.cache
-              subPath: dataprep-cache
+              subPath: cache
             - name: volume-data
               mountPath: /tmp/dataprep
-              subPath: dataprep
+              subPath: tmpvideos
       volumes:
         - name: tmp
           emptyDir: {}
-        - name:  volume-data
-          {{- if .Values.global.pvcName }}
+        - name: volume-data
+          {{- if .Values.global.usePvc }}
           persistentVolumeClaim:
-            claimName: {{ .Values.global.pvcName }}
+            claimName: {{ .Values.global.sharedPvcName | default "vss-pvc" }}
           {{- else if .Values.global.volumeHostPath }}
           hostPath:
             path: {{ .Values.global.volumeHostPath }}

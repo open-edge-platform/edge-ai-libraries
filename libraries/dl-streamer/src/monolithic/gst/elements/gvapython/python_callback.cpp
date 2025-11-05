@@ -12,7 +12,11 @@
 
 #include <dlfcn.h>
 #include <gmodule.h>
+#ifdef _MSC_VER
+#include <pygobject.h>
+#else
 #include <pygobject-3.0/pygobject.h>
+#endif
 
 namespace {
 PyObject *extractClass(PyObjectWrapper &pluginModule, const char *class_name, const char *args_string,
@@ -72,8 +76,7 @@ PyObject *import_module_full_path(const char *module_name, const char *file_path
         sprintf(pStr, "%s.py", file_path);
         if (access(pStr, 0) != 0) {
             GST_ERROR("Error: Python module file not found: %s\n", pStr);
-            if (pStr)
-                delete[] pStr;
+            delete[] pStr;
 
             return NULL;
         }
@@ -132,8 +135,7 @@ PyObject *import_module_full_path(const char *module_name, const char *file_path
 
     if (PyRun_String(python_code, Py_file_input, main_dict, main_dict) == NULL) {
         PyErr_Print();
-        if (pStr)
-            delete[] pStr;
+        delete[] pStr;
         return NULL;
     }
 
@@ -143,8 +145,7 @@ PyObject *import_module_full_path(const char *module_name, const char *file_path
         PyObject *module = PyDict_GetItemString(main_dict, "imported_module");
         if (module != NULL) {
             Py_INCREF(module);
-            if (pStr)
-                delete[] pStr;
+            delete[] pStr;
             return module;
         }
     } else {
@@ -154,8 +155,7 @@ PyObject *import_module_full_path(const char *module_name, const char *file_path
         }
     }
 
-    if (pStr)
-        delete[] pStr;
+    delete[] pStr;
 
     return NULL;
 }

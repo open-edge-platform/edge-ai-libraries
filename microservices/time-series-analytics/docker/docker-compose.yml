@@ -10,7 +10,7 @@ services:
       context: $PWD/../
       dockerfile: $PWD/../Dockerfile
       args:
-        KAPACITOR_VERSION: 1.7.7
+        KAPACITOR_VERSION: 1.8.2
         TIMESERIES_UID: ${TIMESERIES_UID}
         TIMESERIES_USER_NAME: ${TIMESERIES_USER_NAME}
         PYTHON_VERSION: "3.10"

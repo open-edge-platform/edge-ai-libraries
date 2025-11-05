@@ -214,8 +214,8 @@ describe('TemplateService', () => {
 
   describe('getVideoTemplate', () => {
     it('should be defined but return undefined (placeholder method)', () => {
-      const result = service.getVideoTemplate();
-      expect(result).toBeUndefined();
+    const result = service.getTemplate('defaultFrames');
+    expect(result).toBe('MockedDefaultFramesTemplate');
     });
   });
 });

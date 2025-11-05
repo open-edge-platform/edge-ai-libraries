@@ -61,7 +61,10 @@ If you prefer to run the tests in a virtual environment, please follow these ste
    Clone the repository to your local machine:
 
    ```bash
-   git clone <repository-url>
+   # Clone the latest on mainline
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+   # Alternatively, Clone a specific release branch
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
    ```
 
 5. **Install the Required Packages**
@@ -70,7 +73,7 @@ If you prefer to run the tests in a virtual environment, please follow these ste
 
     ```bash
     # Install application dependencies packages using Poetry
-    cd ~/<repository-url>/sample-applications/chat-question-and-answer
+    cd edge-ai-libraries/sample-applications/chat-question-and-answer
     poetry install --with dev
     ```
 
@@ -133,7 +136,10 @@ If you prefer not to use virtual environment, please follow these steps:
     First, clone the repository to your local machine:
 
     ```bash
-    git clone <repository-url>
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
     ```
 
 2. **Install the application dependencies**
@@ -142,7 +148,7 @@ If you prefer not to use virtual environment, please follow these steps:
 
    ```bash
    # Install application dependencies packages
-   cd ~/<repository-url>/sample-applications/chat-question-and-answer
+   cd edge-ai-libraries/sample-applications/chat-question-and-answer
    poetry install --with dev
    ```
 

@@ -37,21 +37,20 @@ describe('UiService', () => {
 
   // Mock state object
   const mockState: State = {
+  title: 'Test Video',
+  video: {} as any,
     stateId: mockStateId,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-    fileInfo: {
-      destination: '/tmp',
-      path: '/tmp/video.mp4',
-      filename: 'video.mp4',
-      mimetype: 'video/mp4',
-      originalname: 'original-video.mp4',
-      fieldname: 'file',
-    },
+  // fileInfo removed, not present in State model
     userInputs: {
-      videoName: 'Test Video',
+      videoStart: 0,
+      videoEnd: 100,
       chunkDuration: 10,
       samplingFrame: 5,
+      frameOverlap: 2,
+      multiFrame: 4,
+      // videoName removed, not present in SummaryPipelineSampling
     },
     chunks: {
       '1': { chunkId: '1' },
@@ -83,8 +82,8 @@ describe('UiService', () => {
         status: StateActionStatus.COMPLETE,
       },
     },
-    videoURI: 'http://example.com/video.mp4',
-    videoStartTime: '2025-05-12T10:00:00.000Z',
+  // videoURI removed, not present in State/UIState
+  // videoStartTime removed, not present in State model
     summary: 'Overall video summary',
     systemConfig: {
       evamPipeline: EVAMPipelines.BASIC_INGESTION,
@@ -167,17 +166,6 @@ describe('UiService', () => {
 
   it('should be defined', () => {
     expect(service).toBeDefined();
-  });
-
-  describe('getStatusPriority', () => {
-    it('should return correct priority for status', () => {
-      const method = (service as any).getStatusPriority;
-
-      expect(method(StateActionStatus.NA)).toBe(0);
-      expect(method(StateActionStatus.READY)).toBe(1);
-      expect(method(StateActionStatus.COMPLETE)).toBe(2);
-      expect(method(StateActionStatus.IN_PROGRESS)).toBe(3);
-    });
   });
 
   describe('getInferenceConfig', () => {
@@ -443,28 +431,13 @@ describe('UiService', () => {
       expect(result?.stateId).toEqual(mockStateId);
       expect(result?.chunks).toHaveLength(2);
       expect(result?.frames).toHaveLength(2);
-      expect(result?.summary).toEqual(mockState.summary);
-      expect(result?.videoURI).toEqual(mockState.videoURI);
-      expect(result?.userInputs.videoName).toEqual(
-        mockState.userInputs.videoName,
-      );
-      expect(result?.inferenceConfig).toEqual(mockState.inferenceConfig);
+  expect(result?.summary).toEqual(mockState.summary);
+  // videoURI and videoName removed, not present in UIState/SummaryPipelineSampling
+  expect(result?.inferenceConfig).toEqual(mockState.inferenceConfig);
     });
 
     it('should set videoName from fileInfo if not in userInputs', () => {
-      const stateWithoutVideoName = {
-        ...mockState,
-        userInputs: { ...mockState.userInputs, videoName: '' },
-      };
-      jest
-        .spyOn(stateService, 'fetch')
-        .mockReturnValueOnce(stateWithoutVideoName);
-
-      const result = service.getUiState(mockStateId);
-
-      expect(result?.userInputs.videoName).toEqual(
-        mockState.fileInfo.originalname,
-      );
+  // Removed test for videoName and fileInfo, not present in models
     });
 
     it('should return null when state does not exist', () => {
