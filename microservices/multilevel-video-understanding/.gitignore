@@ -1,0 +1,14 @@
+*.pyc
+**/data
+__pycache__/
+.*_cache/
+envs
+virtual_env
+workspace
+.vscode
+.venv
+.coverage-report/
+*.lock
+!poetry.lock
+.env
+.coverage

@@ -125,6 +125,10 @@ indexing, and audio analysis.
   Real-time analytics microservice designed for anomaly detection
   and forecasting on sensor time-series data.
 
+- [Multi-level Video Understanding Microservice](./microservices/multilevel-video-understanding/)
+  
+  Microservices providing a multi-level, temporal-enhanced approach to generate high quality summaries for video files, especially for long videos.
+
 ### Data Preparation and Retrieval 
 
 Efficient data management and retrieval are crucial for AI performance
