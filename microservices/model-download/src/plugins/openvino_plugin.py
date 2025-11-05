@@ -21,7 +21,7 @@ class OpenVINOConverter(ModelDownloadPlugin):
 
     def can_handle(self, model_name: str, hub: str, **kwargs) -> bool:
         # Check if the hub is openvino or if is_ovms is True
-        return hub.lower() == "huggingface" or kwargs.get("is_ovms", False)
+        return hub.lower() == "openvino" or kwargs.get("is_ovms", False)
 
     def convert(self, model_name: str, output_dir: str, hf_token: str, **kwargs) -> Dict[str, Any]:
         """

@@ -14,7 +14,7 @@ Before you begin, ensure that you have the following prerequisites:
 
 Following steps should be followed to deploy Model-Download using Helm. You can install from source code or pull the chart from Docker hub.
 
-**_Steps 1 to 3 varies depending on if the user prefers to build or pull the Helm details._**
+**_Steps 1 to 2 varies depending on if the user prefers to build or pull the Helm details._**
 
 ### Option 1: Install from Docker Hub
 
@@ -40,9 +40,7 @@ This will create a directory named `model-download` containing the chart files. 
 cd model-download
 ```
 
-#### Step 3: Configure the `values.yaml` File
 
-Edit only the `values.yaml` file to set the necessary environment variables. Ensure you set the `env.HF_TOKEN` and proxy settings as required.
 
 ### Option 2: Install from Source
 
@@ -63,6 +61,10 @@ Navigate to the chart directory:
 cd edge-ai-libraries/microservices/model-download/chart
 ```
 
+
+
+## Common Steps
+
 #### Step 3: Configure the `values.yaml` File
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Ensure you set the `env.HUGGINGFACEHUB_API_TOKEN` and proxy settings as required
@@ -79,8 +81,6 @@ Below is a summary of key configuration options available in the `values.yaml` f
 
 
 > **Note:** Refer to the chart's `values.yaml` for a full list of configurable parameters.
-
-## Common Steps after configuration
 
 ### Step 4: Deploy the Helm Chart
 
