@@ -46,7 +46,7 @@ class UltralyticsDownloader(ModelDownloadPlugin):
         return_code = self._call_bash_script(model=model_name, quantize=quantize, models_path=hub_dir)
 
         if return_code != 0:
-            raise RuntimeError(f"Failed to download Ultralytics model {model_name}")
+            raise RuntimeError(f"Failed to download Ultralytics model {model_name}. Check if the model name is correct and if the model is compatible")
         
         host_path = hub_dir
         if host_path and isinstance(host_path, str) and host_path.startswith("/opt/models/"):
