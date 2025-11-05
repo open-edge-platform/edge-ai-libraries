@@ -4,9 +4,6 @@
 # Common base image with system dependencies
 FROM python:3.13-slim AS python-base
 
-ARG USER_ID
-ARG USER_GROUP_ID
-
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \
     PYTHONDONTWRITEBYTECODE=1 \
@@ -26,7 +23,7 @@ ENV PYTHONUNBUFFERED=1 \
     # Location where virtual env is created
     VENV_PATH="/opt/projsetup/.venv"
 
-RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+RUN groupadd appuser && useradd -m -s /bin/bash -g appuser appuser
 
 # Add poetry and venv to path
 ENV PATH="$POETRY_HOME/bin:$VENV_PATH/bin:$PATH"
