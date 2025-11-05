@@ -244,8 +244,19 @@ class RegionOfInterest {
         while (gst_analytics_relation_meta_get_direct_related(od_meta.meta, od_meta.id, GST_ANALYTICS_REL_TYPE_CONTAIN,
                                                               GST_ANALYTICS_MTD_TYPE_ANY, &state, &handle)) {
             GstStructure *s = GVA::Tensor::convert_to_tensor(handle);
-            if (s != nullptr)
+            if (s != nullptr) {
                 _tensors.emplace_back(s);
+                _converted_structures.push_back(s);
+            }
+        }
+    }
+
+    /**
+     * @brief Destructor to free converted GstStructures
+     */
+    ~RegionOfInterest() {
+        for (GstStructure *s : _converted_structures) {
+            gst_structure_free(s);
         }
     }
 
@@ -371,6 +382,12 @@ class RegionOfInterest {
      * obtained from GstVideoRegionOfInterestMeta
      */
     std::vector<Tensor> _tensors;
+
+    /**
+     * @brief vector of GstStructure pointers that were allocated by convert_to_tensor
+     */
+    std::vector<GstStructure *> _converted_structures;
+
     /**
      * @brief last added detection Tensor instance, defined as Tensor with name set to "detection"
      */
