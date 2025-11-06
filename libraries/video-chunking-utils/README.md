@@ -21,11 +21,13 @@ from video_chunking import UniformChunking
 
 # Specify the input video file and output directory
 input_video = "input.mp4"
+## also support http(s) video file
+# input_video = "https://videos.pexels.com/video-files/5992517/5992517-hd_1920_1080_30fps.mp4"
 
 # Chunk the video
 # 10 seconds per chunk
 video_chunker = UniformChunking(chunk_duration=10)
-micro_chunks_list = video_chunker.chunk(video_path)
+micro_chunks_list = video_chunker.chunk(input_video)
 for i, micro_chunk in enumerate(micro_chunks_list):
     print(f'[chunk-{i}]{micro_chunk.time_st}-{micro_chunk.time_end}')
 print(f"Total {len(micro_chunks_list)} chunks are generated.")
@@ -44,7 +46,7 @@ input_video = "input.mp4"
 video_chunker = PeltChunking(sample_fps=5, max_frame_size=512,
                              min_avg_duration=10,
                              max_avg_duration=45)
-micro_chunks_list = video_chunker.chunk(video_path)
+micro_chunks_list = video_chunker.chunk(input_video)
 for i, micro_chunk in enumerate(micro_chunks_list):
     print(f'[chunk-{i}]{micro_chunk.time_st}-{micro_chunk.time_end}')
 print(f"Total {len(micro_chunks_list)} chunks are generated.")

@@ -25,6 +25,7 @@ README.md           @xwu2intel
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 # this folder appears in 1.0.0 last
 /microservices/object-store/                           @bharagha @madhuri-rai07 @yogeshmpandey
+/microservices/multilevel-video-understanding/	       @Johere @zhangcong2019 @llin60
 
 # sample-applications
 /sample-applications/chat-question-and-answer/                @bharagha @yogeshmpandey @madhuri-rai07

@@ -2,6 +2,18 @@
 
 ## Current Release
 
+**Version**: 1.2.4 \
+**Release Date**: WW45 2025
+
+- Fix OVMS Dependencies Error in Helm Deployment.
+
+## Known Issues/Behavior (Consolidated):
+- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
+- Application running into Model Type issue on EMT 3.1 - Open
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
+
+## Previous Releases
+
 **Version**: 1.2.3 \
 **Release Date**: WW39 2025
 
@@ -10,14 +22,6 @@
 - Refreshed list of embedding models.
 - UI and NGINX containers now run with non-root privileges in Helm deployments.
 - Various bug fixes.
-
-
-## Known Issues/Behavior (Consolidated):
-- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
-- Application running into Model Type issue on EMT 3.1 - Open
-- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
-
-## Previous Releases
 
 **Version**: 1.2.2 \
 **Release Date**: WW32 2025

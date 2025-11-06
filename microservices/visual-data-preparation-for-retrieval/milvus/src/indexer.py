@@ -18,7 +18,7 @@ from milvus_client import MilvusClientWrapper
 
 DEVICE = os.getenv("DEVICE", "CPU")
 EMBEDDING_BASE_URL = os.getenv("EMBEDDING_BASE_URL", None)
-VCLIP_MODEL = os.getenv("VCLIP_MODEL", "openai/clip-vit-base-patch32")
+EMBEDDING_MODEL_NAME = os.getenv("EMBEDDING_MODEL_NAME", "openai/clip-vit-base-patch32")
 
 
 def create_milvus_data(embedding, meta=None):
@@ -29,17 +29,25 @@ def create_milvus_data(embedding, meta=None):
     return data
 
 class Indexer:
-    def __init__(self):
+    def __init__(self, collection_name="default"):
         # if not self.check_db_service():
         #     print("DB service is not available. Exiting.")
         #     exit(1)
 
+        self.model_name = EMBEDDING_MODEL_NAME
         self.embed_url = EMBEDDING_BASE_URL
 
         self.detector = Detector(device=DEVICE)
 
         self.id_map = {}
         self.db_inited = False
+        self.client = MilvusClientWrapper()
+        self.collection_name = collection_name
+
+        if self.client.load_collection(collection_name=self.collection_name) == 3:  # loaded
+            print(f"Collection '{self.collection_name}' already exist.")
+            self.db_inited = True
+            self.recover_id_map()
 
 
     def check_db_service(self, url="http://localhost:9091/healthz"):
@@ -54,10 +62,9 @@ class Indexer:
             print(f"Failed to connect to the service: {e}")
             return False
 
-    def init_db_client(self, dim, collection_name="default"):
-        self.client = MilvusClientWrapper()
-        self.collection_name = collection_name
+    def init_db_client(self, dim):
         self.client.create_collection(dim, collection_name=self.collection_name)
+
         self.db_inited = True
         self.recover_id_map()
 
@@ -133,7 +140,7 @@ class Indexer:
         headers = { 'Content-Type': 'application/json'}
 
         payload = {
-            "model": VCLIP_MODEL,
+            "model": EMBEDDING_MODEL_NAME,
             "encoding_format": "float",
             "input": {
                 "type": "image_base64",

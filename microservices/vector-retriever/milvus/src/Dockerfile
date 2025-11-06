@@ -17,8 +17,6 @@ RUN chown -R user /home/user/retriever
 RUN pip install --no-cache-dir --upgrade pip setuptools && \
     pip install --no-cache-dir -r /home/user/retriever/src/requirements.txt
 
-ENV PYTHONPATH=$PYTHONPATH:/home/user
-
 USER user
 
 EXPOSE 7770

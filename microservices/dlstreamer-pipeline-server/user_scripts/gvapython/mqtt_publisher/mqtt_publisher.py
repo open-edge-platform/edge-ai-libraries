@@ -85,7 +85,7 @@ class MQTTPublisher:
                 msg["blob"] = ""
 
             msg = json.dumps(msg)
-            self.log.info(f'Publishing message to: {self.topic}')
+            self.log.debug(f'Publishing message to: {self.topic}')
             self.client.publish(self.topic, payload=msg)
 
             # Discarding publish message

@@ -10,7 +10,9 @@
 -    Install Docker Compose: [Installation Guide](https://docs.docker.com/compose/install/).
 -    Install Intel Client GPU driver: [Installation Guide](https://dgpu-docs.intel.com/driver/client/overview.html).
 
-### Step 1: Build
+### Step 1: Get the docker images
+
+#### Option 1: build from source
 Clone the source code repository if you don't have it
 
 ```bash
@@ -18,19 +20,33 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git
 cd edge-ai-libraries/microservices
 ```
 
-Run the command to build image:
+Run the command to build images:
 
 ```bash
 docker build -t dataprep-visualdata-milvus:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f visual-data-preparation-for-retrieval/milvus/src/Dockerfile .
+
+# build the dependency image
+cd multimodal-embedding-serving
+docker build -t multimodal-embedding-serving:latest --build-arg https_proxy=$https_proxy --build-arg http_proxy=$http_proxy --build-arg no_proxy=$no_proxy -f docker/Dockerfile .
 ```
 
-### Step 2: Prepare host directories for models and data
+#### Option 2: use remote prebuilt images
+Set a remote registry by exporting environment variables:
+
+```bash
+export REGISTRY="intel/"  
+export TAG="latest" 
+```
+
+### Step 2: Prepare host directories for data
 
 ```
 mkdir -p $HOME/data
 ```
 
 Make sure to put all your data (images and video) in the created data directory (`$HOME/data` in the example commands) BEFORE deploying the service.
+
+Also, make sure the created path matches with the `HOST_DATA_PATH` variable in `deployment/docker-compose/env.sh`.
 
 Note: supported media types: jpg, png, mp4
 
@@ -44,12 +60,15 @@ Note: supported media types: jpg, png, mp4
     cd deployment/docker-compose/
     ```
 
-2.  Set up environment variables
+2.  Set up environment variables, note that you need to set an embedding model first
 
     ``` bash
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14" # Replace with your preferred model
     source env.sh 
     ```
 
+    **Important**: You must set `EMBEDDING_MODEL_NAME` before running `env.sh`. See [multimodal-embedding-serving's Supported Models](../../../../multimodal-embedding-serving/docs/user-guide/supported_models.md) for available options.
+    
 3.  Deploy with docker compose
 
     ``` bash
@@ -78,14 +97,15 @@ multimodal-embedding   gunicorn -b 0.0.0.0:8000 - ...   Up (health: starting)   
 ### Info
 
 ```curl
-curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
+curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ```
 
 ### Ingest Files
+**Note**: the file directory or single file sent in the request should be under the specific host directory created in Step 2.
 
 -    For Directory:
         ```curl
-        curl -X POST http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+        curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
         -H "Content-Type: application/json" \
         -d '{
             "file_dir": "/path/to/directory",
@@ -96,10 +116,10 @@ curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 
 -    For Single File:
         ```curl
-        curl -X POST http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
+        curl -X POST http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/ingest \
         -H "Content-Type: application/json" \
         -d '{
-            "file_path": "/path/to/file.mp4",
+            "file_path": "/path/to/file",
             "meta": {
                 "key": "value"
             },
@@ -111,19 +131,19 @@ curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/info
 ### Get File Info
 
 ```curl
-curl -X GET http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file.mp4
+curl -X GET http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/get?file_path=/path/to/file
 ```
 
 ### Delete File in Database
 
 ```curl
-curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file.mp4
+curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete?file_path=/path/to/file
 ```
 
 ### Clear Database
 
 ```curl
-curl -X DELETE http://<host>:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
+curl -X DELETE http://localhost:$DATAPREP_SERVICE_PORT/v1/dataprep/delete_all
 ```
 
 ## Learn More

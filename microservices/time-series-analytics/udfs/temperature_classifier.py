@@ -52,10 +52,9 @@ class MirrorHandler(Handler):
 
     def point(self, point):
         temp = None
-        for kv in point.fieldsDouble:
-            if kv.key == "temperature":
-                temp = kv.value
-                break
+        if "temperature" in point.fieldsDouble:
+            temp = point.fieldsDouble["temperature"]
+            
         if temp is None or isinstance(temp, (int, float)) is False:
             logger.error(f"Invalid temperature data received - {temp}")
         else:
