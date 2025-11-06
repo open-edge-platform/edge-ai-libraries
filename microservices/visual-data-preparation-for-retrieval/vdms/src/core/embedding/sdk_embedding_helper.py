@@ -44,25 +44,17 @@ _global_detector = None
 
 
 def _get_decord_context(device: Optional[str] = None):
-    """Get the appropriate decord context based on device setting."""
-    if device is None:
-        device = settings.DEVICE.upper()
+    """Return the decord context used for frame extraction."""
+    # Current container images ship without GPU-enabled decord builds, so
+    # attempting to select a GPU context raises runtime failures. Always use
+    # the default CPU context to keep video extraction reliable regardless of
+    # the configured DEVICE.
+    if device and device.upper().startswith("GPU"):
+        logger.info("Decord GPU context requested; using CPU context instead")
     else:
-        device = device.upper()
-    
-    if device == "GPU":
-        try:
-            # Try GPU context for CUDA/Intel GPU
-            gpu_ctx = decord.gpu(0)
-            logger.info("Using GPU context for decord video processing")
-            return gpu_ctx
-        except Exception as e:
-            logger.warning(f"Failed to initialize GPU context for decord, falling back to CPU: {e}")
-            return decord.cpu(0)
-    else:
-        # Use CPU context
         logger.info("Using CPU context for decord video processing")
-        return decord.cpu(0)
+
+    return decord.cpu(0)
 
 
 def get_pipeline_config():

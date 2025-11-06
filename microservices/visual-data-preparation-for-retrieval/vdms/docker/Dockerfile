@@ -2,6 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ARG ARCH="cpu"
+ARG INSTALL_DRIVER_VERSION="24.39.31294"
 FROM python:3.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry
@@ -129,7 +130,11 @@ CMD [ "/reporter.sh" ]
 
 # `prod` image used for runtime
 FROM python-base AS prod
-ENV FASTAPI_ENV=production
+
+ARG INSTALL_DRIVER_VERSION
+
+ENV FASTAPI_ENV=production \
+    INSTALL_DRIVER_VERSION=${INSTALL_DRIVER_VERSION}
 
 # Install curl for health checks and debugging
 RUN apt-get update && apt-get install --no-install-recommends -y \
@@ -138,8 +143,9 @@ RUN apt-get update && apt-get install --no-install-recommends -y \
 
 COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
-COPY ./scripts/entrypoint.sh /entrypoint.sh
-RUN chmod +x /entrypoint.sh
+COPY ./scripts/ /
+RUN chmod +x /entrypoint.sh /install_ubuntu_gpu_drivers.sh && \
+/install_ubuntu_gpu_drivers.sh
 
 COPY . /app/
 

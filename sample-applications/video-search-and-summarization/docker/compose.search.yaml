@@ -13,7 +13,7 @@ services:
       vdms-vector-db:
         condition: service_started
       vdms-dataprep:
-        condition: service_started
+        condition: service_healthy
       multimodal-embedding-serving:
         condition: service_healthy
       video-search:
@@ -146,13 +146,23 @@ services:
         condition: service_healthy
       minio-service:
         condition: service_healthy
+    healthcheck:
+      test: ["CMD-SHELL", "curl -f http://localhost:8000/v1/dataprep/health || exit 1"]
+      interval: 10s
+      timeout: 10s
+      retries: 40
+      start_period: 5s
     volumes:
       - "${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}"
       - data-prep:/tmp/dataprep
       - ov-models:/home/appuser/.cache/huggingface  # Share embedding models for SDK mode
       - ov-models:${OV_MODELS_DIR:-/app/ov_models}  # OpenVINO models directory for SDK mode
     devices:
-      - /dev/dri:/dev/dri  # Intel GPU device access for OpenVINO GPU acceleration
+      - /dev/dri:/dev/dri
+    group_add:
+      - ${USER_GROUP_ID:-1000}
+      - ${VIDEO_GROUP_ID:-44}
+      - ${RENDER_GROUP_ID:-1002}
     networks:
       - vs_network
 

@@ -9,6 +9,7 @@ routers, and configuration for the Visual Data Management System (VDMS) based
 data preparation microservice.
 """
 
+import asyncio
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI, HTTPException
@@ -33,11 +34,80 @@ from src.endpoints import (
 logger.debug(f"Settings loaded: {settings.model_dump()}")
 
 
+async def _run_startup_preloads() -> None:
+    """Warm up embedding and detection models during application startup."""
+
+    try:
+        from src.core.embedding.sdk_embedding_helper import (
+            preload_object_detector,
+            preload_sdk_client,
+        )
+        from src.core.utils.config_utils import get_config
+    except Exception as exc:  # pragma: no cover - defensive guard
+        logger.error("Skipping startup preloads due to import error: %s", exc)
+        return
+
+    config = get_config()
+    detection_config = config.get("object_detection", {})
+    enable_detection = detection_config.get("enabled", True)
+    detection_confidence = detection_config.get("confidence_threshold", 0.85)
+
+    tasks: list[tuple[str, asyncio.Future]] = []
+
+    if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
+        logger.info("Startup preload: warming up SDK embedding client")
+        tasks.append(("sdk", asyncio.ensure_future(asyncio.to_thread(preload_sdk_client))))
+    else:
+        logger.info(
+            "Startup preload: embedding mode '%s' does not require SDK warmup",
+            settings.EMBEDDING_PROCESSING_MODE,
+        )
+
+    logger.info(
+        "Startup preload: warming up object detector (enabled=%s, confidence=%.2f)",
+        enable_detection,
+        detection_confidence,
+    )
+    tasks.append(
+        (
+            "detector",
+            asyncio.ensure_future(
+                asyncio.to_thread(
+                    preload_object_detector,
+                    enable_detection,
+                    detection_confidence,
+                )
+            ),
+        )
+    )
+
+    if not tasks:
+        return
+
+    results = await asyncio.gather(*(task for _, task in tasks), return_exceptions=True)
+
+    summary: dict[str, bool] = {}
+    for (label, _), result in zip(tasks, results):
+        if isinstance(result, Exception):
+            logger.error("Startup preload '%s' failed: %s", label, result)
+            summary[label] = False
+        else:
+            summary[label] = bool(result)
+            logger.info("Startup preload '%s' completed (success=%s)", label, summary[label])
+
+    if summary and not all(summary.values()):
+        logger.warning("One or more startup preloads reported issues: %s", summary)
+    elif summary:
+        logger.info("All startup preloads completed successfully")
+
+
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     """Lifespan context manager to handle startup and shutdown operations."""
 
     logger.info("Starting VDMS-Dataprep Service . . .")
+
+    await _run_startup_preloads()
 
     try:
         yield
@@ -101,72 +171,6 @@ app.add_middleware(
     allow_methods=settings.ALLOW_METHODS.split(","),
     allow_headers=settings.ALLOW_HEADERS.split(","),
 )
-
-
-# Startup event handler for SDK mode initialization
-@app.on_event("startup")
-async def startup_event():
-    """Initialize SDK client and object detection models during app startup if in SDK mode.
-
-    This function preloads both the SDK client and object detection models when the
-    application starts up in SDK mode, which improves the response time for the first
-    API requests. If preloading fails, the application still starts normally but may
-    have slower first requests.
-    """
-
-    if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
-        logger.info("App startup: Preloading SDK client and models for faster first requests...")
-        try:
-            # Import here to avoid circular imports
-            from src.core.embedding.sdk_embedding_helper import (
-                preload_object_detector,
-                preload_sdk_client,
-            )
-            from src.core.utils.config_utils import get_config
-
-            sdk_success = preload_sdk_client()
-
-            if sdk_success:
-                logger.info("SDK client preload completed - embedding generation will be fast!")
-            else:
-                logger.warning(
-                    "SDK client preload had issues - first embedding request may be slower"
-                )
-
-            config = get_config()
-            detection_config = config.get("object_detection", {})
-            enable_detection = detection_config.get("enabled", True)
-            detection_confidence = detection_config.get("confidence_threshold", 0.85)
-
-            detection_success = preload_object_detector(
-                enable_object_detection=enable_detection,
-                detection_confidence=detection_confidence,
-            )
-
-            if detection_success:
-                if enable_detection:
-                    logger.info("Object detection model preload completed - detection will be fast!")
-                else:
-                    logger.info("Object detection disabled - skipping model preload")
-            else:
-                logger.warning(
-                    "Object detection preload had issues - first detection request may be slower"
-                )
-
-            if sdk_success and detection_success:
-                logger.info("All models preloaded successfully - API requests will be optimally fast!")
-            else:
-                logger.warning(
-                    "Some model preloads had issues - some API requests may be slower initially"
-                )
-
-        except Exception as exc:  # pragma: no cover - startup should continue
-            logger.error(f"Failed to preload models during startup: {exc}")
-    else:
-        logger.info(
-            "App startup: Embedding mode is '%s', skipping model preload",
-            settings.EMBEDDING_PROCESSING_MODE,
-        )
 
 
 # Setting up custom error message format

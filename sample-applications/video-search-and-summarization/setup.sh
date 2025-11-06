@@ -277,11 +277,11 @@ fi
 # Device Configuration Helper Functions
 configure_device() {
     local device=${1:-"CPU"}
-    
+
     echo -e "${BLUE}Configuring device for all processing components: ${YELLOW}${device}${NC}"
-    echo -e "${BLUE}   This affects: decord video processing, embedding model, and object detection${NC}"
-    
-    if [[ "${device}" == "GPU" ]]; then
+    echo -e "${BLUE}   This affects: embedding model, and object detection${NC}"
+
+    if [[ "${device}" == GPU* ]]; then
         echo -e "${YELLOW}⚙️  Setting up GPU configuration...${NC}"
         
         # Check if Intel GPU is available
@@ -299,7 +299,7 @@ configure_device() {
         fi
         
         # Set GPU-specific configuration
-        export DEVICE="GPU"
+        export DEVICE="${device}"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
         echo -e "${GREEN}GPU mode configured for all components:${NC}"
@@ -309,13 +309,13 @@ configure_device() {
         
     else
         echo -e "${BLUE} CPU mode configured for all components${NC}"
-        export DEVICE="CPU"
+        export DEVICE="${device}"
     fi
 }
 
 # Device mode selection
-if [[ "${DEVICE}" == "GPU" ]]; then
-    configure_device "GPU"
+if [[ "${DEVICE}" == GPU* ]]; then
+    configure_device "${DEVICE}"
 else
     configure_device "CPU"
 fi
