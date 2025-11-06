@@ -6,7 +6,28 @@ This guide shows you how to use the Multimodal Embedding Serving microservice as
 
 ## Installation
 
-### Option 1: Install from Source
+### Option 1: Install from Wheel (Recommended for Production)
+
+Build and install the microservice as a wheel package for clean, production-ready integration.
+
+> **📖 Comprehensive Guide**: See [Wheel-Based Installation Guide](wheel-installation.md) for detailed instructions on building, installing, distributing, and troubleshooting wheel installations.
+
+**Quick Install:**
+
+```bash
+# 1. Build the wheel
+cd multimodal_embedding_serving
+poetry build
+
+# 2. Install in your project
+pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
+
+# OR add to pyproject.toml (recommended)
+# [tool.poetry.dependencies]
+# multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
+```
+
+### Option 2: Install from Source (Development)
 
 ```bash
 git clone https://github.com/intel/edge-ai-libraries
@@ -14,7 +35,7 @@ cd edge-ai-libraries/microservices/multimodal_embedding_serving
 pip install -e .
 ```
 
-### Option 2: Using Poetry (Recommended for Development)
+### Option 3: Using Poetry for Development
 
 ```bash
 cd multimodal_embedding_serving
@@ -27,14 +48,11 @@ poetry shell
 ### 1. Basic SDK Usage
 
 ```python
-import sys
-sys.path.append('src')
-
-from wrapper import EmbeddingModel
-from models.registry import ModelFactory
+# Import from the installed package
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 
 # Create and load a model (replace with your chosen model from supported-models.md)
-model_handler = ModelFactory.create_model("your-chosen-model")
+model_handler = get_model_handler("your-chosen-model")
 model_handler.load_model()
 
 # Create the application wrapper
@@ -63,7 +81,32 @@ embeddings = embedding_model.embed_documents(texts)
 print(f"Batch embeddings shape: {len(embeddings)}x{len(embeddings[0])}")
 ```
 
+> **Text-only models**: Qwen text embeddings expose only the text encoder. Use the `/model/capabilities` endpoint or `embedding_model.get_supported_modalities()` to confirm modality support before invoking image/video helpers.
+
+#### Qwen text embeddings with OpenVINO INT8
+
+```python
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
+handler = get_model_handler(
+    "QwenText/qwen3-embedding-0.6b",
+    device="GPU",  # or CPU / AUTO
+    use_openvino=True,
+    ov_models_dir="./ov-models"
+)
+handler.load_model()
+
+embedding_model = EmbeddingModel(handler)
+print(embedding_model.get_supported_modalities())  # ['text']
+
+query = "How does photosynthesis work?"
+embedding = embedding_model.embed_query(query)
+print(len(embedding))
+```
+
 ### 3. Image Embeddings
+
+> Image helpers require a model with image modality support (e.g., CLIP, MobileCLIP, SigLIP, BLIP-2). They are not available when a text-only model such as Qwen is active.
 
 #### From URL
 
@@ -98,6 +141,8 @@ print(f"Image embedding shape: {len(embedding)}")
 ```
 
 ### 4. Video Embeddings
+
+> Video helpers rely on image encoders under the hood; ensure the active model advertises video support via `embedding_model.supports_video()`.
 
 #### From_URL
 
@@ -163,28 +208,32 @@ frame_embeddings = await embedding_model.get_video_embedding_from_file(
 ### 1. Using Different Models
 
 ```python
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
 # Standard CLIP
-clip_handler = ModelFactory.create_model("your-chosen-model")
+clip_handler = get_model_handler("your-chosen-model")
 clip_model = EmbeddingModel(clip_handler)
 
 # Chinese CLIP for multilingual support
-cn_clip_handler = ModelFactory.create_model("CN-CLIP/cn-clip-vit-b-16")
+cn_clip_handler = get_model_handler("CN-CLIP/cn-clip-vit-b-16")
 cn_clip_model = EmbeddingModel(cn_clip_handler)
 
 # Mobile-optimized CLIP
-mobile_handler = ModelFactory.create_model("MobileCLIP/mobileclip_b")
+mobile_handler = get_model_handler("MobileCLIP/mobileclip_b")
 mobile_model = EmbeddingModel(mobile_handler)
 
 # BLIP-2 for advanced multimodal understanding
-blip2_handler = ModelFactory.create_model("Blip2/blip2_transformers")
+blip2_handler = get_model_handler("Blip2/blip2_transformers")
 blip2_model = EmbeddingModel(blip2_handler)
 ```
 
 ### 2. OpenVINO Optimization
 
 ```python
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
 # Enable OpenVINO for faster inference
-model_handler = ModelFactory.create_model(
+model_handler = get_model_handler(
     model_id="your-chosen-model",
     device="CPU",
     use_openvino=True,
@@ -197,8 +246,10 @@ embedding_model = EmbeddingModel(model_handler)
 ### 3. GPU Acceleration (if available)
 
 ```python
+from multimodal_embedding_serving import get_model_handler
+
 # Use GPU for inference
-model_handler = ModelFactory.create_model(
+model_handler = get_model_handler(
     model_id="your-chosen-model",
     device="GPU"
 )
@@ -259,8 +310,10 @@ asyncio.run(search_video_content())
 ### 3. Multilingual Text Processing
 
 ```python
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
 # Using CN-CLIP for Chinese text
-cn_clip_handler = ModelFactory.create_model("CN-CLIP/cn-clip-vit-b-16")
+cn_clip_handler = get_model_handler("CN-CLIP/cn-clip-vit-b-16")
 cn_clip_handler.load_model()
 cn_model = EmbeddingModel(cn_clip_handler)
 
@@ -304,9 +357,11 @@ asyncio.run(batch_process_images())
 ## Error Handling
 
 ```python
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
 try:
     # Load model with error handling
-    model_handler = ModelFactory.create_model("your-chosen-model")
+    model_handler = get_model_handler("your-chosen-model")
     model_handler.load_model()
     embedding_model = EmbeddingModel(model_handler)
     
@@ -334,17 +389,21 @@ except Exception as e:
 See [Supported Models](supported-models.md) for all available models and their specifications.
 
 ```python
+from multimodal_embedding_serving import get_model_handler
+
 # Example: Using different models
-clip_handler = ModelFactory.create_model("your-chosen-model")
-cn_clip_handler = ModelFactory.create_model("CN-CLIP/cn-clip-vit-b-16")
-mobile_handler = ModelFactory.create_model("MobileCLIP/mobileclip_b")
+clip_handler = get_model_handler("your-chosen-model")
+cn_clip_handler = get_model_handler("CN-CLIP/cn-clip-vit-b-16")
+mobile_handler = get_model_handler("MobileCLIP/mobileclip_b")
 ```
 
 ### OpenVINO Optimization
 
 ```python
+from multimodal_embedding_serving import get_model_handler
+
 # Enable OpenVINO for Intel hardware acceleration
-model_handler = ModelFactory.create_model(
+model_handler = get_model_handler(
     "your-chosen-model",
     use_openvino=True
 )
@@ -363,12 +422,13 @@ embeddings = embedding_model.embed_documents(text_batch)
 
 ```python
 from flask import Flask, request, jsonify
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 import asyncio
 
 app = Flask(__name__)
 
 # Initialize model globally
-model_handler = ModelFactory.create_model("your-chosen-model")
+model_handler = get_model_handler("your-chosen-model")
 model_handler.load_model()
 embedding_model = EmbeddingModel(model_handler)
 
@@ -392,6 +452,7 @@ if __name__ == '__main__':
 ```python
 from fastapi import FastAPI, HTTPException
 from pydantic import BaseModel
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 
 app = FastAPI()
 
@@ -401,7 +462,7 @@ class TextRequest(BaseModel):
 @app.on_event("startup")
 async def startup_event():
     global embedding_model
-    model_handler = ModelFactory.create_model("your-chosen-model")
+    model_handler = get_model_handler("your-chosen-model")
     model_handler.load_model()
     embedding_model = EmbeddingModel(model_handler)
 
@@ -422,7 +483,7 @@ async def embed_text(request: TextRequest):
 
    ```python
    # Check available models
-   from models.config import list_available_models
+   from multimodal_embedding_serving import list_available_models
    print(list_available_models())
    ```
 
@@ -430,14 +491,16 @@ async def embed_text(request: TextRequest):
 
    ```python
    # Use smaller models for limited memory
-   model_handler = ModelFactory.create_model("MobileCLIP/mobileclip_s0")
+   from multimodal_embedding_serving import get_model_handler
+   model_handler = get_model_handler("MobileCLIP/mobileclip_s0")
    ```
 
 3. **OpenVINO Issues**
 
    ```python
    # Disable OpenVINO if having issues
-   model_handler = ModelFactory.create_model(
+   from multimodal_embedding_serving import get_model_handler
+   model_handler = get_model_handler(
        "your-chosen-model",
        use_openvino=False
    )

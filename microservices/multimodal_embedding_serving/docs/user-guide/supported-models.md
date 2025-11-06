@@ -60,6 +60,24 @@ CLIP models with sigmoid loss function.
 
 For detailed architecture and implementation details, see [BLIP-2 Transformers Guide](blip2-transformers-embeddings.md).
 
+### Qwen Text Embeddings
+
+| Model ID | Hugging Face Repo | Embedding Dimension | Precision | Notes |
+|----------|-------------------|---------------------|-----------|-------|
+| `QwenText/qwen3-embedding-0.6b` | `Qwen/Qwen3-Embedding-0.6B` | 1024 | INT8 | Text-only, instruction-aware | Context Length: 32k
+| `QwenText/qwen3-embedding-4b` | `Qwen/Qwen3-Embedding-4B` | 2560 | INT8 | Text-only, instruction-aware | Context Length: 32k
+| `QwenText/qwen3-embedding-8b` | `Qwen/Qwen3-Embedding-8B` | 4096 | INT8 | Text-only, instruction-aware | Context Length: 32k
+
+The Qwen text embedding handler provides high-quality multilingual embeddings optimised with OpenVINO. These models:
+
+- Are **text-only** and do not expose image or video encoders.
+- Automatically wrap queries using the recommended instruction template (`"Instruct: {task_description}\nQuery:{query}"`).
+- Convert to OpenVINO INT8 format on first use and store compiled artifacts under the configured `EMBEDDING_OV_MODELS_DIR`.
+- Require `trust_remote_code=true` (handled by the factory).
+- Support Intel GPU execution via OpenVINO.
+
+Use the `/model/capabilities` endpoint to inspect which modalities the currently loaded model supports.
+
 ## Model Configuration
 
 Set your chosen model using environment variables:
@@ -77,6 +95,12 @@ export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
 # Example: Using MobileCLIP
 export EMBEDDING_MODEL_NAME="MobileCLIP/mobileclip_s0"
 
+# Example: Using Qwen text embeddings (INT8 OpenVINO)
+export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+export EMBEDDING_USE_OV=true
+export EMBEDDING_DEVICE=GPU  # or CPU/AUTO
+export EMBEDDING_OV_MODELS_DIR=/app/ov_models
+
 source setup.sh
 ```
 
@@ -93,9 +117,9 @@ The service supports automatic OpenVINO conversion for all models. The conversio
 
 ## Supported Input Formats
 
-- **Text**: UTF-8 strings
-- **Images**: JPEG, PNG, WebP, base64-encoded (and other formats supported by PIL)
-- **Videos**: Any format supported by FFmpeg (MP4, AVI, MOV, etc.), base64-encoded
+- **Text**: UTF-8 strings (available for all models)
+- **Images**: JPEG, PNG, WebP, base64-encoded (and other formats supported by PIL). _Not available for Qwen text-only models._
+- **Videos**: Any format supported by FFmpeg (MP4, AVI, MOV, etc.), base64-encoded. _Not available for Qwen text-only models._
 
 All models are compatible with the OpenAI embeddings API format.
 
@@ -111,6 +135,12 @@ Get current model information:
 
 ```bash
 curl http://localhost:9777/model/current
+```
+
+Inspect modality support for the active model:
+
+```bash
+curl http://localhost:9777/model/capabilities
 ```
 
 ## Related Documentation

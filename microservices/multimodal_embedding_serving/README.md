@@ -1,6 +1,6 @@
 # Multimodal Embedding Serving Microservice
 
-A multimodal embedding microservice that enables seamless integration of vision-language understanding into applications through OpenAI-compliant APIs. The microservice supports multiple state-of-the-art models including CLIP, CN-CLIP, MobileCLIP, SigLIP, and BLIP-2, accepting videos, images and text as input, returning high-dimensional embeddings that capture their semantic content in a shared space.
+A multimodal embedding microservice that enables seamless integration of vision-language understanding into applications through OpenAI-compliant APIs. The microservice supports multiple state-of-the-art models including CLIP, CN-CLIP, MobileCLIP, SigLIP, BLIP-2, and Qwen text embeddings, accepting modality-appropriate inputs and returning high-dimensional embeddings that capture their semantic content in a shared space.
 
 The microservice is optimized for performance and scalability, supporting batch processing and deployment on both cloud and edge environments. By abstracting the complexity of model management and inference, the microservice accelerates the adoption of advanced vision-language AI in diverse use cases.
 
@@ -16,7 +16,9 @@ The microservice is optimized for performance and scalability, supporting batch 
 
 - **Usage**
   - [SDK Usage](docs/user-guide/sdk-usage.md): Complete guide for using the service as a Python SDK.
+  - [Wheel Installation](docs/user-guide/wheel-installation.md): Comprehensive guide for building and installing as a Python wheel package.
   - [Supported Models](docs/user-guide/supported-models.md): Complete list of supported models and their configurations.
+  - [`/model/capabilities` endpoint](docs/user-guide/api-reference.md): Discover modality support for the loaded model.
   
 - **Deployment**
   - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.

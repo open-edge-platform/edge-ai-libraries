@@ -10,7 +10,7 @@ as an SDK from external projects, simulating real-world integration scenarios
 where embedding capabilities are incorporated into larger applications.
 
 Key demonstration areas:
-- SDK-style imports and initialization patterns
+- SDK-style imports and initialization patterns (wheel-based installation)
 - Model handler creation and configuration
 - Text and image embedding generation workflows  
 - Error handling and best practices
@@ -22,10 +22,12 @@ multimodal embedding capabilities into their own applications without running
 a separate server process. This approach is ideal for batch processing,
 data preprocessing pipelines, and embedded applications.
 
-NOTE: IDE may show import errors for multimodal_embedding_serving imports.
-This is expected since the imports are resolved dynamically at runtime
-after adding the service path to sys.path. The code will work correctly
-when executed.
+Prerequisites:
+    1. Build the wheel: poetry build
+    2. Install the wheel in your project:
+       - Via pip: pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
+       - Via pyproject.toml: multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
+    3. Import and use: from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 
 Usage:
     Run this script directly to see SDK integration examples, or reference
@@ -35,6 +37,15 @@ Usage:
 import os
 import sys
 from pathlib import Path
+
+# Import from installed wheel package
+try:
+    from multimodal_embedding_serving import get_model_handler, EmbeddingModel, list_available_models
+    print("Successfully imported from installed wheel package!")
+    USING_WHEEL = True
+except ImportError:
+    print(" Wheel package not found, using local development imports...")
+    USING_WHEEL = False
 
 def setup_cross_project_imports():
     """
@@ -80,22 +91,22 @@ def setup_cross_project_imports():
         # Import from the root package (recommended)
         # Note: IDE may show import errors until runtime when path is added
         from multimodal_embedding_serving import EmbeddingModel, get_model_handler, list_available_models  # type: ignore
-        print("✅ Successfully imported from root package!")
+        print("Successfully imported from root package!")
         return EmbeddingModel, get_model_handler, list_available_models
         
     except ImportError as e:
-        print(f"❌ Root package import failed: {e}")
+        print(f"Root package import failed: {e}")
         print("Falling back to src-level imports...")
         
         # Fallback: Import from src subpackage
         try:
             from multimodal_embedding_serving.src import EmbeddingModel  # type: ignore
             from multimodal_embedding_serving.src.models import get_model_handler, list_available_models  # type: ignore
-            print("✅ Successfully imported from src subpackage!")
+            print("Successfully imported from src subpackage!")
             return EmbeddingModel, get_model_handler, list_available_models
             
         except ImportError as e:
-            print(f"❌ All import methods failed: {e}")
+            print(f"All import methods failed: {e}")
             raise
 
 def demonstrate_import_patterns():
@@ -106,7 +117,40 @@ def demonstrate_import_patterns():
     
     print("""
 # ===============================================
-# Pattern 1: Using Root Package (Recommended)
+# Pattern 1: Using Wheel Package (Recommended for Production)
+# ===============================================
+
+# Step 1: Build the wheel
+# cd multimodal_embedding_serving
+# poetry build
+
+# Step 2: Install via pip
+# pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
+
+# OR via pyproject.toml (recommended for projects)
+# [tool.poetry.dependencies]
+# multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
+# poetry install
+
+# Step 3: Import and use
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel, list_available_models
+
+handler = get_model_handler("CLIP/clip-vit-b-16")
+handler.load_model()
+model = EmbeddingModel(handler)
+
+# ===============================================  
+# Pattern 2: Development Install (Editable)
+# ===============================================
+
+# For development with live code changes:
+# cd multimodal-embedding-serving
+# pip install -e .
+
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
+
+# ===============================================
+# Pattern 3: Using sys.path (Legacy/Testing)
 # ===============================================
 
 import sys
@@ -116,44 +160,27 @@ from pathlib import Path
 embedding_service_path = Path("/path/to/multimodal-embedding-serving")
 sys.path.insert(0, str(embedding_service_path))
 
-# Import from root package (cleanest)
-from multimodal_embedding_serving import EmbeddingModel, get_model_handler
-
-# ===============================================  
-# Pattern 2: Using Relative Paths
-# ===============================================
-
-# If the embedding service is in a sibling directory
-embedding_service_path = Path(__file__).parent.parent / "multimodal-embedding-serving"
-sys.path.insert(0, str(embedding_service_path))
-
-from multimodal_embedding_serving import EmbeddingModel
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 
 # ===============================================
-# Pattern 3: Using Environment Variables
+# Pattern 4: Within a Poetry Project
 # ===============================================
 
-import os
-embedding_service_path = os.environ.get('EMBEDDING_SERVICE_PATH', '/default/path')
-sys.path.insert(0, embedding_service_path)
+# Add to your project's pyproject.toml:
+# [tool.poetry.dependencies]
+# multimodal-embedding-serving = {path = "../path/to/wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
 
-from multimodal_embedding_serving import EmbeddingModel
+# Then:
+# poetry install
+# poetry run python your_script.py
 
-# ===============================================
-# Pattern 4: Using pip install (Production)
-# ===============================================
-
-# First install the package:
-# cd /path/to/multimodal-embedding-serving
-# pip install -e .
-
-# Then import normally:
-# from multimodal_embedding_serving import EmbeddingModel
+from multimodal_embedding_serving import get_model_handler, EmbeddingModel
 
 """)
 
-# Import the classes using our setup function
-EmbeddingModel, get_model_handler, list_available_models = setup_cross_project_imports()
+# Import the classes - either from wheel or local development
+if not USING_WHEEL:
+    EmbeddingModel, get_model_handler, list_available_models = setup_cross_project_imports()
 
 
 MODEL_TESTS = [
@@ -162,6 +189,7 @@ MODEL_TESTS = [
     ("SigLIP/siglip-vit-b-16", "A modern cityscape at night"),
     ("Blip2/blip2_feature_extractor", "A person riding a horse on the beach"),
     ("Blip2/blip2_transformers", "A peaceful forest with tall trees"),
+    ("QwenText/qwen3-embedding-0.6b", "Explain gravity in simple words"),
 ]
 
 OV_BASE_DIR = Path(__file__).parent.parent / "ov-models"
@@ -230,6 +258,35 @@ def example_mobileclip_text_embedding():
     print(f"Text: '{text}'")
     print(f"Embedding shape: {len(embedding)} dimensions")
     print(f"First 5 values: {embedding[:5]}")
+    print()
+
+
+def example_qwen_text_embedding():
+    """Example: Generate text embeddings using Qwen + OpenVINO"""
+    print("=" * 50)
+    print("Text Embedding Example (Qwen + OpenVINO INT8)")
+    print("=" * 50)
+
+    ov_dir = OV_BASE_DIR / "qwen3_embedding_0_6b"
+    ov_dir.mkdir(parents=True, exist_ok=True)
+
+    handler = get_model_handler(
+        "QwenText/qwen3-embedding-0.6b",
+        device="AUTO",
+        use_openvino=True,
+        ov_models_dir=str(ov_dir),
+    )
+    handler.load_model()
+
+    embedding_model = EmbeddingModel(handler)
+    print(f"Modalities: {embedding_model.get_supported_modalities()}")
+    query = "Summarize quantum entanglement in simple terms"
+    embedding = embedding_model.embed_query(query)
+
+    print(f"Text: '{query}'")
+    print(f"Embedding shape: {len(embedding)} dimensions")
+    print(f"First 5 values: {embedding[:5]}")
+    print(f"Using {'OpenVINO' if handler.use_openvino else 'PyTorch'} inference")
     print()
 
 
@@ -375,11 +432,11 @@ def run_embedding_example(
 
         embedding_model = EmbeddingModel(handler)
         embedding = embedding_model.embed_query(text)
-        print(f"✓ Success! Embedding shape: {len(embedding)} dimensions")
+        print(f"Success! Embedding shape: {len(embedding)} dimensions")
         print(f"  First 5 values: {embedding[:5]}")
         print(f"  Using {'OpenVINO' if handler.use_openvino else 'PyTorch'} inference")
     except Exception as e:
-        print(f"✗ Error: {e}")
+        print(f"Error: {e}")
     print()
 
 
@@ -426,7 +483,7 @@ def example_cross_project_integration():
             self.handler.load_model()
             self.embedding_model = EmbeddingModel(self.handler)
             
-            print(f"✅ Embedding client ready!")
+            print(f"Embedding client ready!")
             print(f"   Model: {model_name}")
             print(f"   Embedding dimensions: {self.embedding_model.get_embedding_length()}")
             print(f"   Using OpenVINO: {use_openvino}")
@@ -454,7 +511,7 @@ def example_cross_project_integration():
             
             # This is a simplified similarity calculation
             # In practice, you'd use proper vector similarity (cosine, etc.)
-            print(f"🔍 Searching for content similar to: '{query_text}'")
+            print(f"Searching for content similar to: '{query_text}'")
             print(f"   Query embedding dimensions: {len(query_embedding)}")
             
             # Simulate finding similar content
@@ -484,13 +541,13 @@ def example_cross_project_integration():
             {"type": "text", "content": "Cat sleeping on a windowsill"},
         ]
         
-        print("\n📊 Analyzing content items:")
+        print("\nAnalyzing content items:")
         results = client.analyze_content(content_items)
         for i, result in enumerate(results, 1):
             print(f"   {i}. {result['content']} -> {result['embedding_dim']} dims")
         
         # Example similarity search
-        print("\n🔍 Similarity search example:")
+        print("\nSimilarity search example:")
         database = [
             "Beautiful ocean waves crashing on shore",
             "City lights reflecting in the water", 
@@ -507,7 +564,7 @@ def example_cross_project_integration():
             print(f"      {i}. '{item['content']}' (similarity: {item['similarity']:.3f})")
             
     except Exception as e:
-        print(f"❌ Cross-project integration example failed: {e}")
+        print(f"Cross-project integration example failed: {e}")
         import traceback
         traceback.print_exc()
 
@@ -520,7 +577,7 @@ def example_blip2_transformers():
     
     try:
         # Use the new Transformers-based BLIP2 implementation
-        print("🚀 Using BLIP2 Transformers implementation...")
+        print("Using BLIP2 Transformers implementation...")
         handler = get_model_handler("Blip2/blip2_transformers")
         print(f"Model: {handler.model_config['model_name']}")
         print(f"Handler: {handler.__class__.__name__}")
@@ -528,13 +585,13 @@ def example_blip2_transformers():
         # Load model
         print("Loading model...")
         handler.load_model()
-        print("✅ Model loaded successfully (no vocabulary mismatch!)")
+        print("Model loaded successfully (no vocabulary mismatch!)")
 
         # Create wrapper
         embedding_model = EmbeddingModel(handler)
 
         # Test text embedding
-        print("\n📝 Testing text encoding...")
+        print("\nTesting text encoding...")
         texts = [
             "A cat sitting on a mat",
             "A dog running in the park", 
@@ -543,10 +600,10 @@ def example_blip2_transformers():
         
         for text in texts:
             embedding = embedding_model.embed_query(text)
-            print(f"   ✅ '{text}' → {len(embedding)} dimensions")
+            print(f"   '{text}' → {len(embedding)} dimensions")
         
         # Test image embedding (with dummy image)
-        print("\n🖼️  Testing image encoding...")
+        print("\n Testing image encoding...")
         try:
             from PIL import Image
             import numpy as np
@@ -558,31 +615,31 @@ def example_blip2_transformers():
             
             # Use the handler directly for image encoding
             image_features = handler.encode_image(dummy_image)
-            print(f"   ✅ Image encoding successful: {image_features.shape}")
+            print(f"   Image encoding successful: {image_features.shape}")
             
         except Exception as e:
-            print(f"   ⚠️  Image encoding test skipped: {e}")
+            print(f"    Image encoding test skipped: {e}")
 
-        print("\n📊 Model Information:")
+        print("\nModel Information:")
         print(f"   • Embedding dimension: {handler.get_embedding_dim()}")
         print(f"   • Device: {handler.device}")
         print(f"   • Using OpenVINO: {handler.use_openvino}")
         
-        print("\n💡 Benefits of Transformers implementation:")
-        print("   ✅ No vocabulary size mismatch errors")
-        print("   ✅ CPU-optimized with float32 precision")
-        print("   ✅ Compatible with HuggingFace ecosystem")
-        print("   ✅ Maintains same API as original handler")
+        print("\n Benefits of Transformers implementation:")
+        print("   No vocabulary size mismatch errors")
+        print("   CPU-optimized with float32 precision")
+        print("   Compatible with HuggingFace ecosystem")
+        print("   Maintains same API as original handler")
         
         return True
         
     except ImportError as e:
-        print(f"⚠️  Missing dependencies: {e}")
+        print(f" Missing dependencies: {e}")
         print("   Install with: pip install transformers>=4.53.0")
         return False
         
     except Exception as e:
-        print(f"❌ BLIP2 Transformers example failed: {e}")
+        print(f"BLIP2 Transformers example failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -596,7 +653,7 @@ def example_blip2_transformers_openvino():
     
     try:
         # Use the new Transformers-based BLIP2 implementation with OpenVINO
-        print("🚀 Using BLIP2 Transformers with OpenVINO acceleration...")
+        print("Using BLIP2 Transformers with OpenVINO acceleration...")
         
         # Setup OpenVINO models directory
         ov_dir = OV_BASE_DIR / "blip2_transformers"
@@ -616,13 +673,13 @@ def example_blip2_transformers_openvino():
         # Load model (this will convert to OpenVINO if needed)
         print("Loading model and converting to OpenVINO format if needed...")
         handler.load_model()
-        print("✅ Model loaded successfully with OpenVINO!")
+        print("Model loaded successfully with OpenVINO!")
 
         # Create wrapper
         embedding_model = EmbeddingModel(handler)
 
         # Test text embedding with OpenVINO
-        print("\n📝 Testing text encoding with OpenVINO...")
+        print("\nTesting text encoding with OpenVINO...")
         texts = [
             "A beautiful landscape with mountains",
             "A futuristic city with flying cars", 
@@ -631,10 +688,10 @@ def example_blip2_transformers_openvino():
         
         for text in texts:
             embedding = embedding_model.embed_query(text)
-            print(f"   ✅ '{text}' → {len(embedding)} dimensions")
+            print(f"   '{text}' → {len(embedding)} dimensions")
         
         # Test image embedding with OpenVINO (with dummy image)
-        print("\n🖼️  Testing image encoding with OpenVINO...")
+        print("\n Testing image encoding with OpenVINO...")
         try:
             from PIL import Image
             import numpy as np
@@ -646,32 +703,32 @@ def example_blip2_transformers_openvino():
             
             # Use the handler directly for image encoding
             image_features = handler.encode_image(dummy_image)
-            print(f"   ✅ Image encoding with OpenVINO successful: {image_features.shape}")
+            print(f"   Image encoding with OpenVINO successful: {image_features.shape}")
             
         except Exception as e:
-            print(f"   ⚠️  Image encoding test skipped: {e}")
+            print(f"    Image encoding test skipped: {e}")
 
-        print("\n📊 OpenVINO Model Information:")
+        print("\nOpenVINO Model Information:")
         print(f"   • Embedding dimension: {handler.get_embedding_dim()}")
         print(f"   • Device: {handler.device}")
         print(f"   • Using OpenVINO: {handler.use_openvino}")
         print(f"   • OpenVINO models dir: {ov_dir}")
         
-        print("\n🚀 OpenVINO Benefits:")
-        print("   ✅ Faster inference performance")
-        print("   ✅ Lower memory usage")
-        print("   ✅ Optimized for Intel hardware")
-        print("   ✅ Production-ready deployment")
+        print("\nOpenVINO Benefits:")
+        print("   Faster inference performance")
+        print("   Lower memory usage")
+        print("   Optimized for Intel hardware")
+        print("   Production-ready deployment")
         
         return True
         
     except ImportError as e:
-        print(f"⚠️  Missing dependencies: {e}")
+        print(f" Missing dependencies: {e}")
         print("   Install with: pip install transformers>=4.53.0")
         return False
         
     except Exception as e:
-        print(f"❌ BLIP2 Transformers OpenVINO example failed: {e}")
+        print(f"BLIP2 Transformers OpenVINO example failed: {e}")
         import traceback
         traceback.print_exc()
         return False
@@ -681,6 +738,15 @@ def main():
     """Run cross-project SDK examples."""
     print("Multimodal Embedding Serving - Cross-Project SDK Examples")
     print("=" * 70)
+    
+    if USING_WHEEL:
+        print("Running with installed wheel package")
+        print("   Package: multimodal-embedding-serving")
+    else:
+        print(" Running with local development imports")
+        print("   Recommended: Build and install wheel for production use")
+        print("   Build command: poetry build")
+        print("   Install command: pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl")
     print()
     
     # Show import patterns
@@ -689,6 +755,7 @@ def main():
     try:
         # Run existing examples
         example_list_available_models()
+        example_qwen_text_embedding()
         example_blip2_transformers()
         example_blip2_transformers_openvino()
         example_all_models_native_and_openvino()
@@ -697,17 +764,20 @@ def main():
         example_cross_project_integration()
         
         print("=" * 70)
-        print("✅ All cross-project examples completed successfully!")
-        print("\n💡 Integration Tips:")
-        print("   1. Add the embedding service path to your sys.path")
-        print("   2. Import from the root package when possible")
-        print("   3. Initialize once and reuse the embedding client")
-        print("   4. Consider using OpenVINO for production performance")
-        print("   5. Handle exceptions gracefully in your application")
-        print("   6. Use Blip2/blip2_transformers to avoid vocabulary issues")
+        print("All cross-project examples completed successfully!")
+        print("\n Integration Tips:")
+        print("   1. Build wheel: poetry build")
+        print("   2. Install wheel in your project:")
+        print("      • pip install multimodal_embedding_serving-0.1.1-py3-none-any.whl")
+        print("      • OR add to pyproject.toml and run poetry install")
+        print("   3. Import: from multimodal_embedding_serving import get_model_handler, EmbeddingModel")
+        print("   4. Initialize once and reuse the embedding client")
+        print("   5. Consider using OpenVINO for production performance")
+        print("   6. Handle exceptions gracefully in your application")
+        print("   7. Use Blip2/blip2_transformers to avoid vocabulary issues")
         
     except Exception as e:
-        print(f"❌ Error running examples: {e}")
+        print(f"Error running examples: {e}")
         import traceback
         traceback.print_exc()
 

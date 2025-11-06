@@ -126,4 +126,5 @@ ls -la /dev/dri
 - [Quick Reference](quick-reference.md) - Essential commands and configurations
 - [API Reference](api-reference.md) - Complete API documentation
 - [SDK Usage](sdk-usage.md) - Direct Python integration
+- [Wheel Installation](wheel-installation.md) - Build and install as Python package
 - [Supported Models](supported-models.md) - Available models and configurations

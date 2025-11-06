@@ -44,6 +44,7 @@ class EmbeddingModel:
         self.model_config = model_handler.model_config
         self.device = model_handler.device
         self.use_openvino = model_handler.model_config.get("use_openvino", False)
+        self.supported_modalities = set(model_handler.supported_modalities)
     
     def embed_query(self, text: str) -> List[float]:
         """
@@ -55,7 +56,8 @@ class EmbeddingModel:
         Returns:
             List of embedding values
         """
-        embeddings = self.handler.encode_text([text])
+        prepared_text = self.handler.prepare_query(text)
+        embeddings = self.handler.encode_text([prepared_text])
         return embeddings[0].tolist()
     
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
@@ -68,7 +70,8 @@ class EmbeddingModel:
         Returns:
             List of embedding lists
         """
-        embeddings = self.handler.encode_text(texts)
+        prepared_texts = self.handler.prepare_documents(texts)
+        embeddings = self.handler.encode_text(prepared_texts)
         return embeddings.tolist()
     
     def get_embedding_length(self) -> int:
@@ -85,6 +88,8 @@ class EmbeddingModel:
         Returns:
             List of embedding values
         """
+        if not self.handler.supports_image():
+            raise RuntimeError("Image embeddings are not supported by the active model")
         try:
             logger.debug(f"Getting image embedding from URL: {image_url}")
             image_data = await download_image(image_url)
@@ -108,6 +113,8 @@ class EmbeddingModel:
         Returns:
             List of embedding values
         """
+        if not self.handler.supports_image():
+            raise RuntimeError("Image embeddings are not supported by the active model")
         try:
             logger.debug("Getting image embedding from base64")
             image_data = decode_base64_image(image_base64)
@@ -128,6 +135,8 @@ class EmbeddingModel:
         Returns:
             List of frame embedding lists (each frame's embedding as a separate list)
         """
+        if not self.handler.supports_video():
+            raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug("Getting video embeddings")
             vid_embs = []
@@ -167,6 +176,8 @@ class EmbeddingModel:
         Returns:
             List of frame embedding lists
         """
+        if not self.handler.supports_video():
+            raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug(f"Getting video embedding from URL: {video_url}")
             video_path = await download_video(video_url)
@@ -189,6 +200,8 @@ class EmbeddingModel:
         Returns:
             List of frame embedding lists
         """
+        if not self.handler.supports_video():
+            raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug("Getting video embedding from base64")
             video_path = decode_base64_video(video_base64)
@@ -211,6 +224,8 @@ class EmbeddingModel:
         Returns:
             List of frame embedding lists
         """
+        if not self.handler.supports_video():
+            raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug(f"Getting video embedding from file: {video_path}")
             import os
@@ -242,6 +257,8 @@ class EmbeddingModel:
             ValueError: If manifest structure is invalid (422) 
             RuntimeError: For other processing errors (500)
         """
+        if not self.handler.supports_video():
+            raise RuntimeError("Video embeddings are not supported by the active model")
         try:
             logger.debug(f"Getting video embedding from frames manifest: {manifest_path}")
             
@@ -474,3 +491,16 @@ class EmbeddingModel:
         except Exception as e:
             logger.error(f"Health check failed: {e}")
             return False
+
+    def get_supported_modalities(self) -> List[str]:
+        """Return sorted list of supported modalities."""
+        return sorted(self.supported_modalities)
+
+    def supports_text(self) -> bool:
+        return self.handler.supports_text()
+
+    def supports_image(self) -> bool:
+        return self.handler.supports_image()
+
+    def supports_video(self) -> bool:
+        return self.handler.supports_video()

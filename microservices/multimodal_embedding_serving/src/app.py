@@ -305,6 +305,20 @@ async def get_current_model() -> dict:
     }
 
 
+@app.get("/model/capabilities")
+async def get_model_capabilities() -> dict:
+    """Expose supported modalities for the loaded model."""
+    if embedding_model is None:
+        raise HTTPException(status_code=503, detail="Model is not initialized")
+    return {
+        "model": settings.EMBEDDING_MODEL_NAME,
+        "modalities": embedding_model.get_supported_modalities(),
+        "supports_text": embedding_model.supports_text(),
+        "supports_image": embedding_model.supports_image(),
+        "supports_video": embedding_model.supports_video(),
+    }
+
+
 @app.post("/embeddings")
 async def create_embedding(request: EmbeddingRequest) -> dict:
     """
@@ -327,7 +341,9 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
                 status_code=400, 
                 detail=f"Model mismatch: requested model '{request.model}' does not match the currently loaded model '{settings.EMBEDDING_MODEL_NAME}'. Please use the correct model name or restart the server with the desired model."
             )
-        
+        if embedding_model is None:
+            raise HTTPException(status_code=503, detail="Model is not initialized")
+
         # logger.debug(f"Creating embedding for request: {request}")
         input_data = request.input
         if input_data.type == "text":
@@ -336,14 +352,20 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
             else:
                 embedding = embedding_model.embed_query(input_data.text)
         elif input_data.type == "image_url":
+            if not embedding_model.supports_image():
+                raise HTTPException(status_code=400, detail="Image inputs are not supported by the active model")
             embedding = await embedding_model.get_image_embedding_from_url(
                 input_data.image_url
             )
         elif input_data.type == "image_base64":
+            if not embedding_model.supports_image():
+                raise HTTPException(status_code=400, detail="Image inputs are not supported by the active model")
             embedding = embedding_model.get_image_embedding_from_base64(
                 input_data.image_base64
             )
         elif input_data.type == "video_frames":
+            if not embedding_model.supports_video():
+                raise HTTPException(status_code=400, detail="Video inputs are not supported by the active model")
             frames = []
             for frame in input_data.video_frames:
                 if frame.type == "image_url":
@@ -352,18 +374,26 @@ async def create_embedding(request: EmbeddingRequest) -> dict:
                     frames.append(decode_base64_image(frame.image_base64))
             embedding = embedding_model.get_video_embeddings([frames])
         elif input_data.type == "video_url":
+            if not embedding_model.supports_video():
+                raise HTTPException(status_code=400, detail="Video inputs are not supported by the active model")
             embedding = await embedding_model.get_video_embedding_from_url(
                 input_data.video_url, input_data.segment_config
             )
         elif input_data.type == "video_base64":
+            if not embedding_model.supports_video():
+                raise HTTPException(status_code=400, detail="Video inputs are not supported by the active model")
             embedding = embedding_model.get_video_embedding_from_base64(
                 input_data.video_base64, input_data.segment_config
             )
         elif input_data.type == "video_file":
+            if not embedding_model.supports_video():
+                raise HTTPException(status_code=400, detail="Video inputs are not supported by the active model")
             embedding = await embedding_model.get_video_embedding_from_file(
                 input_data.video_path, input_data.segment_config
             )
         elif input_data.type == "frames_batch":
+            if not embedding_model.supports_video():
+                raise HTTPException(status_code=400, detail="Video inputs are not supported by the active model")
             embedding = await embedding_model.get_video_embedding_from_frames_manifest(
                 input_data.frames_manifest_path
             )

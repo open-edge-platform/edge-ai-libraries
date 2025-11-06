@@ -14,6 +14,7 @@ from .mobileclip_handler import MobileCLIPHandler
 from .siglip_handler import SigLIPHandler
 from .blip2_handler import BLIP2Handler
 from .blip2_transformers_handler import BLIP2TransformersHandler
+from .qwen_handler import QwenEmbeddingHandler
 
 __all__ = [
     "CLIPHandler",
@@ -22,4 +23,5 @@ __all__ = [
     "SigLIPHandler",
     "BLIP2Handler",
     "BLIP2TransformersHandler",
+    "QwenEmbeddingHandler",
 ]

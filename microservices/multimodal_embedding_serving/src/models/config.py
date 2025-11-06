@@ -10,7 +10,6 @@ management for various model architectures and their parameters.
 """
 
 import os
-from pathlib import Path
 
 
 def default_image_probs(image_features, text_features):
@@ -176,6 +175,38 @@ MODEL_CONFIGS = {
             "image_size": 224,
             "handler_class": "BLIP2TransformersHandler",
             "image_probs": blip2_image_probs,
+        },
+    },
+    "QwenText": {
+        "qwen3-embedding-0.6b": {
+            "hf_model_id": "Qwen/Qwen3-Embedding-0.6B",
+            "handler_class": "QwenEmbeddingHandler",
+            "max_length": 8192,
+            "weight_format": "int8",
+            "instruction_template": "Instruct: {task_description}\\nQuery:{query}",
+            "task_description": "Given a web search query, retrieve relevant passages that answer the query",
+            "modalities": ["text"],
+            "trust_remote_code": True,
+        },
+        "qwen3-embedding-4b": {
+            "hf_model_id": "Qwen/Qwen3-Embedding-4B",
+            "handler_class": "QwenEmbeddingHandler",
+            "max_length": 8192,
+            "weight_format": "int8",
+            "instruction_template": "Instruct: {task_description}\\nQuery:{query}",
+            "task_description": "Given a web search query, retrieve relevant passages that answer the query",
+            "modalities": ["text"],
+            "trust_remote_code": True,
+        },
+        "qwen3-embedding-8b": {
+            "hf_model_id": "Qwen/Qwen3-Embedding-8B",
+            "handler_class": "QwenEmbeddingHandler",
+            "max_length": 8192,
+            "weight_format": "int8",
+            "instruction_template": "Instruct: {task_description}\\nQuery:{query}",
+            "task_description": "Given a web search query, retrieve relevant passages that answer the query",
+            "modalities": ["text"],
+            "trust_remote_code": True,
         },
     },
 }

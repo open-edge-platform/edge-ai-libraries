@@ -54,6 +54,7 @@ class BaseEmbeddingModel(ABC):
                 - device: Target device for inference (default: "cpu")
                 - ov_models_dir: Directory for OpenVINO models (default: "ov_models")
                 - use_openvino: Whether to use OpenVINO optimization
+                - modalities: Optional iterable of supported modalities
                 - Other model-specific parameters
         """
         self.model_config = model_config
@@ -62,6 +63,12 @@ class BaseEmbeddingModel(ABC):
         self.preprocess = None
         self.device = model_config.get("device", "cpu")
         self.ov_models_dir = model_config.get("ov_models_dir", "ov_models")
+        default_modalities = {"text", "image"}
+        config_modalities = model_config.get("modalities")
+        if config_modalities:
+            self.supported_modalities = set(config_modalities)
+        else:
+            self.supported_modalities = default_modalities
         
     @abstractmethod
     def load_model(self) -> None:
@@ -153,6 +160,40 @@ class BaseEmbeddingModel(ABC):
             The implementation should handle model preparation and cleanup.
         """
         pass
+
+    # ----------------------------------------------------------------------
+    # Optional capability hooks
+    # ----------------------------------------------------------------------
+
+    def supports_text(self) -> bool:
+        """Return True if the handler can produce text embeddings."""
+        return "text" in self.supported_modalities
+
+    def supports_image(self) -> bool:
+        """Return True if the handler can produce image embeddings."""
+        return "image" in self.supported_modalities
+
+    def supports_video(self) -> bool:
+        """Return True if the handler can consume video inputs (via image pathway)."""
+        return "video" in self.supported_modalities or self.supports_image()
+
+    def prepare_query(self, text: str) -> str:
+        """
+        Optional preprocessing hook for single query text.
+
+        Handlers can override this to implement instruction wrapping or
+        other normalization. The default implementation returns the text
+        unchanged to maintain backwards compatibility.
+        """
+        return text
+
+    def prepare_documents(self, texts: List[str]) -> List[str]:
+        """
+        Optional preprocessing hook for batches of documents.
+
+        The default implementation returns the incoming list unchanged.
+        """
+        return texts
     
     def get_embedding_dim(self) -> int:
         """

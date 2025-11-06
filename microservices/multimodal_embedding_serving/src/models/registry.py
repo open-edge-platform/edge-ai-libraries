@@ -21,7 +21,15 @@ interface, providing consistent text and image encoding capabilities.
 
 from typing import Dict, Type
 from .base import BaseEmbeddingModel
-from .handlers import CLIPHandler, CNClipHandler, MobileCLIPHandler, SigLIPHandler, BLIP2Handler, BLIP2TransformersHandler
+from .handlers import (
+    CLIPHandler,
+    CNClipHandler,
+    MobileCLIPHandler,
+    SigLIPHandler,
+    BLIP2Handler,
+    BLIP2TransformersHandler,
+    QwenEmbeddingHandler,
+)
 from .config import get_model_config, list_available_models
 from ..utils import logger
 
@@ -34,6 +42,7 @@ MODEL_HANDLER_REGISTRY: Dict[str, Type[BaseEmbeddingModel]] = {
     "SigLIPHandler": SigLIPHandler,
     "BLIP2Handler": BLIP2Handler,
     "BLIP2TransformersHandler": BLIP2TransformersHandler,
+    "QwenEmbeddingHandler": QwenEmbeddingHandler,
 }
 
 
