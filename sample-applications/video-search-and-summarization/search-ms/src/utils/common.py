@@ -41,12 +41,9 @@ class Settings(BaseSettings):
     )
     VDMS_VDB_HOST: str = Field(default="vdms-vector-db", env="VDMS_VDB_HOST")
     VDMS_VDB_PORT: int = Field(default=55555, env="VDMS_VDB_PORT")
-    VCLIP_EMBEDDINGS_ENDPOINT: str = Field(default="", env="VCLIP_EMBEDDINGS_ENDPOINT")
-    VCLIP_EMBEDDINGS_MODEL_NAME: str = Field(
-        default="", env="VCLIP_EMBEDDINGS_MODEL_NAME"
-    )
-    VCLIP_EMBEDDINGS_NUM_FRAMES: int = Field(
-        default=16, env="VCLIP_EMBEDDINGS_NUM_FRAMES"
+    EMBEDDINGS_ENDPOINT: str = Field(default="", env="EMBEDDINGS_ENDPOINT")
+    EMBEDDINGS_MODEL_NAME: str = Field(
+        default="", env="EMBEDDINGS_MODEL_NAME"
     )
     SEARCH_ENGINE: str = Field(default="FaissFlat", env="SEARCH_ENGINE")
     DISTANCE_STRATEGY: str = Field(default="IP", env="DISTANCE_STRATEGY")

@@ -146,6 +146,7 @@ async def query_endpoint(request: list[QueryRequest]):
             docs_with_score: List[Tuple[Any, float]] = db.similarity_search_with_score(
                 query_request.query,
                 k=initial_k,
+                fetch_k=initial_k + 1,  # ensure fetch_k > k for langchain_vdms
                 # normalize_distance=True
             )
             vdms_duration_ms = (time.perf_counter() - vdms_start) * 1000

@@ -4,10 +4,10 @@
 import math
 import time
 from typing import List, Dict, Any, Tuple, Optional
-from langchain_community.vectorstores.vdms import VDMS, VDMS_Client
+from langchain_vdms.vectorstores import VDMS, VDMS_Client
 
 from src.utils.common import settings, logger
-from src.vdms_retriever.embedding_wrapper import vCLIPEmbeddingsWrapper
+from src.vdms_retriever.embedding_wrapper import EmbeddingAPI
 
 DEBUG = False
 client = VDMS_Client(settings.VDMS_VDB_HOST, settings.VDMS_VDB_PORT)
@@ -633,10 +633,9 @@ def get_vectordb() -> VDMS:
         tuple: The vector database instance
     """
 
-    embeddings = vCLIPEmbeddingsWrapper(
-        api_url=settings.VCLIP_EMBEDDINGS_ENDPOINT,
-        model_name=settings.VCLIP_EMBEDDINGS_MODEL_NAME,
-        num_frames=settings.VCLIP_EMBEDDINGS_NUM_FRAMES,
+    embeddings = EmbeddingAPI(
+        api_url=settings.EMBEDDINGS_ENDPOINT,
+        model_name=settings.EMBEDDINGS_MODEL_NAME,
     )
 
     vector_dimensions = embeddings.get_embedding_length()
