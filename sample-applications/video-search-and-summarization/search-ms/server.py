@@ -49,7 +49,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
 
     formatted_results: list[dict] = []
 
-    for video_result in aggregated_videos:
+    for rank, video_result in enumerate(aggregated_videos, 1):
         raw_video_metadata = video_result.get("video_metadata") or {}
         video_metadata = dict(raw_video_metadata)
         duration = video_result.get("video_duration")
@@ -85,6 +85,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
             "best_frame_info": best_frame_info,
             "aggregated": True,
             "video_metadata": video_metadata,
+            "rank": rank,
         }
 
         formatted_results.append(
@@ -96,6 +97,7 @@ def format_aggregated_results(aggregated_videos: list[dict]) -> list[dict]:
                     f"seeking to {video_result.get('seek_timestamp')}s"
                 ),
                 "type": "Document",
+                "frame_scores": video_result.get("frame_scores", [])
             }
         )
 
