@@ -4,14 +4,12 @@
 import json
 import pathlib
 import time
+import uuid
 from typing import Any, List
+
 import requests
 
-from langchain_community.vectorstores import VDMS
-from langchain_community.vectorstores.vdms import (
-    VDMS_Client,
-    _build_property_query,
-)
+from langchain_vdms.vectorstores import VDMS, VDMS_Client
 from langchain_core.embeddings import Embeddings
 
 from src.common import Strings, logger
@@ -159,54 +157,6 @@ class SimpleVDMSClient:
             logger.error(f"Error in init_db: {ex}")
             raise Exception(Strings.db_conn_error)
 
-    def _ensure_collection_properties(self, metadatas: List[dict]) -> None:
-        """Update VDMS collection properties to include newly seen metadata keys."""
-
-        if not metadatas:
-            return
-
-        try:
-            existing_props = set(getattr(self.video_db, "collection_properties", []) or [])
-        except AttributeError:
-            existing_props = set()
-
-        if not existing_props:
-            existing_props = set(["_distance", "id", "content"])
-
-        new_props = set()
-        for metadata in metadatas:
-            for key in metadata.keys():
-                if key not in existing_props:
-                    new_props.add(key)
-
-        if not new_props:
-            return
-
-        updated_props = sorted(existing_props.union(new_props))
-        self.video_db.collection_properties = updated_props
-
-        try:
-            property_queries, blob_arr = _build_property_query(
-                self.collection_name,
-                command_type="update",
-                all_properties=updated_props,
-            )
-
-            blobs = [blob_arr] if blob_arr else []
-            self.client.query(property_queries, blobs)
-            logger.info(
-                "Registered %d new metadata properties in VDMS collection '%s': %s",
-                len(new_props),
-                self.collection_name,
-                ", ".join(sorted(new_props)),
-            )
-        except Exception as ex:
-            logger.error(
-                "Failed to update VDMS collection properties for '%s': %s",
-                self.collection_name,
-                ex,
-            )
-
     def _clean_metadata_for_vdms(self, metadata: dict) -> dict:
         """
         Clean metadata for VDMS storage by converting complex types to VDMS-compatible formats.
@@ -247,122 +197,57 @@ class SimpleVDMSClient:
         
         return cleaned
 
-    def _store_embeddings_direct_vdms(self, embeddings: List[List[float]], texts: List[str], metadatas: List[dict]) -> List[str]:
-        """
-        Optimized direct VDMS storage bypassing langchain wrapper for maximum performance.
-        
-        This method connects directly to VDMS using the native client, avoiding the expensive
-        ID existence checks performed by the langchain wrapper. This provides significant
-        performance improvements for bulk embedding storage.
-        
-        Args:
-            embeddings: List of embedding vectors 
-            texts: List of text content for each embedding
-            metadatas: List of metadata dicts for each embedding
-            
-        Returns:
-            List of generated document IDs
-        """
-        logger.info(f"Starting optimized VDMS storage for {len(embeddings)} embeddings")
-        direct_start_time = time.time()
-        
-        try:
-            import vdms
-            import uuid
-            import numpy as np
-            
-            # Connect to VDMS using the same configuration as the langchain wrapper
-            db = vdms.vdms()
-            logger.debug(f"Connecting to VDMS at {self.host}:{self.port}")
-            db.connect(host=self.host, port=int(self.port))
-            
-            generated_ids = []
-            
-            # Process embeddings in optimized batches
-            batch_size = 200  # Optimized batch size for performance
-            total_batches = (len(embeddings) + batch_size - 1) // batch_size
-            
-            for batch_idx in range(total_batches):
-                batch_start = batch_idx * batch_size
-                batch_end = min((batch_idx + 1) * batch_size, len(embeddings))
-                batch_embeddings = embeddings[batch_start:batch_end]
-                batch_texts = texts[batch_start:batch_end]
-                batch_metadatas = metadatas[batch_start:batch_end]
-                
-                batch_start_time = time.time()
-                logger.debug(f"Processing batch {batch_idx + 1}/{total_batches} ({len(batch_embeddings)} embeddings)")
-                
-                # Build optimized batch query with proper VDMS structure
-                query_list = []
-                blob_list = []
-                batch_ids = []
-                
-                for i, (embedding_vector, text, metadata) in enumerate(zip(batch_embeddings, batch_texts, batch_metadatas)):
-                    # Generate unique ID
-                    doc_id = str(uuid.uuid4())
-                    batch_ids.append(doc_id)
-                    generated_ids.append(doc_id)
-                    
-                    # Convert embedding to bytes using numpy (VDMS requirement)
-                    emb_array = np.array(embedding_vector, dtype="float32")
-                    blob = emb_array.tobytes()
-                    blob_list.append(blob)
-                    
-                    # Build VDMS AddDescriptor query with proper structure
-                    descriptor_query = {
-                        "AddDescriptor": {
-                            "set": self.collection_name,
-                            "properties": {
-                                "id": doc_id,
-                                "content": text,
-                                **metadata
-                            }
-                        }
-                    }
-                    
-                    # Add query to batch (individual queries, not nested)
-                    query_list.append(descriptor_query)
-                
-                # Execute optimized batch query
-                try:
-                    response = db.query(query_list, blob_list)
-                    
-                    # Check response for any errors
-                    if response and len(response) > 0:
-                        for i, resp in enumerate(response):
-                            if "AddDescriptor" in resp and resp["AddDescriptor"]["status"] != 0:
-                                logger.error(f"Batch {batch_idx + 1} item {i + 1} failed: {resp}")
-                                raise Exception(f"VDMS AddDescriptor failed: {resp}")
-                    
-                    batch_time = time.time() - batch_start_time
-                    if total_batches > 1:  # Only log batch details for multi-batch operations
-                        logger.debug(f"Batch {batch_idx + 1} completed in {batch_time:.3f}s")
-                    
-                except Exception as batch_ex:
-                    logger.error(f"Batch {batch_idx + 1} failed: {batch_ex}")
-                    raise
-            
-            # Clean up connection
-            db.disconnect()
-            
-            # Log performance metrics
-            total_time = time.time() - direct_start_time
-            avg_time_per_embedding = total_time / len(embeddings)
-            throughput = len(embeddings) / total_time
-            
-            logger.info(f"Successfully stored {len(embeddings)} embeddings in {total_time:.3f}s")
-            logger.info(f"Throughput: {throughput:.1f} embeddings/second")
-            logger.info(f"Average time per embedding: {avg_time_per_embedding:.4f}s")
-            
-            self._ensure_collection_properties(metadatas)
+    def _store_embeddings(
+        self,
+        embeddings: List[List[float]],
+        texts: List[str],
+        metadatas: List[dict],
+    ) -> List[str]:
+        """Store embeddings using the langchain-vdms vector store APIs."""
 
-            return generated_ids
-            
-        except Exception as ex:
-            elapsed_time = time.time() - direct_start_time if 'direct_start_time' in locals() else 0
-            logger.error(f"Direct VDMS storage failed after {elapsed_time:.3f}s: {ex}")
-            logger.error(f"Error type: {type(ex).__name__}")
-            raise Exception(f"Optimized VDMS storage failed: {ex}")
+        if not embeddings:
+            return []
+
+        logger.info("Starting VDMS storage for %d embeddings", len(embeddings))
+        batch_size = 200
+        generated_ids: List[str] = []
+
+        for start_idx in range(0, len(embeddings), batch_size):
+            end_idx = min(start_idx + batch_size, len(embeddings))
+
+            batch_embeddings = embeddings[start_idx:end_idx]
+            batch_texts = texts[start_idx:end_idx]
+            batch_metadatas = metadatas[start_idx:end_idx]
+            batch_ids = [str(uuid.uuid4()) for _ in batch_embeddings]
+
+            try:
+                inserted_ids = self.video_db.add_from(
+                    texts=batch_texts,
+                    embeddings=batch_embeddings,
+                    metadatas=batch_metadatas,
+                    ids=batch_ids,
+                    batch_size=batch_size,
+                )
+            except Exception as exc:
+                logger.error(
+                    "VDMS add_from failed for batch %d-%d: %s",
+                    start_idx,
+                    end_idx - 1,
+                    exc,
+                )
+                raise
+
+            if not inserted_ids or len(inserted_ids) != len(batch_ids):
+                raise ValueError(
+                    "VDMS add_from returned unexpected result size. "
+                    f"Expected {len(batch_ids)}, received {len(inserted_ids) if inserted_ids else 0}."
+                )
+
+            generated_ids.extend(inserted_ids)
+
+        self.video_db.check_and_update_properties()
+        logger.info("Stored %d embeddings in VDMS", len(generated_ids))
+        return generated_ids
 
     def store_frame_embeddings(self, embeddings: List[List[float]], frame_metadatas: List[dict]) -> List[str]:
         """
@@ -403,7 +288,7 @@ class SimpleVDMSClient:
 
             logger.debug("Prepared metadata for %d frames", len(frame_texts))
 
-            ids = self._store_embeddings_direct_vdms(
+            ids = self._store_embeddings(
                 embeddings=embeddings,
                 texts=frame_texts,
                 metadatas=cleaned_metadatas,

@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 ARG ARCH="cpu"
-FROM python:3.13-slim AS python-base
+FROM python:3.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \

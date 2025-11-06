@@ -34,15 +34,15 @@ frame_processing:
 
 # Config for generating feature embeddings
 embeddings:
-  qwen_model_name: "Qwen/Qwen3-Embedding-0.6B"
-  vclip_model_name: "CLIP/clip-vit-b-162"
+  qwen_model_name: ""
+  vclip_model_name: ""
   clip_vector_dimensions: 512
   qwen_vector_dimensions: 1024
   clip_sequence_length: 77
   qwen_sequence_length: 8192
   
   # Multimodal embedding service configuration (for frame-based processing)
-  multimodal_model_name: "CLIP/clip-vit-b-16"
+  multimodal_model_name: ""
   multimodal_vector_dimensions: 512
   multimodal_num_frames: 4
 

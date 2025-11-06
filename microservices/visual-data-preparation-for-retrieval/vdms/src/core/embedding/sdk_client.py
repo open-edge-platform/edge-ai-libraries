@@ -5,13 +5,14 @@
 SDK-based VDMS Client for Multimodal Embedding Storage
 
 This module provides an optimized implementation that uses the multimodal embedding
-service directly as an SDK and stores embeddings via direct VDMS calls for maximum performance.
+service in-process as an SDK and stores embeddings via langchain-vdms vector store APIs
+for maximum compatibility and persistence.
 
 Key benefits:
-1. No network latency - direct function calls
+1. No network latency - in-process function calls
 2. Single video instance in RAM - extract frames and create embeddings efficiently  
 3. Better resource utilization - no need to serialize/deserialize data
-4. Direct VDMS storage bypassing expensive langchain wrapper ID checks
+4. Standardized VDMS persistence that survives restarts via langchain-vdms APIs
 5. Optimized batch processing for high-throughput storage
 """
 
@@ -25,8 +26,7 @@ import time
 import threading
 
 from multimodal_embedding_serving import get_model_handler, EmbeddingModel
-from langchain_community.vectorstores import VDMS
-from langchain_community.vectorstores.vdms import VDMS_Client, _build_property_query
+from langchain_vdms.vectorstores import VDMS, VDMS_Client
 from langchain_core.embeddings import Embeddings
 
 from src.common import logger, settings, Strings
@@ -35,39 +35,38 @@ from src.common import logger, settings, Strings
 class DummyEmbedding(Embeddings):
     """
     Minimal dummy embedding class that satisfies VDMS requirements.
-    We won't actually use these methods since we use direct VDMS calls.
+    We won't actually use these methods since storage is handled entirely by langchain-vdms.
     """
     
     def __init__(self, dimensions: int = 512):
         self.dimensions = dimensions
     
     def embed_documents(self, texts: List[str]) -> List[List[float]]:
-        """Won't be called since we use direct VDMS storage."""
-        raise NotImplementedError("Use direct VDMS storage instead")
+        """Won't be called since we use pre-computed embeddings."""
+        raise NotImplementedError("Use pre-computed embeddings instead")
     
     def embed_query(self, text: str) -> List[float]:
-        """Won't be called since we use direct VDMS storage.""" 
-        raise NotImplementedError("Use direct VDMS storage instead")
+        """Won't be called since we use pre-computed embeddings.""" 
+        raise NotImplementedError("Use pre-computed embeddings instead")
 
 
 class SDKVDMSClient:
     """
-    Optimized VDMS Client using SDK-based embedding generation and direct VDMS storage.
-    
+    Optimized VDMS Client using SDK-based embedding generation with langchain-vdms persistence.
+
     This client provides maximum performance by combining:
     1. SDK-based embedding generation (no HTTP overhead)
-    2. Direct VDMS storage (bypassing expensive langchain wrapper ID checks)
+    2. Standard langchain-vdms vector store APIs for durability across restarts
     3. Optimized batch processing for high-throughput storage
-    
+
     Performance improvements:
     - Eliminates network latency for embedding generation
-    - Bypasses langchain wrapper's expensive ID existence checks
     - Uses optimized batch sizes for VDMS operations
-    - Achieves ~30x performance improvement over standard langchain approach
+    - Aligns with standard persistence flows to maintain index continuity
     """
     
     def __init__(self, 
-                 model_id: str = "CLIP/clip-vit-b-16",
+                 model_id: str = "",
                  device: str = "CPU",
                  use_openvino: bool = False,
                  ov_models_dir: Optional[str] = None,
@@ -97,9 +96,7 @@ class SDKVDMSClient:
         self.vdms_port = vdms_port or settings.VDMS_VDB_PORT
         self.collection_name = collection_name or settings.DB_COLLECTION
         
-        # Native VDMS connection cache and synchronization
-        self._vdms_native = None
-        # Reentrant lock guards connection lifecycle and query execution
+        # Synchronization for VDMS operations
         self._vdms_lock = threading.RLock()
 
         # Initialize the embedding model
@@ -223,87 +220,6 @@ class SDKVDMSClient:
             logger.error(f"Error initializing VDMS: {ex}")
             raise Exception(Strings.db_conn_error)
 
-    def _get_native_vdms(self):
-        """Lazily create and cache the native VDMS connection for direct queries."""
-        if self._vdms_native is not None:
-            return self._vdms_native
-
-        with self._vdms_lock:
-            if self._vdms_native is None:
-                import vdms
-
-                logger.debug(
-                    "Establishing new native VDMS connection to %s:%s", self.vdms_host, self.vdms_port
-                )
-                db = vdms.vdms()
-                db.connect(host=self.vdms_host, port=int(self.vdms_port))
-                self._vdms_native = db
-
-        return self._vdms_native
-
-    def _reset_native_vdms(self):
-        """Close and clear the cached native VDMS connection."""
-        with self._vdms_lock:
-            if self._vdms_native is not None:
-                try:
-                    self._vdms_native.disconnect()
-                except Exception as ex:
-                    logger.warning("Failed to disconnect cached VDMS client cleanly: %s", ex)
-                finally:
-                    self._vdms_native = None
-
-    def close(self):
-        """Public helper to explicitly release native VDMS resources."""
-        self._reset_native_vdms()
-
-    def _ensure_collection_properties(self, metadatas: List[dict]) -> None:
-        """Ensure VDMS collection properties include all metadata keys."""
-
-        if not metadatas:
-            return
-
-        try:
-            existing_props = set(getattr(self.video_db, "collection_properties", []) or [])
-        except AttributeError:
-            existing_props = set()
-
-        if not existing_props:
-            existing_props = {"_distance", "id", "content"}
-
-        new_props = set()
-        for metadata in metadatas:
-            for key in metadata.keys():
-                if key not in existing_props:
-                    new_props.add(key)
-
-        if not new_props:
-            return
-
-        updated_props = sorted(existing_props.union(new_props))
-        self.video_db.collection_properties = updated_props
-
-        try:
-            property_queries, blob_arr = _build_property_query(
-                self.collection_name,
-                command_type="update",
-                all_properties=updated_props,
-            )
-
-            blobs = [blob_arr] if blob_arr else []
-            self.vdms_client.query(property_queries, blobs)
-            logger.info(
-                "Registered %d new metadata properties in VDMS collection '%s': %s",
-                len(new_props),
-                self.collection_name,
-                ", ".join(sorted(new_props)),
-            )
-        except Exception as ex:
-            logger.error(
-                "Failed to update VDMS collection properties for '%s': %s",
-                self.collection_name,
-                ex,
-            )
-
     def _clean_metadata_for_vdms(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
         """
         Clean metadata for VDMS storage by converting complex types to VDMS-compatible formats.
@@ -346,12 +262,12 @@ class SDKVDMSClient:
 
     def store_frame_embeddings(self, embeddings: List[List[float]], frame_metadatas: List[dict]) -> List[str]:
         """
-        Store frame embeddings using optimized direct VDMS approach.
-        
+        Store frame embeddings using optimized langchain-vdms batching.
+
         Args:
             embeddings: Pre-computed embeddings from SDK
             frame_metadatas: Metadata for each frame
-            
+
         Returns:
             List of IDs for stored embeddings
         """
@@ -388,15 +304,15 @@ class SDKVDMSClient:
                 cleaned_metadatas.append(cleaned_metadata)
             logger.debug("Prepared metadata for %d frames", len(frame_texts))
 
-            # Store embeddings using optimized direct VDMS approach
+            # Store embeddings using optimized langchain-vdms approach
             logger.debug(
-                "Direct storage payload: dim=%s, sample_text=%s, metadata_keys=%s",
+                "Storage payload: dim=%s, sample_text=%s, metadata_keys=%s",
                 len(embeddings[0]) if embeddings and len(embeddings[0]) > 0 else "unknown",
                 (frame_texts[0][:50] + "...") if frame_texts else "<none>",
                 list(cleaned_metadatas[0].keys()) if cleaned_metadatas else []
             )
             
-            ids = self._store_embeddings_direct_vdms(embeddings, frame_texts, cleaned_metadatas)
+            ids = self._store_embeddings(embeddings, frame_texts, cleaned_metadatas)
             total_time = time.time() - start_time
             logger.info("Stored %d embeddings in %.3fs", len(ids), total_time)
             return ids
@@ -408,121 +324,58 @@ class SDKVDMSClient:
             logger.error(f"Error type: {type(ex).__name__}")
             raise Exception(Strings.embedding_error)
     
-    def _store_embeddings_direct_vdms(self, embeddings: List[List[float]], texts: List[str], metadatas: List[dict]) -> List[str]:
-        """
-        Optimized direct VDMS storage bypassing langchain wrapper for maximum performance.
-        
-        This method connects directly to VDMS using the native client, avoiding the expensive
-        ID existence checks performed by the langchain wrapper. This provides significant
-        performance improvements for bulk embedding storage.
-        
-        Args:
-            embeddings: List of embedding vectors 
-            texts: List of text content for each embedding
-            metadatas: List of metadata dicts for each embedding
-            
-        Returns:
-            List of generated document IDs
-        """
-        direct_start_time = time.time()
-        try:
-            db = self._get_native_vdms()
+    def _store_embeddings(
+        self,
+        embeddings: List[List[float]],
+        texts: List[str],
+        metadatas: List[dict],
+    ) -> List[str]:
+        """Persist embeddings using the langchain-vdms vector store."""
 
-            generated_ids = []
+        if not embeddings:
+            return []
 
-            # Process embeddings in optimized batches
-            batch_size = 200  # Reduced batch size to prevent OutOfJournalSpace errors
-            logger.info(
-                "Direct VDMS storage starting: %d embeddings (batch size %d)",
-                len(embeddings), min(len(embeddings), batch_size)
-            )
-            total_batches = (len(embeddings) + batch_size - 1) // batch_size
+        logger.info("Storing %d embeddings via langchain-vdms", len(embeddings))
+        batch_size = 200
+        generated_ids: List[str] = []
 
-            with self._vdms_lock:
-                for batch_idx in range(total_batches):
-                    batch_start = batch_idx * batch_size
-                    batch_end = min((batch_idx + 1) * batch_size, len(embeddings))
-                    batch_embeddings = embeddings[batch_start:batch_end]
-                    batch_texts = texts[batch_start:batch_end]
-                    batch_metadatas = metadatas[batch_start:batch_end]
+        with self._vdms_lock:
+            for start_idx in range(0, len(embeddings), batch_size):
+                end_idx = min(start_idx + batch_size, len(embeddings))
 
-                    logger.debug(
-                        "Processing batch %d/%d (%d embeddings)",
-                        batch_idx + 1,
-                        total_batches,
-                        len(batch_embeddings),
+                batch_embeddings = embeddings[start_idx:end_idx]
+                batch_texts = texts[start_idx:end_idx]
+                batch_metadatas = metadatas[start_idx:end_idx]
+                batch_ids = [str(uuid.uuid4()) for _ in batch_embeddings]
+
+                try:
+                    inserted_ids = self.video_db.add_from(
+                        texts=batch_texts,
+                        embeddings=batch_embeddings,
+                        metadatas=batch_metadatas,
+                        ids=batch_ids,
+                        batch_size=batch_size,
+                    )
+                except Exception as exc:
+                    logger.error(
+                        "VDMS add_from failed for batch %d-%d: %s",
+                        start_idx,
+                        end_idx - 1,
+                        exc,
+                    )
+                    raise
+
+                if not inserted_ids or len(inserted_ids) != len(batch_ids):
+                    raise ValueError(
+                        "VDMS add_from returned unexpected result size. "
+                        f"Expected {len(batch_ids)}, received {len(inserted_ids) if inserted_ids else 0}."
                     )
 
-                    # Build optimized batch query with proper VDMS structure
-                    query_list = []
-                    blob_list = []
-                    batch_ids = []
+                generated_ids.extend(inserted_ids)
 
-                    for i, (embedding_vector, text, metadata) in enumerate(
-                        zip(batch_embeddings, batch_texts, batch_metadatas)
-                    ):
-                        # Generate unique ID
-                        doc_id = str(uuid.uuid4())
-                        batch_ids.append(doc_id)
-                        generated_ids.append(doc_id)
-
-                        # Convert embedding to bytes using numpy (VDMS requirement)
-                        emb_array = np.array(embedding_vector, dtype="float32")
-                        blob = emb_array.tobytes()
-                        blob_list.append(blob)
-
-                        # Build VDMS AddDescriptor query with proper structure
-                        descriptor_query = {
-                            "AddDescriptor": {
-                                "set": self.collection_name,
-                                "properties": {
-                                    "id": doc_id,
-                                    "content": text,
-                                    **metadata,
-                                },
-                            }
-                        }
-
-                        # Add query to batch (individual queries, not nested)
-                        query_list.append(descriptor_query)
-
-                    # Execute optimized batch query
-                    try:
-                        response = db.query(query_list, blob_list)
-
-                        # Check response for any errors
-                        if response and len(response) > 0:
-                            for i, resp in enumerate(response):
-                                if "AddDescriptor" in resp and resp["AddDescriptor"]["status"] != 0:
-                                    logger.error(
-                                        "Batch %d item %d failed: %s",
-                                        batch_idx + 1,
-                                        i + 1,
-                                        resp,
-                                    )
-                                    raise Exception(f"VDMS AddDescriptor failed: {resp}")
-
-                    except Exception as batch_ex:
-                        logger.error(f"Batch {batch_idx + 1} failed: {batch_ex}")
-                        raise
-
-            # Log performance metrics
-            total_time = time.time() - direct_start_time
-            logger.info(
-                "Direct VDMS storage complete: %d embeddings in %.3fs",
-                len(embeddings), total_time
-            )
-
-            self._ensure_collection_properties(metadatas)
-
-            return generated_ids
-
-        except Exception as ex:
-            elapsed_time = time.time() - direct_start_time if 'direct_start_time' in locals() else 0
-            logger.error(f"Direct VDMS storage failed after {elapsed_time:.3f}s: {ex}")
-            logger.error(f"Error type: {type(ex).__name__}")
-            self._reset_native_vdms()
-            raise Exception(f"Optimized VDMS storage failed: {ex}")
+        self.video_db.check_and_update_properties()
+        logger.info("Stored %d embeddings in VDMS", len(generated_ids))
+        return generated_ids
     
 
     

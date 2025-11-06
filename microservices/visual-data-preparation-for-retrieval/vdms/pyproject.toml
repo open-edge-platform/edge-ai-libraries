@@ -14,22 +14,20 @@ pydantic = "^2.11.5"
 pydantic-settings = "^2.9.1"
 python-multipart = "^0.0.18"
 setuptools = "^80.9.0"
-transformers = "^4.53.3"
+transformers = "^4.52.4"
 huggingface-hub = "^0.32.3"
 langchain = "^0.3.25"
 langchain-core = "^0.3.63"
-langchain-community = "^0.3.24"
+langchain-vdms = "^0.1.4"
 opencv-python-headless = "^4.11.0.86"
-vdms = "^0.0.21"
 pillow = "^11.3.0"
 tzlocal = "^5.2"
 decord = "^0.6.0"
-einops = "^0.8.1"
+einops = "^0.8.0"
 minio = "^7.1.15"
 requests = "^2.31.0"
 httpcore = "^1.0.9"
-openvino = "^2025.3.0"
-psutil = "^7.0.0"
+
 # Multimodal Embedding Service as wheel dependency
 multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.1-py3-none-any.whl"}
 
@@ -48,7 +46,7 @@ black = "^24.10.0"
 isort = "^5.13.2"
 
 [tool.poetry.group.cpu.dependencies]
-numpy = { version = ">=2.1.2", source = "pytorch-cpu" }
+numpy = { version = ">=2.1.0", source = "pytorch-cpu" }
 torch = { version = "==2.8.0", source = "pytorch-cpu" }
 torchvision = { version = "==0.23.0", source = "pytorch-cpu" }
 
