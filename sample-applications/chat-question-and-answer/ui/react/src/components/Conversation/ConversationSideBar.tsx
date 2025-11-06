@@ -1,99 +1,163 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { type FC, useEffect } from 'react';
-import { IconButton } from '@carbon/react';
-import styled from 'styled-components';
-import { useTranslation } from 'react-i18next';
+import { ScrollAreaAutosize, Title, ActionIcon, TextInput, Loader } from "@mantine/core"
+import { IconEdit, IconTrash, IconCheck, IconX } from "@tabler/icons-react"
+import { useState } from "react"
 
-import { useAppDispatch, useAppSelector } from '../../redux/store.ts';
-import {
-  conversationSelector,
-  setSelectedConversationId,
-} from '../../redux/conversation/conversationSlice.ts';
-import ConversationSideBarItem from './ConversationSideBarItem.tsx';
+import contextStyles from "../../styles/components/context.module.scss"
+import { useAppDispatch, useAppSelector } from "../../redux/store"
+import { conversationSelector, setSelectedConversationId, deleteConversation, updateConversationTitle } from "../../redux/Conversation/ConversationSlice"
 
-const SidebarContainer = styled.aside<{ disabled: boolean }>`
-  display: flex;
-  flex-direction: column;
-  background-color: var(--color-sidebar);
-  overflow: hidden;
-  border-right: 1px solid var(--color-border);
-  pointer-events: ${({ disabled }) => (disabled ? 'none' : 'auto')};
-  opacity: ${({ disabled }) => (disabled ? 0.5 : 1)};
-`;
+export interface ConversationContextProps {
+    title: string
+}
 
-export const Navigation = styled.div`
-  padding: 1rem;
-  background-color: var(--color-sidebar);
-  position: sticky;
-  z-index: 1;
-  border-bottom: 1px solid var(--color-border);
-  max-height: 3rem;
-  font-size: 1.1rem;
+export function ConversationSideBar({ title }: ConversationContextProps) {
+    const { conversations, selectedConversationId, isGenerating } = useAppSelector(conversationSelector)
+    const dispatch = useAppDispatch()
+    const [editingId, setEditingId] = useState<string | null>(null)
+    const [editingTitle, setEditingTitle] = useState("")
+    const [originalTitle, setOriginalTitle] = useState("")
+    const [hoveredId, setHoveredId] = useState<string | null>(null)
 
-  & h4 {
-    line-height: 1;
-  }
-`;
+    const handleEditStart = (conversationId: string, currentTitle: string) => {
+        setEditingId(conversationId)
+        setEditingTitle(currentTitle)
+        setOriginalTitle(currentTitle)
+    }
 
-const ScrollableContainer = styled.div`
-  flex-grow: 1;
-  overflow-y: hidden;
-  padding: 5px;
-  height: 80vh;
-`;
+    const handleEditSave = () => {
+        if (editingId) {
+            // Use original title if new title is empty/undefined, otherwise use trimmed new title
+            const finalTitle = editingTitle.trim() || originalTitle
+            dispatch(updateConversationTitle({ id: editingId, updatedTitle: finalTitle }))
+        }
+        setEditingId(null)
+        setEditingTitle("")
+        setOriginalTitle("")
+    }
 
-export const StyledIconButton = styled(IconButton)`
-  font-size: var(--icon-size);
-`;
+    const handleEditCancel = () => {
+        setEditingId(null)
+        setEditingTitle("")
+        setOriginalTitle("")
+    }
 
-const ConversationSideBar: FC = () => {
-  const { t } = useTranslation();
-  const { conversations, selectedConversationId, isGenerating } =
-    useAppSelector(conversationSelector);
-  const dispatch = useAppDispatch();
+    const handleDelete = (conversationId: string) => {
+        const confirmDelete = window.confirm(
+            'Are you sure you want to delete this conversation? This action cannot be undone.'
+        );
+        if (!confirmDelete) {
+            return;
+        }
+        dispatch(deleteConversation(conversationId))
+    }
 
-  const sidebarList = conversations?.map((conversation) => (
-    <ConversationSideBarItem
-      isActive={selectedConversationId === conversation.conversationId}
-      onClick={(e) => {
-        e.preventDefault();
-        dispatch(setSelectedConversationId(conversation.conversationId));
-      }}
-      key={conversation.conversationId}
-      title={conversation.title}
-      index={conversation.conversationId}
-    />
-  ));
+    const conversationList = conversations?.map((curr: any) => (
+        <div
+            className={contextStyles.contextListItem}
+            data-active={selectedConversationId === curr.conversationId || undefined}
+            onMouseEnter={() => setHoveredId(curr.conversationId)}
+            onMouseLeave={() => setHoveredId(null)}
+            onClick={(event: any) => {
+                event.preventDefault()
+                if (editingId !== curr.conversationId) {
+                    dispatch(setSelectedConversationId(curr.conversationId))
+                }
+            }}
+            key={curr.conversationId}
+            style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}
+        >
+            {editingId === curr.conversationId ? (
+                <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '4px' }}>
+                    <TextInput
+                        value={editingTitle}
+                        onChange={(e) => setEditingTitle(e.currentTarget.value)}
+                        onKeyDown={(e) => {
+                            if (e.key === 'Enter') handleEditSave()
+                            if (e.key === 'Escape') handleEditCancel()
+                        }}
+                        size="xs"
+                        style={{ flex: 1 }}
+                        autoFocus
+                    />
+                    <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="green"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditSave()
+                        }}
+                    >
+                        <IconCheck size={12} />
+                    </ActionIcon>
+                    <ActionIcon
+                        size="sm"
+                        variant="subtle"
+                        color="red"
+                        onClick={(e) => {
+                            e.stopPropagation()
+                            handleEditCancel()
+                        }}
+                    >
+                        <IconX size={12} />
+                    </ActionIcon>
+                </div>
+            ) : (
+                <>
+                    <div style={{ display: 'flex', alignItems: 'center', flex: 1, gap: '6px' }}>
+                        <div className={contextStyles.contextItemName} title={curr.title || "Untitled"}>
+                            {curr.title || "Untitled"}
+                        </div>
+                        {isGenerating[curr.conversationId] && (
+                            <Loader size="xs" color="blue" />
+                        )}
+                    </div>
+                    {hoveredId === curr.conversationId && (
+                        <div style={{ display: 'flex', gap: '1px', marginLeft: '4px' }}>
+                            <ActionIcon
+                                size="sm"
+                                variant="subtle"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleEditStart(curr.conversationId, curr.title || "Untitled")
+                                }}
+                                style={{ minWidth: '24px', height: '24px' }}
+                            >
+                                <IconEdit size={14} />
+                            </ActionIcon>
+                            <ActionIcon
+                                size="sm"
+                                variant="subtle"
+                                color="red"
+                                onClick={(e) => {
+                                    e.stopPropagation()
+                                    handleDelete(curr.conversationId)
+                                }}
+                                style={{ minWidth: '24px', height: '24px' }}
+                            >
+                                <IconTrash size={14} />
+                            </ActionIcon>
+                        </div>
+                    )}
+                </>
+            )}
+        </div>
+    ))
 
-  useEffect(() => {
-    const removeTooltip = () => {
-      const tooltip = document.querySelector('.cds--popover');
-      if (tooltip) {
-        tooltip.remove();
-      }
-    };
-
-    document.addEventListener('mouseover', removeTooltip);
-
-    return () => {
-      document.removeEventListener('mouseover', removeTooltip);
-    };
-  }, []);
-
-  return (
-    <SidebarContainer
-      disabled={isGenerating}
-      data-testid='conversation-sidebar-wrapper'
-    >
-      {sidebarList.length ? <Navigation>{t('chatHistory')}</Navigation> : null}
-
-      {sidebarList.length ? (
-        <ScrollableContainer>{sidebarList}</ScrollableContainer>
-      ) : null}
-    </SidebarContainer>
-  );
-};
-
-export default ConversationSideBar;
+    return (
+        <div className={contextStyles.contextWrapper}>
+            <Title order={3} className={contextStyles.contextTitle}>
+                {title}
+            </Title>
+            <div className={contextStyles.chatHistoryTitle}>
+                Chat History
+            </div>
+            <ScrollAreaAutosize type="hover" scrollHideDelay={0}>
+                <div className={contextStyles.contextList}>{conversationList}</div>
+            </ScrollAreaAutosize>
+        </div>
+    )
+}

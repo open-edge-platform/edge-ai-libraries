@@ -52,11 +52,11 @@ This endpoint receives a question in the form of a JSON payload, validates the i
 and returns a streaming response with the processed chunks of the question text.
 
 Args:
-    payload (QuestionRequest): The request payload containing the input question text.
+    payload (QuestionRequest): The request payload containing conversation history with the input question text.
     max_tokens (int): The maximum number of tokens to process. Defaults to 512 if not provided or set to 4096 if provided.
     
 Returns:
-    StreamingResponse: A streaming response with the processed chunks of the question text.
+    StreamingResponse: A streaming response that delivers processed chunks generated from both the conversation history and the user question.
 
 Raises:
     HTTPException: If the input question text is empty or not provided, a 422 status code is returned."
