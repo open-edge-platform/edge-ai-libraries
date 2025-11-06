@@ -73,7 +73,7 @@ spec:
         app: {{ include "nginx.fullname" . }}
     spec:
       containers:
-      - image: nginxinc/nginx-unprivileged:1.29.1
+      - image: nginxinc/nginx-unprivileged:1.29.2
         imagePullPolicy: {{ .Values.Chatqna.image.pullPolicy }}
         name: nginx
         volumeMounts:
