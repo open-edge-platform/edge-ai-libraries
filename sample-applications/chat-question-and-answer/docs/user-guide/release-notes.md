@@ -2,40 +2,30 @@
 
 ## Current Release
 
-**Version**: 2.0.0
-**Release Date**: WW45 2025
+**Version**: 2.0.0\
+**Release Date**: 06 Nov 2025
 
 - Integrated OPEA UI with OEP backend and added conversation history to improve contextual responses.
-
 - Enhanced file and link uploads with success/failure alerts, duplicate detection alerts, file size exceed alerts, single-upload restriction, and selected file/urls deletion and bulk delete options.
-
 - Added options to rename, delete, and view full conversation titles via tooltip. Added a loading spinner beside conversation titles while a response is in progress for that conversation. Added a blinking cursor to show when the AI is processing or generating a response.
-
 - Enhanced OPEA interface layout to maintain consistency with the existing UI design and user experience.
-
 - Improved RAG chain and Redux handling for conversation management.
-
 - Enhanced documentation to include comprehensive chat history management features and localStorage persistence details in the architecture overview.
 
 ## Known Issues/Behavior (Consolidated):
 - The upload button is temporarily disabled during chat response generation to prevent delays. File or link uploads trigger embedding generation, which runs on the same OVMS server as the LLM, potentially slowing response streaming if both run together.
-
 - Chat data is stored in localStorage for session continuity. After container restarts, old chats may reappear — clear your browser’s localStorage to start fresh.
+- Limited validation done on EMT-S due to EMT-S issues. Not recommended to use ChatQnA modular on EMT-S until full validation is completed.
+- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
+- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. 
 
-- Testing on EMT-S is not done due to EMT-S issues
-
+## Previous Releases
 
 **Version**: 1.2.4 \
 **Release Date**: WW45 2025
 
 - Fix OVMS Dependencies Error in Helm Deployment.
 
-## Known Issues/Behavior (Consolidated):
-- TGI on EMT 3.0 on Core&trade; configuration has a long startup time due to resource constraints. Alternative is to use TGI only on Xeon® based systems.
-- Application running into Model Type issue on EMT 3.1 - Open
-- DeepSeek/Phi Models are observed, at times, to continue generating response in an endless loop. Close the browser and restart in such cases. - Open
-
-## Previous Releases
 
 **Version**: 1.2.3 \
 **Release Date**: WW39 2025
