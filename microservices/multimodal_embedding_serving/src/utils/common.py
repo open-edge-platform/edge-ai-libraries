@@ -65,7 +65,6 @@ class Settings(BaseSettings):
         EMBEDDING_DEVICE: Target device for model inference (CPU/GPU)  
         EMBEDDING_USE_OV: Whether to use OpenVINO optimization
         EMBEDDING_OV_MODELS_DIR: Directory for OpenVINO model storage
-        MODEL_NAME: Legacy model name parameter (for backward compatibility)
         http_proxy: HTTP proxy server URL
         https_proxy: HTTPS proxy server URL
         no_proxy_env: Domains to bypass proxy
@@ -81,16 +80,13 @@ class Settings(BaseSettings):
     )
 
     # Generic model configuration - supports all model types from config
-    EMBEDDING_MODEL_NAME: str = Field(default="CLIP/clip-vit-b-16", env="EMBEDDING_MODEL_NAME")
+    EMBEDDING_MODEL_NAME: str = Field(default="", env="EMBEDDING_MODEL_NAME")
     EMBEDDING_DEVICE: str = Field(default="CPU", env="EMBEDDING_DEVICE")
     EMBEDDING_USE_OV: bool = Field(default=False, env="EMBEDDING_USE_OV")  # Default to False for SDK usage
     EMBEDDING_OV_MODELS_DIR: str = Field(
         default=str(Path(__file__).parent.parent / "ov-models"),
         env="EMBEDDING_OV_MODELS_DIR",
     )
-
-    # Legacy support for backward compatibility
-    MODEL_NAME: str = Field(default="CLIP/clip-vit-b-16", env="MODEL_NAME")
 
     http_proxy: str = Field(default="", env="http_proxy")
     https_proxy: str = Field(default="", env="https_proxy")

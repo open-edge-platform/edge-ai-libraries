@@ -64,9 +64,9 @@ For detailed architecture and implementation details, see [BLIP-2 Transformers G
 
 | Model ID | Hugging Face Repo | Embedding Dimension | Precision | Notes |
 |----------|-------------------|---------------------|-----------|-------|
-| `QwenText/qwen3-embedding-0.6b` | `Qwen/Qwen3-Embedding-0.6B` | 1024 | INT8 | Text-only, instruction-aware | Context Length: 32k
-| `QwenText/qwen3-embedding-4b` | `Qwen/Qwen3-Embedding-4B` | 2560 | INT8 | Text-only, instruction-aware | Context Length: 32k
-| `QwenText/qwen3-embedding-8b` | `Qwen/Qwen3-Embedding-8B` | 4096 | INT8 | Text-only, instruction-aware | Context Length: 32k
+| `QwenText/qwen3-embedding-0.6b` | `Qwen/Qwen3-Embedding-0.6B` | 1024 | INT8 | Text-only, instruction-aware,  Context Length: 32k |
+| `QwenText/qwen3-embedding-4b` | `Qwen/Qwen3-Embedding-4B` | 2560 | INT8 | Text-only, instruction-aware, Context Length: 32k |
+| `QwenText/qwen3-embedding-8b` | `Qwen/Qwen3-Embedding-8B` | 4096 | INT8 | Text-only, instruction-aware, Context Length: 32k |
 
 The Qwen text embedding handler provides high-quality multilingual embeddings optimised with OpenVINO. These models:
 
