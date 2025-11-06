@@ -59,7 +59,7 @@ spec:
     spec:
       containers:
         - name: nginx
-          image: nginxinc/nginx-unprivileged:1.29.1
+          image: nginxinc/nginx-unprivileged:1.29.2
           imagePullPolicy: {{ .Values.image.pullPolicy }}
           ports:
             - containerPort: 8102
