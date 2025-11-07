@@ -485,6 +485,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         echo -e  "${YELLOW}Object detection model already exists. Skipping model setup...${NC}"
     fi
 
+    # Check if both LLM and VLM are configured for GPU. In which case, prioritize VLM for GPU and set OVMS to CPU
+    if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \ 
+       [ "$ENABLE_VLM_GPU" = true ]; then
+        echo -e "${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
+        export ENABLE_OVMS_LLM_SUMMARY_GPU="false"        
+    fi
+
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         echo -e "${BLUE}Using OVMS for generating final summary for the video${NC}"
@@ -547,31 +554,31 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         fi
 
         # If config is passed, set the command to only generate the config
-        FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
+        #FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
+        #DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
         echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
-
-        if [ "$ENABLE_VLM_GPU" = true ]; then
-            export VLM_DEVICE=GPU
-            export PM_VLM_CONCURRENT=1
-            export PM_LLM_CONCURRENT=1
-            export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-            export PM_MULTI_FRAME_COUNT=6
-            export WORKERS=1
-            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
-        else
-            export VLM_DEVICE=CPU
-            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
-        fi
-
-        # if config is passed, set the command to only generate the config
-        FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
     fi
+
+    if [ "$ENABLE_VLM_GPU" = true ]; then
+        export VLM_DEVICE=GPU
+        export PM_VLM_CONCURRENT=1
+        export PM_LLM_CONCURRENT=1
+        export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+        export PM_MULTI_FRAME_COUNT=6
+        export WORKERS=1        
+        echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
+    else
+        export VLM_DEVICE=CPU
+        echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
+    fi
+
+    # if config is passed, set the command to only generate the config
+    FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
+    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
 elif [ "$1" = "--search" ]; then
     mkdir -p ${VS_WATCHER_DIR}
