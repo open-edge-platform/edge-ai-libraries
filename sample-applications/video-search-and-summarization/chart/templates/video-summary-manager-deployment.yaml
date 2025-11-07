@@ -111,7 +111,7 @@ spec:
             - name: LLM_SUMMARIZATION_API
               value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
             - name: LLM_SUMMARIZATION_DEVICE
-              value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}"
+              value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
             - name: LLM_MODEL_NAME
               value: {{ .Values.global.llmName | quote }}
             - name: VLM_CAPTIONING_KEY
