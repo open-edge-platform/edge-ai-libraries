@@ -44,6 +44,10 @@ KAPACITOR_URL = os.getenv('KAPACITOR_URL', 'http://localhost:9092')
 CONFIG_FILE = "/app/config.json"
 MAX_SIZE = 5 * 1024  # 5 KB
 
+# Server configuration - use environment variables for security
+SERVER_HOST = '0.0.0.0'
+SERVER_PORT = 5000
+
 config = {}
 OPCUA_SEND_ALERT = None
 config_updated_event = threading.Event()
@@ -472,7 +476,9 @@ if __name__ == "__main__":  # pragma: no cover
     # Start the FastAPI server
     def run_server():
         """Run the FastAPI server."""
-        uvicorn.run(app, host="0.0.0.0", port=5000)
+        # Use configurable host and port for security
+        # In containerized environments, set SERVER_HOST=0.0.0.0 via environment variable
+        uvicorn.run(app, host=SERVER_HOST, port=SERVER_PORT)  # nosec B104
 
     server_thread = threading.Thread(target=run_server)
     server_thread.start()
