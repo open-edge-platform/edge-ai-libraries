@@ -1,7 +1,7 @@
 apiVersion: apps/v1
 kind: Deployment
 metadata:
-  name: {{ .Release.Name }}-model-download
+  name: {{ .Values.modeldownload.name }}
   labels:
     app: {{ .Chart.Name }}
 spec:
@@ -14,18 +14,23 @@ spec:
       labels:
         app: {{ .Chart.Name }}
     spec:
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+        runAsGroup: 1001
+        allowPrivilegeEscalation: false
       containers:
         - name: model-download
-          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
-          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          image: "{{ .Values.modeldownload.image.registry }}model-download:{{ .Values.modeldownload.image.tag }}"
+          imagePullPolicy: {{ .Values.modeldownload.image.pullPolicy }}
           ports:
             - containerPort: 8000
           readinessProbe:
             httpGet:
-              path: {{ .Values.readinessProbe.httpGet.path }}
-              port: {{ .Values.readinessProbe.httpGet.port }}
-            initialDelaySeconds: {{ .Values.readinessProbe.initialDelaySeconds }}
-            periodSeconds: {{ .Values.readinessProbe.periodSeconds }}
+              path: {{ .Values.modeldownload.readinessProbe.httpGet.path }}
+              port: {{ .Values.modeldownload.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.modeldownload.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.modeldownload.readinessProbe.periodSeconds }}
           env:
             - name: HTTP_PROXY
               value: "{{ .Values.global.proxy.http_proxy }}"
@@ -36,13 +41,13 @@ spec:
             - name: HF_HUB_ENABLE_HF_TRANSFER
               value: "1"
             - name: HF_TOKEN
-              value: "{{ .Values.env.HUGGINGFACEHUB_API_TOKEN }}"
+              value: "{{ .Values.modeldownload.env.HUGGINGFACEHUB_API_TOKEN }}"
             - name: MODEL_PATH
               value: "/opt/models"
             - name: ENABLED_PLUGINS
-              value: "{{ .Values.env.ENABLED_PLUGINS }}"
+              value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
           command: ["/opt/entrypoint.sh"]
-          args: ["--plugins", "{{ .Values.env.ENABLED_PLUGINS | default "all" }}"]
+          args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
           volumeMounts:
             - name: models
               mountPath: /opt/models
