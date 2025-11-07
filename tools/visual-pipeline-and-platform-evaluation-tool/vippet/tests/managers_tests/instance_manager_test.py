@@ -28,7 +28,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersRun(
                 inferencing_channels=1,
                 recording_channels=0,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -54,7 +54,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersRun(
                 inferencing_channels=1,
                 recording_channels=0,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -85,7 +85,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersBenchmark(
                 fps_floor=30,
                 ai_stream_rate=100,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -121,7 +121,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersRun(
                 inferencing_channels=1,
                 recording_channels=0,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -134,7 +134,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersBenchmark(
                 fps_floor=30,
                 ai_stream_rate=100,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -182,7 +182,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersRun(
                 inferencing_channels=1,
                 recording_channels=0,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )
@@ -227,7 +227,7 @@ class TestInstanceManager(unittest.TestCase):
             parameters=PipelineParametersRun(
                 inferencing_channels=1,
                 recording_channels=0,
-                launch_config="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+                pipeline_graph="gst-launch-1.0 -q filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             ),
             tags=None,
         )

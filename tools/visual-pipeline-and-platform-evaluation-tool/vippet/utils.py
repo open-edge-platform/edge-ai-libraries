@@ -38,11 +38,13 @@ def download_file(url, local_filename):
     return file_path
 
 
-def replace_file_path(launch_string: str, file_path: str) -> str:
+def replace_file_path(pipeline_description: str, file_path: str) -> str:
     # Replace after 'filesrc location='
-    launch_string = re.sub(
-        r"(filesrc\s+location=)[^\s!]+", rf"\1{file_path}", launch_string
+    pipeline_description = re.sub(
+        r"(filesrc\s+location=)[^\s!]+", rf"\1{file_path}", pipeline_description
     )
     # Replace after 'source='
-    launch_string = re.sub(r"(source=)[^\s!]+", rf"\1{file_path}", launch_string)
-    return launch_string
+    pipeline_description = re.sub(
+        r"(source=)[^\s!]+", rf"\1{file_path}", pipeline_description
+    )
+    return pipeline_description

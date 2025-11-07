@@ -51,13 +51,13 @@ class PipelineParameters(BaseModel):
 class PipelineParametersRun(BaseModel):
     inferencing_channels: int = 1
     recording_channels: int = 0
-    launch_config: str
+    pipeline_graph: str
 
 
 class PipelineParametersBenchmark(BaseModel):
     fps_floor: int = 30
     ai_stream_rate: int = 100
-    launch_config: str
+    pipeline_graph: str
 
 
 class Pipeline(BaseModel):
@@ -65,7 +65,7 @@ class Pipeline(BaseModel):
     version: str
     description: str
     type: PipelineType
-    launch_config: Dict[str, Any]
+    pipeline_graph: Dict[str, Any]
     parameters: Optional[PipelineParameters]
 
 
@@ -74,13 +74,13 @@ class PipelineDefinition(BaseModel):
     version: str
     description: str
     type: PipelineType
-    launch_string: str
+    pipeline_description: str
     parameters: Optional[PipelineParameters]
 
 
 class PipelineValidation(BaseModel):
     type: PipelineType
-    launch_string: str
+    pipeline_description: str
     parameters: Optional[PipelineParameters]
 
 

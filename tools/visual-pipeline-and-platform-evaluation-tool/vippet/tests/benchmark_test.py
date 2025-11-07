@@ -7,16 +7,18 @@ from pipeline_runner import PipelineRunResult
 
 
 class TestPipeline(GstPipeline):
-    def __init__(self, launch_string):
-        super().__init__(launch_string=launch_string)
+    def __init__(self, pipeline_description):
+        super().__init__(pipeline_description=pipeline_description)
 
     def evaluate(self, regular_channels, inference_channels):
-        return " ".join([self._launch_string] * (inference_channels + regular_channels))
+        return " ".join(
+            [self._pipeline_description] * (inference_channels + regular_channels)
+        )
 
 
 class TestBenchmark(unittest.TestCase):
     def setUp(self):
-        test_launch_string = (
+        test_pipeline_description = (
             "videotestsrc "
             " num-buffers=5 "
             " pattern=snow ! "
@@ -24,7 +26,7 @@ class TestBenchmark(unittest.TestCase):
             "gvafpscounter ! "
             "fakesink"
         )
-        self.pipeline_cls = TestPipeline(launch_string=test_launch_string)
+        self.pipeline_cls = TestPipeline(pipeline_description=test_pipeline_description)
         self.fps_floor = 30.0
         self.rate = 50
         self.benchmark = Benchmark()

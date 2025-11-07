@@ -23,7 +23,7 @@ class TestPipelinesAPI(unittest.TestCase):
                 version="SmartNVRPipeline",
                 description="Smart Network Video Recorder (NVR) Proxy Pipeline",
                 type=schemas.PipelineType.GSTREAMER,
-                launch_config={
+                pipeline_graph={
                     "nodes": [
                         {
                             "id": "0",
@@ -40,7 +40,7 @@ class TestPipelinesAPI(unittest.TestCase):
                 version="TestPipeline",
                 description="Test Pipeline Description",
                 type=schemas.PipelineType.GSTREAMER,
-                launch_config={
+                pipeline_graph={
                     "nodes": [
                         {
                             "id": "0",
@@ -70,7 +70,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "Smart Network Video Recorder (NVR) Proxy Pipeline",
         )
         self.assertEqual(first_pipeline["type"], schemas.PipelineType.GSTREAMER)
-        self.assertIn("launch_config", first_pipeline)
+        self.assertIn("pipeline_graph", first_pipeline)
         self.assertIsNone(first_pipeline["parameters"])
 
         # Check the contents of the second pipeline
@@ -79,7 +79,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(second_pipeline["version"], "TestPipeline")
         self.assertEqual(second_pipeline["description"], "Test Pipeline Description")
         self.assertEqual(second_pipeline["type"], schemas.PipelineType.GSTREAMER)
-        self.assertIn("launch_config", second_pipeline)
+        self.assertIn("pipeline_graph", second_pipeline)
         self.assertIsNone(second_pipeline["parameters"])
 
     @patch("api.routes.pipelines.pipeline_manager")
@@ -91,7 +91,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "version": "test-pipeline",
             "description": "A custom test pipeline",
             "type": schemas.PipelineType.GSTREAMER,
-            "launch_string": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
+            "pipeline_description": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
             "parameters": None,
         }
 
@@ -116,7 +116,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "version": "test-pipeline",
             "description": "A custom test pipeline",
             "type": schemas.PipelineType.GSTREAMER,
-            "launch_string": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
+            "pipeline_description": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
             "parameters": None,
         }
 
@@ -139,7 +139,7 @@ class TestPipelinesAPI(unittest.TestCase):
             "version": "test-pipeline",
             "description": "A custom test pipeline",
             "type": schemas.PipelineType.GSTREAMER,
-            "launch_string": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
+            "pipeline_description": "filesrc location=/tmp/test.mp4 ! decodebin ! autovideosink",
             "parameters": None,
         }
 
@@ -159,7 +159,7 @@ class TestPipelinesAPI(unittest.TestCase):
                 version="test-pipeline",
                 description="A custom test pipeline",
                 type=schemas.PipelineType.GSTREAMER,
-                launch_config={
+                pipeline_graph={
                     "nodes": [
                         {
                             "id": "0",
@@ -181,7 +181,7 @@ class TestPipelinesAPI(unittest.TestCase):
         self.assertEqual(data["version"], "test-pipeline")
         self.assertEqual(data["description"], "A custom test pipeline")
         self.assertEqual(data["type"], schemas.PipelineType.GSTREAMER)
-        self.assertIn("launch_config", data)
+        self.assertIn("pipeline_graph", data)
         self.assertIsNone(data["parameters"])
 
     @patch("api.routes.pipelines.pipeline_manager")

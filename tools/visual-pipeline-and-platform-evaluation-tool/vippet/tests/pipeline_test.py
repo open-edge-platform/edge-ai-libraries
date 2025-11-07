@@ -8,7 +8,7 @@ from gstpipeline import GstPipeline, PipelineLoader
 
 class TestGstPipeline(unittest.TestCase):
     def setUp(self):
-        test_launch_string = (
+        test_pipeline_description = (
             "videotestsrc "
             " num-buffers=5 "
             " pattern=snow ! "
@@ -16,12 +16,14 @@ class TestGstPipeline(unittest.TestCase):
             "gvafpscounter ! "
             "fakesink"
         )
-        self.pipeline = GstPipeline(launch_string=test_launch_string)
+        self.pipeline = GstPipeline(pipeline_description=test_pipeline_description)
 
     # TODO: Implement test for GstPipeline as part of ITEP-80181
     def test_evaluate_method(self):
-        launch_string = self.pipeline.evaluate(regular_channels=0, inference_channels=1)
-        self.assertFalse(launch_string.startswith("gst-launch-1.0 -q "))
+        pipeline_description = self.pipeline.evaluate(
+            regular_channels=0, inference_channels=1
+        )
+        self.assertFalse(pipeline_description.startswith("gst-launch-1.0 -q "))
 
 
 class TestPipelineLoader(unittest.TestCase):
@@ -55,7 +57,7 @@ class TestPipelineLoader(unittest.TestCase):
             PipelineLoader.config("non_existent_pipeline", self.test_dir.name)
 
     def test_load(self):
-        test_launch_string = (
+        test_pipeline_description = (
             "videotestsrc "
             " num-buffers=5 "
             " pattern=snow ! "
@@ -64,9 +66,9 @@ class TestPipelineLoader(unittest.TestCase):
             "fakesink"
         )
 
-        pipeline = PipelineLoader.load(launch_string=test_launch_string)
+        pipeline = PipelineLoader.load(pipeline_description=test_pipeline_description)
         self.assertIsInstance(pipeline, GstPipeline)
-        self.assertEqual(pipeline._launch_string, test_launch_string)
+        self.assertEqual(pipeline._pipeline_description, test_pipeline_description)
 
 
 if __name__ == "__main__":

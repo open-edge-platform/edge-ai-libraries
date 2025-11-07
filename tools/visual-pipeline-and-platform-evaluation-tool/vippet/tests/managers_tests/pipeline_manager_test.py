@@ -14,7 +14,7 @@ class TestPipelineManager(unittest.TestCase):
             version="test-pipeline",
             description="A test pipeline",
             type=PipelineType.GSTREAMER,
-            launch_string="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+            pipeline_description="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             parameters=None,
         )
 
@@ -37,7 +37,7 @@ class TestPipelineManager(unittest.TestCase):
             version="test-pipeline",
             description="A test pipeline",
             type=PipelineType.GSTREAMER,
-            launch_string="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
+            pipeline_description="filesrc location=/tmp/dummy-video.mp4 ! decodebin3 ! autovideosink",
             parameters=None,
         )
 
@@ -76,7 +76,7 @@ class TestPipelineManager(unittest.TestCase):
         self.assertEqual(
             pipelines[0].description, "Simple Video Structurization (D-T-C)"
         )
-        self.assertIsNotNone(pipelines[0].launch_config)
+        self.assertIsNotNone(pipelines[0].pipeline_graph)
 
         self.assertEqual(pipelines[1].name, "predefined_pipelines")
         self.assertEqual(pipelines[1].version, "SmartNVRPipeline")
@@ -84,4 +84,4 @@ class TestPipelineManager(unittest.TestCase):
             pipelines[1].description,
             "Smart Network Video Recorder (NVR) Proxy Pipeline",
         )
-        self.assertIsNotNone(pipelines[1].launch_config)
+        self.assertIsNotNone(pipelines[1].pipeline_graph)

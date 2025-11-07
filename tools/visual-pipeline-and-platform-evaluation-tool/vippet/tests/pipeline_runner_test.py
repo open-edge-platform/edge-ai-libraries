@@ -7,18 +7,18 @@ from gstpipeline import GstPipeline
 
 
 class TestPipeline(GstPipeline):
-    def __init__(self, launch_string):
-        super().__init__(launch_string=launch_string)
+    def __init__(self, pipeline_description):
+        super().__init__(pipeline_description=pipeline_description)
 
     def evaluate(self, regular_channels, inference_channels):
         return "gst-launch-1.0 -q " + " ".join(
-            [self._launch_string] * (inference_channels + regular_channels)
+            [self._pipeline_description] * (inference_channels + regular_channels)
         )
 
 
 class TestPipelineRunner(unittest.TestCase):
     def setUp(self):
-        test_launch_string = (
+        test_pipeline_description = (
             "videotestsrc "
             " num-buffers=5 "
             " pattern=snow ! "
@@ -26,7 +26,7 @@ class TestPipelineRunner(unittest.TestCase):
             "gvafpscounter ! "
             "fakesink"
         )
-        self.pipeline = TestPipeline(test_launch_string)
+        self.pipeline = TestPipeline(test_pipeline_description)
 
     @patch("pipeline_runner.Popen")
     @patch("pipeline_runner.ps")

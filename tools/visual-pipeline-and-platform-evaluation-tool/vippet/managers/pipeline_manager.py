@@ -15,16 +15,16 @@ class PipelineManager:
                 f"Pipeline with name '{new_pipeline.name}' and version '{new_pipeline.version}' already exists."
             )
 
-        launch_cfg = {
-            "converted_launch_string": new_pipeline.launch_string
-        }  # TODO: Convert launch_string to launch_config in JSON format
+        pipeline_description = {
+            "converted_pipeline_description": new_pipeline.pipeline_description
+        }  # TODO: Convert pipeline_description to pipeline_graph in JSON format
 
         pipeline = Pipeline(
             name=new_pipeline.name,
             version=new_pipeline.version,
             description=new_pipeline.description,
             type=new_pipeline.type,
-            launch_config=launch_cfg,
+            pipeline_graph=pipeline_description,
             parameters=new_pipeline.parameters,
         )
 
@@ -57,9 +57,9 @@ class PipelineManager:
             config = PipelineLoader.config(pipeline_name)
 
             pipeline_description = config.get("pipeline_description", "")
-            launch_cfg = {
-                "converted_launch_string": pipeline_description
-            }  # TODO: Convert pipeline_description to launch_config in JSON format
+            pipeline_graph = {
+                "converted_pipeline_description": pipeline_description
+            }  # TODO: Convert pipeline_description to pipeline_graph in JSON format
 
             predefined_pipelines.append(
                 Pipeline(
@@ -67,7 +67,7 @@ class PipelineManager:
                     version=config.get("name", "UnnamedPipeline"),
                     description=config.get("display_name", "Unnamed Pipeline"),
                     type=PipelineType.GSTREAMER,
-                    launch_config=launch_cfg,
+                    pipeline_graph=pipeline_graph,
                     parameters=None,
                 )
             )

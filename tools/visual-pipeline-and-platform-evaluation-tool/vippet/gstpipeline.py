@@ -5,8 +5,8 @@ import yaml
 
 
 class GstPipeline:
-    def __init__(self, launch_string):
-        self._launch_string = launch_string
+    def __init__(self, pipeline_description):
+        self._pipeline_description = pipeline_description
 
     def evaluate(
         self,
@@ -14,10 +14,10 @@ class GstPipeline:
         inference_channels: int,
     ) -> str:
         # Remove "gst-launch-1.0 -q " prefix if present
-        launch = self._launch_string.lstrip()
-        if launch.startswith("gst-launch-1.0 -q "):
-            launch = launch[len("gst-launch-1.0 -q ") :]
-        return " ".join([launch] * inference_channels)
+        description = self._pipeline_description.lstrip()
+        if description.startswith("gst-launch-1.0 -q "):
+            description = description[len("gst-launch-1.0 -q ") :]
+        return " ".join([description] * inference_channels)
 
 
 class PipelineLoader:
@@ -72,14 +72,14 @@ class PipelineLoader:
             return yaml.safe_load(f.read())
 
     @staticmethod
-    def load(launch_string: str) -> GstPipeline:
+    def load(pipeline_description: str) -> GstPipeline:
         """
         Load a custom pipeline from a launch string.
 
         Args:
-            launch_string: The launch command string.
+            pipeline_description: The launch command string.
 
         Returns:
             GstPipeline: An instance of GstPipeline initialized with the launch string.
         """
-        return GstPipeline(launch_string)
+        return GstPipeline(pipeline_description)
