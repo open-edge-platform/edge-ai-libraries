@@ -215,7 +215,6 @@ export const SearchContent: FC = () => {
   const NoQuerySelected = () => {
     return (
       <NothingSelectedWrapper>
-        <h3>{t('searchNothingSelected')}</h3>
       </NothingSelectedWrapper>
     );
   };

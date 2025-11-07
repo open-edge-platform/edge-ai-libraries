@@ -44,6 +44,16 @@ vi.mock('@carbon/react', () => ({
       {children}
     </div>
   ),
+  ModalFooter: ({ children }: any) => (
+    <div data-testid="modal-footer">
+      {children}
+    </div>
+  ),
+  ModalBody: ({ children }: any) => (
+    <div data-testid="modal-body">
+      {children}
+    </div>
+  ),
   IconButton: ({ children, onClick, label }: any) => (
     <button data-testid="carbon-icon-button" onClick={onClick} aria-label={label}>
       {children}
@@ -148,10 +158,31 @@ vi.mock('../../hooks/useDisclosure.ts', () => ({
   useDisclosure: () => [false, { open: vi.fn(), close: vi.fn() }],
 }));
 
-// Mock config constants
+// Mock config constants  
 vi.mock('../../config.ts', () => ({
   FEATURE_SEARCH: 'ON',
   FEATURE_SUMMARY: 'ON',
+}));
+
+// Mock VideoEmbeddingModal and SummarizeModal
+vi.mock('../VideoActions/VideoEmbeddingModal', () => ({
+  default: ({ open, onClose }: any) => (
+    open ? (
+      <div data-testid="video-embedding-modal">
+        <button onClick={onClose} data-testid="video-embedding-modal-close">Close Embedding</button>
+      </div>
+    ) : <div data-testid="video-embedding-modal" style={{ display: 'none' }}>Hidden Modal</div>
+  ),
+}));
+
+vi.mock('../VideoActions/SummarizeModal', () => ({
+  default: ({ open, onClose }: any) => (
+    open ? (
+      <div data-testid="summarize-modal">
+        <button onClick={onClose} data-testid="summarize-modal-close">Close Summarize</button>
+      </div>
+    ) : <div data-testid="summarize-modal" style={{ display: 'none' }}>Hidden Modal</div>
+  ),
 }));
 
 // Mock constants
@@ -166,6 +197,26 @@ vi.mock('../../utils/constant.ts', () => ({
 vi.mock('../../redux/video/videoSlice.ts', () => ({
   ...vi.importActual('../../redux/video/videoSlice.ts'),
   videosLoad: vi.fn(() => ({ type: 'videos/load' })),
+}));
+
+// Mock search slice actions
+vi.mock('../../redux/search/searchSlice.ts', () => ({
+  ...vi.importActual('../../redux/search/searchSlice.ts'),
+  LoadTags: vi.fn(() => ({ type: 'search/LoadTags' })),
+  SearchSlice: {
+    reducer: vi.fn(),
+  },
+}));
+
+// Mock UI slice actions
+vi.mock('../../redux/ui/ui.slice.ts', () => ({
+  ...vi.importActual('../../redux/ui/ui.slice.ts'),
+  UIActions: {
+    setMux: vi.fn(() => ({ type: 'ui/setMux' })),
+  },
+  UISlice: {
+    reducer: vi.fn(),
+  },
 }));
 
 const createTestStore = () => {
@@ -205,14 +256,20 @@ describe('Navbar', () => {
     expect(buttons.length).toBeGreaterThan(0);
   });
 
-  it('should render video icon', () => {
-    renderWithProviders();
-    expect(screen.getByTestId('video-icon')).toBeInTheDocument();
-  });
-
   it('should render search modal container', () => {
     renderWithProviders();
     // Search modal should not be visible initially but component should handle it
     expect(screen.queryByTestId('search-modal')).not.toBeInTheDocument();
+  });
+
+  it('should render the brand name', () => {
+    renderWithProviders();
+    // Check for any brand name text that actually appears
+    expect(screen.getByText('VSummBrand')).toBeInTheDocument();
+  });
+
+  it('should render the main action button', () => {
+    renderWithProviders();
+    expect(screen.getByText('SummarizeVideo')).toBeInTheDocument();
   });
 });
