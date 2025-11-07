@@ -63,7 +63,7 @@ Options:
   --dev                 Build and run development environment
   --build               Only build production Docker image
   --build-dev           Only build development Docker image  
-  --down                Stop and remove all contianers, networks, 
+  --down                Stop and remove all containers, networks, 
                         and volumes  
   -h, --help            Show this help message
 ```
