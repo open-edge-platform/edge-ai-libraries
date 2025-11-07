@@ -36,9 +36,7 @@ Before you begin, ensure that you have the following prerequisites:
     **Examples**
       - Force rebuild from scratch (no cache): `source scripts/run_service.sh --rebuild`
       - Display usage information: `source scripts/run_service.sh --help`
-
-
-
+      
 5. **Run the Docker Container**: 
     - Run the Docker container using the built image:
       ```bash

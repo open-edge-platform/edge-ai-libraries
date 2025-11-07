@@ -1,3 +1,6 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 from huggingface_hub import snapshot_download
 from src.core.interfaces import ModelDownloadPlugin, DownloadTask
 from src.utils.logging import logger

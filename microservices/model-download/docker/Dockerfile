@@ -1,5 +1,11 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
 # ---- Stage 1: Build dependencies ----
 FROM python:3.11-slim AS python-base
+
+# Add uv to PATH
+ENV PATH="/opt/.local/bin:$PATH"
 
 # Set the working directory in the container
 WORKDIR /opt
@@ -15,15 +21,12 @@ RUN apt-get update && apt-get install -y \
     rm -rf /var/lib/apt/lists/*
 
 # Install uv
-RUN curl -LsSf https://astral.sh/uv/install.sh | sh
-
-# Add uv to PATH
-ENV PATH="/root/.local/bin:$PATH"
+RUN curl -LsSf https://astral.sh/uv/install.sh | UV_INSTALL_DIR=/opt/.local/bin sh
 
 # Copy project files
 COPY pyproject.toml uv.lock /opt/
 
-# Install base dependencies using uv pip with system flag
+# Install base dependencies using uv
 RUN uv sync \
     && rm -rf ~/.cache
 
@@ -44,15 +47,13 @@ RUN apt-get update -y && apt-get install -y --no-install-recommends \
     git \
     && rm -rf /var/lib/apt/lists/* \
     && apt-get clean
-    
-# Create a non-root user
 RUN groupadd -g ${GID} appuser && \
     useradd -m -s /bin/bash -u ${UID} -g ${GID} appuser
 
 # Copy installed dependencies from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
-COPY --from=python-base /root/.local/bin/uv /usr/local/bin/uv
+COPY --from=python-base /opt/.local/bin/uv /usr/local/bin/uv
 
 COPY src /opt/src
 COPY scripts /opt/scripts
