@@ -118,12 +118,6 @@ async def download_models(
             extra_kwargs = model.dict()
             needs_conversion = model.is_ovms or (model.type and model.type.lower() == "vlm")
 
-            # if needs_conversion and model.hub.lower() != ModelHub.OPENVINO.value.lower():
-            #     raise HTTPException(
-            #         status_code=400,
-            #         detail=f"OpenVINO conversion requested but model hub is '{model.hub}'. Please set hub to 'openvino' for OpenVINO conversion."
-            #     )
-
             model_download_path = os.path.join(models_dir, download_path)
             
             if model.hub.lower() in [hub.value.lower() for hub in ModelHub] and not needs_conversion:
