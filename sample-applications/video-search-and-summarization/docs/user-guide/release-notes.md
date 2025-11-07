@@ -1,7 +1,7 @@
 # Release Notes
 
 ## Current Release
-**Version**: rc1.2.3 \
+**Version**: 1.2.3 \
 **Release Date**: 31 Oct 2025  
 
 **Features**:.
