@@ -554,8 +554,8 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         fi
 
         # If config is passed, set the command to only generate the config
-        FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
+        #FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
+        #DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
         echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
