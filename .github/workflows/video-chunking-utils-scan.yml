@@ -1,0 +1,63 @@
+name: "[Video Chunking Utils] SDLe Scans - Scan Bandit Virus"
+run-name: "[Video Chunking Utils] SDLe Scans - Scan Bandit Virus"
+
+
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"  # 2 a.m. on Sunday
+
+jobs:
+  bandit-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run Bandit Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        id: bandit
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "libraries/video-chunking-utils"
+          report_suffix: "-bandit-video-chunking-utils-CT161"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: bandit-report-video-chunking-utils
+          path: bandit-report-*.txt
+
+
+  clamav-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run ClamAV Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
+        id: clamav
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "libraries/video-chunking-utils"
+          exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: clamav-report-video-chunking-utils
+          path: security-results/clamav*

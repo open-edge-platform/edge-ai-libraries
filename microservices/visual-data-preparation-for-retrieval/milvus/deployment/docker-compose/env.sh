@@ -31,6 +31,7 @@ export DEFAULT_NUM_FRAMES=64
 # OpenVINO configuration
 export EMBEDDING_USE_OV=false
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 # If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
 if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
     export EMBEDDING_USE_OV=true
@@ -40,12 +41,40 @@ export DATAPREP_SERVICE_PORT=9990
 export EMBEDDING_SERVER_PORT=9777
 export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
-export VCLIP_MODEL="openai/clip-vit-base-patch32"
+# export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14"
 
 docker volume create ov-models
 
-if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-    echo -e "ERROR: VCLIP_MODEL is either not set or is set to an invalid value in your shell environment."
-    return
+if [ -z "$EMBEDDING_MODEL_NAME" ]; then
+    echo "ERROR: EMBEDDING_MODEL_NAME environment variable is required."
+    echo ""
+    echo "Please set a model name before sourcing env.sh:"
+    echo "  export EMBEDDING_MODEL_NAME=\"your-chosen-model\""
+    echo "  source env.sh"
+    echo ""
+    echo "See multimodal-embedding-servicing in microservices for more details."
+    return 1
 fi
 
+# Check if EMBEDDING_MODEL_NAME is supported
+case "$EMBEDDING_MODEL_NAME" in
+    "CLIP/clip-vit-b-16"|"CLIP/clip-vit-l-14"|"CLIP/clip-vit-b-32"|"CLIP/clip-vit-h-14")
+        echo "Using CLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "CN-CLIP/cn-clip-vit-b-16"|"CN-CLIP/cn-clip-vit-l-14"|"CN-CLIP/cn-clip-vit-h-14")
+        echo "Using CN-CLIP model: $EMBEDDING_MODEL_NAME (Chinese + English support)"
+        ;;
+    "SigLIP/siglip-vit-b-16"|"SigLIP/siglip-vit-l-16")
+        echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
+        echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "Blip2/blip2_feature_extractor"|"Blip2/blip2_transformers"|"Blip2/blip2_transformers_vitL")
+        echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
+        ;;
+    *)
+        echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
+        echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."
+        ;;
+esac

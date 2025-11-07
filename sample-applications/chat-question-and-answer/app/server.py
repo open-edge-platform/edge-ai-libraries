@@ -11,6 +11,7 @@ from pydantic import BaseModel
 from fastapi.responses import StreamingResponse
 from .chain import process_chunks
 import httpx
+from typing import List
 from opentelemetry.instrumentation.fastapi import FastAPIInstrumentor
 
 app = FastAPI(title="Chat Question and Answer", root_path="/v1/chatqna")
@@ -51,8 +52,13 @@ async def redirect_root_to_docs():
     return RedirectResponse("/docs")
 
 
+class Message(BaseModel):
+    role: str  # "user" or "assistant"
+    content: str
+
+
 class QuestionRequest(BaseModel):
-    input: str
+    conversation_messages: List[Message]
     max_tokens: int
 
 
@@ -102,22 +108,26 @@ async def query_chain(payload: QuestionRequest):
     """
     Handles POST requests to the /chat endpoint.
 
-    This endpoint receives a question in the form of a JSON payload, validates the input,
-    and returns a streaming response with the processed chunks of the question text.
+    This endpoint receives a conversation history along with the question in the form of a JSON payload, validates
+    the input, and returns a streaming response with the processed chunks of the question text.
 
     Args:
-        payload (QuestionRequest): The request payload containing the input question text
+        payload (QuestionRequest): The request payload containing conversation history with the input question text
         max_tokens (int): The maximum number of tokens to process. Defaults to 512 if not provided.
         or set to 1024 if provided.
 
     Returns:
-        StreamingResponse: A streaming response with the processed chunks of the question text.
+        StreamingResponse: A streaming response that delivers processed chunks generated from both the conversation
+        history and the user question.
 
     Raises:
         HTTPException: If the input question text is empty or not provided, a 422 status code is returned.
     """
     try:
-        question_text = payload.input
+        # conversation_messages contain conversation history with roles and content along with current question
+        conversation_messages = payload.conversation_messages
+        question_text = conversation_messages[-1].content  # latest user message
+
         max_tokens = payload.max_tokens if payload.max_tokens else 512
         if max_tokens > 1024:
             raise HTTPException(status_code=422, detail="max tokens cannot be greater than 1024")
@@ -128,7 +138,7 @@ async def query_chain(payload: QuestionRequest):
         if len(question_text.strip()) == 0:
             raise HTTPException(status_code=422, detail="Question cannot be empty or whitespace only")
             
-        return StreamingResponse(process_chunks(question_text, max_tokens), media_type="text/event-stream")
+        return StreamingResponse(process_chunks(conversation_messages, max_tokens), media_type="text/event-stream")
     except HTTPException:
         # Re-raise HTTP exceptions
         raise

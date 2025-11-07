@@ -1,0 +1,95 @@
+// Copyright (C) 2024 Intel Corporation
+// SPDX-License-Identifier: Apache-2.0
+
+@import "../../styles/styles";
+
+.spacer {
+  flex: 1 1 auto;
+}
+
+.conversationWrapper {
+  @include flex(row, nowrap, flex-start, flex-start);
+  flex: 1 1 auto;
+  height: 100vh;
+  & > * {
+    height: 100%;
+  }
+  .conversationContent {
+    flex: 1 1 auto;
+    position: relative;
+    .conversationContentMessages {
+      @include absolutes;
+      // @include flex(column, nowrap, flex-start, flex-start);
+
+      display: grid;
+      grid-template-areas:
+        "header"
+        "messages"
+        "inputs";
+
+      grid-template-columns: auto;
+      grid-template-rows: 60px 1fr 100px; // Increased input area height from 50px to 100px
+
+      .conversationTitle {
+        grid-area: header;
+        @include flex(row, nowrap, center, flex-start);
+        height: 60px;
+        padding: 8px 24px;
+        border-bottom: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+        background-color: var(--mantine-color-blue-6);
+        color: var(--mantine-color-white);
+        text-transform: capitalize;
+      }
+
+      .historyContainer {
+        grid-area: messages;
+        overflow: auto;
+        width: 100%;
+        padding: 16px 32px;
+        & > * {
+          width: 100%;
+        }
+      }
+
+      .conversationActions {
+        // padding: --var()
+        grid-area: inputs;
+        padding: 8px 16px; // Reduced padding for the input area
+        border-top: 1px solid light-dark(var(--mantine-color-gray-3), var(--mantine-color-dark-4));
+      }
+    }
+
+    .conversationSplash {
+      @include absolutes;
+      @include flex(column, nowrap, center, center);
+      font-size: 32px;
+    }
+  }
+}
+
+.blinkingIndicator {
+  width: 10px;
+  height: 10px;
+  background-color: #1976d2;
+  border-radius: 50%;
+  animation: blink 1s infinite;
+}
+
+.conversationMessage {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  justify-content: flex-start;
+  margin-top: 16px;
+  padding: 0 32px;
+  width: 100%;
+
+  & > * {
+    width: 100%;
+  }
+}
+
+@keyframes blink {
+  0%, 50% { opacity: 1; }
+  51%, 100% { opacity: 0.2; }
+}

@@ -1,6 +1,6 @@
 services:
   nginx:
-    image: nginxinc/nginx-unprivileged:1.29.1
+    image: nginxinc/nginx-unprivileged:1.29.2
     ports:
       - "8101:8101"
     volumes:
