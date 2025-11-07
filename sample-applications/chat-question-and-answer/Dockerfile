@@ -7,14 +7,15 @@ FROM python:3.11-slim AS python-base
 ENV PYTHONDONTWRITEBYTECODE=1
 ENV PYTHONUNBUFFERED=1
 
-# Install system build dependencies
+# Install system build dependencies (added libpq-dev, gcc, python3-dev for psycopg/pg_config support)
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
     libjemalloc-dev \
+    libpq-dev gcc python3-dev \
     curl && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/* && \
-    pip install --no-cache-dir poetry
+    pip install --no-cache-dir --upgrade pip setuptools poetry
 
 # Copy only dependency files
 WORKDIR /app
@@ -38,10 +39,10 @@ RUN groupadd -g 1001 appuser && \
     mkdir -p $HOME/.cache/huggingface && \
     chown -R appuser:appuser $HOME
 
-# Install only runtime dependencies
+# Install only runtime dependencies (added libpq5)
 RUN apt-get update -y && \
     apt-get install -y --no-install-recommends \
-    libjemalloc2 && \
+    libjemalloc2 libpq5 && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -50,9 +51,6 @@ WORKDIR /my-app
 # Copy installed packages from python-base
 COPY --from=python-base /usr/local/lib/python3.11/site-packages /usr/local/lib/python3.11/site-packages
 COPY --from=python-base /usr/local/bin /usr/local/bin
-
-# Upgrade setuptools to the latest version
-RUN pip install --no-cache-dir --upgrade setuptools
 
 # Copy application code
 COPY app ./app

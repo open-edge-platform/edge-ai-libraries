@@ -38,8 +38,7 @@ class CustomReranker:
             return retrieved_docs
 
     def rerank_tei(self, retrieved_docs: Dict[str, Any]) -> Dict[str, Any]:
-        texts = map(lambda x: x.page_content, retrieved_docs["context"])
-        texts = list(texts)
+        texts = [d.page_content for d in retrieved_docs["context"]]
 
         request_body = {
             "query": retrieved_docs["question"],
@@ -54,16 +53,18 @@ class CustomReranker:
         )
         if response.status_code == 200:
             res = response.json()
-            # Sort results by score in descending order
+            # Sort by score descending, pick top 3 or all if less than 3
             sorted_results = sorted(res, key=lambda x: x["score"], reverse=True)
-            # Take top 3 results or all if less than 3
             top_k = min(3, len(sorted_results))
             reranked_context = [
                 retrieved_docs["context"][item["index"]] for item in sorted_results[:top_k]
-            ]            
+            ]
+            logging.info(f"Reranked context for question '{retrieved_docs['question']}': {reranked_context}")
+
             return {
                 "question": retrieved_docs["question"],
                 "context": reranked_context,
+                "history": retrieved_docs.get("history", "")
             }
         else:
             raise Exception(f"Error: {response.status_code}, {response.text}")

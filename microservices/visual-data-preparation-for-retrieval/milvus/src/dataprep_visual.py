@@ -90,10 +90,9 @@ def info():
     """
     try:
         status_info = {
-            "model_id": indexer.model_id,
-            "model_path": indexer.model_path,
+            "embed_svc_url": indexer.embed_url,
+            "model_name": indexer.model_name,
             "device": DEVICE,
-            "Number of processed files": indexer.count_files(),
         }
         return JSONResponse(content=status_info, status_code=200)
     except Exception as e:

@@ -41,12 +41,12 @@ def download_dataset(dataset_name: str, dataset_path: str) -> None:
         if not os.path.exists(dataset_path):
             os.makedirs(dataset_path)
         command = [
-            "wget",
-            "--tries=5",  # Retry up to 5 times if the download fails
-            "--timeout=30",  # Set a timeout of 30 seconds for each attempt
-            "--continue",  # Resume partially downloaded files
-            "--no-check-certificate",  # Skip SSL certificate validation (if necessary)
-            "-O", os.path.join(dataset_path, "DAVIS-2017-test-dev-480p.zip"),  # Specify output file name
+            "curl",
+            "--retry", "5",  # Retry up to 5 times if the download fails
+            "--max-time", "30",  # Set a timeout of 30 seconds for each attempt
+            "--continue-at", "-",  # Resume partially downloaded files
+            "--insecure",  # Skip SSL certificate validation (if necessary)
+            "-o", os.path.join(dataset_path, "DAVIS-2017-test-dev-480p.zip"),  # Specify output file name
             "https://data.vision.ee.ethz.ch/csergi/share/davis/DAVIS-2017-test-dev-480p.zip"
         ]
     else:

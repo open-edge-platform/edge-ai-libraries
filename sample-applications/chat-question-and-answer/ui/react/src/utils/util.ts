@@ -1,83 +1,17 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { HEALTH_CHECK_URL, MODEL_URL } from '../config.ts';
-import client from './client.ts';
+import client from "./client";
+import { HEALTH_CHECK_URL } from "../config";
 
 export const getCurrentTimeStamp = () => {
   return Math.floor(Date.now() / 1000);
 };
 
 export const uuidv4 = () => {
-  return '10000000-1000-4000-8000-100000000000'.replace(/[018]/g, (c) =>
-    (
-      +c ^
-      (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))
-    ).toString(16),
+  return "10000000-1000-4000-8000-100000000000".replace(/[018]/g, (c) =>
+    (+c ^ (crypto.getRandomValues(new Uint8Array(1))[0] & (15 >> (+c / 4)))).toString(16),
   );
-};
-
-export const getFirstValidString = (
-  ...args: (string | undefined | null)[]
-): string => {
-  for (const arg of args) {
-    if (arg !== null && arg !== undefined && arg.trim() !== '') {
-      return arg;
-    }
-  }
-  return '';
-};
-
-// Decode \x hexadecimal encoding
-export const decodeEscapedBytes = (str: string): string => {
-  const byteArray: number[] = str
-    .split('\\x')
-    .slice(1)
-    .map((byte: string) => {
-      const parsedByte = parseInt(byte, 16);
-      return isNaN(parsedByte) ? -1 : parsedByte;
-    })
-    .filter((byte) => byte >= 0);
-
-  if (byteArray.length === 0) return '';
-
-  return new TextDecoder('utf-8').decode(new Uint8Array(byteArray));
-};
-
-export const removeLastTagIfPresent = (message: string): string => {
-  if (message.trim().endsWith('</s>')) {
-    return message.substring(0, message.length - 4).trim();
-  }
-  return message;
-};
-
-export const getTitle = (input: string): string => {
-  const maxLength = 40;
-  if (input.length <= maxLength) return input;
-  return input.slice(0, maxLength) + '...';
-};
-
-export const extractBetweenDotsWithExtension = (input: string): string => {
-  if (!input) {
-    return '';
-  }
-  if (input.startsWith('appuser')) {
-    input = input.slice('appuser'.length + 1);
-  }
-
-  const firstDotIndex = input.indexOf('.');
-  const lastDotIndex = input.lastIndexOf('.');
-  const lastUnderscoreIndex = input.lastIndexOf('_');
-
-  const extension = input.slice(lastDotIndex);
-  const betweenDots = input.slice(0, firstDotIndex);
-
-  if (lastUnderscoreIndex === -1) {
-    return `${betweenDots}${extension}`;
-  }
-
-  const originalFileName = betweenDots.slice(0, lastUnderscoreIndex);
-  return `${originalFileName}${extension}`;
 };
 
 export const isValidUrl = (url: string): boolean => {
@@ -89,12 +23,33 @@ export const isValidUrl = (url: string): boolean => {
   }
 };
 
-export const capitalize = (input: string): string => {
-  if (input.length === 0) {
-    return '';
-  }
+/**
+ * Extracts the original filename from database naming pattern
+ * Pattern: prefix_filename_stringID.extension
+ * Example: "doc_my_file_name_abc123.pdf" -> "my_file_name.pdf"
+ */
+export const extractOriginalFilename = (dbFilename: string): string => {
+  if (!dbFilename) return dbFilename;
 
-  return input[0].toUpperCase() + input.slice(1);
+  // 1. Extract position of last dot and extract extension
+  const lastDotIndex = dbFilename.lastIndexOf('.');
+  const extension = lastDotIndex !== -1 ? dbFilename.substring(lastDotIndex) : '';
+
+  // 2. Remove prefix (find index of 1st underscore, and truncate everything before that)
+  const firstUnderscoreIndex = dbFilename.indexOf('_');
+  if (firstUnderscoreIndex === -1) return dbFilename; // No underscore found
+
+  const withoutPrefix = dbFilename.substring(firstUnderscoreIndex + 1);
+
+  // 3. Find the index of last underscore and truncate the string after that
+  const nameWithoutExtension = lastDotIndex !== -1 ? withoutPrefix.substring(0, withoutPrefix.lastIndexOf('.')) : withoutPrefix;
+  const lastUnderscoreIndex = nameWithoutExtension.lastIndexOf('_');
+  if (lastUnderscoreIndex === -1) return dbFilename; // No second underscore found
+
+  const originalFilename = nameWithoutExtension.substring(0, lastUnderscoreIndex);
+
+  // 4. Attach with extension
+  return originalFilename + extension;
 };
 
 export const checkHealth = async () => {
@@ -114,25 +69,6 @@ export const checkHealth = async () => {
       status: 503,
       message:
         'LLM model server is not ready to accept connections. Please try after a few minutes.',
-    };
-  }
-};
-
-export const fetchModelName = async () => {
-  try {
-    const response = await client.get(MODEL_URL);
-    if (response.status === 200) {
-      return { status: 200, llmModel: response.data.llm_model };
-    } else {
-      return {
-        status: response.status,
-        message: 'LLM Model is not set',
-      };
-    }
-  } catch (error) {
-    return {
-      status: 503,
-      message: 'LLM Model is not set',
     };
   }
 };

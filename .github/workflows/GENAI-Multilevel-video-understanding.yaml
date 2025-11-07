@@ -1,0 +1,137 @@
+name: "[GEN-AI] Multilevel-Video-Understanding-CI"
+run-name: "[GEN-AI-Multilevel-Video-Understanding-CI] PR  workflow (by @${{ github.actor }} via ${{ github.event_name }})"
+
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"  # 2 a.m. on Sunday
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+
+      - name: Build Docker image
+        run: |
+          cd microservices
+          ls
+          cd multilevel-video-understanding
+          chmod +x ./setup_docker.sh
+          ./setup_docker.sh --build
+          
+      - name: Verify Docker image
+        run: |
+          echo "=== Built Docker Image ==="
+          docker images
+          echo "=== Image Build Verification Complete ==="
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "microservices/multilevel-video-understanding/"
+          report_suffix: "-fs-multilevel-video-understanding-CT7"
+
+
+      - name: Run trivy Scan - multilevel-video-understanding (HTML Report)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: multilevel-video-understanding-html
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "multilevel-video-understanding:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "table"
+          report_suffix: "-image-multilevel-video-understanding-html-CT248"
+          generate_sbom: "false"
+
+      - name: Run trivy Scan - multilevel-video-understanding (SPDX SBOM)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: multilevel-video-understandingr-spdx
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "multilevel-video-understanding:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "spdx-json"
+          scanners: "vuln"
+          report_suffix: "-image-multilevel-video-understanding-spdx-CT248"
+          generate_sbom: "false"
+
+      - name: Scan Dockerfile with Trivy
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        with:
+          scan_type: "config"
+          scan_target: "microservices/multilevel-video-understanding/docker/"
+          severity: "HIGH,CRITICAL"
+          format: "json"
+          misconfig_scanners: "dockerfile"
+          report_suffix: "-config-multilevel-video-understanding-CT222"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-multilevel-video-understanding
+          path: security-results/trivy*
+
+  bandit-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run Bandit Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        id: bandit
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/multilevel-video-understanding"
+          report_suffix: "-bandit-multilevel-video-understanding-CT161"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: bandit-report-multilevel-video-understanding
+          path: bandit-report-*.txt
+
+
+  clamav-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run ClamAV Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
+        id: clamav
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/multilevel-video-understanding"
+          exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: clamav-report-multilevel-video-understanding
+          path: security-results/clamav*

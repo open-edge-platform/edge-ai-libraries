@@ -33,7 +33,7 @@ global:
 nginx:
   image:
     repository: nginxinc/nginx-unprivileged
-    tag: 1.29.1
+    tag: 1.29.2
     pullPolicy: IfNotPresent
 docSumUI:
   name: docsum-ui
