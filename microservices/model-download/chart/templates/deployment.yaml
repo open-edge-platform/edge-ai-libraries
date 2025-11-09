@@ -1,0 +1,57 @@
+apiVersion: apps/v1
+kind: Deployment
+metadata:
+  name: {{ .Values.modeldownload.name }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  replicas: {{ .Values.replicaCount }}
+  selector:
+    matchLabels:
+      app: {{ .Chart.Name }}
+  template:
+    metadata:
+      labels:
+        app: {{ .Chart.Name }}
+    spec:
+      securityContext:
+        fsGroup: 1001
+        runAsUser: 1001
+        runAsGroup: 1001
+        allowPrivilegeEscalation: false
+      containers:
+        - name: model-download
+          image: "{{ .Values.modeldownload.image.registry }}model-download:{{ .Values.modeldownload.image.tag }}"
+          imagePullPolicy: {{ .Values.modeldownload.image.pullPolicy }}
+          ports:
+            - containerPort: 8000
+          readinessProbe:
+            httpGet:
+              path: {{ .Values.modeldownload.readinessProbe.httpGet.path }}
+              port: {{ .Values.modeldownload.readinessProbe.httpGet.port }}
+            initialDelaySeconds: {{ .Values.modeldownload.readinessProbe.initialDelaySeconds }}
+            periodSeconds: {{ .Values.modeldownload.readinessProbe.periodSeconds }}
+          env:
+            - name: HTTP_PROXY
+              value: "{{ .Values.global.proxy.http_proxy }}"
+            - name: HTTPS_PROXY
+              value: "{{ .Values.global.proxy.https_proxy }}"
+            - name: NO_PROXY
+              value: "{{ .Values.global.proxy.no_proxy }}"
+            - name: HF_HUB_ENABLE_HF_TRANSFER
+              value: "1"
+            - name: HF_TOKEN
+              value: "{{ .Values.modeldownload.env.HUGGINGFACEHUB_API_TOKEN }}"
+            - name: MODEL_PATH
+              value: "/opt/models"
+            - name: ENABLED_PLUGINS
+              value: "{{ .Values.modeldownload.env.ENABLED_PLUGINS }}"
+          command: ["/opt/entrypoint.sh"]
+          args: ["--plugins", "{{ .Values.modeldownload.env.ENABLED_PLUGINS | default "all" }}"]
+          volumeMounts:
+            - name: models
+              mountPath: /opt/models
+      volumes:
+        - name: models
+          persistentVolumeClaim:
+            claimName: models-pvc
