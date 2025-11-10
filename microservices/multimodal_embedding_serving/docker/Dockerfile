@@ -6,17 +6,33 @@ FROM python:3.12.10-slim AS builder
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
+ARG CURL_VERSION="7.88.1-10+deb12u14"
+ARG PATCH_VERSION="2.7.6-7"
+ARG BUILD_ESSENTIAL_VERSION="12.9"
+ARG GCC_VERSION="4:12.2.0-3"
+ARG GIT_VERSION="1:2.39.5-0+deb12u2"
+ARG POETRY_VERSION="1.8.3"
+ARG MOBILECLIP_COMMIT="c16bfe5a4feb424762d6bdf5245539120a4ce9ef"
+ARG SALESFORCE_LAVIS_VERSION="1.0.2"
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    curl patch build-essential gcc git
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl=${CURL_VERSION} \
+    patch=${PATCH_VERSION} \
+    build-essential=${BUILD_ESSENTIAL_VERSION} \
+    gcc=${GCC_VERSION} \
+    git=${GIT_VERSION} && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN pip install poetry && \
+RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
     poetry config virtualenvs.create false && \
     poetry install --no-root && \
-    poetry run pip install git+https://github.com/apple/ml-mobileclip.git salesforce-lavis==1.0.2 --no-deps
+    poetry run pip install --no-cache-dir \
+        "git+https://github.com/apple/ml-mobileclip.git@${MOBILECLIP_COMMIT}#egg=mobileclip" \
+        "salesforce-lavis==${SALESFORCE_LAVIS_VERSION}" \
+        --no-deps
 
 # Final stage
 FROM python:3.12.10-slim
@@ -25,10 +41,14 @@ ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
 ARG COPYLEFT_SOURCES=false
+ARG CURL_VERSION="7.88.1-10+deb12u14"
+ARG PATCH_VERSION="2.7.6-7"
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    curl patch && \
-    groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl=${CURL_VERSION} \
+    patch=${PATCH_VERSION} && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g ${USER_GROUP_ID} appuser && useradd -m --no-log-init -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
 WORKDIR /app
 
