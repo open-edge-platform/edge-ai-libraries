@@ -2,7 +2,11 @@
 apiVersion: v1
 kind: PersistentVolumeClaim
 metadata:
+  {{- if .Values.global.gpu.ovmsEnabled }}
+  name: {{ include "ovms.fullname" . }}-gpu-pvc
+  {{- else }}
   name: {{ include "ovms.fullname" . }}-pvc
+  {{- end }}
   {{- if .Values.global.keepPvc }}
   annotations:
     helm.sh/resource-policy: keep   # Prevent Helm from deleting PVC on uninstall

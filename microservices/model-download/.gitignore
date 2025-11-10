@@ -1,0 +1,26 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+# Ignore environment variables
+.env
+
+# Ignore Python cache files
+__pycache__/
+*.py[cod]
+
+# Ignore virtual environment directories
+venv/
+*.venv/
+env/
+
+# Ignore log files
+*.log
+
+# Ignore IDE specific files
+.vscode/
+
+# pytest related dir
+empty_model_dir
+mock_model_dir
+.coverage
+htmlcov

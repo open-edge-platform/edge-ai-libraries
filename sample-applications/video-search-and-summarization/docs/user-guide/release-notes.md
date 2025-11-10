@@ -1,18 +1,14 @@
 # Release Notes
 
-
 ## Current Release
-**Version**: 1.2.2 \
-**Release Date**: 06 Oct 2025  
+**Version**: 1.2.3 \
+**Release Date**: 31 Oct 2025  
 
 **Features**:.
-- Enhanced Helm Chart with RWOnce support and additional stability improvements.
-- Introduced initial VSS CLI for streamlined command-line operations.
-- Enabled persistent embeddings in VDMS to maintain state across container restarts.
-- Implemented search result grouping by tags for improved organization and filtering.
-- Updated unit tests to cover new features and recent code changes.
-- Addressed vulnerabilities flagged by Trivy and dependabot scans.
-
+- Enhanced helm configuration and deployment capabilities for GPU workloads, enabling better performance and flexibility.
+- Refreshed UI for a more intuitive and user-friendly experience, improving overall usability and navigation.
+- Updated to the latest supported OpenVINO Model Server (OVMS) version for improved stability and feature access.
+- Addressed issues flagged by Trivy and Dependabot scans to ensure stronger security and compliance.
 
 **HW used for validation**:
 
@@ -26,13 +22,23 @@
 - Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
 - HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
 - VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
-- The Helm chart presently supports only CPU deployments.
 - Known issues are internally tracked. Reference not provided here.
 - `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
 - Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
 - Directory Watcher service only supported in Search only mode.
 
 ## Previous releases
+
+**Version**: 1.2.2 \
+**Release Date**: 06 Oct 2025  
+
+**Features**:.
+- Enhanced Helm Chart with RWOnce support and additional stability improvements.
+- Introduced initial VSS CLI for streamlined command-line operations.
+- Enabled persistent embeddings in VDMS to maintain state across container restarts.
+- Implemented search result grouping by tags for improved organization and filtering.
+- Updated unit tests to cover new features and recent code changes.
+- Addressed vulnerabilities flagged by Trivy and dependabot scans.
 
 **Version**: 1.2.1 \
 **Release Date**: 29 Sept 2025  

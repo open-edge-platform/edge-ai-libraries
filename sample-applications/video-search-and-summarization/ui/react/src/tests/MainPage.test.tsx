@@ -15,8 +15,8 @@ vi.mock('../config.ts', () => ({
   APP_URL: 'http://localhost:3000',
   ASSETS_ENDPOINT: 'http://localhost:3000/assets',
   SOCKET_APPEND: '/socket',
-  FEATURE_SUMMARY: 'ON',
-  FEATURE_SEARCH: 'ON',
+  FEATURE_SUMMARY: 'FEATURE_ON',
+  FEATURE_SEARCH: 'FEATURE_ON',
   FEATURE_MUX: 'ATOMIC',
 }));
 
@@ -34,10 +34,8 @@ vi.mock('../components/Notice/Notice.tsx', () => ({
   ),
 }));
 
-vi.mock('../components/MainPage/SplashAtomic.tsx', () => ({
-  SplashAtomic: () => <div data-testid="splash-atomic">Splash Atomic</div>,
-  SplashAtomicSearch: () => <div data-testid="splash-atomic-search">Splash Atomic Search</div>,
-  SplashAtomicSummary: () => <div data-testid="splash-atomic-summary">Splash Atomic Summary</div>,
+vi.mock('../components/MainPage/SplashMux.tsx', () => ({
+  SplashSummarySearch: () => <div data-testid="splash-mux">Splash Summary Search</div>,
 }));
 
 // Mock i18next
@@ -168,22 +166,15 @@ describe('MainPage Component', () => {
     it('should render a splash component', () => {
       renderComponent();
 
-      // Should render one of the splash components
-      expect(
-        screen.queryByTestId('splash-atomic') ||
-        screen.queryByTestId('splash-atomic-search') ||
-        screen.queryByTestId('splash-atomic-summary')
-      ).toBeInTheDocument();
+      // Should render the splash mux component when both features are enabled
+      expect(screen.getByTestId('splash-mux')).toBeInTheDocument();
     });
 
     it('should render splash component within grid layout', () => {
       renderComponent();
 
-      // Check that splash component is rendered
-      const splashComponent = 
-        screen.queryByTestId('splash-atomic') ||
-        screen.queryByTestId('splash-atomic-search') ||
-        screen.queryByTestId('splash-atomic-summary');
+      // Check that splash mux component is rendered
+      const splashComponent = screen.getByTestId('splash-mux');
       
       expect(splashComponent).toBeInTheDocument();
     });
@@ -209,11 +200,7 @@ describe('MainPage Component', () => {
       renderComponent();
 
       expect(screen.getByTestId('navbar')).toBeInTheDocument();
-      expect(
-        screen.queryByTestId('splash-atomic') ||
-        screen.queryByTestId('splash-atomic-search') ||
-        screen.queryByTestId('splash-atomic-summary')
-      ).toBeInTheDocument();
+      expect(screen.getByTestId('splash-mux')).toBeInTheDocument();
       expect(screen.getByTestId('notice')).toBeInTheDocument();
     });
   });

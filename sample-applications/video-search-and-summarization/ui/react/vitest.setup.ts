@@ -84,3 +84,24 @@ vi.mock('styled-components', () => {
 // Make sure React is available for the styled-components mock
 import React from 'react';
 global.React = React;
+
+// Mock HTMLMediaElement methods for video tests
+Object.defineProperty(HTMLMediaElement.prototype, 'load', {
+  writable: true,
+  value: vi.fn(),
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, 'play', {
+  writable: true,
+  value: vi.fn().mockResolvedValue(undefined),
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, 'pause', {
+  writable: true,
+  value: vi.fn(),
+});
+
+Object.defineProperty(HTMLMediaElement.prototype, 'currentTime', {
+  writable: true,
+  value: 0,
+});

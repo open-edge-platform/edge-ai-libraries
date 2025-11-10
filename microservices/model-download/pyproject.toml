@@ -1,0 +1,103 @@
+[project]
+name = "model-download"
+version = "0.1.0"
+description = "A FastAPI application for downloading and converting HuggingFace/Ollama models."
+authors = [
+]
+readme = "README.md"
+requires-python = ">=3.10,<3.11"
+
+dependencies = [
+    "fastapi==0.115.4",
+    "pillow==11.3.0",
+    "pydantic==2.12.3",
+    "structlog==25.1.0",
+    "uvicorn==0.38.0",
+    "PyYAML==6.0.2",
+]
+
+[project.optional-dependencies]
+dev = [
+    "pytest>=7.4.0,<8.0.0",
+    "pytest-cov>=4.1.0,<5.0.0",
+    "pytest-asyncio>=0.21.1,<1.0.0",
+    "httpx>=0.24.1,<1.0.0",
+    "pytest-mock>=3.11.1,<4.0.0",
+]
+
+cpu = [
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
+]
+
+huggingface = [
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    "sentence-transformers==5.1.2",
+    "einops==0.8.1",
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
+]
+
+ultralytics = [
+    "ultralytics==8.2.3",
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
+]
+
+openvino = [
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    "optimum-intel @ git+https://github.com/huggingface/optimum-intel.git@3acf13f062f1e987268218232d474bdae0e9f2aa",
+    "openvino-tokenizers==2025.3.0",
+    "openvino==2025.3.0",
+    "nncf==2.18.0",
+    "sentence-transformers==5.1.2",
+    "sentencepiece==0.2.0",
+    "openai==2.6.1",
+    "transformers==4.53.3",
+    "einops==0.8.1",
+    "torchvision==0.23.0+cpu",
+    "timm==1.0.15",
+    "torch==2.8.0+cpu",
+    "diffusers==0.33.1",
+]
+
+ollama = [
+    # Ollama is installed as a binary, no Python dependencies required
+]
+
+
+[tool.uv]
+index-url = "https://pypi.org/simple"
+
+[[tool.uv.index]]
+name = "pytorch-cpu"
+url = "https://download.pytorch.org/whl/cpu"
+explicit = true
+
+[tool.uv.sources]
+torch = { index = "pytorch-cpu" }
+torchvision = { index = "pytorch-cpu" }
+
+[tool.uv.pip]
+index-strategy = "unsafe-best-match"
+
+# Pytest configuration (unchanged)
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+python_files = ["test_*.py"]
+addopts = "-v --cov=app --cov-report=term-missing"
+
+# Coverage configuration
+[tool.coverage.run]
+source = ["app"]
+omit = ["*/tests/*", "*/__pycache__/*"]
+
+[tool.coverage.report]
+exclude_lines = [
+    "pragma: no cover",
+    "def __repr__",
+    "raise AssertionError",
+    "raise NotImplementedError",
+    "if __name__ == .__main__.:",
+    "if TYPE_CHECKING:",
+]
