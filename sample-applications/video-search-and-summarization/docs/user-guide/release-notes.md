@@ -33,7 +33,6 @@
 **HW used for validation**:
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
-- Vanilla Kubernetes Cluster
 
 **Known Issues/Limitations**:
 
