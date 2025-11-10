@@ -27,3 +27,4 @@ env/
 *.log
 ov-models
 **/checkpoints
+dist
