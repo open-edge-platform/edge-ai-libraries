@@ -7,7 +7,7 @@
 """Kapacitor service
 """
 
-import subprocess  # nosec B404 - subprocess is needed for kapacitor operations
+import subprocess
 import os
 import os.path
 import time
@@ -26,11 +26,8 @@ def get_secure_temp_dir():
     """Get a secure temporary directory path with proper permissions"""
     # Use system temp directory as base, but ensure it's secure
     base_temp = tempfile.gettempdir()
-    
-    # In containerized environments, /tmp is typically mounted with appropriate permissions
-    # For production, consider using a dedicated volume mount instead of /tmp
     tmp_path = "/tmp"
-    if os.path.exists(tmp_path) and os.access(tmp_path, os.W_OK): 
+    if os.path.exists(tmp_path) and os.access(tmp_path, os.W_OK):
         return tmp_path
     else:
         return base_temp
@@ -46,7 +43,7 @@ KAPACITOR_NAME = 'kapacitord'
 def kapacitor_daemon_logs(logger):
     """Read the kapacitor logs and print it to stdout
     """
-    kapacitor_log_file = os.path.join(SECURE_TEMP_DIR, "log", "kapacitor", "kapacitor.log") 
+    kapacitor_log_file = os.path.join(SECURE_TEMP_DIR, "log", "kapacitor", "kapacitor.log")
     while True:
         if os.path.isfile(kapacitor_log_file):
             break
@@ -81,7 +78,7 @@ class KapacitorClassifier():
         """ Check if UDF deployment package is present in the container
         """
         logger.info("Checking if UDF deployment package is present in the container...")
-        path = os.path.join(SECURE_TEMP_DIR, dir_name) 
+        path = os.path.join(SECURE_TEMP_DIR, dir_name)
         udf_dir = os.path.join(path, "udfs")
         model_dir = os.path.join(path, "models")
         tick_scripts_dir = os.path.join(path, "tick_scripts")
@@ -139,9 +136,9 @@ class KapacitorClassifier():
         """ Install python package from udf/requirements.txt if exists
         """
 
-        python_package_requirement_file = os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", "requirements.txt") 
-        python_package_installation_path = os.path.join(SECURE_TEMP_DIR, "py_package") 
-        status = subprocess.run(["/bin/mkdir", "-p", python_package_installation_path], check=False)  # nosec B603 B607
+        python_package_requirement_file = os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", "requirements.txt")
+        python_package_installation_path = os.path.join(SECURE_TEMP_DIR, "py_package")
+        status = subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
         if status.returncode != SUCCESS:
             self.logger.error("Failed to create directory %s for installing python packages.",
                               python_package_installation_path)
@@ -171,7 +168,7 @@ class KapacitorClassifier():
         try:
             if secure_mode:
                 # Populate the certificates for kapacitor server
-                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_PROD) 
+                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_PROD)
 
                 os.environ["KAPACITOR_URL"] = "{}{}".format(https_scheme,
                                                             kapacitor_port)
@@ -180,7 +177,7 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         https_scheme, influxdb_hostname_port)
             else:
-                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_DEV) 
+                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_DEV)
                 os.environ["KAPACITOR_URL"] = "{}{}".format(http_scheme,
                                                             kapacitor_port)
                 os.environ["KAPACITOR_UNSAFE_SSL"] = "true"
@@ -188,8 +185,8 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         http_scheme, influxdb_hostname_port)
 
-            self.kapacitor_proc = subprocess.Popen(  # nosec B603 B607
-                ["/usr/bin/kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
+            self.kapacitor_proc = subprocess.Popen(
+                ["kapacitord", "-hostname", kapacitor_url_hostname, "-config", kapacitor_conf]
             )
 
             # Start a thread to reap the kapacitor process when it exits
@@ -288,7 +285,7 @@ class KapacitorClassifier():
             if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
                                       task_name]
-                if subprocess.check_call(define_pointcl_cmd) == SUCCESS:  # nosec B603
+                if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
                     self.logger.info("Kapacitor Tasks Enabled Successfully")
                     self.logger.info("Kapacitor Initialized Successfully. "
                                      "Ready to Receive the Data....")
@@ -414,7 +411,7 @@ def classifier_startup(config):
     dest_conf_path = os.path.join(SECURE_TEMP_DIR, conf_file) 
     shutil.copy("/app/config/" + conf_file, dest_conf_path)
     # Read the existing configuration
-    with open(dest_conf_path, 'r', encoding='utf-8') as file: 
+    with open(dest_conf_path, 'r', encoding='utf-8') as file:
         config_data = tomlkit.parse(file.read())
     udf_name = config['udfs']['name']
     if "models" in config['udfs'].keys():
@@ -446,8 +443,8 @@ def classifier_startup(config):
 
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
-        'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:", 
-        'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name), 
+        'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:",
+        'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name),
         'DEVICE': device
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
@@ -464,12 +461,12 @@ def classifier_startup(config):
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
         config_data["influxdb"][0]["enabled"] = True
     # Write the updated configuration back to the file
-    with open(dest_conf_path, 'w', encoding='utf-8') as file: 
+    with open(dest_conf_path, 'w', encoding='utf-8') as file:
         file.write(tomlkit.dumps(config_data, sort_keys=False))
 
     # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
     src_dir = "/app/temperature_classifier"
-    dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier") 
+    dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier")
     if os.path.exists(dst_dir):
         shutil.rmtree(dst_dir)
     shutil.copytree(src_dir, dst_dir)
