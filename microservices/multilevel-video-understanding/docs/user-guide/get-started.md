@@ -33,7 +33,7 @@ Following the tutorial in [LVM Microservice with vLLM on Intel XPU](https://opea
 - `MAX_MODEL_LEN`: max model length, constraints to GPU memory.
 - `LLM_MODEL_ID`: huggingface model id.
 - `LOAD_QUANTIZATION`: model precision.
-- `VLLM_PORT`: LLM model serving port.
+- `VLLM_PORT`: VLM model serving port.
 - `ONEAPI_DEVICE_SELECTOR`: device id, use `export ONEAPI_DEVICE_SELECTOR=level_zero:[gpu_id];level_zero:[gpu_id]` to select device before excuting your command.
 - `TENSOR_PARALLEL_SIZE`: tensor parallel size.
 
@@ -43,7 +43,7 @@ export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
 export LOAD_QUANTIZATION=fp8
 export VLLM_PORT=41091
-export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:0"
+export ONEAPI_DEVICE_SELECTOR="level_zero:0;level_zero:1"
 export TENSOR_PARALLEL_SIZE=2
 ```
 
@@ -158,6 +158,7 @@ INFO:     Application startup complete.
 INFO:     Uvicorn running on http://0.0.0.0:8000 (Press CTRL+C to quit)
 
 ```
+> **Note**: Please ensure that the dependent VLM and LLM model services have been successfully set up, and the `VLM_MODEL_NAME`, `LLM_MODEL_NAME`, `VLM_BASE_URL`, `LLM_BASE_URL` variables are correctly set. Users can refer to [Setting up GenAI model services to support VLM and LLM](#setup-genai-model-servings-for-vlm-and-llm)
 
 ## Microservice Usage Examples
 
