@@ -41,12 +41,9 @@ class Settings(BaseSettings):
     )
     VDMS_VDB_HOST: str = Field(default="vdms-vector-db", env="VDMS_VDB_HOST")
     VDMS_VDB_PORT: int = Field(default=55555, env="VDMS_VDB_PORT")
-    VCLIP_EMBEDDINGS_ENDPOINT: str = Field(default="", env="VCLIP_EMBEDDINGS_ENDPOINT")
-    VCLIP_EMBEDDINGS_MODEL_NAME: str = Field(
-        default="", env="VCLIP_EMBEDDINGS_MODEL_NAME"
-    )
-    VCLIP_EMBEDDINGS_NUM_FRAMES: int = Field(
-        default=16, env="VCLIP_EMBEDDINGS_NUM_FRAMES"
+    EMBEDDINGS_ENDPOINT: str = Field(default="", env="EMBEDDINGS_ENDPOINT")
+    EMBEDDINGS_MODEL_NAME: str = Field(
+        default="", env="EMBEDDINGS_MODEL_NAME"
     )
     SEARCH_ENGINE: str = Field(default="FaissFlat", env="SEARCH_ENGINE")
     DISTANCE_STRATEGY: str = Field(default="IP", env="DISTANCE_STRATEGY")
@@ -63,8 +60,38 @@ class Settings(BaseSettings):
     VS_INITIAL_DUMP: bool = Field(default=False, env="VS_INITIAL_DUMP")
     DELETE_PROCESSED_FILES: bool = Field(default=False, env="DELETE_PROCESSED_FILES")
     WATCH_DIRECTORY_RECURSIVE: bool = Field(default=False, env="WATCH_DIRECTORY_RECURSIVE")
-    CHUNK_DURATION: int = Field(default=10, env="CHUNK_DURATION")
     EMBEDDING_LENGTH: int = 0
+
+    # Frame-to-Video Aggregation Settings
+    AGGREGATION_SEGMENT_DURATION: int = Field(default=8, env="AGGREGATION_SEGMENT_DURATION")
+    AGGREGATION_MIN_GAP: int = Field(default=0, env="AGGREGATION_MIN_GAP")
+    AGGREGATION_MAX_RESULTS: int = Field(default=20, env="AGGREGATION_MAX_RESULTS")
+    AGGREGATION_INITIAL_K: int = Field(default=1000, env="AGGREGATION_INITIAL_K")
+    AGGREGATION_ENABLED: bool = Field(default=True, env="AGGREGATION_ENABLED")
+    AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: float = Field(
+        default=0.0, env="AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS"
+    )
+    AGGREGATION_QUAL_MAX_WEIGHT: float = Field(
+        default=0.65, env="AGGREGATION_QUAL_MAX_WEIGHT"
+    )
+    AGGREGATION_QUAL_TOP_WEIGHT: float = Field(
+        default=0.35, env="AGGREGATION_QUAL_TOP_WEIGHT"
+    )
+    AGGREGATION_QUAL_TOP_RATIO: float = Field(
+        default=0.35, env="AGGREGATION_QUAL_TOP_RATIO"
+    )
+    AGGREGATION_QUAL_TOP_MIN_COUNT: int = Field(
+        default=2, env="AGGREGATION_QUAL_TOP_MIN_COUNT"
+    )
+    AGGREGATION_QUAL_TOP_MAX_COUNT: int = Field(
+        default=6, env="AGGREGATION_QUAL_TOP_MAX_COUNT"
+    )
+    AGGREGATION_CONTEXT_SIGMA_SECONDS: float = Field(
+        default=40.0, env="AGGREGATION_CONTEXT_SIGMA_SECONDS"
+    )
+    AGGREGATION_CONTEXT_BOOST_STRENGTH: float = Field(
+        default=0.5, env="AGGREGATION_CONTEXT_BOOST_STRENGTH"
+    )
 
 
 settings = Settings()

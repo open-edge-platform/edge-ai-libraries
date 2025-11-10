@@ -102,7 +102,7 @@ Before running the application, you need to set several environment variables:
 
     # SETTING EMBEDDING MODELS
     # Set this when using --search option to run the application in video search mode. This enables a multimodal embedding model capable of generating correlated text and image embeddings. Only openai/clip-vit-base model is supported as of now.
-    export VCLIP_MODEL=openai/clip-vit-base-patch32
+    export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
 
     # Set this when using --all option to run application in combined summarization and search mode. Only Qwen/Qwen3-Embedding-0.6B is supported as of now.
     export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
