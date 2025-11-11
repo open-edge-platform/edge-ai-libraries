@@ -59,6 +59,10 @@ RUN git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-a
 RUN pip install $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils/ && \
     rm -rf $SETUP_PATH/edge-ai-libraries/libraries/video-chunking-utils
 
+# JWT token clean up
+RUN [ -f $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py ] && \
+    sed -i '/>>>.*token=/d' $VENV_PATH/lib/python3.13/site-packages/skimage/data/_fetchers.py
+    
 # Production stage - optimized for deployment
 FROM python-base AS prod
 
@@ -67,7 +71,6 @@ COPY --from=builder-base $SETUP_PATH $SETUP_PATH
 
 # Install dependencies to be used in runtime
 RUN apt-get update -y && apt-get install --no-install-recommends -y \
-    libglib2.0-0 \
     libsm6 \
     libxext6 \
     libxrender1 \
@@ -78,6 +81,7 @@ RUN mkdir -p /copyleft_sources/deb
 WORKDIR /copyleft_sources/deb
 RUN sed -Ei "s/Types: deb/Types: deb deb-src/g" /etc/apt/sources.list.d/debian.sources && \
     apt-get update -y && \
+    apt-get install --no-install-recommends -y libglib2.0-0 && \
     apt-get source --no-install-recommends -q --download-only glib2.0
 
 WORKDIR /app
