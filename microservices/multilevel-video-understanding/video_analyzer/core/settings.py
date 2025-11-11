@@ -32,6 +32,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Multi-level Video Understanding Service"
     API_DESCRIPTION: str = "API for intelligent video summarization based on Large Language Models and Vision Language Models."
     MAX_CONCURRENT_REQUESTS: int = Field(6, env="MAX_CONCURRENT_REQUESTS")
+    HOST: str = Field("0.0.0.0", env="HOST")
 
     # API Health check configuration
     API_STATUS: str = "healthy"

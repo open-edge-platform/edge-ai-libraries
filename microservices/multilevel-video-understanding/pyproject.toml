@@ -14,7 +14,7 @@ packages = [{include = "video_analyzer"}]
 python = "^3.10"
 Pillow = "11.3.0"
 transformers = "^4.53.1"
-fastapi = "^0.115.5"
+fastapi = "^0.121.1"
 uvicorn = "^0.32.1"
 gunicorn = "^23.0.0"
 python-multipart = "^0.0.18"
@@ -23,6 +23,7 @@ pydantic-settings = "^2.9.1"
 setuptools = "^80.9.0"
 decord = "^0.6.0"
 openai = "^1.93.1"
+starlette = "^0.49.1"
 huggingface-hub = {version = "^0.30.2", extras = ["hf_xet"]}
 
 # ------------------------------------------------------------
