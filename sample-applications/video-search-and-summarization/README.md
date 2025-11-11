@@ -14,7 +14,7 @@ This foundational sample application provides three modes:
 
 - **Data privacy**: Local processing ensures your data stays private.
 - **Ease of use**: You can search using natural language.
-- **Improved accuracy**: Multi-modal analysis works on video, audio, and text at the same time, which improves the results..
+- **Improved accuracy**: Multi-modal analysis works on video, audio, and text at the same time, which improves the results
 - **Scalability**: You can work on one or multiple videos automatically.
 
 The detailed documentation to help you get started, configure, and deploy the sample application along with the required microservices are as follows.
