@@ -38,5 +38,6 @@ VDMS DataPrep turns raw video content and associated summaries into searchable e
 ## Supporting Resources
 
 - [Get Started Guide](get-started.md)
+- [Video Ingestion Flow](./video-ingestion-flow.md) - Detailed flow diagrams of the video processing pipeline
 - [API Reference](api-reference.md)
 - [System Requirements](system-requirements.md)

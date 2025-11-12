@@ -62,6 +62,7 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 - [Overview](Overview.md)
 - [Architecture Overview](./overview-architecture.md)
+- [Video Ingestion Flow](./video-ingestion-flow.md) - Detailed flow diagrams of the video processing pipeline
 - [API Reference](api-reference.md)
 - [System Requirements](system-requirements.md)
 
