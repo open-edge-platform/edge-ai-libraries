@@ -762,6 +762,7 @@ class SimplePipelineManager:
                     batch_index,
                 )
                 return {
+                    'status': 'skipped_no_image_support',
                     'embeddings_count': 0,
                     'stored_ids': [],
                     'processing_time': time.time() - batch_start_time,

@@ -262,6 +262,9 @@ export DEFAULT_NUM_FRAMES=64
 export EMBEDDING_USE_OV=true
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${OV_MODELS_DIR}
+# NOTE: The default OpenVINO performance mode has been changed from "LATENCY" to "THROUGHPUT".
+# This impacts inference characteristics: "THROUGHPUT" optimizes for overall throughput, while "LATENCY" optimizes for response time.
+# Please review user documentation or migration notes for details on this change.
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 echo -e "${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
 

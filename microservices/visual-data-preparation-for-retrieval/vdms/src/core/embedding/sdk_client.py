@@ -1,35 +1,22 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-"""
-SDK-based VDMS Client for Multimodal Embedding Storage
+"""SDK-based VDMS client that stores embeddings produced by the MME SDK."""
 
-This module provides an optimized implementation that uses the multimodal embedding
-service in-process as an SDK and stores embeddings via langchain-vdms vector store APIs
-for maximum compatibility and persistence.
-
-Key benefits:
-1. No network latency - in-process function calls
-2. Single video instance in RAM - extract frames and create embeddings efficiently  
-3. Better resource utilization - no need to serialize/deserialize data
-4. Standardized VDMS persistence that survives restarts via langchain-vdms APIs
-5. Optimized batch processing for high-throughput storage
-"""
-
-import pathlib
-from typing import List, Dict, Any, Optional, Tuple
-import numpy as np
-import traceback
-from PIL import Image
-import uuid
-import time
 import threading
+import time
+import traceback
+import uuid
+from collections.abc import Iterable
+from typing import Any, Dict, List, Optional
 
-from multimodal_embedding_serving import get_model_handler, EmbeddingModel
-from langchain_vdms.vectorstores import VDMS, VDMS_Client
+import numpy as np
+from PIL import Image
 from langchain_core.embeddings import Embeddings
+from langchain_vdms.vectorstores import VDMS, VDMS_Client
+from multimodal_embedding_serving import EmbeddingModel, get_model_handler
 
-from src.common import logger, settings, Strings
+from src.common import Strings, logger, settings
 
 
 class DummyEmbedding(Embeddings):
@@ -87,18 +74,22 @@ class SDKVDMSClient:
             return candidate
 
         try:
-            return [float(x) for x in candidate]
+            if isinstance(candidate, Iterable) and not isinstance(candidate, (str, bytes)):
+                return [float(x) for x in candidate]
+            return [float(candidate)]
         except TypeError:
             return [float(candidate)]
 
-    def __init__(self, 
-                 model_id: str = "",
-                 device: str = "CPU",
-                 use_openvino: bool = False,
-                 ov_models_dir: Optional[str] = None,
-                 vdms_host: str = None,
-                 vdms_port: str = None,
-                 collection_name: str = None):
+    def __init__(
+        self,
+        model_id: str = "",
+        device: str = "CPU",
+        use_openvino: bool = False,
+        ov_models_dir: Optional[str] = None,
+        vdms_host: Optional[str] = None,
+        vdms_port: Optional[str] = None,
+        collection_name: Optional[str] = None,
+    ) -> None:
         """
         Initialize the SDK client with embedding model and VDMS storage.
         
@@ -126,68 +117,78 @@ class SDKVDMSClient:
         self._vdms_lock = threading.RLock()
 
         # Initialize the embedding model
-        logger.info(f"Initializing embedding model: {model_id}")
+        logger.info("Initializing embedding model: %s", model_id or "<unspecified>")
         self.model_handler = get_model_handler(
             model_id=model_id,
             device=device,
+            ov_models_dir=ov_models_dir,
             use_openvino=use_openvino,
-            ov_models_dir=ov_models_dir
         )
 
-        # Detect modality support early to avoid unsupported operations later
-        self.supports_text = True
-        self.supports_image = True
-        try:
-            if hasattr(self.model_handler, "supports_text"):
-                self.supports_text = bool(self.model_handler.supports_text())
-        except Exception as exc:
-            logger.warning(
-                "Failed to detect text support for %s via supports_text(): %s. Assuming text support.",
-                model_id,
-                exc,
-            )
-            self.supports_text = True
+        self.supports_text, self.supports_image = self._detect_modalities(model_id)
 
-        try:
-            if hasattr(self.model_handler, "supports_image"):
-                self.supports_image = bool(self.model_handler.supports_image())
-        except Exception as exc:
-            logger.warning(
-                "Failed to detect image support for %s via supports_image(): %s. Assuming image support.",
-                model_id,
-                exc,
-            )
-            self.supports_image = True
-        
-        # Load the model
         logger.info("Loading embedding model...")
         self.model_handler.load_model()
-        
-        # Create EmbeddingModel wrapper
+
         self.embedding_model = EmbeddingModel(self.model_handler)
-        
-        # Get embedding dimensions - use handler's get_embedding_dim() if available
-        if hasattr(self.model_handler, 'get_embedding_dim'):
-            try:
-                self.embedding_dimensions = self.model_handler.get_embedding_dim()
-                logger.info(f"Using embedding dimensions from model handler: {self.embedding_dimensions}")
-            except Exception as exc:
-                logger.warning(
-                    "Model handler get_embedding_dim() failed with %s. Falling back to auto-detection.",
-                    exc,
-                )
-                self.embedding_dimensions = self._detect_embedding_dimensions()
-        else:
-            # Fallback to auto-detection for handlers without get_embedding_dim()
-            self.embedding_dimensions = self._detect_embedding_dimensions()
-            logger.info(f"Using embedding dimensions from auto-detection: {self.embedding_dimensions}")
+
+        self.embedding_dimensions = self._resolve_embedding_dimensions()
         
         # Initialize VDMS database connection
         self._init_vdms()
-        
-        logger.info(f"SDK client initialized with model: {model_id}")
+
+        logger.info("SDK client initialized with model: %s", self.model_id)
     
-    def _detect_embedding_dimensions(self) -> int:
+    def _detect_modalities(self, model_id: str) -> tuple[bool, bool]:
+        text_supported = False
+        image_supported = False
+
+        if hasattr(self.model_handler, "supports_text"):
+            try:
+                text_supported = bool(self.model_handler.supports_text())
+            except Exception as exc:
+                logger.warning(
+                    "Could not determine text support for %s: %s",
+                    model_id,
+                    exc,
+                )
+        else:
+            logger.warning(
+                "Model handler for %s is missing supports_text(); assuming text is unsupported.",
+                model_id,
+            )
+
+        if hasattr(self.model_handler, "supports_image"):
+            try:
+                image_supported = bool(self.model_handler.supports_image())
+            except Exception as exc:
+                logger.warning(
+                    "Could not determine image support for %s: %s",
+                    model_id,
+                    exc,
+                )
+        else:
+            logger.warning(
+                "Model handler for %s is missing supports_image(); assuming image is unsupported.",
+                model_id,
+            )
+
+        return text_supported, image_supported
+
+    def _resolve_embedding_dimensions(self) -> int:
+        if hasattr(self.model_handler, "get_embedding_dim"):
+            try:
+                dims = int(self.model_handler.get_embedding_dim())
+                if dims > 0:
+                    logger.info("Using embedding dimensions reported by handler: %d", dims)
+                    return dims
+                logger.warning("Handler reported non-positive embedding dimension; probing instead")
+            except Exception as exc:
+                logger.warning("get_embedding_dim() failed: %s; probing dimensions", exc)
+
+        return self._probe_embedding_dimensions()
+
+    def _probe_embedding_dimensions(self) -> int:
         """
         Auto-detect embedding dimensions by testing the model with a dummy input.
         
@@ -233,16 +234,16 @@ class SDKVDMSClient:
             logger.warning("Could not detect dimensions from model, using default 512")
             return 512
 
-        except Exception as e:
-            logger.warning(f"Failed to auto-detect embedding dimensions: {e}")
-            logger.warning(f"Traceback: {traceback.format_exc()}")
+        except Exception as exc:
+            logger.warning("Failed to auto-detect embedding dimensions: %s", exc)
+            logger.debug(traceback.format_exc())
             logger.warning("Falling back to default 512 dimensions")
             return 512
     
     def _init_vdms(self):
         """Initialize VDMS Client and database connection."""
         try:
-            logger.info(f"Connecting to VDMS server at {self.vdms_host}:{self.vdms_port}...")
+            logger.info("Connecting to VDMS server at %s:%s...", self.vdms_host, self.vdms_port)
             
             # Create VDMS client for collection management only
             self.vdms_client = VDMS_Client(host=self.vdms_host, port=int(self.vdms_port))
@@ -265,8 +266,8 @@ class SDKVDMSClient:
                 embedding_dimensions=self.embedding_dimensions
             )
             
-            logger.info(f"VDMS initialized - Collection: {self.collection_name}")
-            logger.info(f"Collection configured with {self.embedding_dimensions}D embeddings")
+            logger.info("VDMS initialized - Collection: %s", self.collection_name)
+            logger.info("Collection configured with %dD embeddings", self.embedding_dimensions)
             logger.warning(
                 "If you see 'Dimensions mismatch' errors from VDMS, the collection was created "
                 "with different dimensions. To fix: 1) Delete the collection using VDMS CLI, or "
@@ -274,7 +275,7 @@ class SDKVDMSClient:
             )
 
         except Exception as ex:
-            logger.error(f"Error initializing VDMS: {ex}")
+            logger.error("Error initializing VDMS: %s", ex)
             raise Exception(Strings.db_conn_error)
 
     def _clean_metadata_for_vdms(self, metadata: Dict[str, Any]) -> Dict[str, Any]:
@@ -376,9 +377,9 @@ class SDKVDMSClient:
             
         except Exception as ex:
             total_time = time.time() - start_time if 'start_time' in locals() else 0
-            logger.error(f"store_frame_embeddings() failed after {total_time:.3f}s")
-            logger.error(f"Error: {ex}")
-            logger.error(f"Error type: {type(ex).__name__}")
+            logger.error("store_frame_embeddings() failed after %.3fs", total_time)
+            logger.error("Error: %s", ex)
+            logger.error("Error type: %s", type(ex).__name__)
             raise Exception(Strings.embedding_error)
     
     def _store_embeddings(
@@ -474,8 +475,8 @@ class SDKVDMSClient:
                 return vector or None
             return None
             
-        except Exception as e:
-            logger.error(f"Error generating image embedding: {e}")
+        except Exception as exc:
+            logger.error("Error generating image embedding: %s", exc)
             return None
 
     def generate_embeddings_for_images(self, image_inputs: List[Any]) -> List[Optional[List[float]]]:
@@ -525,8 +526,8 @@ class SDKVDMSClient:
                 return results
             return [None] * len(image_inputs)
             
-        except Exception as e:
-            logger.error(f"Error generating batch image embeddings: {e}")
+        except Exception as exc:
+            logger.error("Error generating batch image embeddings: %s", exc)
             return [None] * len(image_inputs)
 
     def generate_embedding_for_text(self, text: str) -> Optional[List[float]]:
@@ -545,7 +546,7 @@ class SDKVDMSClient:
                 return None
             return self._to_list(embeddings[0]) or None
         except Exception as exc:
-            logger.error(f"Error generating text embedding: {exc}")
+            logger.error("Error generating text embedding: %s", exc)
             logger.debug(traceback.format_exc())
             return None
 
@@ -568,7 +569,7 @@ class SDKVDMSClient:
                 results.append(self._to_list(embedding) or None)
             return results
         except Exception as exc:
-            logger.error(f"Error generating embeddings for texts: {exc}")
+            logger.error("Error generating embeddings for texts: %s", exc)
             logger.debug(traceback.format_exc())
             return [None] * len(texts)
 

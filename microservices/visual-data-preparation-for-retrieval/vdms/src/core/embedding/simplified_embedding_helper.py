@@ -388,7 +388,8 @@ async def generate_text_embedding(
             sdk_client = get_sdk_client()
             if not sdk_client.supports_text:
                 raise ValueError(
-                    f"Configured SDK model '{model_name}' does not support text embeddings"
+                    f"Configured SDK model '{model_name}' does not support text embeddings (processing mode: '{processing_mode}'). "
+                    "Please verify your EMBEDDING_MODEL_NAME setting and ensure the selected model supports text embedding."
                 )
 
             ids = sdk_client.store_text_embedding(text=text, metadata=text_metadata)
