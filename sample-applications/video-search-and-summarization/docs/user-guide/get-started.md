@@ -14,8 +14,6 @@ This guide shows how to:
 - **Run different application modes**: Execute different application modes available in the application to perform video search and summarization.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
-
-
 ## ✅ Prerequisites
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
@@ -100,15 +98,15 @@ Before running the application, you need to set several environment variables:
     # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
     export OD_MODEL_NAME="yolov8l-worldv2"
 
-    # SETTING EMBEDDING MODELS
-    # Set this when using --search option to run the application in video search mode. This enables a multimodal embedding model capable of generating correlated text and image embeddings. Only openai/clip-vit-base model is supported as of now.
-    export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
-
-    # Set this when using --all option to run application in combined summarization and search mode. Only Qwen/Qwen3-Embedding-0.6B is supported as of now.
-    export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
+    # --search : use any multimodal embedding model for video-only search flows
+    # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+    # --all    : use the Qwen text embedding model for combined summarization + search flows
+    export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
     ```
 
-5. **Configure Directory Watcher (Video Search Mode Only)**:
+    > **Note**: SETTING EMBEDDING MODELS (choose the value that matches your deployment mode) Supported model list can be found in [supported-models](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md)
+
+4. **Configure Directory Watcher (Video Search Mode Only)**:
 
     For automated video ingestion in search mode, you can use the directory watcher service:
 
@@ -119,7 +117,7 @@ Before running the application, you need to set several environment variables:
 
     > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with the `--search` mode.
 
-6. **Set advanced VLM Configuration Options**:
+5. **Set advanced VLM Configuration Options**:
 
     The following environment variables provide additional control over VLM inference behavior and logging:
 
@@ -164,7 +162,7 @@ The Video Summarization application offers multiple modes and deployment options
 
 ### 🧩 Deployment Options for Video Summarization
 
-| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model
+| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | For usage with CPUs only; when inference speed is not a priority. |
 | VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` | For usage with CPUs and GPUs; when inference speed is a priority. |
@@ -172,9 +170,10 @@ The Video Summarization application offers multiple modes and deployment options
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 | VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 
-> **Notes:** 
-> 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk. 
-> 2) Final Summary is a method of summarization where it summarizes the whole video. 
+> **Notes:**
+>
+> 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
+> 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
 
 ## ▶️ Run the Application
@@ -331,7 +330,6 @@ For alternative ways to set up the sample application, see:
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 
-
 ## Troubleshooting
 
 ### Containers have started but the application is not working
@@ -351,23 +349,28 @@ For alternative ways to set up the sample application, see:
 **Cause**: This issue occurs when the `ov-models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
 
 **Symptoms**:
+
 - VLM microservice container fails to start or crashes during model loading
 - Permission denied errors in VLM service logs
 - Model conversion or caching failures
 - Error messages mentioning `/home/appuser/.cache/huggingface` or `/app/ov-model` access issues
 
 **Solution**:
+
 1. Stop the running application:
+
    ```bash
    source setup.sh --down
    ```
 
 2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
+
    ```bash
    docker volume rm ov-models docker_ov-models
    ```
 
 3. Restart the application (the volume will be recreated with correct permissions):
+
    ```bash
    # For Video Summarization
    source setup.sh --summary

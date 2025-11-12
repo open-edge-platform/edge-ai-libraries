@@ -3,23 +3,17 @@
 
 import pathlib
 import time
-from typing import List, Any
+from typing import List
 
 from src.common import logger, settings
 from src.core.embedding.simple_client import SimpleVDMSClient
 from src.core.utils.metadata_utils import store_enhanced_video_metadata
 
-# Import Qwen support for large text processing
-from .embedding_api import QwenEmbeddings
-from .embedding_model import Qwen3
-
 # Import SDK-based embedding helper for optimized processing
-from .sdk_embedding_helper import generate_video_embedding_sdk
+from .sdk_embedding_helper import generate_video_embedding_sdk, get_sdk_client
 
 # Cache to store VDMS client instances for different use cases
 _client_cache: dict[str, SimpleVDMSClient] = {}
-# Cache for Qwen model instances (expensive to create)
-_qwen_model_cache: dict[str, Any] = {}
 
 
 def _get_client_key(endpoint: str | None = None, use_case: str = "default") -> str:
@@ -361,42 +355,6 @@ async def _generate_video_embedding_sdk_mode(
     
     logger.info(f"SDK processing completed: {results['total_frames_processed']} frames processed")
     return results['stored_ids']
-
-
-def _get_qwen_embedder(config: dict = None) -> QwenEmbeddings:
-    """
-    Get or create a cached Qwen embedder for large text processing.
-    
-    Args:
-        config: Configuration for Qwen model
-        
-    Returns:
-        QwenEmbeddings instance
-    """
-    # Use config or load from settings
-    from src.core.utils.config_utils import read_config
-    if not config:
-        config = read_config(settings.CONFIG_FILEPATH, type="yaml")
-        if not config:
-            raise Exception("Failed to load configuration for Qwen model")
-        config = config.get("embeddings", {})
-    
-    model_name = config.get("qwen_model_name")  # Must be explicitly configured - no default
-    if not model_name:
-        raise ValueError("Qwen model name must be explicitly provided in configuration - no default model name is allowed")
-    
-    if model_name not in _qwen_model_cache:
-        logger.info(f"Creating Qwen model: {model_name}")
-        qwen_model = Qwen3(config)
-        qwen_embedder = QwenEmbeddings(model=qwen_model)
-        _qwen_model_cache[model_name] = qwen_embedder
-        logger.debug(f"Qwen embedder cached for: {model_name}")
-    else:
-        logger.debug(f"Using cached Qwen embedder for: {model_name}")
-    
-    return _qwen_model_cache[model_name]
-
-
 async def generate_text_embedding(
     text: str, 
     text_metadata: dict = {}, 
@@ -404,10 +362,7 @@ async def generate_text_embedding(
     qwen_threshold: int = 500
 ) -> List[str]:
     """
-    Smart text embedding generation that chooses between multimodal API and Qwen.
-    
-    - Short text (< threshold): Uses multimodal embedding API (same as video frames)
-    - Long text (>= threshold): Uses Qwen model optimized for large documents
+    Generate and persist text embeddings using either SDK or API mode.
     
     Args:
         text: The text content to embed
@@ -420,41 +375,36 @@ async def generate_text_embedding(
     """
     try:
         text_length = len(text)
-        use_qwen = use_qwen_for_long_text and text_length >= qwen_threshold
+        use_qwen_hint = use_qwen_for_long_text and text_length >= qwen_threshold
+        processing_mode = (settings.EMBEDDING_PROCESSING_MODE or "sdk").lower()
+        use_sdk_mode = processing_mode == "sdk"
+        model_name = (settings.MULTIMODAL_EMBEDDING_MODEL_NAME or "").strip() or "<unspecified>"
         
-        logger.info(f"Processing text embedding (length: {text_length}, use_qwen: {use_qwen})")
-        
-        if use_qwen:
-            # Use Qwen for large text processing
-            logger.info("Using Qwen embedder for large text")
-            
-            # Get Qwen-specific VDMS client
-            vdms_client = _get_cached_vdms_client(use_case="qwen_text")
-            
-            # Get Qwen embedder
-            qwen_embedder = _get_qwen_embedder()
-            
-            # Generate embeddings using Qwen
-            embeddings = qwen_embedder.embed_documents([text])
-            embedding_vector = embeddings[0] if embeddings else []
-            
-            # Store directly using our simplified client
-            ids = vdms_client.store_text_embedding_with_vector(
-                text=text, 
-                embedding_vector=embedding_vector,
-                metadata=text_metadata
+        logger.info(
+            f"Processing text embedding (length: {text_length}, use_qwen_hint={use_qwen_hint}, mode: {processing_mode}, model: {model_name})"
+        )
+
+        if use_sdk_mode:
+            sdk_client = get_sdk_client()
+            if not sdk_client.supports_text:
+                raise ValueError(
+                    f"Configured SDK model '{model_name}' does not support text embeddings"
+                )
+
+            ids = sdk_client.store_text_embedding(text=text, metadata=text_metadata)
+            logger.info(
+                "Stored text embedding via SDK client, ID: %s",
+                ids[0] if ids else "<none>",
             )
-            logger.info(f"Stored large text embedding with Qwen, ID: {ids[0]}")
-            
-        else:
-            # Use multimodal API for short text (consistent with video frame embeddings)
-            logger.info("Using multimodal API for short text")
-            vdms_client = _get_cached_vdms_client(use_case="text")
-            
-            # Store text embedding (will use multimodal API internally)
-            ids = vdms_client.store_text_embedding(text, metadata=text_metadata)
-            logger.info(f"Stored short text embedding with multimodal API, ID: {ids[0]}")
-        
+            return ids
+
+        logger.info("Using multimodal embedding API for text")
+        vdms_client = _get_cached_vdms_client(use_case="text")
+        ids = vdms_client.store_text_embedding(text, metadata=text_metadata)
+        logger.info(
+            "Stored text embedding via multimodal API, ID: %s",
+            ids[0] if ids else "<none>",
+        )
         return ids
 
     except Exception as ex:

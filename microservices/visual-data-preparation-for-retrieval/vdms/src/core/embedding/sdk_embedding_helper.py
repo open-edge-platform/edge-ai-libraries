@@ -304,24 +304,46 @@ def preload_sdk_client() -> bool:
         
         # Initialize the client (this loads the model)
         sdk_client = get_sdk_client()
-        
-        # Perform model warmup with a small test image
-        import numpy as np
-        from PIL import Image
-        
-        # Create a small test image (8x8 RGB for minimal overhead)
-        test_image = Image.fromarray(np.random.randint(0, 255, (8, 8, 3), dtype=np.uint8))
-        
-        # Generate test embedding to warm up the model
-        test_embedding = sdk_client.generate_embedding_for_image(test_image)
-        
-        if test_embedding is not None:
-            openvino_status = "OpenVINO optimized" if settings.SDK_USE_OPENVINO else "PyTorch native"
-            logger.info(f"SDK client preloaded successfully! {openvino_status} model cached and ready ({len(test_embedding)}-dim embeddings)")
-            return True
-        else:
-            logger.warning("SDK client initialized but test embedding failed")
+
+        if sdk_client.supports_image:
+            # Perform image warmup with a small test pattern
+            import numpy as np
+            from PIL import Image
+
+            test_image = Image.fromarray(
+                np.random.randint(0, 255, (8, 8, 3), dtype=np.uint8)
+            )
+            test_embedding = sdk_client.generate_embedding_for_image(test_image)
+
+            if test_embedding is not None:
+                openvino_status = "OpenVINO optimized" if settings.SDK_USE_OPENVINO else "PyTorch native"
+                logger.info(
+                    "SDK client preloaded successfully! %s model cached and ready (%d-dim embeddings)",
+                    openvino_status,
+                    len(test_embedding),
+                )
+                return True
+            logger.warning("SDK client initialized but image warmup embedding failed")
             return False
+
+        if sdk_client.supports_text:
+            warmup_embedding = sdk_client.generate_embedding_for_text("sdk-warmup")
+            if warmup_embedding is not None:
+                openvino_status = "OpenVINO optimized" if settings.SDK_USE_OPENVINO else "PyTorch native"
+                logger.info(
+                    "SDK client preloaded for text embeddings! %s model cached and ready (%d-dim embeddings)",
+                    openvino_status,
+                    len(warmup_embedding),
+                )
+                return True
+            logger.warning("SDK client text warmup failed")
+            return False
+
+        logger.error(
+            "SDK client model %s does not report support for text or image embeddings; warmup skipped",
+            settings.MULTIMODAL_EMBEDDING_MODEL_NAME,
+        )
+        return False
             
     except Exception as e:
         logger.error(f"Failed to preload SDK client: {e}")
@@ -335,6 +357,7 @@ class SimplePipelineManager:
         self.master_sdk_client = sdk_client
         self.config = get_pipeline_config()
         self._thread_local = threading.local()
+        self.supports_image_embeddings = sdk_client.supports_image
         
         # Object detection configuration
         self.enable_object_detection = enable_object_detection
@@ -346,9 +369,12 @@ class SimplePipelineManager:
             self._initialize_object_detector()
         
         # Log device consistency across all components
-        logger.info(f"Device consistency: Processing={settings.DEVICE}, "
-                   f"Embedding={sdk_client.device}, "
-                   f"Detection={'N/A' if not self.enable_object_detection else self.detector.device if self.detector else 'Failed'}")
+        logger.info(
+            f"Device consistency: Processing={settings.DEVICE}, "
+            f"Embedding={sdk_client.device}, "
+            f"Detection={'N/A' if not self.enable_object_detection else self.detector.device if self.detector else 'Failed'}, "
+            f"ImageEmbeddingsSupported={self.supports_image_embeddings}"
+        )
         
         # Remove inference locking - use thread-safe infer_new_request pattern
         self._inference_lock = None
@@ -728,6 +754,23 @@ class SimplePipelineManager:
                 f"[Batch {batch_index}/{total_batches}] Processing {len(batch_frames)} frames "
                 f"(object detection: {self.enable_object_detection})"
             )
+
+            if not self.supports_image_embeddings:
+                logger.info(
+                    "Embedding model %s does not support image/video embeddings; skipping batch %d",
+                    self.master_sdk_client.model_id,
+                    batch_index,
+                )
+                return {
+                    'embeddings_count': 0,
+                    'stored_ids': [],
+                    'processing_time': time.time() - batch_start_time,
+                    'detection_time': 0.0,
+                    'embedding_time': 0.0,
+                    'storage_time': 0.0,
+                    'items_after_detection': 0,
+                    'input_frames': len(batch_frames)
+                }
             
             # Step 1: Process frames with object detection to expand the batch
             logger.debug(f"Step 1: Starting object detection for {len(batch_frames)} frames")
@@ -777,7 +820,13 @@ class SimplePipelineManager:
                     valid_embeddings.append(embedding)
                     valid_metadatas.append(metadata)
                 else:
-                    logger.warning(f"Failed to generate embedding for image {metadata['frame_id']}")
+                    if self.supports_image_embeddings:
+                        logger.warning(f"Failed to generate embedding for image {metadata['frame_id']}")
+                    else:
+                        logger.debug(
+                            "Skipping embedding for %s because model does not support image modality", 
+                            metadata['frame_id']
+                        )
             logger.debug(
                 f"[Batch {batch_index}/{total_batches}] Step 3 completed: {len(valid_embeddings)} valid "
                 f"embeddings out of {len(embeddings)}"
@@ -891,6 +940,34 @@ def generate_video_embedding_sdk(
     try:
         # Get SDK client
         sdk_client = get_sdk_client()
+
+        if not sdk_client.supports_image:
+            logger.info(
+                "Embedding model %s reports no image/video support; skipping video embedding pipeline",
+                sdk_client.model_id,
+            )
+            total_time = time.time() - total_start_time
+            return {
+                'status': 'skipped_no_image_support',
+                'stored_ids': [],
+                'total_embeddings': 0,
+                'total_frames_processed': 0,
+                'frame_interval': frame_interval,
+                'timing': {
+                    'frame_extraction_time': 0.0,
+                    'parallel_stage_time': 0.0,
+                    'pipeline_wall_time': total_time,
+                    'avg_batch_time': 0.0,
+                    'max_batch_time': 0.0,
+                    'stage_breakdown': {},
+                },
+                'frame_counts': {
+                    'extracted_frames': 0,
+                    'post_detection_items': 0,
+                    'stored_embeddings': 0,
+                },
+                'processing_mode': 'sdk_simple_pipeline_with_batch_storage',
+            }
         
         # Process video using simple pipeline approach
         result = _process_video_from_memory_simple_pipeline(

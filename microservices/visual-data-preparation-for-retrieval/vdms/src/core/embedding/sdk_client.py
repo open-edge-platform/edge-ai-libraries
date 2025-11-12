@@ -65,6 +65,32 @@ class SDKVDMSClient:
     - Aligns with standard persistence flows to maintain index continuity
     """
     
+    @staticmethod
+    def _to_list(embedding: Any) -> List[float]:
+        """Convert an embedding tensor/array into a plain Python list."""
+        if embedding is None:
+            return []
+
+        candidate = embedding
+        # Normalize common tensor interfaces
+        if hasattr(candidate, "detach"):
+            candidate = candidate.detach()
+        if hasattr(candidate, "cpu"):
+            candidate = candidate.cpu()
+        if hasattr(candidate, "numpy"):
+            candidate = candidate.numpy()
+
+        if hasattr(candidate, "tolist"):
+            return candidate.tolist()
+
+        if isinstance(candidate, list):
+            return candidate
+
+        try:
+            return [float(x) for x in candidate]
+        except TypeError:
+            return [float(candidate)]
+
     def __init__(self, 
                  model_id: str = "",
                  device: str = "CPU",
@@ -107,6 +133,31 @@ class SDKVDMSClient:
             use_openvino=use_openvino,
             ov_models_dir=ov_models_dir
         )
+
+        # Detect modality support early to avoid unsupported operations later
+        self.supports_text = True
+        self.supports_image = True
+        try:
+            if hasattr(self.model_handler, "supports_text"):
+                self.supports_text = bool(self.model_handler.supports_text())
+        except Exception as exc:
+            logger.warning(
+                "Failed to detect text support for %s via supports_text(): %s. Assuming text support.",
+                model_id,
+                exc,
+            )
+            self.supports_text = True
+
+        try:
+            if hasattr(self.model_handler, "supports_image"):
+                self.supports_image = bool(self.model_handler.supports_image())
+        except Exception as exc:
+            logger.warning(
+                "Failed to detect image support for %s via supports_image(): %s. Assuming image support.",
+                model_id,
+                exc,
+            )
+            self.supports_image = True
         
         # Load the model
         logger.info("Loading embedding model...")
@@ -145,37 +196,43 @@ class SDKVDMSClient:
         """
         try:
             logger.info("Auto-detecting embedding dimensions from SDK model...")
-            
-            # Create a small dummy image for testing
-            dummy_image = Image.new('RGB', (224, 224), color='white')
-            
-            # Generate a test embedding to get dimensions
-            test_embedding = self.model_handler.encode_image([dummy_image])
-            
-            logger.debug(f"Test embedding type: {type(test_embedding)}")
-            logger.debug(f"Test embedding length: {len(test_embedding) if test_embedding is not None else 'None'}")
-            
-            if test_embedding is not None and len(test_embedding) > 0:
-                embedding = test_embedding[0]
-                logger.debug(f"Single embedding type: {type(embedding)}")
-                logger.debug(f"Single embedding shape: {embedding.shape if hasattr(embedding, 'shape') else 'N/A'}")
-                
-                if hasattr(embedding, 'shape'):
-                    dimensions = embedding.shape[0] if len(embedding.shape) == 1 else embedding.shape[-1]
-                    logger.debug(f"Extracted from shape: {dimensions}")
-                elif hasattr(embedding, '__len__'):
-                    dimensions = len(embedding)
-                    logger.debug(f"Extracted from len: {dimensions}")
-                else:
-                    dimensions = 512  # fallback
-                    logger.debug(f"Using fallback: {dimensions}")
-                    
-                logger.info(f"Auto-detected embedding dimensions: {dimensions}")
-                return dimensions
-            else:
-                logger.warning("Could not detect dimensions from model, using default 512")
-                return 512
-                
+
+            if self.supports_image:
+                logger.debug("Probing dimensions via image pathway")
+                dummy_image = Image.new('RGB', (224, 224), color='white')
+                test_embedding = self.model_handler.encode_image([dummy_image])
+                logger.debug(
+                    "Image probe type=%s length=%s",
+                    type(test_embedding),
+                    len(test_embedding) if test_embedding is not None else 'None',
+                )
+                if test_embedding and len(test_embedding) > 0:
+                    embedding_list = self._to_list(test_embedding[0])
+                    if embedding_list:
+                        dimensions = len(embedding_list)
+                        logger.info("Auto-detected embedding dimensions: %d", dimensions)
+                        return dimensions
+                    logger.warning("Image probe returned empty embedding vector")
+
+            if self.supports_text:
+                logger.debug("Probing dimensions via text pathway")
+                test_embedding = self.model_handler.encode_text(["dimension probe"])
+                logger.debug(
+                    "Text probe type=%s length=%s",
+                    type(test_embedding),
+                    len(test_embedding) if test_embedding is not None else 'None',
+                )
+                if test_embedding is not None and len(test_embedding) > 0:
+                    embedding_list = self._to_list(test_embedding[0])
+                    if embedding_list:
+                        dimensions = len(embedding_list)
+                        logger.info("Auto-detected embedding dimensions from text: %d", dimensions)
+                        return dimensions
+                    logger.warning("Text probe returned empty embedding vector")
+
+            logger.warning("Could not detect dimensions from model, using default 512")
+            return 512
+
         except Exception as e:
             logger.warning(f"Failed to auto-detect embedding dimensions: {e}")
             logger.warning(f"Traceback: {traceback.format_exc()}")
@@ -390,6 +447,13 @@ class SDKVDMSClient:
             Embedding as list of floats or None if failed
         """
         try:
+            if not self.supports_image:
+                logger.debug(
+                    "Model %s does not support image embeddings; skipping single image request.",
+                    self.model_id,
+                )
+                return None
+
             # Ensure we have a PIL Image
             if isinstance(image_input, str):
                 # If it's a path, load the image
@@ -406,13 +470,8 @@ class SDKVDMSClient:
             
             if embeddings is not None and len(embeddings) > 0:
                 embedding = embeddings[0]
-                # Convert to list if it's a numpy array or tensor
-                if hasattr(embedding, 'tolist'):
-                    return embedding.tolist()
-                elif hasattr(embedding, '__iter__'):
-                    return list(embedding)
-                else:
-                    return [embedding]
+                vector = self._to_list(embedding)
+                return vector or None
             return None
             
         except Exception as e:
@@ -430,6 +489,14 @@ class SDKVDMSClient:
             List of embeddings as lists of floats or None for failed images
         """
         try:
+            if not self.supports_image:
+                logger.info(
+                    "Model %s does not support image embeddings; skipping batch of %d images.",
+                    self.model_id,
+                    len(image_inputs),
+                )
+                return [None] * len(image_inputs)
+
             # Convert all inputs to PIL Images
             pil_images = []
             for image_input in image_inputs:
@@ -451,13 +518,8 @@ class SDKVDMSClient:
                 results = []
                 for embedding in embeddings:
                     if embedding is not None:
-                        # Convert to list if it's a numpy array or tensor
-                        if hasattr(embedding, 'tolist'):
-                            results.append(embedding.tolist())
-                        elif hasattr(embedding, '__iter__'):
-                            results.append(list(embedding))
-                        else:
-                            results.append([embedding])
+                        vector = self._to_list(embedding)
+                        results.append(vector or None)
                     else:
                         results.append(None)
                 return results
@@ -466,5 +528,81 @@ class SDKVDMSClient:
         except Exception as e:
             logger.error(f"Error generating batch image embeddings: {e}")
             return [None] * len(image_inputs)
+
+    def generate_embedding_for_text(self, text: str) -> Optional[List[float]]:
+        """Generate embedding for a single text input using the SDK model."""
+        if not self.supports_text:
+            logger.error(
+                "Model %s does not support text embeddings; cannot embed provided text.",
+                self.model_id,
+            )
+            return None
+
+        try:
+            embeddings = self.model_handler.encode_text([text])
+            if embeddings is None or len(embeddings) == 0:
+                logger.warning("Text embedding call returned empty result")
+                return None
+            return self._to_list(embeddings[0]) or None
+        except Exception as exc:
+            logger.error(f"Error generating text embedding: {exc}")
+            logger.debug(traceback.format_exc())
+            return None
+
+    def generate_embeddings_for_texts(self, texts: List[str]) -> List[Optional[List[float]]]:
+        """Generate embeddings for multiple text inputs."""
+        if not self.supports_text:
+            logger.error(
+                "Model %s lacks text embedding support; cannot embed %d texts.",
+                self.model_id,
+                len(texts),
+            )
+            return [None] * len(texts)
+
+        try:
+            embeddings = self.model_handler.encode_text(texts)
+            if embeddings is None:
+                return [None] * len(texts)
+            results: List[Optional[List[float]]] = []
+            for embedding in embeddings:
+                results.append(self._to_list(embedding) or None)
+            return results
+        except Exception as exc:
+            logger.error(f"Error generating embeddings for texts: {exc}")
+            logger.debug(traceback.format_exc())
+            return [None] * len(texts)
+
+    def store_text_embedding(
+        self,
+        text: str,
+        metadata: Optional[dict] = None,
+        embedding_vector: Optional[List[float]] = None,
+    ) -> List[str]:
+        """Generate (if needed) and store a single text embedding."""
+        metadata = metadata or {}
+
+        vector = embedding_vector or self.generate_embedding_for_text(text)
+        if vector is None:
+            raise ValueError("Failed to generate text embedding for storage")
+
+        return self.store_text_embedding_with_vector(text, vector, metadata)
+
+    def store_text_embedding_with_vector(
+        self,
+        text: str,
+        embedding_vector: List[float],
+        metadata: Optional[dict] = None,
+    ) -> List[str]:
+        """Store a pre-computed text embedding vector in VDMS."""
+        metadata = metadata or {}
+        if not embedding_vector:
+            raise ValueError("Embedding vector cannot be empty")
+
+        cleaned_metadata = self._clean_metadata_for_vdms(metadata)
+        return self._store_embeddings(
+            embeddings=[embedding_vector],
+            texts=[text],
+            metadatas=[cleaned_metadata],
+        )
     
 

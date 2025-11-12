@@ -262,7 +262,7 @@ export DEFAULT_NUM_FRAMES=64
 export EMBEDDING_USE_OV=true
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${OV_MODELS_DIR}
-export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"LATENCY"}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 echo -e "${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
 
 # Device Configuration
@@ -419,9 +419,6 @@ if [ "$1" != "--down" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; t
         if [ -z "$EMBEDDING_MODEL_NAME" ]; then
             echo -e "${RED}ERROR: EMBEDDING_MODEL_NAME is not set in your shell environment.${NC}"
             return
-        elif [ -z "$TEXT_EMBEDDING_MODEL_NAME" ]; then
-            echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL_NAME is not set in your shell environment.${NC}"
-            return
         fi
     fi
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
@@ -561,7 +558,6 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
     [ "$1" = "--all" ] && \
         echo -e  "${BLUE}Creating Docker volumes for Video Search services:${NC}" && \
         export SEARCH_FEATURE="FEATURE_ON" && \
-        export USE_ONLY_TEXT_EMBEDDINGS=True && \
         export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
         export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
@@ -721,7 +717,6 @@ elif [ "$1" = "--search" ]; then
     export SUMMARY_FEATURE="FEATURE_OFF"
     export SEARCH_FEATURE="FEATURE_ON"
     export APP_FEATURE_MUX="ATOMIC"
-    export USE_ONLY_TEXT_EMBEDDINGS=False  # When only search is enabled, we use both text and video embeddings
     export VS_INDEX_NAME="video_frame_embeddings"  # DB Index or DB Collection name for video search standalone setup
 
     # Create YOLOX models volume for object detection if it doesn't exist

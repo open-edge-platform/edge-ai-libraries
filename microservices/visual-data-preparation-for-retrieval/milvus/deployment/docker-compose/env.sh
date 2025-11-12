@@ -39,7 +39,6 @@ fi
 
 export DATAPREP_SERVICE_PORT=9990
 export EMBEDDING_SERVER_PORT=9777
-export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
 # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14"
 

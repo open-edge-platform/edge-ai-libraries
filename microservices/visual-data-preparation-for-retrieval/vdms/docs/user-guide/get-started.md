@@ -26,7 +26,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `PM_MINIO_BUCKET` when running alongside pipeline-manager. |
 | `VDMS_VDB_HOST` / `VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
 | `DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
-| `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-16`). |
+| `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
 | `DEVICE` | Optional | `CPU` | Processing device for decord, embeddings, and object detection (`CPU` or `GPU`). |
@@ -54,6 +54,8 @@ export EMBEDDING_PROCESSING_MODE="sdk"
 source ./setup.sh --nosetup
 ```
 
+> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings in SDK and API modes without any additional flags.
+
 Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 
 ## Supporting Resources
@@ -77,7 +79,13 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
    ```bash
    export MINIO_ROOT_USER="minioadmin"
    export MINIO_ROOT_PASSWORD="minioadmin"
-   export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
+   export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   ```
+
+   For text-only scenarios replace the last line with:
+
+   ```bash
+   export MULTIMODAL_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
    ```
 
 3. **Choose your execution mode.**
