@@ -74,6 +74,8 @@ class Graph:
                             f"Unrecognized token in pipeline description: '{token.value}' "
                             f"(element: '{element.strip()}')"
                         )
+                    # TEE_END handled in _add_node()
+                    # SKIP doesn't need handling
 
                 prev_token_kind = token.kind
 
@@ -98,7 +100,7 @@ class Graph:
         _model_display_name_to_path(nodes)
         _video_name_to_path(nodes)
 
-        node_by_id = {node.id: node for node in nodes}
+        nodes_by_id = {node.id: node for node in nodes}
 
         edges_from: dict[str, list[str]] = defaultdict(list)
         for edge in self.edges:
@@ -111,7 +113,7 @@ class Graph:
         }
 
         target_node_ids = set(edge.target for edge in self.edges)
-        start_nodes = set(node_by_id.keys()) - target_node_ids
+        start_nodes = set(nodes_by_id.keys()) - target_node_ids
 
         if not start_nodes:
             logger.error(
@@ -126,7 +128,7 @@ class Graph:
         for start_id in sorted(start_nodes):
             if start_id not in visited:
                 _build_chain(
-                    start_id, node_by_id, edges_from, tee_names, visited, result_parts
+                    start_id, nodes_by_id, edges_from, tee_names, visited, result_parts
                 )
 
         pipeline_description = " ".join(result_parts)
