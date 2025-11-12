@@ -99,6 +99,7 @@ This method provides the fastest way to get started with the microservice.
     source ./run.sh --conf
     # This will output docker compose configs with all the environment variables resolved. The user can verify whether they are configured correctly.
     ```
+    The valid configuration will ensure the latest prebuilt image from `intel` registry is downloaded. The scripts take care of this.
 5. **Start the Microservices**:
     There are different options provided to start the microservices.
     ```bash
