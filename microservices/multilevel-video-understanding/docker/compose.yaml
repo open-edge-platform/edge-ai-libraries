@@ -13,7 +13,7 @@ services:
         no_proxy: ${no_proxy}
     image: ${REGISTRY:-}multilevel-video-understanding:${TAG:-latest}
     ports:
-      - ${SERVICE_PORT:-8000}:8000
+      - ${SERVICE_PORT:-8192}:8000
     networks:
       - app-network
     cap_drop:
@@ -36,6 +36,15 @@ services:
     security_opt:
       - apparmor=docker-default
       - no-new-privileges:true  # Restrict additional privileges
+    deploy:
+      resources:
+        limits:
+          cpus: '128'
+          memory: 256G
+        reservations:
+          cpus: '0.5'
+          memory: 1G
+    pids_limit: 1024
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
       interval: 30s
