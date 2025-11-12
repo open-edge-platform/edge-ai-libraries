@@ -342,6 +342,18 @@ For alternative ways to set up the sample application, see:
   source setup.sh --clean-data
   ```
 
+### Search returns no results after changing embedding model
+
+**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested in `--search` or `--all` mode.
+
+**Cause**: Either no videos have been processed yet, or the embedding model was switched to one with a different embedding dimension. Previously indexed vectors stay in the database, and their dimensions must match the active model. A mismatch prevents similarity lookups from returning any results.
+
+**Solution**:
+
+1. Verify at least one video has been uploaded or a summary run completed after the model change.
+2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
+3. Review the supported embedding models and their dimensions in [microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md) before switching models.
+
 ### VLM Microservice Model Loading Issues
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
