@@ -67,6 +67,8 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 ## Quick Start with Docker
 
+> **Important:** Do not run `docker build` directly against `docker/Dockerfile`. The build depends on a wheel generated from the multimodal embedding serving microservice. Always execute `./build.sh` in the `vdms` directory first so the wheel is created under `wheels/` before building the container image.
+
 1. **Clone the repository and enter the project.**
 
    ```bash

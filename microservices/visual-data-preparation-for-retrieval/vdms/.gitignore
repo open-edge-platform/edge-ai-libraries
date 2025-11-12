@@ -23,3 +23,6 @@ ov_model_venv
 ovms_config
 docs/implementation-history
 .github
+wheels/*.whl
+wheels/*.tar.gz
+!wheels/.gitkeep
