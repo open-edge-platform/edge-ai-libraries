@@ -256,6 +256,7 @@ export ALLOW_HEADERS=${ALLOW_HEADERS:-*}
 # env for multimodal-embedding-serving (unified embedding service)
 export EMBEDDING_SERVER_PORT=9777
 export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
+export TEXT_EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL_NAME}  # Optional - only required for unified case (--all)
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_FRAME_INTERVAL=${DEFAULT_FRAME_INTERVAL:-15}
 export DEFAULT_NUM_FRAMES=64
@@ -418,11 +419,18 @@ if [ "$1" != "--down" ] && [ "$1" != "--clean-data" ] && [ "$2" != "config" ]; t
         echo -e "${YELLOW}Valid options are: 'api' or 'sdk'${NC}"
         return
     fi
+    # Enforce dedicated text embedding selection for unified (--all) runs.
     if [ "$1" = "--all" ]; then
         if [ -z "$EMBEDDING_MODEL_NAME" ]; then
             echo -e "${RED}ERROR: EMBEDDING_MODEL_NAME is not set in your shell environment.${NC}"
             return
+        elif [ -z "$TEXT_EMBEDDING_MODEL_NAME" ]; then
+            echo -e "${RED}ERROR: TEXT_EMBEDDING_MODEL_NAME is not set in your shell environment.${NC}"
+            return
         fi
+
+        export EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL_NAME}
+        echo "Using TEXT_EMBEDDING_MODEL_NAME to override EMBEDDING_MODEL_NAME for --all mode."
     fi
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
         if [ -z "$OVMS_LLM_MODEL_NAME" ]; then
