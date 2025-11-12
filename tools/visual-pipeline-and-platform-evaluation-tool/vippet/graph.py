@@ -57,7 +57,6 @@ class Graph:
         tee_stack: list[str] = []
         prev_token_kind: str | None = None
 
-        pipeline_description = pipeline_description.replace(",", " ")
         elements = pipeline_description.split("!")
 
         for node_id, element in enumerate(elements):
@@ -74,6 +73,7 @@ class Graph:
                             f"Unrecognized token in pipeline description: '{token.value}' "
                             f"(element: '{element.strip()}')"
                         )
+                    # CAPSFILTER is pre-processed in _tokenize() and handled as regular type with properties
                     # TEE_END handled in _add_node()
                     # SKIP doesn't need handling
 
@@ -145,11 +145,18 @@ class _Token:
 
 def _tokenize(element: str) -> Iterator[_Token]:
     token_specification = [
-        ("PROPERTY", r"\S+\s*=\s*\S+"),  # Property in key=value format
-        ("TEE_END", r"\S+\.(?:\s|\Z)"),  # End of tee
-        ("TYPE", r"\S+"),  # Element type
-        ("SKIP", r"[ \t]+"),  # Skip over spaces and tabs
-        ("MISMATCH", r"."),  # Any other character
+        # Capsfilter with optional properties
+        ("CAPSFILTER", r"\S+\([^)]*\)(?:,\S+=\S+)+"),
+        # Property in key=value format
+        ("PROPERTY", r"\S+\s*=\s*\S+"),
+        # End of tee
+        ("TEE_END", r"\S+\.(?:\s|\Z)"),
+        # Type of element
+        ("TYPE", r"\S+"),
+        # Skip over spaces and tabs
+        ("SKIP", r"[ \t]+"),
+        # Any other character
+        ("MISMATCH", r"."),
     ]
 
     tok_regex = "|".join(
@@ -161,7 +168,26 @@ def _tokenize(element: str) -> Iterator[_Token]:
         value = mo.group().strip()
         if kind == "SKIP":
             continue
-        yield _Token(kind, value)
+
+        # Handle capsfilter with comma-separated properties
+        if kind == "CAPSFILTER":
+            # Find where properties start (after first comma following closing paren)
+            paren_close_idx = value.rfind(")")
+            comma_idx = value.find(",", paren_close_idx)
+
+            # Split into type and properties
+            type_part = value[:comma_idx]
+            props_part = value[comma_idx + 1 :]
+
+            yield _Token("TYPE", type_part)
+
+            # Split comma-separated properties
+            for prop in props_part.split(","):
+                prop = prop.strip()
+                if "=" in prop:
+                    yield _Token("PROPERTY", prop)
+        else:
+            yield _Token(kind, value)
 
 
 def _add_node(
@@ -215,9 +241,20 @@ def _build_chain(
         if not node:
             break
 
-        result_parts.append(node.type)
-        for key, value in node.data.items():
-            result_parts.append(f"{key}={value}")
+        # Check if this is a capsfilter (contains parentheses in type)
+        is_capsfilter = "(" in node.type
+
+        if is_capsfilter and node.data:
+            # For capsfilters, append type and properties as comma-separated
+            properties_str = ",".join(
+                f"{key}={value}" for key, value in node.data.items()
+            )
+            result_parts.append(f"{node.type},{properties_str}")
+        else:
+            # For regular elements, append type and properties separately (space-separated)
+            result_parts.append(node.type)
+            for key, value in node.data.items():
+                result_parts.append(f"{key}={value}")
 
         targets = edges_from.get(current_id, [])
         if not targets:

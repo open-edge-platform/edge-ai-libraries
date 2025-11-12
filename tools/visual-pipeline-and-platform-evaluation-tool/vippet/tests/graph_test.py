@@ -1121,7 +1121,6 @@ unsorted_nodes_edges = [
 
 
 def normalize(s: str) -> str:
-    s = re.sub(r",", " ", s)
     s = re.sub(r" {2,}", " ", s)
     s = re.sub(r"(?<!\s)!", " !", s)
     s = re.sub(r"!(?!\s)", "! ", s)
