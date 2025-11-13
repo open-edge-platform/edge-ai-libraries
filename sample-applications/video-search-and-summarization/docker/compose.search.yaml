@@ -117,7 +117,7 @@ services:
             # Embedding processing mode settings (SDK vs API)
             EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
             SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
-            DEVICE: ${DEVICE:-CPU}
+            VDMS_DATAPREP_DEVICE: ${VDMS_DATAPREP_DEVICE:-CPU}
             OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
             OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
 

@@ -3,6 +3,7 @@
 
 from pathlib import Path
 
+from pydantic import AliasChoices, Field
 from pydantic_settings import BaseSettings
 
 
@@ -50,7 +51,11 @@ class Settings(BaseSettings):
     # SDK-specific settings (only used when EMBEDDING_PROCESSING_MODE = "sdk")
     # Note: MULTIMODAL_EMBEDDING_MODEL_NAME is used for model selection in SDK mode
     SDK_USE_OPENVINO: bool = True  # Whether to use OpenVINO optimization in SDK mode (default: True for better performance)
-    DEVICE: str = "CPU"  # Device for all processing components (decord, embedding model, object detection)
+    DEVICE: str = Field(
+        default="CPU",
+        validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),
+        description="Device for all processing components (decord, embedding model, object detection)",
+    )
     OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by both SDK and embedding service)
 
     # Frame-based processing settings
@@ -67,6 +72,5 @@ class Settings(BaseSettings):
         """Get the effective bucket name, checking environment variables first"""
         import os
         return os.getenv("PM_MINIO_BUCKET", os.getenv("DEFAULT_BUCKET_NAME", self.DEFAULT_BUCKET_NAME))
-
 
 settings = Settings()

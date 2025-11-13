@@ -52,7 +52,7 @@ export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
 export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 # Note: EMBEDDING_MODEL_NAME is used for model selection in both SDK and API modes
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
-export DEVICE=${DEVICE:-"CPU"}
+export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
@@ -82,7 +82,7 @@ configure_device() {
         fi
         
         # Set GPU-specific configuration
-        export DEVICE="GPU"
+        export VDMS_DATAPREP_DEVICE="GPU"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
         echo -e "${GREEN}GPU mode configured for all components:${NC}"
@@ -92,19 +92,19 @@ configure_device() {
         
     else
         echo -e "${BLUE} CPU mode configured for all components${NC}"
-        export DEVICE="CPU"
+        export VDMS_DATAPREP_DEVICE="CPU"
     fi
 }
 
 # Device mode selection
-if [[ "${DEVICE}" == "GPU" ]]; then
+if [[ "${VDMS_DATAPREP_DEVICE}" == "GPU" ]]; then
     configure_device "GPU"
 else
     configure_device "CPU"
 fi
 
-# Align EMBEDDING_DEVICE with resolved DEVICE for SDK runtime configuration
-export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$DEVICE}
+# Align EMBEDDING_DEVICE with resolved device for SDK runtime configuration
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
@@ -153,7 +153,7 @@ echo -e "${BLUE}Current Configuration:${NC}"
 echo -e "   Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC}"
 echo -e "   Registry: ${YELLOW}${REGISTRY}${NC}"
 echo -e "   Model: ${YELLOW}${EMBEDDING_MODEL_NAME}${NC}"
-echo -e "   Device: ${YELLOW}${DEVICE}${NC}"
+echo -e "   Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC}"
 echo -e "   OpenVINO: ${YELLOW}${SDK_USE_OPENVINO}${NC}"
 echo -e "   OpenVINO Performance Mode: ${YELLOW}${OV_PERFORMANCE_MODE}${NC}"
 echo -e "   DataPrep Log Level: ${YELLOW}${VDMS_DATAPREP_LOG_LEVEL}${NC}"
@@ -161,11 +161,11 @@ echo -e "   DataPrep Log Level: ${YELLOW}${VDMS_DATAPREP_LOG_LEVEL}${NC}"
 echo -e "${BLUE}Usage Tips:${NC}"
 echo -e "   • To use SDK mode (optimized memory usage, default): ${YELLOW}export EMBEDDING_PROCESSING_MODE=sdk${NC}"
 echo -e "   • To use API mode: ${YELLOW}export EMBEDDING_PROCESSING_MODE=api${NC}"
-echo -e "   • For GPU acceleration: ${YELLOW}export DEVICE=GPU${NC} (requires Intel GPU)"
-echo -e "   • For CPU processing: ${YELLOW}export DEVICE=CPU${NC}"
+echo -e "   • For GPU acceleration: ${YELLOW}export VDMS_DATAPREP_DEVICE=GPU${NC} (requires Intel GPU)"
+echo -e "   • For CPU processing: ${YELLOW}export VDMS_DATAPREP_DEVICE=CPU${NC}"
 echo -e "   • For OpenVINO optimization: ${YELLOW}export SDK_USE_OPENVINO=true${NC} (default)"
 echo -e "   • To set DataPrep log level: ${YELLOW}export VDMS_DATAPREP_LOG_LEVEL=DEBUG${NC}"
 
 echo -e "${BLUE} Quick Device Setup:${NC}"
 echo -e "   • ${YELLOW}./embedding-setup.sh${NC} - Default SDK mode with CPU and OpenVINO"
-echo -e "   • ${YELLOW}DEVICE=GPU ./embedding-setup.sh${NC} - SDK mode with GPU acceleration and validation"
+echo -e "   • ${YELLOW}VDMS_DATAPREP_DEVICE=GPU ./embedding-setup.sh${NC} - SDK mode with GPU acceleration and validation"

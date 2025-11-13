@@ -29,7 +29,7 @@ The table below lists the core configuration knobs. `setup.sh` seeds defaults, b
 | `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
 | `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
 | `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
-| `DEVICE` | Optional | `CPU` | Processing device for decord, embeddings, and object detection (`CPU` or `GPU`). |
+| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
 | `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
 | `ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
 | `DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
@@ -192,4 +192,4 @@ curl -X DELETE "http://localhost:6007/v1/dataprep/videos?video_id=traffic_cam_20
 - **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
 - **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
 - **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
-- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, `DEVICE=GPU`, and `SDK_USE_OPENVINO=true`.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, `VDMS_DATAPREP_DEVICE=GPU`, and `SDK_USE_OPENVINO=true`.

@@ -25,10 +25,10 @@ export VDMS_DATAPREP_HOST_PORT=6007
 # Embedding and processing configuration -----------------------------
 export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
-export DEVICE=${DEVICE:-"CPU"}
+export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
 export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
-export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$DEVICE}
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
@@ -54,6 +54,7 @@ export RENDER_GROUP_ID=$(getent group render | awk -F: '{printf "%s\n", $3}')
 # Model storage configuration for object detection
 export YOLOX_MODELS_VOLUME_NAME="vdms-yolox-models"
 export YOLOX_MODELS_MOUNT_PATH="/app/models/yolox"
+
 
 # Env vars for minio service ---------------------------
 export MINIO_HOST="minio-server"

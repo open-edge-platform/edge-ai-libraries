@@ -161,11 +161,11 @@ esac
 # If not set, the default configuration will be: {"PERFORMANCE_HINT": "LATENCY"}
 if [ -n "$OV_CONFIG" ]; then
     export OV_CONFIG=$OV_CONFIG
-    echo -e "${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
+    echo -e "[vlm-openvino-serving] ${GREEN}Using custom OpenVINO configuration: ${YELLOW}$OV_CONFIG${NC}"
 else
     unset OV_CONFIG
     # Default configuration will be handled by the VLM service
-    echo -e "${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
+    echo -e "[vlm-openvino-serving] ${GREEN}Using default OpenVINO configuration: ${YELLOW}{\"PERFORMANCE_HINT\": \"LATENCY\"}${NC}"
 fi
 
 # env for pipeline-manager
@@ -267,14 +267,14 @@ export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 # This impacts inference characteristics: "THROUGHPUT" optimizes for overall throughput, while "LATENCY" optimizes for response time.
 # Please review user documentation or migration notes for details on this change.
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
-echo -e "${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
+echo -e "[multimodal-embedding-serving] ${GREEN}OpenVINO performance mode: ${YELLOW}$OV_PERFORMANCE_MODE${NC}"
 
 # Device Configuration
-export DEVICE=${DEVICE:-"CPU"}
+export VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-"CPU"}
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
 
 if [ "$ENABLE_EMBEDDING_GPU" = true ]; then
-    export DEVICE=GPU
+    export VDMS_DATAPREP_DEVICE=GPU
 fi
 
 
@@ -303,7 +303,7 @@ configure_device() {
         fi
         
         # Set GPU-specific configuration
-        export DEVICE="${device}"
+        export VDMS_DATAPREP_DEVICE="${device}"
         export SDK_USE_OPENVINO=true  # Force OpenVINO for GPU mode
         
         echo -e "${GREEN}GPU mode configured for all components:${NC}"
@@ -313,21 +313,43 @@ configure_device() {
         
     else
         echo -e "${BLUE} CPU mode configured for all components${NC}"
-        export DEVICE="${device}"
+        export VDMS_DATAPREP_DEVICE="${device}"
     fi
 }
 
 # Device mode selection
-if [[ "${DEVICE}" == GPU* ]]; then
-    configure_device "${DEVICE}"
+if [[ "${VDMS_DATAPREP_DEVICE}" == GPU* ]]; then
+    configure_device "${VDMS_DATAPREP_DEVICE}"
 else
     configure_device "CPU"
 fi
 
-export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$DEVICE}
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$VDMS_DATAPREP_DEVICE}
 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings
+
+processing_scope="vdms-dataprep video decoding, YOLOX detection, and embedding execution"
+if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
+    processing_scope+=", plus the multimodal-embedding-serving container"
+fi
+
+embedding_model_display=${EMBEDDING_MODEL_NAME:-"(not provided)"}
+embedding_endpoint_display=${MULTIMODAL_EMBEDDING_ENDPOINT:-"(not configured)"}
+
+if [[ "${EMBEDDING_PROCESSING_MODE}" == "sdk" ]]; then
+    embedding_mode_details="SDK mode keeps embeddings in-process within vdms-dataprep; no external HTTP calls are made."
+else
+    embedding_mode_details="API mode routes embeddings to multimodal-embedding-serving at ${embedding_endpoint_display}."
+fi
+
+echo -e "[vdms-dataprep] ${BLUE}Runtime Summary:${NC}"
+echo -e "   • [vdms-dataprep] Processing Device: ${YELLOW}${VDMS_DATAPREP_DEVICE}${NC} (${processing_scope})."
+if [[ "${EMBEDDING_PROCESSING_MODE}" == "api" ]]; then
+    echo -e "   • [multimodal-embedding-serving] Embedding Service Device: ${YELLOW}${EMBEDDING_DEVICE}${NC} (HTTP mode container)."
+fi
+echo -e "   • [vdms-dataprep] Embedding Mode: ${YELLOW}${EMBEDDING_PROCESSING_MODE}${NC} — ${embedding_mode_details}"
+echo -e "   • [multimodal-embedding-serving] Embedding Model: ${YELLOW}${embedding_model_display}${NC}"
 
 
 # Frame-to-Video Aggregation Settings for search-ms
@@ -361,8 +383,8 @@ export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in y
 export OD_MODEL_NAME=${OD_MODEL_NAME}
 export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
 export OD_MODEL_OUTPUT_DIR=${OV_MODEL_DIR}/yoloworld
-echo -e "${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $OD_MODEL_TYPE ${NC}"
-echo -e "${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
+echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $OD_MODEL_TYPE ${NC}"
+echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
 
 # Verify if required environment variables are set in current shell, only when container down or clean is not requested.
@@ -565,93 +587,93 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
     # If summarization is enabled, set up the environment for OVMS or VLM for summarization
     [ "$1" = "--summary" ] && APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml" && \
-        echo -e  "${GREEN}Setting up Video Summarization application${NC}"
+    echo -e  "[pipeline-manager] ${GREEN}Setting up Video Summarization application${NC}"
 
     # If no arguments are passed or if --all is passed, set up both summarization and search   
     [ "$1" = "--all" ] && \
-        echo -e  "${BLUE}Creating Docker volumes for Video Search services:${NC}" && \
+    echo -e  "[video-search] ${BLUE}Creating Docker volumes for Video Search services:${NC}" && \
         export SEARCH_FEATURE="FEATURE_ON" && \
         export APP_FEATURE_MUX="SUMMARY_SEARCH" && \
         export VS_INDEX_NAME="video_summary_embeddings" && \
         APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.summary.yaml -f docker/compose.search.yaml" && \
-        echo -e  "${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
+    echo -e  "[pipeline-manager] ${GREEN}Setting up both applications: Video Summarization and Video Search${NC}"
     
     # Create YOLOX models volume for all modes that include search functionality
     if [ "$1" = "--all" ] && [ "$2" != "config" ]; then
         if ! docker volume ls | grep -q "${YOLOX_MODELS_VOLUME_NAME}"; then
-            echo -e "${BLUE}Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
+            echo -e "[vdms-dataprep] ${BLUE}Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
             docker volume create "${YOLOX_MODELS_VOLUME_NAME}"
             if [ $? = 0 ]; then
-                echo -e "${GREEN}YOLOX models volume created successfully${NC}"
+                echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume created successfully${NC}"
             else
-                echo -e "${RED}ERROR: Failed to create YOLOX models volume${NC}"
+                echo -e "[vdms-dataprep] ${RED}ERROR: Failed to create YOLOX models volume${NC}"
                 return 1
             fi
         else
-            echo -e "${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
+            echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
         fi
 
         # Create ov-models volume for embedding models if it doesn't exist
         if ! docker volume ls | grep -q "ov-models"; then
-            echo -e "${BLUE}Creating Docker volume for ov-models${NC}"
+            echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov-models${NC}"
             docker volume create ov-models
             if [ $? = 0 ]; then
-                echo -e "${GREEN}ov-models volume created successfully${NC}"
+                echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume created successfully${NC}"
             else
-                echo -e "${RED}ERROR: Failed to create ov-models volume${NC}"
+                echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov-models volume${NC}"
                 return 1
             fi
         else
-            echo -e "${GREEN}ov-models volume already exists${NC}"
+            echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume already exists${NC}"
         fi
 
         # Create data-prep volume if it doesn't exist
         if ! docker volume ls | grep -q "data-prep"; then
-            echo -e "${BLUE}Creating Docker volume for data-prep${NC}"
+            echo -e "[vdms-dataprep] ${BLUE}Creating Docker volume for data-prep${NC}"
             docker volume create data-prep
             if [ $? = 0 ]; then
-                echo -e "${GREEN}data-prep volume created successfully${NC}"
+                echo -e "[vdms-dataprep] ${GREEN}data-prep volume created successfully${NC}"
             else
-                echo -e "${RED}ERROR: Failed to create data-prep volume${NC}"
+                echo -e "[vdms-dataprep] ${RED}ERROR: Failed to create data-prep volume${NC}"
                 return 1
             fi
         else
-            echo -e "${GREEN}data-prep volume already exists${NC}"
+            echo -e "[vdms-dataprep] ${GREEN}data-prep volume already exists${NC}"
         fi
     fi
 
     # Check if the object detection model directory exists or whether docker-compose config is requested
     if [ ! -d "${OD_MODEL_OUTPUT_DIR}" ] && [ "$2" != "config" ]; then
-        echo -e  "${YELLOW}Object detection model directory does not exist. Creating it...${NC}"
+        echo -e  "[vdms-dataprep] ${YELLOW}Object detection model directory does not exist. Creating it...${NC}"
         mkdir -p "${OD_MODEL_OUTPUT_DIR}"
         convert_object_detection_models
     else
-        echo -e  "${YELLOW}Object detection model already exists. Skipping model setup...${NC}"
+        echo -e  "[vdms-dataprep] ${YELLOW}Object detection model already exists. Skipping model setup...${NC}"
     fi
 
     # Check if both LLM and VLM are configured for GPU. In which case, prioritize VLM for GPU and set OVMS to CPU
     if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \ 
        [ "$ENABLE_VLM_GPU" = true ]; then
-        echo -e "${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
+        echo -e "[ovms-service] ${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
         export ENABLE_OVMS_LLM_SUMMARY_GPU="false"        
     fi
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
     if [ "$ENABLE_OVMS_LLM_SUMMARY" = true ] || [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-        echo -e "${BLUE}Using OVMS for generating final summary for the video${NC}"
+        echo -e "[ovms-service] ${BLUE}Using OVMS for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_ON
         export LLM_SUMMARIZATION_API=http://$OVMS_HOST/v3
         export LLM_MODEL_API="v1/config"
 
         # Set relevant variables, compose files and profiles based on whether GPU is used or not
         if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ]; then
-            echo -e "${BLUE}Using GPU acceleration for OVMS${NC}"
+            echo -e "[ovms-service] ${BLUE}Using GPU acceleration for OVMS${NC}"
             export OVMS_CACHE_SIZE=2
             export LLM_COMPRESSION_WEIGHT_FORMAT=int4
             export LLM_DEVICE=GPU
             APP_COMPOSE_FILE="$APP_COMPOSE_FILE -f docker/compose.gpu_ovms.yaml --profile ovms"
         else
-            echo -e "${BLUE}Running OVMS on CPU${NC}"
+            echo -e "[ovms-service] ${BLUE}Running OVMS on CPU${NC}"
             export OVMS_CACHE_SIZE=10
             export LLM_COMPRESSION_WEIGHT_FORMAT=int8
             export LLM_DEVICE=CPU
@@ -668,26 +690,26 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
 
             # Check if model config exists            
             if [ ! -f "${ovms_model_config}" ]; then
-                echo -e "${YELLOW}No existing model configurations found. Exporting model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW}...${NC}"
+                echo -e "[ovms-service] ${YELLOW}No existing model configurations found. Exporting model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW}...${NC}"
                 needs_export=true
             # Check whether the model exists in OVMS config
             elif grep -q ${OVMS_LLM_MODEL_NAME} "${ovms_model_config}"; then
-                echo -e "${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} exists in OVMS config. Checking device type...${NC}"
+                echo -e "[ovms-service] ${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} exists in OVMS config. Checking device type...${NC}"
                 # If model exists, check if device type matches
                 if [ -f "${device_marker_file}" ]; then
                     saved_device=$(cat "${device_marker_file}")
                     if [ "${saved_device}" != "${LLM_DEVICE}" ]; then
-                        echo -e "${YELLOW}Model was exported for ${RED}${saved_device}${YELLOW}. Re-exporting model for ${RED}${LLM_DEVICE}${YELLOW}...${NC}"
+                        echo -e "[ovms-service] ${YELLOW}Model was exported for ${RED}${saved_device}${YELLOW}. Re-exporting model for ${RED}${LLM_DEVICE}${YELLOW}...${NC}"
                         needs_export=true
                     else
-                        echo -e "${YELLOW}Model was exported for ${RED}${LLM_DEVICE}${YELLOW}. Skipping model setup...${NC}"
+                        echo -e "[ovms-service] ${YELLOW}Model was exported for ${RED}${LLM_DEVICE}${YELLOW}. Skipping model setup...${NC}"
                     fi
                 else
-                    echo -e "${YELLOW}Device type information missing. Re-exporting model...${NC}"
+                    echo -e "[ovms-service] ${YELLOW}Device type information missing. Re-exporting model...${NC}"
                     needs_export=true
                 fi
             else
-                echo -e "${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} not found in OVMS config. Exporting model...${NC}"
+                echo -e "[ovms-service] ${YELLOW}Model ${RED}${OVMS_LLM_MODEL_NAME}${YELLOW} not found in OVMS config. Exporting model...${NC}"
                 needs_export=true
             fi
             
@@ -702,7 +724,7 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         #DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
-        echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
+        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
     fi
@@ -714,10 +736,10 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         export VLM_COMPRESSION_WEIGHT_FORMAT=int4
         export PM_MULTI_FRAME_COUNT=6
         export WORKERS=1        
-        echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
+        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on GPU${NC}"
     else
         export VLM_DEVICE=CPU
-        echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
+        echo -e "[vlm-openvino-serving] ${BLUE}Using VLM for summarization on CPU${NC}"
     fi
 
     # if config is passed, set the command to only generate the config
@@ -734,49 +756,49 @@ elif [ "$1" = "--search" ]; then
 
     # Create YOLOX models volume for object detection if it doesn't exist
     if ! docker volume ls | grep -q "${YOLOX_MODELS_VOLUME_NAME}"; then
-        echo -e "${BLUE}Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
+        echo -e "[vdms-dataprep] ${BLUE}Creating Docker volume for YOLOX models: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
         docker volume create "${YOLOX_MODELS_VOLUME_NAME}"
         if [ $? = 0 ]; then
-            echo -e "${GREEN}YOLOX models volume created successfully${NC}"
+            echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume created successfully${NC}"
         else
-            echo -e "${RED}ERROR: Failed to create YOLOX models volume${NC}"
+            echo -e "[vdms-dataprep] ${RED}ERROR: Failed to create YOLOX models volume${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
+        echo -e "[vdms-dataprep] ${GREEN}YOLOX models volume already exists: ${YOLOX_MODELS_VOLUME_NAME}${NC}"
     fi
 
     # Create ov-models volume for embedding models if it doesn't exist
     if ! docker volume ls | grep -q "ov-models"; then
-        echo -e "${BLUE}Creating Docker volume for ov-models${NC}"
+        echo -e "[multimodal-embedding-serving] ${BLUE}Creating Docker volume for ov-models${NC}"
         docker volume create ov-models
         if [ $? = 0 ]; then
-            echo -e "${GREEN}ov-models volume created successfully${NC}"
+            echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume created successfully${NC}"
         else
-            echo -e "${RED}ERROR: Failed to create ov-models volume${NC}"
+            echo -e "[multimodal-embedding-serving] ${RED}ERROR: Failed to create ov-models volume${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}ov-models volume already exists${NC}"
+        echo -e "[multimodal-embedding-serving] ${GREEN}ov-models volume already exists${NC}"
     fi
 
     # Create data-prep volume if it doesn't exist
     if ! docker volume ls | grep -q "data-prep"; then
-        echo -e "${BLUE}Creating Docker volume for data-prep${NC}"
+        echo -e "[vdms-dataprep] ${BLUE}Creating Docker volume for data-prep${NC}"
         docker volume create data-prep
         if [ $? = 0 ]; then
-            echo -e "${GREEN}data-prep volume created successfully${NC}"
+            echo -e "[vdms-dataprep] ${GREEN}data-prep volume created successfully${NC}"
         else
-            echo -e "${RED}ERROR: Failed to create data-prep volume${NC}"
+            echo -e "[vdms-dataprep] ${RED}ERROR: Failed to create data-prep volume${NC}"
             return 1
         fi
     else
-        echo -e "${GREEN}data-prep volume already exists${NC}"
+        echo -e "[vdms-dataprep] ${GREEN}data-prep volume already exists${NC}"
     fi
 
     # If search is enabled, set up video search only
     APP_COMPOSE_FILE="-f docker/compose.base.yaml -f docker/compose.search.yaml" 
-    echo -e  "${GREEN}Setting up Video Search application${NC}"
+    echo -e  "[video-search] ${GREEN}Setting up Video Search application${NC}"
 
     # if config is passed, set the command to only generate the config
     FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
