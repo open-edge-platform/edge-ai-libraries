@@ -61,18 +61,16 @@ RUN \
     rm -rf /var/lib/apt/lists/*
 
 # Intel GPU client drivers and prerequisites installation
-RUN \
-    curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
-    gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" |\
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
-
-RUN \
-    apt-get update && \
-    apt-get install --allow-downgrades -y -q --no-install-recommends libze-intel-gpu1=\* libze1=\* \
-    intel-media-va-driver-non-free=\* intel-gsc=\* intel-opencl-icd=25.05.32567.19-1099~24.04 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN \            
+    apt update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+    apt update && \
+    echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
+    apt update && \
+    apt-get install -y --no-install-recommends \
+    libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
+    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo && \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
@@ -471,18 +469,16 @@ RUN \
 
 # As clean ubuntu image is used, we need to install GPU and NPU on this image as well
 # Intel GPU client drivers and prerequisites installation
-RUN \
-    curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
-    gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" | \
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
-
-RUN \
-    apt-get update && \
-    apt-get install --allow-downgrades -y -q --no-install-recommends libze-intel-gpu1=\* libze1=\* \
-    intel-media-va-driver-non-free=\* intel-gsc=\* intel-opencl-icd=25.05.32567.19-1099~24.04 && \
-    apt-get clean && \
-    rm -rf /var/lib/apt/lists/*
+RUN \            
+    apt update && \
+    apt-get install -y --no-install-recommends software-properties-common && \
+    add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+    apt update && \
+    echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
+    apt update && \
+    apt-get install -y --no-install-recommends \
+    libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
+    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo && \
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
