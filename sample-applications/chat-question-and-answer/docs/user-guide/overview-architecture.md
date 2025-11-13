@@ -96,10 +96,10 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 The ChatQ&A sample application is designed with modularity in mind, allowing developers to:
 1. **Change inference microservices**:
    - The default option is OVMS for LLM and TEI for embeddings and reranker.
-   - Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
+   - (*Deprecated effective 2025.2.0*) Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
    - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options.
 2. **Load different LLM, Embedding, and Reranker models**:
-   - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers.
+   - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers. (*vLLM support is deprecated effective 2025.2.0*)
 3. **Use other GenAI frameworks like Haystack and LlamaIndex**:
    - Integrate the inference microservices into an application backend developed on other frameworks similar to the LangChain integration provided in this sample application.
 4. **Deploy on diverse Intel target hardware and deployment scenarios**:

@@ -20,13 +20,13 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 This microservice is designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs. We recommend take **vLLM-IPEX** as an example, this is primarily used for inference on Intel single-GPU or multiple-GPUs, optimized for Intel® Arc™ Pro B60 Graphics.
 
-**step1.** Prepare GenAIComps from Open Platform for Enterprise AI (OPEA):
+First of all, prepare GenAIComps from Open Platform for Enterprise AI (OPEA):
 ```bash
 git clone https://github.com/opea-project/GenAIComps.git
 cd GenAIComps
 ```
 
-**step2.** Start model serving for VLM
+### Start model serving for VLM
 Following the tutorial in [LVM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/lvms/src/README_vllm_ipex.html)
 
 **Key Configuration**
@@ -37,7 +37,7 @@ Following the tutorial in [LVM Microservice with vLLM on Intel XPU](https://opea
 - `ONEAPI_DEVICE_SELECTOR`: device id, use `export ONEAPI_DEVICE_SELECTOR=level_zero:[gpu_id];level_zero:[gpu_id]` to select device before excuting your command.
 - `TENSOR_PARALLEL_SIZE`: tensor parallel size.
 
-An example that has been verified by this microservice:
+Override with below specific environment variables that has been verified by this microservice:
 ```bash
 export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen2.5-VL-7B-Instruct
@@ -58,7 +58,7 @@ INFO:     Application startup complete.
 
 ```
 
-**step3.** Start model serving for LLM
+### Start model serving for LLM
 Following the tutorial in [LLM Microservice with vLLM on Intel XPU](https://opea-project.github.io/latest/GenAIComps/comps/llms/src/text-generation/README_vllm_ipex.html)
 
 
@@ -70,7 +70,7 @@ Following the tutorial in [LLM Microservice with vLLM on Intel XPU](https://opea
 - `ONEAPI_DEVICE_SELECTOR`: device id, use `export ONEAPI_DEVICE_SELECTOR=level_zero:[gpu_id];level_zero:[gpu_id]` to select device before excuting your command.
 - `TENSOR_PARALLEL_SIZE`: tensor parallel size.
 
-An example that has been verified by this microservice:
+Override with below specific environment variables that has been verified by this microservice:
 ```bash
 export MAX_MODEL_LEN=20000
 export LLM_MODEL_ID=Qwen/Qwen3-32B-AWQ
@@ -129,10 +129,14 @@ export VLM_BASE_URL="http://<model-serving-ip-address>:41091/v1"
 export LLM_BASE_URL="http://<model-serving-ip-address>:41090/v1"
 export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
 export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
+export SERVICE_PORT=8192
 ```
-> **Note:** Please remember to change `REGISTRY_URL` and `TAG` as needed. 
-> - If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`.
-> - If `REGISTRY_URL` is not provided, the image name will be: `multilevel-video-understanding:${TAG}`
+> **Note:** 
+> - Please remember to change `REGISTRY_URL` and `TAG` as needed. 
+>   - If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}/multilevel-video-understanding:${TAG}`.
+>   - If `REGISTRY_URL` is not provided, the image name will be: `multilevel-video-understanding:${TAG}`
+> - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
+> - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
 **step3.** Launch the microservice
 ```bash
@@ -255,6 +259,9 @@ export VLM_MODEL_NAME=Qwen/Qwen2.5-VL-7B-Instruct
 export LLM_MODEL_NAME=Qwen/Qwen3-32B-AWQ
 export SERVICE_PORT=8192
 ```
+> **Note:** 
+> - Make sure `VLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for VLM](#start-model-serving-for-vlm)
+> - Make sure `LLM_MODEL_NAME` is consistent with the model used in sec. [Start model serving for LLM](#start-model-serving-for-llm)
 
 7. Run the service:
 ```bash
