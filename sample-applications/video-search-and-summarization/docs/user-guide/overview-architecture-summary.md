@@ -5,11 +5,11 @@ The Video Summarization pipeline allows developers to deploy Video Summarization
 ## Architecture
 The system architecture diagram shows the Video Summarization pipeline and its constituent components. Following is a high-level overview of the components.
 
-1. **Video Summarization UI**: A reference UI is provided for the users to interact with and exercise all capabilities of the Video Summarization application. 
+1. **Video Summarization UI**: A reference UI is provided for the users to interact with and exercise all capabilities of the Video Summarization application.
 
 2. **Video Summarization pipeline manager**: The pipeline manager is the central orchestrator of the Video Summarization pipeline. It receives the requests from the UI and uses the other set of microservices to deliver the Video Summarization capability. It provides for asynchronous handling of the video.
 
-3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be summarized. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.  
+3. **Video Ingestion**: This microservice is responsible for ingesting videos that need to be summarized. The ingestion microservice is based on Intel DLStreamer pipeline and utilises the DLStreamer pipeline server to manage the video pipeline. The video ingestion microservice allows ingestion of common video formats. The ingestion microservice creates video chunks, extracts configured frames from it, passes the frame(s) through object detection and outputs all of the metadata and the video chunks to the object store.
 
 4. **VLM as the captioning block**: The VLM microservice is responsible for generating captions for the specific video chunk. The VLM accepts prompts which also includes additional information from configured capabilities (like object detection) and generates the caption. The caption information is stored to the object store.
 
@@ -17,12 +17,12 @@ The system architecture diagram shows the Video Summarization pipeline and its c
 
 6. **Audio transcription**: The Audio transcription microservice helps create a transcription of the audio channel in the given video. The extracted audio transcription serves as another source of rich metadata that can be used both as an input to VLM and separately as text data to enrich the summary.
 
-![System Architecture Diagram](./images/TEAI_VideoSumm.png)
+![System Architecture Diagram](./images/TEAI_VideoSumm.drawio.svg)
 
 ## Detailed Architecture Overview
 <!--
 **User Stories Addressed**:
-- **US-7: Understanding the Architecture**  
+- **US-7: Understanding the Architecture**
   - **As a developer**, I want to understand the architecture and components of the application, so that I can identify customization or integration points.
 
 **Acceptance Criteria**:
@@ -44,7 +44,7 @@ The application flow involves the following steps:
 
 1. **Create the Video Summarization pipeline**
    - **Configure the pipeline**: The _Video Summarization UI microservice_ provides the user a means to configure the different capabilities required on the Video Summarization pipeline. A separate user guide is planned to provide all required details on how to setup the pipeline.
-   - **Create the pipeline**: The configuration done on the UI is received by the _Video Summarization pipeline manager microservice_. The pipeline manager configures the required microservices as per the capabilities and configuration requested by the user.    
+   - **Create the pipeline**: The configuration done on the UI is received by the _Video Summarization pipeline manager microservice_. The pipeline manager configures the required microservices as per the capabilities and configuration requested by the user.
 2. **Input Video Sources**:
    - **Provide video**: The user provides the source of the video to be summarized. The UI provides means to configure the input video. Currently, only offline video processing is supported by reading from local storage. In future, live camera streaming support will also be provided. The pipeline manager stores the video into a local object store.
    - **Ingest video**: The stored video is then consumed by the _video ingestion microservice_. The video ingestion microservice reuses DL Streamer pipeline server and all its capabilities to provide for different features like object detection, audio classification, and (in future) input feed from live cameras. The ingestion process involves decode, chunking, and selection of frame(s) from the input video. The extracted frame(s) is passed through object detection blocks, audio classification block if they are configured. The extracted frames along with the metadata returned by the object detector and/or audio classification is then passed to the VLM microservice.
@@ -55,8 +55,8 @@ The application flow involves the following steps:
    - **Store the captions**: The generated captions along with all the metadata generated in the pipeline is stored in a local object store. During store, necessary relationship information between the stored data is also maintained.
 4. **Create a summary of all captions**:
    - **LLM microservice**: After all the captions are summarized, the _LLM microservice_ is used to create a summary of all individual captions. The selection of LLM model has an impact on the accuracy of the summary created.
-5. **Observability dashboard**: 
-   - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..   
+5. **Observability dashboard**:
+   - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..
 
 The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
@@ -71,7 +71,7 @@ The application flow is illustrated in the following flow diagram. The diagram s
 The key components of Video Summarization sample application are as follows:
 
 1. **Intel's Edge AI Inference microservices**:
-   - **What it is**: Inference microservices are the VLM, LLM, and Audio transcription microservices that run the chosen models optimally on the hardware. 
+   - **What it is**: Inference microservices are the VLM, LLM, and Audio transcription microservices that run the chosen models optimally on the hardware.
    - **How it's used**: Each of the microservices uses OpenAI APIs to support their functionality. The microservices are configured to use the required models and launched. The video pipeline manager  accesses these microservices using the APIs.
    - **Benefits**: The default configuration of these microservices as provided by the sample application is guaranteed to perform optimally for the chosen models and on the target deployment hardware. Standard OpenAI API ensures easy portability of different inference microservices.
 
@@ -91,23 +91,23 @@ The key components of Video Summarization sample application are as follows:
    - **Benefits**: This microservice should be treated as a sample reference implementation.
 
 5. **Dependent microservices**:
-   The dependent microservices are those that are used by the pipeline to realize the features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are: 
+   The dependent microservices are those that are used by the pipeline to realize the features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are:
    - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/)
    - [Audio Analyzer](../../../../microservices/audio-analyzer/)
-   - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) 
-   - [VLM microservice](../../../../microservices/vlm-openvino-serving/). 
-   
-   Refer to their respective documentation for details on their capability. 
+   - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/)
+   - [VLM microservice](../../../../microservices/vlm-openvino-serving/).
+
+   Refer to their respective documentation for details on their capability.
 
 ## Extensibility
 
 The Video Summarization sample application is designed with modularity in mind, allowing you to:
 1. **Change inference microservices**:
    - The default option is OVMS. Use other model servers like vLLM with OpenVINO backend, and TGI to host VLM models.
-   - Mandatory requirement is OpenAI API compliance. Note that other model servers do not provide the same performance as default options. 
+   - Mandatory requirement is OpenAI API compliance. Note that other model servers do not provide the same performance as default options.
 2. **Load different VLM and LLM models**:
    - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers.
-3. **Configure different capabilities on the Video Summarization pipeline**: 
+3. **Configure different capabilities on the Video Summarization pipeline**:
    - In addition to available capabilities, the approach also allows newer capabilities to be enabled if it helps on the accuracy.
    - The UI, pipeline manager, and required microservices are easily configurable to allow for such extensions.
 4. **Deploy on diverse Intel target hardware and deployment scenarios**:

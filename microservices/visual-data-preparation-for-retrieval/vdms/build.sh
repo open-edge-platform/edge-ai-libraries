@@ -38,6 +38,27 @@ log_error() {
   echo -e "${RED}[ERROR]${NC} $1" >&2
 }
 
+update_lock_hash() {
+  local lock_file="$1"
+  local wheel_name="$2"
+  local wheel_hash="$3"
+
+  python3 - <<'PY' "$lock_file" "$wheel_name" "$wheel_hash"
+import sys
+import re
+from pathlib import Path
+
+lock_path, wheel_name, wheel_hash = sys.argv[1:4]
+text = Path(lock_path).read_text()
+pattern = re.compile('(' + re.escape(wheel_name) + '", hash = "sha256:)[0-9a-f]+(")')
+replacement = r'\1' + wheel_hash + r'\2'
+new_text, count = pattern.subn(replacement, text, count=1)
+if count != 1:
+    raise SystemExit(f"Unable to update hash for {wheel_name} in {lock_path}")
+Path(lock_path).write_text(new_text)
+PY
+}
+
 while [[ $# -gt 0 ]]; do
   case "$1" in
     --push)
@@ -71,6 +92,11 @@ if ! command -v poetry >/dev/null 2>&1; then
   exit 1
 fi
 
+if ! command -v python3 >/dev/null 2>&1; then
+  log_error "python3 is required to update poetry.lock with the wheel checksum."
+  exit 1
+fi
+
 log_info "Building multimodal embedding wheel from $(basename "$EMBEDDING_DIR")"
 rm -rf "$EMBEDDING_DIR/dist"
 (
@@ -85,6 +111,7 @@ fi
 WHEEL_BASENAME="$(basename "$WHEEL_SOURCE")"
 rm -f "$WHEELS_DIR"/multimodal_embedding_serving-*.whl
 cp "$WHEEL_SOURCE" "$WHEELS_DIR/"
+WHEEL_DEST="$WHEELS_DIR/$WHEEL_BASENAME"
 log_info "Copied $WHEEL_BASENAME to $WHEELS_DIR"
 
 log_info "Refreshing poetry lock to capture wheel checksum"
@@ -93,6 +120,9 @@ log_info "Refreshing poetry lock to capture wheel checksum"
   poetry lock >/dev/null
   log_info "poetry lock refreshed"
 )
+WHEEL_HASH="$(sha256sum "$WHEEL_DEST" | awk '{print $1}')"
+log_info "Updating poetry.lock hash for $WHEEL_BASENAME"
+update_lock_hash "$SCRIPT_DIR/poetry.lock" "$WHEEL_BASENAME" "$WHEEL_HASH"
 log_info "poetry.lock updated"
 
 REGISTRY_URL=${REGISTRY_URL:-}

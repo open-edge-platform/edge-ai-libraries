@@ -1,4 +1,6 @@
 import numpy as np
+import ast
+import subprocess
 from typing import List, Tuple, Optional    
 
 from video_chunking.decoder import BaseVideoDecoder
@@ -27,7 +29,7 @@ class FFmpegVideoDecoder(BaseVideoDecoder):
 
         self.width = int(video_info['width'])
         self.height = int(video_info['height'])
-        self.original_fps = eval(video_info['avg_frame_rate'])
+        self.original_fps = ast.literal_eval(video_info['avg_frame_rate'])
         
         # Try to get total frames and duration
         try:
@@ -202,5 +204,7 @@ class FFmpegVideoDecoder(BaseVideoDecoder):
             try:
                 self.process.stdout.close()
                 self.process.wait()
-            except:
-                pass
+            except (OSError, subprocess.TimeoutExpired) as e:
+                print(f"Clean up resources: wait completed with expected exception: {e}")
+            except Exception as e:
+                print(f"Clean up resources: wait failed with unexpected error: {e}")
