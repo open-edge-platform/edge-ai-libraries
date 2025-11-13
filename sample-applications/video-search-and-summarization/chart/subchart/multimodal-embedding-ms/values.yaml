@@ -31,7 +31,7 @@ image:
         repository: intel/multimodal-embedding-serving
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.2.1"
+    tag: "1.2.3"
 
 imagePullSecrets: []
 nameOverride: ''
@@ -77,7 +77,7 @@ readinessProbe:
   periodSeconds: 10
   failureThreshold: 6
 
-# Wait for startup till max ~ 30Mins 
+# Wait for startup till max ~ 30Mins
 startupProbe:
   httpGet:
     path: /health
@@ -121,14 +121,3 @@ defaultClipDuration: 10
 defaultNumFrames: 64
 embeddingUseOV: false
 embeddingDevice: 'CPU'
-
-# GPU-specific configurations
-gpu:
-    enabled: false  # Set to true for GPU deployment
-    key: "dgpu"
-    value: "arc770"
-    videoGroupID: 44  # Replace with actual group ID
-    renderGroupID: 109  # Replace with actual group ID
-    group_add: []  # Add additional groups if required
-
-

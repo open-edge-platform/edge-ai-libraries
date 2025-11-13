@@ -102,6 +102,12 @@ vi.mock('axios', () => ({
 // Mock APP_URL
 vi.mock('../config', () => ({
   APP_URL: 'http://localhost:3000',
+  FEATURE_SEARCH: 'ON',
+  FEATURE_SUMMARY: 'ON',
+  FEATURE_STATE: {
+    ON: 'ON',
+    OFF: 'OFF'
+  }
 }));
 
 describe('SummarySideBarItem', () => {

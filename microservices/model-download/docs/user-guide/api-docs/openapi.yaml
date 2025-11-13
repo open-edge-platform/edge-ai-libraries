@@ -1,0 +1,568 @@
+openapi: 3.0.0
+info:
+  title: Model Download Service API
+  description: |
+    API for downloading models from HuggingFace, Ollama, and Ultralytics hubs and converting models to OpenVINO IR format.
+    This service provides endpoints to download models and optionally convert them to 
+    OpenVINO Intermediate Representation (IR) format for optimized inference on Intel hardware.
+
+    **Features:**
+    - Download models from multiple hubs (HuggingFace, Ollama, Ultralytics)
+    - Convert models to OpenVINO IR format with configurable precision and device targets for huggingface hub models
+    - Asynchronous job processing with status tracking
+    - Plugin-based architecture for extensibility
+
+    **Note:** HUGGINGFACEHUB_API_TOKEN environment variable is optional and only required for downloading 
+    gated models from HuggingFace or for model conversion. Public models can be downloaded without authentication.
+  version: 1.0.0
+  contact:
+    name: Intel GenAI Team
+servers:
+  - url: http://localhost:8200/api/v1
+    description: Local development server
+  - url: http://{host}:{port}/api/v1
+    description: Custom host deployment
+    variables:
+      host:
+        default: localhost
+        description: Server hostname or IP address
+      port:
+        default: 8200
+        description: Server port
+
+components:
+  schemas:
+    ModelHub:
+      type: string
+      enum:
+        - huggingface
+        - ollama
+        - ultralytics
+        - openvino
+      description: The model hub source to download from
+
+    ModelType:
+      type: string
+      enum:
+        - llm
+        - embeddings
+        - reranker
+      description: The type of model (determines conversion behavior)
+
+    ModelPrecision:
+      type: string
+      enum:
+        - int8
+        - fp16
+        - fp32
+      description: The precision format for model weights
+
+    DeviceType:
+      type: string
+      enum:
+        - CPU
+        - GPU
+      description: The target device type for model deployment
+
+    Config:
+      type: object
+      properties:
+        precision:
+          $ref: "#/components/schemas/ModelPrecision"
+          default: int8
+        device:
+          $ref: "#/components/schemas/DeviceType"
+          default: CPU
+        cache_size:
+          type: integer
+          minimum: 1
+          description: Cache size for model optimization
+      description: Configuration for OVMS model conversion
+
+    ModelRequest:
+      type: object
+      required:
+        - name
+        - hub
+      properties:
+        name:
+          type: string
+          description: The name/ID of the model (e.g., microsoft/Phi-3.5-mini-instruct)
+          example: microsoft/Phi-3.5-mini-instruct
+        hub:
+          $ref: "#/components/schemas/ModelHub"
+        type:
+          $ref: "#/components/schemas/ModelType"
+        is_ovms:
+          type: boolean
+          default: false
+          description: Whether to convert the model to OpenVINO IR format (requires OpenVINO plugin)
+        revision:
+          type: string
+          description: Specific model revision/version to download
+          example: main
+        config:
+          $ref: "#/components/schemas/Config"
+          description: Configuration for OpenVINO conversion (required if is_ovms is true)
+
+    ModelDownloadRequest:
+      type: object
+      required:
+        - models
+      properties:
+        models:
+          type: array
+          items:
+            $ref: "#/components/schemas/ModelRequest"
+          description: List of models to download and/or convert
+          minItems: 1
+        parallel_downloads:
+          type: boolean
+          default: false
+          description: Whether to download models in parallel (currently not implemented)
+
+    JobStatus:
+      type: string
+      enum:
+        - pending
+        - processing
+        - completed
+        - failed
+      description: Status of a job
+
+    Job:
+      type: object
+      properties:
+        job_id:
+          type: string
+          description: Unique identifier for the job
+        operation_type:
+          type: string
+          enum: [download, convert]
+          description: Type of operation
+        model_name:
+          type: string
+          description: Name of the model
+        hub:
+          type: string
+          description: Model hub source
+        status:
+          $ref: "#/components/schemas/JobStatus"
+        output_dir:
+          type: string
+          description: Output directory for the operation
+        plugin_name:
+          type: string
+          description: Plugin handling the operation
+        creation_time:
+          type: string
+          format: date-time
+          description: When the job was created
+        completion_time:
+          type: string
+          format: date-time
+          nullable: true
+          description: When the job was completed
+        error:
+          type: string
+          nullable: true
+          description: Error message if job failed
+
+    ModelResult:
+      type: object
+      required:
+        - status
+        - model_name
+      properties:
+        status:
+          type: string
+          enum: [success, error]
+          description: The status of the model download/conversion
+        model_name:
+          type: string
+          description: The name of the model
+        model_path:
+          type: string
+          nullable: true
+          description: Path where the model was downloaded/converted
+        error:
+          type: string
+          nullable: true
+          description: Error message if status is error
+        is_ovms:
+          type: boolean
+          nullable: true
+          description: Whether the model was converted to OVMS format
+
+    DownloadResponse:
+      type: object
+      properties:
+        message:
+          type: string
+          description: Status message
+          example: "Started processing 1 model(s)"
+        job_ids:
+          type: array
+          items:
+            type: string
+          description: List of job IDs created for the request
+        status:
+          type: string
+          enum: [processing]
+          description: Overall status of the request
+
+    JobListResponse:
+      type: object
+      properties:
+        jobs:
+          type: array
+          items:
+            $ref: "#/components/schemas/Job"
+          description: List of jobs
+
+    ModelResultsResponse:
+      type: object
+      properties:
+        results:
+          type: array
+          items:
+            type: object
+            properties:
+              job_id:
+                type: string
+              model_name:
+                type: string
+              hub:
+                type: string
+              operation_type:
+                type: string
+              status:
+                type: string
+              model_path:
+                type: string
+              is_ovms:
+                type: boolean
+              completion_time:
+                type: string
+                format: date-time
+
+    PluginInfo:
+      type: object
+      properties:
+        name:
+          type: string
+          description: Plugin name
+        type:
+          type: string
+          description: Plugin type (hub or conversion)
+        description:
+          type: string
+          description: Plugin description
+        capabilities:
+          type: object
+          properties:
+            supports_parallel_downloads:
+              type: boolean
+        available:
+          type: boolean
+          description: Whether the plugin is available
+        unavailable_reason:
+          type: string
+          nullable: true
+          description: Reason if plugin is not available
+
+    PluginsResponse:
+      type: object
+      properties:
+        available_plugins:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              $ref: "#/components/schemas/PluginInfo"
+        total_count:
+          type: integer
+          description: Total number of plugins
+        available_count:
+          type: integer
+          description: Number of available plugins
+        activation_instructions:
+          type: string
+          description: Instructions for enabling/disabling plugins
+
+    HealthResponse:
+      type: object
+      properties:
+        status:
+          type: string
+          enum: [ok]
+          description: Health status of the service
+
+paths:
+  /health:
+    get:
+      summary: Health check endpoint
+      description: Verify the service is running
+      operationId: healthCheck
+      tags:
+        - Health
+      responses:
+        "200":
+          description: Service is healthy
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/HealthResponse"
+
+  /models/download:
+    post:
+      summary: Download and optionally convert models
+      description: |
+        Downloads one or more models from HuggingFace, Ollama, or Ultralytics and optionally converts them
+        to OpenVINO IR format for huggingface hub models. This endpoint processes requests asynchronously and returns job IDs immediately.
+
+        **Conversion Behavior:**
+        Models will be converted to OpenVINO format if:
+        1. `is_ovms` is set to `true` in the request
+        2. `type` can be set to 'llm,embeddings,reranker or vision' in the request
+
+        **Authentication:**
+        - HUGGINGFACEHUB_API_TOKEN is optional for public HuggingFace models
+        - HUGGINGFACEHUB_API_TOKEN is required for gated/private HuggingFace models and for conversion
+        - No authentication needed for Ollama or Ultralytics models
+
+        **Job Processing:**
+        - Each model download creates a separate job
+        - If conversion is requested, an additional conversion job is created
+        - Use the returned job IDs to track progress via `/jobs/{job_id}` endpoint
+      operationId: downloadModels
+      parameters:
+        - in: query
+          name: download_path
+          required: true
+          schema:
+            type: string
+          description: Base path/subdirectory for model downloads (relative to MODELS_DIR)
+          example: my-models
+      tags:
+        - Models
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: "#/components/schemas/ModelDownloadRequest"
+            examples:
+              huggingface_download:
+                summary: Download HuggingFace model
+                value:
+                  models:
+                    - name: microsoft/Phi-3.5-mini-instruct
+                      hub: huggingface
+                      type: llm
+                      is_ovms: false
+              huggingface_with_conversion:
+                summary: Download and convert to OpenVINO
+                value:
+                  models:
+                    - name: microsoft/Phi-3.5-mini-instruct
+                      hub: openvino
+                      type: llm
+                      is_ovms: true
+                      config:
+                        precision: int8
+                        device: CPU
+                        cache_size: 10
+              ollama_download:
+                summary: Download Ollama model
+                value:
+                  models:
+                    - name: deepseek-r1
+                      hub: ollama
+              ultralytics_download:
+                summary: Download Ultralytics model
+                value:
+                  models:
+                    - name: yolov8s
+                      hub: ultralytics
+              multiple_models:
+                summary: Download multiple models
+                value:
+                  models:
+                    - name: microsoft/Phi-3.5-mini-instruct
+                      hub: huggingface
+                      type: llm
+                    - name: deepseek-r1
+                      hub: ollama
+                  parallel_downloads: true
+      responses:
+        "200":
+          description: Request accepted and processing started
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/DownloadResponse"
+              example:
+                message: "Started processing 1 model(s)"
+                job_ids: ["download_abc123", "convert_def456"]
+                status: processing
+        "400":
+          description: Bad request - invalid hub, missing dependencies, or plugin not available
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+              examples:
+                unsupported_hub:
+                  summary: Unsupported model hub
+                  value:
+                    detail: "Unsupported model download/conversion detected. Supported methods are {'huggingface', 'ollama', 'ultralytics', 'openvino'}."
+                plugin_unavailable:
+                  summary: Plugin dependencies not installed
+                  value:
+                    detail: "Plugin 'huggingface' is not available: Missing required dependencies: huggingface_hub"
+        "422":
+          description: Validation error in request
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        loc:
+                          type: array
+                          items:
+                            type: string
+                        msg:
+                          type: string
+                        type:
+                          type: string
+        "500":
+          description: Internal server error
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+
+  /jobs/{job_id}:
+    get:
+      summary: Get job status
+      description: Retrieve the status and details of a specific job by its ID
+      operationId: getJobStatus
+      tags:
+        - Jobs
+      parameters:
+        - in: path
+          name: job_id
+          required: true
+          schema:
+            type: string
+          description: The unique job identifier
+          example: download_abc123
+      responses:
+        "200":
+          description: Job details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/Job"
+        "404":
+          description: Job not found
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "Job download_abc123 not found"
+
+  /jobs:
+    get:
+      summary: List all jobs
+      description: Retrieve a list of all jobs (downloads and conversions)
+      operationId: listJobs
+      tags:
+        - Jobs
+      responses:
+        "200":
+          description: List of all jobs
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobListResponse"
+
+  /models/jobs:
+    get:
+      summary: Get jobs for a specific model
+      description: Retrieve all jobs (downloads and conversions) related to a specific model
+      operationId: getModelJobs
+      tags:
+        - Jobs
+      parameters:
+        - in: query
+          name: model_name
+          required: true
+          schema:
+            type: string
+          description: The model name
+          example: microsoft/Phi-3.5-mini-instruct
+      responses:
+        "200":
+          description: Jobs for the model retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/JobListResponse"
+        "404":
+          description: No jobs found for the model
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  detail:
+                    type: string
+                    example: "No jobs found for model microsoft/Phi-3.5-mini-instruct"
+
+  /models/results:
+    get:
+      summary: Get completed model operations
+      description: Retrieve all completed model downloads and conversions
+      operationId: getModelResults
+      tags:
+        - Models
+      responses:
+        "200":
+          description: List of completed operations
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/ModelResultsResponse"
+
+  /plugins:
+    get:
+      summary: List available plugins
+      description: |
+        Retrieve information about all available plugins, their capabilities, and status.
+        This includes both hub plugins (HuggingFace, Ollama, Ultralytics) and conversion plugins (OpenVINO).
+      operationId: listPlugins
+      tags:
+        - Plugins
+      responses:
+        "200":
+          description: Plugins information retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: "#/components/schemas/PluginsResponse"

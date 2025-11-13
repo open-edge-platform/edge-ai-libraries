@@ -105,7 +105,7 @@ describe('SearchSidebar Component', () => {
     it('should render the sidebar with queries heading', () => {
       renderComponent();
       
-      expect(screen.getByText('Search Queries')).toBeInTheDocument();
+      expect(screen.getByText('Previous Search Queries')).toBeInTheDocument();
     });
 
     it('should render refetch button', () => {
@@ -121,7 +121,7 @@ describe('SearchSidebar Component', () => {
         unreads: [],
       });
       
-      expect(screen.getByText('Search Queries')).toBeInTheDocument();
+      expect(screen.getByText('Previous Search Queries')).toBeInTheDocument();
       expect(screen.queryByTestId(/search-sidebar-item/)).not.toBeInTheDocument();
     });
   });
@@ -271,7 +271,7 @@ describe('SearchSidebar Component', () => {
     it('should render navigation section', () => {
       renderComponent();
       
-      expect(screen.getByText('Search Queries')).toBeInTheDocument();
+      expect(screen.getByText('Previous Search Queries')).toBeInTheDocument();
       expect(screen.getByLabelText('Refetch')).toBeInTheDocument();
     });
 
@@ -292,7 +292,7 @@ describe('SearchSidebar Component', () => {
       renderComponent();
       
       // The component should render normally (not disabled)
-      expect(screen.getByText('Search Queries')).toBeInTheDocument();
+      expect(screen.getByText('Previous Search Queries')).toBeInTheDocument();
       expect(screen.getByLabelText('Refetch')).not.toBeDisabled();
     });
   });

@@ -405,7 +405,7 @@ export_model_for_ovms() {
 
     # Download the OVMS model export script
     if [ ! -f export_model.py ]; then
-        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/1/demos/common/export_models/export_model.py -o export_model.py
+        curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
     else
         echo -e  "${YELLOW}Model export script already exists, skipping download${NC}"
     fi
@@ -423,11 +423,11 @@ export_model_for_ovms() {
     source ovms_venv/bin/activate
     
     # Install requirements in the virtual environment
-    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/1/demos/common/export_models/requirements.txt
+    pip install --no-cache-dir -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
     if [ "$GATED_MODEL" = true ]; then
-        pip install --no-cache-dir huggingface-hub  # Install huggingface-hub for downloading gated models
+        pip install --no-cache-dir -U huggingface_hub[hf_xet]==0.36.0 # Install huggingface-hub for downloading gated models
         echo -e "${BLUE}Logging in to Hugging Face to access gated models...${NC}"
-        huggingface-cli login --token $HUGGINGFACE_TOKEN  # Login to Hugging Face using the provided token
+	hf auth login --token $HUGGINGFACE_TOKEN # Login to Hugging Face using the provided token
     fi
     mkdir -p models
 
@@ -483,6 +483,13 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         convert_object_detection_models
     else
         echo -e  "${YELLOW}Object detection model already exists. Skipping model setup...${NC}"
+    fi
+
+    # Check if both LLM and VLM are configured for GPU. In which case, prioritize VLM for GPU and set OVMS to CPU
+    if [ "$ENABLE_OVMS_LLM_SUMMARY_GPU" = true ] && \ 
+       [ "$ENABLE_VLM_GPU" = true ]; then
+        echo -e "${BLUE}Both VLM and LLM are configured for GPU. Resetting OVMS to run on CPU${NC}"
+        export ENABLE_OVMS_LLM_SUMMARY_GPU="false"        
     fi
 
     # If OVMS is to be used for summarization, set up the environment variables and compose files accordingly
@@ -547,31 +554,31 @@ if [ "$1" = "--summary" ] || [ "$1" = "--all" ]; then
         fi
 
         # If config is passed, set the command to only generate the config
-        FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
+        #FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
+        #DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
     else
         echo -e "${BLUE}Using VLM for generating final summary for the video${NC}"
         export USE_OVMS_CONFIG=CONFIG_OFF
         export LLM_SUMMARIZATION_API=http://$VLM_HOST:8000/v1
-
-        if [ "$ENABLE_VLM_GPU" = true ]; then
-            export VLM_DEVICE=GPU
-            export PM_VLM_CONCURRENT=1
-            export PM_LLM_CONCURRENT=1
-            export VLM_COMPRESSION_WEIGHT_FORMAT=int4
-            export PM_MULTI_FRAME_COUNT=6
-            export WORKERS=1
-            echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
-        else
-            export VLM_DEVICE=CPU
-            echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
-        fi
-
-        # if config is passed, set the command to only generate the config
-        FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
-        DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
     fi
+
+    if [ "$ENABLE_VLM_GPU" = true ]; then
+        export VLM_DEVICE=GPU
+        export PM_VLM_CONCURRENT=1
+        export PM_LLM_CONCURRENT=1
+        export VLM_COMPRESSION_WEIGHT_FORMAT=int4
+        export PM_MULTI_FRAME_COUNT=6
+        export WORKERS=1        
+        echo -e "${BLUE}Using VLM for summarization on GPU${NC}"
+    else
+        export VLM_DEVICE=CPU
+        echo -e "${BLUE}Using VLM for summarization on CPU${NC}"
+    fi
+
+    # if config is passed, set the command to only generate the config
+    FINAL_ARG="up -d" && [ "$2" = "config" ] && FINAL_ARG="config"
+    DOCKER_COMMAND="docker compose $APP_COMPOSE_FILE $FINAL_ARG"
 
 elif [ "$1" = "--search" ]; then
     mkdir -p ${VS_WATCHER_DIR}

@@ -35,7 +35,7 @@ class Detector:
     def download_model(self):
         if not os.path.exists(self.model_file):
             print(f"Model path {self.model_path} does not exist.")
-            os.makedirs(self.model_path)
+            os.makedirs(self.model_path, exist_ok=True)
             # Download the model from a remote location
             download_cmd = ["curl", 
                             "-L",  # Follow redirects

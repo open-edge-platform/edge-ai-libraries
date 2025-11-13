@@ -33,23 +33,32 @@ ChatQ&A application is a combination of the core LangChain application logic tha
 ### Application Flow
 
 1. **Input Sources**:
-   - **Documents**: The document ingestion microservice supports ingesting documents in various formats. Supported formats are word and pdf.    
-   - **Web pages**: Contents of accessible web pages can also be parsed and used as input for the RAG pipeline.
+   - **Documents**: The document ingestion microservice supports processing files in multiple formats, including .pdf, .txt, and .docx.
+
+   - **Web pages (PoC)**: Contents of accessible web pages can also be parsed and used as input for the RAG pipeline.
      
-     > **Note**: This application works best with non–JavaScript-heavy pages (e.g., Wikipedia, blogs, news sites) that render most of their content directly in HTML. JavaScript-heavy pages (e.g., social media platforms, single-page applications) load content dynamically via JavaScript, so their raw HTML often lacks useful text. The current implementation only parses raw HTML and does not execute JavaScript, so such pages may return incomplete or inaccurate results and should be avoided or handled separately.
+     > **Note**: URL-based ingestion is currently implemented as a proof of concept (PoC). This application works best with non–JavaScript-heavy pages (e.g., Wikipedia, blogs, news sites) that render most of their content directly in HTML. JavaScript-heavy pages (e.g., social media platforms, single-page applications) load content dynamically via JavaScript, so their raw HTML often lacks useful text. The current implementation only parses raw HTML and does not execute JavaScript, so such pages may return incomplete or inaccurate results and should be avoided or handled separately.
+
+     > Sometimes, even certain static Wikipedia pages may not yield meaningful content, as the current HTML-to-text conversion can extract navigation menus or metadata instead of the main article body. Since URL processing is primarily a proof of concept, it can be extended based on specific use cases by enhancing the document-ingestion microservice capabilities.
 
 2. **Create the context**
    - **Upload input documents and web links**: The UI microservice allows the developer to interact with the ChatQ&A backend. It provides the interface to upload the documents and weblinks on which the RAG pipeline will be executed. The documents are uploaded and stored in object store. MinIO is the database used for object store.
    - **Convert to embeddings space**: The ChatQ&A backend microservice creates the embeddings out of the uploaded documents and web pages using the document ingestion microservice. The Embeddings microservice is used to create the embeddings. The embeddings are stored in a vector database. PGVector is used in the sample application.
 3. **Chat flow**
    - **Ask a query**: The UI microservice provides prompt window in which the query is asked.
+   - **Chat history management**: The application maintains conversation history, allowing users to:
+     - Continue conversations across sessions
+     - View and manage multiple conversation threads
+     - Switch between conversations and access previous questions and responses for context
    - **Execute the RAG AI pipeline**: The ChatQ&A backend microservice performs the following actions to generate the output response using the RAG pipeline.
       -   The query is converted into embedding space using the Embeddings microservice.
       - Semantic retrieval is done to fetch the relevant documents or data points from VectorDB. The reranker microservice ranks them in order of accuracy.
       - The retrieved documents and data points is used as part of the prompt to the LLM model and a response is generated using the LLM microservice which hosts the configured LLM model.
 4. **Output Generation**:
    - **Response**: The generated response from the LLM microservice is sent to the UI for display and consumption by the user.
-   - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..
+   - **Observability dashboard**: If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application.
+
+> **Note**: The application stores Redux state in localStorage to preserve chat data across page reloads. Since localStorage is managed by the browser and not cleared when containers are restarted, previously saved state may still appear after a restart. If you see old chats or outdated data, please clear your browser’s localStorage to reset the session.
 
 The application flow is illustrated in the flow diagram below. The diagram shows the API used and the data sharing protocol.
 ![Data flow diagram](./images/request.jpg)
@@ -87,10 +96,10 @@ The application flow is illustrated in the flow diagram below. The diagram shows
 The ChatQ&A sample application is designed with modularity in mind, allowing developers to:
 1. **Change inference microservices**:
    - The default option is OVMS for LLM and TEI for embeddings and reranker.
-   - Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
+   - (*Deprecated effective 2025.2.0*) Use other model servers like vLLM with OpenVINO backend, and TGI to host LLM models.
    - Mandatory requirement is OpenAI API compliance. Note that other model servers are not guaranteed to provide same performance as default options.
 2. **Load different LLM, Embedding, and Reranker models**:
-   - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers.
+   - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers. (*vLLM support is deprecated effective 2025.2.0*)
 3. **Use other GenAI frameworks like Haystack and LlamaIndex**:
    - Integrate the inference microservices into an application backend developed on other frameworks similar to the LangChain integration provided in this sample application.
 4. **Deploy on diverse Intel target hardware and deployment scenarios**:

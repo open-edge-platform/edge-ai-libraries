@@ -68,7 +68,7 @@ export const SearchSidebar: FC = () => {
 
   return (
     <>
-      <SidebarContainer disabled={false}>
+      <SidebarContainer disabled={false} data-tour="previous-searches">
         <Navigation>
           {t('Queries')}
           <span className='spacer'></span>

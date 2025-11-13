@@ -4,10 +4,26 @@ import { createSelector, createSlice, PayloadAction } from '@reduxjs/toolkit';
 import { MuxFeatures, OpenPromptModal, UISliceState } from './ui.model';
 import { RootState } from '../store';
 import { SearchAdd } from '../search/searchSlice';
+import { FEATURE_SEARCH, FEATURE_SUMMARY } from '../../config';
+import { FEATURE_STATE } from '../../utils/constant';
+
+// Determine initial mux based on feature flags
+const getInitialMux = (): MuxFeatures => {
+  const hasSearch = FEATURE_SEARCH === FEATURE_STATE.ON;
+  const hasSummary = FEATURE_SUMMARY === FEATURE_STATE.ON;
+  
+  // If only search is enabled, default to search
+  if (hasSearch && !hasSummary) {
+    return MuxFeatures.SEARCH;
+  }
+  
+  // Otherwise default to summary
+  return MuxFeatures.SUMMARY;
+};
 
 export const initialState: UISliceState = {
   promptEditing: null,
-  selectedMux: MuxFeatures.SUMMARY,
+  selectedMux: getInitialMux(),
   groupByTag: false,
   showVideoGroups: false,
 };

@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.10-slim
+FROM python:3.12.12-slim
 
 ENV LANG=C.UTF-8
 
@@ -14,10 +14,8 @@ chown -R user /home/user/
 COPY vector-retriever/milvus /home/user/retriever
 RUN chown -R user /home/user/retriever
 
-RUN pip install --no-cache-dir --upgrade pip setuptools && \
+RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /home/user/retriever/src/requirements.txt
-
-ENV PYTHONPATH=$PYTHONPATH:/home/user
 
 USER user
 

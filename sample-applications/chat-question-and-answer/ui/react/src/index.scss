@@ -1,97 +1,20 @@
-// Copyright (C) 2025 Intel Corporation
+// Copyright (C) 2024 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-@use '@carbon/react' with (
-  $font-path: '@ibm/plex'
-);
+@import "@mantine/core/styles.css";
 
 :root {
-  font-family: 'IBM Plex Sans', serif;
+  font-family: Inter, system-ui, Avenir, Helvetica, Arial, sans-serif;
   line-height: 1.5;
   font-weight: 400;
-  --font-family: 'Arial, sans-serif';
-  --spacing-xl: 24px;
-  --spacing-md: 16px;
-  --radius-md: 4px;
-  --icon-size: 20px;
-  --color-success: #42be65;
-  --color-error: #da1e28;
-  --color-button-hover: #0054ae;
-  --color-primary-blue: #0071c5;
-  --color-info: #0f62fe;
-  --color-warning: #f1c21b;
-  --color-sidebar: #f0f0f0;
-  --color-white: #fff;
-  --color-active: #ddd;
-  --color-default: #e6e6e6;
-  --color-black: #000;
-  --color-message: #393424;
-  --color-border: #aaa;
-  --color-data-source-bs: rgba(0, 0, 0, 0.3);
-  --color-data-source-bg: rgba(0, 0, 0, 0.5);
-  --color-gray-0: #f8f9fa;
-  --color-gray-1: #f1f3f5;
-  --color-gray-2: #ccc;
-  --color-gray-3: #dee2e6;
-  --color-gray-4: #ddd;
-  --color-gray-7: #495057;
-  --color-dark-0: #212529;
-  --color-dark-4: #343a40;
-  --color-dark-5: #495057;
-  --color-dark-6: #343a40;
-  --color-dark-7: #212529;
-  --color-blue-filled: #1c7ed6;
-  --color-message-container: #ccc;
-  --color-date: #808080;
-  --color-border-bottom: #e0e0e0;
-  --color-table-head: #f4f4f4;
-  --color-table-row: #f9f9f9;
-  --color-button: #da1e28;
-  --color-disabled: #8d8d8d;
-  --color-button-hover: #0353e9;
-  --color-button-active: #002d9c;
-  --color-button-disabled: #c6c6c6;
 }
 
-html {
-  margin: 0;
-  padding: 0;
-  box-sizing: border-box;
-}
-
-// Utility Classes
-.mt-2 {
-  margin-top: 2rem;
-}
-
-.mt-1 {
-  margin-top: 1rem;
-}
-
-.mb-1 {
-  margin-bottom: 1.5rem;
-}
-
-// Dark Mode
-.dark-mode {
-  --color-sidebar: #1e1e1e;
-  --color-white: #1e1e1e;
-  --color-active: #333;
-  --color-default: #444;
-  --color-black: #fff;
-  --color-message: #e0e0e0;
-  --color-data-source-bs: rgba(255, 255, 255, 0.3);
-  --color-data-source-bg: rgba(255, 255, 255, 0.5);
-  --color-gray-0: #121212;
-  --color-gray-1: #1c1c1c;
-  --color-gray-2: #2c2c2c;
-  --color-gray-3: #3c3c3c;
-  --color-gray-4: #4c4c4c;
-  --color-gray-7: #b0b0b0;
-  --color-dark-0: #e0e0e0;
-  --color-dark-4: #d0d0d0;
-  --color-dark-5: #c0c0c0;
-  --color-dark-6: #b0b0b0;
-  --color-dark-7: #a0a0a0;
-  --color-blue-filled: #0a74da;
+html,
+body {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
 }

@@ -1,7 +1,7 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
   volumeHostPath: "/mnt/vss-data"
-  
+
   # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
   usePvc: false
 
@@ -21,6 +21,15 @@ global:
   vlmName: ""
   # llmName is Large Language Model Name used by OVMS service
   llmName: ""
+
+  gpu:
+    vlminferenceEnabled: false
+    multimodalembeddingmsEnabled: false
+    ovmsEnabled: false
+
+    key:
+    device:
+    group_add: $(stat -c "%g" /dev/dri/render*)
 
   proxy:
     no_proxy: "localhost,127.0.0.1,192.168.0.0/16,172.16.0.0/12,127.0.0.0/8,10.0.0.0/8,.svc.cluster.local"
@@ -61,7 +70,7 @@ videoSummaryManager:
   name: videosummarybackend
   image:
     repository: intel/pipeline-manager
-    tag: "1.2.1"
+    tag: "1.2.3"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:
@@ -127,7 +136,7 @@ vlminference:
 # Add nginx configuration
 nginx:
   name: video-summary-nginx
-  containerPortName: nginx-port 
+  containerPortName: nginx-port
   service:
     type: NodePort
     port: 80

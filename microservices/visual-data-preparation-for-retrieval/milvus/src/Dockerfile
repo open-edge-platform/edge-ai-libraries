@@ -1,7 +1,7 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.10-slim
+FROM python:3.12.12-slim
 
 ENV LANG=C.UTF-8
 
@@ -25,10 +25,8 @@ chown -R user /home/user/
 COPY visual-data-preparation-for-retrieval/milvus /home/user/dataprep
 RUN chown -R user /home/user/dataprep
 
-RUN pip install --no-cache-dir --upgrade pip setuptools && \
+RUN pip install --no-cache-dir --upgrade pip && \
     pip install --no-cache-dir -r /home/user/dataprep/src/requirements.txt
-
-ENV PYTHONPATH=$PYTHONPATH:/home/user
 
 RUN mkdir -p /home/user/data && chown -R user /home/user/data
 

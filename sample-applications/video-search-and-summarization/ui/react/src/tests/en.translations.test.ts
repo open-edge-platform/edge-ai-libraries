@@ -11,11 +11,11 @@ describe('English translations test suite', () => {
 
   describe('Brand translations', () => {
     it('should have VideoSummary translation', () => {
-      expect(enTranslations.VideoSummary).toBe('Video Summary');
+      expect(enTranslations.VideoSummary).toBe('Video Summarization');
     });
 
     it('should have VSSBrand translation', () => {
-      expect(enTranslations.VSSBrand).toBe('Video Summary & Search');
+      expect(enTranslations.VSSBrand).toBe('Video Summarization & Search');
     });
 
     it('should have VSearchBrand translation', () => {
@@ -23,7 +23,7 @@ describe('English translations test suite', () => {
     });
 
     it('should have VSummBrand translation', () => {
-      expect(enTranslations.VSummBrand).toBe('Video Summary');
+      expect(enTranslations.VSummBrand).toBe('Video Summarization');
     });
   });
 

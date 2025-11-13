@@ -11,7 +11,13 @@ vi.mock('socket.io-client', () => ({
 // Mock the config and constants
 vi.mock('../config', () => ({
   APP_URL: 'http://localhost:8080',
-  SOCKET_APPEND: 'CONFIG_ON'
+  SOCKET_APPEND: 'CONFIG_ON',
+  FEATURE_SEARCH: 'ON',
+  FEATURE_SUMMARY: 'ON',
+  FEATURE_STATE: {
+    ON: 'ON',
+    OFF: 'OFF'
+  }
 }));
 
 vi.mock('../utils/constant', () => ({

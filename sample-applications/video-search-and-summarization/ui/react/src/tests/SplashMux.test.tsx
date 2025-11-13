@@ -27,6 +27,8 @@ const createTestStore = (selectedMux = MuxFeatures.SUMMARY) => {
         ...uiInitialState,
         selectedMux,
         promptEditing: null, // Can be null according to the interface
+        groupByTag: false,
+        showVideoGroups: false,
       },
     },
   });

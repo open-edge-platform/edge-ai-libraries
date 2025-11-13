@@ -10,7 +10,7 @@ global:
 name: videosummaryui
 image:
   repository: intel/vss-ui
-  tag: "1.2.1"
+  tag: "1.2.3"
   pullPolicy: IfNotPresent
 
 containerPortName: vs-ui-port  # Optional name to refer containerPort

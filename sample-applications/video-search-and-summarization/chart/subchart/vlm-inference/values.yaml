@@ -10,7 +10,7 @@ global:
 
   # vlmName is the Vision-Language Model used by VLM Inference Microservice
   vlmName: ""
-  
+
   proxy:
     no_proxy: ""
     http_proxy: ""
@@ -28,20 +28,16 @@ service:
   portName: http  # Service port name. Useful when service exposes multiple ports.
 
   # vlmName is the Vision-Language Model used by VLM Inference Microservice
-  vlmName: ""
+  # vlmName: ""
 
 vlminference:
   name: vlm-inference-microservice
   image:
     repository: intel/vlm-openvino-serving
-    tag: "1.2.1"
+    tag: "1.2.3"
     pullPolicy: "IfNotPresent"
   env:
-    VLM_COMPRESSION_WEIGHT_FORMAT: "int8"
-    VLM_DEVICE: "cpu"
     VLM_SEED: "42"
-    MULTI_FRAME_COUNT: 12
-    VLM_CONCURRENT: 4
     VLM_HOST_PORT: 8000
 
 # TODO : Investigate why liveness are failing while vlm service is servicing a request.

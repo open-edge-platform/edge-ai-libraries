@@ -37,6 +37,7 @@
     "@opentelemetry/sdk-trace-base": "^2.0.1",
     "axios": "^1.12.2",
     "base64-js": "^1.5.1",
+    "ci": "^2.3.0",
     "https-proxy-agent": "^7.0.6",
     "luxon": "^3.7.1",
     "minio": "^8.0.5",
