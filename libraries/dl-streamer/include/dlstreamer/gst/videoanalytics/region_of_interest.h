@@ -21,6 +21,7 @@
 #include <gst/video/gstvideometa.h>
 
 #include <cassert>
+#include <memory>
 #include <stdexcept>
 #include <string>
 #include <vector>
@@ -245,18 +246,10 @@ class RegionOfInterest {
                                                               GST_ANALYTICS_MTD_TYPE_ANY, &state, &handle)) {
             GstStructure *s = GVA::Tensor::convert_to_tensor(handle);
             if (s != nullptr) {
+                auto shared_s = std::shared_ptr<GstStructure>(s, gst_structure_free);
                 _tensors.emplace_back(s);
-                _converted_structures.push_back(s);
+                _converted_structures.push_back(shared_s);
             }
-        }
-    }
-
-    /**
-     * @brief Destructor to free converted GstStructures
-     */
-    ~RegionOfInterest() {
-        for (GstStructure *s : _converted_structures) {
-            gst_structure_free(s);
         }
     }
 
@@ -384,9 +377,9 @@ class RegionOfInterest {
     std::vector<Tensor> _tensors;
 
     /**
-     * @brief vector of GstStructure pointers that were allocated by convert_to_tensor
+     * @brief vector of GstStructure shared pointers that were allocated by convert_to_tensor.
      */
-    std::vector<GstStructure *> _converted_structures;
+    std::vector<std::shared_ptr<GstStructure>> _converted_structures;
 
     /**
      * @brief last added detection Tensor instance, defined as Tensor with name set to "detection"
