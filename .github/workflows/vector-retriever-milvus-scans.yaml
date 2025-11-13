@@ -1,0 +1,135 @@
+name: "[Vector retriever Milvus] SDLe Scans"
+run-name: "[Vector retriever Milvus] SDLe Scans"
+
+
+# Only run at most 1 workflow concurrently per PR, unlimited for branches
+concurrency:
+  group: ${{ github.workflow }}-${{ github.event_name == 'pull_request' && github.event.pull_request.number || github.sha }}
+  cancel-in-progress: ${{ github.event_name == 'pull_request' }}
+
+on:
+  workflow_call:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 0"  # 2 a.m. on Sunday
+
+jobs:
+  trivy-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+
+      - name: Build Docker image
+        run: |
+          ls
+          cd microservices
+          docker build -t retriever-milvus:latest -f vector-retriever/milvus/src/Dockerfile .
+          
+      - name: Verify Docker image
+        run: |
+          echo "=== Built Docker Image ==="
+          docker images
+          echo "=== Image Build Verification Complete ==="
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "microservices/vector-retriever/milvus/"
+          report_suffix: "-fs-dataprep-visualdata-milvus-CT7"
+
+
+      - name: Run trivy Scan - retriever-milvus (HTML Report)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: retriever-milvus-html
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "retriever-milvus:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "table"
+          report_suffix: "-image-retriever-milvus-html-CT248"
+          generate_sbom: "false"
+
+      - name: Run trivy Scan - retriever-milvus (SPDX SBOM)
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: retriever-milvus-spdx
+        with:
+          scan_type: "image"  
+          scan-scope: "all"
+          scan_target: "retriever-milvus:latest"  
+          severity: "HIGH,CRITICAL"  
+          format: "spdx-json"
+          scanners: "vuln"
+          report_suffix: "-image-retriever-milvus-spdx-CT248"
+          generate_sbom: "false"
+
+      - name: Scan Dockerfile with Trivy
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        with:
+          scan_type: "config"
+          scan_target: "microservices/vector-retriever/milvus/src/"
+          severity: "HIGH,CRITICAL"
+          format: "json"
+          misconfig_scanners: "dockerfile"
+          report_suffix: "-config-retriever-milvus-CT222"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-retriever-milvus
+          path: security-results/trivy*
+
+  bandit-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run Bandit Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/bandit@27276444a9bcf247a27369406686b689933bd1ff
+        id: bandit
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/vector-retriever/milvus"
+          report_suffix: "-bandit-retriever-milvus-CT161"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: bandit-report-retriever-milvus
+          path: bandit-report-*.txt
+
+
+  clamav-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+
+      - name: Run ClamAV Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/clamav@27276444a9bcf247a27369406686b689933bd1ff
+        id: clamav
+        with:
+          scan-scope: "all"  
+          output-format: "txt" 
+          fail-on-findings: "false"
+          paths: "microservices/vector-retriever/milvus"
+          exclude_dirs: ".git,tests,.pytest_cache,__pycache__,.venv"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: clamav-report-retriever-milvus
+          path: security-results/clamav*
