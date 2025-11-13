@@ -176,24 +176,18 @@ def environment_variable_examples():
     print()
 
     print("3. Use SigLIP model:")
-    print("   export EMBEDDING_MODEL_NAME=SigLIP/siglip-vit-b-16")
+    print("   export EMBEDDING_MODEL_NAME=SigLIP/siglip2-vit-b-16")
     print("   export EMBEDDING_USE_OV=false")
     print("   export EMBEDDING_DEVICE=CPU")
     print()
 
-    print("4. Use BLIP2 (LAVIS) model:")
-    print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_feature_extractor")
-    print("   export EMBEDDING_USE_OV=false")
-    print("   export EMBEDDING_DEVICE=CPU")
-    print()
-
-    print("5. Use BLIP2 Transformers model (recommended):")
+    print("4. Use BLIP2 Transformers model:")
     print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
     print("   export EMBEDDING_USE_OV=false")
     print("   export EMBEDDING_DEVICE=CPU")
     print()
 
-    print("6. Use BLIP2 Transformers with OpenVINO:")
+    print("5. Use BLIP2 Transformers with OpenVINO:")
     print("   export EMBEDDING_MODEL_NAME=Blip2/blip2_transformers")
     print("   export EMBEDDING_USE_OV=true")
     print("   export EMBEDDING_DEVICE=CPU")

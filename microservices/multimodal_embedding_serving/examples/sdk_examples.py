@@ -186,8 +186,7 @@ if not USING_WHEEL:
 MODEL_TESTS = [
     ("CLIP/clip-vit-b-16", "A beautiful sunset over the ocean"),
     ("MobileCLIP/mobileclip_s0", "A red car on a mountain road"),
-    ("SigLIP/siglip-vit-b-16", "A modern cityscape at night"),
-    ("Blip2/blip2_feature_extractor", "A person riding a horse on the beach"),
+    ("SigLIP/siglip2-vit-b-16", "A modern cityscape at night"),
     ("Blip2/blip2_transformers", "A peaceful forest with tall trees"),
     ("QwenText/qwen3-embedding-0.6b", "Explain gravity in simple words"),
 ]
@@ -328,7 +327,7 @@ def example_model_comparison():
     models_to_test = [
         "CLIP/clip-vit-b-16",
         "MobileCLIP/mobileclip_s0",
-        "SigLIP/siglip-vit-b-16",
+        "SigLIP/siglip2-vit-b-16",
     ]
 
     print(f"Text: '{text}'")

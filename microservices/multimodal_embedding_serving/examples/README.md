@@ -118,11 +118,12 @@ The service supports multiple model families:
 - `MobileCLIP/mobileclip_blt`
 
 ### SigLIP Models
-- `SigLIP/siglip-vit-b-16`
-- `SigLIP/siglip-vit-l-16`
+- `SigLIP/siglip2-vit-b-16`
+- `SigLIP/siglip2-vit-l-16`
+- `SigLIP/siglip2-so400m-patch16-384`
 
 ### BLIP2 Models
-- `Blip2/blip2_feature_extractor`
+- `Blip2/blip2_transformers`
 
 ## Environment Variables
 
@@ -150,7 +151,7 @@ export EMBEDDING_OV_MODELS_DIR=./ov-models
 
 ### Use SigLIP
 ```bash
-export EMBEDDING_MODEL_NAME=SigLIP/siglip-vit-b-16
+export EMBEDDING_MODEL_NAME=SigLIP/siglip2-vit-b-16
 ```
 
 ## Dependencies

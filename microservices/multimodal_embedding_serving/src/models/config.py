@@ -146,29 +146,29 @@ MODEL_CONFIGS = {
         },
     },
     "SigLIP": {
-        "siglip-vit-b-16": {
-            "model_name": "ViT-B-16-SigLIP",
+        "siglip2-vit-b-16": {
+            "model_name": "ViT-B-16-SigLIP2",
             "pretrained": "webli",
             "image_size": 224,
             "handler_class": "SigLIPHandler",
             "image_probs": default_image_probs,
         },
-        "siglip-vit-l-16": {
-            "model_name": "ViT-L-16-SigLIP-256",
+        "siglip2-vit-l-16": {
+            "model_name": "ViT-L-16-SigLIP2-256",
             "pretrained": "webli",
             "image_size": 256,
             "handler_class": "SigLIPHandler",
             "image_probs": default_image_probs,
         },
+        "siglip2-so400m-patch16-384": {
+            "model_name": "ViT-SO400M-16-SigLIP2-384",
+            "pretrained": "webli",
+            "image_size": 384,
+            "handler_class": "SigLIPHandler",
+            "image_probs": default_image_probs,
+        },
     },
     "Blip2": {
-        "blip2_feature_extractor": {
-            "model_name": "blip2_feature_extractor",
-            "pretrained": "pretrain_vitL",
-            "image_size": 224,
-            "handler_class": "BLIP2Handler",
-            "image_probs": blip2_image_probs,
-        },
         "blip2_transformers": {
             "model_name": "blip2_feature_extractor",
             "pretrained": "pretrain",

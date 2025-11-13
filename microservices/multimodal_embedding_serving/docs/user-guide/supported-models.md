@@ -41,9 +41,9 @@ Lightweight CLIP models designed for mobile and edge deployment.
 
 | Model ID | Architecture | Embedding Dimension |
 |----------|-------------|-------------------|
-| `SigLIP/siglip-vit-b-16` | ViT-B-16 | 768 |
-| `SigLIP/siglip-vit-l-16` | ViT-L-16 | 1024 |
-| `SigLIP/siglip-so400m-patch14-384` | ViT-So400M | 1152 |
+| `SigLIP/siglip2-vit-b-16` | ViT-B-16 | 768 |
+| `SigLIP/siglip2-vit-l-16` | ViT-L-16 | 1024 |
+| `SigLIP/siglip2-so400m-patch16-384` | ViT-So400M | 1152 |
 
 CLIP models with sigmoid loss function.
 
@@ -52,11 +52,8 @@ CLIP models with sigmoid loss function.
 | Model ID | Architecture | Embedding Dimension | HuggingFace Model | Handler |
 |----------|-------------|-------------------|-------------------|---------|
 | `Blip2/blip2_transformers` | BLIP-2 + Q-Former | 256 | `Salesforce/blip2-itm-vit-g` | Transformers |
-| `Blip2/blip2_feature_extractor` | BLIP-2 + Q-Former | 256 | via LAVIS | LAVIS (legacy) |
 
-**Transformers Handler** (recommended): Uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D).
-
-**LAVIS Handler** (legacy): Uses LAVIS library for backward compatibility. Both handlers produce the same 256D embeddings.
+The BLIP-2 handler uses `Blip2ForImageTextRetrieval` from HuggingFace Transformers with projection layers (768D→256D) to generate compact embeddings.
 
 For detailed architecture and implementation details, see [BLIP-2 Transformers Guide](blip2-transformers-embeddings.md).
 
@@ -85,9 +82,6 @@ Set your chosen model using environment variables:
 ```bash
 # Example: Using BLIP-2 (Transformers)
 export EMBEDDING_MODEL_NAME="Blip2/blip2_transformers"
-
-# Example: Using BLIP-2 (LAVIS - legacy)
-export EMBEDDING_MODEL_NAME="Blip2/blip2_feature_extractor"
 
 # Example: Using CLIP
 export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"

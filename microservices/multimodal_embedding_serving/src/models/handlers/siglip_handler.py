@@ -205,18 +205,43 @@ class SigLIPHandler(BaseEmbeddingModel):
             original_forward = model.forward
             model.forward = model.encode_text
             
-            ov_text_encoder = ov.convert_model(
-                model,
-                example_input=sample_text,
-                input=[-1, sample_text.shape[1]],
-            )
+            try:
+                ov_text_encoder = ov.convert_model(
+                    model,
+                    example_input=sample_text,
+                    input=[-1, sample_text.shape[1]],
+                )
+            except Exception as conversion_error:
+                logger.warning(
+                    "Default conversion path for SigLIP text encoder failed, retrying with TorchScript trace: %s",
+                    conversion_error,
+                )
+
+                class _TextWrapper(torch.nn.Module):
+                    """Simple wrapper to expose encode_text as a forward method."""
+
+                    def __init__(self, base_model: torch.nn.Module):
+                        super().__init__()
+                        self.base_model = base_model
+
+                    def forward(self, text: torch.Tensor) -> torch.Tensor:  # pragma: no cover - simple wrapper
+                        return self.base_model.encode_text(text)
+
+                wrapper = _TextWrapper(model).eval()
+                traced_text = torch.jit.trace(wrapper, sample_text, check_trace=False)
+                traced_text.eval()
+                ov_text_encoder = ov.convert_model(traced_text)
+                del traced_text, wrapper
+                logger.info("SigLIP text encoder conversion succeeded via TorchScript trace fallback")
+            finally:
+                model.forward = original_forward
+                gc.collect()
+            
             ov.save_model(ov_text_encoder, text_encoder_path)
             del ov_text_encoder
             gc.collect()
             logger.info(f"Text encoder saved to: {text_encoder_path}")
             
-            # Restore original forward method
-            model.forward = original_forward
         
         return str(image_encoder_path), str(text_encoder_path)
     
