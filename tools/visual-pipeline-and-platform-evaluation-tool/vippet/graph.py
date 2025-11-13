@@ -153,8 +153,8 @@ def _tokenize(element: str) -> Iterator[_Token]:
         ("TEE_END", r"\S+\.(?:\s|\Z)"),
         # Type of element
         ("TYPE", r"\S+"),
-        # Skip over spaces and tabs
-        ("SKIP", r"[ \t]+"),
+        # Skip over whitespace
+        ("SKIP", r"\s+"),
         # Any other character
         ("MISMATCH", r"."),
     ]
