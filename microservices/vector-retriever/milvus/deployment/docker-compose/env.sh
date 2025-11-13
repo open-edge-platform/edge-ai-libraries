@@ -68,7 +68,7 @@ case "$EMBEDDING_MODEL_NAME" in
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_transformers"|"Blip2/blip2_transformers_vitL")
+    "Blip2/blip2_transformers")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
     *)
