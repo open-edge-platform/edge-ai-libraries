@@ -1957,7 +1957,7 @@ optional = false
 python-versions = ">=3.10,<3.14"
 groups = ["main"]
 files = [
-    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:adba90f4c764a4296f069d2fcdd17e5573b4217cf708047e70fb9a2d822e9aa1"},
+    {file = "multimodal_embedding_serving-0.1.1-py3-none-any.whl", hash = "sha256:c5a87379648c3b239c41cd74ba2bc13e100b997e8ced02f3a62793f6c05684fa"},
 ]
 
 [package.dependencies]
