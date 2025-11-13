@@ -118,7 +118,7 @@ if [ "$1" = "--nosetup" ] && [ "$#" -eq 1 ]; then
 
 # Verify the configuration of docker compose
 elif [ "$1" = "--conf" ] && [ "$#" -eq 1 ]; then
-    docker compose config
+    docker compose -f docker/compose.yaml config
 
 # Stop and remove containers and networks (basic down)
 elif [ "$1" = "--down" ] && [ "$#" -eq 1 ]; then
@@ -184,10 +184,18 @@ elif [ "$#" -eq 0 ]; then
 # Remove all project-related Docker images
 elif [ "$1" = "--clean" ] && [ "$#" -eq 1 ]; then
     echo "Removing all ${PROJECT_NAME} related Docker images..."
-    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f
-    # Fallback: also remove legacy images that may not have labels
-    docker images | grep "${PROJECT_NAME}" | awk '{print $3}' | xargs -r docker rmi -f
-    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f
+    
+    # Use docker compose to remove all images from services
+    docker compose -f docker/compose.yaml down --rmi all 2>/dev/null || true
+    
+    # Also remove dev environment images if exists
+    if [ -f "docker/compose-dev.yaml" ]; then
+        docker compose -f docker/compose.yaml -f docker/compose-dev.yaml down --rmi all 2>/dev/null || true
+    fi
+    
+    # Remove any remaining labeled images
+    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f 2>/dev/null || true
+
     echo "Cleanup completed!"
 
 # Remove specific service image using labels
@@ -195,17 +203,23 @@ elif [ "$1" = "--clean" ] && [ "$2" = "dataprep" ] && [ "$#" -eq 2 ]; then
     echo "Removing dataprep service images..."
     docker images --filter "label=project=${PROJECT_NAME}" --filter "label=service=dataprep" -q | xargs -r docker rmi -f
     # Fallback: also remove legacy images that may not have labels
-    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f
+    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f 2>/dev/null || true
     echo "Dataprep images removed!"
 
 # Complete cleanup - stop containers, remove containers, networks, volumes, and images
 elif [ "$1" = "--purge" ] && [ "$#" -eq 1 ]; then
     echo "Performing complete cleanup..."
-    docker compose -f docker/compose.yaml down --volumes --remove-orphans
-    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f
-    # Fallback cleanup for legacy images
-    docker images | grep "${PROJECT_NAME}" | awk '{print $3}' | xargs -r docker rmi -f
-    docker images | grep "intel/document-ingestion" | awk '{print $3}' | xargs -r docker rmi -f    
+    
+    # Stop everything and remove all resources including images
+    docker compose -f docker/compose.yaml down --rmi all --volumes --remove-orphans 2>/dev/null || true
+    
+    if [ -f "docker/compose-dev.yaml" ]; then
+        docker compose -f docker/compose.yaml -f docker/compose-dev.yaml down --rmi all --volumes --remove-orphans 2>/dev/null || true
+    fi
+    
+    # Clean any remaining labeled images
+    docker images --filter "label=project=${PROJECT_NAME}" -q | xargs -r docker rmi -f 2>/dev/null || true
+        
     echo "Complete cleanup finished!"
 
 else

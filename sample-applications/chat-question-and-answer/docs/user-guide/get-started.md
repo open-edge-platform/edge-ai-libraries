@@ -41,11 +41,13 @@ The sample application has been validated with a few models just to validate the
 ### LLM Models validated for each model server
 | Model Server | Models Validated |
    |--------------|-------------------|
-   | `vLLM` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+   | `vLLM` (deprecated) | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
    | `OVMS` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
-   | `TGI` | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
+   | `TGI` (deprecated) | `Intel/neural-chat-7b-v3-3`, `Qwen/Qwen2.5-7B-Instruct`, `microsoft/Phi-3.5-mini-instruct`, `meta-llama/Llama-3.1-8B-instruct`, `deepseek-ai/DeepSeek-R1-Distill-Qwen-7B` |
 
-Note: Limited validation was done on DeepSeek model.
+**Note:**
+1. Limited validation was done on DeepSeek model.
+2. Effective 2025.2.0 release, support for vLLM and TGI is deprecated. The functionality is not guaranteed to work and the user is advised not to use them. Should there be a strong requirement for the same, please raise an issue in github.
 
 ### Reranker Models validated
    | Model Server | Models Validated |
@@ -98,7 +100,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    export LLM_MODEL=Qwen/Qwen2.5-7B-Instruct
    export EMBEDDING_MODEL_NAME=Alibaba-NLP/gte-large-en-v1.5
    export RERANKER_MODEL=BAAI/bge-reranker-base
-   export DEVICE="CPU" #Options: CPU for VLLM and TGI. GPU is only enabled for openvino model server(OVMS) .
+   export DEVICE="CPU" #Options: GPU is enabled for openvino model server(OVMS) .
    export OTLP_ENDPOINT_TRACE=<otlp-endpoint-trace> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    export OTLP_ENDPOINT=<otlp-endpoint> # Optional. Set only if there is an OTLP endpoint available or can be ignored
    ```
@@ -111,7 +113,7 @@ Visit https://huggingface.co/settings/tokens to get your token.
    export TAG=2.0.0
    source setup.sh llm=<model-server> embed=<embedding>
    # Below are the options
-   # model-server: VLLM , OVMS, TGI
+   # model-server: VLLM (deprecated), OVMS, TGI (deprecated)
    # embedding: OVMS, TEI
    ```
 
