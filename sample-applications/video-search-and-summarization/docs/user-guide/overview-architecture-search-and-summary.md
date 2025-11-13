@@ -21,7 +21,7 @@ The system architecture diagram shows the Video Search and Summarization pipelin
 
 8. **Vector Database and Search**: A vector database stores the multimodal embeddings and enables fast semantic search across the video collection. Users can search for videos using natural language queries that are matched against video content semantically.
 
-![System Architecture Diagram](./images/TEAI_VideoSearchSumm.png)
+![System Architecture Diagram](./images/TEAI_VideoSearchSumm.drawio.svg)
 *Figure 1: Architecture of Video Search and Summarization sample application
 
 Further details on the system architecture and customizable options are available [here](./overview-architecture-summary.md).
@@ -32,7 +32,7 @@ Note: In the figure, though Reranker is shown, the support for the same is a fun
 ## Detailed Architecture
 <!--
 **User Stories Addressed**:
-- **US-7: Understanding the Architecture**  
+- **US-7: Understanding the Architecture**
   - **As a developer**, I want to understand the architecture and components of the application, so that I can identify customization or integration points.
 
 **Acceptance Criteria**:
@@ -54,7 +54,7 @@ The application flow involves the following steps for both search indexing and s
 
 1. **Create the Video Search and Summarization pipeline**
    - **Configure the pipeline**: The _Video Search and Summarization UI microservice_ provides the user a means to configure the different capabilities required on both Video Search and Video Summarization pipelines. A separate user guide is planned to provide all required details on how to setup the pipeline.
-   - **Create the pipeline**: The configuration done on the UI is received by the _Video Search and Summarization pipeline manager microservice_. The pipeline manager configures the required microservices as per the capabilities and configuration requested by the user.    
+   - **Create the pipeline**: The configuration done on the UI is received by the _Video Search and Summarization pipeline manager microservice_. The pipeline manager configures the required microservices as per the capabilities and configuration requested by the user.
 2. **Input Video Sources**:
    - **Provide video**: The user provides the source of the video to be processed for both search indexing and summarization. The UI provides means to configure the input video. Currently, only offline video processing is supported by reading from local storage. In future, live camera streaming support will also be provided. The pipeline manager stores the video into a local object store.
    - **Ingest video**: The stored video is then consumed by the _video ingestion microservice_. The video ingestion microservice reuses DL Streamer pipeline server and all its capabilities to provide for different features like object detection, audio classification, and (in future) input feed from live cameras. The ingestion process involves decode, chunking, and selection of frame(s) from the input video. The extracted frame(s) is passed through object detection blocks, audio classification block if they are configured. The extracted frames along with the metadata returned by the object detector and/or audio classification is then passed to both the VLM microservice for captioning and the embedding microservice for search indexing.
@@ -69,8 +69,8 @@ The application flow involves the following steps for both search indexing and s
 5. **Enable semantic search capabilities**:
    - **Search functionality**: Once embeddings are created and stored, users can perform semantic searches across the entire video collection using natural language queries. The search system matches user queries against the stored embeddings to find semantically similar video content.
    - **Unified interface**: The UI provides both summary viewing and search capabilities, allowing users to discover relevant videos through search and then view their summaries.
-6. **Observability dashboard**: 
-   - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..   
+6. **Observability dashboard**:
+   - If set up, the dashboard displays real-time logs, metrics, and traces providing a view of the performance, accuracy, and resource consumption by the application..
 
 <!-- The application flow is illustrated in the following flow diagram. The diagram shows the API used and the data sharing protocol for both Video Search and Video Summarization capabilities.
 ![Data flow diagram](./images/VideoSummary-request.jpg)
@@ -86,7 +86,7 @@ The application flow involves the following steps for both search indexing and s
 The key components of Video Search and Summarization sample application are as follows:
 
 1. **Intel's Edge AI Inference microservices**:
-   - **What it is**: Inference microservices are the VLM, LLM, Audio transcription, and Multimodal Embedding microservices that run the chosen models optimally on the hardware. 
+   - **What it is**: Inference microservices are the VLM, LLM, Audio transcription, and Multimodal Embedding microservices that run the chosen models optimally on the hardware.
    - **How it's used**: Each of the microservices uses OpenAI APIs to support their functionality. The microservices are configured to use the required models and launched. The video pipeline manager accesses these microservices using the APIs for both summary generation and search indexing.
    - **Benefits**: The default configuration of these microservices as provided by the sample application is guaranteed to perform optimally for the chosen models and on the target deployment hardware. Standard OpenAI API ensures easy portability of different inference microservices.
 
@@ -106,25 +106,25 @@ The key components of Video Search and Summarization sample application are as f
    - **Benefits**: This microservice should be treated as a sample reference implementation.
 
 5. **Dependent microservices**:
-   The dependent microservices are those that are used by the pipeline to realize both Video Search and Video Summarization features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are: 
+   The dependent microservices are those that are used by the pipeline to realize both Video Search and Video Summarization features. Few of them are inference microservices while the others are data handling microservices. These microservices belong to either (1) or (2) listed above. The dependent microservices are:
    - [Multimodal Embedding](../../../../microservices/multimodal-embedding-serving/) - Creates vector embeddings for semantic search
    - [Audio Analyzer](../../../../microservices/audio-analyzer/) - Provides audio transcription capabilities
    - [VDMS based data preparation](../../../../microservices/visual-data-preparation-for-retrieval/vdms/) - Handles vector database storage and retrieval
    - [VLM microservice](../../../../microservices/vlm-openvino-serving/) - Generates captions for video content
    - [Vector Retriever](../../../../microservices/vector-retriever/) - Enables semantic search across the video collection
-   
-   Refer to their respective documentation for details on their capability. 
+
+   Refer to their respective documentation for details on their capability.
 
 ## Extensibility
 
 The Video Search and Summarization sample application is designed with modularity in mind, allowing you to:
 1. **Change inference microservices**:
    - The default option is OVMS. Use other model servers like vLLM with OpenVINO backend, and TGI to host VLM models.
-   - Mandatory requirement is OpenAI API compliance. Note that other model servers do not provide the same performance as default options. 
+   - Mandatory requirement is OpenAI API compliance. Note that other model servers do not provide the same performance as default options.
 2. **Load different VLM, LLM, and Embedding models**:
    - Use different models from Hugging Face OpenVINO model hub or vLLM model hub. The models are passed as a parameter to corresponding model servers.
    - Embedding models can be swapped to optimize for different types of content or search requirements.
-3. **Configure different capabilities on both Video Search and Video Summarization pipelines**: 
+3. **Configure different capabilities on both Video Search and Video Summarization pipelines**:
    - In addition to available capabilities, the approach also allows newer capabilities to be enabled if it helps on the accuracy of both search results and summaries.
    - The UI, pipeline manager, and required microservices are easily configurable to allow for such extensions.
 4. **Customize vector database and search configurations**:

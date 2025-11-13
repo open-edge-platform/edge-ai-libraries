@@ -9,10 +9,10 @@ The video search is executed over the generated summary. The search result is us
 ## Purpose
 
 Combining video search and video summarization unlocks a wide range of practical use cases across industries where rapid access to relevant video content is essential. A few examples are provided below.
-- Security and surveillance teams benefit from semantic search capabilities to efficiently identify incidents, suspicious activities, or patterns across hours of footage, improving response times and situational awareness. 
-- In education and training, instructors and learners can retrieve key moments or topics from recorded lectures and tutorials, enhancing knowledge discovery and personalized learning. 
-- Legal and compliance professionals can use search to pinpoint evidence or verify claims within video records, supporting investigations and audits. 
-- In media and entertainment, editors and analysts can quickly locate and review specific scenes or events within large archives, streamlining content production and compliance checks. 
+- Security and surveillance teams benefit from semantic search capabilities to efficiently identify incidents, suspicious activities, or patterns across hours of footage, improving response times and situational awareness.
+- In education and training, instructors and learners can retrieve key moments or topics from recorded lectures and tutorials, enhancing knowledge discovery and personalized learning.
+- Legal and compliance professionals can use search to pinpoint evidence or verify claims within video records, supporting investigations and audits.
+- In media and entertainment, editors and analysts can quickly locate and review specific scenes or events within large archives, streamlining content production and compliance checks.
 
 Additionally, enterprises managing video libraries for marketing, customer support, or product documentation can leverage Video Search and Summarization application to organize, index, and retrieve valuable content, driving productivity and informed decision-making.
 
@@ -32,19 +32,19 @@ Key features of the combined mode include:
 - **Scalable Architecture**: Supports large video collections by streamlining the search process, making it suitable for enterprise-scale deployments and edge environments.
 - **Enhanced User Experience**: Provides concise, relevant search results with direct links to summarized video segments, improving content discovery and review efficiency.
 
-This combined approach maximizes the value of both summarization and search, delivering a robust solution for rapid, accurate, and resource-efficient video understanding across diverse applications. The Video Search and Summarization sample application provides the above listed features through the supported capabilities of the Video Search and Summarization microservices. The reader is adviced to check the documentation of the Video Search mode and Video Summarization mode for a baseline view of the capabilities. Building on top of the capabilities of search mode and summary mode, the combined mode implementation further provides: 
-- **Natural Language Querying**: The embeddings generated using the generated summary text enables users to search or query video content using natural language queries, making the search process intuitive and user-friendly. 
+This combined approach maximizes the value of both summarization and search, delivering a robust solution for rapid, accurate, and resource-efficient video understanding across diverse applications. The Video Search and Summarization sample application provides the above listed features through the supported capabilities of the Video Search and Summarization microservices. The reader is adviced to check the documentation of the Video Search mode and Video Summarization mode for a baseline view of the capabilities. Building on top of the capabilities of search mode and summary mode, the combined mode implementation further provides:
+- **Natural Language Querying**: The embeddings generated using the generated summary text enables users to search or query video content using natural language queries, making the search process intuitive and user-friendly.
 - **Summary to Text indexing**: A rich index is maintained to associate the generated summary with video at a chunk and frame level. This allows for easy retrieval of corresponding videos based on the search results.
 - **Reuse of building block microservices**: The inference microservices are reused between the different modes of Video Search and Summarization application. The pipeline manager microservice is reused too. This highlights the design strengths of the microservices offered.
 - **Intuitive extension of user interface for combined mode**: The same user interface is also extended to support the combined mode thereby ensuring a consistent experience for the users.
 
 ## High level architecture
-The combined Video Search and Summarization mode uses all the components of the Video Search and Video Summarization application. The purpose of this sample application is to enable users to create both video summarization and semantic search pipelines with the best possible accuracy for given compute resources. The figure shows the combined mode high level architecture. 
+The combined Video Search and Summarization mode uses all the components of the Video Search and Video Summarization application. The purpose of this sample application is to enable users to create both video summarization and semantic search pipelines with the best possible accuracy for given compute resources. The figure shows the combined mode high level architecture.
 
-![System Architecture Diagram](./images/TEAI_VideoSearchSumm.png)
+![System Architecture Diagram](./images/TEAI_VideoSearchSumm.drawio.svg)
 
 The combined sample application:
-- Demonstrates how Intel's Edge AI catalog of inference microservices can be used to quickly build Video Search and Summarization pipelines. The inference microservices are optimized for Intel's Edge AI systems. 
+- Demonstrates how Intel's Edge AI catalog of inference microservices can be used to quickly build Video Search and Summarization pipelines. The inference microservices are optimized for Intel's Edge AI systems.
 - Serves as a blueprint for building similar scalable and modular solutions that can be deployed on Intel's Edge AI systems.
 - Showcases the competitiveness of Intel's Edge AI systems to address varied deployment scenario requirements (edge to cloud).
 - Provides reference sample microservices for capabilities like video ingestion, embedding generation, vector search, and UI front end that reduces the effort to customize the application.
@@ -53,7 +53,7 @@ The combined sample application:
 The Video Search and Summarization pipeline offers features to improve accuracy for complex long-form videos while enabling efficient discovery across video collections. Choosing which features to use involves balancing accuracy and performance for both search and summary capabilities. To use the tool effectively, start by answering the following key questions:
 1. What is the complexity of the videos that need to be processed for both search and summarization?
 2. What is the accuracy target both the summarization pipeline and search functionality need to achieve as measured by key qualitative metrics like BERT score for summaries and search relevance metrics?
-3. What are the available compute resources to run both pipelines? 
+3. What are the available compute resources to run both pipelines?
 4. What are the key performance metrics like throughput, latency, and search response time that need to be achieved by the application?
 5. What is the expected size of the video collection and search query volume?
 

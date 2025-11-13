@@ -258,5 +258,5 @@ class DecordVideoDecoder(BaseVideoDecoder):
             try:
                 with vr_lock:
                     del self.vr
-            except:
-                pass
+            except Exception as e:
+                print(f"Clean up resources: wait failed with unexpected error: {e}")
