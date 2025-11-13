@@ -342,7 +342,8 @@ class VideoFrame {
         gpointer state = NULL;
         GstAnalyticsODMtd od_mtd;
         size_t count = 0;
-        while (gst_analytics_relation_meta_iterate(relation_meta, &state, gst_analytics_od_mtd_get_mtd_type(), &od_mtd)) {
+        while (
+            gst_analytics_relation_meta_iterate(relation_meta, &state, gst_analytics_od_mtd_get_mtd_type(), &od_mtd)) {
             ++count;
         }
 
@@ -352,7 +353,8 @@ class VideoFrame {
 
         // Construct RegionOfInterest objects
         state = NULL;
-        while (gst_analytics_relation_meta_iterate(relation_meta, &state, gst_analytics_od_mtd_get_mtd_type(), &od_mtd)) {
+        while (
+            gst_analytics_relation_meta_iterate(relation_meta, &state, gst_analytics_od_mtd_get_mtd_type(), &od_mtd)) {
             GstVideoRegionOfInterestMeta *roi_meta = gst_buffer_get_video_region_of_interest_meta_id(buffer, od_mtd.id);
             if (!roi_meta) {
                 throw std::runtime_error(
