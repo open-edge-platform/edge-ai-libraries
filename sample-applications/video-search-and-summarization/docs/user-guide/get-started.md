@@ -99,10 +99,10 @@ Before running the application, you need to set several environment variables:
     export OD_MODEL_NAME="yolov8l-worldv2"
 
     # --search : use any multimodal embedding model for video-only search flows
-    export EMBEDDING_MODEL_NAME="SigLIP/siglip2-vit-b-16"
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 
     # --all    : configure both the multimodal embedding model and a dedicated text embedding model
-    export EMBEDDING_MODEL_NAME="SigLIP/siglip2-vit-b-16"
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
     export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
     ```
 

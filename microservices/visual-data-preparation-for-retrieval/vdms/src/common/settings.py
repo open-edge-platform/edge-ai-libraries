@@ -54,7 +54,7 @@ class Settings(BaseSettings):
     DEVICE: str = Field(
         default="CPU",
         validation_alias=AliasChoices("VDMS_DATAPREP_DEVICE"),
-        description="Device for all processing components (decord, embedding model, object detection)",
+        description="Device for all processing components (embedding model, object detection)",
     )
     OV_MODELS_DIR: str = "/app/ov_models"  # Directory for OpenVINO models (used by both SDK and embedding service)
 
