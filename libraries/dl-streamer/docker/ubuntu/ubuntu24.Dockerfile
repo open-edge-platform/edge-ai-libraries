@@ -70,7 +70,7 @@ RUN \
     apt update && \
     apt-get install -y --no-install-recommends \
     libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
-    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo && \
+    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
@@ -478,7 +478,7 @@ RUN \
     apt update && \
     apt-get install -y --no-install-recommends \
     libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
-    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo && \
+    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
