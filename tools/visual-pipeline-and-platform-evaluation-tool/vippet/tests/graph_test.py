@@ -1,4 +1,3 @@
-import re
 import unittest
 from dataclasses import dataclass
 from unittest.mock import MagicMock, patch
@@ -265,11 +264,11 @@ parse_test_cases = [
         r"tee name=t0 ! queue2 ! splitmuxsink location=/tmp/$(uuid).mp4 "
         r"t0. ! queue2 ! vah264dec ! video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
-        r"gvadetect   model=${MODEL_YOLOv5s_416} model-proc=${MODEL_PROC_YOLOv5s_416} "
-        r"model-instance-id=detect0   pre-process-backend=va-surface-sharing device=GPU "
+        r"gvadetect model=${MODEL_YOLOv5s_416} model-proc=${MODEL_PROC_YOLOv5s_416} "
+        r"model-instance-id=detect0 pre-process-backend=va-surface-sharing device=GPU "
         r"batch-size=0 inference-interval=3 nireq=0 ! queue2 ! "
         r"gvatrack tracking-type=short-term-imageless ! queue2 ! "
-        r"gvaclassify   model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
+        r"gvaclassify model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
         r"model-instance-id=classify0 pre-process-backend=va-surface-sharing device=GPU "
         r"batch-size=0 inference-interval=3 nireq=0 reclassify-interval=1 ! queue2 ! "
         r"gvawatermark ! "
@@ -655,7 +654,7 @@ parse_test_cases = [
     ),
     # Magic 9 Heavy
     ParseTestCase(
-        r"filesrc location=${VIDEO}! h265parse ! vah265dec ! "
+        r"filesrc location=${VIDEO} ! h265parse ! vah265dec ! "
         r"capsfilter caps=\"video/x-raw(memory:VAMemory)\" ! queue ! "
         r"gvadetect model=${MODEL_YOLOv11n} model-proc=${MODEL_PROC_YOLOv11n} "
         r"device=GPU pre-process-backend=va-surface-sharing "
@@ -770,13 +769,13 @@ parse_test_cases = [
         r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vaapidecodebin ! "
         r"vapostproc ! video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
-        r"gvadetect   model=${LPR_MODEL} model-instance-id=detect0 "
-        r"pre-process-backend=va-surface-sharing   device=GPU   batch-size=0   inference-interval=3  nireq=0 ! "
-        r"queue2 ! gvatrack   tracking-type=short-term-imageless ! queue2 ! "
-        r"gvaclassify   model=${OCR_MODEL} model-instance-id=classify0 "
-        r"pre-process-backend=va-surface-sharing   device=GPU   batch-size=0   inference-interval=3   nireq=0 "
-        r"reclassify-interval=1 ! queue2 ! gvawatermark ! gvametaconvert   format=json   json-indent=4 ! "
-        r"gvametapublish   method=file file-path=/dev/null ! "
+        r"gvadetect model=${LPR_MODEL} model-instance-id=detect0 "
+        r"pre-process-backend=va-surface-sharing device=GPU batch-size=0 inference-interval=3 nireq=0 ! "
+        r"queue2 ! gvatrack tracking-type=short-term-imageless ! queue2 ! "
+        r"gvaclassify model=${OCR_MODEL} model-instance-id=classify0 "
+        r"pre-process-backend=va-surface-sharing device=GPU batch-size=0 inference-interval=3 nireq=0 "
+        r"reclassify-interval=1 ! queue2 ! gvawatermark ! gvametaconvert format=json json-indent=4 ! "
+        r"gvametapublish method=file file-path=/dev/null ! "
         r"fakesink",
         Graph(
             nodes=[
@@ -865,15 +864,15 @@ parse_test_cases = [
     ),
     # Human Pose Pipeline
     ParseTestCase(
-        r"filesrc location=${VIDEO}! qtdemux ! h264parse ! vah264dec ! "
+        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
         r"video/x-raw(memory:VAMemory) ! "
         r"gvafpscounter starting-frame=500 ! "
         r"gvadetect model=${YOLO11n_POST_MODEL} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"model-instance-id=yolo11-pose ! queue2 ! "
         r"gvatrack tracking-type=short-term-imageless ! "
-        r"gvawatermark ! gvametaconvert   format=json   json-indent=4 ! "
-        r"gvametapublish   method=file file-path=/dev/null ! "
+        r"gvawatermark ! gvametaconvert format=json json-indent=4 ! "
+        r"gvametapublish method=file file-path=/dev/null ! "
         r"fakesink",
         Graph(
             nodes=[
@@ -1120,13 +1119,6 @@ unsorted_nodes_edges = [
 ]
 
 
-def normalize(s: str) -> str:
-    s = re.sub(r" {2,}", " ", s)
-    s = re.sub(r"(?<!\s)!", " !", s)
-    s = re.sub(r"!(?!\s)", "! ", s)
-    return s
-
-
 class TestToFromDict(unittest.TestCase):
     def test_to_from_dict(self):
         self.maxDiff = None
@@ -1154,7 +1146,7 @@ class TestDictToString(unittest.TestCase):
 
         for tc in parse_test_cases + unsorted_nodes_edges:
             actual = tc.pipeline_graph.to_pipeline_description()
-            self.assertEqual(actual, normalize(tc.pipeline_description))
+            self.assertEqual(actual, tc.pipeline_description)
 
 
 class TestParseLaunchString(unittest.TestCase):
