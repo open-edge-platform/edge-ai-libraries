@@ -99,12 +99,14 @@ Before running the application, you need to set several environment variables:
     export OD_MODEL_NAME="yolov8l-worldv2"
 
     # --search : use any multimodal embedding model for video-only search flows
-    # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
-    # --all    : use the Qwen text embedding model for combined summarization + search flows
-    export EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+    export EMBEDDING_MODEL_NAME="SigLIP/siglip2-vit-b-16"
+
+    # --all    : configure both the multimodal embedding model and a dedicated text embedding model
+    export EMBEDDING_MODEL_NAME="SigLIP/siglip2-vit-b-16"
+    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
     ```
 
-    > **Note**: SETTING EMBEDDING MODELS (choose the value that matches your deployment mode) Supported model list can be found in [supported-models](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md)
+    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 
