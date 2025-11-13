@@ -258,11 +258,11 @@ export EMBEDDING_SERVER_PORT=9777
 export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
 export TEXT_EMBEDDING_MODEL_NAME=${TEXT_EMBEDDING_MODEL_NAME}  # Optional - only required for unified case (--all)
 export DEFAULT_START_OFFSET_SEC=0
-export DEFAULT_FRAME_INTERVAL=${DEFAULT_FRAME_INTERVAL:-15}
+export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
 export DEFAULT_NUM_FRAMES=64
-export EMBEDDING_USE_OV=true
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
-export EMBEDDING_OV_MODELS_DIR=${OV_MODELS_DIR}
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 # NOTE: The default OpenVINO performance mode has been changed from "LATENCY" to "THROUGHPUT".
 # This impacts inference characteristics: "THROUGHPUT" optimizes for overall throughput, while "LATENCY" optimizes for response time.
 # Please review user documentation or migration notes for details on this change.
@@ -323,6 +323,8 @@ if [[ "${DEVICE}" == GPU* ]]; then
 else
     configure_device "CPU"
 fi
+
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$DEVICE}
 
 export MULTIMODAL_EMBEDDING_HOST=multimodal-embedding-serving
 export MULTIMODAL_EMBEDDING_ENDPOINT=http://$MULTIMODAL_EMBEDDING_HOST:8000/embeddings

@@ -60,6 +60,7 @@ services:
             # Embedding service settings
             - MULTIMODAL_EMBEDDING_ENDPOINT
             - MULTIMODAL_EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME:-} # Used for both SDK and API modes
+            - OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 
             # Embedding processing mode settings (SDK vs API)
             - EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-sdk}
@@ -77,7 +78,7 @@ services:
             - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
 
             # Application configuration
-            - LOG_LEVEL=${LOG_LEVEL:-INFO}
+            - LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
 
             # CORS settings
             - ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}

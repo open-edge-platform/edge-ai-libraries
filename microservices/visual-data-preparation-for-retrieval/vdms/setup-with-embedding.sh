@@ -54,7 +54,7 @@ export EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-"sdk"}
 export SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
 export DEVICE=${DEVICE:-"CPU"}
 export OV_MODELS_DIR=${OV_MODELS_DIR:-"/app/ov_models"}
-export EMBEDDING_OV_MODELS_DIR=${OV_MODELS_DIR}
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-$OV_MODELS_DIR}
 export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-"THROUGHPUT"}
 
 # Device Configuration Helper Functions
@@ -103,6 +103,9 @@ else
     configure_device "CPU"
 fi
 
+# Align EMBEDDING_DEVICE with resolved DEVICE for SDK runtime configuration
+export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-$DEVICE}
+
 # Frame processing settings
 export FRAME_INTERVAL=${FRAME_INTERVAL:-15}
 export ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
@@ -115,10 +118,10 @@ export VDMS_DATAPREP_LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
 # Env vars for multimodal-embedding-serving -------------------------
 export EMBEDDING_SERVER_PORT=9777
 export EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME}  # Must be explicitly provided - no default
-export EMBEDDING_USE_OV=true
-export DEFAULT_START_OFFSET_SEC=0
-export DEFAULT_FRAME_INTERVAL=15
-export DEFAULT_NUM_FRAMES=64
+export EMBEDDING_USE_OV=${EMBEDDING_USE_OV:-$SDK_USE_OPENVINO}
+export DEFAULT_START_OFFSET_SEC=${DEFAULT_START_OFFSET_SEC:-0}
+export DEFAULT_CLIP_DURATION=${DEFAULT_CLIP_DURATION:--1}
+export DEFAULT_NUM_FRAMES=${DEFAULT_NUM_FRAMES:-64}
 
 # Multimodal Embedding API endpoint
 export MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT:-"http://multimodal-embedding-serving:8000/embeddings"}
