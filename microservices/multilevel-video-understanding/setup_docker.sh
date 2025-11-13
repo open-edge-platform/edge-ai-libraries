@@ -8,7 +8,7 @@ set -e
 # Multi-level Video Understanding Docker Setup Script
 
 # Service port
-SERVICE_PORT=${SERVICE_PORT:-8000}
+SERVICE_PORT=${SERVICE_PORT:-8192}
 
 # Define color codes
 RED='\033[0;31m'

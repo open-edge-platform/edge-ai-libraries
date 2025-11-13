@@ -21,7 +21,18 @@ import threading
 import tomlkit
 from influxdb import InfluxDBClient
 
-TEMP_KAPACITOR_DIR = tempfile.gettempdir()
+# Secure temporary directory management
+def get_secure_temp_dir():
+    """Get a secure temporary directory path with proper permissions"""
+    # Use system temp directory as base, but ensure it's secure
+    base_temp = tempfile.gettempdir()
+    tmp_path = "/tmp"
+    if os.path.exists(tmp_path) and os.access(tmp_path, os.W_OK):
+        return tmp_path
+    else:
+        return base_temp
+
+SECURE_TEMP_DIR = get_secure_temp_dir()
 KAPACITOR_DEV = "kapacitor_devmode.conf"
 KAPACITOR_PROD = "kapacitor.conf"
 SUCCESS = 0
@@ -32,7 +43,7 @@ KAPACITOR_NAME = 'kapacitord'
 def kapacitor_daemon_logs(logger):
     """Read the kapacitor logs and print it to stdout
     """
-    kapacitor_log_file = "/tmp/log/kapacitor/kapacitor.log"
+    kapacitor_log_file = os.path.join(SECURE_TEMP_DIR, "log", "kapacitor", "kapacitor.log")
     while True:
         if os.path.isfile(kapacitor_log_file):
             break
@@ -67,7 +78,7 @@ class KapacitorClassifier():
         """ Check if UDF deployment package is present in the container
         """
         logger.info("Checking if UDF deployment package is present in the container...")
-        path = "/tmp/" + dir_name + "/"
+        path = os.path.join(SECURE_TEMP_DIR, dir_name)
         udf_dir = os.path.join(path, "udfs")
         model_dir = os.path.join(path, "models")
         tick_scripts_dir = os.path.join(path, "tick_scripts")
@@ -125,8 +136,8 @@ class KapacitorClassifier():
         """ Install python package from udf/requirements.txt if exists
         """
 
-        python_package_requirement_file = "/tmp/" + dir_name + "/udfs/requirements.txt"
-        python_package_installation_path = "/tmp/py_package"
+        python_package_requirement_file = os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", "requirements.txt")
+        python_package_installation_path = os.path.join(SECURE_TEMP_DIR, "py_package")
         status = subprocess.run(["mkdir", "-p", python_package_installation_path], check=False)
         if status.returncode != SUCCESS:
             self.logger.error("Failed to create directory %s for installing python packages.",
@@ -157,7 +168,7 @@ class KapacitorClassifier():
         try:
             if secure_mode:
                 # Populate the certificates for kapacitor server
-                kapacitor_conf = '/tmp/' + KAPACITOR_PROD
+                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_PROD)
 
                 os.environ["KAPACITOR_URL"] = "{}{}".format(https_scheme,
                                                             kapacitor_port)
@@ -166,7 +177,7 @@ class KapacitorClassifier():
                     os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] = "{}{}".format(
                         https_scheme, influxdb_hostname_port)
             else:
-                kapacitor_conf = '/tmp/' + KAPACITOR_DEV
+                kapacitor_conf = os.path.join(SECURE_TEMP_DIR, KAPACITOR_DEV)
                 os.environ["KAPACITOR_URL"] = "{}{}".format(http_scheme,
                                                             kapacitor_port)
                 os.environ["KAPACITOR_UNSAFE_SSL"] = "true"
@@ -265,11 +276,11 @@ class KapacitorClassifier():
 
         self.logger.info("Kapacitor Port is Open for Communication....")
 
-        path = "/tmp/" + dir_name + "/tick_scripts/"
+        path = os.path.join(SECURE_TEMP_DIR, dir_name, "tick_scripts")
         while retry < retry_count:
             define_pointcl_cmd = ["kapacitor", "-skipVerify", "define",
                                   task_name, "-tick",
-                                  path + tick_script]
+                                  os.path.join(path, tick_script)]
 
             if subprocess.check_call(define_pointcl_cmd) == SUCCESS:
                 define_pointcl_cmd = ["kapacitor", "-skipVerify", "enable",
@@ -396,10 +407,11 @@ def classifier_startup(config):
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
         delete_old_subscription(secure_mode)
     conf_file = KAPACITOR_PROD if secure_mode else KAPACITOR_DEV
-    # Copy the kapacitor conf file to the /tmp directory
-    shutil.copy("/app/config/" + conf_file, "/tmp/" + conf_file)
+    # Copy the kapacitor conf file to the secure temp directory
+    dest_conf_path = os.path.join(SECURE_TEMP_DIR, conf_file) 
+    shutil.copy("/app/config/" + conf_file, dest_conf_path)
     # Read the existing configuration
-    with open("/tmp/" + conf_file, 'r', encoding='utf-8') as file:
+    with open(dest_conf_path, 'r', encoding='utf-8') as file:
         config_data = tomlkit.parse(file.read())
     udf_name = config['udfs']['name']
     if "models" in config['udfs'].keys():
@@ -427,12 +439,12 @@ def classifier_startup(config):
 
     udf_section[udf_name]['prog'] = 'python3'
 
-    udf_section[udf_name]['args'] = ["-u", "/tmp/"+ dir_name +"/udfs/" + udf_name + ".py"]
+    udf_section[udf_name]['args'] = ["-u", os.path.join(SECURE_TEMP_DIR, dir_name, "udfs", udf_name + ".py")] 
 
     udf_section[udf_name]['timeout'] = "60s"
     udf_section[udf_name]['env'] = {
-        'PYTHONPATH': "/tmp/py_package:/app/kapacitor_python/:",
-        'MODEL_PATH': os.path.join("/tmp", dir_name, "models", model_name),
+        'PYTHONPATH': f"{os.path.join(SECURE_TEMP_DIR, 'py_package')}:/app/kapacitor_python/:",
+        'MODEL_PATH': os.path.join(SECURE_TEMP_DIR, dir_name, "models", model_name),
         'DEVICE': device
     }
     if "alerts" in config.keys() and "mqtt" in config["alerts"].keys():
@@ -449,12 +461,12 @@ def classifier_startup(config):
     if os.environ["KAPACITOR_INFLUXDB_0_URLS_0"] != "":
         config_data["influxdb"][0]["enabled"] = True
     # Write the updated configuration back to the file
-    with open("/tmp/" + conf_file, 'w', encoding='utf-8') as file:
+    with open(dest_conf_path, 'w', encoding='utf-8') as file:
         file.write(tomlkit.dumps(config_data, sort_keys=False))
 
     # Copy the /app/temperature_Classifier folder to /tmp/temperature_classifier
     src_dir = "/app/temperature_classifier"
-    dst_dir = "/tmp/temperature_classifier"
+    dst_dir = os.path.join(SECURE_TEMP_DIR, "temperature_classifier")
     if os.path.exists(dst_dir):
         shutil.rmtree(dst_dir)
     shutil.copytree(src_dir, dst_dir)

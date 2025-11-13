@@ -39,7 +39,7 @@ if __name__ == "__main__":
     
     uvicorn.run(
         "video_analyzer.main:app",
-        host="0.0.0.0",
+        host="127.0.0.1",
         port=8000,
         reload=settings.DEBUG,
         log_level="debug" if settings.DEBUG else "info",

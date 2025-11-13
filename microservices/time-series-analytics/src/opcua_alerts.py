@@ -88,13 +88,17 @@ class OpcuaAlerts:
         while attempt < max_retries:
             try:
                 if secure_mode.lower() == "true":
-                    kapacitor_cert = ("/run/secrets/"
-                                    "time_series_analytics_microservice_Server_server_certificate.pem")
-                    kapacitor_key = ("/run/secrets/"
-                                   "time_series_analytics_microservice_Server_server_key.pem")
-                    self.client.set_security_string(
+                    client_cert = os.getenv("OPCUA_CLIENT_CERT", "client_certificate.pem")
+                    client_key = os.getenv("OPCUA_CLIENT_KEY", "client_key.pem")
+                    opcua_server_username = os.getenv("OPCUA_SERVER_USERNAME", "admin")
+                    opcua_server_password = os.getenv("OPCUA_SERVER_PASSWORD", "")
+                    kapacitor_cert = ("/run/secrets/" + client_cert)
+                    kapacitor_key = ("/run/secrets/" + client_key)
+                    await self.client.set_security_string(
                         f"Basic256Sha256,SignAndEncrypt,{kapacitor_cert},{kapacitor_key}")
-                    self.client.set_user("admin")
+                    if opcua_server_username:
+                        self.client.set_user(opcua_server_username)
+                        self.client.set_password(opcua_server_password)
                 logger.info("Attempting to connect to OPC UA server: %s "
                             "%s (Attempt %s)", self.opcua_server, self.client, attempt + 1)
                 await self.client.connect()
@@ -121,7 +125,7 @@ class OpcuaAlerts:
             RuntimeError: If connection to OPC UA server fails
         """
         self.node_id, self.namespace, self.opcua_server = self.load_opcua_config()
-        secure_mode = os.getenv("SECURE_MODE", "false")
+        secure_mode = os.getenv("OPCUA_SECURE_MODE", "false")
         connected = await self.connect_opcua_client(secure_mode)
         if not connected:
             logger.error("Failed to connect to OPC UA server.")
