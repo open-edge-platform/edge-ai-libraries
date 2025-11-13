@@ -119,7 +119,7 @@ services:
             SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
             DEVICE: ${DEVICE:-CPU}
             OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
-            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
 
             # Frame processing settings
             FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
@@ -188,7 +188,7 @@ services:
             DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
             DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
             DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
-            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
         devices:
             - /dev/dri:/dev/dri
         group_add:
