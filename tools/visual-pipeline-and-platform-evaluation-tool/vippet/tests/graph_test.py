@@ -1,8 +1,77 @@
+import os
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock, patch
-
+from unittest.mock import MagicMock
 from graph import Graph, Node, Edge
+import graph
+
+mock_models_manager = MagicMock()
+mock_videos_manager = MagicMock()
+
+
+def _mock_get_video_filename(path: str) -> str:
+    return os.path.basename(path)
+
+
+def _mock_get_video_path(filename: str) -> str:
+    return os.path.join("/tmp", filename)
+
+
+def _mock_find_model_by_name(name: str):
+    mapped_names = [
+        "yolov8_license_plate_detector",
+        "ch_PP-OCRv4_rec_infer",
+        "${MODEL_YOLOv5s_416}+PROC",
+        "${MODEL_RESNET}+PROC",
+        "${MODEL_YOLOv11n}+PROC",
+        "${MODEL_RESNET}+PROC",
+        "${MODEL_YOLOv5m}+PROC",
+        "${MODEL_RESNET}+PROC",
+        "${MODEL_MOBILENET}+PROC",
+        "${MODEL_YOLOv11n}+PROC",
+        "${MODEL_RESNET}+PROC",
+        "${MODEL_MOBILENET}+PROC",
+        "${LPR_MODEL}",
+        "${OCR_MODEL}",
+        "${YOLO11n_POST_MODEL}",
+    ]
+
+    if name in mapped_names:
+        mock_model = MagicMock()
+        mock_model.display_name = name
+        return mock_model
+    else:
+        return None
+
+
+def _mock_find_model_by_display_name(name: str):
+    mock_model = MagicMock()
+
+    if name.startswith("${"):
+        mock_model.model_path_full = os.path.join("/models", name)
+    else:
+        mock_model.model_path_full = os.path.join("/models", f"{name}.xml")
+
+    if name.endswith("+PROC"):
+        mock_model.model_proc_full = os.path.join(
+            "/models/proc", name.removesuffix("+PROC")
+        )
+    else:
+        mock_model.model_proc_full = ""
+
+    return mock_model
+
+
+mock_models_manager.find_installed_model_by_name.side_effect = _mock_find_model_by_name
+mock_models_manager.find_installed_model_by_display_name.side_effect = (
+    _mock_find_model_by_display_name
+)
+mock_videos_manager.get_video_filename.side_effect = _mock_get_video_filename
+mock_videos_manager.get_video_path.side_effect = _mock_get_video_path
+
+
+graph.models_manager = mock_models_manager
+graph.videos_manager = mock_videos_manager
 
 
 @dataclass
@@ -16,10 +85,10 @@ parse_test_cases = [
     ParseTestCase(
         r"filesrc location=/tmp/license-plate-detection.mp4 ! decodebin3 ! vapostproc ! "
         r"video/x-raw(memory:VAMemory) ! gvafpscounter starting-frame=500 ! "
-        r"gvadetect model=/yolov8_license_plate_detector.xml model-instance-id=detect0 device=GPU "
+        r"gvadetect model=/models/yolov8_license_plate_detector.xml model-instance-id=detect0 device=GPU "
         r"pre-process-backend=va-surface-sharing batch-size=0 inference-interval=3 nireq=0 ! queue ! "
         r"gvatrack tracking-type=short-term-imageless ! queue ! "
-        r"gvaclassify model=/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml "
+        r"gvaclassify model=/models/ch_PP-OCRv4_rec_infer.xml "
         r"model-instance-id=classify0 device=GPU pre-process-backend=va-surface-sharing batch-size=0 "
         r"inference-interval=3 nireq=0 reclassify-interval=1 ! queue ! gvawatermark ! "
         r"gvametaconvert format=json json-indent=4 source=/tmp/license-plate-detection.mp4 ! "
@@ -30,7 +99,7 @@ parse_test_cases = [
                 Node(
                     id="0",
                     type="filesrc",
-                    data={"location": "/tmp/license-plate-detection.mp4"},
+                    data={"location": "license-plate-detection.mp4"},
                 ),
                 Node(id="1", type="decodebin3", data={}),
                 Node(id="2", type="vapostproc", data={}),
@@ -40,7 +109,7 @@ parse_test_cases = [
                     id="5",
                     type="gvadetect",
                     data={
-                        "model": "/yolov8_license_plate_detector.xml",
+                        "model": "yolov8_license_plate_detector",
                         "model-instance-id": "detect0",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
@@ -60,7 +129,7 @@ parse_test_cases = [
                     id="9",
                     type="gvaclassify",
                     data={
-                        "model": "/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml",
+                        "model": "ch_PP-OCRv4_rec_infer",
                         "model-instance-id": "classify0",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
@@ -78,7 +147,7 @@ parse_test_cases = [
                     data={
                         "format": "json",
                         "json-indent": "4",
-                        "source": "/tmp/license-plate-detection.mp4",
+                        "source": "license-plate-detection.mp4",
                     },
                 ),
                 Node(
@@ -92,7 +161,7 @@ parse_test_cases = [
                 Node(
                     id="17",
                     type="filesink",
-                    data={"location": "/tmp/license-plate-detection-output.mp4"},
+                    data={"location": "license-plate-detection-output.mp4"},
                 ),
             ],
             edges=[
@@ -118,7 +187,7 @@ parse_test_cases = [
     ),
     # gst docs tee example
     ParseTestCase(
-        r"filesrc location=song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
+        r"filesrc location=/tmp/song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
         r"! autoaudiosink t. ! queue ! audioconvert ! goom ! videoconvert ! autovideosink",
         Graph(
             nodes=[
@@ -156,7 +225,7 @@ parse_test_cases = [
     ),
     # 2 nested tees
     ParseTestCase(
-        r"filesrc location=song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! tee name=x ! "
+        r"filesrc location=/tmp/song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! tee name=x ! "
         r"queue ! audiorate ! autoaudiosink x. ! queue ! audioresample ! autoaudiosink t. ! queue "
         r"! audioconvert ! goom ! videoconvert ! autovideosink",
         Graph(
@@ -201,11 +270,11 @@ parse_test_cases = [
     ),
     # template
     ParseTestCase(
-        r"filesrc location=XXX ! demux ! tee name=t ! queue ! splitmuxsink location=output_%02d.mp4 "
+        r"filesrc location=/tmp/XXX ! demux ! tee name=t ! queue ! splitmuxsink location=/tmp/output_%02d.mp4 "
         r"t. ! queue ! h264parse ! vah264dec ! "
         r"gvadetect ! queue ! gvatrack ! gvaclassify ! queue ! "
         r"gvawatermark ! gvafpscounter ! gvametaconvert ! gvametapublish ! "
-        r"vah264enc ! h264parse ! mp4mux ! filesink location=YYY",
+        r"vah264enc ! h264parse ! mp4mux ! filesink location=/tmp/YYY",
         Graph(
             nodes=[
                 Node(id="0", type="filesrc", data={"location": "XXX"}),
@@ -260,15 +329,15 @@ parse_test_cases = [
     ),
     # SmartNVR Analytics Branch
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! "
         r"tee name=t0 ! queue2 ! splitmuxsink location=/tmp/$(uuid).mp4 "
         r"t0. ! queue2 ! vah264dec ! video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
-        r"gvadetect model=${MODEL_YOLOv5s_416} model-proc=${MODEL_PROC_YOLOv5s_416} "
+        r"gvadetect model=/models/${MODEL_YOLOv5s_416}+PROC model-proc=/models/proc/${MODEL_YOLOv5s_416} "
         r"model-instance-id=detect0 pre-process-backend=va-surface-sharing device=GPU "
         r"batch-size=0 inference-interval=3 nireq=0 ! queue2 ! "
         r"gvatrack tracking-type=short-term-imageless ! queue2 ! "
-        r"gvaclassify model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
+        r"gvaclassify model=/models/${MODEL_RESNET}+PROC model-proc=/models/proc/${MODEL_RESNET} "
         r"model-instance-id=classify0 pre-process-backend=va-surface-sharing device=GPU "
         r"batch-size=0 inference-interval=3 nireq=0 reclassify-interval=1 ! queue2 ! "
         r"gvawatermark ! "
@@ -289,7 +358,7 @@ parse_test_cases = [
                 Node(
                     id="5",
                     type="splitmuxsink",
-                    data={"location": "/tmp/$(uuid).mp4"},
+                    data={"location": "$(uuid).mp4"},
                 ),
                 Node(id="6", type="queue2", data={}),
                 Node(id="7", type="vah264dec", data={}),
@@ -307,8 +376,7 @@ parse_test_cases = [
                     id="10",
                     type="gvadetect",
                     data={
-                        "model": "${MODEL_YOLOv5s_416}",
-                        "model-proc": "${MODEL_PROC_YOLOv5s_416}",
+                        "model": "${MODEL_YOLOv5s_416}+PROC",
                         "model-instance-id": "detect0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -328,8 +396,7 @@ parse_test_cases = [
                     id="14",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_RESNET}",
-                        "model-proc": "${MODEL_PROC_RESNET}",
+                        "model": "${MODEL_RESNET}+PROC",
                         "model-instance-id": "classify0",
                         "pre-process-backend": "va-surface-sharing",
                         "device": "GPU",
@@ -386,7 +453,7 @@ parse_test_cases = [
     ),
     # SmartNVR Media-only Branch
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! "
         r"tee name=t0 ! queue2 ! splitmuxsink location=/tmp/$(uuid).mp4 "
         r"t0. ! queue2 ! vah264dec ! video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
@@ -401,7 +468,7 @@ parse_test_cases = [
                 Node(
                     id="5",
                     type="splitmuxsink",
-                    data={"location": "/tmp/$(uuid).mp4"},
+                    data={"location": "$(uuid).mp4"},
                 ),
                 Node(id="6", type="queue2", data={}),
                 Node(id="7", type="vah264dec", data={}),
@@ -433,14 +500,14 @@ parse_test_cases = [
     ),
     # Magic 9 Light
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! h265parse ! vah265dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! h265parse ! vah265dec ! "
         r"capsfilter caps=\"video/x-raw(memory:VAMemory)\" ! queue ! "
-        r"gvadetect model=${MODEL_YOLOv11n} model-proc=${MODEL_PROC_YOLOv11n} "
+        r"gvadetect model=/models/${MODEL_YOLOv11n}+PROC model-proc=/models/proc/${MODEL_YOLOv11n} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 threshold=0.5 model-instance-id=yolov11n ! "
         r"queue ! "
         r"gvatrack tracking-type=1 config=tracking_per_class=false ! queue ! "
-        r"gvaclassify model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
+        r"gvaclassify model=/models/${MODEL_RESNET}+PROC model-proc=/models/proc/${MODEL_RESNET} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 inference-region=1 "
         r"model-instance-id=resnet50 ! queue ! "
@@ -464,8 +531,7 @@ parse_test_cases = [
                     id="5",
                     type="gvadetect",
                     data={
-                        "model": "${MODEL_YOLOv11n}",
-                        "model-proc": "${MODEL_PROC_YOLOv11n}",
+                        "model": "${MODEL_YOLOv11n}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -490,8 +556,7 @@ parse_test_cases = [
                     id="9",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_RESNET}",
-                        "model-proc": "${MODEL_PROC_RESNET}",
+                        "model": "${MODEL_RESNET}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -532,18 +597,18 @@ parse_test_cases = [
     ),
     # Magic 9 Medium
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! h265parse ! vah265dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! h265parse ! vah265dec ! "
         r"capsfilter caps=\"video/x-raw(memory:VAMemory)\" ! queue ! "
-        r"gvadetect model=${MODEL_YOLOv5m} model-proc=${MODEL_PROC_YOLOv5m} "
+        r"gvadetect model=/models/${MODEL_YOLOv5m}+PROC model-proc=/models/proc/${MODEL_YOLOv5m} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 threshold=0.5 model-instance-id=yolov5m ! "
         r"queue ! "
         r"gvatrack tracking-type=1 config=tracking_per_class=false ! queue ! "
-        r"gvaclassify model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
+        r"gvaclassify model=/models/${MODEL_RESNET}+PROC model-proc=/models/proc/${MODEL_RESNET} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 inference-region=1 "
         r"model-instance-id=resnet50 ! queue ! "
-        r"gvaclassify model=${MODEL_MOBILENET} model-proc=${MODEL_PROC_MOBILENET} "
+        r"gvaclassify model=/models/${MODEL_MOBILENET}+PROC model-proc=/models/proc/${MODEL_MOBILENET} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 inference-region=1 "
         r"model-instance-id=mobilenetv2 ! queue ! "
@@ -567,8 +632,7 @@ parse_test_cases = [
                     id="5",
                     type="gvadetect",
                     data={
-                        "model": "${MODEL_YOLOv5m}",
-                        "model-proc": "${MODEL_PROC_YOLOv5m}",
+                        "model": "${MODEL_YOLOv5m}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -593,8 +657,7 @@ parse_test_cases = [
                     id="9",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_RESNET}",
-                        "model-proc": "${MODEL_PROC_RESNET}",
+                        "model": "${MODEL_RESNET}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -610,8 +673,7 @@ parse_test_cases = [
                     id="11",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_MOBILENET}",
-                        "model-proc": "${MODEL_PROC_MOBILENET}",
+                        "model": "${MODEL_MOBILENET}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -654,18 +716,18 @@ parse_test_cases = [
     ),
     # Magic 9 Heavy
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! h265parse ! vah265dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! h265parse ! vah265dec ! "
         r"capsfilter caps=\"video/x-raw(memory:VAMemory)\" ! queue ! "
-        r"gvadetect model=${MODEL_YOLOv11n} model-proc=${MODEL_PROC_YOLOv11n} "
+        r"gvadetect model=/models/${MODEL_YOLOv11n}+PROC model-proc=/models/proc/${MODEL_YOLOv11n} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 threshold=0.5 model-instance-id=yolov11m ! "
         r"queue ! "
         r"gvatrack tracking-type=1 config=tracking_per_class=false ! queue ! "
-        r"gvaclassify model=${MODEL_RESNET} model-proc=${MODEL_PROC_RESNET} "
+        r"gvaclassify model=/models/${MODEL_RESNET}+PROC model-proc=/models/proc/${MODEL_RESNET} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 inference-region=1 "
         r"model-instance-id=resnet50 ! queue ! "
-        r"gvaclassify model=${MODEL_MOBILENET} model-proc=${MODEL_PROC_MOBILENET} "
+        r"gvaclassify model=/models/${MODEL_MOBILENET}+PROC model-proc=/models/proc/${MODEL_MOBILENET} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"nireq=2 ie-config=NUM_STREAMS=2 batch-size=8 inference-interval=3 inference-region=1 "
         r"model-instance-id=mobilenetv2 ! queue ! "
@@ -685,8 +747,7 @@ parse_test_cases = [
                     id="5",
                     type="gvadetect",
                     data={
-                        "model": "${MODEL_YOLOv11n}",
-                        "model-proc": "${MODEL_PROC_YOLOv11n}",
+                        "model": "${MODEL_YOLOv11n}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -711,8 +772,7 @@ parse_test_cases = [
                     id="9",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_RESNET}",
-                        "model-proc": "${MODEL_PROC_RESNET}",
+                        "model": "${MODEL_RESNET}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -728,8 +788,7 @@ parse_test_cases = [
                     id="11",
                     type="gvaclassify",
                     data={
-                        "model": "${MODEL_MOBILENET}",
-                        "model-proc": "${MODEL_PROC_MOBILENET}",
+                        "model": "${MODEL_MOBILENET}+PROC",
                         "device": "GPU",
                         "pre-process-backend": "va-surface-sharing",
                         "nireq": "2",
@@ -766,13 +825,13 @@ parse_test_cases = [
     ),
     # Simple Video Structuration
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vaapidecodebin ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! vaapidecodebin ! "
         r"vapostproc ! video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
-        r"gvadetect model=${LPR_MODEL} model-instance-id=detect0 "
+        r"gvadetect model=/models/${LPR_MODEL} model-instance-id=detect0 "
         r"pre-process-backend=va-surface-sharing device=GPU batch-size=0 inference-interval=3 nireq=0 ! "
         r"queue2 ! gvatrack tracking-type=short-term-imageless ! queue2 ! "
-        r"gvaclassify model=${OCR_MODEL} model-instance-id=classify0 "
+        r"gvaclassify model=/models/${OCR_MODEL} model-instance-id=classify0 "
         r"pre-process-backend=va-surface-sharing device=GPU batch-size=0 inference-interval=3 nireq=0 "
         r"reclassify-interval=1 ! queue2 ! gvawatermark ! gvametaconvert format=json json-indent=4 ! "
         r"gvametapublish method=file file-path=/dev/null ! "
@@ -864,10 +923,10 @@ parse_test_cases = [
     ),
     # Human Pose Pipeline
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
         r"video/x-raw(memory:VAMemory) ! "
         r"gvafpscounter starting-frame=500 ! "
-        r"gvadetect model=${YOLO11n_POST_MODEL} "
+        r"gvadetect model=/models/${YOLO11n_POST_MODEL} "
         r"device=GPU pre-process-backend=va-surface-sharing "
         r"model-instance-id=yolo11-pose ! queue2 ! "
         r"gvatrack tracking-type=short-term-imageless ! "
@@ -933,7 +992,7 @@ parse_test_cases = [
     ),
     # Video Decode Pipeline
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
         r"video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
         r"fakesink",
@@ -967,7 +1026,7 @@ parse_test_cases = [
     ),
     # Video Decode Scale Pipeline
     ParseTestCase(
-        r"filesrc location=${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
+        r"filesrc location=/tmp/${VIDEO} ! qtdemux ! h264parse ! vah264dec ! "
         r"video/x-raw\(memory:VAMemory\) ! "
         r"gvafpscounter starting-frame=500 ! "
         r"vapostproc ! video/x-raw\(memory:VAMemory\),width=320,height=240 ! fakesink",
@@ -1005,7 +1064,7 @@ parse_test_cases = [
 unsorted_nodes_edges = [
     # gst docs tee example
     ParseTestCase(
-        r"filesrc location=song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
+        r"filesrc location=/tmp/song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
         r"! autoaudiosink t. ! queue ! audioconvert ! goom ! videoconvert ! autovideosink",
         Graph(
             nodes=[
@@ -1039,7 +1098,7 @@ unsorted_nodes_edges = [
     ),
     # gst docs tee example, ids start from 1
     ParseTestCase(
-        r"filesrc location=song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
+        r"filesrc location=/tmp/song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! audioresample "
         r"! autoaudiosink t. ! queue ! audioconvert ! goom ! videoconvert ! autovideosink",
         Graph(
             nodes=[
@@ -1073,7 +1132,7 @@ unsorted_nodes_edges = [
     ),
     # 2 nested tees
     ParseTestCase(
-        r"filesrc location=song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! tee name=x ! "
+        r"filesrc location=/tmp/song.ogg ! decodebin ! tee name=t ! queue ! audioconvert ! tee name=x ! "
         r"queue ! audiorate ! autoaudiosink x. ! queue ! audioresample ! autoaudiosink t. ! queue "
         r"! audioconvert ! goom ! videoconvert ! autovideosink",
         Graph(
@@ -1140,8 +1199,8 @@ class TestToFromDict(unittest.TestCase):
                 self.assertEqual(actual.target, expected.target)
 
 
-class TestDictToString(unittest.TestCase):
-    def test_dict_to_string(self):
+class TestGraphToDescription(unittest.TestCase):
+    def test_graph_to_description(self):
         self.maxDiff = None
 
         for tc in parse_test_cases + unsorted_nodes_edges:
@@ -1149,14 +1208,28 @@ class TestDictToString(unittest.TestCase):
             self.assertEqual(actual, tc.pipeline_description)
 
 
-class TestParseLaunchString(unittest.TestCase):
-    def test_parsing(self):
+class TestDescriptionToGraph(unittest.TestCase):
+    def test_description_to_graph(self):
         self.maxDiff = None
 
         for tc in parse_test_cases:
             actual = Graph.from_pipeline_description(tc.pipeline_description)
-            self.assertEqual(actual, tc.pipeline_graph)
 
+            self.assertEqual(len(actual.nodes), len(tc.pipeline_graph.nodes))
+            for i in range(len(actual.nodes)):
+                actual_node = actual.nodes[i]
+                expected_node = tc.pipeline_graph.nodes[i]
+
+                self.assertEqual(actual_node.id, expected_node.id)
+                self.assertEqual(actual_node.type, expected_node.type)
+                self.assertDictEqual(actual_node.data, expected_node.data)
+
+            self.assertEqual(len(actual.edges), len(tc.pipeline_graph.edges))
+            for i in range(len(actual.edges)):
+                self.assertEqual(actual.edges[i], tc.pipeline_graph.edges[i])
+
+
+class TestParseDescription(unittest.TestCase):
     def test_empty_pipeline(self):
         pipeline = ""
         result = Graph.from_pipeline_description(pipeline)
@@ -1197,275 +1270,9 @@ class TestParseLaunchString(unittest.TestCase):
         self.assertEqual(result.edges[1].id, "1")
 
 
-class TestParseLaunchStringWithModels(unittest.TestCase):
-    def _setup_mock_models(self, mock_manager):
-        """Set up mock models for testing"""
-        mock_yolov8 = MagicMock()
-        mock_yolov8.display_name = "YOLOv8 Detector"
-        mock_yolov8.model_path_full = "/models/output/yolov8_detector.xml"
-        mock_yolov8.model_proc_full = "/models/output/yolov8_detector.json"
-
-        mock_detection = MagicMock()
-        mock_detection.display_name = "Detection Model"
-        mock_detection.model_path_full = "/models/output/detection_model.xml"
-        mock_detection.model_proc_full = ""
-
-        mock_classification = MagicMock()
-        mock_classification.display_name = "Classification Model"
-        mock_classification.model_path_full = "/models/output/classification_model.xml"
-        mock_classification.model_proc_full = ""
-
-        def find_by_path(path):
-            if "yolov8_detector" in path:
-                return mock_yolov8
-            if "detection_model" in path:
-                return mock_detection
-            if "classification_model" in path:
-                return mock_classification
-            return None
-
-        def find_by_name(name):
-            if name == "YOLOv8 Detector":
-                return mock_yolov8
-            if name == "Detection Model":
-                return mock_detection
-            if name == "Classification Model":
-                return mock_classification
-            return None
-
-        mock_manager.find_installed_model_by_model_path_full.side_effect = find_by_path
-        mock_manager.find_installed_model_by_display_name.side_effect = find_by_name
-
-    @patch("graph.models_manager")
-    def test_string_to_config_converts_model_path_to_display_name(self, mock_manager):
-        self._setup_mock_models(mock_manager)
-
-        pipeline_description = (
-            "filesrc location=/tmp/input.mp4 ! decodebin3 ! gvadetect "
-            "model=/models/output/yolov8_detector.xml model-proc=/models/output/yolov8_detector.json "
-            "device=GPU ! fakesink"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        self.assertEqual(len(result.nodes), 4)
-        gvadetect_node = result.nodes[2]
-        self.assertEqual(gvadetect_node.type, "gvadetect")
-        self.assertEqual(gvadetect_node.data["model"], "YOLOv8 Detector")
-        self.assertNotIn("model-proc", gvadetect_node.data)
-
-    @patch("graph.models_manager")
-    def test_config_to_string_converts_display_name_to_model_path(self, mock_manager):
-        self._setup_mock_models(mock_manager)
-
-        config = Graph(
-            nodes=[
-                Node(id="0", type="filesrc", data={"location": "/tmp/input.mp4"}),
-                Node(id="1", type="decodebin3", data={}),
-                Node(
-                    id="2",
-                    type="gvadetect",
-                    data={"model": "YOLOv8 Detector", "device": "GPU"},
-                ),
-                Node(id="3", type="fakesink", data={}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="1"),
-                Edge(id="1", source="1", target="2"),
-                Edge(id="2", source="2", target="3"),
-            ],
-        )
-
-        result = config.to_pipeline_description()
-
-        self.assertIn("model=/models/output/yolov8_detector.xml", result)
-        self.assertIn("model-proc=/models/output/yolov8_detector.json", result)
-        self.assertNotIn("YOLOv8 Detector", result)
-
-    @patch("graph.models_manager")
-    def test_multiple_models_conversion(self, mock_manager):
-        self._setup_mock_models(mock_manager)
-
-        pipeline_description = (
-            "filesrc location=/tmp/input.mp4 ! decodebin3 ! gvadetect "
-            "model=/models/output/detection_model.xml device=GPU ! gvaclassify "
-            "model=/models/output/classification_model.xml device=GPU ! fakesink"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        self.assertEqual(len(result.nodes), 5)
-        gvadetect_node = result.nodes[2]
-        gvaclassify_node = result.nodes[3]
-
-        self.assertEqual(gvadetect_node.data["model"], "Detection Model")
-        self.assertEqual(gvaclassify_node.data["model"], "Classification Model")
-
-        pipeline_description = result.to_pipeline_description()
-
-        self.assertIn("model=/models/output/detection_model.xml", pipeline_description)
-        self.assertIn(
-            "model=/models/output/classification_model.xml", pipeline_description
-        )
-
-
-class TestParseLaunchStringWithVideos(unittest.TestCase):
-    def _setup_mock_videos(self, mock_manager):
-        """Set up mock videos for testing"""
-
-        def get_filename(path):
-            if path == "/videos/input/sample_video.mp4":
-                return "sample_video.mp4"
-            if path == "/videos/input/test_recording.mp4":
-                return "test_recording.mp4"
-            return ""
-
-        def get_path(filename):
-            if filename == "sample_video.mp4":
-                return "/videos/input/sample_video.mp4"
-            if filename == "test_recording.mp4":
-                return "/videos/input/test_recording.mp4"
-            return ""
-
-        mock_manager.get_video_filename = get_filename
-        mock_manager.get_video_path = get_path
-
-    @patch("graph.videos_manager")
-    def test_string_to_config_converts_video_path_to_filename(
-        self, mock_videos_manager
-    ):
-        self._setup_mock_videos(mock_videos_manager)
-
-        pipeline_description = (
-            "filesrc location=/videos/input/sample_video.mp4 ! decodebin3 ! fakesink"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        self.assertEqual(len(result.nodes), 3)
-        filesrc_node = result.nodes[0]
-        self.assertEqual(filesrc_node.type, "filesrc")
-        self.assertEqual(filesrc_node.data["location"], "sample_video.mp4")
-
-    @patch("graph.videos_manager")
-    def test_config_to_string_converts_video_filename_to_path(
-        self, mock_videos_manager
-    ):
-        self._setup_mock_videos(mock_videos_manager)
-
-        config = Graph(
-            nodes=[
-                Node(id="0", type="filesrc", data={"location": "sample_video.mp4"}),
-                Node(id="1", type="decodebin3", data={}),
-                Node(id="2", type="fakesink", data={}),
-            ],
-            edges=[
-                Edge(id="0", source="0", target="1"),
-                Edge(id="1", source="1", target="2"),
-            ],
-        )
-
-        result = config.to_pipeline_description()
-
-        self.assertIn("location=/videos/input/sample_video.mp4", result)
-        self.assertNotIn("location=sample_video.mp4", result)
-
-    @patch("graph.videos_manager")
-    def test_multiple_video_properties_conversion(self, mock_videos_manager):
-        self._setup_mock_videos(mock_videos_manager)
-
-        pipeline_description = (
-            "filesrc location=/videos/input/sample_video.mp4 ! decodebin3 ! "
-            "filesink location=/videos/input/test_recording.mp4"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        self.assertEqual(len(result.nodes), 3)
-        filesrc_node = result.nodes[0]
-        filesink_node = result.nodes[2]
-
-        self.assertEqual(filesrc_node.data["location"], "sample_video.mp4")
-        self.assertEqual(filesink_node.data["location"], "test_recording.mp4")
-
-        pipeline_description = result.to_pipeline_description()
-
-        self.assertIn("location=/videos/input/sample_video.mp4", pipeline_description)
-        self.assertIn("location=/videos/input/test_recording.mp4", pipeline_description)
-
-    @patch("graph.videos_manager")
-    def test_video_path_not_in_recordings_path_unchanged(self, mock_videos_manager):
-        mock_videos_manager.get_video_filename.return_value = ""
-        mock_videos_manager.get_video_path.return_value = ""
-
-        pipeline_description = (
-            "filesrc location=/tmp/external_video.mp4 ! decodebin3 ! fakesink"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        filesrc_node = result.nodes[0]
-        self.assertEqual(filesrc_node.data["location"], "/tmp/external_video.mp4")
-
-    @patch("graph.videos_manager")
-    @patch("graph.models_manager")
-    def test_combined_models_and_videos_conversion(
-        self, mock_models_manager, mock_videos_manager
-    ):
-        # Setup videos
-        self._setup_mock_videos(mock_videos_manager)
-
-        # Setup models
-        mock_model = MagicMock()
-        mock_model.display_name = "Detection Model"
-        mock_model.model_path_full = "/models/output/detection.xml"
-        mock_model.model_proc_full = ""
-
-        def find_by_path(path):
-            if "detection.xml" in path:
-                return mock_model
-            return None
-
-        def find_by_name(name):
-            if name == "Detection Model":
-                return mock_model
-            return None
-
-        mock_models_manager.find_installed_model_by_model_path_full.side_effect = (
-            find_by_path
-        )
-        mock_models_manager.find_installed_model_by_display_name.side_effect = (
-            find_by_name
-        )
-
-        pipeline_description = (
-            "filesrc location=/videos/input/sample_video.mp4 ! decodebin3 ! "
-            "gvadetect model=/models/output/detection.xml ! "
-            "filesink location=/videos/input/test_recording.mp4"
-        )
-
-        result = Graph.from_pipeline_description(pipeline_description)
-
-        # Check conversions: video paths -> filenames, model path -> display name
-        filesrc_node = result.nodes[0]
-        gvadetect_node = result.nodes[2]
-        filesink_node = result.nodes[3]
-
-        self.assertEqual(filesrc_node.data["location"], "sample_video.mp4")
-        self.assertEqual(gvadetect_node.data["model"], "Detection Model")
-        self.assertEqual(filesink_node.data["location"], "test_recording.mp4")
-
-        # Round-trip: convert back to string
-        pipeline_description = result.to_pipeline_description()
-
-        self.assertIn("location=/videos/input/sample_video.mp4", pipeline_description)
-        self.assertIn("model=/models/output/detection.xml", pipeline_description)
-        self.assertIn("location=/videos/input/test_recording.mp4", pipeline_description)
-
-
 class TestNegativeCases(unittest.TestCase):
-    def test_circular_graph_returns_empty_string(self):
-        """Test that a circular graph is detected and returns empty pipeline description."""
+    def test_circular_graph_raises_error(self):
+        """Test that a circular graph is detected and raises an error."""
         # Create a circular graph: node 0 -> node 1 -> node 2 -> node 0
         circular_graph = Graph(
             nodes=[
@@ -1480,11 +1287,12 @@ class TestNegativeCases(unittest.TestCase):
             ],
         )
 
-        result = circular_graph.to_pipeline_description()
-        self.assertEqual(result, "")
+        with self.assertRaises(ValueError) as cm:
+            circular_graph.to_pipeline_description()
+        self.assertIn("circular graph", str(cm.exception))
 
-    def test_graph_with_no_start_nodes_returns_empty_string(self):
-        """Test that a graph where all nodes are targets returns empty pipeline description."""
+    def test_graph_with_no_start_nodes_raises_error(self):
+        """Test that a graph where all nodes are targets raises an error."""
         # All nodes are targets (no start nodes)
         no_start_graph = Graph(
             nodes=[
@@ -1497,14 +1305,16 @@ class TestNegativeCases(unittest.TestCase):
             ],
         )
 
-        result = no_start_graph.to_pipeline_description()
-        self.assertEqual(result, "")
+        with self.assertRaises(ValueError) as cm:
+            no_start_graph.to_pipeline_description()
+        self.assertIn("no start nodes", str(cm.exception))
 
-    def test_empty_graph_returns_empty_string(self):
-        """Test that an empty graph returns empty pipeline description."""
+    def test_empty_graph_raises_error(self):
+        """Test that an empty graph raises an error."""
         empty_graph = Graph(nodes=[], edges=[])
-        result = empty_graph.to_pipeline_description()
-        self.assertEqual(result, "")
+        with self.assertRaises(ValueError) as cm:
+            empty_graph.to_pipeline_description()
+        self.assertIn("Empty graph", str(cm.exception))
 
 
 if __name__ == "__main__":

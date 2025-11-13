@@ -242,37 +242,34 @@ class VideosManager:
         """
         return self._videos.get(filename)
 
-    def get_video_filename(self, path: str) -> str:
+    def get_video_filename(self, path: str) -> Optional[str]:
         """
-        Returns the Video filename for the given path, or "" if not found.
+        Returns the Video filename for the given path, or None if not found.
 
         Args:
             path (str): Path to the video file.
 
         Returns:
-            str: The Video filename if found, else "".
+            str: The Video filename if found, else None.
         """
-        directory, filename = os.path.split(os.path.normpath(path))
-
-        if directory != RECORDINGS_PATH:
-            return ""
+        filename = os.path.basename(os.path.normpath(path))
 
         if filename not in self._videos:
-            return ""
+            return None
 
         return filename
 
-    def get_video_path(self, filename: str) -> str:
+    def get_video_path(self, filename: str) -> Optional[str]:
         """
-        Returns the path for the given Video filename, or "" if not found.
+        Returns the path for the given Video filename, or None if not found.
 
         Args:
             filename (str): The Video filename.
 
         Returns:
-            str: Path to the Video filename if found, else "".
+            str: Path to the Video filename if found, else None.
         """
         if filename not in self._videos:
-            return ""
+            return None
 
         return os.path.join(RECORDINGS_PATH, filename)

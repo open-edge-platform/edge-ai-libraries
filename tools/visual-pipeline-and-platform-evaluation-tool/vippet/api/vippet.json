@@ -765,11 +765,31 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Conversion successful",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PipelineGraph"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid pipeline description",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }
@@ -806,11 +826,31 @@
         },
         "responses": {
           "200": {
-            "description": "Successful Response",
+            "description": "Conversion successful",
             "content": {
               "application/json": {
                 "schema": {
                   "$ref": "#/components/schemas/PipelineDescription"
+                }
+              }
+            }
+          },
+          "400": {
+            "description": "Invalid graph",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
+                }
+              }
+            }
+          },
+          "500": {
+            "description": "Internal server error",
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/MessageResponse"
                 }
               }
             }

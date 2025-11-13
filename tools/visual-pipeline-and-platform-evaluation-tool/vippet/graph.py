@@ -1,5 +1,6 @@
 import logging
 import re
+from pathlib import Path
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
@@ -49,7 +50,7 @@ class Graph:
 
     @staticmethod
     def from_pipeline_description(pipeline_description: str) -> "Graph":
-        logger.debug(f"Parsing pipeline description: {pipeline_description}...")
+        logger.debug(f"Parsing pipeline description: {pipeline_description}")
 
         nodes: list[Node] = []
         edges: list[Edge] = []
@@ -69,7 +70,7 @@ class Graph:
                     case "PROPERTY":
                         _add_property_to_last_node(nodes, token)
                     case "MISMATCH":
-                        logger.error(
+                        raise ValueError(
                             f"Unrecognized token in pipeline description: '{token.value}' "
                             f"(element: '{element.strip()}')"
                         )
@@ -89,8 +90,7 @@ class Graph:
 
     def to_pipeline_description(self) -> str:
         if not self.nodes:
-            logger.info("Empty graph, returning empty pipeline description")
-            return ""
+            raise ValueError("Empty graph, cannot convert to pipeline description")
 
         logger.debug("Converting graph to pipeline description")
         logger.debug(f"Nodes:\n{self.nodes}")
@@ -116,11 +116,10 @@ class Graph:
         start_nodes = set(nodes_by_id.keys()) - target_node_ids
 
         if not start_nodes:
-            logger.error(
+            raise ValueError(
                 "Cannot convert graph to pipeline description: "
                 "circular graph detected or no start nodes found"
             )
-            return ""
 
         result_parts: list[str] = []
         visited: set[str] = set()
@@ -282,49 +281,79 @@ def _build_chain(
 def _model_path_to_display_name(nodes: list[Node]) -> None:
     for node in nodes:
         path = node.data.get("model")
-        if not path:
+        if path is None:
             continue
 
-        model = models_manager.find_installed_model_by_model_path_full(path)
-        if model:
-            node.data["model"] = model.display_name
-            node.data.pop("model-proc", None)
-            logger.debug(
-                f"Converted model path to display name: {path} -> {model.display_name}"
-            )
+        for part in Path(path).with_suffix("").parts:
+            if model := models_manager.find_installed_model_by_name(part):
+                node.data["model"] = model.display_name
+                logger.debug(
+                    f"Converted model path to display name: {path} -> {model.display_name}"
+                )
+                break
         else:
-            logger.warning(f"Model path not found in installed models: {path}")
+            node.data["model"] = ""
+            logger.debug(f"Model path not found in installed models: {path}")
+
+        node.data.pop("model-proc", None)
 
 
 def _model_display_name_to_path(nodes: list[Node]) -> None:
     for node in nodes:
         name = node.data.get("model")
-        if not name:
+        if name is None:
             continue
 
         model = models_manager.find_installed_model_by_display_name(name)
-        if model:
-            node.data["model"] = model.model_path_full
-            if model.model_proc_full:
-                node.data["model-proc"] = model.model_proc_full
-            logger.debug(
-                f"Converted model display name to path: {name} -> {model.model_path_full}"
+        if not model:
+            raise ValueError(
+                f"Node {node.id}. {node.type}: can't map '{name}' to installed model"
             )
-        else:
-            logger.warning(f"Model display name not found in installed models: {name}")
+
+        node.data["model"] = model.model_path_full
+
+        if model.model_proc_full:
+            # Insert 'model-proc' immediately after 'model'
+            properties = {}
+            for key, value in node.data.items():
+                properties[key] = value
+                if key == "model":
+                    properties["model-proc"] = model.model_proc_full
+
+            node.data = properties
+
+        logger.debug(
+            f"Converted model display name to path: {name} -> {model.model_path_full}"
+        )
 
 
 def _video_path_to_display_name(nodes: list[Node]) -> None:
     for node in nodes:
-        for k, v in node.data.items():
-            if filename := videos_manager.get_video_filename(v):
-                node.data[k] = filename
-                logger.debug(f"Converted video path to filename: {v} -> {filename}")
+        for key in ("source", "location"):
+            path = node.data.get(key)
+            if path is None:
+                continue
+
+            if filename := videos_manager.get_video_filename(path):
+                node.data[key] = filename
+                logger.debug(f"Converted video path to filename: {path} -> {filename}")
+            else:
+                node.data[key] = ""
+                logger.debug(f"Video path not found: {path}")
 
 
 def _video_name_to_path(nodes: list[Node]) -> None:
     for node in nodes:
-        for k, v in node.data.items():
-            if path := videos_manager.get_video_path(v):
-                node.data[k] = path
-                logger.debug(f"Converted video filename to path: {v} -> {path}")
+        for key in ("source", "location"):
+            name = node.data.get(key)
+            if name is None:
+                continue
+
+            path = videos_manager.get_video_path(name)
+            if not path:
+                raise ValueError(
+                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
+                )
+
+            node.data[key] = path
+            logger.debug(f"Converted video filename to path: {name} -> {path}")
