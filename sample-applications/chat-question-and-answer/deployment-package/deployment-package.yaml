@@ -22,11 +22,3 @@ deploymentProfiles:
     applicationProfiles:
       - application: "chatqna-app"
         profile: "ovms"
-  - name: "tgi"
-    applicationProfiles:
-      - application: "chatqna-app"
-        profile: "tgi"
-  - name: "vllm"
-    applicationProfiles:
-      - application: "chatqna-app"
-        profile: "vllm"
