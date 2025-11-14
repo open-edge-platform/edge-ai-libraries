@@ -435,6 +435,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       }
 
       setUploading(true);
+      setUploadError(false);
       setProgressText(t('uploadingVideo'));
 
       const videoData = prepareVideoUploadData(effectiveSummaryName);
@@ -474,6 +475,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       }
 
       setProgressText(`Error: ${errorMessage}`);
+      setUploadError(true);
       console.error('Trigger summary error:', error);
     } finally {
       setUploading(false);
@@ -491,6 +493,8 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const [uploadProgress, setUploadProgress] = useState(0);
   const [processing, setProcessing] = useState(false);
   const [progressText, setProgressText] = useState('');
+  const [uploadError, setUploadError] = useState(false);
+  const [formatError, setFormatError] = useState<string | null>(null);
 
   // Video & Summary State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -565,6 +569,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setUploadProgress(0);
     setUploading(false);
     setProcessing(false);
+    setFormatError(null);
     setStep(0);
   SetVideoTags('');
   setSelectedTags([]);
@@ -614,11 +619,32 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
 
   const handleFileSelect = (files: FileList | null) => {
     if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Validate file format
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type;
+      
+      if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
+        setFormatError(t('invalidVideoFormat', 'Invalid video format. Please upload a .mp4 file.'));
+        setSelectedFile(null);
+        setVideoPreviewUrl(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Clear previous errors
+      setFormatError(null);
+      setUploadError(false);
+      setProgressText('');
+      
       // Clean up previous preview URL if exists
       if (videoPreviewUrlRef.current) {
         URL.revokeObjectURL(videoPreviewUrlRef.current);
       }
-      const file = files[0];
+      
       setSelectedFile(file);
       // Create a preview URL for the video
       const previewUrl = URL.createObjectURL(file);
@@ -724,6 +750,12 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                 onChange={e => handleFileSelect(e.target.files)}
               />
             </DropArea>
+          )}
+          {formatError && (
+            <WarningBox style={{ backgroundColor: '#f8d7da', color: '#721c24', borderColor: '#f5c6cb' }}>
+              <Information />
+              {formatError}
+            </WarningBox>
           )}
           {step === 1 && (
             <>
@@ -1029,7 +1061,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
             <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(1)}>
               Back
             </Button>
-            <Button kind="primary" disabled={uploading || !selectedFile} onClick={triggerSummary}>
+            <Button kind="primary" disabled={uploading || !selectedFile || uploadError} onClick={triggerSummary}>
               {uploading ? t('uploadingVideoState') : t('CreateSummary')}
             </Button>
           </>

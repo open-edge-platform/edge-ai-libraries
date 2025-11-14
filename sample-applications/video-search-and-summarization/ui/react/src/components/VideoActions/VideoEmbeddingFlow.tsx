@@ -180,6 +180,19 @@ const StyledVideoPlayer = styled.video`
   background: var(--color-black);
 `;
 
+const WarningBox = styled.p`
+  background-color: #fff3cd;
+  color: #856404;
+  border-radius: 0px;
+  padding: 1rem 1.5rem;
+  margin-top: 1rem;
+  font-size: 1rem;
+  display: flex;
+  align-items: center;
+  gap: 0.7rem;
+  box-shadow: 0 2px 8px rgba(255, 193, 7, 0.08);
+`;
+
 export interface VideoEmbeddingFlowProps {
   onClose?: () => void;
 }
@@ -203,6 +216,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [formatError, setFormatError] = useState<string | null>(null);
   const [videoTags, setVideoTags] = useState<string | null>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
@@ -230,6 +244,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
     setVideoPreviewUrl(null);
     setSelectedFile(null);
+    setFormatError(null);
     setVideoTags('');
     setSelectedTags([]);
     setProgressText('');
@@ -262,11 +277,30 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
 
   const handleFileSelect = (files: FileList | null) => {
     if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Validate file format
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type;
+      
+      if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
+        setFormatError(t('invalidVideoFormat', 'Invalid video format. Please upload a .mp4 file.'));
+        setSelectedFile(null);
+        setVideoPreviewUrl(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Clear previous errors
+      setFormatError(null);
+      
       // Clean up previous preview URL if exists
       if (videoPreviewUrlRef.current) {
         URL.revokeObjectURL(videoPreviewUrlRef.current);
       }
-      const file = files[0];
+      
       setSelectedFile(file);
       // Create a preview URL for the video
       const previewUrl = URL.createObjectURL(file);
@@ -416,7 +450,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               {selectedFile ? (
                 <>
                   <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                    {displayFileName}
+                    {selectedFile.name}
                   </h3>
                   <MainButton 
                     kind="tertiary" 
@@ -457,6 +491,12 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 onChange={e => handleFileSelect(e.target.files)}
               />
             </DropArea>
+          )}
+          {formatError && (
+            <WarningBox style={{ backgroundColor: '#f8d7da', color: '#721c24', borderColor: '#f5c6cb' }}>
+              <Information />
+              {formatError}
+            </WarningBox>
           )}
 
           {step === 1 && (

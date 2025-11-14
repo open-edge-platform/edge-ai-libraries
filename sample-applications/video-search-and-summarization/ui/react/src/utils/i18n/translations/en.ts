@@ -178,6 +178,7 @@ export const enTranslations = {
   deletedSuccessfully: 'deleted successfully',
   unknownError: 'An unknown error occurred',
   videoUploadError: 'An error occurred during video upload',
+  invalidVideoFormat: 'Invalid video format. Please upload a .mp4 file.',
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',
