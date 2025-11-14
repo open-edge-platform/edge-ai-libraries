@@ -3,13 +3,13 @@
 ## Current Release
 
 **Version**: 1.3.0 \
-**Release Date**: 10 Nov 2025  
+**Release Date**: 14 Nov 2025  
 
 **Features**:
 
 - **Enhanced Multimodal Embedding (MME) Microservice**:
-  - Implemented CLIP, MobileCLIP, SigLIP, and BLIP2 model handlers with OpenVINO support.
-  - Added model registry and factory for creating model handlers based on configuration.
+  - Implemented CLIP, CN-CLIP, MobileCLIP, SigLIP2, and BLIP2 model handlers to support by OpenVINO support.
+  - Added model registry and factory pattern for creating model handlers based on configuration.
   - Introduced text-only Qwen3-embedding model family support.
   - Enabled dual runtime support: models can run using native PyTorch or OpenVINO runtime.
   - Microservice supports both API and SDK modes of operation for flexible integration.
@@ -22,6 +22,12 @@
   - Implemented batched mode processing for video frame aggregation.
   - Integrated SDK mode consumption of MME microservice for reduced API overhead.
   - Enabled batching and parallel processing of frame batches to significantly reduce video consumption time.
+  - Enhanced SDKVDMSClient to support dynamic detection of text and image embedding capabilities.
+  - Updated simplified_embedding_helper to remove Qwen model dependencies and utilize SDK for text embeddings.
+  - Modified user guide to reflect changes in embedding model settings and usage instructions.
+  - Adjusted setup.sh to set OpenVINO performance mode to "THROUGHPUT" for better efficiency.
+  - Added build script for VDMS DataPrep to build the .whl file at runtime for docker image build. and update documentation for usage.
+  - Added detailed data flow documentation and other documentation updates.
 
 - **Search-MS and VSS Application Enhancements (Search Mode)**:
   - Enabled frame-to-video aggregation for consolidated video search results.
@@ -29,6 +35,7 @@
   - Enhanced segment scoring algorithm with qualitative metrics based on peak and sustained quality.
   - Implemented scoring that considers frame quality and contextual proximity for improved relevance.
   - Exposed all result fine-tuning parameters via environment variables for user customization.
+  - Added troubleshooting section for search results with embedding model changes 
 
 **HW used for validation**:
 
