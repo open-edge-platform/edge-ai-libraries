@@ -71,8 +71,7 @@ class Graph:
                         _add_property_to_last_node(nodes, token)
                     case "MISMATCH":
                         raise ValueError(
-                            f"Unrecognized token in pipeline description: '{token.value}' "
-                            f"(element: '{element.strip()}')"
+                            f"Unrecognized token in pipeline description: '{token.value}' (element: '{element.strip()}')"
                         )
                     # CAPSFILTER is pre-processed in _tokenize() and handled as regular type with properties
                     # TEE_END handled in _add_node()
@@ -131,7 +130,7 @@ class Graph:
                 )
 
         pipeline_description = " ".join(result_parts)
-        logger.info(f"Generated pipeline description: {pipeline_description}...")
+        logger.info(f"Generated pipeline description: {pipeline_description}")
 
         return pipeline_description
 
