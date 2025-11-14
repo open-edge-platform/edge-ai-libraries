@@ -2,6 +2,41 @@
 
 ## Current Release
 
+**Version**: rc1.3.2 \
+**Release Date**: 14 Nov 2025  
+
+**Features**:
+
+- **Update VSS Helm chart configurations and dependencies for updated microservice dataprep, MME, search-ms**
+  - Added environment variables for embedding model configuration in multiple YAML files.
+  - Updated image tags for various components to version 1.3.0.
+  - Enhanced deployment configurations for multimodal embedding and VDMS DataPrep.
+  - Improved documentation for embedding model settings and deployment instructions.
+
+- Video_Summary: Link to Multimodal embedding models are missing in the getting started guide
+- Video_Search: Change in models with different embedding dimension results in no video search
+- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving doesnt run
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
+**Known Issues/Limitations**:
+
+- EMF and EMT are not supported yet.
+- Video Summarization with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines.
+- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
+- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
+- VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
+- Known issues are internally tracked. Reference not provided here.
+- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
+- Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
+- Directory Watcher service only supported in Search only mode.
+
+
+## Previous releases
+
 **Version**: 1.3.0 \
 **Release Date**: 14 Nov 2025  
 
@@ -41,20 +76,6 @@
 
 - Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
 
-**Known Issues/Limitations**:
-
-- Helm chart not yet updated for modified search-ms and mme microservices.
-- EMF and EMT are not supported yet.
-- Video Summarization with `mini_cpm` model not working on Xeon® 4 and Xeon® 6 machines.
-- Occasionally, the VLM/OVMS models may generate repetitive responses in a loop. We are actively working to resolve this issue in an upcoming update.
-- HW sizing of the Video Search or Video Summarization pipeline is in progress. Optimization of the pipelines will follow HW sizing.
-- VLM models on GPUs currently support only `microsoft/Phi-3.5-vision-instruct`.
-- Known issues are internally tracked. Reference not provided here.
-- `how-to-performance` document is not updated yet. HW sizing details will be added to this section shortly.
-- Sometimes during search, the response is not instantaneous. However, users can use the refresh button to fetch the results.
-- Directory Watcher service only supported in Search only mode.
-
-## Previous releases
 
 **Version**: 1.2.3 \
 **Release Date**: 31 Oct 2025  
