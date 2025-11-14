@@ -62,15 +62,15 @@ RUN \
 
 # Intel GPU client drivers and prerequisites installation
 RUN \            
-    apt update && \
+    apt-get update && \
     apt-get install -y --no-install-recommends software-properties-common && \
     add-apt-repository -y ppa:kobuk-team/intel-graphics && \
-    apt update && \
+    apt-get update && \
     echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
     apt update && \
     apt-get install -y --no-install-recommends \
-    libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
-    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo
+    libze-intel-gpu1=1.1.0-0ubuntu1~24.04~ppa1 libze1=1.23.1-1~24.04~ppa1 intel-metrics-discovery=1.14.180-1111~24.04 intel-opencl-icd=25.31.34666.3-1~24.04~ppa2 clinfo=3.0.23.01.25-1build1 intel-gsc=0.9.5-123~u24.04 \
+    intel-media-va-driver-non-free=25.3.2-0ubuntu1~24.04~ppa1 libmfx-gen1=25.3.1-0ubuntu1~24.04~ppa1 libvpl2=1:2.15.0.0-1140~24.04 libvpl-tools=1.4.0-0ubuntu1~24.04~ppa1 libva-glx2=2.22.0-1ubuntu1~24.04~ppa1 va-driver-all=2.22.0-1ubuntu1~24.04~ppa1 vainfo=2.22.0-0ubuntu1~24.04~ppa1
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
@@ -468,15 +468,15 @@ RUN \
 # As clean ubuntu image is used, we need to install GPU and NPU on this image as well
 # Intel GPU client drivers and prerequisites installation
 RUN \            
-    apt update && \
+    apt-get update && \
     apt-get install -y --no-install-recommends software-properties-common && \
     add-apt-repository -y ppa:kobuk-team/intel-graphics && \
-    apt update && \
+    apt-get update && \
     echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
     apt update && \
     apt-get install -y --no-install-recommends \
-    libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing \
-    intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo
+    libze-intel-gpu1=1.1.0-0ubuntu1~24.04~ppa1 libze1=1.23.1-1~24.04~ppa1 intel-metrics-discovery=1.14.180-1111~24.04 intel-opencl-icd=25.31.34666.3-1~24.04~ppa2 clinfo=3.0.23.01.25-1build1 intel-gsc=0.9.5-123~u24.04 \
+    intel-media-va-driver-non-free=25.3.2-0ubuntu1~24.04~ppa1 libmfx-gen1=25.3.1-0ubuntu1~24.04~ppa1 libvpl2=1:2.15.0.0-1140~24.04 libvpl-tools=1.4.0-0ubuntu1~24.04~ppa1 libva-glx2=2.22.0-1ubuntu1~24.04~ppa1 va-driver-all=2.22.0-1ubuntu1~24.04~ppa1 vainfo=2.22.0-0ubuntu1~24.04~ppa1
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
