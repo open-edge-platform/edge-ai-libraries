@@ -1,0 +1,191 @@
+---
+# SPDX-FileCopyrightText: (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+name: 'Build Documentation'
+
+on:  # yamllint disable-line rule:truthy rule:line-length
+  workflow_call:
+    inputs:
+      docs_directory:
+        description: >-
+          Documentation directory where the job will run, defaults to '.'
+        required: false
+        default: "."
+        type: string
+      output_directory:
+        description: >-
+          Directory where the documentation HTML build is located,
+          defaults to 'out/html'
+        required: false
+        default: "out/html"
+        type: string
+      branch_pattern:
+        description: >-
+          Regex pattern to match against when selecting branches to build for
+          version selector, defaults to '^(main|release-.*)$'
+        required: false
+        default: '^(main|release-.*)$'
+        type: string
+      simple_mode:
+        description: >-
+          When true, override configuration for simple documentation sites
+        required: false
+        default: true
+        type: boolean
+      orch_ci_repo_ref:
+        description: >-
+          The ref of the orch-ci repo, including bootstrap action and scripts,
+          defaults to 'main'
+        required: false
+        default: "main"
+        type: string
+      endpoint:
+        description: >-
+          Endpoint URL where documentation will be deployed to,
+          defaults to 's3://intel-openedgeplatform-documentation'
+        required: false
+        default: "s3://intel-openedgeplatform-documentation"
+        type: string
+      distribution_id:
+        description: >-
+          Distribution ID of documentation hosting service,
+          defaults to 'E1QN7TZJG8M0VL'
+        required: false
+        default: "E1QN7TZJG8M0VL"
+        type: string
+      exclude_patterns:
+        description: >-
+          Comma separated list of exclude patterns to use during the build,
+          defaults to empty list
+        required: false
+        default: ""
+        type: string
+    secrets:
+      SYS_ORCH_GITHUB:
+        description: "PAT (contents: read) to clone private repos"
+        required: true
+      DOC_AWS_ACCESS_KEY_ID:
+        description: AWS access key for docs bucket
+        required: true
+      DOC_AWS_SECRET_ACCESS_KEY:
+        description: AWS secret access key for docs bucket
+        required: true
+permissions:
+  contents: read
+jobs:
+  build-documentation:
+    permissions:
+      contents: read        # minimal privilege required
+    runs-on: ubuntu-latest
+    env:
+      DOCS_DIR: ${{ inputs.docs_directory }}
+    steps:
+      - name: Checkout action repository
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          repository: open-edge-platform/orch-ci
+          path: ci
+          ref: ${{ inputs.orch_ci_repo_ref }}
+          persist-credentials: false
+
+      - name: Bootstrap CI environment
+        uses: ./ci/.github/actions/bootstrap
+        with:
+          gh_token: ${{ secrets.SYS_ORCH_GITHUB }}
+          bootstrap_tools: "aws"
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@00943011d9042930efac3dcd3a170e4273319bc8  # v5.1.0
+        with:
+          aws-access-key-id: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.DOC_AWS_SECRET_ACCESS_KEY }}
+          aws-region: us-west-2
+
+      - name: Checkout code
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          # Fetch all history, otherwise sporadic issue with missing tags
+          fetch-depth: 0
+          # Fetch tags
+          fetch-tags: true
+          # Checkout the branch that triggered the workflow
+          # to avoid detached HEAD
+          ref: ${{ github.head_ref }}
+          persist-credentials: false
+
+      # Fetch template from AWS S3 bucket
+      - name: Checkout template
+        if: ${{ inputs.simple_mode }}
+        env:
+          ENDPOINT: ${{ inputs.endpoint }}
+        shell: bash
+        run: |
+          mkdir -p "${GITHUB_WORKSPACE}"/_template
+          aws s3 cp --recursive "${ENDPOINT}/template" \
+            "${GITHUB_WORKSPACE}"/_template
+
+      - name: Copy template
+        if: ${{ inputs.simple_mode }}
+        shell: bash
+        run: |
+          cd "${GITHUB_WORKSPACE}/${DOCS_DIR}"
+          # Override any existing files with template
+          cp -rf "${GITHUB_WORKSPACE}"/_template/* .
+          if [ -f "dictionary_append.txt" ]; then
+            cat "dictionary_append.txt" >> "dict.txt"
+          fi
+
+      - name: Add exclude patterns
+        env:
+          EXCLUDE: ${{ inputs.exclude_patterns }}
+        shell: bash
+        run: |
+          # Remove any spaces
+          exclude_no_spaces="${EXCLUDE// /}"
+          # Surround patterns with quotes and create Python list
+          exclude_pattern="[\"${exclude_no_spaces//,/\", \"}\"]"
+          conf_files=$(find "${GITHUB_WORKSPACE}" -type f -path "*/docs/conf.py")
+          for conf_file in $conf_files; do
+            echo "exclude_patterns.extend(${exclude_pattern})" >> "$conf_file"
+          done
+
+      - name: Install Spark theme
+        if: false  # Disable step - Spark theme deprecated
+        env:
+          ENDPOINT: ${{ inputs.endpoint }}
+        shell: bash
+        run: |
+          # Download Spark Sphinx theme
+          tmpdir="$(mktemp -d)"
+          aws s3 cp "${ENDPOINT}/theme/current" "${tmpdir}"
+          theme_wheel="$(cat "${tmpdir}/current")"
+          aws s3 cp "${ENDPOINT}/theme/${theme_wheel}" "${tmpdir}"
+          # Instantiate Python Virtual Environment
+          cd "${GITHUB_WORKSPACE}/${DOCS_DIR}"
+          make check
+          venv="$(find . -path '*/bin/activate' -name activate)"
+          # shellcheck source=/dev/null
+          source "${venv}"
+          # Install Spark Sphinx theme
+          pip3 install --no-input "${tmpdir}/${theme_wheel}"
+          deactivate
+
+      - name: Build Documentation
+        env:
+          SIMPLE_MODE: ${{ inputs.simple_mode }}
+        shell: bash
+        run: |
+          cd "${GITHUB_WORKSPACE}/${DOCS_DIR}"
+          make build
+
+      # Checkout orch-ci again so the
+      # 'Post Bootstrap CI Environment' step does not fail
+      - name: Checkout action repository
+        if: always()
+        uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8  # v5.0.0
+        with:
+          repository: open-edge-platform/orch-ci
+          path: ci
+          ref: ${{ inputs.orch_ci_repo_ref }}
+          persist-credentials: false

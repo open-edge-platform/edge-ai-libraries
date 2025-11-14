@@ -67,7 +67,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.audio-analyzer_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -81,7 +81,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.dlstreamer-pipeline-server_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -95,7 +95,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.document-summarization_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -109,7 +109,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.model-registry_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -123,7 +123,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@aca8b81017baf9d2790e4bf31232895553909970
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -137,7 +137,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.visual-pipeline-platform-tool_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -151,7 +151,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.chat-question-and-answer-core_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@cd8df4807e6a736f181d20e69ba25791be1e11d7
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -164,7 +164,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.time-series-analytics-docs_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -178,7 +178,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.plcopen-motion-control_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -191,7 +191,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.vector-retriever_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
@@ -205,7 +205,7 @@ jobs:
       contents: read          # needed for actions/checkout
     needs: filter
     if: ${{ needs.filter.outputs.video-summarization_changed == 'true' }}
-    uses: open-edge-platform/orch-ci/.github/workflows/build-documentation.yml@b14b0105bf312a2c98457dd021622de4c14f6bff
+    uses: ./.github/workflows/build-documentation.yml
     secrets:
       SYS_ORCH_GITHUB: ${{ secrets.SYS_ORCH_GITHUB }}
       DOC_AWS_ACCESS_KEY_ID: ${{ secrets.DOC_AWS_ACCESS_KEY_ID }}
