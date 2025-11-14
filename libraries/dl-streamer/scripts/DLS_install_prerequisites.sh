@@ -339,7 +339,7 @@ setup_gpu(){
         $SUDO_PREFIX apt-get install -y --no-install-recommends software-properties-common 
         $SUDO_PREFIX add-apt-repository -y $INTEL_CL_GPU_REPO_URL
         $SUDO_PREFIX apt update
-        $SUDO_PREFIX echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/$INTEL_GPU_LIST
+        echo "Snapshot: 20250911T030400Z" | $SUDO_PREFIX tee -a /etc/apt/sources.list.d/$INTEL_GPU_LIST
         $SUDO_PREFIX apt update
         install_packages libze-intel-gpu1 libze1 intel-ocloc intel-opencl-icd clinfo intel-gsc libze-intel-gpu-raytracing intel-media-va-driver-non-free libmfx-gen1 libvpl2 libvpl-tools libva-glx2 va-driver-all vainfo
     elif [ "$ubuntu_version" == "22.04" ]; then
