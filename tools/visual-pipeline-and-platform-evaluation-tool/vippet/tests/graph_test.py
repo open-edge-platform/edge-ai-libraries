@@ -1,9 +1,8 @@
 import os
 import unittest
 from dataclasses import dataclass
-from unittest.mock import MagicMock
+from unittest.mock import MagicMock, patch
 from graph import Graph, Node, Edge
-import graph
 
 mock_models_manager = MagicMock()
 mock_videos_manager = MagicMock()
@@ -68,10 +67,6 @@ mock_models_manager.find_installed_model_by_display_name.side_effect = (
 )
 mock_videos_manager.get_video_filename.side_effect = _mock_get_video_filename
 mock_videos_manager.get_video_path.side_effect = _mock_get_video_path
-
-
-graph.models_manager = mock_models_manager
-graph.videos_manager = mock_videos_manager
 
 
 @dataclass
@@ -1200,6 +1195,8 @@ class TestToFromDict(unittest.TestCase):
 
 
 class TestGraphToDescription(unittest.TestCase):
+    @patch("graph.models_manager", mock_models_manager)
+    @patch("graph.videos_manager", mock_videos_manager)
     def test_graph_to_description(self):
         self.maxDiff = None
 
@@ -1209,6 +1206,8 @@ class TestGraphToDescription(unittest.TestCase):
 
 
 class TestDescriptionToGraph(unittest.TestCase):
+    @patch("graph.models_manager", mock_models_manager)
+    @patch("graph.videos_manager", mock_videos_manager)
     def test_description_to_graph(self):
         self.maxDiff = None
 
@@ -1271,6 +1270,7 @@ class TestParseDescription(unittest.TestCase):
 
 
 class TestNegativeCases(unittest.TestCase):
+    @patch("graph.videos_manager", mock_videos_manager)
     def test_circular_graph_raises_error(self):
         """Test that a circular graph is detected and raises an error."""
         # Create a circular graph: node 0 -> node 1 -> node 2 -> node 0
