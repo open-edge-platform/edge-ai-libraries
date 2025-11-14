@@ -42,6 +42,8 @@ cd chat-question-and-answer-core
 
 Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and `proxy settings` as required.
 
+**Note:** Do not use special characters in configuration values.
+
 Next, choose the appropriate `values*.yaml` file based on the model framework you want to use:
 
 - OpenVINO toolkit: Use `values-openvino.yaml`
@@ -110,6 +112,8 @@ cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/chart
 #### Step 3: Configure the `values.yaml` File
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
+
+**Note:** Do not use special characters in configuration values.
 
 #### Step 4: Build Helm Dependencies
 
