@@ -1,6 +1,5 @@
 multimodalembeddingms:
   enabled: true
-  useOnlyTextEmbeddings: true
 vdmsdataprep:
   enabled: true
 vdmsvectordb:
@@ -19,6 +18,11 @@ audioanalyzer:
 global:
   # vdmsIndexName is the DB Index or DB Collection name used by VDMS Vector DB.
   vdmsIndexName: "video_summary_embeddings"
+  embedding:
+    preferTextModel: true
+  env:
+    EMBEDDING_MODEL_NAME: ""
+    TEXT_EMBEDDING_MODEL_NAME: ""
 
 videoSummaryManager:
   env:
