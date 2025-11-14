@@ -92,7 +92,7 @@ build_dependencies() {
   fi
 
 # Check if the directory exists first
-  cd "${uservices_dir}/multimodal_embedding_serving/docker" || return
+  cd "${uservices_dir}/multimodal-embedding-serving/docker" || return
   if [ -f "compose.yaml" ]; then
     cd .. && docker_build -t ${REGISTRY}multimodal-embedding-serving:${TAG} -f docker/Dockerfile . || { 
       log_info "${RED}Failed to build multimodal embedding serving${NC}"; 

@@ -16,7 +16,7 @@ Build and install the microservice as a wheel package for clean, production-read
 
 ```bash
 # 1. Build the wheel
-cd multimodal_embedding_serving
+cd multimodal-embedding-serving
 poetry build
 
 # 2. Install in your project
@@ -31,14 +31,14 @@ pip install dist/multimodal_embedding_serving-0.1.1-py3-none-any.whl
 
 ```bash
 git clone https://github.com/intel/edge-ai-libraries
-cd edge-ai-libraries/microservices/multimodal_embedding_serving
+cd edge-ai-libraries/microservices/multimodal-embedding-serving
 pip install -e .
 ```
 
 ### Option 3: Using Poetry for Development
 
 ```bash
-cd multimodal_embedding_serving
+cd multimodal-embedding-serving
 poetry install
 poetry shell
 ```

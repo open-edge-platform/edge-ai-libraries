@@ -106,7 +106,7 @@ Before running the application, you need to set several environment variables:
     export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
     ```
 
-    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md) before choosing model IDs.
+    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 4. **Configure Directory Watcher (Video Search Mode Only)**:
 
@@ -364,7 +364,7 @@ For alternative ways to set up the sample application, see:
 
 1. Verify at least one video has been uploaded or a summary run completed after the model change.
 2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
-3. Review the supported embedding models and their dimensions in [microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md](../../../../microservices/multimodal_embedding_serving/docs/user-guide/supported-models.md) before switching models.
+3. Review the supported embedding models and their dimensions in [microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before switching models.
 
 ### VLM Microservice Model Loading Issues
 

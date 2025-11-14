@@ -18,7 +18,7 @@ This guide assumes basic familiarity with Docker commands and terminal usage.
 ```bash
 # Clone the repository
 git clone https://github.com/intel/edge-ai-libraries.git
-cd edge-ai-libraries/microservices/multimodal_embedding_serving
+cd edge-ai-libraries/microservices/multimodal-embedding-serving
 
 # REQUIRED: Choose and set your model
 export EMBEDDING_MODEL_NAME="your-chosen-model"  # Replace with your preferred model

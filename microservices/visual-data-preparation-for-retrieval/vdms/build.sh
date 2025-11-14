@@ -79,7 +79,7 @@ done
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 MICROSERVICES_DIR="$(cd "$SCRIPT_DIR/../.." && pwd)"
-EMBEDDING_DIR="$MICROSERVICES_DIR/multimodal_embedding_serving"
+EMBEDDING_DIR="$MICROSERVICES_DIR/multimodal-embedding-serving"
 WHEELS_DIR="$SCRIPT_DIR/wheels"
 DOCKERFILE="$SCRIPT_DIR/docker/Dockerfile"
 

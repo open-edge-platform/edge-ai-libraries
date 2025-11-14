@@ -18,7 +18,7 @@ Installing via wheel provides:
 Navigate to the microservice directory and build:
 
 ```bash
-cd multimodal_embedding_serving
+cd multimodal-embedding-serving
 poetry build
 ```
 
@@ -170,7 +170,7 @@ multimodal-embedding-serving = {path = "wheels/multimodal_embedding_serving-0.1.
 
 1. Build new version:
 ```bash
-cd multimodal_embedding_serving
+cd multimodal-embedding-serving
 # Update version in pyproject.toml if needed
 poetry build
 ```
