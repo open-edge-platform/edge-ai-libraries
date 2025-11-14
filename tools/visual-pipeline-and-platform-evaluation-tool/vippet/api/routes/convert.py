@@ -24,7 +24,7 @@ def to_graph(request: PipelineDescription):
     except ValueError as e:
         return JSONResponse(
             content=MessageResponse(
-                message=f"Invalid pipeline description {str(e)}"
+                message=f"Invalid pipeline description: {str(e)}"
             ).model_dump(),
             status_code=400,
         )
