@@ -1,11 +1,14 @@
 import logging
 import re
-from pathlib import Path
+import uuid
 from collections import defaultdict
 from collections.abc import Iterator
 from dataclasses import asdict, dataclass
+from datetime import datetime
+from pathlib import Path
 
 from videos import get_videos_manager
+
 from models import get_supported_models_manager
 
 logger = logging.getLogger(__name__)
@@ -350,9 +353,17 @@ def _video_name_to_path(nodes: list[Node]) -> None:
 
             path = videos_manager.get_video_path(name)
             if not path:
-                raise ValueError(
-                    f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
-                )
+                # FIXME
+                # Generate output path as a workaround to run pipeline.
+                # In the long term this should be managed by instance manager
+                if node.type.endswith("sink") and key == "location":
+                    timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
+                    suffix = uuid.uuid4().hex[0:6]
+                    path = f"/tmp/vippet_{timestamp}_{suffix}.mp4"
+                else:
+                    raise ValueError(
+                        f"Node {node.id}. {node.type}: can't map '{key}={name}' to video path"
+                    )
 
             node.data[key] = path
             logger.debug(f"Converted video filename to path: {name} -> {path}")
