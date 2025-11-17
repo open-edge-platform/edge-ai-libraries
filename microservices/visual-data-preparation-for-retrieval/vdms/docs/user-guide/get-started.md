@@ -1,22 +1,10 @@
 # Get Started
 
-The **VDMS based Data Preparation microservice** enables creating and storing of embeddings for text and video files in the VMDS vectorDB. The input video files are stored in the MinIO object storage. This section provides step-by-step instructions to:
-
-- Set up the microservice using a pre-built Docker image for quick deployment.
-- Run predefined tasks to explore its functionality.
-- Learn how to modify basic configurations to suit specific requirements.
+The **VDMS DataPrep microservice** builds and stores frame-level and text embeddings in VDMS while preserving the raw assets in MinIO. This guide explains how to launch the service, configure runtime options, and exercise the primary APIs.
 
 ## Configuration and Setup
 
-We will be running our application in docker containers. Configuration step involves setting various environment variables, which are prerequisites for spinning up the application container along with its dependencies. Dependencies are other applications/microservices which also run in docker containers. **For proper functioning of all these application containers, proper setup of environment variables is crucial.**
-
-For end-to-end VDMS-DataPrep application setup, **three** application containers for following services will be spun-up:
-
-- **vdms-dataprep:** This service contains **DataPrep API Server** application.
-- **vdms-vector-db:** This service runs **VDMS Vector DB**. This is backend vector DB used by DataPrep API Server.
-- **Minio Server:** This service runs Minio Server, the backend Object storage service used directly by the VDMS-DataPrep service.
-
-These **three** services are part of `docker/compose.yaml` file. All these services would be requiring their own set of environment variables to be setup.
+VDMS DataPrep ships with Docker Compose manifests (`docker/compose*.yaml`) that provision MinIO, VDMS Vector DB, and the DataPrep container. Always `source` the accompanying setup scripts so the exported environment variables remain in your shell.
 
 ## Prerequisites
 
@@ -29,131 +17,179 @@ This guide assumes basic familiarity with Docker commands and terminal usage. If
 
 ## Environment Variables
 
-Following environment variables are required for setting up the application. **The setup script `setup.sh` takes care most of these. Here, we present them mostly for informational purpose, for the cases where you want to override these for any reason. You can safely skip this section and move to next.**
+The table below lists the core configuration knobs. `setup.sh` seeds defaults, but you can override them before sourcing the script.
 
-- **PROJECT_NAME:** Helps provide a common docker compose project name and create a common container prefix for all services involved.
-- **COVERAGE_REQ:** Helps to set the test coverage requirement criteria. If coverage is less than this criteria, `final-dev` image will fail to build.
-- **PROJ_TEST_DIR:** The directory where all tests reside. This is used while running scripts to run tests.
-- **REGISTRY:** This is container registry name. To be able to push an image to remote container registry, image name should contain the registry URL as well. Hence, value of this variable is used as prefix to the image name in docker compose file. Its value is set by concatenating the value of `REGISTRY_URL` environment variable with `PROJECT_NAME`. If `REGISTRY_URL` is not set, only the value of `PROJECT_NAME` is used and resulting image name does not contain any registry URL. If `PROJECT_NAME` is also not set, only the application name is used as image name. We must set `REGISTRY_URL`, if we want to push images to container registry.
+| Variable | Required | Default | Purpose |
+| --- | --- | --- | --- |
+| `MINIO_ROOT_USER`, `MINIO_ROOT_PASSWORD` | ✅ | _(none)_ | Credentials used to bootstrap MinIO and authenticate API calls from DataPrep. |
+| `MINIO_ENDPOINT` | ✅ | `minio-server:9000` | Host:port string DataPrep uses to communicate with MinIO from inside the container. |
+| `DEFAULT_BUCKET_NAME` | ✅ | `vdms-bucket` (via `setup.sh`) | Destination bucket for uploaded videos and generated manifests. Override with `PM_MINIO_BUCKET` when running alongside pipeline-manager. |
+| `VDMS_VDB_HOST` / `VDMS_VDB_PORT` | ✅ | `vdms-vector-db` / `55555` | Connection information for VDMS Vector DB. |
+| `DB_COLLECTION` | ✅ | `video-rag` | VDMS collection that stores embeddings and metadata. |
+| `MULTIMODAL_EMBEDDING_MODEL_NAME` | ✅ | _(none)_ | Model identifier used by both SDK and API execution paths (for example `CLIP/clip-vit-b-32` for multimodal or `QwenText/qwen3-embedding-0.6b` for text-only embeddings). |
+| `EMBEDDING_PROCESSING_MODE` | ✅ | `sdk` | Selects optimized in-process execution (`sdk`) or HTTP-based execution (`api`). |
+| `SDK_USE_OPENVINO` | Optional | `true` | Enables OpenVINO acceleration in SDK mode. Set `false` to stay on PyTorch. |
+| `VDMS_DATAPREP_DEVICE` | Optional | `CPU` | Processing device for embeddings, and object detection (`CPU` or `GPU`). |
+| `FRAME_INTERVAL` | Optional | `15` | Extract every Nth frame during video processing. |
+| `ENABLE_OBJECT_DETECTION` | Optional | `true` | Toggles YOLOX-based crop extraction. |
+| `DETECTION_CONFIDENCE` | Optional | `0.85` | Minimum confidence threshold for detections. |
+| `OV_MODELS_DIR` | Optional | `/app/ov_models` | Persistent mount that caches OpenVINO-optimized models. |
+| `ALLOW_ORIGINS`, `ALLOW_METHODS`, `ALLOW_HEADERS` | Optional | `*` | CORS configuration applied by FastAPI. |
 
-### MinIO Related variables
-- **MINIO_HOST:** Host name for Minio Server. This is used to communicate with Minio Server by VDMS-DataPrep service inside container.
-- **MINIO_API_PORT:** Port on which Minio Server's API service runs inside container.
-- **MINIO_API_HOST_PORT:** Port on which we want to access Minio server's API service outside container i.e. on host.
-- **MINIO_CONSOLE_PORT:** Port on which we want MINIO UI Console to run inside container.
-- **MINIO_CONSOLE_HOST_PORT:** Port on which we want to access MINIO UI Console on host machine.
-- **MINIO_MOUNT_PATH:** Mount point for Minio server objects storage on host machine. This helps persist objects stored on Minio server.
-- **MINIO_ROOT_USER:** Username for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_PASSWD` variable on shell, if not using the default value.
-- **MINIO_ROOT_PASSWORD:** Password for MINIO Server. This is required while accessing Minio UI Console. This needs to overridden by setting `MINIO_USER` variable on shell, if not using the default value.
-- **MINIO_SECURE:** Whether to use HTTPS for Minio connections (default is `false`).
-- **DEFAULT_BUCKET_NAME:** Default bucket name in Minio for storing videos.
+### Advanced tuning
 
-### VDMS Vector DB and VDMS-DataPrep Related variables:
-- **VDMS_DATAPREP_HOST_PORT:** Port on host machine where we want to access VDMS-DataPrep Service outside container.
-- **VDMS_VDB_HOST_PORT:** Port on host machine where we want to access VDMS Vector DB Service outside container.
-- **VDMS_VDB_PORT:** Port on which VDMS Vector DB service runs inside container.
-- **VDMS_VDB_HOST:** Host name for VDMS Vector DB service. This is used by other application containers for communication.
-- **INDEX_NAME:** Name of the collection used to store embeddings in VDMS Vector DB in prod setup.
+Additional environment variables are available for high-throughput scenarios:
 
-### How to set environment variables
+- `ENABLE_PARALLEL_PIPELINE` (default `true`) — disable to force single-threaded embedding.
+- `MAX_PARALLEL_WORKERS` — hard cap on SDK worker threads (auto-calculated when unset).
+- `OV_PERFORMANCE_MODE`, `OV_PERFORMANCE_HINT_NUM_REQUESTS`, `OV_NUM_STREAMS` — forward performance hints to OpenVINO when running on CPU or GPU.
 
-The setup script in root of project `setup.sh` sets default values for most of the required environment variables once we run it. For values like `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD`, we export following env vars on our shell before running the script.
-
-```bash
-export MINIO_ROOT_USER="minio-user-or-s3-access-token"
-export MINIO_ROOT_PASSWORD="minio-password-or-s3-secret"
-```
-For all other variables, you can edit the `setup.sh` file in project root and update any export statements inside it to override default values.
-
-## Quick Start with Docker
-
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
-
-_To be documented_
-
-## Usage
-
-### Access Services
-
-As all the services spin up, we will have DataPrep applications available on `VDMS_DATAPREP_HOST_PORT`. This variable is set in `setup.sh` file. DataPrep service provides us a bunch of API Endpoints to utilize embedding creations and object storage service.
-
-To access and verify VDMS-DataPrep service:
-
-1. Get the IP address of host machine. `setup.sh` script sets `host_ip` variable with the IP address of host machine. You can verify and use this variable, or you can provide a host IP manually.
-
-2. Once you have host IP, access the Data Store API Docs in any web browser on `http://${host_ip}:${VDMS_DATAPREP_HOST_PORT}/docs`.
-
-3. To verify object being stored directly in Minio, you can access the Minio Server Console in any web browser on `http://${host_ip}:${MINIO_CONSOLE_HOST_PORT}`. This will ask for a username and password. Use the Value of `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` from setup.sh as login credentials (see below bash command).
-
-   ```bash
-   # Get username and password for Minio User Console
-   echo $MINIO_ROOT_USER && echo $MINIO_ROOT_PASSWORD
-   ```
-
-4. Go through the VDMS-DataPrep Service API docs to learn how to **upload**, **get**, **download** video files to create/store embeddings.
-
-### Validate Services
-
-We will try to upload a sample video file, verify that embeddings and video files are stored.
-
-1. POST a video file to create video embedding and store in object storage.
+Export overrides before sourcing the setup script:
 
 ```bash
-curl -X POST "http://${host_ip}:${VDMS_DATAPREP_HOST_PORT}/v1/dataprep/videos" \
-    -H "Content-Type: multipart/form-data" \
-    -F "files=@/path/to/sample/video1.mp4" \
-    -F "files=@/path/to/sample/video2.mp4" \
-    -F "bucket_name=my-bucket"
+export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-16"
+export MINIO_ROOT_USER="minioadmin"
+export MINIO_ROOT_PASSWORD="minioadmin"
+export EMBEDDING_PROCESSING_MODE="sdk"
+source ./setup.sh --nosetup
 ```
 
-2. Verify whether embeddings were created and videos were uploaded to Minio:
+> **Tip:** When you only need long-form text embeddings—such as the combined `--all` mode in the video search and summarization sample—set `EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"` before sourcing `setup.sh`. The script forwards this value to the DataPrep container as `MULTIMODAL_EMBEDDING_MODEL_NAME`, enabling Qwen-backed text embeddings in SDK and API modes without any additional flags.
 
-```bash
-curl -X GET "http://${host_ip}:${VDMS_DATAPREP_HOST_PORT}/v1/dataprep/videos?bucket_name=my-bucket"
-```
-
-3. Download a video file using the video_id from the previous GET response:
-
-```bash
-video_id=<video_id_from_get_response>
-curl -X GET "http://${host_ip}:${VDMS_DATAPREP_HOST_PORT}/v1/dataprep/videos/download?video_id=${video_id}&bucket_name=my-bucket" -o downloaded_video.mp4
-```
-
-#### Minio Console UI
-
-You can also access **Minio Console UI** to verify the bucket creation and video uploads by heading to `http://${host_ip}:{MINIO_CONSOLE_HOST_PORT}` in your browser. Use the Value of `MINIO_ROOT_USER` and `MINIO_ROOT_PASSWORD` as login credentials for Console UI. Videos are uploaded by default in **vdms-bucket-test** bucket unless you specify a different bucket_name in your API requests.
-
-## Runs Tests
-
-We can run unit tests and generate coverage by running following command in the application's directory :
-
-```bash
-# Switch to application directory (assuming you are in cloned repo's root dir)
-cd microservices/visual-data-preparation-for-retrieval/vdms
-
-poetry lock --no-update
-poetry install --with cpu,dev
-
-# Run tests and generate coverage report
-source setup.sh test
-```
-
-## Troubleshooting
-
-1. **Docker Container Fails to Start**:
-    - Run `docker logs {{container-name}}` to identify the issue.
-    - Check if the required port is available.
-
-
-2. **Cannot Access the Microservice**:
-    - Confirm the container is running:
-      ```bash
-      docker ps
-      ```
+Use `source ./setup.sh --conf` to print the resolved Docker Compose configuration with your overrides applied.
 
 ## Supporting Resources
 
-* [Overview](Overview.md)
-* [Architecture Overview](./overview-architecture.md)
-* [API Reference](api-reference.md)
-* [System Requirements](system-requirements.md)
+- [Overview](Overview.md)
+- [Architecture Overview](./overview-architecture.md)
+- [Video Ingestion Flow](./video-ingestion-flow.md) - Detailed flow diagrams of the video processing pipeline
+- [API Reference](api-reference.md)
+- [System Requirements](system-requirements.md)
+
+## Quick Start with Docker
+
+> **Important:** Do not run `docker build` directly against `docker/Dockerfile`. The build depends on a wheel generated from the multimodal embedding serving microservice. Always execute `./build.sh` in the `vdms` directory first so the wheel is created under `wheels/` before building the container image.
+
+1. **Clone the repository and enter the project.**
+
+   ```bash
+   git clone https://github.com/open-edge-platform/edge-ai-libraries.git
+   cd edge-ai-libraries/microservices/visual-data-preparation-for-retrieval/vdms
+   ```
+
+2. **Export required secrets and model selection.**
+
+   ```bash
+   export MINIO_ROOT_USER="minioadmin"
+   export MINIO_ROOT_PASSWORD="minioadmin"
+   export MULTIMODAL_EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+   ```
+
+   For text-only scenarios replace the last line with:
+
+   ```bash
+   export MULTIMODAL_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
+   ```
+
+3. **Choose your execution mode.**
+
+   - **SDK mode (default):** No external embedding service required. Run `source ./setup.sh` to spin up MinIO, VDMS, and DataPrep using `docker/compose.yaml`.
+   - **API mode:** Requires the multimodal embedding serving container. Set `export EMBEDDING_PROCESSING_MODE=api`, `source ./setup-with-embedding.sh`, then launch with `docker compose -f docker/compose-with-embedding.yaml up -d --build`.
+
+4. **Confirm the stack is healthy.**
+
+   ```bash
+   docker ps --filter "name=vdms" --format "table {{.Names}}\t{{.Status}}"
+   ```
+
+5. **Open the interactive docs.** Navigate to `http://localhost:6007/docs` (adjust if you changed `VDMS_DATAPREP_HOST_PORT`) to view the OpenAPI schema.
+
+6. **Shut everything down when finished.** Use `source ./setup.sh --down` (or `docker compose ... down` for the API stack) to stop services.
+
+## Usage
+
+The FastAPI application is mounted under `/v1/dataprep`.
+
+### Health probe
+
+```bash
+curl http://localhost:6007/v1/dataprep/health
+```
+
+SDK mode responses include the preload status, model name, and device.
+
+### Upload and process a new video
+
+```bash
+curl -X POST "http://localhost:6007/v1/dataprep/videos/upload" \
+  -H "Content-Type: multipart/form-data" \
+  -F "file=@/path/to/video.mp4" \
+  -F "frame_interval=10" \
+  -F "enable_object_detection=true" \
+  -F "tags=intersection" -F "tags=night"
+```
+
+The service streams the asset to MinIO, extracts frames (and crops), generates embeddings, and persists metadata in VDMS. The JSON response reports the processing mode that was used.
+
+### Process an existing video in MinIO
+
+```bash
+curl -X POST "http://localhost:6007/v1/dataprep/videos/minio" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "bucket_name": "vdms-bucket",
+        "video_id": "traffic_cam_2024_10_21",
+        "frame_interval": 12,
+        "enable_object_detection": true,
+        "tags": ["traffic", "daytime"]
+      }'
+```
+
+### Attach a human-authored summary
+
+To attach a human-authored summary to a video, use this command:
+
+```bash
+curl -X POST "http://localhost:6007/v1/dataprep/summary" \
+  -H "Content-Type: application/json" \
+  -d '{
+        "bucket_name": "vdms-bucket",
+        "video_id": "traffic_cam_2024_10_21",
+        "video_summary": "Vehicle stopped at intersection for 45 seconds",
+        "video_start_time": 12.5,
+        "video_end_time": 57.0,
+        "tags": ["summary", "manual"]
+      }'
+```
+
+### Discover, download, and delete content
+
+You can use the following commands to discover, download, and delete content:
+
+```bash
+# List processed videos (video_id + filenames)
+curl "http://localhost:6007/v1/dataprep/videos"
+
+# Download a processed clip (stream or attachment)
+curl -L "http://localhost:6007/v1/dataprep/videos/download?video_id=traffic_cam_2024_10_21&video_name=clip_0003.mp4" -o clip_0003.mp4
+
+# Delete everything under a video_id (omit video_name to remove one file)
+curl -X DELETE "http://localhost:6007/v1/dataprep/videos?video_id=traffic_cam_2024_10_21"
+```
+
+## Validate Services
+
+1. Call `GET /v1/dataprep/health` – expect `status: ok`, the active embedding mode, and the OpenVINO flag when SDK mode is selected.
+2. Upload a small MP4 via `/videos/upload` and confirm:
+   - The response payload reports `success`.
+   - `GET /v1/dataprep/videos` lists the generated `video_id` and manifests.
+   - The MinIO console (`http://localhost:6011`) shows the raw asset, thumbnails, and crops.
+3. Inspect VDMS (via `vdms_cli` or a custom client) to verify entries in the `video-rag` collection.
+
+## Troubleshooting
+
+- **Startup fails with “model name must be provided”:** Set `MULTIMODAL_EMBEDDING_MODEL_NAME` before launching Docker (required for both SDK and API modes).
+- **Object detection disabled unexpectedly:** Check logs for YOLOX download failures. Ensure the `YOLOX_MODELS_VOLUME_NAME` volume exists and the host has outbound network access during first run.
+- **API mode returns 502:** Verify the multimodal embedding service is healthy at `MULTIMODAL_EMBEDDING_ENDPOINT` (see `docker compose -f docker/compose-with-embedding.yaml ps`).
+- **Uploads rejected:** Files larger than 500 MB are not accepted by the FastAPI upload endpoint. Stage the video directly in MinIO and use `/videos/minio` instead.
+- **GPU acceleration inactive:** Confirm `/dev/dri/*` is mapped into the container, `VDMS_DATAPREP_DEVICE=GPU`, and `SDK_USE_OPENVINO=true`.

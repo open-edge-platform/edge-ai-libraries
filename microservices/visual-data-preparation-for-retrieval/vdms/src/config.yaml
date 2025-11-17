@@ -1,29 +1,54 @@
-
 # path of uploaded video and its metadata's temporary location on local storage
 videos_local_temp_dir: /tmp/dataprep/videos
 metadata_local_temp_dir: /tmp/dataprep/metadata
 
-# Whether to extract frames of videos or not (True if not done already, else False)
-generate_frames: True
+# Frame-based video processing configuration
+frame_processing:
+    # Frame extraction interval - extract every Nth frame
+    frame_interval: 15
 
-# Config for generating feature embeddings
-embeddings:
-  qwen_model_name: "Qwen/Qwen3-Embedding-0.6B"
-  vclip_model_name: "openai/clip-vit-base-patch32"
-  vclip_num_frame: 64
-  clip_vector_dimensions: 512
-  qwen_vector_dimensions: 1024
-  clip_sequence_length: 77
-  qwen_sequence_length: 8192
+    # Object detection settings
+    enable_object_detection: true
+    detection_confidence: 0.85
 
-# Chunk duration defines the interval of time that each embedding will occur
-chunk_duration: 30
-# Clip duration defines the length of the interval in which the embedding will occur
-clip_duration: 10
-# e.g. For every <chunk_duration>, you embed the first <clip_duration>'s frames of that interval
+    # Processing strategy selection
+    processing_strategy: 'auto' # auto, shared_volume, object_storage, base64_transfer
+    fallback_order: ['shared_volume', 'object_storage', 'base64_transfer']
+
+    # Shared volume configuration
+    shared_volume:
+        frames_temp_dir: '/tmp/dataprep/vdms_frames'
+        auto_cleanup: true
+        cleanup_after_hours: 1
+
+    # Object storage fallback configuration
+    object_storage:
+        use_default_bucket: true # Use same bucket as video storage (video-summary from setup.sh)
+        frames_subfolder: 'frame-cache' # Subdirectory within bucket for frames
+        cleanup_after_hours: 1
+
+    # Base64 transfer fallback configuration
+    base64_transfer:
+        max_batch_size_mb: 10
+        compression_enabled: true
 
 # VL-branch config
 vl_branch:
-  cfg_path: embedding/video_llama_config/video_llama_eval_only_vl.yaml
-  model_type: "llama_v2"
+    cfg_path: embedding/video_llama_config/video_llama_eval_only_vl.yaml
+    model_type: 'llama_v2'
 
+# Object detection configuration
+object_detection:
+    enabled: true
+    device: 'CPU' # CPU or GPU
+    confidence_threshold: 0.85
+    nms_threshold: 0.45
+    input_size: [640, 640]
+    model_dir: '/app/models/yolox' # Persistent mount path for models
+    model_name: 'yolox_s'
+    # Uncomment and populate class_names to override the detector's default labels.
+    # When left unset, the detector falls back to the bundled YOLOX COCO label list.
+    # class_names:
+    #   - person
+    #   - bicycle
+    #   - ...

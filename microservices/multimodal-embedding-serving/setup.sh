@@ -17,6 +17,10 @@ export REGISTRY="${REGISTRY_URL}${PROJECT_NAME}"
 # Set default tag if not already set
 export TAG=${TAG:-latest}
 
+export APP_NAME="multimodal-embedding-serving"
+export APP_DISPLAY_NAME="Multimodal Embedding serving"
+export APP_DESC="Generates embeddings for text, images, and videos using pretrained models"
+
 # Video processing defaults
 export DEFAULT_START_OFFSET_SEC=0
 export DEFAULT_CLIP_DURATION=-1  # -1 means take the video till end
@@ -25,6 +29,7 @@ export DEFAULT_NUM_FRAMES=64
 # OpenVINO configuration
 export EMBEDDING_USE_OV=false
 export EMBEDDING_DEVICE=${EMBEDDING_DEVICE:-CPU}
+export OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
 
 # If EMBEDDING_DEVICE is GPU, set EMBEDDING_USE_OV to true
 if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
@@ -32,18 +37,44 @@ if [ "$EMBEDDING_DEVICE" = "GPU" ]; then
 fi
 
 export EMBEDDING_SERVER_PORT=9777
-export USE_ONLY_TEXT_EMBEDDINGS=${USE_ONLY_TEXT_EMBEDDINGS:-False}  # Setup multimodal embedding models, not just text models.
 
-# Check if VCLIP_MODEL is not defined or empty
-if [ -z "$VCLIP_MODEL" ] || [ "$VCLIP_MODEL" != "openai/clip-vit-base-patch32" ]; then
-    echo -e "ERROR: VCLIP_MODEL is either not set or is set to an invalid value in your shell environment."
-    return
+# Model configuration - REQUIRED: User must set EMBEDDING_MODEL_NAME
+if [ -z "$EMBEDDING_MODEL_NAME" ]; then
+    echo "ERROR: EMBEDDING_MODEL_NAME environment variable is required."
+    echo ""
+    echo "Please set a model name before sourcing setup.sh:"
+    echo "  export EMBEDDING_MODEL_NAME=\"your-chosen-model\""
+    echo "  source setup.sh"
+    echo ""
+    echo "See docs/user-guide/supported-models.md for complete model specifications."
+    return 1
 fi
 
-if [ -z "$QWEN_MODEL" ] || [ "$QWEN_MODEL" != "Qwen/Qwen3-Embedding-0.6B" ]; then
-    echo -e "ERROR: QWEN_MODEL is either not set or is set to an invalid value in your shell environment."
-    return
-fi
+# Model path configuration
+export EMBEDDING_OV_MODELS_DIR=${EMBEDDING_OV_MODELS_DIR:-"/app/ov_models"}
+
+# Check if EMBEDDING_MODEL_NAME is supported
+case "$EMBEDDING_MODEL_NAME" in
+    "CLIP/clip-vit-b-16"|"CLIP/clip-vit-l-14"|"CLIP/clip-vit-b-32"|"CLIP/clip-vit-h-14")
+        echo "Using CLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "CN-CLIP/cn-clip-vit-b-16"|"CN-CLIP/cn-clip-vit-l-14"|"CN-CLIP/cn-clip-vit-h-14")
+        echo "Using CN-CLIP model: $EMBEDDING_MODEL_NAME (Chinese + English support)"
+        ;;
+    "SigLIP/siglip2-vit-b-16"|"SigLIP/siglip2-vit-l-16"|"SigLIP/siglip2-so400m-patch16-384")
+        echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
+        echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
+        ;;
+    "Blip2/blip2_transformers")
+        echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
+        ;;
+    *)
+        echo -e "WARNING: Model '$EMBEDDING_MODEL_NAME' may not be supported."
+        echo -e "See docs/user-guide/supported-models.md for the complete list of supported models."
+        ;;
+esac
 
 # Fetch group IDs
 VIDEO_GROUP_ID=$(getent group video | awk -F: '{print $3}')
@@ -63,7 +94,7 @@ export RENDER_GROUP_ID=$RENDER_GROUP_ID
 
 echo "Environment variables set successfully."
 echo "REGISTRY set to: ${REGISTRY}"
-echo "VCLIP_MODEL set to: ${VCLIP_MODEL}"
-echo "QWEN_MODEL set to: ${QWEN_MODEL}"
+echo "EMBEDDING_MODEL_NAME set to: ${EMBEDDING_MODEL_NAME}"
 echo "EMBEDDING_DEVICE set to: ${EMBEDDING_DEVICE}"
-echo "Using only text embedding model: ${USE_ONLY_TEXT_EMBEDDINGS:-False}"
+echo "EMBEDDING_USE_OV set to: ${EMBEDDING_USE_OV}"
+echo "OV_PERFORMANCE_MODE set to: ${OV_PERFORMANCE_MODE}"

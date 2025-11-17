@@ -1,21 +1,30 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-# Ignore environment variables
+*.pyc
+**/data
+__pycache__/
+.*_cache/
+envs
+**/charts
+coverage
+.coverage
+virtual_env
+workspace
+ov_models
+.vscode
+.venv
+.coverage-report/
+**/ovms_config
+**/ov_models
+*.lock
+!poetry.lock
 .env
-
-# Ignore Python cache files
-**/__pycache__/
+.coverage
 *.py[cod]
-
-# Ignore virtual environment directories
 venv/
 env/
-
-# Ignore log files
 *.log
-
-# Ignore IDE specific files
-.vscode/
-
 ov-models
+**/checkpoints
+dist

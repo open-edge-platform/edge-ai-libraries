@@ -39,7 +39,6 @@ fi
 
 export DATAPREP_SERVICE_PORT=9990
 export EMBEDDING_SERVER_PORT=9777
-export USE_ONLY_TEXT_EMBEDDINGS=false  # Setup multimodal embedding models, not just text models.
 export EMBEDDING_BASE_URL="http://${host_ip}:${EMBEDDING_SERVER_PORT}"
 # export EMBEDDING_MODEL_NAME="CLIP/clip-vit-h-14"
 
@@ -64,13 +63,13 @@ case "$EMBEDDING_MODEL_NAME" in
     "CN-CLIP/cn-clip-vit-b-16"|"CN-CLIP/cn-clip-vit-l-14"|"CN-CLIP/cn-clip-vit-h-14")
         echo "Using CN-CLIP model: $EMBEDDING_MODEL_NAME (Chinese + English support)"
         ;;
-    "SigLIP/siglip-vit-b-16"|"SigLIP/siglip-vit-l-16")
+    "SigLIP/siglip2-vit-b-16"|"SigLIP/siglip2-vit-l-16"|"SigLIP/siglip2-so400m-patch16-384")
         echo "Using SigLIP model: $EMBEDDING_MODEL_NAME"
         ;;
     "MobileCLIP/mobileclip_s0"|"MobileCLIP/mobileclip_s1"|"MobileCLIP/mobileclip_s2"|"MobileCLIP/mobileclip_b"|"MobileCLIP/mobileclip_blt")
         echo "Using MobileCLIP model: $EMBEDDING_MODEL_NAME"
         ;;
-    "Blip2/blip2_feature_extractor"|"Blip2/blip2_transformers"|"Blip2/blip2_transformers_vitL")
+    "Blip2/blip2_transformers")
         echo "Using BLIP2 model: $EMBEDDING_MODEL_NAME"
         ;;
     *)

@@ -55,7 +55,7 @@ services:
       - "${VLM_HOST_PORT}:8000"
     environment:
       no_proxy: ${no_proxy},${MINIO_HOST},localhost
-      no_proxy_env: ${no_proxy},${MINIO_HOST}
+      no_proxy_env: ${no_proxy},${MINIO_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       VLM_MODEL_NAME: ${VLM_MODEL_NAME}

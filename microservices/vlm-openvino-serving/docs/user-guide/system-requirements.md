@@ -2,7 +2,7 @@
 This page provides detailed hardware, software, and platform requirements to help you set up and run the microservice efficiently.
 
 ## Supported Platforms
-This microservice currently supports CPU and GPU based runs. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the documentation in the sample application. The documentation here, hence, does not provide separate requirements.
+This microservice currently supports CPU and GPU based runs. This microservice is intended to run in the context of video summary pipeline. Hence, supported platform, OS configuration etc. is as per the sample application [documentation](../../../../sample-applications/video-search-and-summarization/docs/user-guide/system-requirements.md). The documentation here, hence, does not provide separate requirements.
 
 **Operating Systems**
 - As per sample application documentation.
