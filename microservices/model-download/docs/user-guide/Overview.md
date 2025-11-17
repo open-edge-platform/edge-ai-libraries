@@ -90,5 +90,5 @@ This service is not intended to replace full model registry solutions and has th
 - No built-in model serving capabilities
 
 ## Supporting Resources
-- [**Get Started Guide**](./docs/user-guide/get-started.md)
-- [**API Reference**](./docs/user-guide/api-docs/openapi.yaml)
+- [**Get Started Guide**](./get-started.md)
+- [**API Reference**](./api-docs/openapi.yaml)
