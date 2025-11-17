@@ -62,10 +62,3 @@ videoingestion:
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
   odModelType: ""
-
-
-multimodalembeddingms:
-  # Update textEmbeddingModel for unified video search and summary setup. Keep imageEmbeddingModel empty. See docs for sample value.
-  textEmbeddingModel: ""
-  # Update imageEmbeddingModel for standalone video search application setup. Keep textEmbeddingModel empty. See docs for sample value.
-  imageEmbeddingModel: ""
