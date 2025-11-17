@@ -2,7 +2,7 @@
 // SPDX-License-Identifier: Apache-2.0
 import { describe, it, expect } from 'vitest';
 import { UIActions, initialState, uiSelector, UIReducer } from '../redux/ui/ui.slice';
-import { UISliceState, OpenPromptModal, PromptEditing, MuxFeatures } from '../redux/ui/ui.model';
+import { UISliceState, OpenPromptModal, PromptEditing } from '../redux/ui/ui.model';
 
 describe('UISlice test suite', () => {
   describe('Initial State', () => {
@@ -16,7 +16,7 @@ describe('UISlice test suite', () => {
     it('should have proper initialState export', () => {
       expect(initialState).toEqual({
         promptEditing: null,
-        selectedMux: MuxFeatures.SUMMARY,
+        selectedMux: 1,
         groupByTag: false,
         showVideoGroups: false,
       });
@@ -118,7 +118,7 @@ describe('UISlice test suite', () => {
             submitValue: 'old-submit-value',
             vars: ['%oldVar%'],
           },
-          selectedMux: MuxFeatures.SUMMARY,
+          selectedMux: 1,
           groupByTag: false,
           showVideoGroups: false,
         };
@@ -149,7 +149,7 @@ describe('UISlice test suite', () => {
             submitValue: null,
             vars: [],
           },
-          selectedMux: MuxFeatures.SUMMARY,
+          selectedMux: 1,
           groupByTag: false,
           showVideoGroups: false,
         };
@@ -179,7 +179,7 @@ describe('UISlice test suite', () => {
             submitValue: 'old value',
             vars: [],
           },
-          selectedMux: MuxFeatures.SUMMARY,
+          selectedMux: 1,
           groupByTag: false,
           showVideoGroups: false,
         };
@@ -200,7 +200,7 @@ describe('UISlice test suite', () => {
             submitValue: 'submit value',
             vars: ['%var%'],
           },
-          selectedMux: MuxFeatures.SUMMARY,
+          selectedMux: 1,
           groupByTag: false,
           showVideoGroups: false,
         };
@@ -233,9 +233,9 @@ describe('UISlice test suite', () => {
           modalHeading: '',
           modalPrompt: '',
           modalPromptVars: [],
-          selectedMux: initialState.selectedMux,
-          groupByTag: initialState.groupByTag,
-          showVideoGroups: initialState.showVideoGroups,
+          selectedMux: 1,
+          groupByTag: false,
+          showVideoGroups: false,
         });
       });
 
@@ -249,7 +249,12 @@ describe('UISlice test suite', () => {
         };
 
         const mockState = {
-          ui: { ...initialState, promptEditing: promptEditingState },
+          ui: { 
+            promptEditing: promptEditingState,
+            selectedMux: 1,
+            groupByTag: false,
+            showVideoGroups: false,
+          },
         } as any;
         
         const selectedData = uiSelector(mockState);
@@ -260,9 +265,9 @@ describe('UISlice test suite', () => {
           modalHeading: 'Selector Heading',
           modalPrompt: 'Selector prompt with %var1% and %var2%',
           modalPromptVars: ['%var1%', '%var2%'],
-          selectedMux: initialState.selectedMux,
-          groupByTag: initialState.groupByTag,
-          showVideoGroups: initialState.showVideoGroups,
+          selectedMux: 1,
+          groupByTag: false,
+          showVideoGroups: false,
         });
       });
 
@@ -276,7 +281,12 @@ describe('UISlice test suite', () => {
         };
 
         const mockState = {
-          ui: { ...initialState, promptEditing: promptEditingState },
+          ui: { 
+            promptEditing: promptEditingState,
+            selectedMux: 1,
+            groupByTag: false,
+            showVideoGroups: false,
+          },
         } as any;
         
         const selectedData = uiSelector(mockState);
@@ -287,9 +297,9 @@ describe('UISlice test suite', () => {
           modalHeading: 'Partial Heading',
           modalPrompt: 'Partial prompt',
           modalPromptVars: [],
-          selectedMux: initialState.selectedMux,
-          groupByTag: initialState.groupByTag,
-          showVideoGroups: initialState.showVideoGroups,
+          selectedMux: 1,
+          groupByTag: false,
+          showVideoGroups: false,
         });
       });
     });

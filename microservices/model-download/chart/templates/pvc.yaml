@@ -1,0 +1,16 @@
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: models-pvc
+  {{- if .Values.global.keeppvc }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+  labels:
+    app: {{ .Chart.Name }}
+spec:
+  accessModes:
+    - ReadWriteOnce
+  resources:
+    requests:
+      storage: 100Gi

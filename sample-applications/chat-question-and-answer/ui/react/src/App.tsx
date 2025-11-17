@@ -1,19 +1,24 @@
 // Copyright (C) 2025 Intel Corporation
 // SPDX-License-Identifier: Apache-2.0
 
-import { type FC } from 'react';
+import "./App.scss"
+import { MantineProvider } from "@mantine/core"
+import '@mantine/notifications/styles.css';
+import Conversation from "./components/Conversation/Conversation"
+import { Notifications } from '@mantine/notifications';
 
-import NotificationList from './components/Notification/NotificationList.tsx';
-import MainPage from './components/MainPage/MainPage.tsx';
-import './utils/i18n';
+const title = "ChatQnA"
 
-const App: FC = () => {
+function App() {
+  
   return (
-    <>
-      <MainPage />
-      <NotificationList />
-    </>
-  );
-};
+    <MantineProvider>
+      <Notifications position="top-right" />
+      <div className="chat-container">
+        <Conversation title={title} />
+      </div>
+    </MantineProvider>
+  )
+}
 
-export default App;
+export default App

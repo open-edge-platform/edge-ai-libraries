@@ -10,12 +10,12 @@ data:
   {{- else }}
   IMAGE_EMBEDDING_MODEL_NAME: {{ required "imageEmbeddingModel is required and cannot be empty" .Values.imageEmbeddingModel | quote }}
   {{- end }}
+  EMBEDDING_USE_OV: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "true" "false" }}'
+  EMBEDDING_DEVICE: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "GPU" "CPU" }}'
   USE_ONLY_TEXT_EMBEDDINGS: {{ .Values.useOnlyTextEmbeddings | quote }}
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
   DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
-  EMBEDDING_USE_OV: {{ .Values.embeddingUseOV | quote }}
-  EMBEDDING_DEVICE: {{ .Values.embeddingDevice | quote }}
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
   no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"

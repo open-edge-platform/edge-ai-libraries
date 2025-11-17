@@ -7,7 +7,7 @@ on:
     inputs:
       image-tag:
         description: 'Image tag'
-        required: true
+        required: false
         type: string
       action-type:
         description: 'Choose if this run is weekly build or cache update'
@@ -41,6 +41,18 @@ jobs:
       ubuntu22_image: ${{ steps.save-image-ubuntu22.outputs.image }}
       ubuntu24_image: ${{ steps.save-image-ubuntu24.outputs.image }}
     steps:
+    - name: Determine image tag (input or default)
+      id: set-tag
+      run: |
+        if [ -z "${{ github.event.inputs['image-tag'] }}" ]; then
+          echo "No image-tag provided — using default value with commit sha"
+          VALUE="${{ github.sha }}"
+        else
+          echo "Using provided image-tag: ${{ github.event.inputs['image-tag'] }}"
+          VALUE="${{ github.event.inputs['image-tag'] }}"
+        fi
+        echo "IMAGE_TAG=$VALUE" >> $GITHUB_ENV
+
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
@@ -62,7 +74,7 @@ jobs:
 
     - name: Build deb final img with cache from GHCR
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
         deb_final_img_cached: ghcr.io/${{ github.repository }}/deb-final-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
@@ -80,7 +92,7 @@ jobs:
     - name: 🔍 Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ env.IMAGE_TAG }}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -106,7 +118,7 @@ jobs:
     - name: Push deb final img to GHCR
       if: ${{ inputs.action-type == 'weekly' }}
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         docker push "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-${{ matrix.ubuntu_version }}"
 
@@ -122,7 +134,7 @@ jobs:
       if: ${{ inputs.action-type == 'weekly' }}
       id: digest
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-${{ matrix.ubuntu_version }}
         DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
@@ -139,20 +151,20 @@ jobs:
       id: save-image-ubuntu22
       if: ${{ matrix.ubuntu_version == 'ubuntu22' }}
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: echo "image=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-${{ matrix.ubuntu_version }}" >> "$GITHUB_OUTPUT"
 
     - name: Save Ubuntu 24 image info
       id: save-image-ubuntu24
       if: ${{ matrix.ubuntu_version == 'ubuntu24' }}
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: echo "image=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-${{ matrix.ubuntu_version }}" >> "$GITHUB_OUTPUT"
 
     - name: Clean up
       if: always()
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         rm -rf edge-ai-libraries-repo
         docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-${{ matrix.ubuntu_version }} || true
@@ -175,6 +187,18 @@ jobs:
             ubuntu_version: ubuntu24
             build_arg: Debug
     steps:
+    - name: Determine image tag (input or default)
+      id: set-tag
+      run: |
+        if [ -z "${{ github.event.inputs['image-tag'] }}" ]; then
+          echo "No image-tag provided — using default value with commit sha"
+          VALUE="${{ github.sha }}"
+        else
+          echo "Using provided image-tag: ${{ github.event.inputs['image-tag'] }}"
+          VALUE="${{ github.event.inputs['image-tag'] }}"
+        fi
+        echo "IMAGE_TAG=$VALUE" >> $GITHUB_ENV
+
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
@@ -196,7 +220,7 @@ jobs:
 
     - name: Build dev debug img with cache from GHCR
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
         dev_debug_img_cached: ghcr.io/${{ github.repository }}/dev-debug-img-${{ matrix.ubuntu_version }}:buildcache
       run: |
         docker buildx build \
@@ -213,7 +237,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ inputs.image-tag }}-dev-${{ matrix.ubuntu_version }}"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${{ env.IMAGE_TAG }}-dev-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -239,7 +263,7 @@ jobs:
     - name: Push dev-debug final img to GHCR
       if: ${{ inputs.action-type == 'weekly' }}
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         docker push "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-dev-${{ matrix.ubuntu_version }}"
 
@@ -255,7 +279,7 @@ jobs:
       if: ${{ inputs.action-type == 'weekly' }}
       id: digest
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-dev-${{ matrix.ubuntu_version }}
         DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
@@ -269,7 +293,7 @@ jobs:
     - name: Clean up
       if: always()
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         rm -rf edge-ai-libraries-repo
         docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer:${IMAGE_TAG}-dev-${{ matrix.ubuntu_version }} || true
@@ -289,6 +313,18 @@ jobs:
       matrix:
         ubuntu_version: [ubuntu22, ubuntu24]
     steps:
+    - name: Determine image tag (input or default)
+      id: set-tag
+      run: |
+        if [ -z "${{ github.event.inputs['image-tag'] }}" ]; then
+          echo "No image-tag provided — using default value with commit sha"
+          VALUE="${{ github.sha }}"
+        else
+          echo "Using provided image-tag: ${{ github.event.inputs['image-tag'] }}"
+          VALUE="${{ github.event.inputs['image-tag'] }}"
+        fi
+        echo "IMAGE_TAG=$VALUE" >> $GITHUB_ENV
+
     - name: Check out edge-ai-libraries repository
       uses: actions/checkout@08c6903cd8c0fde910a37f88322edcfb5dd907a8 #5.0.0
       with:
@@ -320,7 +356,7 @@ jobs:
         fi
     - name: Build dls-pipeline-server-img
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         cd edge-ai-libraries-repo/microservices/dlstreamer-pipeline-server/docker
         export DLSTREAMER_PIPELINE_SERVER_IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${IMAGE_TAG}-${{ matrix.ubuntu_version }}
@@ -334,7 +370,7 @@ jobs:
     - name: Scan Docker image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-${{ matrix.ubuntu_version }}"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ env.IMAGE_TAG }}}-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -345,7 +381,7 @@ jobs:
     - name: Scan Docker Extended image with Trivy
       uses: open-edge-platform/orch-ci/.github/actions/security/trivy@76700c2fb6d547733b9218d9638dca43f5296399 # 0.1.52
       with:
-        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ inputs.image-tag }}-extended-${{ matrix.ubuntu_version }}"
+        scan_target: "ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${{ env.IMAGE_TAG }}-extended-${{ matrix.ubuntu_version }}"
         severity: "HIGH"
         scan_type: image
         format: table
@@ -373,7 +409,7 @@ jobs:
 
     - name: Push Docker img
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         if [ "${{ matrix.ubuntu_version }}" == "ubuntu24" ]; then
           docker tag ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${IMAGE_TAG}-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:latest
@@ -390,7 +426,7 @@ jobs:
     - name: Get image digest
       id: digest
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         IMAGE=ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${IMAGE_TAG}-${{ matrix.ubuntu_version }}
         DIGEST=$(skopeo inspect docker://$IMAGE | jq -r '.Digest')
@@ -420,7 +456,7 @@ jobs:
     - name: Clean up
       if: always()
       env:
-        IMAGE_TAG: ${{ inputs.image-tag }}
+        IMAGE_TAG: ${{ env.IMAGE_TAG }}
       run: |
         rm -rf edge-ai-libraries-repo
         docker rmi ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:${IMAGE_TAG}-${{ matrix.ubuntu_version }} ghcr.io/${{ github.repository }}/intel/edge-ai-dlstreamer-pipeline-server:latest || true

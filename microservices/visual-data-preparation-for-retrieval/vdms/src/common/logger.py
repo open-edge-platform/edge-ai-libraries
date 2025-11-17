@@ -65,7 +65,11 @@ class Logger(BaseModel):
     def loggers(self) -> Dict[str, Any]:
         """Dictionary configuration for loggers"""
         return {
-            self.LOGGER_NAME: {"handlers": ["default"], "level": self.LOG_LEVEL},
+            self.LOGGER_NAME: {
+                "handlers": ["default"],
+                "level": self.LOG_LEVEL,
+                "propagate": False,
+            },
         }
 
 

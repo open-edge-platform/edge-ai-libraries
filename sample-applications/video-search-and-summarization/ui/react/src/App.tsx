@@ -22,9 +22,13 @@ import { FEATURE_MUX, FEATURE_SEARCH } from './config.ts';
 import { FEATURE_STATE, FeatureMux } from './utils/constant.ts';
 import { SearchActions } from './redux/search/searchSlice.ts';
 import { SearchQuery } from './redux/search/search.ts';
+import { useDocumentTitle } from './hooks/useDocumentTitle.ts';
 
 const App: FC = () => {
   const { summaryIds } = useAppSelector(SummarySelector);
+  
+  // Use the custom hook to manage document title
+  useDocumentTitle();
 
   const dispatch = useAppDispatch();
 

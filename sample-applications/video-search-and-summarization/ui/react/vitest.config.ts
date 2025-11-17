@@ -12,6 +12,12 @@ export default defineConfig({
     setupFiles: './vitest.setup.ts',
     coverage: {
       provider: 'istanbul',
+      exclude: [
+        'src/components/Drawer/**',
+        'src/components/Drawer/*',
+        '**/src/components/Drawer/**',
+        'dist/**',
+      ],
     },
   },
 });

@@ -6,7 +6,7 @@ import { I18nextProvider } from 'react-i18next';
 import { describe, it, expect, vi, beforeEach } from 'vitest';
 import { configureStore } from '@reduxjs/toolkit';
 import { PromptInput, PromptInputProps } from '../components/Prompts/PromptInput';
-import { UIActions, UISlice, initialState as uiInitialState } from '../redux/ui/ui.slice';
+import { UIActions, UISlice } from '../redux/ui/ui.slice';
 import { UISliceState } from '../redux/ui/ui.model';
 import i18n from '../utils/i18n';
 
@@ -56,7 +56,10 @@ const createMockStore = (initialState: Partial<UISliceState> = {}) => {
     },
     preloadedState: {
       ui: {
-        ...uiInitialState,
+        promptEditing: null,
+        selectedMux: 1,
+        groupByTag: false,
+        showVideoGroups: false,
         ...initialState,
       },
     },

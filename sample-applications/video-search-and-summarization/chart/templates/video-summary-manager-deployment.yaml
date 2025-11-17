@@ -18,7 +18,7 @@ spec:
         {{- if .Values.videosearch.enabled }}
         - name: wait-for-videosearch
           image: curlimages/curl:latest
-          command: 
+          command:
             - sh
             - -c
             - |
@@ -32,7 +32,7 @@ spec:
         {{- if .Values.ovms.enabled }}
         - name: wait-for-ovms
           image: curlimages/curl:latest
-          command: 
+          command:
             - sh
             - -c
             - |
@@ -53,7 +53,7 @@ spec:
         {{- if .Values.vlminference.enabled }}
         - name: wait-for-vlm
           image: curlimages/curl:latest
-          command: 
+          command:
             - sh
             - -c
             - |
@@ -111,7 +111,7 @@ spec:
             - name: LLM_SUMMARIZATION_API
               value: {{ if .Values.ovms.enabled }}{{ printf "http://%s:8300/v3" .Values.ovms.name | quote }}{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_API | default (printf "http://%s:8000/v1" .Values.vlminference.name) | quote }}{{ end }}
             - name: LLM_SUMMARIZATION_DEVICE
-              value: "{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}"
+              value: "{{ if .Values.global.gpu.ovmsEnabled }}GPU{{ else }}{{ .Values.videoSummaryManager.env.LLM_SUMMARIZATION_DEVICE }}{{ end }}"
             - name: LLM_MODEL_NAME
               value: {{ .Values.global.llmName | quote }}
             - name: VLM_CAPTIONING_KEY
@@ -119,13 +119,13 @@ spec:
             - name: VLM_CAPTIONING_API
               value: "http://{{ .Values.vlminference.name }}:8000/v1"
             - name: VLM_CAPTIONING_DEVICE
-              value: "{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}GPU{{ else }}{{ .Values.videoSummaryManager.env.VLM_CAPTIONING_DEVICE }}{{ end }}"
             - name: VLM_MODEL_NAME
-              value: {{ required "Value for `global.vlmName` is required!" .Values.global.vlmName | quote }}
+              value: {{ required "Value for `.global.vlmName` is required!" .Values.global.vlmName | quote }}
             - name: LLM_CONCURRENT
-              value: "{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.videoSummaryManager.env.LLM_CONCURRENT }}{{ end }}"
             - name: VLM_CONCURRENT
-              value: "{{ .Values.videoSummaryManager.env.VLM_CONCURRENT }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}1{{ else }}{{ .Values.videoSummaryManager.env.VLM_CONCURRENT }}{{ end }}"
             - name: SUMMARIZATION_MAX_COMPLETION_TOKENS
               value: "{{ .Values.videoSummaryManager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
             - name: CAPTIONING_MAX_COMPLETION_TOKENS
@@ -133,7 +133,7 @@ spec:
             - name: LLM_MODEL_API
               value: "{{ .Values.videoSummaryManager.env.LLM_MODEL_API }}"
             - name: MULTI_FRAME_COUNT
-              value: "{{ .Values.videoSummaryManager.env.MULTI_FRAME_COUNT }}"
+              value: "{{ if .Values.global.gpu.vlminferenceEnabled }}6{{ else }}{{ .Values.videoSummaryManager.env.MULTI_FRAME_COUNT }}{{ end }}"
             - name: DB_HOST
               value: "{{ .Values.postgresql.name }}"
             - name: DB_PORT

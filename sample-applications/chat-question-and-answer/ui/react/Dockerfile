@@ -18,7 +18,7 @@ RUN groupadd -g ${GID} user && \
 
 # Switch to the non-root user
 USER user
-WORKDIR /user/app
+WORKDIR /user/app/
 
 # Copy only necessary files for dependency installation
 COPY package*.json /user/app/

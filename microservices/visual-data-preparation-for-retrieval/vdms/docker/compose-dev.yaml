@@ -9,7 +9,9 @@ services:
         - COVERAGE_REQ
     image: egaidev/vdms-dataprep:latest-dev
     environment:
-      - DEFAULT_BUCKET_NAME=vdms-bucket-test
+      - DEFAULT_BUCKET_NAME=video-summary
       - DB_COLLECTION=video-rag-dev
+      - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
     volumes:
       - "..:/app"
+      - "${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}"

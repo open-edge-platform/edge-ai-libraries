@@ -15,6 +15,32 @@ on:
     - cron: "0 2 * * 0"  # 2 a.m. on Sunday
 
 jobs:
+  trivy-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "libraries/video-chunking-utils/"
+          report_suffix: "-fs-video-chunking-utils-CT7"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-video-chunking-utils
+          path: security-results/trivy*
+
   bandit-scan:
     runs-on: ubuntu-22.04
     permissions:

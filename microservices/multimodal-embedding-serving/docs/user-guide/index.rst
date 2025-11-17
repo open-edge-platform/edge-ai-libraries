@@ -12,6 +12,8 @@
    :caption: How to
 
    how-to-build-from-source
+   sdk-usage
+   quick-reference
    
 .. toctree::
    :caption: References

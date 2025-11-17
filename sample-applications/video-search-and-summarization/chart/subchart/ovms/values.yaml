@@ -1,21 +1,21 @@
 global:
   # Set this value to hostPath where we want to mount a volume (Used in single node cluster or standalone sub-chart installation).
   volumeHostPath: ""
-  
+
   # usePvc should be set to true to use a PVC for persisting models, cache and other files.
   usePvc: false
 
   # keepPvc should be set to true to retain the PVC after uninstalling the chart.
   keepPvc: false
-  
+
   # huggingfaceToken should be set during installation if gated models need to be accessed.
   huggingfaceToken: ""
   # llmName is the Large Language Model used by OVMS
   llmName: ""
 
   proxy:
-    no_proxy: 
-    http_proxy: 
+    no_proxy:
+    http_proxy:
     https_proxy:
 
 # claimSize is the storage size claimed by PVC if usePvc is set to true.
@@ -26,7 +26,8 @@ ovms:
   name: ovms
   image:
     repository: openvino/model_server
-    tag: "2025.1"
+    tag: "2025.3"
+    Gputag: "2025.3-gpu"
     pullPolicy: IfNotPresent
 
   containerPort: 8300   # Port on which container application listens internally
@@ -35,7 +36,7 @@ ovms:
     type: ClusterIP
     port: 8300    # Port on which service listens for incoming connection, if exposed externally
     portName: http    # Service port name. Useful when service exposes multiple ports.
-  
+  group_add: $(stat -c "%g" /dev/dri/render*)
   # scriptconfigmap: ovms-configmap.yaml
   env:
     WEIGHT_FORMAT: "fp16"

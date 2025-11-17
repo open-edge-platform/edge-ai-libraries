@@ -148,7 +148,6 @@ export const Summary: FC = () => {
     return (
       <NothingSelected>
         {sidebarSummaries.length > 0 && <h3>{t('selectASummaryFromSidebar')}</h3>}
-        {sidebarSummaries.length === 0 && <h3>{t('noSummariesAvailable')}</h3>}
       </NothingSelected>
     );
   };

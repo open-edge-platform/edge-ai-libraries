@@ -6,7 +6,7 @@ This section shows how to deploy the Video Search and Summarization Sample Appli
 Before you begin, ensure that you have the following:
 - Kubernetes\* cluster set up and running.
 - The cluster must support **dynamic provisioning of Persistent Volumes (PV)**. Refer to the [Kubernetes Dynamic Provisioning Guide](https://kubernetes.io/docs/concepts/storage/dynamic-provisioning/) for more details.
-- Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster. 
+- Install `kubectl` on your system. See the [Installation Guide](https://kubernetes.io/docs/tasks/tools/install-kubectl/). Ensure access to the Kubernetes cluster.
 - Helm chart installed on your system. See the [Installation Guide](https://helm.sh/docs/intro/install/).
 - **Storage Requirement :** Application requests for **50GiB** of storage in its default configuration. (This should change with choice of models and needs to be properly configured). Please make sure that required storage is available in you cluster.
 
@@ -90,6 +90,11 @@ Update or edit the values in YAML file as follows:
 | `global.env.RABBITMQ_DEFAULT_PASS` | RabbitMQ password | `<your-rabbitmq-password>` |
 | `global.env.OTLP_ENDPOINT` | OTLP endpoint | Leave empty if not using telemetry |
 | `global.env.OTLP_ENDPOINT_TRACE` | OTLP trace endpoint | Leave empty if not using telemetry |
+| `global.gpu.vlminferenceEnabled ` | To enable vlm-inference on GPU | true or false |
+| `global.gpu.multimodalembeddingmsEnabled ` | To enable multimodal-embedding on GPU | true or false |
+| `global.gpu.ovmsEnabled ` | To enable OVMS on GPU | true or false |
+| `global.gpu.key` | Label assigned to the GPU node on kubernetes cluster by the device plugin example- gpu.intel.com/i915, gpu.intel.com/xe. Identify by running kubectl describe node | Your cluster GPU node key |
+| `global.gpu.device` | Set to `GPU` if need to deploy the inference workload on GPU device | GPU |
 | `videoingestion.odModelName` | Name of object detection model used during video ingestion | `yolov8l-worldv2` |
 | `videoingestion.odModelType` | Type/Category of the object detection Model | `yolo_v8` |
 | `multimodalembeddingms.textEmbeddingModel` | Embedding model name used in unified video search and summarization | `Qwen/Qwen3-Embedding-0.6B` |
@@ -184,7 +189,7 @@ kubectl get pods -n $my_namespace
 
 ### Step 7: Accessing the application
 
-Nginx service running as a reverse proxy in one of the pods, helps us to access the application. We need to get Host IP and Port on the node where the nginx service is running. 
+Nginx service running as a reverse proxy in one of the pods, helps us to access the application. We need to get Host IP and Port on the node where the nginx service is running.
 
 Run the following command to get the host IP of the node and port exposed by Nginx service:
 
@@ -218,7 +223,7 @@ If any of the microservice requires more or less storage than the default allott
 
 ### Updating storage for VDMS-Dataprep and MultiModal Embedding Service
 
-Set the required `sharedClaimSize` value while installing the helm chart. 
+Set the required `sharedClaimSize` value while installing the helm chart.
 
 For example, if installing chart in search only mode :
 

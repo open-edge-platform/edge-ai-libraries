@@ -110,4 +110,5 @@ README.md           @xwu2intel
 /tools/visual-pipeline-and-platform-evaluation-tool/docs/       @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
 /tools/visual-pipeline-and-platform-evaluation-tool/README.md   @p-zak @ktaube26 @tmatenko @dlemiech @pmalatyn @dmichalo @msmiatac @open-edge-platform/open-edge-platform-docs-write
 
-
+# frameworks
+/frameworks/edgedevice-enablement-framework/             @chinthap @ANUSHABHASKAR @mutra-vamsi
