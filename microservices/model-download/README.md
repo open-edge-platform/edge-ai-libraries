@@ -14,7 +14,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
   - [System Requirements](docs/user-guide/system-requirements.md): Hardware and software requirements for running the microservice.
 
 - **Deployment**
-  - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
+  - [How to Build from Source](docs/user-guide/build-from-source.md): Instructions for building the microservice from source code.
 
 - **Release Notes**
   - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes.
