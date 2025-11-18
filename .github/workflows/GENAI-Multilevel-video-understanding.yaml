@@ -157,9 +157,7 @@ jobs:
           COV_PATH="$(pwd)/cov-analysis/bin"
           export PATH="$COV_PATH:$PATH"
           cd microservices/multilevel-video-understanding
-          
           coverity capture --dir cov-int --project-dir ./
-          coverity commit-defects --dir cov-int --output coverity_output.tgz
           
       - name: Create tarball for upload
         run: |
