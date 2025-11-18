@@ -3,6 +3,8 @@
 #
 # SPDX-License-Identifier: MIT
 # ==============================================================================
+from preprocess import preprocess_pipeline
+from processors.inference import add_device_suggestions, add_batch_suggestions, add_nireq_suggestions, parse_element_parameters # pylint: disable=line-too-long
 
 import time
 import logging
@@ -12,9 +14,6 @@ import os
 import gi
 gi.require_version("Gst", "1.0")
 from gi.repository import Gst
-
-from preprocess import preprocess_pipeline
-from processors.inference import add_device_suggestions, add_batch_suggestions, add_nireq_suggestions, parse_element_parameters
 
 ####################################### Init ######################################################
 

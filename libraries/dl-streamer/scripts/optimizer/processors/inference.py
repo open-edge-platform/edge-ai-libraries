@@ -4,7 +4,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-from openvino import Core 
+from openvino import Core
 
 def add_device_suggestions(suggestions):
     element_device_suggestions(suggestions, "gvadetect")
@@ -21,10 +21,10 @@ def element_device_suggestions(suggestions, element):
 
                 if "GPU" in device:
                     parameters["pre-process-backend"] = "va-surface-sharing"
-                    
+
                 if "NPU" in device:
                     parameters["pre-process-backend"] = "va"
-                
+
                 if "CPU" in device:
                     parameters["pre-process-backend"] = "opencv"
 
