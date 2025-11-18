@@ -154,7 +154,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
         "is_ovms": true,
         "config": {
           "precision": "fp32",
-          "device": "cpu",
+          "device": "CPU",
           "cache_size": 10
         }
       }
