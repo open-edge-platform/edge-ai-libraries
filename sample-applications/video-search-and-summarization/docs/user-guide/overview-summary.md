@@ -1,59 +1,71 @@
 # Video Summarization Overview
 
-Video Summarization pipeline creates concise and informative summaries of long-form videos. It uses Generative AI Vision Language Models (VLMs), which leverages advanced AI techniques to combine visual, audio, and textual data to understand and extract relevant content from videos, thereby, enabling efficient content review and improved searchability. 
+The Video Summarization mode enables concise and informative summaries of long-form videos. It uses Generative AI Vision Language Models (VLMs), which leverages advanced AI techniques to combine visual, audio, and textual data to understand and extract relevant content from videos, thereby, enabling efficient content review and improved searchability.
 
-Video Summarization provides a rich pipeline with a host of capabilities aiding qualitatively rich response. The application demonstrates how to create a great experience using a cost efficient portfolio of Intel AI systems and using Intel's Edge AI microservices catalog. It makes it easy to develop, customize, and deploy Video Summarization solutions in diverse deployment scenarios with out-of-the-box support for on-premise and edge environments.
+The Video Summarization mode provides a rich response by using Intel's AI systems and Intel's Edge AI microservices catalog. 
 
+You can develop, customize, and deploy Video Summarization solutions in diverse deployment scenarios with out-of-the-box support for on-premise and edge environments.
+
+The following is the Video Summarization mode UI:
 ![Video Summary web interface](./images/VideoSumm_Webpage.png)
 
 ## Purpose
 
-This implementation of Video Summarization pipeline is intended to address a broad set of industry segment specific requirements on video summarization targeting required accuracy - performance tradeoff. The implementation will be a composable pipeline of capabilities that help with video summarization accuracy while providing an insight into required compute for the chosen pipeline configuration. In essence, what the implementation provides is a means to realize different Video Summarization pipelines at certain performance and accuracy tradeoff. The figure below shows an example set of pipeline configurations corresponding to different compute requirements.
+The Video Summarization mode allows you to customize the accuracy-performance trade-off. The following figure shows an example of pipeline configurations with different compute requirements.
 
-![Example set of pipeline configurations](./images/TEAI_VideoPipelines.png)
-*Figure 1: Sample Video Summarization pipeline configurations
+The following figure shows sample Video Summarization pipeline configurations:
 
-Each of the pipelines shown in the figure (and more) can be realized with this sample application. The purpose of this sample application is to enable users create a Video Summarization pipeline with the best possible accuracy for given compute. To enable this, the sample application follows the listed approach:
-- Demonstrates how Intel's Edge AI catalog of inference microservices can be used to quickly build video summarization pipelines. The inference microservices are optimized for Intel's Edge AI systems. 
-- Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel's Edge AI systems.
-- Showcase the competitiveness of Intel's Edge AI systems to address varied deployment scenario requirements (edge to cloud).
-- Provide reference sample microservices for capabilities like video ingestion and UI front end that reduces the effort to customize the application.
+![Sample Video Summarization pipeline configurations](./images/TEAI_VideoPipelines.png)
+*Sample Video Summarization pipeline configurations
+
+To create a summary with the best possible accuracy for a given compute, the Video Summarization mode:
+
+- Allows you to build the video summarization pipeline quickly through Intel’s Edge AI catalog of inference microservices. The inference microservices are optimized for Intel’s Edge AI systems.
+
+- Serves as a blueprint for building similar scalable and modular solutions that can be deployed on Intel’s Edge AI systems.
+
+- Showcases the competitiveness of Intel’s Edge AI systems to address varied deployment scenarios, from the edge to the cloud.
+
+- Provides reference sample microservices for capabilities like video ingestion and UI frontend, which reduces the effort to customize the application.
 
 ### Key Features
 
-Leveraging GenAI VLMs, LLMs, object detection, and a host of other configurable capabilities, the Video Summarization application is a powerful tool to quickly grasp the main points of long-form videos, enhancing productivity and user experience. The key capabilities are as follows:
+ - User-Friendly and Intuitive: You can use natural language through the easy-to-use interface to search.
+	
+ - Richer contextual and perceptual understanding: The Video Summarization mode provides a richer contextual and perceptual understanding of the video through multimodal embedding. For example, you can use an object detector to enrich the quality of input to Vision-Language Model (VLM) captioning. See the [architecture overview](./overview-architecture-summary.md).
 
-- **Efficient Summarization**: Automatically generate detailed summaries of lengthy videos, highlighting key moments and essential information.
-- **Enhanced Searchability**: Improve the ability to search within videos by providing summarized content that can be indexed and queried.
-- **Contextual Understanding**: Utilize VLMs to combine audio and visual elements, ensuring a richer and more accurate understanding of the video content.
-- **Content Review**: Facilitate quicker and more efficient content review processes by providing concise summaries that capture the essence of the video.
-- **Customizable Summarization**: Allow customization of capabilities and parameters to suit specific use cases and preferences, such as focusing on particular topics or themes within the video or enabling context extraction from audio. The capabilities on the pipeline are configurable to suit the target application.
-- **Scalability**: Handle large volumes of video data, making it suitable for various applications, including media analysis, content management, and personalized recommendations.
+ - Optimized systems: The pipeline runs on Intel’s Edge AI systems, ensuring high performance, reliability, and low cost of ownership.
 
-The Video Summarization sample application provides the above listed capabilities through following features:
+ - Flexible Deployment Options: You can choose the deployment environment, for example, deploying using the Docker Compose tool and Helm charts.
 
-- **Rich Video Summarization pipeline**: The application provides a host of capabilities that can be used to qualitatively influence the summary of the given user video. The capabilities help with richer contextual and perceptual understanding of the video. Example: Using an object detector to enrich the quality of prompt given as input to VLM captioning. Further details of configurability is provided in the [architecture overview](./overview-architecture-summary.md) document.
-- **Optimized pipeline on Intel's Edge AI Systems hardware**: The application is optimized to run efficiently on Intel's Edge AI systems, ensuring high performance and reliability.
-- **Customizable pipeline with optimized microservices**: The application allows for customization of various components of the pipeline, such as video ingestion, model selection, selection of capabilities enabled on the pipeline, and deployment options to suit specific use cases and deployment scenarios. Intel's Edge AI inference microservices allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. For example, developers can customize the VLM model with different levels of guardrail capabilities based on segment specific needs. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
-- **Flexible deployment options**: The application provides options for deployment using Docker Compose and Helm charts, enabling developers to choose the best deployment environment for their needs.
-- **Support for a wide range of open-source models**: Intel's Edge AI inference microservices provide flexibility to use the right GenAI models (VLM, Embeddings for example) as required for target usage. The application supports various [open-source models](https://huggingface.co/OpenVINO), allowing developers to select the best models for their use cases.
-- **Optimized for Performance**: The default configuration of the pipeline is optimized to run efficiently on target hardware, providing high performance and low cost of ownership.
-- **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
-- **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry](https://opentelemetry.io/) & [OpenLIT](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
-- **User-Friendly Interface**: A reference intuitive and easy-to-use interface is provided for users to interact with the Video Summarization application.
-- **Future extensions**: A sample set of "in-the-works" capabilities are listed below. These are designed as modular capabilities which can be used (or not) specific to deployment requirements.
-    - **Natural Language Querying**: The captions generated by the application enable users to search or query video content using natural language queries, making the search process intuitive and user-friendly. This capability allows to combine the Video Summarization pipeline with Video Search pipeline.
-    - **Audio capability**: For certain videos, the audio provides richer context which can positively influence the accuracy of the summary. The audio pipeline will provide a mechanism to create transcription of the audio channel and use the same as additional context information for the VLM.
+ - Support for open-source Models: You can use the desired generative AI models, for example, VLM and embeddings. The Video Summarization mode supports various open-source models, for example, the [Hugging Face Hub models that integrate with OpenVINO™ toolkit](https://huggingface.co/OpenVINO), allowing you to select the best models for their use cases.
+
+ - Self-Hosting: You can perform the inference locally or on-premises, ensuring data privacy and reducing latency.
+
+ - Observability and monitoring: The Video Summarization mode provides observability and monitoring capabilities using [OpenTelemetry telemetry](https://opentelemetry.io/) & [OpenLIT platform](https://github.com/openlit/openlit), enabling you to monitor the application's performance and health in real-time.
+
+ - Scalability: The pipeline can handle large volumes of video data, making it suitable for various applications, including media analysis, content management, and personalized recommendations.
+
+ - Natural Language Querying: The captions generated by the application allow you to search for video content using natural language, making the search process intuitive and user-friendly. This capability combines the Video Summarization pipeline with the Video Search pipeline.
+
+ - Audio capability: For certain videos, the audio provides a richer context, which can improve the accuracy of the summary. The audio pipeline will transcribe the audio channel and use the same as additional context information for the VLM.
+
+ - Efficient Summarization: You can generate summaries of videos and highlight key moments.
+
+ - Customizable: You can customize the pipeline, for example, to focus on particular topics or themes within the video, or to enable context extraction from audio, before embedding and indexing.
 
 ## How to Use the Application Effectively
-The Video Summarization pipeline offers features to improve accuracy for complex long long form videos. Choosing which features to use involves balancing accuracy and performance. To use the tool effectively, start by answering the following key questions:
-1. What is the complexity of the video that need to be summarized?
-2. What is the accuracy target the Video Summarization pipeline needs to achieve as measured by key qualitative metrics like BERT score as well as from manual inspection?
-3. What are the available compute resources to run the pipeline? 
-4. What are the key performance metrics like throughput, latency and so on that need to be achieved by the pipeline?
 
-Answering key questions determines the tradeoff between compute and accuracy. Based on these decisions, the pipeline is configured and customized using various settings in the sample application. Once the pipeline is optimized for accuracy on the specific hardware, the application is ready for deployment. You upload the video to be summarized, set required parameters like chunk duration and frame count, and submit the request. The application updates the user on progress and provides the final summary. The API specification outlines how to access the application's features.
+The Video Summarization pipeline offers features to improve accuracy for complex, long-form videos. 
+Choosing which features to use involves balancing accuracy and performance. You can configure the pipeline based on answers to the following key questions, to determine the trade-off between accuracy and compute:
+
+	1. How complex is the video?
+	2. What is the pipeline's accuracy target, as measured by key qualitative metrics like the BERT score and by manual inspection?
+	3. What are the available compute resources for running the pipeline?
+	4. What are the key performance metrics, for example, throughput and latency, that the pipeline needs to achieve?
+
+After configuring the pipeline, you can deploy the application, upload the video to be summarized, set parameters like chunk duration and frame count, and then submit the request. The application updates you on the progress and provides the final summary. The API specification outlines how to access the application’s features.
 
 Detailed hardware and software requirements are available [here](./system-requirements.md).
 
-To get started with the application, please refer to the [Get Started](./get-started.md) page.
+To get started with the application, see the [Get Started](./get-started.md) page.
