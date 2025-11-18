@@ -5,7 +5,7 @@
 # SPDX-License-Identifier: MIT
 # ==============================================================================
 
-MODEL=${1:-"all"} # Supported values listed in SUPPORTED_MODELS below.
+MODEL=${1:-"all"} # Supported values listed in SUPPORTED_MODELS below. Type one model,list of models separated by coma or 'all' to download all models.
 QUANTIZE=${2:-""} # Supported values listed in SUPPORTED_MODELS below.
 
 . /etc/os-release
@@ -142,15 +142,50 @@ handle_error() {
     exit 1
 }
 
+prepare_models_list() {
+    local models_input="$1"
+    local models_array=()
+    
+    echo "Preparing models list: $models_input"
+    
+    # Check if input contains comma (multiple models)
+    if [[ "$models_input" == *","* ]]; then
+        # Split the input by comma and create array
+        IFS=',' read -ra models_array <<< "$models_input"
+        
+        # Validate each model
+        for model in "${models_array[@]}"; do
+            # Trim whitespace
+            model=$(echo "$model" | xargs)
+            
+            # Validate model
+            if ! [[ " ${SUPPORTED_MODELS[*]} " =~ " $model " ]]; then
+                echo "Unsupported model: $model" >&2
+                exit 1
+            fi
+        done
+        
+        # Return the array of models
+        echo "${models_array[@]}"
+    else
+        # Single model - validate
+        model=$(echo "$models_input" | xargs)
+        
+        if ! [[ " ${SUPPORTED_MODELS[*]} " =~ " $model " ]]; then
+            echo "Unsupported model: $model" >&2
+            exit 1
+        fi
+        
+        # Return single model
+        echo "$model"
+    fi
+}
 # Trap errors and call handle_error
 trap 'handle_error "- line $LINENO"' ERR
 
-if ! [[ "${SUPPORTED_MODELS[*]}" =~ $MODEL ]]; then
-  echo "Unsupported model: $MODEL" >&2
-  exit 1
-else
-  echo "Installing $MODEL..."
-fi
+# Prepare models list
+MODELS_TO_PROCESS=($(prepare_models_list "$MODEL"))
+echo "Models to process: ${MODELS_TO_PROCESS[@]}"
 
 if ! [[ "${!SUPPORTED_QUANTIZATION_DATASETS[*]}" =~ $QUANTIZE ]]; then
   echo "Unsupported quantization dataset: $QUANTIZE" >&2
@@ -362,8 +397,7 @@ EOF
 }
 
 # check if model exists in local directory, download as needed
-if [ "$MODEL" == "yolox-tiny" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
-  MODEL_NAME="yolox-tiny"
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolox-tiny " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then  MODEL_NAME="yolox-tiny"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
   DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
@@ -383,8 +417,7 @@ if [ "$MODEL" == "yolox-tiny" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "
   fi
 fi
 
-if [ "$MODEL" == "yolox_s" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
-  MODEL_NAME="yolox_s"
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolox_s " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then  MODEL_NAME="yolox_s"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
   DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
@@ -473,7 +506,7 @@ EOF
 YOLOv5u_MODELS=("yolov5nu" "yolov5su" "yolov5mu" "yolov5lu" "yolov5xu" "yolov5n6u" "yolov5s6u" "yolov5m6u" "yolov5l6u" "yolov5x6u")
 
 for MODEL_NAME in "${YOLOv5u_MODELS[@]}"; do
-  if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
+  if [[ " ${MODELS_TO_PROCESS[@]} " =~ " $MODEL_NAME " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
     export_yolov5_model "$MODEL_NAME"
   fi
 done
@@ -484,7 +517,7 @@ YOLOv5_MODELS=("yolov5n" "yolov5s" "yolov5m" "yolov5l" "yolov5x" "yolov5n6" "yol
 # Check if the model is in the list
 MODEL_IN_LISTv5=false
 for MODEL_NAME in "${YOLOv5_MODELS[@]}"; do
-  if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
+  if [[ " ${MODELS_TO_PROCESS[@]} " =~ " $MODEL_NAME " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
     MODEL_IN_LISTv5=true
     break
   fi
@@ -499,7 +532,7 @@ if [ "$MODEL_IN_LISTv5" = true ] && [ ! -d "$REPO_DIR" ]; then
 fi
 
 for MODEL_NAME in "${YOLOv5_MODELS[@]}"; do
-  if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
+  if [[ " ${MODELS_TO_PROCESS[@]} " =~ " $MODEL_NAME " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
     MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
     if [ ! -d "$MODEL_DIR" ]; then
       echo "Downloading and converting: ${MODEL_DIR}"
@@ -561,8 +594,7 @@ fi
 
 
 # -------------- YOLOv7 FP32 & FP16
-if [ "$MODEL" == "yolov7" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
-  MODEL_NAME="yolov7"
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolov7 " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then  MODEL_NAME="yolov7"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
   DST_FILE2="$MODEL_DIR/FP32/$MODEL_NAME.xml"
@@ -703,7 +735,7 @@ YOLO_MODELS=(
 
 # Iterate over the models and export them
 for MODEL_NAME in "${!YOLO_MODELS[@]}"; do
-  if [ "$MODEL" == "$MODEL_NAME" ] || [ "$MODEL" == "yolo_all" ] || [ "$MODEL" == "all" ]; then
+  if [[ " ${MODELS_TO_PROCESS[@]} " =~ " $MODEL_NAME " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolo_all " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
     MODEL_NAME_UPPER=$(echo "$MODEL_NAME" | tr '[:lower:]' '[:upper:]')
     if [[ $MODEL_NAME_UPPER == *"OBB"* || $MODEL_NAME_UPPER == *"POSE"* || $MODEL_NAME_UPPER == *"SEG"* ]]; then
       export_yolo_model "$MODEL_NAME" "${YOLO_MODELS[$MODEL_NAME]}" ""
@@ -714,7 +746,7 @@ for MODEL_NAME in "${!YOLO_MODELS[@]}"; do
 done
 
 
-if [[ "$MODEL" == "yolov8_license_plate_detector" ]] || [[ "$MODEL" == "all" ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " yolov8_license_plate_detector " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="yolov8_license_plate_detector"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP32/$MODEL_NAME.xml"
@@ -744,7 +776,7 @@ os.remove('${MODEL_NAME}.zip')
   fi
 fi
 
-if [[ "$MODEL" == "centerface" ]] || [[ "$MODEL" == "all" ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " centerface " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="centerface"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
@@ -791,7 +823,7 @@ EOF
 fi
 
 #enet_b0_8_va_mtl
-if [ "$MODEL" == "hsemotion" ] || [ "$MODEL" == "all" ]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " hsemotion " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="hsemotion"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE="$MODEL_DIR/FP16/$MODEL_NAME.xml"
@@ -894,7 +926,7 @@ EOF
   fi
 done
 
-if [[ "$MODEL" == "deeplabv3" ]] || [[ "$MODEL" == "all" ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " deeplabv3 " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="deeplabv3"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP32/$MODEL_NAME.xml"
@@ -933,7 +965,7 @@ EOF
 fi
 
 # PaddlePaddle OCRv4 multilingual model
-if [[ "$MODEL" == "ch_PP-OCRv4_rec_infer" ]] || [[ "$MODEL" == "all" ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " ch_PP-OCRv4_rec_infer " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="ch_PP-OCRv4_rec_infer"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
   DST_FILE1="$MODEL_DIR/FP16/$MODEL_NAME.xml"
