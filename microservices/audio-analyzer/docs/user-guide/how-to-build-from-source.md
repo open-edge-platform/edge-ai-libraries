@@ -30,29 +30,53 @@ git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-li
 git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
 ```
 
-2. Set the required environment variables:
+2. Default storage backend used in the Docker script based setup is `minio`. To use Minio, we need to set following required environment variables on shell:
 
 ```bash
 # MinIO credentials (required)
 export MINIO_ACCESS_KEY=<your-minio-username>
 export MINIO_SECRET_KEY=<your-minio-password>
+```
 
+> __NOTE :__ To override the default storage backend, see [setup the storage backends](./get-started.md#setup-the-storage-backends).
+
+3. The Docker setup will build the image if not already present on the machine. We can optionally set a registry URL and tag, if we wish to push this image to any repository. If not set, default image will be built as `audio-analyzer:latest`.
+
+```bash
 # Optional: Set registry URL and project name for docker image naming
 export REGISTRY_URL=<your-registry-url>
-export PROJECT_NAME=<your-project-name> 
-export TAG=<your-yag> # Default: latest
+export PROJECT_NAME=<your-project-name>
+export TAG=<your-tag>
 ```
 
 If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`  
 If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-analyzer:${TAG}`
 
-3. Run the setup script to bring up production version of application _(Brings up Minio server as well along with audio-analyzer service)_:
+4. **(OPTIONAL)** You can customize the setup with these additional environment variables:
+
+```bash
+# Comma-separated list of models to download
+export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  
+export DEFAULT_WHISPER_MODEL=tiny.en
+
+# Device to use: cpu, gpu, or auto
+export DEFAULT_DEVICE=cpu
+export USE_FP16=true
+
+# Storage backend: minio or local
+export STORAGE_BACKEND=minio
+export MAX_FILE_SIZE=314572800
+```
+
+3. Run the setup script to build and bring up production version of application:
 
 ```bash
 cd edge-ai-libraries/microservices/audio-analyzer
 chmod +x ./setup_docker.sh
 ./setup_docker.sh
 ```
+
+> **_NOTE :_** If the `STORAGE_BACKEND` is set to **minio**, then above script also brings up the Minio container.
 
 #### Docker Setup Options
 
@@ -73,25 +97,7 @@ Examples:
 - Development setup: `./setup_docker.sh --dev`
 - Build production image only: `./setup_docker.sh --build`
 - Build development image only: `./setup_docker.sh --build-dev`
-- Stop and remove all contianers: `./setup_docker.sh --down`
-
-#### Additional Configuration
-
-You can customize the setup with these environment variables:
-
-```bash
-# Model configuration
-export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  # Comma-separated list of models to download
-export DEFAULT_WHISPER_MODEL=tiny.en  # Default model for transcription. Shoule be one of the ENABLED_WHISPER_MODELS.
-
-# Performance configuration
-export DEFAULT_DEVICE=auto  # Device to use: cpu, gpu, or auto
-export USE_FP16=true  # Use half-precision for better performance on GPUs
-
-# Storage configuration
-export STORAGE_BACKEND=minio  # Storage backend: minio or local
-export MAX_FILE_SIZE=314572800  # Maximum file size in bytes (300MB)
-```
+- Stop and remove all containers: `./setup_docker.sh --down`
 
 The development environment provides:
 - Hot-reloading of code changes
