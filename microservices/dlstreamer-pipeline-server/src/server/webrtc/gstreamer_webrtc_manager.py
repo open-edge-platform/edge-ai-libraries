@@ -66,6 +66,7 @@ class GStreamerWebRTCManager:
                 destination_instance,
                 self._whip_endpoint,
             )
+            # pylint: disable=consider-using-f-string
             self._logger.info("Starting WebRTC Stream for peer_id:{}".format(peer_id))
             self._streams[peer_id].start()
 
@@ -101,6 +102,7 @@ class GStreamerWebRTCManager:
         return False, None
 
     def _get_launch_string(self, stream_caps, peer_id, overlay):
+        # pylint: disable=consider-using-f-string, too-many-branches
         s_src = '{} caps="{}"'.format(self._source_mediamtx, ",".join(stream_caps))
 
         is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
@@ -170,11 +172,13 @@ class GStreamerWebRTCManager:
 
     def remove_stream(self, peer_id):
         if peer_id in self._streams:
+            # pylint: disable=consider-using-f-string, logging-format-interpolation
             self._logger.info(
                 "Stopping WebRTC Stream for peer_id {id}".format(id=peer_id)
             )
             self._streams[peer_id].stop()
             del self._streams[peer_id]
+            # pylint: disable=consider-using-f-string, logging-format-interpolation
             self._logger.debug(
                 "Remaining set of WebRTC Streams {}".format(self._streams)
             )
