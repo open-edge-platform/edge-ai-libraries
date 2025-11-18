@@ -642,7 +642,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setFrameOverlap(nonNegativeValue);
   };
 
-  const handleFileSelect = (files: FileList | null) => {
+  const handleFileSelect = async (files: FileList | null) => {
     if (files && files.length > 0) {
       const file = files[0];
       
@@ -658,6 +658,22 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
           fileInputRef.current.value = '';
         }
         return;
+      }
+      
+      // Check if MP4 is streamable
+      try {
+        const streamable = await isStreamable(file);
+        if (!streamable) {
+          setFormatError(t('OnlyMp4'));
+          setSelectedFile(null);
+          setVideoPreviewUrl(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking streamability:', error);
       }
       
       // Clear previous errors
@@ -689,6 +705,39 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       </Toggletip>
     </span>
   );
+
+  const findAtom = (buffer: Uint8Array, atomType: string): number => {
+    const atomBytes = new TextEncoder().encode(atomType);
+    for (let i = 0; i < buffer.length - 4; i++) {
+      if (
+        buffer[i] === atomBytes[0] &&
+        buffer[i + 1] === atomBytes[1] &&
+        buffer[i + 2] === atomBytes[2] &&
+        buffer[i + 3] === atomBytes[3]
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  };
+
+  const isStreamable = async (file: File): Promise<boolean> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+
+      const moovIndex = findAtom(buffer, 'moov');
+      const mdatIndex = findAtom(buffer, 'mdat');
+
+      // If either atom is missing, treat as not streamable
+      if (moovIndex === -1 || mdatIndex === -1) return false;
+
+      return moovIndex < mdatIndex;
+    } catch (error) {
+      console.error('Error checking streamability:', error);
+      return false;
+    }
+  };
 
 
   const timelineSteps = useMemo(
@@ -777,10 +826,17 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
             </DropArea>
           )}
           {formatError && (
-            <WarningBox style={{ backgroundColor: '#f8d7da', color: '#721c24', borderColor: '#f5c6cb' }}>
-              <Information />
-              {formatError}
-            </WarningBox>
+            formatError === t('OnlyMp4') ? (
+              <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                <div style={{ fontSize: '1.0rem' }}><strong>{t('OnlyMp4')}</strong></div>
+                <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+              </InfoBox>
+            ) : (
+              <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                <div><strong>{formatError}</strong></div>
+              </InfoBox>
+            )
           )}
           {step === 1 && (
             <>
@@ -1046,9 +1102,9 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                   </div>
                 </div>
                 {uploadErrorMessage && (
-                  <InfoBox style={{ maxWidth: '600px', width: '100%' }}>
-                    <div><strong>{t('OnlyMp4')}</strong></div>
-                    <div style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                  <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                    <div style={{ fontSize: '1.0rem' }}><strong>{t('OnlyMp4')}</strong></div>
+                    <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
                     <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
                   </InfoBox>
                 )}
