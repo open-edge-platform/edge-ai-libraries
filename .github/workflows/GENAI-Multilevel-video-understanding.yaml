@@ -164,7 +164,7 @@ jobs:
           cd microservices/multilevel-video-understanding
           
           # 新版分析流程（2024.12.1）
-          coverity capture --dir cov-int --no-build
+          coverity capture --dir cov-int --no-build --file-types "*.c,*.cpp,*.h,*.java,*.py,*.go"
           coverity analyze --dir cov-int \
             --security \
             --enable-constraint-fpp \
