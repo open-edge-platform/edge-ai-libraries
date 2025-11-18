@@ -149,20 +149,27 @@ jobs:
 
       - name: Build with Coverity Analysis
         run: |
+          # 下载Coverity工具链
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.MVU_COVERITY_TOKEN }}&project=${{ secrets.MVU_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
+          
+          # 解压工具链并验证
           mkdir -p cov-analysis
           tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
           COV_PATH="$(pwd)/cov-analysis/bin"
-          echo "Coverity工具路径: $COV_PATH"  # 调试输出
-          ls -la $COV_PATH  # 验证工具文件存在
+          export PATH="$COV_PATH:$PATH"  # 确保工具链在PATH中
+          
+          # 进入目标目录
           cd microservices/multilevel-video-understanding
-          $COV_PATH/cov-analyze --dir cov-int \
+          
+          # 新版分析流程（2024.12.1）
+          coverity capture --dir cov-int --no-build
+          coverity analyze --dir cov-int \
             --security \
             --enable-constraint-fpp \
             --enable-fnptr
-          $COV_PATH/cov-manage-emit --dir cov-int pack --output coverity_output.tgz
+          coverity commit-defects --dir cov-int --output coverity_output.tgz
           
       - name: Create tarball for upload
         run: |
