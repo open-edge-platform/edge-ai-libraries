@@ -41,10 +41,10 @@ services:
         limits:
           cpus: '128'
           memory: 256G
+          pids: 1024
         reservations:
           cpus: '0.5'
           memory: 1G
-    pids_limit: 1024
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
       interval: 30s
