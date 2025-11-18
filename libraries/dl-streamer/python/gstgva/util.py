@@ -236,8 +236,6 @@ def gst_buffer_data(_buffer, flags):
         libgst.gst_buffer_unmap(ptr, mapping)
         
 class GstStructureHandle:
-    __slots__ = ("ptr", "_finalizer")
-
     def __init__(self, ptr: ctypes.c_void_p):
         addr = int(ptr)
         self.ptr = addr
