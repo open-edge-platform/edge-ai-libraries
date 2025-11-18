@@ -1,3 +1,9 @@
+# ==============================================================================
+# Copyright (C) 2025-2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
+
 import argparse
 import logging
 
@@ -12,7 +18,7 @@ parser.add_argument("--search-duration", default=300,
 parser.add_argument("--sample-duration", default=10,
                     help="Duration in seconds of sampling individual pipelines. Longer duration should offer more stable results (default: %(default)s)") # pylint: disable=line-too-long
 parser.add_argument("--log-level", default="INFO", choices=["CRITICAL", "FATAL", "ERROR" ,"WARN", "INFO", "DEBUG"], # pylint: disable=line-too-long
-                    help="Minimum used log level (default: %(default)s)") 
+                    help="Minimum used log level (default: %(default)s)")
 parser.add_argument("pipeline", nargs="+",
                     help="Pipeline to be analyzed")
 args=parser.parse_args()

@@ -1,5 +1,10 @@
-from openvino import Core
- 
+# ==============================================================================
+# Copyright (C) 2025-2025 Intel Corporation
+#
+# SPDX-License-Identifier: MIT
+# ==============================================================================
+
+from openvino import Core 
 
 def add_device_suggestions(suggestions):
     element_device_suggestions(suggestions, "gvadetect")
