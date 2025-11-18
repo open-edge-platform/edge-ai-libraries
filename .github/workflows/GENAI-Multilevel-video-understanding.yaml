@@ -152,11 +152,12 @@ jobs:
           wget --quiet https://scan.coverity.com/download/linux64 \
             --post-data "token=${{ secrets.MVU_COVERITY_TOKEN }}&project=${{ secrets.MVU_COVERITY_PROJECT }}" \
             -O coverity_tool.tgz
-          mkdir cov-analysis
+          mkdir -p cov-analysis
           tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
           COV_PATH="$(pwd)/cov-analysis/bin"
+          echo "Coverity工具路径: $COV_PATH"  # 调试输出
+          ls -la $COV_PATH  # 验证工具文件存在
           cd microservices/multilevel-video-understanding
-          #$COV_PATH/cov-build --dir cov-int
           $COV_PATH/cov-analyze --dir cov-int \
             --security \
             --enable-constraint-fpp \
