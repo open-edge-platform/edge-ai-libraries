@@ -34,6 +34,7 @@ import { EVAMPipelines, SystemConfigWithMeta } from '../../redux/summary/summary
 import { SummaryPipelineDTO } from '../../redux/summary/summaryPipeline';
 import { APP_URL } from '../../config';
 import { PromptInput } from '../Prompts/PromptInput';
+import { NotificationSeverity, notify } from '../Notification/notify';
 import axios from 'axios';
 
 const isRecord = (value: unknown): value is Record<string, unknown> =>
@@ -219,6 +220,22 @@ const WarningBox = styled.p`
     gap: 0.7rem;
     box-shadow: 0 2px 8px rgba(255, 193, 7, 0.08);
   `;
+
+const InfoBox = styled.div`
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  font-size: 0.9rem;
+`;
+
+const CodePara = styled.p`
+  font-family: monospace;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #333;
+`;
 
 const SettingsPanel = styled.div`
     display: flex;
@@ -457,29 +474,22 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       const pipelineRes = await triggerSummaryPipeline(uploadedVideoId);
       await handleSummaryPipelineResult(pipelineRes);
     } catch (error: unknown) {
-      let errorMessage = 'Unknown error';
-      if (axios.isAxiosError(error)) {
-        const responseData = error.response?.data;
-        if (
-          responseData &&
-          typeof responseData === 'object' &&
-          'message' in responseData &&
-          typeof (responseData as { message?: unknown }).message === 'string'
-        ) {
-          errorMessage = (responseData as { message: string }).message;
-        } else if (error.message) {
-          errorMessage = error.message;
-        }
-      } else if (error instanceof Error) {
-        errorMessage = error.message || errorMessage;
-      }
-
-      setProgressText(`Error: ${errorMessage}`);
-      setUploadError(true);
-      console.error('Trigger summary error:', error);
-    } finally {
+      console.error('Video upload/processing error:', error);
       setUploading(false);
       setProcessing(false);
+
+      let errorMessage = t('videoUploadError');
+
+      if (axios.isAxiosError(error) && error.response?.data?.message) {
+        errorMessage = error.response.data.message;
+      } else if (error instanceof Error) {
+        errorMessage = error.message;
+      }
+
+      setUploadErrorMessage(errorMessage);
+      notify(errorMessage, NotificationSeverity.ERROR);
+      setProgressText('');
+      setUploadError(true);
     }
   };
   const { t } = useTranslation();
@@ -495,6 +505,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
   const [progressText, setProgressText] = useState('');
   const [uploadError, setUploadError] = useState(false);
   const [formatError, setFormatError] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
 
   // Video & Summary State
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -570,6 +581,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     setUploading(false);
     setProcessing(false);
     setFormatError(null);
+    setUploadErrorMessage(null);
     setStep(0);
   SetVideoTags('');
   setSelectedTags([]);
@@ -586,10 +598,23 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
     }
   }, []); // Empty dependency array - stable reference
 
+  const clearErrorState = useCallback(() => {
+    setUploadErrorMessage(null);
+    setUploadProgress(0);
+    setProgressText('');
+    setUploadError(false);
+  }, []);
+
   useEffect(() => {
     void resetForm();
     dispatch(UIActions.closePrompt());
   }, [resetForm, dispatch]);
+
+  useEffect(() => {
+    if (step !== 2) {
+      clearErrorState();
+    }
+  }, [step, clearErrorState]);
 
   // Cleanup video preview URL on unmount
   useEffect(() => {
@@ -626,7 +651,7 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
       const fileType = file.type;
       
       if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
-        setFormatError(t('invalidVideoFormat', 'Invalid video format. Please upload a .mp4 file.'));
+        setFormatError(t('invalidVideoFormat'));
         setSelectedFile(null);
         setVideoPreviewUrl(null);
         if (fileInputRef.current) {
@@ -1020,6 +1045,13 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
                     )}
                   </div>
                 </div>
+                {uploadErrorMessage && (
+                  <InfoBox style={{ maxWidth: '600px', width: '100%' }}>
+                    <div><strong>{t('OnlyMp4')}</strong></div>
+                    <div style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                    <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                  </InfoBox>
+                )}
                 {uploading && (
                   <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
                 )}
@@ -1049,16 +1081,25 @@ export default function VideoSummarizeFlow({ onClose }: VideoSummarizeFlowProps)
           </>
         ) : step === 1 ? (
           <>
-            <Button kind="secondary" onClick={() => setStep(0)}>
+            <Button kind="secondary" onClick={() => {
+              clearErrorState();
+              setStep(0);
+            }}>
               Back
             </Button>
-            <Button kind="primary" onClick={() => setStep(2)}>
+            <Button kind="primary" onClick={() => {
+              clearErrorState();
+              setStep(2);
+            }}>
               Next
             </Button>
           </>
         ) : (
           <>
-            <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(1)}>
+            <Button kind="secondary" disabled={uploading || processing} onClick={() => {
+              clearErrorState();
+              setStep(1);
+            }}>
               Back
             </Button>
             <Button kind="primary" disabled={uploading || !selectedFile || uploadError} onClick={triggerSummary}>

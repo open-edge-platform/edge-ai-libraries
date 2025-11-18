@@ -193,6 +193,22 @@ const WarningBox = styled.p`
   box-shadow: 0 2px 8px rgba(255, 193, 7, 0.08);
 `;
 
+const InfoBox = styled.div`
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  font-size: 0.9rem;
+`;
+
+const CodePara = styled.p`
+  font-family: monospace;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.75rem;
+  color: #333;
+`;
+
 export interface VideoEmbeddingFlowProps {
   onClose?: () => void;
 }
@@ -220,6 +236,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const [videoTags, setVideoTags] = useState<string | null>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -251,17 +268,29 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     setUploadProgress(0);
     setUploading(false);
     setProcessing(false);
+    setUploadErrorMessage(null);
     setStep(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, []); // Empty dependency array - stable reference
 
+  const clearErrorState = useCallback(() => {
+    setUploadErrorMessage(null);
+    setUploadProgress(0);
+    setProgressText('');
+  }, []);
+
   useEffect(() => {
     resetForm();
   }, [resetForm]);
 
-  // Cleanup video preview URL on unmount
+  useEffect(() => {
+    if (step !== 2) {
+      clearErrorState();
+    }
+  }, [step, clearErrorState]);
+
   useEffect(() => {
     return () => {
       if (videoPreviewUrlRef.current) {
@@ -284,7 +313,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       const fileType = file.type;
       
       if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
-        setFormatError(t('invalidVideoFormat', 'Invalid video format. Please upload a .mp4 file.'));
+        setFormatError(t('invalidVideoFormat'));
         setSelectedFile(null);
         setVideoPreviewUrl(null);
         if (fileInputRef.current) {
@@ -400,11 +429,12 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       let errorMessage = t('videoUploadError');
 
       if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+        errorMessage = error.response.data.message; 
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
 
+      setUploadErrorMessage(errorMessage);
       notify(errorMessage, NotificationSeverity.ERROR);
       setProgressText('');
     }
@@ -591,6 +621,13 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                   )}
                 </div>
               </div>
+              {uploadErrorMessage && (
+                <InfoBox style={{ maxWidth: '540px', width: '100%' }}>
+                  <div><strong>{t('OnlyMp4')}</strong></div>
+                  <div style={{ fontSize: '0.75rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                  <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                </InfoBox>
+              )}
               {uploading && (
                 <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
               )}
@@ -623,20 +660,29 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           </>
         ) : step === 1 ? (
           <>
-            <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(0)}>
+            <Button kind="secondary" disabled={uploading || processing} onClick={() => {
+              clearErrorState();
+              setStep(0);
+            }}>
               Back
             </Button>
             <Button
               kind="primary"
               disabled={uploading || !selectedFile}
-              onClick={() => setStep(2)}
+              onClick={() => {
+                clearErrorState();
+                setStep(2);
+              }}
             >
               Next
             </Button>
           </>
         ) : (
           <>
-            <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(1)}>
+            <Button kind="secondary" disabled={uploading || processing} onClick={() => {
+              clearErrorState();
+              setStep(1);
+            }}>
               Back
             </Button>
             <Button
