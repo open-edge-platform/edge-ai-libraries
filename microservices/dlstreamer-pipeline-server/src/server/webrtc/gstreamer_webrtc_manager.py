@@ -48,8 +48,8 @@ class GStreamerWebRTCManager:
         stream_caps = self._select_caps(frame_caps.to_string())
         if not self._peerid_in_use(peer_id):
             launch_string = self._get_launch_string(stream_caps, peer_id,overlay)
-            self._streams[peer_id] = GStreamerWebRTCStream(peer_id, stream_caps, launch_string, destination_instance,
-                                                           self._whip_endpoint)
+            self._streams[peer_id] = GStreamerWebRTCStream(peer_id, stream_caps, launch_string,
+            destination_instance, self._whip_endpoint)
             self._logger.info("Starting WebRTC Stream for peer_id:{}".format(peer_id))
             self._streams[peer_id].start()
 
@@ -83,9 +83,10 @@ class GStreamerWebRTCManager:
         is_gpu, buffer_type = self._is_gpu_buffer(stream_caps)
         
         # Look for vah264enc element. Reported in some Xeon platforms as missing.
-        # When incoming buffers are from GPU and vah264enc is not present, we look for alternate vah264lpenc.
-        # If neither is found and GPU buffers are used, we will use the software encoder to ensure that the
-        # pipeline can still function without it.
+        # When incoming buffers are from GPU and vah264enc is not present, we look for
+        # alternate vah264lpenc.
+        # If neither is found and GPU buffers are used, we will use the software
+        # encoder to ensure that the pipeline can still function without it.
         vah264enc_present = Gst.ElementFactory.find("vah264enc")
         vah264lpenc_present = Gst.ElementFactory.find("vah264lpenc")
         
@@ -95,10 +96,13 @@ class GStreamerWebRTCManager:
                 if vah264enc_present:
                     video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory
                 elif vah264lpenc_present:
-                    self._logger.warning("vah264enc not found, but vah264lpenc is present. Using vah264lpenc for encoding.")
-                    video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory.replace("vah264enc", "vah264lpenc")
+                    self._logger.warning("vah264enc not found, but vah264lpenc is present. " +
+                    "Using vah264lpenc for encoding.")
+                    video_pipeline = self._WebRTCVideoPipeline_jpeg_VAMemory.replace("vah264enc",
+                    "vah264lpenc")
                 else:
-                    self._logger.warning("vah264enc and vah264lpenc not found, using software encoding")
+                    self._logger.warning("vah264enc and vah264lpenc not found, " +
+                    "using software encoding")
                     video_pipeline = self._WebRTCVideoPipeline_jpeg
             # CPU buffers with jpeg input
             else:
@@ -109,10 +113,13 @@ class GStreamerWebRTCManager:
                 if vah264enc_present:
                     video_pipeline = self._WebRTCVideoPipeline_VAMemory
                 elif vah264lpenc_present:
-                    self._logger.warning("vah264enc not found, but vah264lpenc is present. Using vah264lpenc for encoding.")
-                    video_pipeline = self._WebRTCVideoPipeline_VAMemory.replace("vah264enc", "vah264lpenc")
+                    self._logger.warning("vah264enc not found, but vah264lpenc is present. " +
+                    "Using vah264lpenc for encoding.")
+                    video_pipeline = self._WebRTCVideoPipeline_VAMemory.replace("vah264enc",
+                    "vah264lpenc")
                 else:
-                    self._logger.warning("vah264enc and vah264lpenc not found, using software encoding")
+                    self._logger.warning("vah264enc and vah264lpenc not found, " +
+                    "using software encoding")
                     video_pipeline = self._WebRTCVideoPipeline
             # CPU buffers with raw video input
             else:
