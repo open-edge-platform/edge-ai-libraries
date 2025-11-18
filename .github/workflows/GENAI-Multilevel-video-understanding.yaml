@@ -156,7 +156,7 @@ jobs:
           tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
           COV_PATH="$(pwd)/cov-analysis/bin"
           cd microservices/multilevel-video-understanding
-          $COV_PATH/cov-build --dir cov-int --fs-capture-search . --no-command
+          $COV_PATH/cov-build --dir cov-int --emit-complementary-info --no-command
           $COV_PATH/cov-analyze --dir cov-int \
             --security \
             --enable-constraint-fpp \
