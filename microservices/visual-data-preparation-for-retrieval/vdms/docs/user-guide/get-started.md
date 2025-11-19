@@ -73,10 +73,10 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
 **Configure the registry**:
-   The VLM OpenVINO Serving microservice uses registry URL and tag to pull the required image.
+   The VDMS DataPrep microservice uses the registry URL and tag to pull the required image.
 
     ```bash
-    export REGISTRY_URL=intel   
+    export REGISTRY_URL=intel
     export TAG=latest
     ```
 

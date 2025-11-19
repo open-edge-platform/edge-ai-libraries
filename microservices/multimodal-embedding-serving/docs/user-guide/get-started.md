@@ -96,7 +96,7 @@ export EMBEDDING_DEVICE=GPU.0
 source setup.sh
 ```
 
-> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults `EMBEDDING_USE_OV=true`.
+> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
 
 ### 3. Start the Service
 

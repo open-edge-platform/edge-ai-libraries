@@ -77,7 +77,7 @@ The user has an option to either [build the docker images](./how-to-build-from-s
    The VLM OpenVINO Serving microservice uses registry URL and tag to pull the required image.
 
     ```bash
-    export REGISTRY_URL=intel   
+    export REGISTRY_URL=intel
     export TAG=latest
     ```
 
