@@ -170,8 +170,8 @@ describe('English translations test suite', () => {
   });
 
   describe('File and media related translations', () => {
-    it('should have OnlyMp4 translation', () => {
-      expect(enTranslations.OnlyMp4).toBe('Only mp4 videos are accepted');
+    it('should have OnlyStreamableMp4 translation', () => {
+      expect(enTranslations.OnlyStreamableMp4).toBe('Only mp4 videos are accepted');
     });
 
     it('should have HelpText translation', () => {

@@ -141,7 +141,7 @@ export const enTranslations = {
     'Single Reduce Prompt: Used to reduce the size of a single caption. This is used only in case the size of even a single input is greater than the model input size. Size of each input is reduced such that at least 2 summaries can be batched together in map-reduce chain.',
   SummarySinglePromptEditing: 'Editing Single Reduce Prompt',
 
-  OnlyMp4: 'This video is not streamable. Please upload a streamable MP4 video.',
+  OnlyStreamableMp4: 'This video is not streamable. Please upload a streamable MP4 video.',
   HelpText:
     'You can use ffmpeg to convert your video to a streamable format with the following command:',
 

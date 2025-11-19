@@ -180,7 +180,7 @@ const StyledVideoPlayer = styled.video`
   background: var(--color-black);
 `;
 
-const InfoBox = styled.div`
+const ErrorBox = styled.div`
   background-color: #f8d7da;
   color: #721c24;
   padding: 1rem;
@@ -192,7 +192,7 @@ const CodePara = styled.p`
   background: #f5f5f5;
   padding: 0.5rem;
   margin-top: 0.5rem;
-  font-size: 0.75rem;
+  font-size: 0.85rem;
   color: #333;
 `;
 
@@ -346,7 +346,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       try {
         const streamable = await isStreamable(file);
         if (!streamable) {
-          setFormatError(t('OnlyMp4'));
+          setFormatError(t('OnlyStreamableMp4'));
           setSelectedFile(null);
           setVideoPreviewUrl(null);
           if (fileInputRef.current) {
@@ -559,16 +559,16 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
             </DropArea>
           )}
           {formatError && (
-            formatError === t('OnlyMp4') ? (
-              <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
-                <div style={{ fontSize: '1.0rem' }}><strong>{t('OnlyMp4')}</strong></div>
-                <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+            formatError === t('OnlyStreamableMp4') ? (
+              <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
+                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
                   <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
-              </InfoBox>
+              </ErrorBox>
             ) : (
-              <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+              <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
                 <div><strong>{formatError}</strong></div>
-              </InfoBox>
+              </ErrorBox>
             )
           )}
 
@@ -665,11 +665,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 </div>
               </div>
               {uploadErrorMessage && (
-                <InfoBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
-                  <div style={{ fontSize: '1.0rem' }}><strong>{t('OnlyMp4')}</strong></div>
-                  <div style={{ fontSize: '0.85rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                  <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
+                  <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
                   <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
-                </InfoBox>
+                </ErrorBox>
               )}
               {uploading && (
                 <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
