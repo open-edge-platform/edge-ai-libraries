@@ -145,8 +145,8 @@ print_header "Syncing dependencies with UV"
 cd /opt
 print_info "Installing dependencies from pyproject.toml..."
 
-# Add UV and ollama to PATH if it's not already there
-export PATH="/opt/.local/bin:$HOME/.local/bin:/opt/bin/:$PATH"
+# ollama to PATH if it's not already there
+export PATH="/opt/bin/:$PATH"
 
 if uv sync "${EXTRA_ARGS[@]}"; then
     print_success "Dependencies synced successfully"
