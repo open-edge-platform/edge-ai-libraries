@@ -103,7 +103,8 @@ Update or edit the values in YAML file as follows:
 
 
 
-> **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically.
+> **Tip:** Set `global.env.EMBEDDING_MODEL_NAME` to pick the default embedding model for both the multimodal embedding service and DataPrep. When deploying the unified summary + search mode, also set `global.env.TEXT_EMBEDDING_MODEL_NAME` and flip `global.embedding.preferTextModel` to `true` so the chart enforces the text embedding requirement automatically. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+
 
 ### 3. Build Helm Dependencies
 
@@ -173,7 +174,7 @@ To deploy the combined video search and summarization functionality, use the uni
 helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -n $my_namespace
 ```
 
-> **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled.
+> **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
 ### Step 6: Verify the Deployment
 
