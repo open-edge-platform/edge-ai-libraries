@@ -282,7 +282,11 @@ class VideoSummarizer:
 
             # Get the final summary of this video
             summary = self.rootChunk.desc
-            logger.info(f"Summarization completed successfully")
+            # Check for errors
+            if summary.startswith("Error:"):
+                logger.error(f"Summarization failed!")
+            else:
+                logger.info(f"Summarization completed successfully")
 
             response = {
                 "summary": summary,
@@ -293,7 +297,7 @@ class VideoSummarizer:
         
         except Exception as e:
             logger.error(f"Summarization failed: {e}")
-            logger.debug(f"Error details: {traceback.format_exc()}")
+            logger.error(f"Error details: {traceback.format_exc()}")
             raise RuntimeError(f"Summarization failed: {e}")
 
     async def summarize_micro_chunk(self, chunk: MicroChunkMeta) -> None:
