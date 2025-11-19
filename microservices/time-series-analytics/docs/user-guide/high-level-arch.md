@@ -23,4 +23,4 @@ For understanding the other ways of ingesting data, UDF deployment package confi
 
 ## Summary
 
-This guide demonstrated how the overview and architecture of the Time Series Analytics Microservice. For more details to get started, refer to [Getting Started](./get-started.md).
+This guide provides an overview of the architecture of the Time Series Analytics Microservice. For more details to get started, refer to [Getting Started](./get-started.md).
