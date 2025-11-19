@@ -12,10 +12,6 @@ spec:
       labels:
         app: chatqna-core-ui
     spec:
-      securityContext:
-        allowPrivilegeEscalation: false
-        seccompProfile:
-          type: RuntimeDefault
       containers:
         - name: chatqna-core-ui
           image: "{{ .Values.image.registry }}chatqna-ui:{{ .Values.image.tags.ui }}"
@@ -29,5 +25,9 @@ spec:
               value: "{{ .Values.global.no_proxy }}"
             - name: APP_BACKEND_URL
               value: "{{ .Values.global.app_backend_url }}"
+          securityContext:
+            allowPrivilegeEscalation: false
+            seccompProfile:
+              type: RuntimeDefault
           ports:
             - containerPort: 8102
