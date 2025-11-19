@@ -18,7 +18,6 @@ The microservice is optimized for performance and scalability, supporting batch 
   - [SDK Usage](docs/user-guide/sdk-usage.md): Complete guide for using the service as a Python SDK.
   - [Wheel Installation](docs/user-guide/wheel-installation.md): Comprehensive guide for building and installing as a Python wheel package.
   - [Supported Models](docs/user-guide/supported-models.md): Complete list of supported models and their configurations.
-  - [`/model/capabilities` endpoint](docs/user-guide/api-reference.md): Discover modality support for the loaded model.
   
 - **Deployment**
   - [How to Build from Source](docs/user-guide/how-to-build-from-source.md): Instructions for building the microservice from source code.
