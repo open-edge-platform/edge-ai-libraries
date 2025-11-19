@@ -103,10 +103,8 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics")
 
-# Convert PLUGINS to lowercase for case-insensitive comparison
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics")
 PLUGINS_LOWER=$(echo "$PLUGINS" | tr '[:upper:]' '[:lower:]')
 
 # Determine which plugins to activate
@@ -130,7 +128,7 @@ for plugin in "${PLUGIN_LIST[@]}"; do
     install_dependencies "$plugin"
 done
 
-# Save activated plugins to env file (store original input)
+# Save activated plugins to env file
 echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
 print_success "Activated plugins: ${PLUGIN_LIST[*]}"
 
