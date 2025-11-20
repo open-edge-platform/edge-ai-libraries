@@ -15,7 +15,6 @@ spec:
         fsGroup: 1001
         runAsUser: 1001
         runAsGroup: 1001
-        allowPrivilegeEscalation: false
       containers:
         - name: {{ .Values.Chatqna.name }}
           image: {{ .Values.Chatqna.image.repository }}:{{ .Values.Chatqna.image.tag }}

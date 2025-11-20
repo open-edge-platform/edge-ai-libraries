@@ -2,7 +2,7 @@
 # SPDX-License-Identifier: Apache-2.0
 
 from enum import Enum
-from typing import Annotated, List, Optional
+from typing import Annotated, List, Optional, Tuple
 
 from pydantic import BaseModel, Field
 
@@ -10,6 +10,44 @@ from pydantic import BaseModel, Field
 class StatusEnum(str, Enum):
     success = "success"
     error = "error"
+
+
+class FrameExtractionModeEnum(str, Enum):
+    """Frame extraction modes for video processing"""
+
+    time_based = "time_based"  # Traditional time-based frame extraction
+    object_detection = "object_detection"  # Object detection + time-based extraction
+    hybrid = "hybrid"  # Both object detection crops and full frames
+
+
+class ObjectDetectionConfig(BaseModel):
+    """Configuration for object detection in frame extraction"""
+
+    enabled: bool = Field(
+        default=False, description="Enable object detection for frame extraction"
+    )
+    confidence_threshold: float = Field(
+        default=0.85,
+        ge=0.0,
+        le=1.0,
+        description="Confidence threshold for object detection (0.0-1.0)",
+    )
+    max_detections_per_frame: int = Field(
+        default=10,
+        ge=1,
+        le=100,
+        description="Maximum number of object detections to extract per frame",
+    )
+    extraction_mode: FrameExtractionModeEnum = Field(
+        default=FrameExtractionModeEnum.time_based,
+        description="Frame extraction mode: time_based, object_detection, or hybrid",
+    )
+    crop_padding: int = Field(
+        default=10,
+        ge=0,
+        le=100,
+        description="Padding pixels around detected objects when creating crops",
+    )
 
 
 class DataPrepResponse(BaseModel):
@@ -40,18 +78,26 @@ class VideoRequest(BaseModel):
             description="The video filename within the video_id directory (if omitted, first video found is used)"
         ),
     ] = None
-    chunk_duration: Annotated[
+    frame_interval: Annotated[
         Optional[int],
         Field(
-            ge=3,
-            description="Interval of time in seconds to create different chunks of video. Helps in frame sampling.",
+            ge=1,
+            le=60,
+            description="Extract every Nth frame for processing (default: 15)",
         ),
     ] = None
-    clip_duration: Annotated[
-        Optional[int],
+    enable_object_detection: Annotated[
+        Optional[bool],
         Field(
-            ge=3,
-            description="Length of clip in seconds, inside each of the video chunks. Frames for embedding are selected from this interval.",
+            description="Enable object detection and crop extraction (default: True)"
+        ),
+    ] = None
+    detection_confidence: Annotated[
+        Optional[float],
+        Field(
+            ge=0.1,
+            le=1.0,
+            description="Confidence threshold for object detection (default: 0.85)",
         ),
     ] = None
     tags: Annotated[
@@ -60,7 +106,20 @@ class VideoRequest(BaseModel):
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
-    ] = None
+    ]
+    object_detection: Optional[ObjectDetectionConfig] = Field(
+        default=None,
+        description="Object detection configuration for enhanced frame extraction"
+    )
+
+
+class EnhancedVideoRequest(VideoRequest):
+    """Enhanced request model for video processing with object detection support"""
+
+    object_detection: ObjectDetectionConfig = Field(
+        default_factory=ObjectDetectionConfig,
+        description="Object detection configuration for enhanced frame extraction"
+    )
 
 
 class VideoInfo(BaseModel):
@@ -124,4 +183,4 @@ class VideoSummaryRequest(BaseModel):
             default_factory=list,
             description="List of tags to be associated with the video. Useful for filtering the search.",
         ),
-    ] = None
+    ]

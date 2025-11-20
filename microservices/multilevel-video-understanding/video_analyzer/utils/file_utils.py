@@ -33,7 +33,7 @@ def get_file_duration(file_path: Path) -> float:
             return duration
     except Exception as e:
         logger.error(f"Error getting file duration: {e}")
-        logger.debug(f"Error details: {traceback.format_exc()}")
+        logger.error(f"Error details: {traceback.format_exc()}")
         return 0.0
 
 

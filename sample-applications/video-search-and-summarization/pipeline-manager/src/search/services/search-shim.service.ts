@@ -18,7 +18,9 @@ export class SearchShimService {
     const endPoint: string = this.$config.get('search.endpoint')!;
     const api = [endPoint, 'query'].join('/') + '/';
 
-    console.log('api', api);
+    console.log('=== SEARCH SHIM SERVICE ===');
+    console.log('api endpoint:', api);
+    console.log('query payload:', JSON.stringify(query, null, 2));
 
     return this.$http.post<SearchResultRO>(api, query);
   }

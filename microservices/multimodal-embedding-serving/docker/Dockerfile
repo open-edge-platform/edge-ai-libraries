@@ -1,52 +1,72 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-FROM python:3.12.10-slim AS build
+# Builder stage
+FROM python:3.12.10-slim AS builder
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
+ARG CURL_VERSION="7.88.1-10+deb12u14"
+ARG PATCH_VERSION="2.7.6-7"
+ARG BUILD_ESSENTIAL_VERSION="12.9"
+ARG GCC_VERSION="4:12.2.0-3"
+ARG GIT_VERSION="1:2.39.5-0+deb12u2"
+ARG POETRY_VERSION="1.8.3"
+ARG MOBILECLIP_COMMIT="c16bfe5a4feb424762d6bdf5245539120a4ce9ef"
+ARG SALESFORCE_LAVIS_VERSION="1.0.2"
 
-RUN apt-get update -y && apt-get install -y --no-install-recommends --fix-missing \
-    curl
-
-RUN pip install --upgrade --no-cache pip setuptools && \
-    pip install --no-cache torch~=2.7.1 torchvision~=0.22.1 --index-url https://download.pytorch.org/whl/cpu;
-
-RUN pip install poetry==2.1.3
-
-RUN poetry config virtualenvs.create false
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl=${CURL_VERSION} \
+    patch=${PATCH_VERSION} \
+    build-essential=${BUILD_ESSENTIAL_VERSION} \
+    gcc=${GCC_VERSION} \
+    git=${GIT_VERSION} && \
+    rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 COPY poetry.lock pyproject.toml /app/
-RUN poetry lock && poetry install --no-root
+RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
+    poetry config virtualenvs.create false && \
+    poetry install --no-root && \
+    poetry run pip install --no-cache-dir \
+        "git+https://github.com/apple/ml-mobileclip.git@${MOBILECLIP_COMMIT}#egg=mobileclip" \
+        "salesforce-lavis==${SALESFORCE_LAVIS_VERSION}" \
+        --no-deps
 
-RUN apt-get install -y --no-install-recommends curl ca-certificates libxml2 gnupg
+# Final stage
+FROM python:3.12.10-slim
 
-RUN curl https://repositories.intel.com/gpu/intel-graphics.key | \
-    gpg --dearmor --output /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64,i386 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu jammy client" | \
-    tee /etc/apt/sources.list.d/intel-gpu-jammy.list && \
-    apt-get update && \
-    apt-get install --no-install-recommends -y \
-    libze1 intel-level-zero-gpu intel-opencl-icd && \
-    apt-get clean && rm -rf /var/lib/apt/lists/*
-RUN apt-get remove --no-install-recommends -y gnupg && \
-    apt-get autoremove -y
-
-# old script
+ARG USER_ID=1000
+ARG USER_GROUP_ID=1000
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
+ARG COPYLEFT_SOURCES=false
+ARG CURL_VERSION="7.88.1-10+deb12u14"
+ARG PATCH_VERSION="2.7.6-7"
+
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl=${CURL_VERSION} \
+    patch=${PATCH_VERSION} && \
+    rm -rf /var/lib/apt/lists/* && \
+    groupadd -g ${USER_GROUP_ID} appuser && useradd -m --no-log-init -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
+
+WORKDIR /app
+
+
+# Copy installed site-packages and bin from builder
+COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
+COPY --from=builder /usr/local/bin/gunicorn /usr/local/bin/gunicorn
+COPY --from=builder /app /app
+
+# Copy rest of the source code
+
+# Install GPU drivers in final image
 COPY scripts/install_ubuntu_gpu_drivers.sh /tmp/install_gpu_drivers.sh
-RUN chmod +x /tmp/install_gpu_drivers.sh
-RUN /tmp/install_gpu_drivers.sh
-RUN apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
-
-RUN groupadd -g ${USER_GROUP_ID} appuser && useradd -m -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
-
-COPY . .
+RUN chmod +x /tmp/install_gpu_drivers.sh && \
+/tmp/install_gpu_drivers.sh && \
+apt-get clean && rm -rf /tmp/install_gpu_drivers.sh && rm -rf /var/lib/apt/lists/* && rm -rf /tmp/*
 
 # Optionally download copyleft sources if requested
-ARG COPYLEFT_SOURCES=false
 RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         apt-get update && \
         # Get list of installed deb packages with copyleft licenses \
@@ -77,12 +97,14 @@ RUN if [ "$COPYLEFT_SOURCES" = "true" ]; then \
         done; \
         apt-get remove --purge -y gcc build-essential libffi-dev python3-dev; \
     fi
-    
-RUN mkdir -p /home/appuser/.cache/huggingface /app/ov-models /tmp/dataprep && \
-    chown -R appuser:appuser /home/appuser/.cache /app/ov-models /tmp/dataprep
+
+COPY . .
+
+RUN mkdir -p /tmp/dataprep/video /home/appuser/.cache/huggingface /app/ov_models && \
+    chown -R appuser:appuser /home/appuser/.cache /app/ov_models /tmp/dataprep
 
 USER appuser
 
 EXPOSE 8000
 
-CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "app:app", "--timeout", "300", "--log-level", "info", "--access-logfile", "-", "--error-logfile", "-", "--log-config", "/app/logging.conf"]
+CMD ["gunicorn", "-b", "0.0.0.0:8000", "-k", "uvicorn.workers.UvicornWorker", "src.app:app", "--timeout", "300", "--log-level", "debug"]

@@ -1,225 +1,130 @@
 # Get Started
 
-The **Multimodal Embedding Serving microservice** is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings. This section provides step-by-step instructions to:
-
-- Set up the microservice using a pre-built Docker image for quick deployment.
-- Run predefined tasks to explore its functionality.
-- Learn how to modify basic configurations to suit specific requirements.
+This guide provides step-by-step instructions to quickly deploy and test the **Multimodal Embedding Serving microservice**.
 
 ## Prerequisites
 
 Before you begin, ensure the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
-- **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
+- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md)
+- **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/)
 
-This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
+This guide assumes basic familiarity with Docker commands and terminal usage.
 
-## Environment Variables
+## Quick Start
 
-These are environment variables which are crucial for running the application and are required during runtime.
-
-- `TEXT_EMBEDDING_MODEL_NAME`: Name of the pre-trained text embedding model.
-- `IMAGE_EMBEDDING_MODEL_NAME`: Name of the pre-trained multimodal embedding model.
-- `USE_ONLY_TEXT_EMBEDDINGS`: Set this to true to enable text embedding generation only, instead of multimodal embeddings.
-- `http_proxy`: HTTP proxy value.
-- `https_proxy`: HTTPS proxy value.
-- `no_proxy_env`: No proxy value(comma separated list).
-- `DEFAULT_START_OFFSET_SEC`: Default start offset in seconds for video segmentation.
-- `DEFAULT_CLIP_DURATION`: Default clip duration for video segmentation. (If DEFAULT_CLIP_DURATION == -1 then takes the video till end)
-- `DEFAULT_NUM_FRAMES`: Default number of frames to extract from a video. (Uses uniform sampling)
-- `EMBEDDING_USE_OV`: Set to `true` to use the OpenVINO backend for running the multimodal embedding model.
-- `EMBEDDING_DEVICE`: Device to run the embedding model on (CPU, GPU, etc.). This is an OpenVINO related parameter.
-- `REGISTRY_URL`: URL for the Docker registry.
-- `PROJECT_NAME`: Project name for Docker images.
-- `TAG`: Tag for Docker images (defaults to 'latest').
-
-## Quick Start with Docker
-
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
-
-_Document how to get prebuilt docker image_
-
-### Running the Server
-
-1. Clone the repo and change to the `multimodal-embedding-serving` directory:
-
-    ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-    
-    cd edge-ai-libraries/microservices/multimodal-embedding-serving
-    ```
-
-2. Set the required `VCLIP_MODEL` and `QWEN_MODEL` environment variable:
-
-    ```bash
-    export VCLIP_MODEL="openai/clip-vit-base-patch32"
-    export QWEN_MODEL="Qwen/Qwen3-Embedding-0.6B"
-    ```
-
-3. _*(OPTIONAL)*_ The microservice supports multimodal embedding models by default. It will use value of `VCLIP_MODEL` set in step 2, as an embedding model _(which can generate both text as well as image embeddings)_. But if you want to exclusively generate text embeddings only, set the following environment variable:
-
-    ```bash
-    export USE_ONLY_TEXT_EMBEDDINGS=True
-    ```
-
-    This makes the microservice use the value of `QWEN_MODEL` (set in step 2) as an embedding model, which helps to generate text embeddings only.
-
-    > _**NOTE:**_ Only `openai/clip-vit-base-patch32` is supported right now, as multimodal embedding model. Similarly, as text embedding model, only `Qwen/Qwen3-Embedding-0.6B` is supported right now. This should be apparent by looking at the values of `VCLIP_MODEL` and `QWEN_MODEL` being set in step 2.
-
-4. Set the other required environment with default values by running the following script:
-
-    ```bash
-    source setup.sh
-    ```
-
-    The `setup.sh` script determines whether the server runs on CPU or GPU by setting the appropriate environment variables.
-
-5. To run the service using Docker Compose, use the following command:
-
-    ```bash
-    docker compose -f docker/compose.yaml up
-    ```
-
-6. To stop the service and bring down the container:
-
-    ```bash
-    docker compose -f docker/compose.yaml down
-    ```
-
-## Sample CURL Commands
-
-### Text Embedding
-
-> _**NOTE:**_ Text embeddings can be generated by both text embedding models and multimodal embedding models. [Refer to step 3 here](#running-the-server) to understand how to set models used for generating text embeddings.
-
-> _**NOTE:**_  Generate the base64 values in place of `<base64_image>`, `<base64_video>` in the sample apis below.
-
+### 1. Clone and Choose Your Model
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "input": {
-        "type": "text",
-        "text": "Sample input text"
-    },
-    "encoding_format": "float"
-}'
+# Clone the repository
+git clone https://github.com/intel/edge-ai-libraries.git
+cd edge-ai-libraries/microservices/multimodal-embedding-serving
+
+# REQUIRED: Choose and set your model
+export EMBEDDING_MODEL_NAME="your-chosen-model"  # Replace with your preferred model
+
+# Set environment variables using the setup script
+source setup.sh
 ```
 
-### Image URL Embedding
+**Important**: You must set `EMBEDDING_MODEL_NAME` before running `setup.sh`. See [Supported Models](supported-models.md) for available options.
+
+### 2. Configure Hardware (Optional)
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "input": {
-        "type": "image_url",
-        "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
-    },
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float"
-}'
+# For GPU deployment (if Intel GPU available)
+export EMBEDDING_DEVICE="GPU"
+source setup.sh
+
+# Default is CPU deployment
 ```
 
-### Base64 Image Embedding
+### 3. Run with Docker Compose
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "image_base64",
-        "image_base64": "<base64_image>"
-    }
-}'
+docker compose -f docker/compose.yaml up -d
 ```
 
-### Video URL Embedding
+### 4. Verify the Service
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_url",
-        "video_url": "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/refs/heads/master/bolt-detection.mp4",
-        "segment_config": {
-            "startOffsetSec": 0,
-            "clip_duration": -1,
-            "num_frames": 64
-        }
-    }
-}'
+# Health check
+curl http://localhost:9777/health
+
+# Test text embedding
+curl -X POST http://localhost:9777/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": {"type": "text", "text": "Hello world"},
+    "model": "'$EMBEDDING_MODEL_NAME'"
+  }'
 ```
 
-### Base64 Video Embedding
+## Quick API Test
+
+Once the service is running, test different input types:
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_base64",
-        "segment_config": {
-            "startOffsetSec": 0,
-            "clip_duration": -1,
-            "num_frames": 64
-        },
-        "video_base64": "<base64_video>"
-    }
-}'
+# Text embedding
+curl -X POST http://localhost:9777/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": {"type": "text", "text": "A beautiful sunset"},
+    "model": "'$EMBEDDING_MODEL_NAME'"
+  }'
+
+# Image URL embedding
+curl -X POST http://localhost:9777/embeddings \
+  -H "Content-Type: application/json" \
+  -d '{
+    "input": {"type": "image_url", "image_url": "https://example.com/image.jpg"},
+    "model": "'$EMBEDDING_MODEL_NAME'"
+  }'
 ```
 
-### Video Frames Embedding
+For complete API documentation, see [API Reference](api-reference.md).
+
+## Building from Source
+
+To build from source instead of using pre-built images:
 
 ```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_frames",
-        "video_frames": [
-            {
-                "type": "image_url",
-                "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
-            },
-            {
-                "type": "image_base64",
-                "image_base64": "<base64_image>"
-            }
-        ]
-    }
-}'
+docker compose -f docker/compose.yaml build
+docker compose -f docker/compose.yaml up -d
 ```
+
+See [How to Build from Source](how-to-build-from-source.md) for detailed development instructions.
 
 ## Troubleshooting
 
-1. **Docker Container Fails to Start**:
-    - Run `docker logs {{container-name}}` to identify the issue.
-    - Check if the required port is available.
+**Service fails to start:**
 
-2. **Cannot Access the Microservice**:
-    - Confirm the container is running:
+```bash
+docker logs multimodal-embedding-serving
+```
 
-      ```bash
-      docker ps
-      ```
+**Model not found:**
 
-## Supporting Resources
+```bash
+# Check if model is supported
+echo $EMBEDDING_MODEL_NAME
 
-- [Overview](Overview.md)
-- [API Reference](api-reference.md)
-- [System Requirements](system-requirements.md)
+# Set a supported model (see supported-models.md)
+export EMBEDDING_MODEL_NAME="your-chosen-model"
+source setup.sh
+```
+
+**GPU issues:**
+
+```bash
+# Check Intel GPU availability
+ls -la /dev/dri
+```
+
+## Next Steps
+
+- [Quick Reference](quick-reference.md) - Essential commands and configurations
+- [API Reference](api-reference.md) - Complete API documentation
+- [SDK Usage](sdk-usage.md) - Direct Python integration
+- [Wheel Installation](wheel-installation.md) - Build and install as Python package
+- [Supported Models](supported-models.md) - Available models and configurations

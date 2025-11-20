@@ -6,7 +6,7 @@ from http import HTTPStatus
 from unittest.mock import MagicMock
 
 from src.common import settings
-from src.core.util import get_video_from_minio
+from src.core.utils.video_utils import get_video_from_minio
 
 def test_download(test_client, mocker):
     """Test successful download of a video from Minio."""
@@ -14,7 +14,7 @@ def test_download(test_client, mocker):
     # Mock Minio client functionality
     mock_minio = MagicMock()
 
-    mocker.patch("src.core.util.get_minio_client", return_value=mock_minio)
+    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
     mocker.patch("src.endpoints.video_management.download_video.StreamingResponse", return_value={})
 
     response = test_client.get("/videos/download?video_id=test-video-id")
@@ -27,7 +27,7 @@ def test_download_video_not_found(test_client, mocker):
     # Mock Minio client with no video found
     mock_minio = MagicMock()
     mock_minio.get_video_in_directory.return_value = None
-    mocker.patch("src.core.util.get_minio_client", return_value=mock_minio)
+    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
 
     response = test_client.get("/videos/download?video_id=non-existent-id")
     assert response.status_code == HTTPStatus.NOT_FOUND
@@ -39,7 +39,7 @@ def test_download_minio_error(test_client, mocker):
     # Mock Minio client to throw an exception
     mock_minio = MagicMock()
     mock_minio.get_video_in_directory.side_effect = Exception("Minio error")
-    mocker.patch("src.core.util.get_minio_client", return_value=mock_minio)
+    mocker.patch("src.core.utils.common_utils.get_minio_client", return_value=mock_minio)
 
     response = test_client.get("/videos/download?video_id=test-video-id")
     assert response.status_code == HTTPStatus.INTERNAL_SERVER_ERROR
@@ -79,7 +79,7 @@ def test_get_video_from_minio_calls(test_client, mocker):
     mock_minio.get_video_in_directory.return_value = minio_object_name
     mock_minio.download_video_stream.return_value = byte_obj
 
-    mock_minio_client = mocker.patch("src.core.util.get_minio_client")
+    mock_minio_client = mocker.patch("src.core.utils.common_utils.get_minio_client")
     mock_minio_client.return_value = mock_minio
 
     assert get_video_from_minio(bucket_name, video_id) == (byte_obj, file_name)
