@@ -98,8 +98,12 @@ export const SearchSlice = createSlice({
         state.searchQueries.push({ ...action.payload, topK: defaultTopk });
         state.selectedQuery = action.payload.queryId;
       })
-      .addCase(SearchWatch.fulfilled, (state) => {
-        state.triggerLoad = true;
+      .addCase(SearchWatch.pending, (state, action) => {
+        const { queryId, watch } = action.meta.arg;
+        const index = state.searchQueries.findIndex((query) => query.queryId === queryId);
+        if (index !== -1) {
+          state.searchQueries[index].watch = watch;
+        }
       })
       .addCase(SearchRemove.fulfilled, (state) => {
         state.triggerLoad = true;
