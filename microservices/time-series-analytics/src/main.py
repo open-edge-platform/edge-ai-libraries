@@ -179,7 +179,7 @@ async def receive_alert(alert: OpcuaAlertsMessage):
                             "status": "success",
                             "message": "Alert received"
                         }
-        '422':
+        '400':
             description: OPC UA alerts are not configured in the service
             content:
                 application/json:
@@ -227,7 +227,7 @@ async def receive_alert(alert: OpcuaAlertsMessage):
                 logger.exception("Failed to send alert to OPC UA node: %s", e)
                 raise HTTPException(status_code=500, detail=f"Failed to send alert: {e}")
         else:
-            raise HTTPException(status_code=422,
+            raise HTTPException(status_code=400,
                               detail="OPC UA alerts are not configured in the service")
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
