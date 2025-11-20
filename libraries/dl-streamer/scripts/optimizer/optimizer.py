@@ -105,15 +105,17 @@ def explore_pipelines(suggestions, base_fps, search_duration, sample_duration):
 def sample_pipeline(pipeline, sample_duration):
     pipeline = pipeline.copy()
 
-    # check if there is an fps counter after the last inference element
-    for i, element in enumerate(reversed(pipeline)):
-        # exit early if one is found before other elements
+    # check if there is an fps counter in the pipeline, add one otherwise
+    has_fps_counter = False
+    for element in pipeline:
         if "gvafpscounter" in element:
-            break
-
-        # add one if no counter was found before inference elements
-        if "gvadetect" in element or "gvaclassify" in element:
-            pipeline.insert(len(pipeline) - i, "gvafpscounter")
+            has_fps_counter = True
+    
+    if not has_fps_counter:
+        for i, element in enumerate(reversed(pipeline)):
+            if "gvadetect" in element or "gvaclassify" in element:
+                pipeline.insert(len(pipeline) - i, " gvafpscounter " )
+                break
 
     pipeline = "!".join(pipeline)
     logger.debug("Testing: %s", pipeline)

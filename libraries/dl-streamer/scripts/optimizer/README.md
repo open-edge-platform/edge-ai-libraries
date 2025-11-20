@@ -70,3 +70,6 @@ optimized_pipeline, fps = get_optimized_pipeline(pipeline)
 print("Best discovered pipeline: " + optimized_pipeline)
 print("Measured fps: " + fps)
 ```
+
+# Controling the measurement
+The point at which performance is being measured can be controlled by pre-emptively inserting a `gvafpscounter` element into your pipeline definition. For pipelines which lack such an element, the measurement is done after the last inference element supported by the optimizer tool.
