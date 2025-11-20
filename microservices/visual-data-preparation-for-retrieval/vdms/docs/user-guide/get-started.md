@@ -70,6 +70,16 @@ Use `source ./setup.sh --conf` to print the resolved Docker Compose configuratio
 
 > **Important:** Do not run `docker build` directly against `docker/Dockerfile`. The build depends on a wheel generated from the multimodal embedding serving microservice. Always execute `./build.sh` in the `vdms` directory first so the wheel is created under `wheels/` before building the container image.
 
+The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
+
+**Configure the registry**:
+   The VDMS DataPrep microservice uses the registry URL and tag to pull the required image.
+
+    ```bash
+    export REGISTRY_URL=intel
+    export TAG=latest
+    ```
+
 1. **Clone the repository and enter the project.**
 
    ```bash

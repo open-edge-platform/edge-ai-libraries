@@ -4,127 +4,294 @@ This guide provides step-by-step instructions to quickly deploy and test the **M
 
 ## Prerequisites
 
-Before you begin, ensure the following:
+Before you begin, confirm the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md)
-- **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/)
+- **System Requirements**: Your system meets the [minimum requirements](./system-requirements.md).
+- **Docker Installed**: Install Docker if needed. See [Get Docker](https://docs.docker.com/get-docker/).
 
 This guide assumes basic familiarity with Docker commands and terminal usage.
 
-## Quick Start
+## Set Environment Values
 
-### 1. Clone and Choose Your Model
+Set the required environment variables before launching the service.
 
 ```bash
-# Clone the repository
-git clone https://github.com/intel/edge-ai-libraries.git
-cd edge-ai-libraries/microservices/multimodal-embedding-serving
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+```
 
-# REQUIRED: Choose and set your model
-export EMBEDDING_MODEL_NAME="your-chosen-model"  # Replace with your preferred model
+Refer to the [Supported Models](./supported-models.md) list for additional choices.
 
-# Set environment variables using the setup script
+> **_NOTE:_** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
+
+### Optional Environment Variables
+
+The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](../../examples/README.md#environment-variables).
+
+**Quick Configuration Examples**:
+
+```bash
+# Basic CPU setup (default)
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+
+# GPU acceleration with OpenVINO
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+export EMBEDDING_DEVICE=GPU
+export EMBEDDING_USE_OV=true
+
+# Custom OpenVINO cache directory
+export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0
+export EMBEDDING_OV_MODELS_DIR=/app/ov-models
+```
+
+**Key Environment Variables**:
+
+- **EMBEDDING_DEVICE**: `CPU` (default) or `GPU`.
+- **EMBEDDING_USE_OV**: Enable OpenVINO optimizations (`true`/`false`).
+- **EMBEDDING_OV_MODELS_DIR**: Persistent directory for converted models.
+
+Set the environment with default values by running:
+
+```bash
 source setup.sh
 ```
 
-**Important**: You must set `EMBEDDING_MODEL_NAME` before running `setup.sh`. See [Supported Models](supported-models.md) for available options.
+## Quick Start with Docker
 
-### 2. Configure Hardware (Optional)
+You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image as shown below.
+
+### Configure the registry
 
 ```bash
-# For GPU deployment (if Intel GPU available)
-export EMBEDDING_DEVICE="GPU"
-source setup.sh
-
-# Default is CPU deployment
+export REGISTRY_URL=intel
+export TAG=latest
 ```
 
-### 3. Run with Docker Compose
+## Running the Server with CPU
 
 ```bash
 docker compose -f docker/compose.yaml up -d
 ```
 
-### 4. Verify the Service
+Verify the deployment:
 
 ```bash
-# Health check
-curl http://localhost:9777/health
-
-# Test text embedding
-curl -X POST http://localhost:9777/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": {"type": "text", "text": "Hello world"},
-    "model": "'$EMBEDDING_MODEL_NAME'"
-  }'
+curl --location --request GET 'http://localhost:9777/health'
 ```
 
-## Quick API Test
+## Running the Server with GPU
 
-Once the service is running, test different input types:
+### 1. Configure GPU Device
 
 ```bash
-# Text embedding
-curl -X POST http://localhost:9777/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": {"type": "text", "text": "A beautiful sunset"},
-    "model": "'$EMBEDDING_MODEL_NAME'"
-  }'
+# Automatic GPU selection
+export EMBEDDING_DEVICE=GPU
 
-# Image URL embedding
-curl -X POST http://localhost:9777/embeddings \
-  -H "Content-Type: application/json" \
-  -d '{
-    "input": {"type": "image_url", "image_url": "https://example.com/image.jpg"},
-    "model": "'$EMBEDDING_MODEL_NAME'"
-  }'
+# Specific GPU index (if applicable)
+export EMBEDDING_DEVICE=GPU.0
 ```
 
-For complete API documentation, see [API Reference](api-reference.md).
-
-## Building from Source
-
-To build from source instead of using pre-built images:
+### 2. Run Setup Script
 
 ```bash
-docker compose -f docker/compose.yaml build
+source setup.sh
+```
+
+> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
+
+### 3. Start the Service
+
+```bash
 docker compose -f docker/compose.yaml up -d
 ```
 
-See [How to Build from Source](how-to-build-from-source.md) for detailed development instructions.
+### 4. Verify GPU Configuration
+
+```bash
+# Check service health
+curl --location --request GET 'http://localhost:9777/health'
+
+# Inspect active model capabilities
+curl --location --request GET 'http://localhost:9777/model/capabilities'
+```
+
+## Stop the Multimodal Embedding microservice
+
+```bash
+docker compose -f docker/compose.yaml down
+```
+
+## Sample CURL Commands
+
+The following samples mirror the accompanying Postman collection. All requests target `http://localhost:9777`.
+
+### Text Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "input": {
+    "type": "text",
+    "text": "Sample input text1"
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
+}'
+```
+
+### Document Embedding (multiple texts)
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "input": {
+    "type": "text",
+    "text": ["Sample input text1", "Sample input text2"]
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
+}'
+```
+
+### Image URL Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "input": {
+    "type": "image_url",
+    "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
+}'
+```
+
+### Image Base64 Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "image_base64",
+    "image_base64": "<image base64 value here>"
+  }
+}'
+```
+
+### Video Frames Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_frames",
+    "video_frames": [
+      {
+        "type": "image_url",
+        "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+      },
+      {
+        "type": "image_base64",
+        "image_base64": "<image base64 value here>"
+      }
+    ]
+  }
+}'
+```
+
+### Video URL Embedding (with segment config)
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_url",
+    "video_url": "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_10mb.mp4",
+    "segment_config": {
+      "startOffsetSec": 0,
+      "clip_duration": -1,
+      "num_frames": 64,
+      "frame_indexes": [1, 10, 20]
+    }
+  }
+}'
+```
+
+### Video Base64 Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_base64",
+    "segment_config": {
+      "startOffsetSec": 0,
+      "clip_duration": -1,
+      "num_frames": 64
+    },
+    "video_base64": "<video base64 value here>"
+  }
+}'
+```
+
+### Models, Current Model, and Capabilities
+
+```bash
+# List all available models
+curl --location --request GET 'http://localhost:9777/models'
+
+# Inspect the currently loaded model
+curl --location --request GET 'http://localhost:9777/model/current'
+
+# View modality support for the active model
+curl --location --request GET 'http://localhost:9777/model/capabilities'
+```
 
 ## Troubleshooting
 
-**Service fails to start:**
+1. **Docker container fails to start**
+  - Run `docker logs multimodal-embedding-serving` to inspect failures.
+  - Ensure required ports (default `9777`) are available.
 
-```bash
-docker logs multimodal-embedding-serving
-```
+2. **Cannot access the microservice**
+  - Confirm the containers are running:
 
-**Model not found:**
+    ```bash
+    docker ps
+    ```
 
-```bash
-# Check if model is supported
-echo $EMBEDDING_MODEL_NAME
+  - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
 
-# Set a supported model (see supported-models.md)
-export EMBEDDING_MODEL_NAME="your-chosen-model"
-source setup.sh
-```
+3. **GPU runtime errors**
+  - Check Intel GPU device nodes:
 
-**GPU issues:**
+    ```bash
+    ls -la /dev/dri
+    ```
 
-```bash
-# Check Intel GPU availability
-ls -la /dev/dri
-```
+  - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
 
-## Next Steps
+## Supporting Resources
 
-- [Quick Reference](quick-reference.md) - Essential commands and configurations
-- [API Reference](api-reference.md) - Complete API documentation
-- [SDK Usage](sdk-usage.md) - Direct Python integration
-- [Wheel Installation](wheel-installation.md) - Build and install as Python package
-- [Supported Models](supported-models.md) - Available models and configurations
+- [Overview](Overview.md)
+- [Supported Models](supported-models.md)
+- [API Reference](api-reference.md)
+- [SDK Usage](sdk-usage.md)
+- [How to Build from Source](how-to-build-from-source.md)
+- [System Requirements](system-requirements.md)
+- [Wheel Installation](wheel-installation.md)
