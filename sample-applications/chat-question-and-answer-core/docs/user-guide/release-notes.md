@@ -10,7 +10,6 @@
 
 ## Known Issues/Behavior (Consolidated):
 - Validation on the latest version of Edge Manageability Framework has not been done. Hence, Edge Manageability Framework should be considered as not supported. - Open
-- Helm deployment with GPU support has not been validated due to internal cluster node issues. GPU-specific configurations may require manual testing or adjustments until cluster stability is restored. - Open
 
 ## Previous Releases
 

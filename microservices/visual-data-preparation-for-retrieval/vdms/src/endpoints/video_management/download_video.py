@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 from fastapi.responses import StreamingResponse
 
 from src.common import DataPrepException, Strings, logger, settings
-from src.core.util import get_video_from_minio
+from src.core.utils.video_utils import get_video_from_minio
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Video Management APIs"])

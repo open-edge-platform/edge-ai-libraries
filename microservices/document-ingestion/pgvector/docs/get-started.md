@@ -160,30 +160,36 @@ source ./run.sh --purge
 
 Try uploading a sample PDF file and verify that the embeddings and files are stored. Run the commands from the same shell as where the environment variables are set.
 
-1. Download a sample PDF file:
+1. **Download a sample PDF file**:
+   Download a sample PDF document to test the file upload and embedding creation process.
     ```bash
     curl -LO https://github.com/py-pdf/sample-files/blob/main/001-trivial/minimal-document.pdf
     ```
 
-2. POST the file to create embedding and store in object storage.
+2. **Upload the file to create embedding and store in object storage**:
+   Submit the PDF file to the dataprep service for processing and storage.
    ```bash
    curl -X POST "http://${host_ip}:${DATAPREP_HOST_PORT}/documents" \
        -H "Content-Type: multipart/form-data" \
        -F "files=@./minimal-document.pdf"
    ```
 
-3. Verify whether embeddings were created and document was uploaded to object storage.
+3. **Verify the file was processed and stored**:
+   Retrieve a list of all files to confirm successful processing and storage.
     ```bash
     curl -X GET "http://${host_ip}:${DATAPREP_HOST_PORT}/documents"
     ```
    Expected output: A JSON response with details of the file should be printed.
 
-4.  Get the `bucket_name` and `file_name` from GET call response in step 3 and use it in the DELETE request below.
+4. **Delete the uploaded file**:
+   Remove the stored file from the system using the file details from step 3.
+   Get the `bucket_name` and `file_name` from GET call response in step 3 and use it in the DELETE request below.
     ```bash
     curl -X DELETE "http://${host_ip}:${DATAPREP_HOST_PORT}/documents?bucket_name=<bucket_name>&file_name=<file_name>"
     ```
 
-5. To clean-up, delete the sample pdf file.
+5. **Clean up the sample PDF file**:
+   Remove the downloaded PDF file from your local system.
    ```bash
    rm -rf ./minimal-document.pdf
    ```
@@ -194,18 +200,10 @@ Try uploading web page URLs and verify that the embeddings are created and store
 
  > **Note**: This URL ingestion microservice works best with pages that are not heavily reliant on JavaScript such as Wikipedia, which serve as ideal URL input sources. For JavaScript-intensive pages (social media feeds, Single Page Applications), the API may indicate a successful request but the actual content might not be captured. Such pages should be avoided or handled separately.
  
-1. **Get stored URLs**:
-   Retrieve a list of all URLs that have been processed and stored in the system.
-   ```bash
-   curl -X 'GET' \
-     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
-     -H 'accept: application/json'
-   ```
-
-2. **Upload URLs to create and store embeddings**:
+1. **Upload URLs to create and store embeddings**:
    Submit one or more URLs to be processed for embedding creation.
    ```bash
-   curl -X 'POST' \
+   curl -X POST \
      "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
      -H 'accept: application/json' \
      -H 'Content-Type: application/json' \
@@ -215,25 +213,30 @@ Try uploading web page URLs and verify that the embeddings are created and store
    ]'
    ```
 
-3. **Verify the URLs were processed**:
-   Check that the URLs were successfully processed and stored.
+2. **Verify the URLs were processed and stored**:
+   Retrieve a list of all URLs that have been processed and stored in the system to confirm successful processing.
    ```bash
-   curl -X 'GET' \
+   curl -X GET \
      "http://${host_ip}:${DATAPREP_HOST_PORT}/urls" \
      -H 'accept: application/json'
    ```
    Expected output: A JSON response with the list of processed URLs should be printed.
 
-4. **Delete a specific URL or all URLs**:
-   Get the URL from the GET call response in step 3 and use it in the DELETE request below.
+3. **Delete a specific URL**:
+   Get the URL from the GET call response in step 2 and use it in the DELETE request below.
    ```bash
-   curl -X 'DELETE' \
+   curl -X DELETE \
      "http://${host_ip}:${DATAPREP_HOST_PORT}/urls?url=<url_to_be_deleted>&delete_all=false" \
      -H 'accept: */*'
    ```
 
-   **Note**:
-   - Optionally set `delete_all=true` if you want to delete all URLs from the database instead of a specific URL
+4. **Delete all URLs**:
+   To remove all URLs from the database at once:
+   ```bash
+   curl -X DELETE \
+     "http://${host_ip}:${DATAPREP_HOST_PORT}/urls?delete_all=true" \
+     -H 'accept: */*'
+   ```
 
 ## Advanced Setup Options
 

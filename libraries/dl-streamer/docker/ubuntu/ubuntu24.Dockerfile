@@ -10,17 +10,17 @@
 #                     |
 #                     |
 #                     V
-#                  builder
-#                 /       \
-#                /         \
-#               V           |
-#      gstreamer-builder  opencv-builder
-#               |           |
-#               |           |
-#    (copy libs) \          | (copy libs)
-#                 \         |
-#                  V        V
-#                dlstreamer-dev
+#                  builder --------------------------
+#                 /       \                         |
+#                /         \                        |
+#               V           |                       V
+#      gstreamer-builder  opencv-builder      realsense-builder
+#               |           |                       |
+#               |           |                       |
+#    (copy libs) \          | (copy libs)           |
+#                 \         |                       |
+#                  V        V        (copy libs)    |
+#                dlstreamer-dev <-------------------|
 #                      |
 #                      |
 #                      V
@@ -41,6 +41,7 @@ LABEL vendor="Intel Corporation"
 
 ARG GST_VERSION=1.26.6
 ARG OPENVINO_VERSION=2025.3.0
+ARG REALSENSE_VERSION=v2.57.4
 
 ARG DLSTREAMER_VERSION=2025.1.2
 ARG DLSTREAMER_BUILD_NUMBER
@@ -62,24 +63,22 @@ RUN \
 
 # Intel GPU client drivers and prerequisites installation
 RUN \
-    curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
-    gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" |\
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
-
-RUN \
     apt-get update && \
-    apt-get install --allow-downgrades -y -q --no-install-recommends libze-intel-gpu1=\* libze1=\* \
-    intel-media-va-driver-non-free=\* intel-gsc=\* intel-opencl-icd=25.05.32567.19-1099~24.04 && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends software-properties-common=\* && \
+    add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+    apt-get update && \
+    echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    intel-metrics-discovery=\* intel-gsc=\* libvpl2=\* \
+    libze-intel-gpu1=25.31.34666.3-1~24.04~ppa2 libze1=1.23.1-1~24.04~ppa1 intel-opencl-icd=25.31.34666.3-1~24.04~ppa2 clinfo=3.0.23.01.25-1build1 \
+    intel-media-va-driver-non-free=25.3.2-0ubuntu1~24.04~ppa1 libmfx-gen1=25.3.1-0ubuntu1~24.04~ppa1 libvpl-tools=1.4.0-0ubuntu1~24.04~ppa1 libva-glx2=2.22.0-1ubuntu1~24.04~ppa1 va-driver-all=2.22.0-1ubuntu1~24.04~ppa1 vainfo=2.22.0-0ubuntu1~24.04~ppa1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
 
-RUN curl -LO https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
-    dpkg -i level-zero_1.22.4+u24.04_amd64.deb && \
-    curl -LO https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
+RUN curl -LO https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
     tar -xf linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
     dpkg -i ./*.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/npu_deps
@@ -303,21 +302,14 @@ RUN \
     strip -g "${GSTREAMER_DIR}"/lib/gstreamer-1.0/libgstrs*.so
 
 # ==============================================================================
-FROM builder AS dlstreamer-dev
 
-# DL Streamer development image and build proccess
-
+FROM builder AS realsense-builder
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
-
-COPY --from=opencv-builder /usr/local/include/opencv4 /usr/local/include/opencv4
-COPY --from=opencv-builder /copy_libs/ /usr/local/lib/
-COPY --from=opencv-builder /usr/local/lib/cmake/opencv4 /usr/local/lib/cmake/opencv4
-COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
 
 # Build librealsense
 WORKDIR /home/dlstreamer
 
-RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev libusb-1.0-0-dev libudev-dev pkg-config libgtk-3-dev && \
+RUN apt-get update && apt-get install -y --no-install-recommends libssl-dev=\* libusb-1.0-0-dev=\* libudev-dev=\* pkg-config=\* libgtk-3-dev=\* && \
     apt-get clean && \
     rm -rf /var/lib/apt/lists/*
 
@@ -330,9 +322,28 @@ RUN mkdir build
 WORKDIR /home/dlstreamer/librealsense/build
 
 RUN \
+    git switch -c "$REALSENSE_VERSION" "tags/$REALSENSE_VERSION" && \
     cmake ../ -DCMAKE_BUILD_TYPE="${BUILD_ARG}" -DBUILD_EXAMPLES=false -DBUILD_GRAPHICAL_EXAMPLES=false && \
     make -j "$(nproc)" && \
     make install
+
+WORKDIR /copy_libs
+RUN cp -a /usr/local/lib/librealsense* ./
+
+# ==============================================================================
+
+FROM builder AS dlstreamer-dev
+
+# DL Streamer development image and build proccess
+
+SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
+
+COPY --from=opencv-builder /usr/local/include/opencv4 /usr/local/include/opencv4
+COPY --from=opencv-builder /copy_libs/ /usr/local/lib/
+COPY --from=opencv-builder /usr/local/lib/cmake/opencv4 /usr/local/lib/cmake/opencv4
+COPY --from=gstreamer-builder ${GSTREAMER_DIR} ${GSTREAMER_DIR}
+COPY --from=realsense-builder /copy_libs/ /usr/local/lib/
+COPY --from=realsense-builder /usr/local/include/librealsense2 /usr/local/include/librealsense2
 
 # Build DL Streamer
 WORKDIR /home/dlstreamer
@@ -381,6 +392,7 @@ ENV GI_TYPELIB_PATH=${GSTREAMER_DIR}/lib/girepository-1.0
 ENV PYTHONPATH=${GSTREAMER_DIR}/lib/python3/dist-packages:${DLSTREAMER_DIR}/python:${PYTHONPATH}
 
 # Build DLStreamer
+# hadolint ignore=SC1091
 RUN \
     source /opt/intel/openvino_genai/setupvars.sh && \
     cmake \
@@ -419,6 +431,7 @@ RUN \
     mkdir -p /deb-pkg/usr/lib/ && \
     mkdir -p /deb-pkg/opt/intel/ && \
     mkdir -p /deb-pkg/opt/opencv/include && \
+    mkdir -p /deb-pkg/opt/librealsense/ && \
     find /opt/intel/openvino_genai -regex '.*\/lib.*\(genai\|token\).*$' -exec cp -a {} /deb-pkg/usr/lib/ \; && \
     cp -r "${DLSTREAMER_DIR}/build/intel64/${BUILD_ARG}" /deb-pkg/opt/intel/dlstreamer && \
     cp -r "${DLSTREAMER_DIR}/samples/" /deb-pkg/opt/intel/dlstreamer/ && \
@@ -429,6 +442,7 @@ RUN \
     cp -rT "${GSTREAMER_DIR}" /deb-pkg/opt/intel/dlstreamer/gstreamer && \
     cp -a /usr/local/lib/libopencv*.so* /deb-pkg/opt/opencv/ && \
     cp -r /usr/local/include/opencv4/* /deb-pkg/opt/opencv/include && \
+    cp -a /usr/local/lib/librealsense* /deb-pkg/opt/librealsense/ && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/archived && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docker && \
     rm -rf /deb-pkg/opt/intel/dlstreamer/docs && \
@@ -472,24 +486,22 @@ RUN \
 # As clean ubuntu image is used, we need to install GPU and NPU on this image as well
 # Intel GPU client drivers and prerequisites installation
 RUN \
-    curl -fsSL https://repositories.intel.com/gpu/intel-graphics.key | \
-    gpg --dearmor -o /usr/share/keyrings/intel-graphics.gpg && \
-    echo "deb [arch=amd64 signed-by=/usr/share/keyrings/intel-graphics.gpg] https://repositories.intel.com/gpu/ubuntu noble unified" | \
-    tee /etc/apt/sources.list.d/intel-gpu-noble.list
-
-RUN \
     apt-get update && \
-    apt-get install --allow-downgrades -y -q --no-install-recommends libze-intel-gpu1=\* libze1=\* \
-    intel-media-va-driver-non-free=\* intel-gsc=\* intel-opencl-icd=25.05.32567.19-1099~24.04 && \
-    apt-get clean && \
+    apt-get install -y --no-install-recommends software-properties-common=\* && \
+    add-apt-repository -y ppa:kobuk-team/intel-graphics && \
+    apt-get update && \
+    echo "Snapshot: 20250911T030400Z" >> /etc/apt/sources.list.d/kobuk-team-ubuntu-intel-graphics-noble.sources && \
+    apt-get update && \
+    apt-get install -y --no-install-recommends \
+    intel-metrics-discovery=\* intel-gsc=\* libvpl2=\* \
+    libze-intel-gpu1=25.31.34666.3-1~24.04~ppa2 libze1=1.23.1-1~24.04~ppa1 intel-opencl-icd=25.31.34666.3-1~24.04~ppa2 clinfo=3.0.23.01.25-1build1 \
+    intel-media-va-driver-non-free=25.3.2-0ubuntu1~24.04~ppa1 libmfx-gen1=25.3.1-0ubuntu1~24.04~ppa1 libvpl-tools=1.4.0-0ubuntu1~24.04~ppa1 libva-glx2=2.22.0-1ubuntu1~24.04~ppa1 va-driver-all=2.22.0-1ubuntu1~24.04~ppa1 vainfo=2.22.0-0ubuntu1~24.04~ppa1 && \
     rm -rf /var/lib/apt/lists/*
 
 # Intel NPU drivers and prerequisites installation
 WORKDIR /tmp/npu_deps
 
-RUN curl -LO https://github.com/oneapi-src/level-zero/releases/download/v1.22.4/level-zero_1.22.4+u24.04_amd64.deb && \
-    dpkg -i level-zero_1.22.4+u24.04_amd64.deb && \
-    curl -LO https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
+RUN curl -LO https://github.com/intel/linux-npu-driver/releases/download/v1.23.0/linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
     tar -xf linux-npu-driver-v1.23.0.20250827-17270089246-ubuntu2404.tar.gz && \
     dpkg -i ./*.deb && \
     rm -rf /var/lib/apt/lists/* /tmp/npu_deps
@@ -518,8 +530,8 @@ RUN \
 
 # DL Streamer environment variables
 ENV LIBVA_DRIVER_NAME=iHD
-ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/:
-ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/opt/opencv:/usr/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
+ENV GST_PLUGIN_PATH=/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/gstreamer/lib/gstreamer-1.0:/opt/intel/dlstreamer/gstreamer/lib/
+ENV LD_LIBRARY_PATH=/opt/intel/dlstreamer/gstreamer/lib:/opt/intel/dlstreamer/lib:/opt/intel/dlstreamer/lib/gstreamer-1.0:/opt/opencv:/opt/librealsense:/usr/lib:/usr/local/lib/gstreamer-1.0:/usr/local/lib
 ENV LIBVA_DRIVERS_PATH=/usr/lib/x86_64-linux-gnu/dri
 ENV GST_VA_ALL_DRIVERS=1
 ENV MODEL_PROC_PATH=/opt/intel/dlstreamer/samples/gstreamer/model_proc

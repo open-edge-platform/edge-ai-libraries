@@ -61,4 +61,4 @@ Output can be viewed on MQTT subscriber as shown below.
 docker run -it --entrypoint mosquitto_sub eclipse-mosquitto:latest --topic pallet_defect_detection -p 1883 -h <SYSTEM_IP_ADDRESS>
 ```
 
-For more details on MQTT you can refer this [document](./advanced-guide/detailed_usage/publisher/eis_mqtt_publish_doc.md)
+For more details on MQTT you can refer this [document](./advanced-guide/detailed_usage/publisher/mqtt_publish.md)
