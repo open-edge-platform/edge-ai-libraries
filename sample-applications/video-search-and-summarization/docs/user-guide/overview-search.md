@@ -1,51 +1,58 @@
 # Video Search Overview
 
-Video Search using multimodal embedding models leverages generative AI for enabling natural language querying of video content. By combining contextual and perceptual understanding, Video Search can interpret and respond to user queries with high accuracy. The system now incorporates agentic reasoning, allowing it to decompose and process complex queries, generate and track events, and orchestrate multi-step retrievals across video corpora. This enables users to search for specific information or patterns within a video collection, including private video archives, using natural language—even for open-ended or multi-part queries. The technology can execute these queries in the background, raising events or notifications when a successful match is found. By integrating visual, audio, and textual data, and supporting agentic reasoning, the application delivers a more intuitive, powerful, and efficient video search experience suitable for use cases such as video forensics, media analysis, content management, and personalized recommendations.
+You can search through videos using natural language, where the search is done in the background. When the Video Search pipeline finds a match, it raises events or notifications. The Video Search mode uses multimodal embedding and agentic reasoning, which improves accuracy and efficiency. Example use cases are video forensics, media analysis, content management, and personalized recommendations.
 
-Video Search is a foundational retrieval-augmented generation (RAG) pipeline for video data that allows for natural-language based interaction on a given video corpus. The application demonstrates that a rich experience can be built using a cost-efficient portfolio of Intel® AI systems and using Intel's edge AI microservices catalog. The Video Search pipeline simplifies the development, customization, and deployment of Video Search applications in diverse deployment scenarios with out-of-the-box support for on-premises and edge environments.
+The Video Search mode uses a foundational retrieval-augmented generation (RAG) pipeline for video data. The Video Search mode provides a rich response by using Intel's AI systems and Intel's Edge AI microservices catalog. 
+
+You can develop, customize, and deploy Video Summarization solutions in diverse deployment scenarios with out-of-the-box support for on-premise and edge environments.
+
+The following is the Video Search mode UI:
 
 ![Video Search web interface](./images/VideoSearch_Webpage.png)
 
 ## Purpose
 
-The Video Search pipeline is designed to:
-- Demonstrate how you can use Intel's Edge AI catalog of inference microservices to quickly build and deploy on Intel's Edge AI systems portfolios. 
-- Serve as a blueprint for building similar scalable and modular solutions that can be deployed on Intel's Edge AI systems.
-- Showcase how popular frameworks like LangChain framework can be used to quickly implement or customize a Video Search pipeline and deploy the same on Intel's Edge AI systems.
-- Showcase the competitiveness of Intel's Edge AI systems to address varied deployment scenario requirements (edge-to-cloud).
-- Provide reference sample microservices for capabilities like video ingestion and UI frontend that reduces the effort to customize the application.
+The Video Search mode:
+
+- Allows you to build the video search pipeline quickly through Intel’s Edge AI catalog of inference microservices. The inference microservices are optimized for Intel’s Edge AI systems.
+
+- Serves as a blueprint for building similar scalable and modular solutions that can be deployed on Intel’s Edge AI systems.
+
+- Showcases the competitiveness of Intel’s Edge AI systems to address varied deployment scenarios, from the edge to the cloud.
+
+- Provide reference sample microservices for capabilities like video ingestion and UI frontend, which reduces the effort to customize the application.
+
+- Showcase how popular frameworks like the LangChain framework can be used to implement or customize the Video Search pipeline quickly and deploy the pipeline on Intel’s Edge AI systems.
 
 ## Key Features
 
-Key features include:
+- User-Friendly and Intuitive: You can use natural language through the easy-to-use interface to search.
+	
+- Richer contextual and perceptual understanding: The Video Search mode provides a richer contextual and perceptual understanding of the video through multimodal embedding.
+	
+- Optimized systems: The pipeline runs on Intel’s Edge AI systems, ensuring high performance, reliability, and low cost of ownership. See [system requirements](./system-requirements.md) for the list of hardware on which the pipeline is validated and optimized.
 
-- **Rich Video Search pipeline**: The application provides a host of capabilities that can be used to influence the response given to an user query, qualitatively. The capabilities help with richer contextual and perceptual understanding of the video. Example: Combining the audio and visual contents of the video for richer context. 
+- Flexible Deployment Options: You can choose the deployment environment, for example, deploying using the Docker Compose tool and Helm charts.
 
-- **Natural Language Querying**: The application enables users to search for or query video content using natural-language queries, making the search process intuitive and user-friendly.
+- Support for open-source Models:You can use the desired generative AI models, for example, VLM and embeddings. The Video Search pipeline supports various open-source models, for example the [Hugging Face Hub models that integrate with OpenVINO™ toolkit], allowing developers to select the best models for their use cases.
 
-- **Optimized pipeline on Intel Edge® AI Systems hardware**: The application is optimized to run efficiently on Intel's Edge AI systems, ensuring high performance, reliability, and cost of ownership. Refer to [system requirements](./system-requirements.md) for the list of hardware on which the pipeline is validated and optimized.
+- Self-Hosting:You can perform the inference locally or on-premises, ensuring data privacy and reducing latency.
 
-- **Customizable pipeline with optimized microservices**: The application allows for customization of various components of the pipeline, such as video ingestion, model selection, and deployment options to suit specific use cases and deployment scenarios. Intel's Edge AI inference microservices allow developers to customize and adapt specific parts of the application to suit their deployment and usage needs. Intel's inference microservices provide the flexibility to tailor the application for specific deployment scenarios and usage requirements without compromising performance on the given deployment hardware.
+- Observability and monitoring: The application provides observability and monitoring capabilities using [OpenTelemetry\* APIs, SDKs, and tools](https://opentelemetry.io/) & [OpenLIT platform](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
 
-- **Flexible deployment options**: The application provides options for deployment using Docker\* Compose tool and Helm\* charts, enabling developers to choose the best deployment environment for their needs.
+- Agentic Reasoning and Event Generation: The Video Search pipeline decomposes user queries, plans and executes multi-stage retrievals, and generates or tracks events based on query results. When a match is found, the application raises events or notifications.
 
-- **Support for a wide range of open-source models**: Intel's inference microservices provide flexibility to use the right generative AI models (for example, VLM and embeddings) as required for the target usage. The application supports various [open-source models](https://huggingface.co/OpenVINO), allowing developers to select the best models for their use cases.
-
-- **Self-hosting inference**: Perform inference locally or on-premises, ensuring data privacy and reducing latency.
-
-- **Observability and monitoring**: The application provides observability and monitoring capabilities using [OpenTelemetry\* APIs, SDKs, and tools](https://opentelemetry.io/) & [OpenLIT platform](https://github.com/openlit/openlit), enabling developers to monitor the application's performance and health in real-time.
-
-- **User-Friendly Interface**: The application provides a reference intuitive and easy-to-use interface for users to interact with the Video Search application.
-
-- **Agentic Reasoning and Event Generation**: The application incorporates agentic reasoning to handle complex, multi-step, or open-ended queries. It can decompose user queries, plan and execute multi-stage retrievals, and generate or track events based on query results. The system is capable of running these queries in the background and raising notifications or events when a successful match is found, enabling proactive and context-aware video analytics.
+- Customizable: You can customize components of the pipeline, for example, video ingestion, model selection, and deployment options. You can also customize Intel’s Edge AI inference microservices.
 
 ## How to Use the Application Effectively
 
-The Video Search pipeline consists of two main functionalities:
+The Video Search mode consists of two main functionalities:
 
-- **Video Ingestion (Knowledge Building)**: This part is responsible for adding videos to the application instance. The video ingestion microservice allows ingestion of common video formats. The ingestion process creates the embeddings of the videos using the embedding microservice, and stores them in the preferred vector database. The modular architecture allows users to customize the vector database. 
+1. The Video Ingestion functionality uses the Video Ingestion microservice that supports common video formats, to add videos to the application. The ingestion uses the Embedding microservice to create video embeddings, and stores the video embeddings in the preferred vector database. The modular architecture allows you to customize the vector database.
 
-- **Generation (Search results)**: This part allows the user to query the video database and generate responses. The VLM inference microservice, embedding inference microservice, and reranking microservice work together to provide accurate and efficient answers to user queries. When a user submits a question, the embedding model transforms it into an embedding, enabling semantic comparison with stored document embeddings. The vector database searches for relevant embeddings, returning a ranked list of documents based on semantic similarity. The VLM inference microservice generates a context-aware response from the final set of ranked videos.
+2. Generation (Search Results): The Generation functionality allows you to query the video database and generate responses. The VLM inference microservice, embedding inference microservice, and reranking microservice work together to provide accurate and efficient answers to user queries. 
+
+   When you submit a question, the embedding model transforms it into an embedding, enabling semantic comparison with stored document embeddings. The vector database searches for relevant embeddings, returning a ranked list of documents based on semantic similarity. The VLM inference microservice generates a context-aware response from the final set of ranked videos.
 
 To use the application:
 

@@ -152,7 +152,17 @@ kubectl get services -n <your-namespace>
 
 ### Step 7: Access the Application
 
-Open the UI in a browser at `http://<node-ip>:<ui-node-port>`
+Nginx service running as a reverse proxy in one of the pods, helps us to access the application. We need to get Host IP and Port on the node where the nginx service is running.
+
+Run the following command and replace <$my_namespace> with your own namespace to get the host IP of the node and port exposed by Nginx service:
+
+```bash
+chatqna_hostip=$(kubectl get pods -l app=chatqna-core-nginx -n $my_namespace -o jsonpath='{.items[0].status.hostIP}')
+chatqna_port=$(kubectl get service chatqna-core-nginx -n $my_namespace -o jsonpath='{.spec.ports[0].nodePort}')
+echo "http://${chatqna_hostip}:${chatqna_port}"
+```
+
+Copy the output of the above bash snippet and paste it into your browser to access the application UI.
 
 ### Step 8: Update Helm Dependencies
 

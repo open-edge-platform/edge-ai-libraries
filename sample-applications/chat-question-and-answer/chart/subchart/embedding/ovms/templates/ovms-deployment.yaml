@@ -78,9 +78,6 @@ spec:
               {{ .Values.global.gpu.key}}: 1
             limits:
               {{ .Values.global.gpu.key}}: 1
-          devices:
-            - name: dri-device
-              containerPath: /dev/dri
           securityContext:
             privileged: true
             runAsUser: 0
