@@ -128,11 +128,11 @@ class LLM:
                 return content
 
             except Exception as e:
-                logger.debug(f"ERROR in API call (attempt {retry_count+1}): {str(e)}")
+                logger.error(f"ERROR in API call(URL: {self.base_url}) (attempt {retry_count+1}): {str(e)}")
                 retry_count += 1
                 if retry_count >= self.max_retries:
-                    error_msg = f"Error: API call failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.debug(error_msg)
+                    error_msg = f"Error: API call(URL: {self.base_url}) failed after {self.max_retries} attempts. Last error: {str(e)}"
+                    logger.error(error_msg)
                     return error_msg
                 
     async def _async_remote_infer(self, messages: List[Dict[str, Any]]) -> str:
@@ -164,11 +164,11 @@ class LLM:
                 return content
 
             except Exception as e:
-                logger.debug(f"ERROR in async API call (attempt {retry_count+1}): {str(e)}")
+                logger.error(f"ERROR in async API call (attempt {retry_count+1}): {str(e)}")
                 retry_count += 1
                 if retry_count >= self.max_retries:
                     error_msg = f"Error: API call failed after {self.max_retries} attempts. Last error: {str(e)}"
-                    logger.debug(error_msg)
+                    logger.error(error_msg)
                     return error_msg
                 # Wait before retrying
                 await asyncio.sleep(1)

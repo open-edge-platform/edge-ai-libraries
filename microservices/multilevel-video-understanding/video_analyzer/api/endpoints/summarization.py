@@ -114,7 +114,7 @@ async def summarize_video(
     except Exception as e:
         error_details = traceback.format_exc()
         logger.error(f"Summarization failed: {str(e)}")
-        logger.debug(f"Error details: {error_details}")
+        logger.error(f"Error details: {error_details}")
         
         raise HTTPException(
             status_code=status.HTTP_500_INTERNAL_SERVER_ERROR,
