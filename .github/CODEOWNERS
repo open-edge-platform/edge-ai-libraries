@@ -17,12 +17,13 @@ README.md           @xwu2intel
 /microservices/audio-analyzer/                         @bhardwaj-nakul @bharagha @krish918 @yogeshmpandey
 /microservices/dlstreamer-pipeline-server/             @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni
 /microservices/document-ingestion/                     @bharagha @madhuri-rai07 @yogeshmpandey
-# lack of owners - /microservices/model-registry/
+/microservices/model-registry/                         @bharagha @madhuri-rai07 @14pankaj
 /microservices/multimodal-embedding-serving/           @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
 /microservices/time-series-analytics/                  @vkb1 @sathyendranv @pooja-intel @SudarshanaPanda @rashmihe
 /microservices/vector-retriever/                       @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/visual-data-preparation-for-retrieval/  @bhardwaj-nakul @krish918 @llin60 @zhangcong2019
 /microservices/vlm-openvino-serving/                   @bhardwaj-nakul @bharagha @yogeshmpandey @llin60
+/microservices/model-download/                         @bharagha @madhuri-rai07 @14pankaj
 # this folder appears in 1.0.0 last
 /microservices/object-store/                           @bharagha @madhuri-rai07 @yogeshmpandey
 /microservices/multilevel-video-understanding/	       @Johere @zhangcong2019 @llin60
