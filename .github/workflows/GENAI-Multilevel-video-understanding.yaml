@@ -135,3 +135,48 @@ jobs:
         with:
           name: clamav-report-multilevel-video-understanding
           path: security-results/clamav*
+
+
+  coverity-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:        
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false   
+
+      - name: Build with Coverity Analysis
+        run: |
+          wget --quiet https://scan.coverity.com/download/linux64 \
+            --post-data "token=${{ secrets.MVU_COVERITY_TOKEN }}&project=${{ secrets.MVU_COVERITY_PROJECT }}" \
+            -O coverity_tool.tgz
+          mkdir -p cov-analysis
+          tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
+          COV_PATH="$(pwd)/cov-analysis/bin"
+          export PATH="$COV_PATH:$PATH"
+          cd microservices/multilevel-video-understanding
+          coverity capture --dir cov-int --project-dir ./
+          
+      - name: Create tarball for upload
+        run: |
+          cd microservices/multilevel-video-understanding
+          tar -czvf coverity_output.tgz -C . cov-int
+          # Verify tarball contents
+          echo "=== Tarball Contents ==="
+          tar tzvf coverity_output.tgz
+          echo "=== head ==="
+          tar -tzvf coverity_output.tgz | head
+          
+      - name: Upload to Coverity Scan
+        run: |
+          cd microservices/multilevel-video-understanding
+          curl --form token=${{ secrets.MVU_COVERITY_TOKEN }} \
+               --form email=${{ secrets.MVU_COVERITY_EMAIL }} \
+               --form file=@coverity_output.tgz \
+               --form version="`date +%Y%m%d%H%M%S`" \
+               --form description="GitHub Action upload" \
+               https://scan.coverity.com/builds?project=${{ secrets.MVU_COVERITY_PROJECT }}
+
+
