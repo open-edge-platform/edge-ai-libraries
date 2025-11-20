@@ -2,20 +2,21 @@
 
 ## Current Release
 
-**Version**: rc1.3.2 \
-**Release Date**: 14 Nov 2025  
+**Version**: rc1.3.3 \
+**Release Date**: 20 Nov 2025  
 
 **Features**:
 
-- **Update VSS Helm chart configurations and dependencies for updated microservice dataprep, MME, search-ms**
-  - Added environment variables for embedding model configuration in multiple YAML files.
-  - Updated image tags for various components to version 1.3.0.
-  - Enhanced deployment configurations for multimodal embedding and VDMS DataPrep.
-  - Improved documentation for embedding model settings and deployment instructions.
-
-- Video_Summary: Link to Multimodal embedding models are missing in the getting started guide
-- Video_Search: Change in models with different embedding dimension results in no video search
-- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving doesnt run
+- [VLM] Added cleanup helpers so every request releases OpenVINO infer requests; streaming responses call this once the event stream finishes to release resource and merge back the threads.
+- Sanity on user_override_variables.yaml file in VSS helm chart.
+- Updated the VLM, MME, VDMS-Dataprep docs to enable user to download public docker image and
+- added notes on embedding model selection for Helm charts.
+- Exposed the env variable `MAX_CONTEXT_LENGTH` to enable user to override this value for setting LLM model context length.
+- Sanity on some deprecated field in helm which previously treat as Warning but now it have been treated as ERROR in latest helm version.
+- Removed failed search queries from search left column.
+- Fixed search UI checkbox selection/deselection issue.
+- Fixed VSS video upload streamable mp4 error message.
+- Documentations updates and some other required setup-script/code fixes to be able to build standalone Audio-Analyzer image and run/use it without any external dependency (like minio etc.
 
 **HW used for validation**:
 
@@ -36,6 +37,27 @@
 
 
 ## Previous releases
+
+**Version**: rc1.3.2 \
+**Release Date**: 14 Nov 2025  
+
+**Features**:
+
+- **Update VSS Helm chart configurations and dependencies for updated microservice dataprep, MME, search-ms**
+  - Added environment variables for embedding model configuration in multiple YAML files.
+  - Updated image tags for various components to version 1.3.0.
+  - Enhanced deployment configurations for multimodal embedding and VDMS DataPrep.
+  - Improved documentation for embedding model settings and deployment instructions.
+
+- Video_Summary: Link to Multimodal embedding models are missing in the getting started guide
+- Video_Search: Change in models with different embedding dimension results in no video search
+- Video_Summary: When Video search is deployed with embedding model as Blip2/blip2_feature_extractor, Multimodal embedding serving doesnt run
+
+**HW used for validation**:
+
+- Intel® Xeon® 5 + Intel® Arc&trade; B580 GPU
+- Vanilla Kubernetes Cluster
+
 
 **Version**: 1.3.0 \
 **Release Date**: 14 Nov 2025  
