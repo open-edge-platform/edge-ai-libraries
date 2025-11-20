@@ -24,41 +24,43 @@ The following environment variables can be configured:
 - `UPLOAD_DIR`: Directory for uploaded files (default: /tmp/audio-analyzer/uploads)
 - `OUTPUT_DIR`: Directory for transcription output (default: /tmp/audio-analyzer/transcripts)
 - `ENABLED_WHISPER_MODELS`: Comma-separated list of Whisper models to enable and download
-- `DEFAULT_WHISPER_MODEL`: Default Whisper model to use (default: tiny.en or first available model)
+- `DEFAULT_WHISPER_MODEL`: Default Whisper model to use if a model name is not provided explicitly (default: tiny.en or first model from ENABLED_WHISPER_MODELS list, if tiny.en is not available)
 - `GGML_MODEL_DIR`: Directory for downloading GGML models (for CPU inference)
 - `OPENVINO_MODEL_DIR`: Directory for storing OpenVINO optimized models (for GPU inference)
 - `LANGUAGE`: Language code for transcription (default: None, auto-detect)
 - `MAX_FILE_SIZE`: Maximum allowed file size in bytes (default: 100MB)
 - `DEFAULT_DEVICE`: Device to use for transcription - 'cpu', 'gpu', or 'auto' (default: cpu)
 - `USE_FP16`: Use half-precision (FP16) for GPU inference (default: True)
+- `STORAGE_BACKEND`: Storage backend to use - 'minio' or 'filesystem'.
 
 **MinIO Configuration**
-- `STORAGE_BACKEND`: Storage backend to use - 'minio' or 'filesystem' (default: minio)
-- `MINIO_ENDPOINT`: MinIO server endpoint (default: minio:9000 in Docker, localhost:9000 on host)
-- `MINIO_ACCESS_KEY`: MinIO access key used as login username (default for docker setup: minioadmin)
-- `MINIO_SECRET_KEY`: MinIO secret key used as login password (default for docker setup: minioadmin)
+- `MINIO_ENDPOINT`: MinIO server endpoint (default: `minio:9000` in Docker setup script)
+- `MINIO_ACCESS_KEY`: MinIO access key used as login username
+- `MINIO_SECRET_KEY`: MinIO secret key used as login password
 
 ## Setup the Storage backends
 
 The service supports two storage backends for source video files and transcript output:
 
-- **MinIO** (default): Store transcripts in a MinIO bucket
-- **Filesystem**: Store transcripts on the local filesystem. The API service runs standalone and will not have any dependency.
+- **MinIO** : Store transcripts in a MinIO bucket. (Default value when Docker setup script is used)
+- **Filesystem**: Store transcripts on the local filesystem. The API service will not have any external storage dependency. (Default value when application runs in [standalone mode](#standalone-setup-in-docker-container).)
 
-The Docker setup for Audio Analyzer has **local filesystem** as default storage backend. You can configure the storage backend using the `STORAGE_BACKEND` environment variable:
+The Docker setup script `setup_docker.sh` has **minio** as default storage backend. You can override the default value by setting `STORAGE_BACKEND` environment variable:
 
 For Minio Storage:
 ```bash
 export STORAGE_BACKEND=minio
 ```
 
-For Local filesystem storage (Default for Docker Setup):
+For Local filesystem storage:
 ```bash
 export STORAGE_BACKEND=local
 ```
 
+On the other hand, the host setup script `setup_host.sh` uses **local** filesystem as the only storage backend available. 
+
 ## MinIO integration
-The service now supports MinIO object storage integration for:
+The service supports MinIO object storage integration for:
 
 1. **Video Source**: Fetch videos from a MinIO bucket instead of direct uploads
 2. **Transcript Storage**: Store transcription outputs (SRT/TXT) in a MinIO bucket
@@ -76,43 +78,56 @@ export MINIO_SECRET_KEY=<your-minio-password>
 ## Models Selection
 Refer to [supported models](./Overview.md#models-supported) for the list of models that can be used for transcription. You can specify which models to enable through the `ENABLED_WHISPER_MODELS` environment variable.
 
-# Quick Start with Docker
+# Quick Start
 
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
+User has following different options to start and use the application :
 
-1. Pull public image for Audio-Analyzer Microservice:
+- [Build the image and run using Docker script](./how-to-build-from-source.md#build-and-run-using-docker-script). Docker script helps build images for application and any required dependency and deploy the application. Default storage backend used here is `minio` but can be updated to use `local` storage backend.
+- [Use pre-built image for standalone setup](#standalone-setup-in-docker-container). Standalone setup has no external dependency. Default and recommended storage backend: `local`.
+- [Build and setup on host using setup script](./how-to-build-from-source.md#setup-and-run-on-host-using-setup-script). Only storage backend available: `local`
+- [Build and setup on host manually](#manual-host-setup-using-poetry). Default storage backend used is `local` but can be configured to use `minio` storage backend.
+
+
+## Standalone Setup in Docker Container
+
+1. Set the registry and tag for the public image to be pulled.
 
     ```bash
-    docker pull intel/audio-analyzer:latest
+    export REGISTRY=intel/
+    export TAG=latest
     ```
-2. Set the required environment variables:
+2. Pull public image for Audio Analyzer Microservice:
+
+    ```bash
+    docker pull ${REGISTRY}audio-analyzer:${TAG:-latest}
+    ```
+3. Set the required environment variables:
 
     ```bash
     export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
-    export DEFAULT_WHISPER_MODEL=tiny.en
     ```
 
-3. Set and create the directory in filesystem where transcripts will be stored:
+4. Set and create the directory in filesystem where transcripts will be stored:
 
     ```bash
     export AUDIO_ANALYZER_DIR=~/audio_analyzer_data
     mkdir $AUDIO_ANALYZER_DIR
     ```
 
-4. Stop any existing Audio-Analyzer container (if any):
+5. Stop any existing Audio-Analyzer container (if any):
 
     ```bash
     docker stop audioanalyzer
     ```
 
-5. Run the Audio-Analyzer Microservice:
+6. Run the Audio-Analyzer Microservice:
 
     ```bash
-    # Run audio-analyzer with a randomly assigned port
+    # Run Audio Analyzer application container exposed on a randomly assigned port
     docker run --rm -d -P -v $AUDIO_ANALYZER_DIR:/data -e http_proxy -e https_proxy -e ENABLED_WHISPER_MODELS -e DEFAULT_WHISPER_MODEL --name audioanalyzer intel/audio-analyzer:latest
     ```
 
-6. Access the Audio-Analyzer API in a web browser on the URL given by this command:
+7. Access the Audio-Analyzer API in a web browser on the URL given by this command:
 
     ```bash
     host=$(ip route get 1 | awk '{print $7}')
@@ -120,10 +135,9 @@ The user has an option to either [build the docker images](./how-to-build-from-s
     echo http://${host}:${port}/docs
     ```
 
-
 ## API Usage
 
-Below are examples of how to use the API with curl for both filesystem and MinIO storage setups.
+Below are examples of how to use the API on command line with `curl`.
 
 ### Health Check
 
@@ -158,78 +172,9 @@ Once the transcription process is completed, the transcript files will be availa
   ls $AUDIO_ANALYZER_DIR/transcript
   ```
 
-# Docker setup with Minio Storage (Not Recommended)
-
-> __**NOTE :**__ For a quick setup with Minio, using a Docker Compose template is recommended. Please check: [Setup in a container using Docker script](./how-to-build-from-source.md#setup-in-a-container-using-docker-script)
-
-#### Before using MinIO storage, consider following pre-requisites:
-
-1. MinIO server should be running and the required environment variable is set:
-
-    ```bash
-    export MINIO_ENDPOINT=<minio_host>:<minio_port>
-    ```
-
-2. Credentials used to setup Minio server are set as following environment variables:
-
-    ```bash
-    export MINIO_ACCESS_KEY=<your-minio-username>
-    export MINIO_SECRET_KEY=<your-minio-password>
-    ```
-
-3. Required buckets are created in the Minio server. Check the [Minio Docs](https://docs.min.io/) on how to login to Minio UI and create the Minio Buckets. 
-
-
-#### Running the Audio-Analyzer with Minio Storage:
-
-1. Set the required environment variables:
-
-    ```bash
-    export STORAGE_BACKEND=minio
-    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
-    export DEFAULT_WHISPER_MODEL=tiny.en
-    ```
-
-2. Stop any existing Audio-Analyzer container (if any):
-
-    ```bash
-    docker stop audioanalyzer
-    ```
-
-3. Run the Audio-Analyzer Docker container with Minio specific environment variables:
-
-    ```bash
-    docker run --rm -d -P -v audio_analyzer_vol:/data -e http_proxy -e https_proxy -e ENABLED_WHISPER_MODELS -e DEFAULT_WHISPER_MODEL -e STORAGE_BACKEND -e MINIO_ENDPOINT -e MINIO_ACCESS_KEY -e MINIO_SECRET_KEY --name audioanalyzer intel/audio-analyzer:latest
-    ```
-
-4. Access the Audio-Analyzer API in a web browser on the URL given by this command:
-
-    ```bash
-    host=$(ip route get 1 | awk '{print $7}')
-    port=$(docker port audioanalyzer 8000 | head -1 | cut -d ':' -f 2)
-    echo http://${host}:${port}/docs
-    ```
-
-### API Usage with Minio Storage
-
-  ```bash
-  curl -X POST "http://localhost:$port/api/v1/transcriptions" \
-    -H "Content-Type: application/json" \
-    -d '{
-      "minio_bucket": "videos",
-      "video_name": "example.mp4",
-      "video_id": "project1/raw",
-      "include_timestamps": true,
-      "device": "cpu",
-      "model_name": "medium.en"
-    }'
-  ```
-
-This API endpoint returns a job ID, transcription path and other details once the transcription is done.
-
 ## Transcription Performance and Optimization on CPU
 
-The service uses pywhispercpp with the following optimizations for CPU transcription:
+The service uses **pywhispercpp** with the following optimizations for CPU transcription:
 
 - **Multithreading**: Automatically uses the optimal number of threads based on your CPU cores
 - **Parallel Processing**: Utilizes multiple CPU cores for audio processing
@@ -238,53 +183,60 @@ The service uses pywhispercpp with the following optimizations for CPU transcrip
 
 # Manual Host Setup using Poetry
 
+> **__NOTE :__** This is an advanced setup and is recommended for development/contribution only. As an alternative method to setup on host, please see : [setting up on host using setup script](./how-to-build-from-source.md#setup-and-run-on-host-using-setup-script). When setting up on host, the default storage backend would be local filesystem. Please make sure `STORAGE_BACKEND` is not overridden to **minio**, unless you want to explicitly use the Minio backend.
+
 1. Clone the repository and change directory to the audio-analyzer microservice:
-```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-# Access the code
-cd edge-ai-libraries/microservices/audio-analyzer
-```
+    ```bash
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    # Access the code
+    cd edge-ai-libraries/microservices/audio-analyzer
+    ```
 
 2. Install Poetry if not already installed.
-```bash
-pip install poetry==1.8.3
-```
+    ```bash
+    pip install poetry==1.8.3
+    ```
 
 3. Configure poetry to create a local virtual environment.
-```bash
-poetry config virtualenvs.create true
-poetry config virtualenvs.in-project true
-```
+    ```bash
+    poetry config virtualenvs.create true
+    poetry config virtualenvs.in-project true
+    ```
 
 4. Install dependencies:
-```bash
-poetry lock --no-update
-poetry install
-```
+    ```bash
+    poetry lock --no-update
+    poetry install
+    ```
 
 5. Set comma-separated list of whisper models that need to be enabled:
-```bash
-export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
-```
+    ```bash
+    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en
+    ```
 
 6. Set directories on host where models will be downloaded:
-```bash
-export GGML_MODEL_DIR=/tmp/audio_analyzer_model/ggml
-export OPENVINO_MODEL_DIR=/tmp/audio_analyzer_model/openvino
-```
+    ```bash
+    export GGML_MODEL_DIR=/tmp/audio_analyzer_model/ggml
+    export OPENVINO_MODEL_DIR=/tmp/audio_analyzer_model/openvino
+    ```
 
 7. Run the service:
-```bash
-DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
-```
+    ```bash
+    DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
 
-8. _(Optional):_ To run the service with Minio storage backend. Please make sure Minio Server is running on `localhost:9000`. Please see [Running a Local Minio Server](#running-a-local-minio-server). 
-```bash
-STORAGE_BACKEND=minio DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
-```
+8. _(Optional):_ To run the service with Minio storage backend, make sure Minio Server is running. Please see [Running a Local Minio Server](#manually-running-a-local-minio-server). User might need to update the `MINIO_ENDPOINT` environment variable depending on where the Minio Server is running (if not set, default value considered is `localhost:9000`).
+
+    ```bash
+    export MINIO_ENDPOINT="<minio_host>:<minio_port>"
+    ```
+    Run the Audio Analyzer application on host:
+    ```bash
+    STORAGE_BACKEND=minio DEBUG=True poetry run uvicorn audio_analyzer.main:app --host 0.0.0.0 --port 8000 --reload
+    ```
 
 ## Running Tests
 
@@ -307,15 +259,15 @@ poetry run coverage report -m
 
 When running the service, you can access the Swagger UI documentation at:
 
-```
+```bash
 http://localhost:8000/docs
 ```
 
 ## Advanced Setup Options
 
-### Running a Local MinIO Server
+### Manually Running a Local MinIO Server
 
-If you're not using Docker Compose, you can run a local MinIO server using:
+If you're not using the bundled Docker Setup script `setup_docker.sh` and still want to use the application with Minio storage, you can manually run a local MinIO server using:
 
 ```bash
 docker run -d -p 9000:9000 -p 9001:9001 --name minio \
@@ -331,13 +283,13 @@ You can then access the MinIO Console at http://localhost:9001 with these creden
 
 ### When to use Filesystem vs. MinIO backend
 
-Use **Filesystem** backend when:
+Use **Filesystem** backend when (Default for standalone setup on host):
 - Running in a simple, single-node deployment
 - No need for distributed/scalable storage
 - No integration with other services that might need to access transcripts
 - Running in resource-constrained environments
 
-Use **MinIO** backend (default) when:
+Use **MinIO** backend when (Default for setup using Docker script):
 - Running in a containerized/cloud environment
 - Need for scalable, distributed object storage
 - Integration with other services that need to access transcripts

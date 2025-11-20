@@ -8,7 +8,7 @@ Build the Audio Analyzer microservice from source to customize, debug, or extend
 This guide is ideal for developers who want to work directly with the source code.
 
 
-## Prerequisites
+# Prerequisites
 
 Before you begin, ensure the following:
 - **System Requirements**: Verify your system meets the [minimum requirements](./system-requirements.md).
@@ -17,68 +17,76 @@ Before you begin, ensure the following:
   - [Python Virtual Environments](https://docs.python.org/3/tutorial/venv.html)
 - Follow all the steps provided in [get started](./get-started.md) documentation with respect to [environment variables](./get-started.md#environment-variables) configuration, setting up of [storage backends](./get-started.md#setup-the-storage-backends) and [model selection](./get-started.md#models-selection).
 
-## Steps to Build
+# Steps to Build
+
 Following options are provided to build the microservice.
 
-### Setup in a container using Docker Script
+- [Build and run application with required dependencies using Docker Script](#build-and-run-using-docker-script).
+- [Build and run on host using Setup Script](#setup-and-run-on-host-using-setup-script).
+
+## Build and Run using Docker Script
 
 1. Clone the repository:
-```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-```
+    ```bash
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    ```
 
-2. Default storage backend used in the Docker script based setup is `minio`. To use Minio, we need to set following required environment variables on shell:
+2. Default storage backend used in the Docker script based setup is `minio`. We need to set following required environment variables for Minio on shell:
 
-```bash
-# MinIO credentials (required)
-export MINIO_ACCESS_KEY=<your-minio-username>
-export MINIO_SECRET_KEY=<your-minio-password>
-```
+    ```bash
+    # MinIO credentials (required)
+    export MINIO_ACCESS_KEY=<your-minio-username>
+    export MINIO_SECRET_KEY=<your-minio-password>
+    ```
 
-> __NOTE :__ To override the default storage backend, see [setup the storage backends](./get-started.md#setup-the-storage-backends).
+    > __NOTE :__ To override the default storage backend, see [setup the storage backends](./get-started.md#setup-the-storage-backends).
 
 3. The Docker setup will build the image if not already present on the machine. We can optionally set a registry URL and tag, if we wish to push this image to any repository. If not set, default image will be built as `audio-analyzer:latest`.
 
-```bash
-# Optional: Set registry URL and project name for docker image naming
-export REGISTRY_URL=<your-registry-url>
-export PROJECT_NAME=<your-project-name>
-export TAG=<your-tag>
-```
+    ```bash
+    # Optional: Set registry URL and project name for docker image naming
+    export REGISTRY_URL=<your-registry-url>
+    export PROJECT_NAME=<your-project-name>
+    export TAG=<your-tag>
+    ```
 
-If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`  
-If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-analyzer:${TAG}`
+    If `REGISTRY_URL` is provided, the final image name will be: `${REGISTRY_URL}${PROJECT_NAME}/audio-analyzer:${TAG}`  
+    If `REGISTRY_URL` is not provided, the image name will be: `${PROJECT_NAME}/audio-analyzer:${TAG}`
 
-4. **(OPTIONAL)** You can customize the setup with these additional environment variables:
+4. Set the required environment variables:
 
-```bash
-# Comma-separated list of models to download
-export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  
-export DEFAULT_WHISPER_MODEL=tiny.en
+    ```bash
+    # (Required) Comma-separated list of models to download
+    export ENABLED_WHISPER_MODELS=small.en,tiny.en,medium.en  
+    ```
 
-# Device to use: cpu, gpu, or auto
-export DEFAULT_DEVICE=cpu
-export USE_FP16=true
+5. **(OPTIONAL)** You can customize the setup with these additional environment variables:
 
-# Storage backend: minio or local
-export STORAGE_BACKEND=minio
-export MAX_FILE_SIZE=314572800
-```
+    ```bash
+    # Set a default model to use, if one is not provided explicitly. Should be one of the ENABLED_WHISPER_MODELS
+    export DEFAULT_WHISPER_MODEL=tiny.en
 
-3. Run the setup script to build and bring up production version of application:
+    # Device to use: cpu, gpu, or auto
+    export DEFAULT_DEVICE=cpu
+    export USE_FP16=true
 
-```bash
-cd edge-ai-libraries/microservices/audio-analyzer
-chmod +x ./setup_docker.sh
-./setup_docker.sh
-```
+    # Storage backend: minio or local
+    export STORAGE_BACKEND=minio
+    export MAX_FILE_SIZE=314572800
+    ```
 
-> **_NOTE :_** If the `STORAGE_BACKEND` is set to **minio**, then above script also brings up the Minio container.
+3. Run the setup script to build and bring up production version of application. This also brings up Minio Server container (if default **minio** storage backend is used):
 
-#### Docker Setup Options
+    ```bash
+    cd edge-ai-libraries/microservices/audio-analyzer
+    chmod +x ./setup_docker.sh
+    ./setup_docker.sh
+    ```
+
+### Docker Setup Options
 
 The `setup_docker.sh` script when run without any parameters builds and runs the production docker images. It additionally supports the following options:
 
@@ -109,34 +117,22 @@ The production environment uses:
 - Optimized container without development dependencies
 - No source code mounting (code is copied at build time)
 
-### Setup and run on host
-
-Host setup by default uses local filesystem storage backend. 
-
-> _**NOTE :**_ To use Minio storage on host, you need to manually spin a Minio container [(see Running a Local Minio Server)](./get-started.md#running-a-local-minio-server) and update the STORAGE BACKEND which is explained in step 2. 
-
+## Setup and run on host using Setup Script
 
 1. Clone the repository:
-```bash
-# Clone the latest on mainline
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-# Alternatively, Clone a specific release branch
-git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-```
+    ```bash
+    # Clone the latest on mainline
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
+    # Alternatively, Clone a specific release branch
+    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
+    ```
 
 2. Run the setup script with desired options:
-```bash
-cd edge-ai-libraries/microservices/audio-analyzer
-chmod +x ./setup_host.sh
-./setup_host.sh
-```
-
-To run with Minio storage backend, run this: 
-```bash
-STORAGE_BACKEND=minio ./setup_host.sh
-```
-
-Minio server container must be running on `localhost:9000` for this to work. Please see [Running a Local Minio Server](./get-started.md#running-a-local-minio-server).
+    ```bash
+    cd edge-ai-libraries/microservices/audio-analyzer
+    chmod +x ./setup_host.sh
+    ./setup_host.sh
+    ```
 
 Available options:
 - `--debug`, `-d`: Enable debug mode
@@ -144,7 +140,7 @@ Available options:
 
 The setup script will:
 - Install all required system dependencies
-- Create directories for model storage. For host setup, only storage backend available is local filesystem.
+- Create directories for model storage. **For host setup using script, only storage backend available is local filesystem.**
 - Install Poetry and project dependencies
 - Start the Audio Analyzer service
 
