@@ -179,6 +179,14 @@ async def receive_alert(alert: OpcuaAlertsMessage):
                             "status": "success",
                             "message": "Alert received"
                         }
+        '400':
+            description: OPC UA alerts are not configured in the service
+            content:
+                application/json:
+                    example:
+                        {
+                            "detail": "OPC UA alerts are not configured in the service"
+                        }
         500:
             description: Failed to process the alert due to server error or misconfiguration.
             content:
@@ -219,7 +227,7 @@ async def receive_alert(alert: OpcuaAlertsMessage):
                 logger.exception("Failed to send alert to OPC UA node: %s", e)
                 raise HTTPException(status_code=500, detail=f"Failed to send alert: {e}")
         else:
-            raise HTTPException(status_code=500,
+            raise HTTPException(status_code=400,
                               detail="OPC UA alerts are not configured in the service")
     except Exception as error:
         raise HTTPException(status_code=500, detail=str(error)) from error
@@ -267,6 +275,16 @@ async def receive_data(data_point: DataPoint):
                 message:
                     type: string
                     example: Data sent to Time series Analytics microservice
+        '503':
+            description: Kapacitor daemon is not running
+            content:
+                application/json:
+                    schema:
+                        type: object
+                        properties:
+                            detail:
+                                type: string
+                                example: "Kapacitor daemon is not running"
         '4XX':
         description: Client error (e.g., invalid input or Kapacitor error)
         content:
@@ -286,12 +304,12 @@ async def receive_data(data_point: DataPoint):
     try:
         # Convert JSON to line protocol
         line_protocol = json_to_line_protocol(data_point)
-        logging.debug("Received data point: %s", line_protocol)
+        logger.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
         if result["status"] != "kapacitor daemon is running":
-            logger.info("Kapacitor daemon is not running.")
-            raise HTTPException(status_code=500, detail="Kapacitor daemon is not running")
+            logger.warning("Kapacitor daemon is not running.")
+            raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")  
         url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
         # Send data to Kapacitor
         kapacitor_response = requests.post(url, data=line_protocol,
@@ -303,7 +321,10 @@ async def receive_data(data_point: DataPoint):
 
         raise HTTPException(status_code=kapacitor_response.status_code,
                           detail=kapacitor_response.text)
+    except HTTPException:
+        raise
     except Exception as error:
+        logger.error("Unexpected error in receive_data: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
 
 @app.get("/config")
