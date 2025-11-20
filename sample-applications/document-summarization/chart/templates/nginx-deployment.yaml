@@ -29,8 +29,8 @@ spec:
             - name: nginx-config
               mountPath: /etc/nginx/nginx.conf
               subPath: nginx.conf
-      securityContext:
-        allowPrivilegeEscalation: false
+          securityContext:
+            allowPrivilegeEscalation: false
 
 
       volumes:
