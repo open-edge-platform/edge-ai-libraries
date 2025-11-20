@@ -55,7 +55,7 @@ export const SearchSidebar: FC = () => {
     dispatch(SearchActions.selectQuery(queryId));
   };
 
-  const filteredQueries = queries.filter((query) => query.queryStatus !== SearchQueryStatus.ERROR);
+  const filteredQueries = queries.filter((query) =>query.queryStatus !== SearchQueryStatus.ERROR && query.results && query.results.length > 0);
   const sidebarList = filteredQueries.map((curr) => (
     <SearchSidebarItem
       item={curr}
