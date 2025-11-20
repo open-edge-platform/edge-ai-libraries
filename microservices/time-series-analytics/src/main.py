@@ -323,9 +323,6 @@ async def receive_data(data_point: DataPoint):
                           detail=kapacitor_response.text)
     except HTTPException:
         raise
-    except ValueError as error:
-        logger.error("Data validation error: %s", error)
-        raise HTTPException(status_code=422, detail=f"Invalid data format: {str(error)}")
     except Exception as error:
         logger.error("Unexpected error in receive_data: %s", error)
         raise HTTPException(status_code=500, detail=str(error)) from error
