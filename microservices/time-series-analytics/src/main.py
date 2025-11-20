@@ -304,12 +304,12 @@ async def receive_data(data_point: DataPoint):
     try:
         # Convert JSON to line protocol
         line_protocol = json_to_line_protocol(data_point)
-        logger.debug("Received data point: %s", line_protocol)     
+        logger.debug("Received data point: %s", line_protocol)
         response = Response()
         result = health_check(response)
         if result["status"] != "kapacitor daemon is running":
             logger.warning("Kapacitor daemon is not running.")
-            raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")          
+            raise HTTPException(status_code=503, detail="Kapacitor daemon is not running")  
         url = f"{KAPACITOR_URL}/kapacitor/v1/write?db=datain&rp=autogen"
         # Send data to Kapacitor
         kapacitor_response = requests.post(url, data=line_protocol,
