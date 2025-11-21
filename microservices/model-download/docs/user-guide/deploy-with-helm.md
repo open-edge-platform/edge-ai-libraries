@@ -101,7 +101,7 @@ kubectl get services -n <your-namespace>
 
 ### Step 6: Access the Application
 
-Open the application swagger documentation in a browser at `http://\<node-ip\>:\<node-port\>/api/v1/docs`
+Open the application swagger documentation in a browser at `http://<node-ip>:<node-port>/api/v1/docs`
 
 ### Step 7: Uninstall Helm chart
 
