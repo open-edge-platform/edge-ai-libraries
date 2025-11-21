@@ -144,40 +144,22 @@ handle_error() {
 
 prepare_models_list() {
     local models_input="$1"
-    local models_array=()
-
-    # Check if input contains comma (multiple models)
-    if [[ "$models_input" == *","* ]]; then
-        # Split the input by comma and create array
-        IFS=',' read -ra models_array <<< "$models_input"
-        
-        # Validate each model
-        for model in "${models_array[@]}"; do
-            # Trim whitespace
-            model=$(echo "$model" | xargs)
-            
-            # Validate model
-            if ! [[ " ${SUPPORTED_MODELS[*]} " =~ " $model " ]]; then
-                echo "Unsupported model: $model" >&2
-                exit 1
-            fi
-        done
-        
-        # Return the array of models
-        echo "${models_array[@]}"
-    else
-        # Single model - validate
-        model=$(echo "$models_input" | xargs)
+    local models_array
+    # Split input by comma into array
+    IFS=',' read -ra models_array <<< "$models_input"
+    # Validate each model
+    for model in "${models_array[@]}"; do
+        model=$(echo "$model" | xargs)  # Trim whitespace
         
         if ! [[ " ${SUPPORTED_MODELS[*]} " =~ " $model " ]]; then
             echo "Unsupported model: $model" >&2
             exit 1
         fi
-        
-        # Return single model
-        echo "$model"
-    fi
+    done
+    # Return models (space-separated)
+    echo "${models_array[@]}"
 }
+
 # Trap errors and call handle_error
 trap 'handle_error "- line $LINENO"' ERR
 
