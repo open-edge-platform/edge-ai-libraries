@@ -145,9 +145,7 @@ handle_error() {
 prepare_models_list() {
     local models_input="$1"
     local models_array=()
-    
-    echo "Preparing models list: $models_input"
-    
+
     # Check if input contains comma (multiple models)
     if [[ "$models_input" == *","* ]]; then
         # Split the input by comma and create array
