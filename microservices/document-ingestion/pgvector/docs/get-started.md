@@ -120,7 +120,11 @@ This method provides the fastest way to get started with the microservice.
     export REGISTRY=intel/
     export TAG=latest #or the specific version with latest being 1.2.2
     docker pull ${REGISTRY}document-ingestion:${TAG:-latest}
-    #add the run details with necessary options
+
+    #Set the required environment variables as provided in the run.sh file. These variables are TEI_ENDPOINT_URL, EMBEDDING_MODEL_NAME,  PG_CONNECTION_STRING, INDEX_NAME, CHUNK_SIZE, CHUNK_OVERLAP, BATCH_SIZE, MINIO_ACCESS_KEY, and MINIO_SECRET_KEY
+
+    #Run the image
+    docker run ${REGISTRY}document-ingestion:${TAG:-latest}
     ```
 
 
