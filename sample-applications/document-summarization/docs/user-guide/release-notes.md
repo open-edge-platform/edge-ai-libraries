@@ -8,6 +8,7 @@
 
 - Update nginxinc/nginx-unprivileged to 1.29.2 version
 - Update few package version to fix vulnerabilities
+- Update openvino/model_server to 2025.3 version
 
 ## Known Issues/Behaviour (Consolidated):
 - Application running into Model Type issue on EMT 3.1 - Closed

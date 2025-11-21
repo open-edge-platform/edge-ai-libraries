@@ -13,9 +13,14 @@ services:
         no_proxy: ${no_proxy}
     image: ${REGISTRY:-}multilevel-video-understanding:${TAG:-latest}
     ports:
-      - ${SERVICE_PORT:-8000}:8000
+      - ${SERVICE_PORT:-8192}:8000
+    networks:
+      - app-network
+    cap_drop:
+      - NET_RAW
+    read_only: true  # Mount root filesystem as read-only
     volumes:
-      - /dev/dri:/dev/dri
+      - tmp_volume:/tmp:rw  # Mount container /tmp as read-write
     environment:
       - http_proxy=$http_proxy
       - https_proxy=$https_proxy
@@ -27,12 +32,29 @@ services:
       - LLM_MODEL_NAME=$LLM_MODEL_NAME
       - LLM_BASE_URL=$LLM_BASE_URL
       - LLM_API_KEY=${VLM_API_KEY:-EMPTY}
-    devices:
-      - /dev/dri:/dev/dri
     restart: unless-stopped
+    security_opt:
+      - apparmor=docker-default
+      - no-new-privileges:true  # Restrict additional privileges
+    deploy:
+      resources:
+        limits:
+          cpus: '128'
+          memory: 256G
+          pids: 1024
+        reservations:
+          cpus: '0.5'
+          memory: 1G
     healthcheck:
       test: ["CMD", "curl", "-f", "http://localhost:8000/v1/health"]
       interval: 30s
       timeout: 10s
       retries: 3
       start_period: 15s
+
+networks:
+  app-network:
+    driver: bridge
+
+volumes:
+  tmp_volume:
