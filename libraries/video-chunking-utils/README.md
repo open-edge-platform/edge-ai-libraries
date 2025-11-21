@@ -76,3 +76,7 @@ The start time of the chunk in seconds.
 
 - **time_end:** float
 The end time of the chunk in seconds.
+
+## Other Resources
+
+- [Release Notes](./release-notes.md): Information on the latest release, improvements, and bug fixes.
