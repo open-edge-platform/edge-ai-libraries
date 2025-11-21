@@ -8,8 +8,8 @@ readme = "README.md"
 
 [tool.poetry.dependencies]
 python = "^3.10,<3.13"
-fastapi = "^0.116.1"
-uvicorn = "^0.35.0"
+fastapi = "^0.121.3"
+uvicorn = "^0.38.0"
 gunicorn = "^23.0.0"
 langchain-core = "^0.3.63"
 langchain-community = "0.3.27"
