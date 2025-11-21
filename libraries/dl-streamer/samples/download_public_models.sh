@@ -977,7 +977,7 @@ os.remove('${MODEL_NAME}.zip')
 fi
 
 # Mars-Small128 DeepSORT Person Re-ID Model
-if [[ " ${MODELS_TO_PROCESS[@]} " =~ " mars-small128" " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " mars-small128 " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="mars-small128"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
 
