@@ -101,7 +101,7 @@ This method provides the fastest way to get started with the microservice.
     ```
     The valid configuration will ensure the latest prebuilt image from `intel` registry is downloaded. The scripts take care of this.
 5. **Start the Microservices**:
-    There are different options provided to start the microservices.
+    There are different options provided to build and start the microservices.
     ```bash
     # Run the development environment (only for DataStore) and prod environment for all other services in daemon mode
     source ./run.sh --dev
@@ -115,6 +115,15 @@ This method provides the fastest way to get started with the microservice.
     # Run the production environment for all services in non-daemon mode
     source ./run.sh --nd
     ```
+    If the user prefers to pull a prebuilt image from the registry, it is recommended to use the `docker pull` command to get the target version of the prebuilt image. 
+    ```bash
+    export REGISTRY=intel/
+    export TAG=latest #or the specific version with latest being 1.2.2
+    docker pull ${REGISTRY}document-ingestion:${TAG:-latest}
+    #add the run details with necessary options
+    ```
+
+
 6. **Validate the setup**: Open your browser and navigate to:
     ```
     http://${host_ip}:${DATAPREP_HOST_PORT}/docs
