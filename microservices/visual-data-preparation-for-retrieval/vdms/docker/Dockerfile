@@ -3,7 +3,7 @@
 
 ARG ARCH="cpu"
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
-FROM python:3.12-slim AS python-base
+FROM python:3.12.12-slim AS python-base
 ARG ARCH
 # Setting env vars for python, pip and poetry
 ENV PYTHONUNBUFFERED=1 \

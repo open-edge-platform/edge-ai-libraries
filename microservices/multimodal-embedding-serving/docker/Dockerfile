@@ -2,25 +2,20 @@
 # SPDX-License-Identifier: Apache-2.0
 
 # Builder stage
-FROM python:3.12.10-slim AS builder
+FROM python:3.12.12-slim AS builder
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
-ARG CURL_VERSION="7.88.1-10+deb12u14"
-ARG PATCH_VERSION="2.7.6-7"
-ARG BUILD_ESSENTIAL_VERSION="12.9"
-ARG GCC_VERSION="4:12.2.0-3"
-ARG GIT_VERSION="1:2.39.5-0+deb12u2"
 ARG POETRY_VERSION="1.8.3"
 ARG MOBILECLIP_COMMIT="c16bfe5a4feb424762d6bdf5245539120a4ce9ef"
 ARG SALESFORCE_LAVIS_VERSION="1.0.2"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=${CURL_VERSION} \
-    patch=${PATCH_VERSION} \
-    build-essential=${BUILD_ESSENTIAL_VERSION} \
-    gcc=${GCC_VERSION} \
-    git=${GIT_VERSION} && \
+    curl \
+    patch \
+    build-essential \
+    gcc \
+    git && \
     rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
@@ -35,18 +30,16 @@ RUN pip install --no-cache-dir poetry==${POETRY_VERSION} && \
         --no-deps
 
 # Final stage
-FROM python:3.12.10-slim
+FROM python:3.12.12-slim
 
 ARG USER_ID=1000
 ARG USER_GROUP_ID=1000
 ARG INSTALL_DRIVER_VERSION="24.39.31294"
 ARG COPYLEFT_SOURCES=false
-ARG CURL_VERSION="7.88.1-10+deb12u14"
-ARG PATCH_VERSION="2.7.6-7"
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    curl=${CURL_VERSION} \
-    patch=${PATCH_VERSION} && \
+    curl \
+    patch && \
     rm -rf /var/lib/apt/lists/* && \
     groupadd -g ${USER_GROUP_ID} appuser && useradd -m --no-log-init -s /bin/bash -u ${USER_ID} -g ${USER_GROUP_ID} appuser
 
@@ -57,6 +50,9 @@ WORKDIR /app
 COPY --from=builder /usr/local/lib/python3.12/site-packages /usr/local/lib/python3.12/site-packages
 COPY --from=builder /usr/local/bin/gunicorn /usr/local/bin/gunicorn
 COPY --from=builder /app /app
+
+# Refresh security patches after bringing in build artifacts
+RUN apt-get update && apt-get upgrade -y --no-install-recommends && rm -rf /var/lib/apt/lists/*
 
 # Copy rest of the source code
 
