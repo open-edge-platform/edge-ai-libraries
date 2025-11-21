@@ -110,7 +110,7 @@ def sample_pipeline(pipeline, sample_duration):
     for element in pipeline:
         if "gvafpscounter" in element:
             has_fps_counter = True
-    
+
     if not has_fps_counter:
         for i, element in enumerate(reversed(pipeline)):
             if "gvadetect" in element or "gvaclassify" in element:
