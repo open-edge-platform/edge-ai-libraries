@@ -12,7 +12,7 @@ data:
     weight_format=$1
     gpu_enabled=$3
     # FLATTENED_MODEL_NAME=$(echo ${model} | tr '/' '-')
-    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/requirements.txt
+    pip3 install -r https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/requirements.txt
     
     pip3 install -U huggingface_hub[hf_xet]==0.36.0
 
@@ -25,7 +25,7 @@ data:
     else
         echo "Failed to log in to Hugging Face. Please check your token and try again."
     fi
-    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/refs/heads/releases/2025/3/demos/common/export_models/export_model.py -o export_model.py
+    curl https://raw.githubusercontent.com/openvinotoolkit/model_server/v2025.3/demos/common/export_models/export_model.py -o export_model.py
     mkdir models
     if [ "$gpu_enabled" = "true" ]; then
         echo "GPU is enabled, using GPU model"

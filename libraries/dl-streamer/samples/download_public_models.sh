@@ -102,6 +102,7 @@ SUPPORTED_MODELS=(
   "clip-vit-base-patch16"
   "clip-vit-base-patch32"
   "ch_PP-OCRv4_rec_infer" # PaddlePaddle OCRv4 multilingual model
+  "mars-small128" # DeepSORT person re-identification model (uses convert_mars_deepsort.py)
 )
 
 # Corresponds to files in 'datasets' directory
@@ -214,8 +215,8 @@ pip install --no-cache-dir openvino==2025.3.0 || handle_error $LINENO
 
 pip install --no-cache-dir onnx || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
-# Install or upgrade NNCF
-pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
+# Install compatible NNCF version for OpenVINO 2025.3.0
+pip install --no-cache-dir "nncf>=2.14.0,<3.0.0" || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
@@ -245,8 +246,8 @@ pip install --no-cache-dir openvino-dev==2024.6.0 || handle_error $LINENO
 
 pip install --no-cache-dir onnx || handle_error $LINENO
 pip install --no-cache-dir seaborn || handle_error $LINENO
-# Install or upgrade NNCF
-pip install --no-cache-dir --upgrade nncf || handle_error $LINENO
+# Install compatible NNCF version for OpenVINO 2024.6.0
+pip install --no-cache-dir "nncf>=2.12.0,<2.14.0" || handle_error $LINENO
 
 # Check and upgrade ultralytics if necessary
 if [[ "${MODEL:-}" =~ yolo.* || "${MODEL:-}" == "all" ]]; then
@@ -970,6 +971,48 @@ os.remove('${MODEL_NAME}.zip')
     chmod -R u+w license-plate-reader
     rm -rf license-plate-reader
     cd ..
+  else
+    echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
+  fi
+fi
+
+# Mars-Small128 DeepSORT Person Re-ID Model
+if [[ "$MODEL" == "mars-small128" ]] || [[ "$MODEL" == "all" ]]; then
+  MODEL_NAME="mars-small128"
+  MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
+  
+  if [[ ! -f "$MODEL_DIR/mars_small128_fp32.xml" ]]; then
+    echo_color "Converting Mars-Small128 model for DeepSORT tracking..." "blue"
+    
+    # Get the script directory (samples directory) before changing directories
+    SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+    CONVERTER_SCRIPT="$SCRIPT_DIR/models/convert_mars_deepsort.py"
+    
+    if [[ ! -f "$CONVERTER_SCRIPT" ]]; then
+      echo_color "ERROR: Converter script not found: $CONVERTER_SCRIPT" "red"
+      handle_error $LINENO
+    fi
+    
+    mkdir -p "$MODEL_DIR"
+    cd "$MODEL_DIR"
+    
+    # Activate virtual environment
+    source "$VENV_DIR/bin/activate"
+    
+    # Install dependencies for converter script
+    pip install --no-cache-dir torch openvino nncf gdown || handle_error $LINENO
+    
+    echo_color "Running Mars-Small128 converter..." "blue"
+    python3 "$CONVERTER_SCRIPT" --output-dir "$MODEL_DIR" --precision both || handle_error $LINENO
+    
+    echo_color "✅ Mars-Small128 conversion completed" "green"
+    echo_color "═══════════════════════════════════════════════════" "cyan"
+    echo_color "📁 Output directory: $MODEL_DIR" "blue"
+    echo_color "📏 Models: mars_small128_fp32.xml, mars_small128_int8.xml" "blue"
+    echo_color "🎯 Usage: DeepSORT person re-identification tracking" "blue"
+    echo_color "═══════════════════════════════════════════════════" "cyan"
+    
+    cd ../..
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi

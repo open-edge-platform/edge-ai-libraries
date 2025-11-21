@@ -19,7 +19,7 @@ Below, you'll find links to detailed documentation to help you get started, conf
 - **API Reference**
   - [API Reference](docs/user-guide/api-reference.md): Comprehensive reference for the available REST API endpoints.
 
-<!-- - **Release Notes**
-  - [Release Notes](docs/user-guide/release-notes.md): Information on the latest updates, improvements, and bug fixes. -->
+- **Release Notes**
+  - [Release Notes](docs/user-guide/release-notes.md): Information on the latest release, improvements, and bug fixes.
 
 

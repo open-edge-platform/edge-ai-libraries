@@ -18,7 +18,6 @@ spec:
         fsGroup: 1001
         runAsUser: 1001
         runAsGroup: 1001
-        allowPrivilegeEscalation: false
       containers:
         - name: model-download
           image: "{{ .Values.modeldownload.image.registry }}model-download:{{ .Values.modeldownload.image.tag }}"
@@ -51,6 +50,8 @@ spec:
           volumeMounts:
             - name: models
               mountPath: /opt/models
+          securityContext:
+            allowPrivilegeEscalation: false
       volumes:
         - name: models
           persistentVolumeClaim:
