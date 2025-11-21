@@ -21,15 +21,18 @@ def element_device_suggestions(suggestions, element):
 
                 if "GPU" in device:
                     parameters["pre-process-backend"] = "va-surface-sharing"
+                    memory = "video/x-raw(memory:VAMemory)"
 
                 if "NPU" in device:
                     parameters["pre-process-backend"] = "va"
+                    memory = "video/x-raw(memory:VAMemory)"
 
                 if "CPU" in device:
                     parameters["pre-process-backend"] = "opencv"
+                    memory = "video/x-raw"
 
                 parameters["device"] = device
-                suggestion.append(f" {element} {assemble_parameters(parameters)}")
+                suggestion.append(f" vapostproc ! {memory} ! {element} {assemble_parameters(parameters)}")
 
 def add_batch_suggestions(suggestions):
     batches = [1, 2, 4, 8, 16, 32]

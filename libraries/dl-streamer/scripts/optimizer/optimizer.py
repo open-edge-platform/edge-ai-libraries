@@ -84,6 +84,8 @@ def explore_pipelines(suggestions, base_fps, search_duration, sample_duration):
     best_fps = base_fps
     for combination in combinations:
         combination = list(combination)
+        # re-slice the pipeline to handle cases where a suggestion added multiple elements
+        combination = "!".join(combination).split("!")
         log_parameters_of_interest(combination)
 
         try:
