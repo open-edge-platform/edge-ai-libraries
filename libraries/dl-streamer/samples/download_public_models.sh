@@ -977,46 +977,44 @@ os.remove('${MODEL_NAME}.zip')
 fi
 
 # Mars-Small128 DeepSORT Person Re-ID Model
-if [[ "$MODEL" == "mars-small128" ]] || [[ "$MODEL" == "all" ]]; then
+if [[ " ${MODELS_TO_PROCESS[@]} " =~ " mars-small128 " ]] || [[ " ${MODELS_TO_PROCESS[@]} " =~ " all " ]]; then
   MODEL_NAME="mars-small128"
   MODEL_DIR="$MODELS_PATH/public/$MODEL_NAME"
-  
+
   if [[ ! -f "$MODEL_DIR/mars_small128_fp32.xml" ]]; then
     echo_color "Converting Mars-Small128 model for DeepSORT tracking..." "blue"
-    
+
     # Get the script directory (samples directory) before changing directories
     SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
     CONVERTER_SCRIPT="$SCRIPT_DIR/models/convert_mars_deepsort.py"
-    
+
     if [[ ! -f "$CONVERTER_SCRIPT" ]]; then
       echo_color "ERROR: Converter script not found: $CONVERTER_SCRIPT" "red"
       handle_error $LINENO
     fi
-    
+
     mkdir -p "$MODEL_DIR"
     cd "$MODEL_DIR"
-    
+
     # Activate virtual environment
     source "$VENV_DIR/bin/activate"
-    
+
     # Install dependencies for converter script
     pip install --no-cache-dir torch openvino nncf gdown || handle_error $LINENO
-    
+
     echo_color "Running Mars-Small128 converter..." "blue"
     python3 "$CONVERTER_SCRIPT" --output-dir "$MODEL_DIR" --precision both || handle_error $LINENO
-    
+
     echo_color "✅ Mars-Small128 conversion completed" "green"
     echo_color "═══════════════════════════════════════════════════" "cyan"
     echo_color "📁 Output directory: $MODEL_DIR" "blue"
     echo_color "📏 Models: mars_small128_fp32.xml, mars_small128_int8.xml" "blue"
     echo_color "🎯 Usage: DeepSORT person re-identification tracking" "blue"
     echo_color "═══════════════════════════════════════════════════" "cyan"
-    
+
     cd ../..
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
-  fi
-fi
 
 # Deactivate and remove venvs
 echo "Removing Python virtual environments..."
