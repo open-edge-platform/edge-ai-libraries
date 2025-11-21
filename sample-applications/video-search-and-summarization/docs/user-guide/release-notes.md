@@ -12,11 +12,12 @@
 - Updated the VLM, MME, VDMS-Dataprep docs to enable user to download public docker image and
 - added notes on embedding model selection for Helm charts.
 - Exposed the env variable `MAX_CONTEXT_LENGTH` to enable user to override this value for setting LLM model context length.
+- Trivy scan fixes for  audio-analyzer-microservice,  multimodal-embedding-microservice, pipeline-manager, vdms-dataprep, video-ingestion, video-search, vlm-openvino-serving.
 - Sanity on some deprecated field in helm which previously treat as Warning but now it have been treated as ERROR in latest helm version.
 - Removed failed search queries from search left column.
 - Fixed search UI checkbox selection/deselection issue.
 - Fixed VSS video upload streamable mp4 error message.
-- Documentations updates and some other required setup-script/code fixes to be able to build standalone Audio-Analyzer image and run/use it without any external dependency (like minio etc.
+- Documentations updates and some other required setup-script/code fixes to be able to build standalone Audio-Analyzer image and run/use it without any external dependency (like minio etc).
 
 **HW used for validation**:
 
