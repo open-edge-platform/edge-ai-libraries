@@ -83,6 +83,8 @@ retriever-milvus             "uvicorn retriever_s…"   retriever-milvus        
 
 ## Sample curl commands
 
+**Note**: This microservice retrieves data from a Milvus database. If there is no data added into the database, the curl commands below will return `collection not found`. To test data retrieval, please insert some data with the [Visual Data Preparation for Retrieval service](https://github.com/open-edge-platform/edge-ai-libraries/blob/main/microservices/visual-data-preparation-for-retrieval/milvus/docs/user-guide/get-started.md) first. 
+
 ### Basic Query
 
 ```bash
