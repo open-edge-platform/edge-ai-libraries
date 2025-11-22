@@ -8,7 +8,7 @@ from fastapi import APIRouter, HTTPException, Query
 
 from src.common import DataPrepException, logger, settings
 from src.common.schema import BucketVideoListResponse, VideoInfo
-from src.core.util import get_minio_client
+from src.core.utils.common_utils import get_minio_client
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Video Management APIs"])

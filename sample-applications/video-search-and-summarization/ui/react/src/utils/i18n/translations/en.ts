@@ -141,9 +141,9 @@ export const enTranslations = {
     'Single Reduce Prompt: Used to reduce the size of a single caption. This is used only in case the size of even a single input is greater than the model input size. Size of each input is reduced such that at least 2 summaries can be batched together in map-reduce chain.',
   SummarySinglePromptEditing: 'Editing Single Reduce Prompt',
 
-  OnlyMp4: 'Only mp4 videos are accepted',
+  OnlyStreamableMp4: 'This video is not streamable. Please upload a streamable MP4 video.',
   HelpText:
-    'Mp4 videos need to be streamble to be processed. ffmpeg can be used to make mp4 streamable using following command',
+    'You can use ffmpeg to convert your video to a streamable format with the following command:',
 
   IngestionSettings: 'Ingestion Settings',
   AudioSettings: 'Audio Settings',
@@ -178,6 +178,7 @@ export const enTranslations = {
   deletedSuccessfully: 'deleted successfully',
   unknownError: 'An unknown error occurred',
   videoUploadError: 'An error occurred during video upload',
+  invalidVideoFormat: 'Invalid video format. Please upload a .mp4 file.',
   invalidLink: 'Invalid link',
   showNoticeHiddenButton: 'Show Notice',
   showNotificationWhileStreaming: 'Please wait, streaming your current query response...',

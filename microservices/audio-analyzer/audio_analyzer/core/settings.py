@@ -22,7 +22,7 @@ class Settings(BaseSettings):
     APP_NAME: str = "Audio Analyzer Service"
     API_VER: str = "1.0.0"
     API_DESCRIPTION: str = "API for intelligent audio processing including speech transcription and audio event detection" 
-    DEBUG: bool = False  # Debug flag to run API server with DEBUG logs. Used in Development only.
+    FASTAPI_ENV: str = "development"  # Environment for FastAPI (development or production)
 
     # API Health check configuration
     API_STATUS: str = "healthy"
@@ -37,7 +37,7 @@ class Settings(BaseSettings):
     AUDIO_DIR: Path = "/tmp/audio_analyzer/audio"  # Temporary directory for saving audio stream extracted from video files
     
     # Storage backend configuration
-    STORAGE_BACKEND: StorageBackend = StorageBackend.FILESYSTEM 
+    STORAGE_BACKEND: StorageBackend = StorageBackend.FILESYSTEM
     
     # MinIO configuration
     MINIO_ENDPOINT: str = "localhost:9000"
@@ -95,6 +95,12 @@ class Settings(BaseSettings):
                 )
                 
         return v
+    
+    @computed_field
+    @property
+    def DEBUG(self) -> bool:
+        """Determine if the application is running in debug mode based on environment"""
+        return self.FASTAPI_ENV.lower() == "development"
     
     @computed_field
     @property

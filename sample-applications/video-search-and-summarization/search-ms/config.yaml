@@ -1,0 +1,76 @@
+# Video Search Microservice Configuration
+# Frame-to-Video Aggregation Settings
+
+# Search Configuration
+search:
+  max_results_before_aggregation: 10000  # AGGREGATION_INITIAL_K
+  
+# Aggregation Configuration
+aggregation:
+  # Enable/disable frame-to-video aggregation
+  enabled: true  # AGGREGATION_ENABLED
+  
+  # Temporal segment clustering strategy
+  strategy: "temporal_segment_clustering"
+  
+  # Segment duration in seconds for temporal clustering
+  segment_duration_seconds: 8  # AGGREGATION_SEGMENT_DURATION
+  
+  # Minimum gap between segments from same video (Metro AI Suite inspired)
+  min_temporal_gap_seconds: 0  # AGGREGATION_MIN_GAP
+  
+  # Maximum number of final video results to return
+  final_max_results: 20  # AGGREGATION_MAX_RESULTS
+  
+  # Baseline video duration used when incoming metadata is incomplete
+  length_normalization:
+    baseline_duration_seconds: 30
+
+  # Scoring configuration (qualitative, length-neutral)
+  scoring:
+    qualitative_weights:
+      max_component: 0.65       # Weight applied to the single best frame in the segment
+      top_component: 0.35       # Weight applied to the sustained top-N average
+      top_ratio: 0.35           # Fraction of frames considered for the sustained average
+      top_min_count: 2          # Minimum number of frames included in the sustained average
+      top_max_count: 6          # Maximum number of frames included in the sustained average
+    contextual:
+      sigma_seconds: 40.0       # Gaussian width controlling contextual decay around the best frame globally
+      boost_strength: 0.5       # Multiplier applied to context weight (0 disables contextual boost)
+    context_seek_offset_seconds: 0.0  # Seek shift applied when choosing playback timestamp
+  
+  # Filtering configuration
+  filtering:
+    overlap_filter_enabled: true  # Enable temporal overlap filtering
+    min_frame_score_threshold: 0.5  # Minimum relevance score to consider
+
+# Environment Variable Mapping
+# These can be overridden via environment variables:
+#
+# AGGREGATION_ENABLED=true
+# AGGREGATION_SEGMENT_DURATION=8
+# AGGREGATION_MIN_GAP=0
+# AGGREGATION_MAX_RESULTS=20
+# AGGREGATION_INITIAL_K=1000
+# AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS=0.0
+# AGGREGATION_QUAL_MAX_WEIGHT=0.65
+# AGGREGATION_QUAL_TOP_WEIGHT=0.35
+# AGGREGATION_QUAL_TOP_RATIO=0.35
+# AGGREGATION_QUAL_TOP_MIN_COUNT=2
+# AGGREGATION_QUAL_TOP_MAX_COUNT=6
+# AGGREGATION_CONTEXT_SIGMA_SECONDS=40.0
+# AGGREGATION_CONTEXT_BOOST_STRENGTH=0.5
+
+# Example Docker Compose Override:
+# environment:
+#   - AGGREGATION_ENABLED=true
+#   - AGGREGATION_SEGMENT_DURATION=8
+#   - AGGREGATION_MIN_GAP=0
+#   - AGGREGATION_MAX_RESULTS=20
+#   - AGGREGATION_INITIAL_K=1000
+
+# Performance Notes:
+# - segment_duration_seconds: 8 seconds provides good balance for traffic videos
+# - min_temporal_gap_seconds: 0 seconds prevents duplicate nearby results (can be increased if needed)
+# - initial_k: 1000 ensures sufficient frames for good aggregation
+# - length_normalization prevents bias toward longer videos

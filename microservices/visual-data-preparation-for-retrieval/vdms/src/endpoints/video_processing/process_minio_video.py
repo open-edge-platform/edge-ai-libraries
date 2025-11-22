@@ -12,7 +12,9 @@ from fastapi import APIRouter, Body, HTTPException
 from src.common import DataPrepException, Strings, logger, settings
 from src.common.schema import DataPrepResponse, VideoRequest
 from src.core.embedding import generate_video_embedding
-from src.core.util import get_minio_client, get_video_from_minio, read_config
+from src.core.utils.common_utils import get_minio_client
+from src.core.utils.video_utils import get_video_from_minio
+from src.core.utils.config_utils import get_config, read_config
 from src.core.validation import sanitize_model
 
 router = APIRouter(tags=["Video Processing APIs"])
@@ -81,24 +83,25 @@ async def process_minio_video(
     video_request: Annotated[VideoRequest, Body(description="Video processing parameters")],
 ) -> DataPrepResponse:
     """
-    ### Processes videos stored in Minio using the provided parameters.
+    ### Processes videos stored in Minio using frame-based processing with optional object detection.
 
-    Video is divided into different chunks having length equal to chunk_duration value. Embeddings are
-    created and stored for uniformly sampled frames inside a clip (having length equal to clip_duration),
-    occurring in each chunk.
+    Video is processed by extracting individual frames at regular intervals (every Nth frame).
+    Each frame generates its own embedding. When object detection is enabled, detected objects
+    are cropped and embedded as separate entities, providing enhanced semantic coverage.
 
-    ***For example:** Given a video of 30s in total length, with chunk_duration = 10 and clip_duration = 5,
-    embeddings will be created for uniformly sampled frames from first 5 sec clip (defined by clip_duration)
-    in each of the three chunks. Three chunks would be created because total length of video is 30s and duration
-    of every chunk is 10s (defined by chunk_duration). **Number of chunks = int(total length of video in sec / chunk_duration)***
+    ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,
+    60 frames will be extracted and embedded (every 15th frame). If object detection is enabled
+    and 3 objects are detected per frame on average, this results in approximately 240 embeddings
+    (60 frames + 180 object crops).**
 
     #### Body Params:
     - **video_request (VideoRequest) :** Contains processing parameters:
        - **bucket_name (str) :** The bucket name where the video is stored (If not provided, a default bucket name will be used based on application config.)
        - **video_id (str) :** The video ID (directory) containing the video (required)
        - **video_name (str, optional) :** The video filename within the video_id directory (if omitted, the first MP4 video found in the directory will be used automatically)
-       - **chunk_duration (int) :** Interval of time in seconds for video chunking (default: 30)
-       - **clip_duration (int) :** Length of clip in seconds for embedding selection (default: 10)
+       - **frame_interval (int) :** Extract every Nth frame for processing (default: 15, range: 1-60)
+       - **enable_object_detection (bool) :** Enable object detection and crop extraction (default: True)
+       - **detection_confidence (float) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
@@ -112,16 +115,22 @@ async def process_minio_video(
     """
 
     try:
-        config = read_config(settings.CONFIG_FILEPATH, type="yaml")
+        raw_config = read_config(settings.CONFIG_FILEPATH, type="yaml")
 
         # Not able to read config file is a fatal error.
-        if config is None:
+        if raw_config is None:
             raise Exception(Strings.config_error)
 
+        try:
+            effective_config = get_config()
+        except ValueError as cfg_err:
+            logger.error(f"Failed to load effective configuration: {cfg_err}")
+            raise
+
         # Get directory paths from config file
-        videos_temp_dir = pathlib.Path(config.get("videos_local_temp_dir", "/tmp/dataprep/videos"))
+        videos_temp_dir = pathlib.Path(raw_config.get("videos_local_temp_dir", "/tmp/dataprep/videos"))
         metadata_temp_dir = pathlib.Path(
-            config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
+            raw_config.get("metadata_local_temp_dir", "/tmp/dataprep/metadata")
         )
 
         # Sanitize the video request model
@@ -131,8 +140,17 @@ async def process_minio_video(
         bucket_name = video_request.bucket_name
         video_id = video_request.video_id
         video_name = video_request.video_name
-        chunk_duration = video_request.chunk_duration or config.get("chunk_duration", 30)
-        clip_duration = video_request.clip_duration or config.get("clip_duration", 10)
+        frame_interval = video_request.frame_interval or effective_config.get("frame_interval", 15)
+        if video_request.enable_object_detection is not None:
+            enable_object_detection = bool(video_request.enable_object_detection)
+        else:
+            enable_object_detection = effective_config.get("enable_object_detection")
+            if enable_object_detection is None:
+                enable_object_detection = settings.ENABLE_OBJECT_DETECTION
+        detection_confidence = (
+            video_request.detection_confidence
+            or effective_config.get("detection_confidence", 0.85)
+        )
         tags: List[str] = video_request.tags or []
 
         # Validate the provided minio parameters and get the video name, if not provided
@@ -173,19 +191,20 @@ async def process_minio_video(
             logger.error(f"Error retrieving video from Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
 
-        # Process video metadata and generate video embeddings
+        # Process video metadata and generate frame-based embeddings
         ids = await generate_video_embedding(
             bucket_name=bucket_name,
             video_id=video_id,
             filename=filename,
             temp_video_path=temp_video_path,
             metadata_temp_path=metadata_temp_dir,
-            chunk_duration=chunk_duration,
-            clip_duration=clip_duration,
+            frame_interval=frame_interval,
+            enable_object_detection=enable_object_detection,
+            detection_confidence=detection_confidence,
             tags=tags,
         )
 
-        logger.info(f"Embeddings created for videos: {ids}")
+        # logger.debug(f"Frame-based embeddings created for videos: {ids}")
         return DataPrepResponse(message=Strings.embedding_success)
 
     except DataPrepException as ex:

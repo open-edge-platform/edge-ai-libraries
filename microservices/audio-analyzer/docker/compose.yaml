@@ -17,18 +17,15 @@ services:
       - http_proxy
       - https_proxy
       - no_proxy=$no_proxy,minio
-      - DEBUG=false
       - DEFAULT_WHISPER_MODEL
       - DEFAULT_DEVICE
       - ENABLED_WHISPER_MODELS=${ENABLED_WHISPER_MODELS}
       - MAX_FILE_SIZE=314572800  # 300MB
       - USE_FP16=${USE_FP16:-true}  # Use FP16 on GPUs
       - MINIO_ENDPOINT=${MINIO_ENDPOINT:-minio:9000}
-      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY}
-      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY}
+      - MINIO_ACCESS_KEY=${MINIO_ACCESS_KEY:-}
+      - MINIO_SECRET_KEY=${MINIO_SECRET_KEY:-}
       - STORAGE_BACKEND=${STORAGE_BACKEND:-minio}  # can be minio or local
-    depends_on:
-      - minio
     devices:
       - /dev/dri:/dev/dri
     restart: unless-stopped
@@ -39,26 +36,6 @@ services:
       retries: 3
       start_period: 15s
 
-  minio:
-    image: minio/minio:latest
-    ports:
-      - "9000:9000"
-      - "9001:9001"
-    volumes:
-      - minio_data:/data
-    environment:
-      - MINIO_ROOT_USER=${MINIO_ACCESS_KEY}
-      - MINIO_ROOT_PASSWORD=${MINIO_SECRET_KEY}
-    command: server /data --console-address ":9001"
-    healthcheck:
-      test: ["CMD", "curl", "-f", "http://localhost:9000/minio/health/live"]
-      interval: 30s
-      timeout: 10s
-      retries: 3
-    restart: unless-stopped
-
 volumes:
   audio_analyzer_data:
-    driver: local
-  minio_data:
     driver: local

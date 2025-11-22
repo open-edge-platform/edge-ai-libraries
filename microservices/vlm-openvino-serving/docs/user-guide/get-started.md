@@ -73,7 +73,13 @@ source setup.sh
 
 The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
 
-_Document how to get prebuilt docker image_
+**Configure the registry**:
+   The VLM OpenVINO Serving microservice uses registry URL and tag to pull the required image.
+
+    ```bash
+    export REGISTRY_URL=intel
+    export TAG=latest
+    ```
 
 ## Running the Server with CPU
 
@@ -126,7 +132,15 @@ curl --location --request GET 'http://localhost:9764/health'
 curl --location --request GET 'http://localhost:9764/device'
 ```
 
-For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
+> **Note**: For detailed GPU configuration options, device discovery, and performance tuning recommendations, refer to the `Device Configuration` section in [Environment Variables Guide](./environment-variables.md#device-configuration).
+
+## Stop the VLM OpenVINO Serving microservice
+
+To stop and remove the Docker containers, use the following command:
+
+```bash
+docker compose -f docker/compose.yaml down
+```
 
 ## Sample CURL Commands
 

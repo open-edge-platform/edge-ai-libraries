@@ -1,0 +1,149 @@
+# Copyright (C) 2025 Intel Corporation
+# SPDX-License-Identifier: Apache-2.0
+
+services:
+    minio-server:
+        image: minio/minio:RELEASE.2025-02-07T23-21-09Z
+        environment:
+            - MINIO_ROOT_USER=${MINIO_ROOT_USER}
+            - MINIO_ROOT_PASSWORD=${MINIO_ROOT_PASSWORD}
+        ports:
+            - '${MINIO_API_HOST_PORT:-6010}:9000'
+            - '${MINIO_CONSOLE_HOST_PORT:-6011}:9001'
+        volumes:
+            - '${MINIO_MOUNT_PATH:-/mnt/miniodata}:/data'
+        command: |
+            server /data 
+            --address ":9000" 
+            --console-address ":9001"
+
+    vdms-vector-db:
+        image: intellabs/vdms:v2.10.0
+        environment:
+            - OVERRIDE_db_root_path=/db
+            - OVERRIDE_images_path=/db/images
+            - OVERRIDE_descriptors_path=/db/descriptors
+            - OVERRIDE_blobs_path=/db/blobs
+            - OVERRIDE_pmgd_path=/db/graph
+        ports:
+            - '${VDMS_VDB_HOST_PORT:-6020}:55555'
+        depends_on:
+            - minio-server
+
+    vdms-dataprep:
+        build:
+            context: ..
+            dockerfile: docker/Dockerfile
+            target: prod
+        image: ${REGISTRY}vdms-dataprep:${TAG:-latest}
+        environment:
+            - http_proxy
+            - https_proxy
+            - no_proxy
+            # Basic app settings
+            - APP_HOST=vdms-dataprep # Same as service name. Helps store a URL for video download in metadata.
+
+            # VDMS Vector Database settings
+            - VDMS_VDB_HOST
+            - VDMS_VDB_PORT=55555
+
+            # MinIO settings
+            - MINIO_ENDPOINT=${MINIO_HOST}:9000
+            - MINIO_ACCESS_KEY=${MINIO_ROOT_USER}
+            - MINIO_SECRET_KEY=${MINIO_ROOT_PASSWORD}
+            - MINIO_SECURE=false
+            - DEFAULT_BUCKET_NAME
+
+            # Database settings
+            - DB_COLLECTION=${INDEX_NAME}
+
+            # Embedding service settings
+            - MULTIMODAL_EMBEDDING_ENDPOINT=${MULTIMODAL_EMBEDDING_ENDPOINT:-http://multimodal-embedding-serving:8000/embeddings}
+            - MULTIMODAL_EMBEDDING_MODEL_NAME=${EMBEDDING_MODEL_NAME} # Used for both SDK and API modes
+            - OV_PERFORMANCE_MODE=${OV_PERFORMANCE_MODE:-LATENCY}
+
+            # Embedding processing mode settings (SDK vs API)
+            - EMBEDDING_PROCESSING_MODE=${EMBEDDING_PROCESSING_MODE:-sdk}
+            - SDK_USE_OPENVINO=${SDK_USE_OPENVINO:-true}
+            - VDMS_DATAPREP_DEVICE=${VDMS_DATAPREP_DEVICE:-CPU}
+            - OV_MODELS_DIR=${OV_MODELS_DIR:-/app/ov_models}
+
+            # Frame processing settings
+            - FRAME_INTERVAL=${FRAME_INTERVAL:-15}
+            - ENABLE_OBJECT_DETECTION=${ENABLE_OBJECT_DETECTION:-true}
+            - DETECTION_CONFIDENCE=${DETECTION_CONFIDENCE:-0.85}
+            - FRAMES_TEMP_DIR=${FRAMES_TEMP_DIR:-/tmp/dataprep}
+
+            # Object detection model directory
+            - DETECTION_MODEL_DIR=${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}
+
+            # Application configuration
+            - LOG_LEVEL=${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+
+            # CORS settings
+            - ALLOW_ORIGINS=${ALLOW_ORIGINS:-*}
+            - ALLOW_METHODS=${ALLOW_METHODS:-*}
+            - ALLOW_HEADERS=${ALLOW_HEADERS:-*}
+        ports:
+            - '${VDMS_DATAPREP_HOST_PORT:-6007}:8000'
+        volumes:
+            - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - data-prep:/tmp/dataprep
+            - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
+            - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
+        devices:
+            - /dev/dri:/dev/dri # Intel GPU device access for OpenVINO GPU acceleration
+        depends_on:
+            - minio-server
+            # - multimodal-embedding-serving
+
+    multimodal-embedding-serving:
+        image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
+        container_name: multimodal-embedding-serving
+        ports:
+            - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+        ipc: host
+        environment:
+            no_proxy_env: ${no_proxy_env},vdms-dataprep
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+            EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
+            EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+            DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
+            DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
+            DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-LATENCY}
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
+        restart: unless-stopped
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
+        devices:
+            - /dev/dri:/dev/dri
+        networks:
+            - default
+        volumes:
+            - ov-models:/home/appuser/.cache/huggingface
+            - data-prep:/tmp/dataprep
+            - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+
+networks:
+    default:
+        driver: bridge
+
+volumes:
+    vdms-yolox-models:
+        driver: local
+    ov-models:
+        driver: local
+    data-prep:
+        driver: local

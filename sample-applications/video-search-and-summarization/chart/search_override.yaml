@@ -13,6 +13,8 @@ global:
 
   # sharedPvcName is the PVC shared by VDMS Dataprep and Multimodel-Embedding-MS subcharts.
   sharedPvcName: "vss-shared-pvc"
+  env:
+    EMBEDDING_MODEL_NAME: ""
 
 videoSummaryManager:
   env:

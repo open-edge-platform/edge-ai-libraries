@@ -5,17 +5,38 @@ metadata:
   labels:
     {{- include "multimodal-embedding-ms.labels" . | nindent 4 }}
 data:
-  {{- if eq .Values.useOnlyTextEmbeddings true }}
-  TEXT_EMBEDDING_MODEL_NAME: {{ required "textEmbeddingModel is required and cannot be empty" .Values.textEmbeddingModel | quote }}
+  {{- $embeddingModel := dict "value" "" }}
+  {{- if .Values.embeddingModelName }}
+  {{- $_ := set $embeddingModel "value" .Values.embeddingModelName }}
+  {{- else if (dig "embedding" "preferTextModel" false .Values.global) }}
+  {{- $_ := set $embeddingModel "value" (required "Set global.env.TEXT_EMBEDDING_MODEL_NAME when global.embedding.preferTextModel is true." (dig "env" "TEXT_EMBEDDING_MODEL_NAME" "" .Values.global)) }}
   {{- else }}
-  IMAGE_EMBEDDING_MODEL_NAME: {{ required "imageEmbeddingModel is required and cannot be empty" .Values.imageEmbeddingModel | quote }}
+  {{- $_ := set $embeddingModel "value" (required "Set global.env.EMBEDDING_MODEL_NAME (or override multimodalembeddingms.embeddingModelName) before deploying the chart." (dig "env" "EMBEDDING_MODEL_NAME" "" .Values.global)) }}
   {{- end }}
-  EMBEDDING_USE_OV: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "true" "false" }}'
-  EMBEDDING_DEVICE: '{{ .Values.global.gpu.multimodalembeddingmsEnabled | ternary "GPU" "CPU" }}'
-  USE_ONLY_TEXT_EMBEDDINGS: {{ .Values.useOnlyTextEmbeddings | quote }}
+  EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
+  {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
+  EMBEDDING_DEVICE: "GPU"
+  EMBEDDING_USE_OV: "true"
+  {{- else }}
+  {{- $embeddingDevice := coalesce .Values.embeddingDevice .Values.global.env.VDMS_DATAPREP_DEVICE .Values.global.env.DEVICE "CPU" }}
+  EMBEDDING_DEVICE: {{ $embeddingDevice | quote }}
+  {{- if hasKey .Values "embeddingUseOV" }}
+  EMBEDDING_USE_OV: {{ printf "%v" .Values.embeddingUseOV | quote }}
+  {{- else if hasKey .Values.global.env "SDK_USE_OPENVINO" }}
+  EMBEDDING_USE_OV: {{ printf "%v" .Values.global.env.SDK_USE_OPENVINO | quote }}
+  {{- else }}
+  EMBEDDING_USE_OV: "false"
+  {{- end }}
+  {{- end }}
+  EMBEDDING_OV_MODELS_DIR: {{ .Values.embeddingOVModelsDir | default .Values.global.env.OV_MODELS_DIR | default "/app/ov_models" | quote }}
   DEFAULT_START_OFFSET_SEC: {{ .Values.defaultStartOffsetSec | quote }}
   DEFAULT_CLIP_DURATION: {{ .Values.defaultClipDuration | quote }}
   DEFAULT_NUM_FRAMES: {{ .Values.defaultNumFrames | quote }}
+  OV_PERFORMANCE_MODE: {{ .Values.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
+  HF_HOME: "/home/appuser/.cache/huggingface"
+  TRANSFORMERS_CACHE: "/home/appuser/.cache/huggingface"
+  HUGGINGFACE_HUB_CACHE: "/home/appuser/.cache/huggingface"
+  XDG_CACHE_HOME: "/home/appuser/.cache"
   http_proxy: {{ .Values.global.proxy.http_proxy | quote }}
   https_proxy: {{ .Values.global.proxy.https_proxy | quote }}
   no_proxy: "{{ .Values.global.proxy.no_proxy }},audioanalyzer,vlm-inference-microservice,videosummarybackend,videoingestion,minio-server,postgresql,video-summary-nginx,rabbitmq,multimodal-embedding-ms,vdms-dataprep,vdms-vectordb,videosearch"

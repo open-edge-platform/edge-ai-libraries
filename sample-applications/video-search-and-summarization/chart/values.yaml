@@ -45,7 +45,20 @@ global:
     RABBITMQ_DEFAULT_PASS: ""
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
+    DEFAULT_BUCKET_NAME: "video-summary"
+    MULTIMODAL_EMBEDDING_ENDPOINT: "http://multimodal-embedding-ms:8000/embeddings"
+    EMBEDDING_MODEL_NAME: ""
+    TEXT_EMBEDDING_MODEL_NAME: ""
+    EMBEDDING_PROCESSING_MODE: "sdk"
+    SDK_USE_OPENVINO: true
+    VDMS_DATAPREP_DEVICE: "CPU"
+    DEVICE: "CPU"
+    OV_MODELS_DIR: "/app/ov_models"
+    OV_PERFORMANCE_MODE: "THROUGHPUT"
+    VDMS_DATAPREP_LOG_LEVEL: "INFO"
     keeppvc: false # Set to true to keep PVCs after uninstalling the chart
+  embedding:
+    preferTextModel: false
 
 # sharedClaimSize is the storage size claimed by shared PVC used by VDMS Dataprep and Multimodal-Embedding-MS subcharts.
 sharedClaimSize: "7Gi"
@@ -70,7 +83,7 @@ videoSummaryManager:
   name: videosummarybackend
   image:
     repository: intel/pipeline-manager
-    tag: "1.2.3"
+    tag: "1.3.0"
     pullPolicy: IfNotPresent
   containerPortName: videosumm-port # Optional name to refer containerPort
   service:
@@ -87,6 +100,7 @@ videoSummaryManager:
     VLM_CONCURRENT: "4"
     SUMMARIZATION_MAX_COMPLETION_TOKENS: "4000"
     CAPTIONING_MAX_COMPLETION_TOKENS: "1024"
+    MAX_CONTEXT_LENGTH: "90000"
     LLM_MODEL_API: "v1/config"
     MULTI_FRAME_COUNT: "12"
     AUDIO_DEVICE: "cpu"
@@ -163,8 +177,6 @@ postgresql:
 multimodalembeddingms:
   enabled: false
   name: multimodal-embedding-ms
-  textEmbeddingModel: ""
-  imageEmbeddingModel: ""
   service:
     type: ClusterIP
     port: 8000

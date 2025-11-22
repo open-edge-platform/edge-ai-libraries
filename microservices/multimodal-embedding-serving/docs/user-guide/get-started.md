@@ -1,113 +1,156 @@
 # Get Started
 
-The **Multimodal Embedding Serving microservice** is designed to generate embeddings for text, image URLs, base64 encoded images, video URLs, and base64 encoded videos. It leverages the CLIP (Contrastive Language-Image Pretraining) model to create these embeddings. This section provides step-by-step instructions to:
-
-- Set up the microservice using a pre-built Docker image for quick deployment.
-- Run predefined tasks to explore its functionality.
-- Learn how to modify basic configurations to suit specific requirements.
+This guide provides step-by-step instructions to quickly deploy and test the **Multimodal Embedding Serving microservice**.
 
 ## Prerequisites
 
-Before you begin, ensure the following:
+Before you begin, confirm the following:
 
-- **System Requirements**: Verify that your system meets the [minimum requirements](./system-requirements.md).
-- **Docker Installed**: Install Docker. For installation instructions, see [Get Docker](https://docs.docker.com/get-docker/).
+- **System Requirements**: Your system meets the [minimum requirements](./system-requirements.md).
+- **Docker Installed**: Install Docker if needed. See [Get Docker](https://docs.docker.com/get-docker/).
 
-This guide assumes basic familiarity with Docker commands and terminal usage. If you are new to Docker, see [Docker Documentation](https://docs.docker.com/) for an introduction.
+This guide assumes basic familiarity with Docker commands and terminal usage.
 
-## Environment Variables
+## Set Environment Values
 
-These are environment variables which are crucial for running the application and are required during runtime.
+Set the required environment variables before launching the service.
 
-- `TEXT_EMBEDDING_MODEL_NAME`: Name of the pre-trained text embedding model.
-- `IMAGE_EMBEDDING_MODEL_NAME`: Name of the pre-trained multimodal embedding model.
-- `USE_ONLY_TEXT_EMBEDDINGS`: Set this to true to enable text embedding generation only, instead of multimodal embeddings.
-- `http_proxy`: HTTP proxy value.
-- `https_proxy`: HTTPS proxy value.
-- `no_proxy_env`: No proxy value(comma separated list).
-- `DEFAULT_START_OFFSET_SEC`: Default start offset in seconds for video segmentation.
-- `DEFAULT_CLIP_DURATION`: Default clip duration for video segmentation. (If DEFAULT_CLIP_DURATION == -1 then takes the video till end)
-- `DEFAULT_NUM_FRAMES`: Default number of frames to extract from a video. (Uses uniform sampling)
-- `EMBEDDING_USE_OV`: Set to `true` to use the OpenVINO backend for running the multimodal embedding model.
-- `EMBEDDING_DEVICE`: Device to run the embedding model on (CPU, GPU, etc.). This is an OpenVINO related parameter.
-- `REGISTRY_URL`: URL for the Docker registry.
-- `PROJECT_NAME`: Project name for Docker images.
-- `TAG`: Tag for Docker images (defaults to 'latest').
+```bash
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+```
+
+Refer to the [Supported Models](./supported-models.md) list for additional choices.
+
+> **_NOTE:_** You can change the model, OpenVINO conversion, device, or tokenization parameters by editing `setup.sh`.
+
+### Optional Environment Variables
+
+The microservice supports several optional variables to customize performance and logging. For the full list and examples, see the [Environment Variables section in the examples guide](../../examples/README.md#environment-variables).
+
+**Quick Configuration Examples**:
+
+```bash
+# Basic CPU setup (default)
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+
+# GPU acceleration with OpenVINO
+export EMBEDDING_MODEL_NAME=CLIP/clip-vit-b-32
+export EMBEDDING_DEVICE=GPU
+export EMBEDDING_USE_OV=true
+
+# Custom OpenVINO cache directory
+export EMBEDDING_MODEL_NAME=MobileCLIP/mobileclip_s0
+export EMBEDDING_OV_MODELS_DIR=/app/ov-models
+```
+
+**Key Environment Variables**:
+
+- **EMBEDDING_DEVICE**: `CPU` (default) or `GPU`.
+- **EMBEDDING_USE_OV**: Enable OpenVINO optimizations (`true`/`false`).
+- **EMBEDDING_OV_MODELS_DIR**: Persistent directory for converted models.
+
+Set the environment with default values by running:
+
+```bash
+source setup.sh
+```
 
 ## Quick Start with Docker
 
-The user has an option to either [build the docker images](./how-to-build-from-source.md#steps-to-build) or use prebuilt images as documented below.
+You can [build the Docker image](./how-to-build-from-source.md#steps-to-build) or pull a prebuilt image as shown below.
 
-_Document how to get prebuilt docker image_
+### Configure the registry
 
-### Running the Server
+```bash
+export REGISTRY_URL=intel
+export TAG=latest
+```
 
-1. Clone the repo and change to the `multimodal-embedding-serving` directory:
+## Running the Server with CPU
 
-    ```bash
-    # Clone the latest on mainline
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries
-    # Alternatively, Clone a specific release branch
-    git clone https://github.com/open-edge-platform/edge-ai-libraries.git edge-ai-libraries -b <release-tag>
-    
-    cd edge-ai-libraries/microservices/multimodal-embedding-serving
-    ```
+```bash
+docker compose -f docker/compose.yaml up -d
+```
 
-2. Set the required `VCLIP_MODEL` and `QWEN_MODEL` environment variable:
+Verify the deployment:
 
-    ```bash
-    export VCLIP_MODEL="openai/clip-vit-base-patch32"
-    export QWEN_MODEL="Qwen/Qwen3-Embedding-0.6B"
-    ```
+```bash
+curl --location --request GET 'http://localhost:9777/health'
+```
 
-3. _*(OPTIONAL)*_ The microservice supports multimodal embedding models by default. It will use value of `VCLIP_MODEL` set in step 2, as an embedding model _(which can generate both text as well as image embeddings)_. But if you want to exclusively generate text embeddings only, set the following environment variable:
+## Running the Server with GPU
 
-    ```bash
-    export USE_ONLY_TEXT_EMBEDDINGS=True
-    ```
+### 1. Configure GPU Device
 
-    This makes the microservice use the value of `QWEN_MODEL` (set in step 2) as an embedding model, which helps to generate text embeddings only.
+```bash
+# Automatic GPU selection
+export EMBEDDING_DEVICE=GPU
 
-    > _**NOTE:**_ Only `openai/clip-vit-base-patch32` is supported right now, as multimodal embedding model. Similarly, as text embedding model, only `Qwen/Qwen3-Embedding-0.6B` is supported right now. This should be apparent by looking at the values of `VCLIP_MODEL` and `QWEN_MODEL` being set in step 2.
+# Specific GPU index (if applicable)
+export EMBEDDING_DEVICE=GPU.0
+```
 
-4. Set the other required environment with default values by running the following script:
+### 2. Run Setup Script
 
-    ```bash
-    source setup.sh
-    ```
+```bash
+source setup.sh
+```
 
-    The `setup.sh` script determines whether the server runs on CPU or GPU by setting the appropriate environment variables.
+> **Note**: When `EMBEDDING_DEVICE=GPU` is set, `setup.sh` applies GPU-friendly defaults, including setting `EMBEDDING_USE_OV=true`.
 
-5. To run the service using Docker Compose, use the following command:
+### 3. Start the Service
 
-    ```bash
-    docker compose -f docker/compose.yaml up
-    ```
+```bash
+docker compose -f docker/compose.yaml up -d
+```
 
-6. To stop the service and bring down the container:
+### 4. Verify GPU Configuration
 
-    ```bash
-    docker compose -f docker/compose.yaml down
-    ```
+```bash
+# Check service health
+curl --location --request GET 'http://localhost:9777/health'
+
+# Inspect active model capabilities
+curl --location --request GET 'http://localhost:9777/model/capabilities'
+```
+
+## Stop the Multimodal Embedding microservice
+
+```bash
+docker compose -f docker/compose.yaml down
+```
 
 ## Sample CURL Commands
 
+The following samples mirror the accompanying Postman collection. All requests target `http://localhost:9777`.
+
 ### Text Embedding
-
-> _**NOTE:**_ Text embeddings can be generated by both text embedding models and multimodal embedding models. [Refer to step 3 here](#running-the-server) to understand how to set models used for generating text embeddings.
-
-> _**NOTE:**_  Generate the base64 values in place of `<base64_image>`, `<base64_video>` in the sample apis below.
-
 
 ```bash
 curl --location 'http://localhost:9777/embeddings' \
 --header 'Content-Type: application/json' \
 --data '{
-    "input": {
-        "type": "text",
-        "text": "Sample input text"
-    },
-    "encoding_format": "float"
+  "input": {
+    "type": "text",
+    "text": "Sample input text1"
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
+}'
+```
+
+### Document Embedding (multiple texts)
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "input": {
+    "type": "text",
+    "text": ["Sample input text1", "Sample input text2"]
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
 }'
 ```
 
@@ -117,67 +160,27 @@ curl --location 'http://localhost:9777/embeddings' \
 curl --location 'http://localhost:9777/embeddings' \
 --header 'Content-Type: application/json' \
 --data '{
-    "input": {
-        "type": "image_url",
-        "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
-    },
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float"
+  "input": {
+    "type": "image_url",
+    "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+  },
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float"
 }'
 ```
 
-### Base64 Image Embedding
+### Image Base64 Embedding
 
 ```bash
 curl --location 'http://localhost:9777/embeddings' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "image_base64",
-        "image_base64": "<base64_image>"
-    }
-}'
-```
-
-### Video URL Embedding
-
-```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_url",
-        "video_url": "https://raw.githubusercontent.com/intel-iot-devkit/sample-videos/refs/heads/master/bolt-detection.mp4",
-        "segment_config": {
-            "startOffsetSec": 0,
-            "clip_duration": -1,
-            "num_frames": 64
-        }
-    }
-}'
-```
-
-### Base64 Video Embedding
-
-```bash
-curl --location 'http://localhost:9777/embeddings' \
---header 'Content-Type: application/json' \
---data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_base64",
-        "segment_config": {
-            "startOffsetSec": 0,
-            "clip_duration": -1,
-            "num_frames": 64
-        },
-        "video_base64": "<base64_video>"
-    }
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "image_base64",
+    "image_base64": "<image base64 value here>"
+  }
 }'
 ```
 
@@ -187,39 +190,108 @@ curl --location 'http://localhost:9777/embeddings' \
 curl --location 'http://localhost:9777/embeddings' \
 --header 'Content-Type: application/json' \
 --data '{
-    "model": "openai/clip-vit-base-patch32",
-    "encoding_format": "float",
-    "input": {
-        "type": "video_frames",
-        "video_frames": [
-            {
-                "type": "image_url",
-                "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
-            },
-            {
-                "type": "image_base64",
-                "image_base64": "<base64_image>"
-            }
-        ]
-    }
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_frames",
+    "video_frames": [
+      {
+        "type": "image_url",
+        "image_url": "https://i.ytimg.com/vi/H_8J2YfMpY0/sddefault.jpg"
+      },
+      {
+        "type": "image_base64",
+        "image_base64": "<image base64 value here>"
+      }
+    ]
+  }
 }'
+```
+
+### Video URL Embedding (with segment config)
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_url",
+    "video_url": "https://sample-videos.com/video321/mp4/720/big_buck_bunny_720p_10mb.mp4",
+    "segment_config": {
+      "startOffsetSec": 0,
+      "clip_duration": -1,
+      "num_frames": 64,
+      "frame_indexes": [1, 10, 20]
+    }
+  }
+}'
+```
+
+### Video Base64 Embedding
+
+```bash
+curl --location 'http://localhost:9777/embeddings' \
+--header 'Content-Type: application/json' \
+--data '{
+  "model": "CLIP/clip-vit-b-32",
+  "encoding_format": "float",
+  "input": {
+    "type": "video_base64",
+    "segment_config": {
+      "startOffsetSec": 0,
+      "clip_duration": -1,
+      "num_frames": 64
+    },
+    "video_base64": "<video base64 value here>"
+  }
+}'
+```
+
+### Models, Current Model, and Capabilities
+
+```bash
+# List all available models
+curl --location --request GET 'http://localhost:9777/models'
+
+# Inspect the currently loaded model
+curl --location --request GET 'http://localhost:9777/model/current'
+
+# View modality support for the active model
+curl --location --request GET 'http://localhost:9777/model/capabilities'
 ```
 
 ## Troubleshooting
 
-1. **Docker Container Fails to Start**:
-    - Run `docker logs {{container-name}}` to identify the issue.
-    - Check if the required port is available.
+1. **Docker container fails to start**
+  - Run `docker logs multimodal-embedding-serving` to inspect failures.
+  - Ensure required ports (default `9777`) are available.
 
-2. **Cannot Access the Microservice**:
-    - Confirm the container is running:
+2. **Cannot access the microservice**
+  - Confirm the containers are running:
 
-      ```bash
-      docker ps
-      ```
+    ```bash
+    docker ps
+    ```
+
+  - Verify `EMBEDDING_MODEL_NAME` points to a supported entry and rerun `source setup.sh` if you make changes.
+
+3. **GPU runtime errors**
+  - Check Intel GPU device nodes:
+
+    ```bash
+    ls -la /dev/dri
+    ```
+
+  - Confirm `EMBEDDING_USE_OV=true` for best performance with OpenVINO on GPU.
 
 ## Supporting Resources
 
 - [Overview](Overview.md)
+- [Supported Models](supported-models.md)
 - [API Reference](api-reference.md)
+- [SDK Usage](sdk-usage.md)
+- [How to Build from Source](how-to-build-from-source.md)
 - [System Requirements](system-requirements.md)
+- [Wheel Installation](wheel-installation.md)

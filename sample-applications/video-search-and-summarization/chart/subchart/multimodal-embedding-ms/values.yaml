@@ -31,7 +31,7 @@ image:
         repository: intel/multimodal-embedding-serving
     pullPolicy: IfNotPresent
     # Overrides the image tag whose default is the chart appVersion.
-    tag: "1.2.3"
+    tag: "1.3.0"
 
 imagePullSecrets: []
 nameOverride: ''
@@ -86,16 +86,6 @@ startupProbe:
   periodSeconds: 10
   failureThreshold: 180
 
-# Starting up MME service with TextEmebedding Model can take a while, so we set a longer startup probe
-# Wait for startup till max ~ 50Mins
-startupProbeWithTextEmbeddingModel:
-  httpGet:
-    port: mm-embed-port
-    path: /health
-  initialDelaySeconds: 10
-  periodSeconds: 10
-  failureThreshold: 300
-
 nodeSelector: {}
 
 tolerations: []
@@ -113,11 +103,10 @@ podAffinity:
       topologyKey: "kubernetes.io/hostname"
 
 # Environment variables
-imageEmbeddingModel: ""
-textEmbeddingModel: ""
-useOnlyTextEmbeddings: false
+embeddingDevice: "CPU"
+embeddingUseOV: true
+embeddingOVModelsDir: "/app/ov_models"
 defaultStartOffsetSec: 0
-defaultClipDuration: 10
+defaultClipDuration: -1
 defaultNumFrames: 64
-embeddingUseOV: false
-embeddingDevice: 'CPU'
+ovPerformanceMode: "THROUGHPUT"
