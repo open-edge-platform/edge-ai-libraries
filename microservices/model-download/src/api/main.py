@@ -132,7 +132,6 @@ async def download_models(
                     hub=model.hub,
                     output_dir=model_download_path,
                     plugin_name=model.hub,
-                    model_type=model.type,
                 )
                 
                 # Add to job_ids for response
@@ -177,8 +176,7 @@ async def download_models(
                     model_name=model.name,
                     hub=model.hub,
                     output_dir=convert_output_dir,
-                    plugin_name="openvino",
-                    model_type=model.type,
+                    plugin_name="openvino"
                 )
                 
                 # Add to job_ids for response

@@ -2,5 +2,5 @@ apiVersion: v2
 name: model-download
 description: A Helm chart for deploying the model-download FastAPI microservice
 type: application
-version: 1.0.1
-appVersion: "1.0.1"
+version: 1.0.0
+appVersion: "1.0.0"

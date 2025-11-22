@@ -47,7 +47,6 @@ class ModelManager:
         hub: str,
         output_dir: Optional[str] = None,
         plugin_name: Optional[str] = None,
-        model_type: Optional[str] = None,
     ) -> str:
         """
         Register a new job and return its ID.
@@ -57,7 +56,6 @@ class ModelManager:
             model_name: Name of the model to process
             output_dir: Optional custom directory for output
             plugin_name: Optional specific plugin to use
-            model_type: Optional type of model (llm, embeddings, rerank, vision)
 
         Returns:
             Job ID as a string
@@ -83,7 +81,6 @@ class ModelManager:
             "status": "queued",
             "start_time": datetime.now().isoformat(),
             "plugin_name": plugin_name,
-            "model_type": model_type,
         }
 
         logger.info(
