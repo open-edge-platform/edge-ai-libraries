@@ -137,6 +137,9 @@ The microservice provides several cleanup options for managing Docker images and
 ```bash
 # Stop and remove all running containers
 source ./run.sh --down
+
+# Stop and remove all running containers including volumes
+source ./run.sh --down --volumes
 ```
 
 ### Image Cleanup
