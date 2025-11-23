@@ -17,6 +17,7 @@ services:
       - "5432:5432"
 
   dataprep_microservice:
+    image: ${REGISTRY}document-ingestion:${TAG}
     build:
       context: ..
       dockerfile: docker/Dockerfile
@@ -24,8 +25,7 @@ services:
         http_proxy: ${http_proxy}
         https_proxy: ${https_proxy}
         no_proxy: ${no_proxy}
-    #TODO: Configure image version as an env parameter    
-    image: ${REGISTRY}document-ingestion:${TAG}
+    container_name: document-ingestion    
     environment:
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
