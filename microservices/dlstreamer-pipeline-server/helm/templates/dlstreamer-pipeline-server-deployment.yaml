@@ -107,9 +107,12 @@ spec:
           subPath: config.json
         - mountPath: /var/cache/pipeline_root
           name: vol-pipeline-root-tmpfs0
-        - name: dev
-          mountPath: /dev
-          readOnly: true # Reduce risk while preserving access to GPU/NPU devices
+        - name: dev-dri
+          mountPath: /dev/dri
+          readOnly: true # Reduce risk while preserving access to GPU devices
+        - name: dev-accel
+          mountPath: /dev/accel
+          readOnly: true # Reduce risk while preserving access to NPU devices
         - name: dev-shm
           mountPath: /dev/shm
         - name: tmp
@@ -129,9 +132,12 @@ spec:
           name: dlstreamer-pipeline-server-config-input
       - name: vol-pipeline-root-tmpfs0
         emptyDir: {}
-      - name: dev
+      - name: dev-dri
         hostPath:
-          path: /dev
+          path: /dev/dri
+      - name: dev-accel
+        hostPath:
+          path: /dev/accel
       - name: dev-shm
         hostPath:
           path: /dev/shm

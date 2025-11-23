@@ -4,11 +4,11 @@ CODE_OF_CONDUCT.md  @xwu2intel
 SECURITY.md         @xwu2intel
 README.md           @xwu2intel
 
-/.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo
+/.github/workflows/dls*.yml @tbujewsk @nszczygl9 @dmichalo @yangjianfeng1208
 
 
 # libraries
-/libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni
+/libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208
 /libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60
@@ -41,8 +41,8 @@ README.md           @xwu2intel
 
 
 # documentation content: libraries
-/libraries/dl-streamer/docs/                                         @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @open-edge-platform/open-edge-platform-docs-write
-/libraries/dl-streamer/README.md                                     @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/docs/                                         @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208 @open-edge-platform/open-edge-platform-docs-write
+/libraries/dl-streamer/README.md                                     @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208 @open-edge-platform/open-edge-platform-docs-write
 
 /libraries/edge-control-libraries/README.md                                                                  @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write
 /libraries/edge-control-libraries/fieldbus/ecat-enablekit/docs/                                              @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @open-edge-platform/open-edge-platform-docs-write

@@ -103,52 +103,48 @@ while [[ $# -gt 0 ]]; do
     esac
 done
 
-# Define all available plugins in the application
+
 AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics")
+PLUGINS_LOWER=$(echo "$PLUGINS" | tr '[:upper:]' '[:lower:]')
+
+# Determine which plugins to activate
+print_header "Installing plugin dependencies"
+if [ "$PLUGINS_LOWER" = "all" ]; then
+    PLUGIN_LIST=("${AVAILABLE_PLUGINS[@]}")
+    print_info "Installing ALL plugins"
+else
+    # Split comma-separated plugins into array and convert to lowercase
+    IFS=',' read -ra PLUGIN_LIST_RAW <<< "$PLUGINS_LOWER"
+    PLUGIN_LIST=()
+    for plugin in "${PLUGIN_LIST_RAW[@]}"; do
+        # Trim whitespace and add to array
+        plugin=$(echo "$plugin" | xargs)
+        PLUGIN_LIST+=("$plugin")
+    done
+fi
 
 # Install plugin-specific dependencies
-print_header "Installing plugin dependencies"
-if [ "$PLUGINS" = "all" ]; then
-    print_info "Installing ALL plugins"
-    
-    # Install dependencies for all available plugins
-    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
-        install_dependencies "$plugin"
-    done
+for plugin in "${PLUGIN_LIST[@]}"; do
+    install_dependencies "$plugin"
+done
 
-    echo "ACTIVATED_PLUGINS=all" > "$PLUGINS_ENV_FILE"
-    print_success "All plugins are activated"
-else
-    # Split comma-separated plugins and install dependencies for each
-    IFS=',' read -ra PLUGIN_LIST <<< "$PLUGINS"
-    echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
-    
-    for plugin in "${PLUGIN_LIST[@]}"; do
-        install_dependencies "$plugin"
-    done
-    
-    print_success "Activated plugins: $PLUGINS"
-fi
+# Save activated plugins to env file
+echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
+print_success "Activated plugins: ${PLUGIN_LIST[*]}"
+
+# Build the list of --extra arguments from the activated plugins
+EXTRA_ARGS=()
+for plugin in "${PLUGIN_LIST[@]}"; do
+    EXTRA_ARGS+=(--extra "$plugin")
+done
 
 # Sync dependencies using UV
 print_header "Syncing dependencies with UV"
 cd /opt
 print_info "Installing dependencies from pyproject.toml..."
 
-# Add UV and ollama to PATH if it's not already there
-export PATH="/usr/local/bin:$HOME/.local/bin:/opt/bin/:$PATH"
-
-# Build the list of --extra arguments from the activated plugins
-EXTRA_ARGS=()
-if [ "$PLUGINS" = "all" ]; then
-    for plugin in "${AVAILABLE_PLUGINS[@]}"; do
-        EXTRA_ARGS+=(--extra "$plugin")
-    done
-else
-    for plugin in "${PLUGIN_LIST[@]}"; do
-        EXTRA_ARGS+=(--extra "$plugin")
-    done
-fi
+# ollama to PATH if it's not already there
+export PATH="/opt/bin/:$PATH"
 
 if uv sync "${EXTRA_ARGS[@]}"; then
     print_success "Dependencies synced successfully"

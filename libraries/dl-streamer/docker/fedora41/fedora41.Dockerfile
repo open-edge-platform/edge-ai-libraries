@@ -45,7 +45,7 @@ ARG FFMPEG_VERSION=6.1.1
 ARG OPENVINO_VERSION=2025.3.0
 ARG REALSENSE_VERSION=v2.57.4
 
-ARG DLSTREAMER_VERSION=2025.1.2
+ARG DLSTREAMER_VERSION=2025.2.0
 ARG DLSTREAMER_BUILD_NUMBER
 
 ENV DLSTREAMER_DIR=/home/dlstreamer/dlstreamer
@@ -187,6 +187,10 @@ FROM opencv-builder AS gstreamer-builder
 SHELL ["/bin/bash", "-xo", "pipefail", "-c"]
 WORKDIR /home/dlstreamer
 
+# Copy GStreamer patches
+RUN mkdir -p /tmp/patches
+COPY dependencies/patches/ /tmp/patches/
+
 RUN \
     git clone https://gitlab.freedesktop.org/gstreamer/gstreamer.git
 
@@ -198,6 +202,7 @@ WORKDIR /home/dlstreamer/gstreamer
 
 RUN \
     git switch -c "$GST_VERSION" "tags/$GST_VERSION" && \
+    git apply /tmp/patches/*.patch && \
     meson setup \
     -Dexamples=disabled \
     -Dtests=disabled \
@@ -275,7 +280,8 @@ RUN \
     build/ && \
     ninja -C build && \
     meson install -C build/ && \
-    rm -r subprojects/gst-devtools subprojects/gst-examples
+    rm -r subprojects/gst-devtools subprojects/gst-examples && \
+    rm -rf /tmp/patches/
 
 ENV PKG_CONFIG_PATH="${GSTREAMER_DIR}/lib/pkgconfig:${PKG_CONFIG_PATH}"
 
