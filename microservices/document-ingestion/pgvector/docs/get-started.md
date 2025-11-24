@@ -100,21 +100,29 @@ This method provides the fastest way to get started with the microservice.
     # This will output docker compose configs with all the environment variables resolved. The user can verify whether they are configured correctly.
     ```
     The valid configuration will ensure the latest prebuilt image from `intel` registry is downloaded. The scripts take care of this.
-5. **Start the Microservices**:
-    There are different options provided to start the microservices.
-    ```bash
-    # Run the development environment (only for DataStore) and prod environment for all other services in daemon mode
-    source ./run.sh --dev
 
+5. **Start the Microservices**:
+    The user is required to configure the registry and tag params before starting the microservices. 
+    ```bash
+    export CONTAINER_REGISTRY_URL=<preferred-registry-url> #defaults to "intel/" if not set
+    export CONTAINER_TAG=<preferred-tag> #defaults to "latest" if not set
+    
     # Run the production environment for all services in daemon mode
     source ./run.sh
-
-    # Run the development environment (only for DataStore) and prod environment for all other services in non-daemon mode
-    source ./run.sh --dev --nd
 
     # Run the production environment for all services in non-daemon mode
     source ./run.sh --nd
     ```
+    If the user prefers to build and run the `dataprep` in dev mode: 
+    ```bash
+    # Run the development environment (only for DataStore) and prod environment for all other services in daemon mode
+    source ./run.sh --dev
+    
+    # Run the development environment (only for DataStore) and prod environment for all other services in non-daemon mode
+    source ./run.sh --dev --nd
+    ```
+
+
 6. **Validate the setup**: Open your browser and navigate to:
     ```
     http://${host_ip}:${DATAPREP_HOST_PORT}/docs
@@ -129,6 +137,9 @@ The microservice provides several cleanup options for managing Docker images and
 ```bash
 # Stop and remove all running containers
 source ./run.sh --down
+
+# Stop and remove all running containers including volumes
+source ./run.sh --down --volumes
 ```
 
 ### Image Cleanup

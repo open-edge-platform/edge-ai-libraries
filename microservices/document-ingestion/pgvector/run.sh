@@ -47,14 +47,18 @@ export CHUNK_OVERLAP=200
 # Export version with YYYYMMDD
 export DEFAULT_VERSION=$(date +%Y%m%d)
 
-# Based on provided CONTAINER_REGISTRY_URL, set registry name which is prefixed to application's name/tag
-# to form complete image name. Add a trailing slash to container registry URL if not present.
+# Based on provided CONTAINER_REGISTRY_URL, set registry name which is 
+# prefixed to application's name/tag to form complete image name. Add a 
+# trailing slash to container registry URL if not present.
+# Default to intel/ if not set
+export CONTAINER_REGISTRY_URL="${CONTAINER_REGISTRY_URL:-intel}"
 if ! [ -z "$CONTAINER_REGISTRY_URL" ] && ! [ "${CONTAINER_REGISTRY_URL: -1}" = "/" ]; then
-    REGISTRY="${CONTAINER_REGISTRY_URL}/"
+    export REGISTRY="${CONTAINER_REGISTRY_URL}/"
 else
-    REGISTRY=$CONTAINER_REGISTRY_URL
+    export REGISTRY=$CONTAINER_REGISTRY_URL
 fi
 export IMAGE_REGISTRY="${REGISTRY}${PROJECT_NAME}/"
+export TAG="${CONTAINER_TAG:-latest}"
 
 # Handle the special characters in password for connection string
 convert_pg_password() {
@@ -171,11 +175,11 @@ elif [ "$1" = "--dev" ] && [ "$2" = "--nd" ] && [ "$#" -eq 2 ]; then
 
 # Spin up all services with prod environment in non-daemon mode
 elif [ "$1" = "--nd" ] && [ "$#" -eq 1 ]; then
-    docker compose -f docker/compose.yaml up --build
+    docker compose -f docker/compose.yaml up
 
 # Spin up all services with prod environment in daemon mode
 elif [ "$#" -eq 0 ]; then
-    docker compose -f docker/compose.yaml up -d --build
+    docker compose -f docker/compose.yaml up -d
     if [ $? = 0 ]; then
         docker ps | grep "${PROJECT_NAME}"
         echo "All services are up with prod environment!"
@@ -233,7 +237,6 @@ else
     echo "  --down --volumes Stop and remove containers, networks, and volumes (keep images)"
     echo "  --down --dev    Stop and remove dev environment containers and networks (keep images and volumes)"
     echo "  --down --dev --volumes Stop and remove dev environment containers, networks, and volumes (keep images)"
-    echo "  --build         Build images (requires service name)"
     echo "  --build dataprep [tag]  Build dataprep image with optional tag"
     echo "  --dev           Spin up services with dev environment in daemon mode"
     echo "  --dev --nd      Spin up services with dev environment in non-daemon mode"
