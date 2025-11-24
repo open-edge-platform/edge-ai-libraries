@@ -229,8 +229,8 @@ async def receive_alert(alert: OpcuaAlertsMessage):
         else:
             raise HTTPException(status_code=400,
                               detail="OPC UA alerts are not configured in the service")
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+    except HTTPException:
+        raise
     return {"status_code": 200, "status": "success", "message": "Alert received"}
 
 @app.post("/input")
