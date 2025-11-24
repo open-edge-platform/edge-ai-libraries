@@ -231,6 +231,16 @@ async def receive_alert(alert: OpcuaAlertsMessage):
                               detail="OPC UA alerts are not configured in the service")
     except HTTPException:
         raise
+    except Exception as exc:
+        logger.exception("Unexpected error in receive_alert: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status_code": 500,
+                "status": "error",
+                "message": f"Unexpected error: {exc}"
+            }
+        )
     return {"status_code": 200, "status": "success", "message": "Alert received"}
 
 @app.post("/input")
