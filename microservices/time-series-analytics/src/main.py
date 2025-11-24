@@ -59,7 +59,7 @@ class DataPoint(BaseModel):
 
 class Config(BaseModel):
     """Configuration model for the service."""
-    udfs: dict = {"name": "udf_name", "device": "cpu/gpu"}
+    udfs: dict = {"name": "udf_name", "device": "cpu"}
     alerts: Optional[dict] = {}
 
 
@@ -229,8 +229,18 @@ async def receive_alert(alert: OpcuaAlertsMessage):
         else:
             raise HTTPException(status_code=400,
                               detail="OPC UA alerts are not configured in the service")
-    except Exception as error:
-        raise HTTPException(status_code=500, detail=str(error)) from error
+    except HTTPException:
+        raise
+    except Exception as exc:
+        logger.exception("Unexpected error in receive_alert: %s", exc)
+        return JSONResponse(
+            status_code=500,
+            content={
+                "status_code": 500,
+                "status": "error",
+                "message": f"Unexpected error: {exc}"
+            }
+        )
     return {"status_code": 200, "status": "success", "message": "Alert received"}
 
 @app.post("/input")
@@ -411,6 +421,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                         "model": "model_name",
                         "device": "cpu or gpu"}
                     "alerts": {
+                    }
                     }
     responses:
         200:
