@@ -4,6 +4,7 @@
 import datetime
 import pathlib
 import shutil
+import io
 from http import HTTPStatus
 from typing import Annotated, List, Optional
 
@@ -11,8 +12,9 @@ from fastapi import APIRouter, File, HTTPException, Query, UploadFile
 
 from src.common import DataPrepException, Strings, logger, settings
 from src.common.schema import DataPrepResponse
-from src.core.embedding import generate_video_embedding
-from src.core.util import get_minio_client, read_config
+from src.core.embedding import generate_video_embedding, generate_video_embedding_from_content
+from src.core.utils.common_utils import get_minio_client
+from src.core.utils.config_utils import read_config
 from src.core.validation import validate_params
 
 router = APIRouter(tags=["Video Processing APIs"])
@@ -33,13 +35,17 @@ async def upload_and_process_video(
             description="The bucket name to store the video in. If not provided, default bucket will be used."
         ),
     ] = None,
-    chunk_duration: Annotated[
+    frame_interval: Annotated[
         Optional[int],
-        Query(ge=3, description="Interval of time in seconds for video chunking"),
+        Query(ge=1, le=60, description="Extract every Nth frame for processing (default: 15)"),
     ] = None,
-    clip_duration: Annotated[
-        Optional[int],
-        Query(ge=3, description="Length of clip in seconds for embedding selection"),
+    enable_object_detection: Annotated[
+        Optional[bool],
+        Query(description="Enable object detection and crop extraction (default: True)"),
+    ] = None,
+    detection_confidence: Annotated[
+        Optional[float],
+        Query(ge=0.1, le=1.0, description="Confidence threshold for object detection (default: 0.85)"),
     ] = None,
     tags: Annotated[
         Optional[List[str]],
@@ -50,26 +56,28 @@ async def upload_and_process_video(
     ] = None,
 ) -> DataPrepResponse:
     """
-    ### Upload and process a video file for embedding generation.
+    ### Upload and process a video file for frame-based embedding generation.
 
-    This endpoint accepts an MP4 video file upload, stores it in Minio, and generates embeddings.
+    This endpoint accepts an MP4 video file upload, stores it in Minio, and generates embeddings
+    using frame-based processing with optional object detection.
 
-    Video is divided into different chunks having length equal to chunk_duration value. Embeddings are
-    created and stored for uniformly sampled frames inside a clip (having length equal to clip_duration),
-    occurring in each chunk.
+    Video is processed by extracting individual frames at regular intervals (every Nth frame).
+    Each frame generates its own embedding. When object detection is enabled, detected objects
+    are cropped and embedded as separate entities, providing enhanced semantic coverage.
 
-    ***For example:** Given a video of 30s in total length, with chunk_duration = 10 and clip_duration = 5,
-    embeddings will be created for uniformly sampled frames from first 5 sec clip (defined by clip_duration)
-    in each of the three chunks. Three chunks would be created because total length of video is 30s and duration
-    of every chunk is 10s (defined by chunk_duration). **Number of chunks = int(total length of video in sec / chunk_duration)***
+    ***For example:** Given a video of 30s at 30fps (900 frames total), with frame_interval = 15,
+    60 frames will be extracted and embedded (every 15th frame). If object detection is enabled
+    and suppose 3 objects are detected per frame on average, this results in approximately 240 embeddings
+    (60 frames + 180 object crops).**
 
     #### File Upload:
     - **file (UploadFile, required) :** Video file to upload (MP4 format only, max size 500MB)
 
     #### Query Params:
     - **bucket_name (str, optional) :** The bucket name to store the video in. If not provided, default bucket will be used.
-    - **chunk_duration (int, optional) :** Interval of time in seconds for video chunking (default: 30)
-    - **clip_duration (int, optional) :** Length of clip in seconds for embedding selection (default: 10)
+    - **frame_interval (int, optional) :** Extract every Nth frame for processing (default: 15, range: 1-60)
+    - **enable_object_detection (bool, optional) :** Enable object detection and crop extraction (default: True)
+    - **detection_confidence (float, optional) :** Confidence threshold for object detection (default: 0.85, range: 0.1-1.0)
     - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
 
     #### Raises:
@@ -82,6 +90,10 @@ async def upload_and_process_video(
     - **response (json) :** A response JSON containing status and message.
     """
 
+    videos_temp_dir: Optional[pathlib.Path] = None
+    metadata_temp_dir: Optional[pathlib.Path] = None
+    temp_video_path: Optional[pathlib.Path] = None
+
     try:
         config = read_config(settings.CONFIG_FILEPATH, type="yaml")
 
@@ -90,8 +102,11 @@ async def upload_and_process_video(
             raise Exception(Strings.config_error)
 
         # Get processing parameters, fall back to config if not specified
-        chunk_duration = chunk_duration or config.get("chunk_duration", 30)
-        clip_duration = clip_duration or config.get("clip_duration", 10)
+        frame_interval = frame_interval or config.get("frame_interval", 15)
+        enable_object_detection = (
+            enable_object_detection if enable_object_detection is not None else config.get("enable_object_detection", True)
+        )
+        detection_confidence = detection_confidence or config.get("detection_confidence", 0.85)
         bucket_name = bucket_name or settings.DEFAULT_BUCKET_NAME
 
         # Get directory paths from config file
@@ -117,39 +132,62 @@ async def upload_and_process_video(
         minio_client = get_minio_client()
         minio_client.ensure_bucket_exists(bucket_name)
 
+        # Read file content once
+        content = await file.read()
+
         # First, save the file to Minio directly from the uploaded file
         try:
-            content = await file.read()
-            minio_client.upload_video(bucket_name, object_name, content)
+            content_stream = io.BytesIO(content)
+            minio_client.upload_video(bucket_name, object_name, content_stream, len(content))
             logger.info(f"Uploaded video {filename} to {bucket_name}/{object_name}")
         except Exception as ex:
             logger.error(f"Error uploading video to Minio: {ex}")
             raise DataPrepException(status_code=HTTPStatus.BAD_GATEWAY, msg=Strings.minio_error)
 
-        await file.seek(0)  # Reset file position again
+        # Choose processing approach based on embedding mode
+        if settings.EMBEDDING_PROCESSING_MODE.lower() == "sdk":
+            logger.info("Using SDK mode: processing video directly from memory for optimal performance")
+            
+            # SDK mode: Process video content directly from memory (most efficient)
+            ids = await generate_video_embedding_from_content(
+                video_content=content,  # Use in-memory content directly
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                metadata_temp_path=metadata_temp_dir,
+                frame_interval=frame_interval,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags or [],
+            )
+            logger.info(f"SDK mode: {len(ids)} embeddings created with optimized memory usage")
+        else:
+            logger.info("Using API mode: traditional file-based processing")
+            
+            # Now save the uploaded file to a temporary location for processing
+            temp_video_path = videos_temp_dir / filename
+            with open(temp_video_path, "wb") as f:
+                f.write(content)
+            logger.debug(f"Successfully saved uploaded file {filename} to {temp_video_path}")
+            
+            # API mode: Use traditional file-based processing  
+            ids = await generate_video_embedding(
+                bucket_name=bucket_name,
+                video_id=video_id,
+                filename=filename,
+                temp_video_path=temp_video_path,
+                metadata_temp_path=metadata_temp_dir,
+                frame_interval=frame_interval,
+                enable_object_detection=enable_object_detection,
+                detection_confidence=detection_confidence,
+                tags=tags or [],
+            )
+            logger.info(f"API mode: {len(ids)} embeddings created using HTTP calls")
 
-        # Now save the uploaded file to a temporary location for processing
-        temp_video_path = videos_temp_dir / filename
-        with open(temp_video_path, "wb") as f:
-            content = await file.read()
-            f.write(content)
-
-        logger.debug(f"Successfully saved uploaded file {filename} to {temp_video_path}")
-
-        # Process video metadata and generate embeddings
-        ids = await generate_video_embedding(
-            bucket_name=bucket_name,
-            video_id=video_id,
-            filename=filename,
-            temp_video_path=temp_video_path,
-            metadata_temp_path=metadata_temp_dir,
-            chunk_duration=chunk_duration,
-            clip_duration=clip_duration,
-            tags=tags or [],
+        logger.info(f"Frame-based embeddings created for video using {settings.EMBEDDING_PROCESSING_MODE} mode: {ids}")
+        return DataPrepResponse(
+            message=f"{Strings.embedding_success} (Mode: {settings.EMBEDDING_PROCESSING_MODE})"
         )
-
-        logger.info(f"Embeddings created for video: {ids}")
-        return DataPrepResponse(message=Strings.embedding_success)
 
     except DataPrepException as ex:
         logger.error(ex)
@@ -168,9 +206,9 @@ async def upload_and_process_video(
     finally:
         # Clean up unique request directory if it exists
         try:
-            if videos_temp_dir.exists():
+            if videos_temp_dir and videos_temp_dir.exists():
                 shutil.rmtree(videos_temp_dir, ignore_errors=True)
-            if metadata_temp_dir.exists():
+            if metadata_temp_dir and metadata_temp_dir.exists():
                 shutil.rmtree(metadata_temp_dir, ignore_errors=True)
         except Exception as ex:
             logger.error(f"Error cleaning up temporary directories: {ex}")

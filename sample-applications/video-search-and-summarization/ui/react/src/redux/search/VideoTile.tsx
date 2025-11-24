@@ -55,7 +55,7 @@ export const VideoTile: FC<VideoTileProps> = ({ resultIndex }) => {
         <source src={videoUrl ?? ''} />
       </video>
       <div className='relevance'>
-        {t('RelevanceScore')}: {metadata?.relevance_score ? metadata.relevance_score.toFixed(3) : 'N/A'}
+        {t('RelevanceScore')}: {metadata?.relevance_score != null ? metadata.relevance_score.toFixed(3) : 'N/A'}
       </div>
     </div>
   );

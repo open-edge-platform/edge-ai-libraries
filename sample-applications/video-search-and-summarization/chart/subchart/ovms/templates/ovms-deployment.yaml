@@ -14,6 +14,8 @@ spec:
       labels:
         app: {{ .Values.ovms.name }}
     spec:
+      securityContext:
+        fsGroup: 0
       {{- with .Values.nodeAffinity }}
       affinity:
         nodeAffinity:
@@ -88,14 +90,10 @@ spec:
               {{ .Values.global.gpu.key }}: 1
             limits:
               {{ .Values.global.gpu.key }}: 1
-          devices:
-            - name: dri-device
-              containerPath: /dev/dri
           securityContext:
             privileged: true
             runAsUser: 0
             runAsGroup: 0
-            fsGroup: 0
       {{- end }}
       volumes:
       {{- if .Values.global.gpu.ovmsEnabled }}

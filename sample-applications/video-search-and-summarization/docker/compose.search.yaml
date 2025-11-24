@@ -2,159 +2,220 @@
 # SPDX-License-Identifier: Apache-2.0
 
 services:
-  vss-ui:
-    environment:
-      APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
-      APP_SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-      APP_SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
+    vss-ui:
+        environment:
+            APP_SOCKET_APPEND: ${CONFIG_SOCKET_APPEND:-CONFIG_OFF}
+            APP_SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
+            APP_SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
 
-  pipeline-manager:
-    depends_on:
-      vdms-vector-db:
-        condition: service_started
-      vdms-dataprep:
-        condition: service_started
-      vclip-embedding-ms:
-        condition: service_healthy
-      video-search:
-        condition: service_started
-    environment:
-      SEARCH_ENDPOINT: ${VS_ENDPOINT}
-      SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
-      SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
-      SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
+    pipeline-manager:
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+            vdms-dataprep:
+                condition: service_healthy
+            multimodal-embedding-serving:
+                condition: service_healthy
+            video-search:
+                condition: service_started
+        environment:
+            SEARCH_ENDPOINT: ${VS_ENDPOINT}
+            SEARCH_DATAPREP_ENDPOINT: ${VDMS_DATAPREP_ENDPOINT}
+            SUMMARY_FEATURE: ${SUMMARY_FEATURE:-FEATURE_OFF}
+            SEARCH_FEATURE: ${SEARCH_FEATURE:-FEATURE_ON}
 
-  video-search:
-    image: ${REGISTRY:-}video-search:${TAG:-latest}
-    build:
-      context: ../search-ms
-      dockerfile: docker/Dockerfile
-    depends_on:
-      vdms-vector-db:
-        condition: service_started
-      minio-service:
-        condition: service_healthy
-      vdms-dataprep:
-        condition: service_started
-      vclip-embedding-ms:
-        condition: service_healthy
-    ipc: host
-    ports:
-      - "${VS_HOST_PORT}:8000"
-    environment:
-      no_proxy: ${no_proxy},${VCLIP_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      VDMS_VDB_HOST: ${VDMS_VDB_HOST}
-      VDMS_VDB_PORT: 55555
-      VCLIP_EMBEDDINGS_ENDPOINT: ${VCLIP_ENDPOINT}
-      VCLIP_EMBEDDINGS_MODEL_NAME: ${VCLIP_MODEL}
-      VCLIP_EMBEDDINGS_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
-      INDEX_NAME: ${VS_INDEX_NAME}
-      WATCH_DIRECTORY: ${VS_WATCHER_DIR}
-      DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
-      DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
-      VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
-      VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
-      CHUNK_DURATION: ${VS_DEFAULT_CLIP_DURATION}
-      WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
-    restart: unless-stopped
-    volumes:
-      - "${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir"
-    networks:
-      - vs_network
+    video-search:
+        image: ${REGISTRY:-}video-search:${TAG:-latest}
+        build:
+            context: ../search-ms
+            dockerfile: docker/Dockerfile
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+            minio-service:
+                condition: service_healthy
+            vdms-dataprep:
+                condition: service_started
+            multimodal-embedding-serving:
+                condition: service_healthy
+        ipc: host
+        ports:
+            - '${VS_HOST_PORT}:8000'
+        environment:
+            no_proxy: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
+            no_proxy_env: ${no_proxy},${MULTIMODAL_EMBEDDING_HOST},${VDMS_DATAPREP_HOST},${MINIO_HOST},${VDMS_VDB_HOST},${PM_HOST},localhost
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
+            VDMS_VDB_PORT: 55555
+            EMBEDDINGS_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            EMBEDDINGS_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            INDEX_NAME: ${VS_INDEX_NAME}
+            WATCH_DIRECTORY: ${VS_WATCHER_DIR}
+            DEBOUNCE_TIME: ${VS_DEBOUNCE_TIME}
+            DELETE_PROCESSED_FILES: ${VS_DELETE_PROCESSED_FILES}
+            VS_INITIAL_DUMP: ${VS_INITIAL_DUMP}
+            VIDEO_UPLOAD_ENDPOINT: ${VDMS_PIPELINE_MANAGER_UPLOAD}
+            WATCH_DIRECTORY_RECURSIVE: ${VS_WATCH_DIRECTORY_RECURSIVE}
+            # Frame-to-Video Aggregation Settings
+            AGGREGATION_ENABLED: ${AGGREGATION_ENABLED}
+            AGGREGATION_SEGMENT_DURATION: ${AGGREGATION_SEGMENT_DURATION}
+            AGGREGATION_MIN_GAP: ${AGGREGATION_MIN_GAP}
+            AGGREGATION_MAX_RESULTS: ${AGGREGATION_MAX_RESULTS}
+            AGGREGATION_INITIAL_K: ${AGGREGATION_INITIAL_K}
+            AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS: ${AGGREGATION_CONTEXT_SEEK_OFFSET_SECONDS}
+        restart: unless-stopped
+        volumes:
+            - '${VS_WATCHER_DIR:-/dev/null}:/tmp/watcher-dir'
+        networks:
+            - vs_network
 
-  vdms-vector-db:
-    image: intellabs/vdms:v2.10.0
-    ipc: host
-    environment:
-      - OVERRIDE_db_root_path=/db
-      - OVERRIDE_images_path=/db/images
-      - OVERRIDE_descriptors_path=/db/descriptors
-      - OVERRIDE_blobs_path=/db/blobs
-      - OVERRIDE_pmgd_path=/db/graph
-    ports:
-      - "${VDMS_VDB_HOST_PORT}:55555"
-    volumes:
-      - vdms-db:/db
-    networks:
-      - vs_network
+    vdms-vector-db:
+        image: intellabs/vdms:v2.11.0
+        ipc: host
+        environment:
+            - OVERRIDE_db_root_path=/db
+            - OVERRIDE_images_path=/db/images
+            - OVERRIDE_descriptors_path=/db/descriptors
+            - OVERRIDE_blobs_path=/db/blobs
+            - OVERRIDE_pmgd_path=/db/graph
+        ports:
+            - '${VDMS_VDB_HOST_PORT}:55555'
+        volumes:
+            - vdms-db:/db
+        networks:
+            - vs_network
 
-  vdms-dataprep:
-    image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
-    hostname: vdms-dataprep
-    environment:
-      no_proxy: ${no_proxy},${VDMS_VDB_HOST},${VCLIP_HOST},${MINIO_HOST},localhost
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      APP_HOST: vdms-dataprep
-      VDMS_VDB_HOST: ${VDMS_VDB_HOST}
-      VDMS_VDB_PORT: 55555
-      DB_COLLECTION: ${VS_INDEX_NAME}
-      MULTIMODAL_EMBEDDING_ENDPOINT: ${VCLIP_ENDPOINT}
-      MULTIMODAL_EMBEDDING_MODEL_NAME: ${VCLIP_MODEL}
-      MULTIMODAL_EMBEDDING_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
-      MINIO_ENDPOINT: ${MINIO_HOST}:80
-      MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
-      MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
-      MINIO_SECURE: false
-    ports:
-      - "${VDMS_DATAPREP_HOST_PORT}:8000"
-    depends_on:
-      vdms-vector-db:
-        condition: service_started
-      vclip-embedding-ms:
-        condition: service_healthy
-      minio-service:
-        condition: service_healthy
-    volumes:
-      - data-prep:/tmp/dataprep
-    networks:
-      - vs_network
+    vdms-dataprep:
+        image: ${REGISTRY:-}vdms-dataprep:${TAG:-latest}
+        hostname: vdms-dataprep
+        environment:
+            no_proxy: ${no_proxy},${VDMS_VDB_HOST},${MULTIMODAL_EMBEDDING_HOST},${MINIO_HOST},localhost
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            # Basic app settings
+            APP_HOST: vdms-dataprep
 
-  vclip-embedding-ms:
-    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
-    ports:
-      - "${VCLIP_HOST_PORT}:8000"
-    ipc: host
-    environment:
-      no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
-      no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
-      http_proxy: ${http_proxy}
-      https_proxy: ${https_proxy}
-      TEXT_EMBEDDING_MODEL_NAME: ${QWEN_MODEL}
-      IMAGE_EMBEDDING_MODEL_NAME: ${VCLIP_MODEL}
-      DEFAULT_START_OFFSET_SEC: ${VCLIP_START_OFFSET_SEC}
-      DEFAULT_CLIP_DURATION: ${VCLIP_CLIP_DURATION}
-      DEFAULT_NUM_FRAMES: ${VCLIP_NUM_FRAMES}
-      EMBEDDING_USE_OV: ${VCLIP_USE_OV}
-      EMBEDDING_DEVICE: ${VCLIP_DEVICE}
-      USE_ONLY_TEXT_EMBEDDINGS: ${USE_ONLY_TEXT_EMBEDDINGS}
-      DEBUG_MODE: ${DEBUG_MODE:-False}
-    devices:
-      - ${DRI_MOUNT_PATH:-/dev/null}:/dev/dri
-    group_add:
-      - ${USER_GROUP_ID:-1000}
-      - ${VIDEO_GROUP_ID:-44}
-      - ${RENDER_GROUP_ID:-1002}
-    restart: unless-stopped
-    healthcheck:
-      test: ["CMD-SHELL", "curl -f http://localhost:8000/health || exit 1"]
-      interval: 10s
-      timeout: 10s
-      retries: 40
-      start_period: 5s
-    networks:
-      - vs_network
-    volumes:
-      - ov-models:/home/appuser/.cache/huggingface
-      - data-prep:/tmp/dataprep
-      - ov-models:/app/ov-models
+            # VDMS Vector Database settings
+            VDMS_VDB_HOST: ${VDMS_VDB_HOST}
+            VDMS_VDB_PORT: 55555
+
+            # MinIO settings
+            MINIO_ENDPOINT: ${MINIO_HOST}:80
+            MINIO_ACCESS_KEY: ${MINIO_ROOT_USER}
+            MINIO_SECRET_KEY: ${MINIO_ROOT_PASSWORD}
+            MINIO_SECURE: false
+            DEFAULT_BUCKET_NAME: ${DEFAULT_BUCKET_NAME}
+
+            # Database settings
+            DB_COLLECTION: ${VS_INDEX_NAME}
+
+            # Embedding service settings
+            MULTIMODAL_EMBEDDING_ENDPOINT: ${MULTIMODAL_EMBEDDING_ENDPOINT}
+            MULTIMODAL_EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME} # Used for both SDK and API modes
+
+            # Embedding processing mode settings (SDK vs API)
+            EMBEDDING_PROCESSING_MODE: ${EMBEDDING_PROCESSING_MODE:-sdk}
+            SDK_USE_OPENVINO: ${SDK_USE_OPENVINO:-true}
+            VDMS_DATAPREP_DEVICE: ${VDMS_DATAPREP_DEVICE:-CPU}
+            OV_MODELS_DIR: ${OV_MODELS_DIR:-/app/ov_models}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+
+            # Frame processing settings
+            FRAME_INTERVAL: ${FRAME_INTERVAL:-15}
+            ENABLE_OBJECT_DETECTION: ${ENABLE_OBJECT_DETECTION:-true}
+            DETECTION_CONFIDENCE: ${DETECTION_CONFIDENCE:-0.85}
+            FRAMES_TEMP_DIR: ${FRAMES_TEMP_DIR:-/tmp/dataprep}
+
+            # Object detection model directory
+            DETECTION_MODEL_DIR: ${YOLOX_MODELS_MOUNT_PATH}
+
+            # Application configuration
+            LOG_LEVEL: ${VDMS_DATAPREP_LOG_LEVEL:-INFO}
+
+            # CORS settings
+            ALLOW_ORIGINS: ${ALLOW_ORIGINS:-*}
+            ALLOW_METHODS: ${ALLOW_METHODS:-*}
+            ALLOW_HEADERS: ${ALLOW_HEADERS:-*}
+        ports:
+            - '${VDMS_DATAPREP_HOST_PORT}:8000'
+        depends_on:
+            vdms-vector-db:
+                condition: service_started
+            multimodal-embedding-serving:
+                condition: service_healthy
+            minio-service:
+                condition: service_healthy
+        healthcheck:
+            test:
+                [
+                    'CMD-SHELL',
+                    'curl -f http://localhost:8000/v1/dataprep/health || exit 1',
+                ]
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
+        volumes:
+            - '${YOLOX_MODELS_VOLUME_NAME:-vdms-yolox-models}:${YOLOX_MODELS_MOUNT_PATH:-/app/models/yolox}'
+            - data-prep:/tmp/dataprep
+            - ov-models:/home/appuser/.cache/huggingface # Share embedding models for SDK mode
+            - ov-models:${OV_MODELS_DIR:-/app/ov_models} # OpenVINO models directory for SDK mode
+        devices:
+            - /dev/dri:/dev/dri
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
+        networks:
+            - vs_network
+
+    multimodal-embedding-serving:
+        image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
+        container_name: multimodal-embedding-serving
+        ports:
+            - '${EMBEDDING_SERVER_PORT:-9777}:8000'
+        ipc: host
+        environment:
+            no_proxy: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
+            no_proxy_env: ${no_proxy},${MINIO_HOST},${VDMS_DATAPREP_HOST},localhost
+            http_proxy: ${http_proxy}
+            https_proxy: ${https_proxy}
+            EMBEDDING_MODEL_NAME: ${EMBEDDING_MODEL_NAME}
+            EMBEDDING_DEVICE: ${EMBEDDING_DEVICE}
+            EMBEDDING_USE_OV: ${EMBEDDING_USE_OV}
+            EMBEDDING_OV_MODELS_DIR: ${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
+            DEFAULT_START_OFFSET_SEC: ${DEFAULT_START_OFFSET_SEC}
+            DEFAULT_CLIP_DURATION: ${DEFAULT_CLIP_DURATION:--1}
+            DEFAULT_NUM_FRAMES: ${DEFAULT_NUM_FRAMES}
+            OV_PERFORMANCE_MODE: ${OV_PERFORMANCE_MODE:-THROUGHPUT}
+        devices:
+            - /dev/dri:/dev/dri
+        group_add:
+            - ${USER_GROUP_ID:-1000}
+            - ${VIDEO_GROUP_ID:-44}
+            - ${RENDER_GROUP_ID:-1002}
+        restart: unless-stopped
+        healthcheck:
+            test:
+                ['CMD-SHELL', 'curl -f http://localhost:8000/health || exit 1']
+            interval: 10s
+            timeout: 10s
+            retries: 40
+            start_period: 5s
+        networks:
+            - vs_network
+        volumes:
+            - ov-models:/home/appuser/.cache/huggingface
+            - data-prep:/tmp/dataprep
+            - ov-models:${EMBEDDING_OV_MODELS_DIR:-/app/ov_models}
 
 volumes:
-  vdms-db:
-    driver: local
-  ov-models:
-    driver: local
-  data-prep:
-    driver: local
+    vdms-db:
+        driver: local
+    ov-models:
+        driver: local
+    data-prep:
+        driver: local
+    vdms-yolox-models:
+        driver: local

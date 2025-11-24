@@ -34,6 +34,16 @@ global:
     OTLP_ENDPOINT: ""
     OTLP_ENDPOINT_TRACE: ""
 
+    # Set this to override the embedding model used by both Multimodal Embedding MS and DataPrep (leave empty to use chart default or mode override).
+    EMBEDDING_MODEL_NAME: ""
+    # Optional: supply a text-only embedding model. When global.embedding.preferTextModel is true (unified summary + search),
+    # this value becomes mandatory and overrides EMBEDDING_MODEL_NAME across services.
+    TEXT_EMBEDDING_MODEL_NAME: ""
+
+  embedding:
+    # Set to true when deploying summary and search together so the text embedding model overrides the default.
+    preferTextModel: false
+
   # Update these values to deploy on GPU. Leave empty if want to keep default deployment on CPU.
   gpu:
     vlminferenceEnabled:
@@ -52,10 +62,3 @@ videoingestion:
   odModelName: ""
   # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
   odModelType: ""
-
-
-multimodalembeddingms:
-  # Update textEmbeddingModel for unified video search and summary setup. Keep imageEmbeddingModel empty. See docs for sample value.
-  textEmbeddingModel: ""
-  # Update imageEmbeddingModel for standalone video search application setup. Keep textEmbeddingModel empty. See docs for sample value.
-  imageEmbeddingModel: ""

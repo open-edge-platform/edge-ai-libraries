@@ -180,6 +180,22 @@ const StyledVideoPlayer = styled.video`
   background: var(--color-black);
 `;
 
+const ErrorBox = styled.div`
+  background-color: #f8d7da;
+  color: #721c24;
+  padding: 1rem;
+  font-size: 0.9rem;
+`;
+
+const CodePara = styled.p`
+  font-family: monospace;
+  background: #f5f5f5;
+  padding: 0.5rem;
+  margin-top: 0.5rem;
+  font-size: 0.85rem;
+  color: #333;
+`;
+
 export interface VideoEmbeddingFlowProps {
   onClose?: () => void;
 }
@@ -203,9 +219,11 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
   const [processing, setProcessing] = useState<boolean>(false);
   const [progressText, setProgressText] = useState<string>('');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
+  const [formatError, setFormatError] = useState<string | null>(null);
   const [videoTags, setVideoTags] = useState<string | null>('');
   const [selectedTags, setSelectedTags] = useState<string[]>([]);
   const [videoPreviewUrl, setVideoPreviewUrl] = useState<string | null>(null);
+  const [uploadErrorMessage, setUploadErrorMessage] = useState<string | null>(null);
 
   // Refs
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -230,23 +248,36 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     }
     setVideoPreviewUrl(null);
     setSelectedFile(null);
+    setFormatError(null);
     setVideoTags('');
     setSelectedTags([]);
     setProgressText('');
     setUploadProgress(0);
     setUploading(false);
     setProcessing(false);
+    setUploadErrorMessage(null);
     setStep(0);
     if (fileInputRef.current) {
       fileInputRef.current.value = '';
     }
   }, []); // Empty dependency array - stable reference
 
+  const clearErrorState = useCallback(() => {
+    setUploadErrorMessage(null);
+    setUploadProgress(0);
+    setProgressText('');
+  }, []);
+
   useEffect(() => {
     resetForm();
   }, [resetForm]);
 
-  // Cleanup video preview URL on unmount
+  useEffect(() => {
+    if (step !== 2) {
+      clearErrorState();
+    }
+  }, [step, clearErrorState]);
+
   useEffect(() => {
     return () => {
       if (videoPreviewUrlRef.current) {
@@ -260,13 +291,81 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
     [t]
   );
 
-  const handleFileSelect = (files: FileList | null) => {
+  const findAtom = (buffer: Uint8Array, atomType: string): number => {
+    const atomBytes = new TextEncoder().encode(atomType);
+    for (let i = 0; i < buffer.length - 4; i++) {
+      if (
+        buffer[i] === atomBytes[0] &&
+        buffer[i + 1] === atomBytes[1] &&
+        buffer[i + 2] === atomBytes[2] &&
+        buffer[i + 3] === atomBytes[3]
+      ) {
+        return i;
+      }
+    }
+    return -1;
+  };
+
+  const isStreamable = async (file: File): Promise<boolean> => {
+    try {
+      const arrayBuffer = await file.arrayBuffer();
+      const buffer = new Uint8Array(arrayBuffer);
+
+      const moovIndex = findAtom(buffer, 'moov');
+      const mdatIndex = findAtom(buffer, 'mdat');
+
+      // If either atom is missing, treat as not streamable
+      if (moovIndex === -1 || mdatIndex === -1) return false;
+
+      return moovIndex < mdatIndex;
+    } catch (error) {
+      console.error('Error checking streamability:', error);
+      return false;
+    }
+  };
+
+  const handleFileSelect = async (files: FileList | null) => {
     if (files && files.length > 0) {
+      const file = files[0];
+      
+      // Validate file format
+      const fileName = file.name.toLowerCase();
+      const fileType = file.type;
+      
+      if (!fileName.endsWith('.mp4') && fileType !== 'video/mp4') {
+        setFormatError(t('invalidVideoFormat'));
+        setSelectedFile(null);
+        setVideoPreviewUrl(null);
+        if (fileInputRef.current) {
+          fileInputRef.current.value = '';
+        }
+        return;
+      }
+      
+      // Check if MP4 is streamable
+      try {
+        const streamable = await isStreamable(file);
+        if (!streamable) {
+          setFormatError(t('OnlyStreamableMp4'));
+          setSelectedFile(null);
+          setVideoPreviewUrl(null);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          return;
+        }
+      } catch (error) {
+        console.error('Error checking streamability:', error);
+      }
+      
+      // Clear previous errors
+      setFormatError(null);
+      
       // Clean up previous preview URL if exists
       if (videoPreviewUrlRef.current) {
         URL.revokeObjectURL(videoPreviewUrlRef.current);
       }
-      const file = files[0];
+      
       setSelectedFile(file);
       // Create a preview URL for the video
       const previewUrl = URL.createObjectURL(file);
@@ -366,11 +465,12 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
       let errorMessage = t('videoUploadError');
 
       if (axios.isAxiosError(error) && error.response?.data?.message) {
-        errorMessage = error.response.data.message;
+        errorMessage = error.response.data.message; 
       } else if (error instanceof Error) {
         errorMessage = error.message;
       }
 
+      setUploadErrorMessage(errorMessage);
       notify(errorMessage, NotificationSeverity.ERROR);
       setProgressText('');
     }
@@ -416,7 +516,7 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
               {selectedFile ? (
                 <>
                   <h3 style={{ fontWeight: 600, fontSize: '1.2rem', marginBottom: '0.5rem' }}>
-                    {displayFileName}
+                    {selectedFile.name}
                   </h3>
                   <MainButton 
                     kind="tertiary" 
@@ -457,6 +557,19 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                 onChange={e => handleFileSelect(e.target.files)}
               />
             </DropArea>
+          )}
+          {formatError && (
+            formatError === t('OnlyStreamableMp4') ? (
+              <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
+                <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                  <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+              </ErrorBox>
+            ) : (
+              <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                <div><strong>{formatError}</strong></div>
+              </ErrorBox>
+            )
           )}
 
           {step === 1 && (
@@ -551,6 +664,13 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
                   )}
                 </div>
               </div>
+              {uploadErrorMessage && (
+                <ErrorBox style={{ maxWidth: '800px', width: '100%', margin: '0 auto', textAlign: 'center', border: '2px solid #f5c6cb' }}>
+                  <div style={{ fontSize: '1.1rem' }}><strong>{t('OnlyStreamableMp4')}</strong></div>
+                  <div style={{ fontSize: '1.0rem', marginTop: '0.5rem' }}>{t('HelpText')}</div>
+                  <CodePara>ffmpeg -i &lt;input mp4 video&gt; -c copy -map 0 -movflags +faststart &lt;output mp4 video&gt;</CodePara>
+                </ErrorBox>
+              )}
               {uploading && (
                 <ProgressBar value={uploadProgress} helperText={uploadProgress.toFixed(2) + '%'} label={progressText} />
               )}
@@ -583,20 +703,29 @@ export default function VideoEmbeddingFlow({ onClose }: VideoEmbeddingFlowProps)
           </>
         ) : step === 1 ? (
           <>
-            <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(0)}>
+            <Button kind="secondary" disabled={uploading || processing} onClick={() => {
+              clearErrorState();
+              setStep(0);
+            }}>
               Back
             </Button>
             <Button
               kind="primary"
               disabled={uploading || !selectedFile}
-              onClick={() => setStep(2)}
+              onClick={() => {
+                clearErrorState();
+                setStep(2);
+              }}
             >
               Next
             </Button>
           </>
         ) : (
           <>
-            <Button kind="secondary" disabled={uploading || processing} onClick={() => setStep(1)}>
+            <Button kind="secondary" disabled={uploading || processing} onClick={() => {
+              clearErrorState();
+              setStep(1);
+            }}>
               Back
             </Button>
             <Button

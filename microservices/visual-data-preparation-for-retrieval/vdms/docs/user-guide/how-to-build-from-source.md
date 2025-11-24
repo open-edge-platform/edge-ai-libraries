@@ -42,14 +42,22 @@ export TAG=<your-yag> # Default: latest
 ```
 Refer to the [environmental variable](./get-started.md#environment-variables) setup section and configure the required variables.
 
-3. Verify the configuration.
+3. Build the VDMS DataPrep Docker image. This step also compiles the multimodal embedding serving wheel and stages it under `wheels/` so the Docker build can succeed.
+
+```bash
+./build.sh
+```
+
+> **Note:** The script automatically honours `REGISTRY_URL`, `PROJECT_NAME`, and `TAG` (just like `setup.sh`). Ensure `poetry` is installed on your host, because it is used to build the wheel.
+
+4. Verify the configuration.
 
 ```bash
 source ./setup.sh --conf
 ```
 This will output docker compose configs with all the environment variables resolved. You can verify whether they appear as expected.
 
-4. Spin up the services. Please go through different ways to spin up the services.
+5. Spin up the services. Please go through different ways to spin up the services.
 
 ```bash
 # Run the development environment in daemon mode
@@ -65,7 +73,7 @@ source ./setup.sh
 source ./setup.sh --nd
 ```
 
-5. Tear down all the services.
+6. Tear down all the services.
 
 ```bash
 source ./setup.sh --down
