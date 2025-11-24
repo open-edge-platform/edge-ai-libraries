@@ -42,8 +42,6 @@ services:
       MINIO_HOST: ${MINIO_HOST:-minio-server}
       MINIO_API_PORT: ${MINIO_API_PORT:-9000}
       # Raise error if following required env vars is not set
-      MINIO_ROOT_USER: ${MINIO_USER:?error}
-      MINIO_ROOT_PASSWORD: ${MINIO_PASSWD:?error}
       MINIO_ACCESS_KEY: ${MINIO_USER:?error}
       MINIO_SECRET_KEY: ${MINIO_PASSWD:?error}
     ports:
