@@ -19,7 +19,8 @@ This framework operates in three stages: (1) Detect scene-swicth boundaries to s
 * **Feature 4**: RESTful API with FastAPI with support for concurrent requests.
 * **Feature 5**: Support specify video chunking method in user requests.
 * **Feature 6**: Support specify multi-level settings in user requests.
-* **Feature 7**: Designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs.
+* **Feature 7**: Support specify temporal enhancement settings in user requests.
+* **Feature 8**: Designed to work effortlessly with GenAI model servings that provide OpenAI-compatible APIs.
 
 
 ## How It Works
@@ -46,3 +47,4 @@ The following models are validated by the service:
 * [Get Started Guide](./get-started.md)
 * [API Reference](./api-reference.md)
 * [System Requirements](./system-requirements.md)
+* [Release Notes](./release-notes.md)
