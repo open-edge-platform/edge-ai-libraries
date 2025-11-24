@@ -9,7 +9,7 @@ from fastapi import APIRouter, Body, HTTPException
 from src.common import DataPrepException, Strings, logger
 from src.common.schema import DataPrepResponse, VideoSummaryRequest
 from src.core.embedding import generate_text_embedding
-from src.core.util import get_minio_client
+from src.core.utils.common_utils import get_minio_client
 from src.core.validation import sanitize_model
 
 router = APIRouter(tags=["Document Processing APIs"])
@@ -86,7 +86,7 @@ async def process_video_summary(
        - **video_start_time (float) :** The start timestamp in seconds for the video or video chunk
        - **video_end_time (float) :** The end timestamp in seconds for the video or video chunk
        - **tags (list(str), optional) :** A list of tags to be associated with the video. Useful for filtering the search.
-
+       
     #### Raises:
     - **400 Bad Request :** If required parameters are missing or invalid.
     - **404 Not Found :** If the specified video cannot be found in Minio.

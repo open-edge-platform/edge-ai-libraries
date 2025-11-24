@@ -1,4 +1,4 @@
-FROM docker.io/library/rust:1.87 AS qmassa
+FROM docker.io/library/rust:1.88 AS qmassa
 
 RUN apt-get update && \
     apt-get install -y --no-install-recommends \
@@ -8,7 +8,7 @@ RUN apt-get update && \
 
 RUN cargo install --locked --git https://github.com/ulissesf/qmassa.git --tag v1.0.1
 
-FROM docker.io/library/telegraf:1.36.1 AS collector
+FROM docker.io/library/telegraf:1.36.3 AS collector
 
 COPY --from=qmassa /usr/local/cargo/bin/qmassa /usr/local/bin/qmassa
 

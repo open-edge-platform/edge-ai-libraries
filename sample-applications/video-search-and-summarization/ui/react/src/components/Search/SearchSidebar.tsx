@@ -8,6 +8,7 @@ import styled from 'styled-components';
 import { useAppDispatch, useAppSelector } from '../../redux/store';
 import { SearchSidebarItem } from './SearchSidebarItem';
 import { SearchActions, SearchLoad, SearchSelector } from '../../redux/search/searchSlice';
+import { SearchQueryStatus } from '../../redux/search/search';
 
 const SidebarContainer = styled.aside<{ disabled: boolean }>`
   display: flex;
@@ -54,7 +55,8 @@ export const SearchSidebar: FC = () => {
     dispatch(SearchActions.selectQuery(queryId));
   };
 
-  const sidebarList = queries.map((curr) => (
+  const filteredQueries = queries.filter((query) =>query.queryStatus !== SearchQueryStatus.ERROR && query.results && query.results.length > 0);
+  const sidebarList = filteredQueries.map((curr) => (
     <SearchSidebarItem
       item={curr}
       selected={selectedQueryId === curr.queryId}

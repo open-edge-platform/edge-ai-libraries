@@ -14,8 +14,6 @@ This guide shows how to:
 - **Run different application modes**: Execute different application modes available in the application to perform video search and summarization.
 - **Modify application parameters**: Customize settings like inference models and deployment configurations to adapt the application to your specific requirements.
 
-
-
 ## ✅ Prerequisites
 
 - Verify that your system meets the [minimum requirements](./system-requirements.md).
@@ -58,7 +56,7 @@ Before running the application, you need to set several environment variables:
 
     ```bash
     export REGISTRY_URL=intel   
-    export TAG=1.2.3
+    export TAG=1.3.0
     ```
 
 2. **Set required credentials for some services**:
@@ -100,15 +98,17 @@ Before running the application, you need to set several environment variables:
     # Object detection model used for Video Ingestion Service. Only Yolo models are supported.
     export OD_MODEL_NAME="yolov8l-worldv2"
 
-    # SETTING EMBEDDING MODELS
-    # Set this when using --search option to run the application in video search mode. This enables a multimodal embedding model capable of generating correlated text and image embeddings. Only openai/clip-vit-base model is supported as of now.
-    export VCLIP_MODEL=openai/clip-vit-base-patch32
+    # --search : use any multimodal embedding model for video-only search flows
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
 
-    # Set this when using --all option to run application in combined summarization and search mode. Only Qwen/Qwen3-Embedding-0.6B is supported as of now.
-    export QWEN_MODEL=Qwen/Qwen3-Embedding-0.6B
+    # --all    : configure both the multimodal embedding model and a dedicated text embedding model
+    export EMBEDDING_MODEL_NAME="CLIP/clip-vit-b-32"
+    export TEXT_EMBEDDING_MODEL_NAME="QwenText/qwen3-embedding-0.6b"
     ```
 
-5. **Configure Directory Watcher (Video Search Mode Only)**:
+    > **Note**: `TEXT_EMBEDDING_MODEL_NAME` is required when running `source setup.sh --all`. The setup script validates both variables and uses the text embedding value to override `EMBEDDING_MODEL_NAME` for unified search + summarization deployment. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
+
+4. **Configure Directory Watcher (Video Search Mode Only)**:
 
     For automated video ingestion in search mode, you can use the directory watcher service:
 
@@ -118,6 +118,16 @@ Before running the application, you need to set several environment variables:
     ```
 
     > **📁 Directory Watcher**: For complete setup instructions, configuration options, and usage details, see the [Directory Watcher Service Guide](./directory-watcher-guide.md). This service only works with the `--search` mode.
+
+5. **Control the frame extraction interval (Video Search Mode)**:
+
+    The DataPrep microservice samples frames from uploaded videos according to the `FRAME_INTERVAL` environment variable. Set this variable before running `source setup.sh --search` to control how often frames are selected for processing.
+
+    ```bash
+    export FRAME_INTERVAL=15
+    ```
+
+    In the example above, DataPrep processes every fifteenth frame: each selected frame (optionally after object detection) is converted into embeddings and stored in the vector database. Lower values improve recall at the cost of higher compute and storage usage, while higher values reduce processing load but may skip important frames. If you do not set this variable, the service falls back to its configured default.
 
 6. **Set advanced VLM Configuration Options**:
 
@@ -164,7 +174,7 @@ The Video Summarization application offers multiple modes and deployment options
 
 ### 🧩 Deployment Options for Video Summarization
 
-| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model
+| Deployment Option | Chunk-Wise Summary<sup>(1)</sup> Configuration | Final Summary<sup>2</sup> Configuration | Environment Variables to Set | Recommended Models | Recommended Usage Model |
 |--------|--------------------|---------------------|-----------------------|----------------|----------------|
 | VLM-CPU |vlm-openvino-serving on CPU | vlm-openvino-serving on CPU | Default | VLM: `Qwen/Qwen2.5-VL-3B-Instruct` | For usage with CPUs only; when inference speed is not a priority. |
 | VLM-GPU | vlm-openvino-serving |vlm-openvino-serving GPU | `ENABLE_VLM_GPU=true` | VLM: `microsoft/Phi-3.5-vision-instruct` | For usage with CPUs and GPUs; when inference speed is a priority. |
@@ -172,9 +182,10 @@ The Video Summarization application offers multiple modes and deployment options
 | VLM-CPU-OVMS-GPU | vlm-openvino-serving on CPU | OVMS Microservice on GPU | `ENABLE_OVMS_LLM_SUMMARY_GPU=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 | VLM-GPU-OVMS-CPU | vlm-openvino-serving on GPU | OVMS Microservice on CPU | `ENABLE_VLM_GPU=true` `ENABLE_OVMS_LLM_SUMMARY=true` | VLM: `Qwen/Qwen2.5-VL-3B-Instruct`<br>LLM: `Intel/neural-chat-7b-v3-3` | For usage with CPUs, GPUs, and microservices; when inference speed is a priority. |
 
-> **Notes:** 
-> 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk. 
-> 2) Final Summary is a method of summarization where it summarizes the whole video. 
+> **Notes:**
+>
+> 1) Chunk-Wise Summary is a method of summarization where it breaks videos into chunks and then summarizes each chunk.
+> 2) Final Summary is a method of summarization where it summarizes the whole video.
 > 3) If both VLM and LLM is configured for GPU, VLM will be prioritized for GPU and LLM reset to CPU.
 
 ## ▶️ Run the Application
@@ -331,7 +342,6 @@ For alternative ways to set up the sample application, see:
 
 - [Docker Compose Documentation](https://docs.docker.com/compose/)
 
-
 ## Troubleshooting
 
 ### Containers have started but the application is not working
@@ -344,6 +354,18 @@ For alternative ways to set up the sample application, see:
   source setup.sh --clean-data
   ```
 
+### Search returns no results after changing embedding model
+
+**Problem**: The UI displays `No videos found matching your search query. Try using different keywords or check if videos have been uploaded.` even though videos were ingested in `--search` or `--all` mode.
+
+**Cause**: Either no videos have been processed yet, or the embedding model was switched to one with a different embedding dimension. Previously indexed vectors stay in the database, and their dimensions must match the active model. A mismatch prevents similarity lookups from returning any results.
+
+**Solution**:
+
+1. Verify at least one video has been uploaded or a summary run completed after the model change.
+2. If you recently changed `EMBEDDING_MODEL_NAME`, re-run ingestion so embeddings are recreated with the new dimensions. You can clean existing data with `source setup.sh --clean-data` and then re-run your desired mode.
+3. Review the supported embedding models and their dimensions in [microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before switching models.
+
 ### VLM Microservice Model Loading Issues
 
 **Problem**: VLM microservice fails to load or save models with permission errors, or you see errors related to model access in the logs.
@@ -351,23 +373,28 @@ For alternative ways to set up the sample application, see:
 **Cause**: This issue occurs when the `ov-models` Docker volume was created with incorrect ownership (root user) in previous versions of the application. The VLM microservice runs as a non-root user and requires proper permissions to read/write models.
 
 **Symptoms**:
+
 - VLM microservice container fails to start or crashes during model loading
 - Permission denied errors in VLM service logs
 - Model conversion or caching failures
 - Error messages mentioning `/home/appuser/.cache/huggingface` or `/app/ov-model` access issues
 
 **Solution**:
+
 1. Stop the running application:
+
    ```bash
    source setup.sh --down
    ```
 
 2. Remove the existing `ov-models` (old volume name) and `docker_ov-models` (updated volume name) Docker volume:
+
    ```bash
    docker volume rm ov-models docker_ov-models
    ```
 
 3. Restart the application (the volume will be recreated with correct permissions):
+
    ```bash
    # For Video Summarization
    source setup.sh --summary

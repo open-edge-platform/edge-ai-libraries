@@ -5,7 +5,7 @@ on:
   workflow_dispatch:
 permissions: {}
 env:
-  dlstreamer-version: "2025.1.2"
+  dlstreamer-version: "2025.2.0"
   DLS_REL_PATH: "./edge-ai-libraries-repo/libraries/dl-streamer"
 
 jobs:

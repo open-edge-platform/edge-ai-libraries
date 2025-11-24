@@ -1,17 +1,21 @@
 # Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 
-from .embedding_api import vCLIPEmbeddings
-from .embedding_helper import _client_cache, generate_text_embedding, generate_video_embedding
-from .embedding_model import Qwen3, vCLIP
-from .embedding_service import EmbeddingServiceWrapper
+# Import from simplified_embedding_helper to support both API and SDK modes
+from .simplified_embedding_helper import (
+    _client_cache,
+    generate_video_embedding,
+    generate_video_embedding_from_content,
+    generate_text_embedding,
+)
+from .sdk_embedding_helper import generate_video_embedding_sdk
+from .sdk_client import SDKVDMSClient
 
 __all__ = [
-    "generate_text_embedding",
-    "generate_video_embedding",
-    "EmbeddingServiceWrapper",
-    "vCLIPEmbeddings",
-    "vCLIP",
-    "Qwen3",
     "_client_cache",
+    "generate_text_embedding",
+    "generate_video_embedding", 
+    "generate_video_embedding_from_content",
+    "generate_video_embedding_sdk",
+    "SDKVDMSClient",
 ]

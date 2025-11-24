@@ -15,6 +15,32 @@ on:
     - cron: "0 2 * * 0"  # 2 a.m. on Sunday
 
 jobs:
+  trivy-scan:
+    runs-on: ubuntu-22.04
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@8edcb1bdb4e267140fa742c62e395cd74f332709
+        with:
+          persist-credentials: false
+
+      - name: Run Trivy Filesystem Scan
+        uses: open-edge-platform/orch-ci/.github/actions/security/trivy@27276444a9bcf247a27369406686b689933bd1ff
+        id: trivy-fs
+        with:
+          scan_type: "fs"  
+          scan-scope: "all"  
+          severity: "HIGH,CRITICAL" 
+          format: "json"
+          scan_target: "libraries/video-chunking-utils/"
+          report_suffix: "-fs-video-chunking-utils-CT7"
+
+      - name: Upload Report
+        uses: actions/upload-artifact@de65e23aa2b7e23d713bb51fbfcb6d502f8667d8
+        with:
+          name: trivy-report-video-chunking-utils
+          path: security-results/trivy*
+
   bandit-scan:
     runs-on: ubuntu-22.04
     permissions:
@@ -61,3 +87,47 @@ jobs:
         with:
           name: clamav-report-video-chunking-utils
           path: security-results/clamav*
+
+
+
+  coverity-scan:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:        
+      - name: Check out edge-ai-libraries repository
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 #4.2.2
+        with:
+          persist-credentials: false   
+
+      - name: Build with Coverity Analysis
+        run: |
+          wget --quiet https://scan.coverity.com/download/linux64 \
+            --post-data "token=${{ secrets.VCU_COVERITY_TOKEN }}&project=${{ secrets.VCU_COVERITY_PROJECT }}" \
+            -O coverity_tool.tgz
+          mkdir -p cov-analysis
+          tar xzf coverity_tool.tgz --strip-components=1 -C cov-analysis
+          COV_PATH="$(pwd)/cov-analysis/bin"
+          export PATH="$COV_PATH:$PATH"
+          cd libraries/video-chunking-utils
+          coverity capture --dir cov-int --project-dir ./
+          
+      - name: Create tarball for upload
+        run: |
+          cd libraries/video-chunking-utils
+          tar -czvf coverity_output.tgz -C . cov-int
+          # Verify tarball contents
+          echo "=== Tarball Contents ==="
+          tar tzvf coverity_output.tgz
+          echo "=== head ==="
+          tar -tzvf coverity_output.tgz | head
+          
+      - name: Upload to Coverity Scan
+        run: |
+          cd libraries/video-chunking-utils
+          curl --form token=${{ secrets.VCU_COVERITY_TOKEN }} \
+               --form email=${{ secrets.VCU_COVERITY_EMAIL }} \
+               --form file=@coverity_output.tgz \
+               --form version="`date +%Y%m%d%H%M%S`" \
+               --form description="GitHub Action upload" \
+               https://scan.coverity.com/builds?project=${{ secrets.VCU_COVERITY_PROJECT }}

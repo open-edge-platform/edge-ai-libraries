@@ -42,6 +42,8 @@ cd chat-question-and-answer-core
 
 Edit the `values.yaml` file to set the necessary environment variables. Ensure you set the `huggingface.apiToken` and `proxy settings` as required.
 
+**Note:** Do not use special characters in configuration values.
+
 Next, choose the appropriate `values*.yaml` file based on the model framework you want to use:
 
 - OpenVINO toolkit: Use `values-openvino.yaml`
@@ -111,6 +113,8 @@ cd edge-ai-libraries/sample-applications/chat-question-and-answer-core/chart
 
 Edit the `values.yaml` file located in the chart directory to set the necessary environment variables. Refer to the table in **Option 1, Step 3** for the list of keys and example values.
 
+**Note:** Do not use special characters in configuration values.
+
 #### Step 4: Build Helm Dependencies
 
 Navigate to the chart directory and build the Helm dependencies using the following command:
@@ -148,7 +152,17 @@ kubectl get services -n <your-namespace>
 
 ### Step 7: Access the Application
 
-Open the UI in a browser at http://\<node-ip\>:\<ui-node-port\>
+Nginx service running as a reverse proxy in one of the pods, helps us to access the application. We need to get Host IP and Port on the node where the nginx service is running.
+
+Run the following command and replace <$my_namespace> with your own namespace to get the host IP of the node and port exposed by Nginx service:
+
+```bash
+chatqna_hostip=$(kubectl get pods -l app=chatqna-core-nginx -n $my_namespace -o jsonpath='{.items[0].status.hostIP}')
+chatqna_port=$(kubectl get service chatqna-core-nginx -n $my_namespace -o jsonpath='{.spec.ports[0].nodePort}')
+echo "http://${chatqna_hostip}:${chatqna_port}"
+```
+
+Copy the output of the above bash snippet and paste it into your browser to access the application UI.
 
 ### Step 8: Update Helm Dependencies
 

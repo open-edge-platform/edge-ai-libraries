@@ -80,7 +80,7 @@ const Drawer: FC<DrawerProps> = ({ title, isOpen, close, children }) => {
             </ToggletipButton>
 
             <ToggletipContent>
-              <p>{t('OnlyMp4')}</p>
+              <p>{t('OnlyStreamableMp4')}</p>
               <p>{t('HelpText')}</p>
               <CodePara>
                 <strong>{ffmpegStreamableCmd}</strong>

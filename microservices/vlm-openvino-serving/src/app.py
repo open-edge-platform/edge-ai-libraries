@@ -11,6 +11,7 @@ from contextlib import asynccontextmanager
 from multiprocessing import Manager
 from pathlib import Path
 from threading import Thread
+from typing import Callable, Optional
 
 import openvino_genai as ov_genai
 from fastapi import FastAPI, HTTPException
@@ -87,13 +88,12 @@ app = FastAPI(lifespan=lifespan)
 
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=os.getenv("VLM_CORS_ALLOW_ORIGINS", "*").split(
-        ","
-    ),
+    allow_origins=os.getenv("VLM_CORS_ALLOW_ORIGINS", "*").split(","),
     allow_credentials=True,
     allow_methods=os.getenv("VLM_CORS_ALLOW_METHODS", "*").split(","),
     allow_headers=os.getenv("VLM_CORS_ALLOW_HEADERS", "*").split(","),
 )
+
 
 class RequestQueueMiddleware(BaseHTTPMiddleware):
     """
@@ -188,6 +188,41 @@ model_ready = False
 pipe, processor, model_dir = None, None, None
 
 
+def cleanup_pipeline_state():
+    """Release any cached runtime state held by the global pipeline."""
+    global pipe
+    if pipe is None:
+        return
+
+    cleanup_methods = (
+        "clear_requests",
+        "reset_state",
+        "reset",
+        "release_kv_cache",
+        "clear_cache",
+    )
+    for method in cleanup_methods:
+        if hasattr(pipe, method):
+            try:
+                getattr(pipe, method)()
+                logger.debug(f"Pipeline state cleared using '{method}'.")
+                return
+            except Exception as exc:
+                logger.warning(f"Failed to run pipeline cleanup via '{method}': {exc}")
+    logger.debug("No cleanup method available on pipeline instance.")
+
+
+def wait_for_generation_thread(thread: Optional[Thread], timeout: float = 2.0):
+    """Join a generation thread to make sure resources are released."""
+    if thread is None:
+        return
+    if not thread.is_alive():
+        return
+    thread.join(timeout=timeout)
+    if thread.is_alive():
+        logger.warning("Generation thread did not terminate within timeout.")
+
+
 def restart_server():
     """
     Restart the API server.
@@ -245,7 +280,7 @@ def initialize_model():
                 device=settings.VLM_DEVICE.upper(),
                 trust_remote_code=True,
                 use_cache=False,
-                ov_config=ov_config
+                ov_config=ov_config,
             )
             processor = AutoProcessor.from_pretrained(
                 model_name, trust_remote_code=True
@@ -258,7 +293,7 @@ def initialize_model():
                 device=settings.VLM_DEVICE.upper(),
                 trust_remote_code=True,
                 use_cache=False,
-                ov_config=ov_config
+                ov_config=ov_config,
             )
             processor = AutoProcessor.from_pretrained(
                 model_dir,
@@ -267,7 +302,9 @@ def initialize_model():
                 max_pixels=int(eval(model_config.get("max_pixels"))),
             )
         else:
-            pipe = ov_genai.VLMPipeline(model_dir, device=settings.VLM_DEVICE.upper(), **ov_config)
+            pipe = ov_genai.VLMPipeline(
+                model_dir, device=settings.VLM_DEVICE.upper(), **ov_config
+            )
             processor = None  # No processor needed for this case
         model_ready = is_model_ready(model_dir)
         logger.debug("Model is ready")
@@ -293,13 +330,21 @@ def safe_generate(pipe, generation_kwargs, streamer):
         pipe.generate(**generation_kwargs)
     except Exception as e:
         logger.error(f"Exception in thread during generation: {e}")
-        streamer.end_of_stream = True  # Signal the streamer to stop
         if ErrorMessages.GPU_OOM_ERROR_MESSAGE in str(e):
             logger.error("Detected GPU out-of-memory error, restarting server...")
             restart_server()
+    finally:
+        streamer.end_of_stream = True
 
 
-def create_streaming_response(streamer, request, model_name):
+def create_streaming_response(
+    streamer,
+    request,
+    model_name,
+    *,
+    on_complete: Optional[Callable[[], None]] = None,
+    generation_thread: Optional[Thread] = None,
+):
     """
     Create a StreamingResponse for the given streamer.
 
@@ -315,9 +360,27 @@ def create_streaming_response(streamer, request, model_name):
     async def event_stream():
         buffer = ""
         completion_id = str(uuid.uuid4())
-        for new_text in streamer:
-            buffer += new_text
-            logger.debug(new_text)
+        try:
+            for new_text in streamer:
+                buffer += new_text
+                logger.debug(new_text)
+                yield (
+                    f"""data: {ChatCompletionStreamingResponse(
+                        id=completion_id,
+                        created=int(time.time()),
+                        model=model_name,
+                        system_fingerprint=f"fp_{completion_id}",
+                        choices=[
+                            ChatCompletionStreamingChoice(
+                                index=0,
+                                delta=ChatCompletionDelta(
+                                    role="assistant", content=new_text
+                                ),
+                                finish_reason=None,
+                            )
+                        ],
+                    ).model_dump_json()}\n\n"""
+                )
             yield (
                 f"""data: {ChatCompletionStreamingResponse(
                     id=completion_id,
@@ -327,29 +390,16 @@ def create_streaming_response(streamer, request, model_name):
                     choices=[
                         ChatCompletionStreamingChoice(
                             index=0,
-                            delta=ChatCompletionDelta(
-                                role="assistant", content=new_text
-                            ),
-                            finish_reason=None,
+                            delta={},
+                            finish_reason="stop",
                         )
                     ],
                 ).model_dump_json()}\n\n"""
             )
-        yield (
-            f"""data: {ChatCompletionStreamingResponse(
-                id=completion_id,
-                created=int(time.time()),
-                model=model_name,
-                system_fingerprint=f"fp_{completion_id}",
-                choices=[
-                    ChatCompletionStreamingChoice(
-                        index=0,
-                        delta={},
-                        finish_reason="stop",
-                    )
-                ],
-            ).model_dump_json()}\n\n"""
-        )
+        finally:
+            wait_for_generation_thread(generation_thread)
+            if on_complete:
+                on_complete()
 
     return StreamingResponse(
         event_stream(),
@@ -371,6 +421,7 @@ async def chat_completions(request: ChatRequest):
         JSONResponse or StreamingResponse: The chat completion response.
     """
     temp_video_path = None  # Track the temporary video file path
+    cleanup_deferred = False
     try:
         # Use the provided seed if available, otherwise use the default seed from settings
         seed = request.seed if request.seed is not None else settings.SEED
@@ -523,17 +574,24 @@ async def chat_completions(request: ChatRequest):
             thread = Thread(
                 target=safe_generate, args=(pipe, generation_kwargs, streamer)
             )
+            thread.daemon = True
             thread.start()
 
             if request.stream:
+                cleanup_deferred = True
                 return create_streaming_response(
-                    streamer, request, settings.VLM_MODEL_NAME
+                    streamer,
+                    request,
+                    settings.VLM_MODEL_NAME,
+                    on_complete=cleanup_pipeline_state,
+                    generation_thread=thread,
                 )
             else:
                 buffer = ""
                 for new_text in streamer:
                     buffer += new_text
                     logger.debug(new_text)
+                wait_for_generation_thread(thread)
                 return ChatCompletionResponse(
                     id=str(uuid.uuid4()),
                     object="chat.completion",
@@ -672,10 +730,14 @@ async def chat_completions(request: ChatRequest):
                     **video_kwargs,
                 )
             else:
-                logger.error("Invalid input: No valid image, video, or text prompt provided.")
+                logger.error(
+                    "Invalid input: No valid image, video, or text prompt provided."
+                )
                 return JSONResponse(
                     status_code=400,
-                    content={"error": "Invalid input: No valid image, video, or text prompt provided."},
+                    content={
+                        "error": "Invalid input: No valid image, video, or text prompt provided."
+                    },
                 )
 
             streamer = TextIteratorStreamer(
@@ -698,17 +760,24 @@ async def chat_completions(request: ChatRequest):
             thread = Thread(
                 target=safe_generate, args=(pipe, generation_kwargs, streamer)
             )
+            thread.daemon = True
             thread.start()
 
             if request.stream:
+                cleanup_deferred = True
                 return create_streaming_response(
-                    streamer, request, settings.VLM_MODEL_NAME
+                    streamer,
+                    request,
+                    settings.VLM_MODEL_NAME,
+                    on_complete=cleanup_pipeline_state,
+                    generation_thread=thread,
                 )
             else:
                 buffer = ""
                 for new_text in streamer:
                     buffer += new_text
                     logger.debug(new_text)
+                wait_for_generation_thread(thread)
                 return ChatCompletionResponse(
                     id=str(uuid.uuid4()),
                     object="chat.completion",
@@ -779,6 +848,8 @@ async def chat_completions(request: ChatRequest):
                 logger.info(f"Temporary video file deleted: {temp_video_path}")
             except Exception as e:
                 logger.error(f"Failed to delete temporary video file: {e}")
+        if not cleanup_deferred:
+            cleanup_pipeline_state()
 
 
 @app.get("/v1/models", response_model=ModelsResponse)

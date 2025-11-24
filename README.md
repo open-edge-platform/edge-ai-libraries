@@ -292,6 +292,18 @@ structured and time-series data.
   classification tasks, optimized for edge and industrial use cases
   with rapid training and low-latency inference.
 
+### Edge-device Enablement Framework (EEF)
+A comprehensive framework providing hardware abstraction, device management, 
+and deployment tools for edge AI applications. Simplifies cross-platform 
+development and enables consistent deployment across diverse edge hardware 
+architectures.
+
+- [Edge-device Enablement Framework](./frameworks/edgedevice-enablement-framework)
+
+  Framework for Intel® platform enablement and streamlining 
+  edge AI application deployment across heterogeneous device platforms.
+
+  
 ## Contribute
 
 To learn how to contribute to the project, see

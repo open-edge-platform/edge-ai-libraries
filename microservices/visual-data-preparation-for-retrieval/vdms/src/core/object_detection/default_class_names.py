@@ -1,0 +1,103 @@
+"""Default fallback class labels for YOLOX-based object detection.
+
+The bundled OpenVINO YOLOX models are trained on the MS-COCO dataset. This
+module exposes the canonical label order so that deployments without a
+customised `object_detection.class_names` setting can still emit
+human-readable labels such as "car" or "truck" instead of synthetic names
+like ``class_7``.
+
+The list is kept in module form (rather than YAML config) to simplify reuse
+from both runtime code and tests while keeping override behaviour explicit.
+"""
+from __future__ import annotations
+
+from typing import Tuple
+
+DEFAULT_COCO_CLASS_NAMES: Tuple[str, ...] = (
+    "person",
+    "bicycle",
+    "car",
+    "motorcycle",
+    "airplane",
+    "bus",
+    "train",
+    "truck",
+    "boat",
+    "traffic light",
+    "fire hydrant",
+    "stop sign",
+    "parking meter",
+    "bench",
+    "bird",
+    "cat",
+    "dog",
+    "horse",
+    "sheep",
+    "cow",
+    "elephant",
+    "bear",
+    "zebra",
+    "giraffe",
+    "backpack",
+    "umbrella",
+    "handbag",
+    "tie",
+    "suitcase",
+    "frisbee",
+    "skis",
+    "snowboard",
+    "sports ball",
+    "kite",
+    "baseball bat",
+    "baseball glove",
+    "skateboard",
+    "surfboard",
+    "tennis racket",
+    "bottle",
+    "wine glass",
+    "cup",
+    "fork",
+    "knife",
+    "spoon",
+    "bowl",
+    "banana",
+    "apple",
+    "sandwich",
+    "orange",
+    "broccoli",
+    "carrot",
+    "hot dog",
+    "pizza",
+    "donut",
+    "cake",
+    "chair",
+    "couch",
+    "potted plant",
+    "bed",
+    "dining table",
+    "toilet",
+    "tv",
+    "laptop",
+    "mouse",
+    "remote",
+    "keyboard",
+    "cell phone",
+    "microwave",
+    "oven",
+    "toaster",
+    "sink",
+    "refrigerator",
+    "book",
+    "clock",
+    "vase",
+    "scissors",
+    "teddy bear",
+    "hair drier",
+    "toothbrush",
+    "pedestrian",
+    "bike",
+    "motorcycle",
+    "cycle",
+)
+
+__all__ = ["DEFAULT_COCO_CLASS_NAMES"]

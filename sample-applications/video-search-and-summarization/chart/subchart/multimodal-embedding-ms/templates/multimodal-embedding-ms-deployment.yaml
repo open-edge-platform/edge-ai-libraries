@@ -49,11 +49,7 @@ spec:
           readinessProbe:
             {{- toYaml .Values.readinessProbe | nindent 12 }}
           startupProbe:
-            {{- if eq .Values.useOnlyTextEmbeddings true }}
-            {{- toYaml .Values.startupProbeWithTextEmbeddingModel | nindent 12 }}
-            {{- else }}
             {{- toYaml .Values.startupProbe | nindent 12 }}
-            {{- end }}
           {{- with .Values.resources }}
           resources:
             {{- toYaml . | nindent 12 }}
@@ -67,9 +63,6 @@ spec:
               {{ .Values.global.gpu.key}}: 1
             limits:
               {{ .Values.global.gpu.key}}: 1
-          devices:
-            - name: dri-devices
-              containerPath: /dev/dri
       {{- else }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
@@ -81,15 +74,15 @@ spec:
               mountPath: /home/appuser/.cache/huggingface
               subPath: huggingface
             - name: volume-data
-              mountPath: /app/ov-models
-              subPath: embeddingmodels
+              mountPath: /app/ov_models
+              subPath: ovmodels
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
       {{- if .Values.global.gpu.multimodalembeddingmsEnabled }}
             - name: workspace
               mountPath: /opt/data
-              subPath: embeddingmodels
+              subPath: ovmodels
       {{- end }}
       volumes:
         - name: tmp

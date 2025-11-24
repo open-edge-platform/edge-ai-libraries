@@ -35,8 +35,7 @@ image:
   # This sets the pull policy for images.
   pullPolicy: IfNotPresent
   # Overrides the image tag whose default is the chart appVersion.
-  tag: "1.2.3"
-
+  tag: "1.3.0"
 imagePullSecrets: []
 # This is to override the chart name.
 nameOverride: ""
@@ -45,15 +44,20 @@ fullnameOverride: ""
 podAnnotations: {}
 podLabels: {}
 
-podSecurityContext: {}
+podSecurityContext:
+  runAsUser: 1000
+  runAsGroup: 1000
+  fsGroup: 1000
+  fsGroupChangePolicy: OnRootMismatch
 securityContext:
   capabilities:
     drop:
     - ALL
   readOnlyRootFilesystem: true
   allowPrivilegeEscalation: false
-  runAsNonRoot: false
-  runAsUser: 0
+  runAsNonRoot: true
+  runAsUser: 1000
+  runAsGroup: 1000
   seccompProfile:
     type: RuntimeDefault    
 
@@ -106,8 +110,26 @@ podAffinity:
 indexName: "videosearch-index"
 vdmsVectorDbHost: "vdms-vectordb"
 vdmsVectorDbPort: 55555
-multimodalEmbeddingModelName: "openai/clip-vit-base-patch32"
-multimodalEmbeddingNumFrames: 64
+multimodalEmbeddingModelName: ""
+multimodalEmbeddingEndpoint: "http://multimodal-embedding-ms:8000/embeddings"
+defaultBucketName: "video-summary"
+logLevel: "INFO"
+cors:
+  allowOrigins: "*"
+  allowMethods: "*"
+  allowHeaders: "*"
+embedding:
+  processingMode: "sdk"
+  sdkUseOpenVino: true
+  device: "CPU"
+  ovModelsDir: "/app/ov_models"
+  ovPerformanceMode: "THROUGHPUT"
+frameProcessing:
+  frameInterval: 15
+  enableObjectDetection: true
+  detectionConfidence: 0.85
+  detectionModelDir: "/app/models/yolox"
+  framesTempDir: "/tmp/dataprep"
 
 
 minioServer:

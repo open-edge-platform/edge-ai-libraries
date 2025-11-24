@@ -80,8 +80,8 @@ spec:
         - mountPath: /etc/nginx/nginx.conf
           name: nginx-config-volume
           subPath: nginx.conf
-      securityContext:
-        allowPrivilegeEscalation: false
+        securityContext:
+          allowPrivilegeEscalation: false
       volumes:
       - configMap:
           name: {{ include "nginx.fullname" . }}-config

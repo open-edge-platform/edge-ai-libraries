@@ -27,7 +27,7 @@ class Settings(BaseSettings):
     DEBUG: bool = Field(False, env="DEBUG")             # Debug flag to run API server with DEBUG logs. Used in Development only.
 
     # API configuration
-    API_V1_PREFIX: str = Field("/v1", env="API_VER")    # API version prefix to be used with each endpoint route
+    API_V1_PREFIX: str = Field("/v1", env="API_V1_PREFIX")    # API version prefix to be used with each endpoint route
     API_VER: str = Field("1.0.0", env="API_VER")
     APP_NAME: str = "Multi-level Video Understanding Service"
     API_DESCRIPTION: str = "API for intelligent video summarization based on Large Language Models and Vision Language Models."

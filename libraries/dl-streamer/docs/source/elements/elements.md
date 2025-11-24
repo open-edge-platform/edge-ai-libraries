@@ -12,7 +12,8 @@ gst-inspect-1.0 utility.
 | [gvaclassify](./gvaclassify.md)    | Performs object classification/segmentation/pose estimation. Inputs: ROIs or full frame. Output: prediction metadata. The `queue` element must be put directly after the `gvaclassify` element in the pipeline.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! gvadetect model=$mDetect device=GPU ! queue ! gvaclassify model=$mClassify device=CPU ! queue ! … OUT<br>                                                                                                           |
 | [gvainference](./gvainference.md)   | Executes any inference model and outputs raw results. Does not interpret data and does not generate metadata. The `queue` element must be put directly after the `gvainference` element in the pipeline.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! gvadetect model=$mDetect device=GPU ! queue ! gvainference model=$mHeadPoseEst device=CPU ! queue ! … OUT<br>                                                                                                            |
 | [gvatrack](./gvatrack.md)       | Tracks objects across video frames using zero-term or short-term tracking algorithms. Zero-term tracking assigns unique object IDs and requires object detection to run on every frame. Short-term tracking allows for tracking objects between frames, reducing the need to run object detection on each frame.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! gvadetect model=$mDetect device=GPU ! gvatrack tracking-type=short-term-imageless ! … OUT<br> |
-| [gvaaudiodetect](./gvaaudiodetect.md) | Legacy plugin. Performs audio event detection using the `AclNet` model.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw … ! audiomixer … ! gvaaudiodetect model=$mAudioDetect ! … OUT<br>                                                                                                                                                                                                                                     |
+| [gvaaudiodetect](./gvaaudiodetect.md) | Legacy plugin. Performs audio event detection using the `AclNet` model.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw … ! audiomixer … ! gvaaudiodetect model=$mAudioDetect ! … OUT<br>   
+| [gvaaudiotranscribe](./gvaaudiotranscribe.md) | ASR plugin. Performs audio transcription using `Whisper` model.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! audioresample ! audioconvert ! audio/x-raw … ! audiomixer … ! gvaaudiotranscribe model=$mASR device=CPU ! … OUT<br>                                                                                                                                                                                                                                   |
 | [gvagenai](./gvagenai.md)       | Performs inference using GenAI models. It can be used to generate text descriptions from images or video.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! videoconvert ! gvagenai model=$mGenAI device=GPU ! … OUT<br>                                                                                                                                                                                                                                             |
 
 
@@ -28,6 +29,7 @@ gst-inspect-1.0 utility.
 | [gvapython](./gvapython.md)        | Provides a callback to execute user-defined Python functions on every frame. It is used to augment DLStreamer with user-defined algorithms (e.g. metadata conversion, inference post-processing).<br>Example:<br> gst-launch-1.0 … !  gvaclassify ! gvapython module={gvapython.callback_module.classAge_pp} ! … OUT<br>                                                             |
 | [gvarealsense](./gvarealsense.md) | Provides integration with Intel RealSense cameras, enabling video and depth stream capture for use in GStreamer pipelines. |
 | [gvawatermark](./gvawatermark.md)     | Overlays the metadata on the video frame to visualize the inference results.<br>Example:<br> gst-launch-1.0 … ! decodebin3 ! gvadetect … ! gvawatermark ! … |
+| [gvamotiondetect](./gvamotiondetect.md) | Performs lightweight motion detection on NV12 frames and emits motion ROIs as analytics metadata. Uses VA-API acceleration when VAMemory caps are negotiated, otherwise system-memory path.<br>Example:<br> gst-launch-1.0 … ! vaapih264dec ! gvamotiondetect confirm-frames=2 motion-threshold=0.08 ! gvawatermark ! … |
 
 <!--hide_directive
 :::{toctree}
@@ -39,6 +41,7 @@ gvaclassify
 gvainference
 gvatrack
 gvaaudiodetect
+gvaaudiotranscribe
 gvagenai
 gvaattachroi
 gvafpscounter
@@ -48,6 +51,7 @@ gvametapublish
 gvapython
 gvarealsense
 gvawatermark
+gvamotiondetect
 gstelements
 :::
 hide_directive-->
