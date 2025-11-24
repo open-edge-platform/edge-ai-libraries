@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: 2.0.0\
+**Version**: 2.0.1\
 **Release Date**: 06 Nov 2025
 
 - Integrated OPEA UI with OEP backend and added conversation history to improve contextual responses.

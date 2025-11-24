@@ -10,7 +10,7 @@ services:
         https_proxy: ${https_proxy}
         no_proxy: ${no_proxy}
     #TODO: Configure image version as an env parameter 
-    image: intel/document-ingestion:1.2.2-dev
+    image: intel/document-ingestion:1.2.3-dev
     environment:
       DEFAULT_BUCKET: "intel.gai.dev.test"
       OBJECT_PREFIX: "test"
