@@ -72,10 +72,9 @@ jobs:
         persist-credentials: false
         path: edge-ai-libraries-repo
         sparse-checkout: |
-          libraries/dl-streamer/samples/download_public_models.sh
-          libraries/dl-streamer/samples/download_omz_models.sh
-          libraries/dl-streamer/samples/models_omz_samples.lst
-        sparse-checkout-cone-mode: false
+          libraries/dl-streamer
+          .github
+        fetch-depth: 0
 
     - name: Download only specific model
       env:
