@@ -79,4 +79,4 @@ The end time of the chunk in seconds.
 
 ## Other Resources
 
-- [Release Notes](./docs/user-guide/release-notes.md): Information on the latest release, improvements, and bug fixes.
+- [Release Notes](./release-notes.md): Information on the latest release, improvements, and bug fixes.
