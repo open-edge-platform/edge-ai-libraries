@@ -3,7 +3,7 @@ replicaCount: 1
 videosearch:
   image:
     repository: intel/video-search
-    tag: "1.3.0"
+    tag: "1.3.1"
     pullPolicy: IfNotPresent
   env:
     VDMS_VDB_HOST: "vdms-vectordb"
