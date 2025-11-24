@@ -8,6 +8,9 @@
 MODEL=${1:-"all"} # Supported values listed in SUPPORTED_MODELS below. Type one model,list of models separated by coma or 'all' to download all models.
 QUANTIZE=${2:-""} # Supported values listed in SUPPORTED_MODELS below.
 
+# Save the directory where the script was launched from
+LAUNCH_DIR="$PWD"
+
 . /etc/os-release
 
 # Changing the config dir for the duration of the script to prevent potential conflics with
@@ -985,6 +988,7 @@ if [[ " ${MODELS_TO_PROCESS[@]} " =~ " mars-small128 " ]] || [[ " ${MODELS_TO_PR
     echo_color "Converting Mars-Small128 model for DeepSORT tracking..." "blue"
 
     # Get the script directory (samples directory) using absolute path
+    cd "$LAUNCH_DIR"
     echo "Current directory: $(pwd)"
     SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
     echo "Script directory: $SCRIPT_DIR"
