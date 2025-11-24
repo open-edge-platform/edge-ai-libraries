@@ -1,6 +1,6 @@
 #
 # Apache v2 license
-# Copyright (C) 2024 Intel Corporation
+# Copyright (C) 2025 Intel Corporation
 # SPDX-License-Identifier: Apache-2.0
 #
 
@@ -11,6 +11,8 @@ class Pipeline:
         QUEUED = auto()
         RUNNING = auto()
         COMPLETED = auto()
+        RECONNECTING = auto()
+        BACKOFF_WAIT = auto()
         ERROR = auto()
         ABORTED = auto()
 
