@@ -19,7 +19,7 @@ dataprepPgvector:
   name: document-ingestion
   image:
     repository: intel/document-ingestion
-    tag: "1.2.2"
+    tag: "1.2.3"
     pullPolicy: IfNotPresent
   service:
     type: ClusterIP
