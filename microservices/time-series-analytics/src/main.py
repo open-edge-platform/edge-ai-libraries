@@ -59,7 +59,7 @@ class DataPoint(BaseModel):
 
 class Config(BaseModel):
     """Configuration model for the service."""
-    udfs: dict = {"name": "udf_name", "device": "cpu/gpu"}
+    udfs: dict = {"name": "udf_name", "device": "cpu"}
     alerts: Optional[dict] = {}
 
 
@@ -411,6 +411,7 @@ async def config_file_change(config_data: Config, background_tasks: BackgroundTa
                         "model": "model_name",
                         "device": "cpu or gpu"}
                     "alerts": {
+                    }
                     }
     responses:
         200:
