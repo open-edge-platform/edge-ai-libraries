@@ -78,15 +78,17 @@ build_dependencies() {
   local uservices_dir="${current_dir}/../../microservices"
   local build_success=true
 
-  # Build DATAPREP
-  cd "${uservices_dir}/visual-data-preparation-for-retrieval/vdms/docker" || return 0
-  if [ -f "compose.yaml" ]; then
-   cd .. && docker_build -t ${REGISTRY}vdms-dataprep:${TAG} -f docker/Dockerfile . || { 
-      log_info "${RED}Failed to build DATAPREP${NC}"; 
-      build_success=false; 
-    }
+  # Build DATAPREP (generates required multimodal embedding wheel internally)
+  local vdms_dir="${uservices_dir}/visual-data-preparation-for-retrieval/vdms"
+  if [ -x "${vdms_dir}/build.sh" ]; then
+    log_info "Running vdms build.sh to build vdms-dataprep image..."
+    if ! (cd "${vdms_dir}" && ./build.sh); then
+      log_info "${RED}Failed to build vdms-dataprep via build.sh${NC}"
+      build_success=false
+    fi
   else
-    log_info "${YELLOW}compose.yaml not found for dataprep service${NC}";
+    log_info "${YELLOW}vdms build.sh not found or not executable${NC}"
+    build_success=false
   fi
 
 # Check if the directory exists first

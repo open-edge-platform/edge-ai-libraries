@@ -66,8 +66,14 @@ spec:
             - name: tmp
               mountPath: /tmp
             - name: volume-data
-              mountPath: /root/.cache
-              subPath: cache
+              mountPath: /home/appuser/.cache/huggingface
+              subPath: huggingface
+            - name: volume-data
+              mountPath: /app/ov_models
+              subPath: ovmodels
+            - name: volume-data
+              mountPath: /app/models/yolox
+              subPath: yoloxmodels
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos

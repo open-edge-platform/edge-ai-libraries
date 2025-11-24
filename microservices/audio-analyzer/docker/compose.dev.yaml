@@ -9,5 +9,3 @@ services:
     volumes:
       # Mount the code directory to enable hot reloading
       - ../:/app
-    environment:
-      - DEBUG=true

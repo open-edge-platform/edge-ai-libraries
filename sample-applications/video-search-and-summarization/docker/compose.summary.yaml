@@ -37,6 +37,7 @@ services:
       VLM_CONCURRENT: ${PM_VLM_CONCURRENT}
       SUMMARIZATION_MAX_COMPLETION_TOKENS: ${PM_SUMMARIZATION_MAX_COMPLETION_TOKENS}
       CAPTIONING_MAX_COMPLETION_TOKENS: ${PM_CAPTIONING_MAX_COMPLETION_TOKENS}
+      MAX_CONTEXT_LENGTH: ${PM_LLM_MAX_CONTEXT_LENGTH}
       LLM_MODEL_API: ${LLM_MODEL_API}
       MULTI_FRAME_COUNT: ${PM_MULTI_FRAME_COUNT}
       AUDIO_HOST: ${AUDIO_ENDPOINT}
@@ -55,7 +56,7 @@ services:
       - "${VLM_HOST_PORT}:8000"
     environment:
       no_proxy: ${no_proxy},${MINIO_HOST},localhost
-      no_proxy_env: ${no_proxy},${MINIO_HOST}
+      no_proxy_env: ${no_proxy},${MINIO_HOST},localhost
       http_proxy: ${http_proxy}
       https_proxy: ${https_proxy}
       VLM_MODEL_NAME: ${VLM_MODEL_NAME}
@@ -120,7 +121,7 @@ services:
     ports:
       - "${EVAM_PIPELINE_HOST_PORT}:8080"
     healthcheck:
-      test: ["CMD", "wget", "http://localhost:8080/pipelines", "-O", "/tmp/health"]
+      test: ["CMD", "curl", "-f", "http://localhost:8080/pipelines", "-o", "/tmp/health"]
       interval: 60s
       timeout: 10s
       retries: 3

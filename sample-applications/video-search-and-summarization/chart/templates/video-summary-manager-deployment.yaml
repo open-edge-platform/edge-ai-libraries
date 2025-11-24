@@ -130,6 +130,8 @@ spec:
               value: "{{ .Values.videoSummaryManager.env.SUMMARIZATION_MAX_COMPLETION_TOKENS }}"
             - name: CAPTIONING_MAX_COMPLETION_TOKENS
               value: "{{ .Values.videoSummaryManager.env.CAPTIONING_MAX_COMPLETION_TOKENS }}"
+            - name: MAX_CONTEXT_LENGTH
+              value: "{{ .Values.videoSummaryManager.env.MAX_CONTEXT_LENGTH }}"
             - name: LLM_MODEL_API
               value: "{{ .Values.videoSummaryManager.env.LLM_MODEL_API }}"
             - name: MULTI_FRAME_COUNT

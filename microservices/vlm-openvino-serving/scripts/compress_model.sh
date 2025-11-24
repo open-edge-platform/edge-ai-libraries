@@ -17,7 +17,7 @@ echo "Model Directory: $MODEL_DIR"
 # Login to Hugging Face if token is provided and not 'none'
 if [ -n "$HUGGINGFACE_TOKEN" ] && [ "$HUGGINGFACE_TOKEN" != "none" ]; then
     echo "Logging in to Hugging Face to access gated models..."
-    huggingface-cli login --token "$HUGGINGFACE_TOKEN"
+    hf auth login --token "$HUGGINGFACE_TOKEN"
 fi
 
 if [ ! -d "$MODEL_DIR" ]; then
