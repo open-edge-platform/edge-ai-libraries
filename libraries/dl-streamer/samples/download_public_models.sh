@@ -985,7 +985,9 @@ if [[ " ${MODELS_TO_PROCESS[@]} " =~ " mars-small128 " ]] || [[ " ${MODELS_TO_PR
     echo_color "Converting Mars-Small128 model for DeepSORT tracking..." "blue"
 
     # Get the script directory (samples directory) using absolute path
+    echo "Current directory: $(pwd)"
     SCRIPT_DIR="$(dirname "$(realpath "${BASH_SOURCE[0]}")")"
+    echo "Script directory: $SCRIPT_DIR"
     CONVERTER_SCRIPT="$SCRIPT_DIR/models/convert_mars_deepsort.py"
 
     if [[ ! -f "$CONVERTER_SCRIPT" ]]; then
