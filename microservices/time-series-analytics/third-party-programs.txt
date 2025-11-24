@@ -44,6 +44,7 @@ typing_extensions==4.15.0
 uvicorn==0.34.0
 anyio==4.11.0
 fastapi==0.115.12
+----------------------------------------------------------------------
 
 License-Identifier: MIT License
 click==8.3.1
@@ -62,9 +63,9 @@ urllib3==2.5.0
 charset-normalizer==3.4.4
 annotated-doc==0.0.4
 cffi==2.0.0
+----------------------------------------------------------------------
 
 License-Identifier: BSD License
-
 pycparser==2.23
 pytz==2025.2
 scikit-learn==1.6.1
@@ -72,23 +73,24 @@ tbb==2022.3.0
 tcmlib==1.4.1
 daal==2025.7.0
 scipy==1.15.3
+----------------------------------------------------------------------
 
 License-Identifier: LGPL-3.0
-
 asyncua==1.1.5
+----------------------------------------------------------------------
 
 License-Identifier: Apache-2.0 or BSD-3-Clause
 cryptography==46.0.3
+----------------------------------------------------------------------
 
 
 License-Identifier: Other/Proprietary 
 License (Intel End User License Agreement for Developer Tools)
-
 intel-cmplr-lib-rt==2025.3.1
 intel-cmplr-lib-ur==2025.3.1
 intel-cmplr-lic-rt==2025.3.1
 intel-sycl-rt==2025.3.1
-
+----------------------------------------------------------------------
 
 License: Apache-2.0 with LLVM exceptions
 umf==1.0.2
