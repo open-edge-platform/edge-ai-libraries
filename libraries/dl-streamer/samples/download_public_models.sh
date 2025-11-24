@@ -151,7 +151,7 @@ prepare_models_list() {
     # Validate each model
     for model in "${models_array[@]}"; do
         model=$(echo "$model" | xargs)  # Trim whitespace
-        
+
         if ! [[ " ${SUPPORTED_MODELS[*]} " =~ " $model " ]]; then
             echo "Unsupported model: $model" >&2
             exit 1
@@ -970,7 +970,7 @@ os.remove('${MODEL_NAME}.zip')
     cp license-plate-reader/models/ch_PP-OCRv4_rec_infer/ch_PP-OCRv4_rec_infer.xml FP32/${MODEL_NAME}.xml
     chmod -R u+w license-plate-reader
     rm -rf license-plate-reader
-    cd ..
+    cd -
   else
     echo_color "\nModel already exists: $MODEL_DIR.\n" "yellow"
   fi
