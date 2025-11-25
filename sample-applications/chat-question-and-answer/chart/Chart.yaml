@@ -1,7 +1,7 @@
 apiVersion: v2
 name: chat-question-and-answer
 description: A helm chart for deploying Intel ChatQnA sample application
-version: 2.1.0
+version: 2.0.1
 dependencies:
   - name: vllmService
     version: 0.1.0
