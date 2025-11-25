@@ -27,10 +27,10 @@ Follow the steps in this section to quickly pull the latest pre-built DL Streame
 
 - Download helm chart with the following command
 
-    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0-rc1`
+    `helm pull oci://registry-1.docker.io/intel/dlstreamer-pipeline-server --version 2025.2.0-rc2`
 - unzip the package using the following command
 
-    `tar -xvf dlstreamer-pipeline-server-2025.2.0-rc1.tgz`
+    `tar -xvf dlstreamer-pipeline-server-2025.2.0-rc2.tgz`
 - Get into the helm directory
 
     `cd dlstreamer-pipeline-server`
