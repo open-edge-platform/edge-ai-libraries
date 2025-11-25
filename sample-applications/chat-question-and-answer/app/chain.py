@@ -3,8 +3,7 @@
 
 import os
 from sqlalchemy.ext.asyncio import create_async_engine
-from langchain.globals import set_verbose
-from langchain.callbacks import streaming_stdout
+from langchain_core.callbacks.streaming_stdout import StreamingStdOutCallbackHandler
 from langchain_postgres.vectorstores import PGVector as EGAIVectorDB
 from langchain_core.output_parsers import StrOutputParser
 from langchain_core.prompts import ChatPromptTemplate
@@ -23,8 +22,6 @@ from opentelemetry.sdk.trace import TracerProvider
 from opentelemetry.sdk.trace.export import BatchSpanProcessor
 from opentelemetry.exporter.otlp.proto.http.trace_exporter import OTLPSpanExporter
 import openlit
-
-set_verbose(True)
 
 logging.basicConfig(level=logging.INFO)
 
@@ -130,7 +127,7 @@ else:
 logging.info(f"Using LLM inference backend: {LLM_BACKEND}")
 LLM_MODEL = os.getenv("LLM_MODEL", "Intel/neural-chat-7b-v3-3")
 RERANKER_ENDPOINT = os.getenv("RERANKER_ENDPOINT", "http://localhost:9090/rerank")
-callbacks = [streaming_stdout.StreamingStdOutCallbackHandler()]
+callbacks = [StreamingStdOutCallbackHandler()]
 
 async def context_retriever_fn(chain_inputs: dict):
     """
