@@ -1,6 +1,6 @@
 [project]
 name = "model-download"
-version = "0.1.0"
+version = "1.0.1"
 description = "A FastAPI application for downloading and converting HuggingFace/Ollama models."
 authors = [
 ]
@@ -23,6 +23,15 @@ dev = [
     "pytest-asyncio>=0.21.1,<1.0.0",
     "httpx>=0.24.1,<1.0.0",
     "pytest-mock>=3.11.1,<4.0.0",
+    "pytest-env>=1.1.0,<2.0.0",
+    "responses>=0.25.0,<1.0.0",
+    "freezegun>=1.5.0,<2.0.0",
+    # Include plugin dependencies for testing
+    "huggingface-hub[cli,hf-transfer,hf-xet]==0.36.0",
+    "openvino==2025.3.0",
+    "ultralytics==8.2.3",
+    "torch==2.8.0+cpu",
+    "torchvision==0.23.0+cpu",
 ]
 
 cpu = [
@@ -65,7 +74,6 @@ ollama = [
     # Ollama is installed as a binary, no Python dependencies required
 ]
 
-
 [tool.uv]
 index-url = "https://pypi.org/simple"
 
@@ -81,16 +89,27 @@ torchvision = { index = "pytorch-cpu" }
 [tool.uv.pip]
 index-strategy = "unsafe-best-match"
 
-# Pytest configuration (unchanged)
+# Pytest configuration - updated for new structure
 [tool.pytest.ini_options]
 testpaths = ["tests"]
 python_files = ["test_*.py"]
-addopts = "-v --cov=app --cov-report=term-missing"
+addopts = "-v --cov=src --cov-report=term-missing --cov-report=html"
+asyncio_mode = "auto"
+env = [
+    "HF_TOKEN=hf_test_token_for_testing",
+    "MODELS_DIR=/tmp/test_models",
+    "LOGS_DIR=/tmp/test_logs",
+]
 
-# Coverage configuration
+# Coverage configuration - updated for new structure
 [tool.coverage.run]
-source = ["app"]
-omit = ["*/tests/*", "*/__pycache__/*"]
+source = ["src"]
+omit = [
+    "*/tests/*", 
+    "*/__pycache__/*",
+    "*/conftest.py",
+    "*/test_*.py"
+]
 
 [tool.coverage.report]
 exclude_lines = [
@@ -100,4 +119,11 @@ exclude_lines = [
     "raise NotImplementedError",
     "if __name__ == .__main__.:",
     "if TYPE_CHECKING:",
+    "pass",
+    "\\.\\.\\.",
 ]
+show_missing = true
+skip_covered = false
+
+[tool.coverage.html]
+directory = "htmlcov"
