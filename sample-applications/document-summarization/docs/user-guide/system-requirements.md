@@ -4,6 +4,7 @@ This section provides detailed hardware, software, and platform requirements to 
 
 ## Hardware Platforms Used for Validation
 - Intel® Xeon® processor: Fourth and fifth generation.
+- Intel® Core™ processor: Core Ultra 7 Processor 265 and Core Ultra 9 Processor 285.
 
 ## Operating Systems Used for Validation
 - Ubuntu 22.04.2 LTS OS for Intel Xeon configurations only.
