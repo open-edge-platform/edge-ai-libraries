@@ -9,8 +9,8 @@ README.md           @xwu2intel
 
 # libraries
 /libraries/dl-streamer/                                @tbujewsk @OskarFiedot @marcin-wadolkowski @nszczygl9 @dmichalo @msmiatac @jmotow @pbartosik @mholowni @qianlongding @BaoHuiling @yunowo @ZiningLi @yangjianfeng1208
-/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
-/libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz
+/libraries/edge-control-libraries/                     @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22
+/libraries/robotics-ai-libraries/                      @jouillet @jb-balaji @pirouf @mohitmeh12 @pperycz @seanohair22
 /libraries/video-chunking-utils/                       @Johere @zhangcong2019 @llin60
 
 # microservices
