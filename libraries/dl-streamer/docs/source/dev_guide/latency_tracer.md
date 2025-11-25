@@ -23,7 +23,7 @@ GST_DEBUG="GST_TRACER:7" GST_TRACERS="latency_tracer" gst-launch-1.0 filesrc loc
 ```
 
 By default, `latency_tracer` shows latency for both pipeline and
-elements for each frame. Below there is a sample log for gvadetect element and a whole pipeline.
+elements for each frame. Below there is a sample log for `gvadetect` element and a whole pipeline.
 
 ```bash
 ...
@@ -37,22 +37,22 @@ Key measurement for `latency_tracer_element`:
 - `frame_latency` - the current frame's processing latency calculated as the time difference
   between when the frame was entered the element and the current timestamp at element's output
 - `avg` - the average value of element processing latency for all frames processed so far by the element,
-  average value of frame_latency for the element from the pipeline execution start till now
+  average value of `frame_latency` for the element from the pipeline execution start till now
 - `min` - the lowest value of element processing latency for all frames processed so far by the element,
-  minimum value of frame_latency for the element from the pipeline execution start till now
+  minimum value of `frame_latency` for the element from the pipeline execution start till now
 - `max` - the maximum value of element processing latency for all frames processed so far by the element,
-  maximum value of frame_latency for the element from the pipeline execution start till now
+  maximum value of `frame_latency` for the element from the pipeline execution start till now
 - `frame_num` - frame number for which latencies values are calculated
 
 Key measurement for `latency_tracer_pipeline`:
 - `frame_latency` - the current frame's processing latency calculated as the time difference
   between when the frame was entered the pipeline and the current timestamp at pipeline's output
 - `avg` - the average value of the pipeline processing latency for all frames processed so far by the pipeline,
-  average value of frame_latency for the pipeline from the pipeline execution start till now
+  average value of `frame_latency` for the pipeline from the pipeline execution start till now
 - `min` - the lowest value of pipeline processing latency for all frames processed so far by the pipeline,
-  minimum value of frame_latency for the pipeline from the pipeline execution start till now
+  minimum value of `frame_latency` for the pipeline from the pipeline execution start till now
 - `max` - the maximum value of pipeline processing latency for all frames processed so far by the pipeline,
-  maximum value of frame_latency for the pipeline from the pipeline execution start till now
+  maximum value of `frame_latency` for the pipeline from the pipeline execution start till now
 - `latency` - the overall pipeline throughput latency calculated as the total elapsed time divided by the
   number of frames processed, shows the average time interval between pipeline's frame outputs (inversely related to FPS)
 - `fps` - frames per second indicating the throughput of the pipeline, calculated as `1000 / latency` where latency is in milliseconds
@@ -101,8 +101,8 @@ Sample output:
 
 The interval feature generates two types of periodic reports:
 
-1. **`latency_tracer_element_interval`** - Provides aggregated statistics for each element over the specified time interval
-2. **`latency_tracer_pipeline_interval`** - Provides aggregated statistics for the entire pipeline over the specified time interval
+1. `latency_tracer_element_interval` - Provides aggregated statistics for each element over the specified time interval
+2. `latency_tracer_pipeline_interval` - Provides aggregated statistics for the entire pipeline over the specified time interval
 
 Key measurements in interval reports:
 - `interval` - The actual duration of the reporting interval in milliseconds
