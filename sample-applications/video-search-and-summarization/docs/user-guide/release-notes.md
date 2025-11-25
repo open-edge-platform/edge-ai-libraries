@@ -2,7 +2,7 @@
 
 ## Current Release
 
-**Version**: rc1.3.3 \
+**Version**: 1.3.1 \
 **Release Date**: 20 Nov 2025  
 
 **Features**:
@@ -18,6 +18,7 @@
 - Fixed search UI checkbox selection/deselection issue.
 - Fixed VSS video upload streamable mp4 error message.
 - Documentations updates and some other required setup-script/code fixes to be able to build standalone Audio-Analyzer image and run/use it without any external dependency (like minio etc).
+- Updated image tags for various components and helm chart to version 1.3.1.
 
 **HW used for validation**:
 
