@@ -112,7 +112,7 @@ services:
       - vs_network
 
   video-ingestion:
-    image: ${REGISTRY:-}video-ingestion:${TAG:-latest}
+    image: ${REGISTRY:-}video-ingestion:1.3.0
     read_only: true
     security_opt:
       - no-new-privileges
