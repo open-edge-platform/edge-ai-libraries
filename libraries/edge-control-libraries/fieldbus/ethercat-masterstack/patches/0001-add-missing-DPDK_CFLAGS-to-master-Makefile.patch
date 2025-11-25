@@ -1,0 +1,41 @@
+From c2d94ae9f3aaa139f5101815e299a85f59f6e587 Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Fri, 7 Nov 2025 08:45:12 +0800
+Subject: [PATCH 1/2] add missing DPDK_CFLAGS to master Makefile
+
+Fix potential compilation issues when dpdk headers are not in system include paths by ensuring DPDK_CFLAGS is properly included in the master Makefile.
+
+Signed-off-by: Zhang, Wei E <wei.e.zhang@intel.com>
+---
+ master/Makefile.am | 10 ++++++++--
+ 1 file changed, 8 insertions(+), 2 deletions(-)
+
+diff --git a/master/Makefile.am b/master/Makefile.am
+index 09f08dcf..e52bd7f5 100644
+--- a/master/Makefile.am
++++ b/master/Makefile.am
+@@ -167,13 +167,19 @@ ethercatd_CXXFLAGS = \
+ 
+ ethercatd_LDADD = \
+ 	$(top_builddir)/ipc/libecat_ipc.la
++	
+ 
+ ethercatd_CFLAGS = $(ethercatd_CXXFLAGS)
+ if !ENABLE_DAEMON
+ libethercatd_la_SOURCES = $(ethercatd_SOURCES)
+-libethercatd_la_CFLAGS = $(ethercatd_CFLAGS) -I$(top_srcdir)/include
+-libethercatd_la_LIBADD = $(ethercatd_LDADD) -lecat_dpdk
++libethercatd_la_CFLAGS = $(ethercatd_CFLAGS) -I$(top_srcdir)/include @DPDK_CFLAGS@
++libethercatd_la_LIBADD = $(ethercatd_LDADD) -lecat_dpdk @DPDK_LIBS@
+ libethercatd_la_LDFLAGS = -version-info 2:0:1
++else
++ethercatd_CFLAGS += @DPDK_CFLAGS@
++ethercatd_LDADD += \
++	-lecat_dpdk \
++	@DPDK_LIBS@
+ endif
+ CLEANFILE = *~
+ endif
+-- 
+2.34.1
+

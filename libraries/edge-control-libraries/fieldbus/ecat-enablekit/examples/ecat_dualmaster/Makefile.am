@@ -13,24 +13,18 @@
 # See the License for the specific language governing permissions
 # and limitations under the License.
 
+noinst_PROGRAMS = ecat_dualmaster_motor_example
 
-SUBDIRS = \
-	ecatmotor \
-	soemotor \
-	ecatdio \
-	multiaxis
+ecat_dualmaster_motor_example_SOURCES = \
+	dual_master_motor.c
 
-DIST_SUBDIRS = \
-	ecatmotor \
-	ecat_dualmaster \
-	soemotor \
-	ecatdio \
-	multiaxis
+ecat_dualmaster_motor_example_CFLAGS = \
+	-Wall \
+	-I${top_builddir}/libecat
 
-if WITH_ETHERCATD
-SUBDIRS += \
-	ecat_dualmaster
+ecat_dualmaster_motor_example_LDFLAGS = \
+	-L$(top_builddir)/libecat -lrt -lpthread
 
-DIST_SUBDIRS += \
-	ecat_dualmaster
-endif
+ecat_dualmaster_motor_example_LDADD = \
+	$(top_builddir)/libecat/libecat.la
+

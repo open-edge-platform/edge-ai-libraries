@@ -1,0 +1,255 @@
+From 5da6fd88ebd5a6ca2e06d6e9a1b259dbf0eb7a4c Mon Sep 17 00:00:00 2001
+From: "Zhang, Wei E" <wei.e.zhang@intel.com>
+Date: Sat, 11 Oct 2025 08:37:09 +0800
+Subject: [PATCH 2/2] add new api to get master count by node id
+
+Signed-off-by: Zhang, Wei E <wei.e.zhang@intel.com>
+---
+ dpdk/ec_dpdk.c             |  5 +++
+ dpdk/ecdev.h               |  6 ---
+ globals.h                  | 15 ++++++++
+ include/ecrt.h             |  3 +-
+ master/ethercatd.c         | 25 +++++++++----
+ master/master.c            |  4 ++
+ script/sysconfig/ecrt.conf | 77 +++++++++++++++++++++++++++++++++++++-
+ 7 files changed, 120 insertions(+), 15 deletions(-)
+
+diff --git a/dpdk/ec_dpdk.c b/dpdk/ec_dpdk.c
+index ad1ca67c..c160ce65 100644
+--- a/dpdk/ec_dpdk.c
++++ b/dpdk/ec_dpdk.c
+@@ -31,6 +31,11 @@
+ 
+ #include "../globals.h"
+ #include "ecdev.h"
++#include <rte_eal.h>
++#include <rte_ethdev.h>
++#include <rte_cycles.h>
++#include <rte_lcore.h>
++#include <rte_mbuf.h>
+ #include <rte_string_fns.h>
+ 
+ #define PFX "ec_dpdk: "
+diff --git a/dpdk/ecdev.h b/dpdk/ecdev.h
+index 720dba11..13ed44d1 100644
+--- a/dpdk/ecdev.h
++++ b/dpdk/ecdev.h
+@@ -31,12 +31,6 @@
+ #ifndef __ECDEV_H__
+ #define __ECDEV_H__
+ 
+-#include <rte_eal.h>
+-#include <rte_ethdev.h>
+-#include <rte_cycles.h>
+-#include <rte_lcore.h>
+-#include <rte_mbuf.h>
+-
+ /*****************************************************************************/
+ 
+ typedef struct ec_dpdk_ops {
+diff --git a/globals.h b/globals.h
+index 0f11882e..6d63f140 100644
+--- a/globals.h
++++ b/globals.h
+@@ -187,6 +187,21 @@ static inline int ec_nanosleep(uint64_t ns)
+ #define EBUSY 16
+ #endif
+ 
++#ifndef ENOBUFS
++#define ENOBUFS 105
++#endif
++
++#ifndef ENOENT
++#define ENOENT 2
++#endif
++
++#ifndef likely
++#define likely(x)       __builtin_expect(!!(x), 1)
++#endif
++
++#ifndef unlikely
++#define unlikely(x)     __builtin_expect(!!(x), 0)
++#endif
+ 
+ #endif
+ #endif
+diff --git a/include/ecrt.h b/include/ecrt.h
+index cce02457..96f363f0 100644
+--- a/include/ecrt.h
++++ b/include/ecrt.h
+@@ -688,8 +688,9 @@ EC_PUBLIC_API int ecrt_master_wait_for_slave(ec_master_t *master, int slave_coun
+  * \return Pointer to the reserved master, otherwise \a NULL.
+  */
+ EC_PUBLIC_API ec_master_t *ecrt_masters_create(
+-        unsigned int size /**< Size of the master array. */
++        unsigned int node_id /**< node id of the master. */
+         );
++EC_PUBLIC_API int ecrt_master_count_by_node(int node_id);
+ #endif
+ #endif
+ 
+diff --git a/master/ethercatd.c b/master/ethercatd.c
+index 86aa1b40..71b58036 100644
+--- a/master/ethercatd.c
++++ b/master/ethercatd.c
+@@ -49,7 +49,7 @@
+ 
+ #define MASTER_READY_TIMEOUT 2000000 /* Timeout for master ready. */
+ #define MASTER_READY_DELAY_US 10000 /* Delay to check for master ready. */
+-static const int MASTER_READY_RETRY = (MASTER_READY_DELAY_US)/MASTER_READY_DELAY_US; /**< Number of retries to check for master ready. */
++static const int MASTER_READY_RETRY = (MASTER_READY_TIMEOUT/MASTER_READY_DELAY_US); /**< Number of retries to check for master ready. */
+ 
+ /*****************************************************************************/
+ 
+@@ -215,6 +215,17 @@ static void ethercatd_ipc_stop(ec_master_t *master)
+     }
+ }
+ //#endif
++
++int ecrt_master_count_by_node(int node_id)
++{
++    ecrt_config_t *conf;
++
++    conf = ecrt_load_configuration(NULL);
++    if (conf != NULL) {
++        return ecrt_config_get_master_count_by_id(conf, node_id);
++    }
++    return 0;
++}
+ /** Ethercatd Entry
+  *
+  * Initialize \a master_count masters.
+@@ -594,7 +605,7 @@ int ecrt_master_wait_for_slave(ec_master_t *master, int slave_count) {
+     ec_master_state_t master_state;
+     int retry = MASTER_READY_RETRY;
+ 
+-    printf("Getting master state...\n");
++    printf("Getting master state... %d\n",retry);
+     while (retry--) {
+         ecrt_master_state(master, &master_state);
+         if ((master_state.slaves_responding == 1) && (master_state.al_states & 0x0E))
+@@ -612,11 +623,11 @@ int ecrt_master_wait_for_slave(ec_master_t *master, int slave_count) {
+     printf("Getting slave info...\n");
+     while (retry--) {
+         ret = ecrt_master_get_slave(master, 0, &slave_info);
+-        if (ret != 0) {
+-            printf("Error in getting slave info\n");
+-        } else if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
+-            printf("slave info state=%d\n", slave_info.al_state);
+-            break;
++        if (ret == 0) {
++            if ((slave_info.al_state >= EC_AL_STATE_PREOP)) {
++                printf("slave info state=%d\n", slave_info.al_state);
++                break;
++            }
+         }
+         usleep(MASTER_READY_DELAY_US);
+     }
+diff --git a/master/master.c b/master/master.c
+index 3dcb4eda..1b4947dd 100644
+--- a/master/master.c
++++ b/master/master.c
+@@ -1785,7 +1785,11 @@ static int ec_master_idle_thread(void *priv_data)
+             ec_master_queue_datagram(master, &master->fsm_datagram);
+         }
+ #ifdef EC_USERMODE
++#ifdef EC_USE_HRTIMER
++        sent_bytes = ecrt_master_send(master);
++#else
+         ecrt_master_send(master);
++#endif
+ #else
+         ecrt_master_send(master);
+ #ifdef EC_USE_HRTIMER
+diff --git a/script/sysconfig/ecrt.conf b/script/sysconfig/ecrt.conf
+index 25fb65b1..89ef77ca 100644
+--- a/script/sysconfig/ecrt.conf
++++ b/script/sysconfig/ecrt.conf
+@@ -1,4 +1,21 @@
+-# test
++# =======================================================================
++# EtherCAT Configuration Examples
++# =======================================================================
++# This file contains sample configurations for various EtherCAT deployment scenarios.
++# Uncomment and modify the appropriate section based on your setup requirements.
++
++# =======================================================================
++# Configuration Parameters:
++# - node_id: Unique identifier for each node (0, 1, 2, ...)
++# - master_mac: Array of MAC addresses for EtherCAT masters
++# - debug_level: Debug verbosity
++# - drv_argv: DPDK driver arguments for network interface configuration
++# =======================================================================
++
++# -----------------------------------------------------------------------
++# Scenario 1: Single Master, Single Node
++# Use case: Simple setup with one EtherCAT master on single application
++# ----------------------------------------------------------------------- 
+ ethercat={
+ 	node_id=0
+ 	master_mac={
+@@ -8,3 +25,61 @@ ethercat={
+ 	drv_argv="--lcores 3 -a 0000:02:00.0"
+ }
+ 
++# -----------------------------------------------------------------------
++# Scenario 2: Multiple Masters, Single Node
++# Use case: Multiple EtherCAT networks managed by single application
++# ----------------------------------------------------------------------- 
++# ethercat={
++#	node_id=0
++#	master_mac={
++#            "xx:xx:xx:xx:xx:xx"
++#            "xx:xx:xx:xx:xx:xx"
++#        }
++#	debug_level=0
++#	drv_argv="-a 0000:02:00.0 -a 0000:03:00.0"
++#}
++
++# -----------------------------------------------------------------------
++# Scenario 3: Single Master per Node, Multiple Nodes
++# Use case: Distributed setup with dedicated masters on separate application
++# ----------------------------------------------------------------------- 
++# ethercat={
++#	node_id=0
++#	master_mac={
++#            "xx:xx:xx:xx:xx:xx"
++#        }
++#	debug_level=0
++#	drv_argv="--lcores 3 -a 0000:02:00.0 --file-prefix=config0"
++#}
++# ethercat={
++#	node_id=1
++#	master_mac={
++#            "xx:xx:xx:xx:xx:xx"
++#        }
++#	debug_level=0
++#	drv_argv="--lcores 2 -a 0000:03:00.0 --file-prefix=config1"
++#}
++
++# -----------------------------------------------------------------------
++# Scenario 4: Multiple Masters per Node, Multiple Nodes
++# Use case: Multiple EtherCAT networks managed on separate application
++# ----------------------------------------------------------------------- 
++# ethercat={
++#	node_id=0
++#	master_mac={
++#            "xx:xx:xx:xx:xx:xx"
++#            "xx:xx:xx:xx:xx:xx"
++#        }
++#	debug_level=0
++#	drv_argv="-a 0000:02:00.0 -a 0000:03:00.0 --file-prefix=config0"
++#}
++# ethercat={
++#	node_id=1
++#	master_mac={
++#            "xx:xx:xx:xx:xx:xx"
++#            "xx:xx:xx:xx:xx:xx"
++#        }
++#	debug_level=0
++#	drv_argv="-a 0000:04:00.0 -a 0000:05:00.0 --file-prefix=config1"
++#}
++
+-- 
+2.34.1
+

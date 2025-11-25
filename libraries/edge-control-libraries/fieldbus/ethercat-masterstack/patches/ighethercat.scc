@@ -28,3 +28,5 @@
 0003-add-ecrt_master_wait_for_slave-api-to-check-master-s.patch
 0004-Add-domain-process-with-enable-daemon.patch
 0001-fix-compilation-issue-with-different-options.patch
+0001-add-missing-DPDK_CFLAGS-to-master-Makefile.patch
+0002-add-new-api-to-get-master-count-by-node-id.patch
