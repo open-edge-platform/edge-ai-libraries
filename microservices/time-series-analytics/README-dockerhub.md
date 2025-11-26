@@ -10,7 +10,7 @@ in a Dockerfile](https://documentation.ubuntu.com/pro-client/en/docs/howtoguides
 
 ## Supported versions
 ---
-> **Note**: The tags suffixed with `-weekly` and `-rcX` builds are developmental builds, may not be stable.
+> **Note**: The tags suffixed with `-weekly` and `-rcX` are developmental builds that may not be stable.
 
 ### [1.1.0](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/time-series-analytics/release_notes/dec-2025.html#v1-1-0)
 
