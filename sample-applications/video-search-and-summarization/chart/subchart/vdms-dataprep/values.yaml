@@ -70,6 +70,14 @@ service:
 
 resources: {}
 
+modelPvc:
+  enabled: true
+  existingClaim: ""
+  storageClassName: ""
+  accessModes:
+    - ReadWriteOnce
+  size: "10Gi"
+
 livenessProbe:
   httpGet:
     path: /health

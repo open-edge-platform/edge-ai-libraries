@@ -74,12 +74,21 @@ spec:
             - name: volume-data
               mountPath: /home/appuser/.cache/huggingface
               subPath: huggingface
+      {{- if .Values.modelPvc.enabled }}
+            - name: models-data
+              mountPath: /app/ov_models
+              subPath: ovmodels
+            - name: models-data
+              mountPath: /app/models/yolox
+              subPath: yoloxmodels
+      {{- else }}
             - name: volume-data
               mountPath: /app/ov_models
               subPath: ovmodels
             - name: volume-data
               mountPath: /app/models/yolox
               subPath: yoloxmodels
+      {{- end }}
             - name: volume-data
               mountPath: /tmp/dataprep
               subPath: tmpvideos
@@ -91,6 +100,22 @@ spec:
           hostPath:
             path: /dev/dri
             type: Directory
+      {{- end }}
+      {{- if .Values.modelPvc.enabled }}
+        - name: models-data
+          {{- if .Values.modelPvc.existingClaim }}
+          persistentVolumeClaim:
+            claimName: {{ .Values.modelPvc.existingClaim }}
+          {{- else if .Values.global.usePvc }}
+          persistentVolumeClaim:
+            claimName: {{ include "vdms-dataprep.fullname" . }}-models-pvc
+          {{- else if .Values.global.volumeHostPath }}
+          hostPath:
+            path: {{ .Values.global.volumeHostPath }}
+            type: DirectoryOrCreate
+          {{- else }}
+          emptyDir: {}
+          {{- end }}
       {{- end }}
         - name: volume-data
           {{- if .Values.global.usePvc }}
