@@ -506,8 +506,7 @@ convert_object_detection_models() {
     source ov_model_venv/bin/activate
 
     echo -e  "Installing required packages for model conversion..."
-    pip install -q "openvino>=2025.0.0"
-    pip install -q "ultralytics==8.3.59" --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install -q "ultralytics==8.3.232" "openvino==2025.3.0" --extra-index-url https://download.pytorch.org/whl/cpu
     
     # Run script to convert the model to OpenVINO format and verify conversion
     echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
