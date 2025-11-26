@@ -5,4 +5,4 @@ apiVersion: v2
 name: videosummaryui 
 description: The Helm chart for VideoSummary UI
 type: application
-version: 1.2.3
+version: 1.3.1

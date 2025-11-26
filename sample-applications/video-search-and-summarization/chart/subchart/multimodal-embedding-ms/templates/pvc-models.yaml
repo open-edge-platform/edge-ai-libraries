@@ -1,0 +1,21 @@
+{{- if and .Values.modelPvc.enabled .Values.global.usePvc (not .Values.modelPvc.existingClaim) }}
+apiVersion: v1
+kind: PersistentVolumeClaim
+metadata:
+  name: {{ include "multimodal-embedding-ms.fullname" . }}-models-pvc
+  {{- if .Values.global.keepPvc }}
+  annotations:
+    helm.sh/resource-policy: keep
+  {{- end }}
+spec:
+  accessModes:
+    {{- range .Values.modelPvc.accessModes }}
+    - {{ . }}
+    {{- end }}
+  resources:
+    requests:
+      storage: {{ .Values.modelPvc.size | default "10Gi" }}
+  {{- if .Values.modelPvc.storageClassName }}
+  storageClassName: {{ .Values.modelPvc.storageClassName }}
+  {{- end }}
+{{- end }}

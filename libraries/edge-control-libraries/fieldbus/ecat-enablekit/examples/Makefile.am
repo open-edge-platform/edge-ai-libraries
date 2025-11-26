@@ -22,6 +22,15 @@ SUBDIRS = \
 
 DIST_SUBDIRS = \
 	ecatmotor \
+	ecat_dualmaster \
 	soemotor \
 	ecatdio \
 	multiaxis
+
+if WITH_ETHERCATD
+SUBDIRS += \
+	ecat_dualmaster
+
+DIST_SUBDIRS += \
+	ecat_dualmaster
+endif

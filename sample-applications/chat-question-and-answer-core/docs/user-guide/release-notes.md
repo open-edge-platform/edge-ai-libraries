@@ -2,6 +2,14 @@
 
 ## Current Release
 
+**Version**: 1.3.1 \
+**Release Date**: WW48 2025
+
+- Helm Chart Update. Resolved issues caused by deprecated schema and fields in Helm charts following the recent Helm binary release. The chart has been updated to align with the latest Helm specifications, ensuring compatibility and preventing deployment failures.
+- Dependency Upgrades. Upgraded application dependencies flagged by Dependabot for known vulnerabilities.
+
+## Previous Releases
+
 **Version**: 1.3.0 \
 **Release Date**: WW42 2025
 
@@ -10,8 +18,6 @@
 
 ## Known Issues/Behavior (Consolidated):
 - Validation on the latest version of Edge Manageability Framework has not been done. Hence, Edge Manageability Framework should be considered as not supported. - Open
-
-## Previous Releases
 
 **Version**: 1.2.2 \
 **Release Date**: WW32 2025
