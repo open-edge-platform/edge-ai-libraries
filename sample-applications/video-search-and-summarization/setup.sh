@@ -383,7 +383,7 @@ export CONFIG_SOCKET_APPEND=${CONFIG_SOCKET_APPEND} # Set this to CONFIG_ON in y
 # Object detection model settings
 export OD_MODEL_NAME=${OD_MODEL_NAME}
 export OD_MODEL_TYPE=${OD_MODEL_TYPE:-"yolo_v8"}
-export OD_MODEL_OUTPUT_DIR=${OV_MODEL_DIR}/yoloworld
+export OD_MODEL_OUTPUT_DIR=${OV_MODEL_DIR}/yoloworld/v2
 echo -e "[video-ingestion] ${GREEN}Using object detection model: ${YELLOW}$OD_MODEL_NAME of type $OD_MODEL_TYPE ${NC}"
 echo -e "[video-ingestion] ${GREEN}Output directory for object detection model: ${YELLOW}$OD_MODEL_OUTPUT_DIR ${NC}"
 
@@ -506,18 +506,20 @@ convert_object_detection_models() {
     source ov_model_venv/bin/activate
 
     echo -e  "Installing required packages for model conversion..."
-    pip install -q "openvino>=2025.0.0" "nncf>=2.9.0"
-    pip install -q "torch>=2.1" "torchvision>=0.16" "ultralytics==8.3.59" onnx tqdm opencv-python --extra-index-url https://download.pytorch.org/whl/cpu
+    pip install -q "ultralytics==8.3.232" "openvino==2025.3.0" --extra-index-url https://download.pytorch.org/whl/cpu
     
-    # Create model conversion script
-
+    # Run script to convert the model to OpenVINO format and verify conversion
     echo -e  "Converting object detection model: ${OD_MODEL_NAME} (${OD_MODEL_TYPE})..."
     python3 video-ingestion/resources/scripts/converter.py --model-name "${OD_MODEL_NAME}" --model-type "${OD_MODEL_TYPE}" --output-dir "${OD_MODEL_OUTPUT_DIR}"
-
-    echo -e  "Model conversion completed. Cleaning up..."
+    if [ $? -ne 0 ]; then
+        echo -e "${RED}ERROR: Model conversion failed for ${OD_MODEL_NAME}.${NC}"
+    else
+        echo -e "${GREEN}Model conversion succeeded for ${OD_MODEL_NAME}.${NC}"
+        echo -e  "${BLUE}Object detection model ${OD_MODEL_NAME} has been successfully converted and saved to ${OD_MODEL_OUTPUT_DIR}${NC}"
+    fi
+    echo -e "Cleaning up virtual environment..."
     deactivate
     rm -rf ov_model_venv
-    echo -e  "Object detection model ${OD_MODEL_NAME} has been successfully converted and saved to ${OD_MODEL_OUTPUT_DIR}"
 }
 
 # Function to export and save requested model for OVMS

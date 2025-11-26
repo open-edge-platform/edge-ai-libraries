@@ -40,7 +40,7 @@ spec:
               /scripts/model-converter.sh
           env:
             - name: OD_MODEL_OUTPUT_DIR
-              value: /models/yoloworld
+              value: /models/yoloworld/v2
             - name: OD_MODEL_NAME
               value: {{ required "Value for odModelName is required!" .Values.odModelName | quote }}
             - name: OD_MODEL_TYPE
