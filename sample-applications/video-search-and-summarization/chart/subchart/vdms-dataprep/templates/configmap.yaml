@@ -32,6 +32,11 @@ data:
   {{- end }}
   MULTIMODAL_EMBEDDING_MODEL_NAME: {{ $embeddingModel.value | quote }}
   EMBEDDING_PROCESSING_MODE: {{ .Values.embedding.processingMode | default .Values.global.env.EMBEDDING_PROCESSING_MODE | quote }}
+  {{- if .Values.global.gpu.vdmsdataprepEnabled }}
+  SDK_USE_OPENVINO: "true"
+  VDMS_DATAPREP_DEVICE: "GPU"
+  DEVICE: "GPU"
+  {{- else }}
   {{- $dataprepDevice := .Values.embedding.vdmsDataprepDevice | default .Values.embedding.device | default .Values.global.env.VDMS_DATAPREP_DEVICE | default .Values.global.env.DEVICE | default "CPU" }}
   {{- if hasKey .Values.embedding "sdkUseOpenVino" }}
   SDK_USE_OPENVINO: {{ printf "%v" .Values.embedding.sdkUseOpenVino | quote }}
@@ -42,6 +47,7 @@ data:
   {{- end }}
   VDMS_DATAPREP_DEVICE: {{ $dataprepDevice | quote }}
   DEVICE: {{ $dataprepDevice | quote }}
+  {{- end }}
   OV_MODELS_DIR: {{ .Values.embedding.ovModelsDir | default .Values.global.env.OV_MODELS_DIR | default "/app/ov_models" | quote }}
   OV_PERFORMANCE_MODE: {{ .Values.embedding.ovPerformanceMode | default .Values.global.env.OV_PERFORMANCE_MODE | default "THROUGHPUT" | quote }}
   FRAME_INTERVAL: {{ .Values.frameProcessing.frameInterval | default 15 | quote }}

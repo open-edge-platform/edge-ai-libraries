@@ -100,3 +100,18 @@ If release name contains chart name it will be used as a full name.
 {{- printf "%s-%s" .Release.Name $name | trunc 63 | trimSuffix "-" }}
 {{- end }}
 {{- end }}
+
+{{/*
+Validate GPU pairing for multimodal embedding service and VDMS DataPrep when both are enabled.
+*/}}
+{{- define "video-summarization.validateGpuPairing" -}}
+{{- $mmeEnabled := (default false .Values.multimodalembeddingms.enabled) -}}
+{{- $dataprepEnabled := (default false .Values.vdmsdataprep.enabled) -}}
+{{- if and $mmeEnabled $dataprepEnabled -}}
+	{{- $mmeGpu := default false .Values.global.gpu.multimodalembeddingmsEnabled -}}
+	{{- $dataprepGpu := default false .Values.global.gpu.vdmsdataprepEnabled -}}
+	{{- if ne $mmeGpu $dataprepGpu -}}
+		{{- fail "global.gpu.multimodalembeddingmsEnabled and global.gpu.vdmsdataprepEnabled must be equal when both subcharts are enabled" -}}
+	{{- end -}}
+{{- end -}}
+{{- end -}}
