@@ -43,6 +43,7 @@ else
 libecat_la_LDFLAGS = $(AM_LDFLAGS) -no-undefined -version-info $(LIBECAT_LT_VERSION_INFO)
 if WITH_ETHERCATD
 libecat_la_LDFLAGS += -lethercatd
+libecat_la_CFLAGS += -DEC_ENABLE_USERMODE
 else
 libecat_la_LDFLAGS += -lethercat
 endif
