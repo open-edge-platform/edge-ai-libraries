@@ -10,6 +10,7 @@ import warnings
 from contextlib import asynccontextmanager
 from multiprocessing import Manager
 from pathlib import Path
+from queue import Queue
 from threading import Thread
 from typing import Callable, Optional
 
@@ -18,7 +19,6 @@ from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 from fastapi_utils.tasks import repeat_every
-from optimum.intel.openvino import OVModelForVisualCausalLM
 from qwen_vl_utils import process_vision_info
 from src.utils.common import ErrorMessages, ModelNames, logger, settings
 from src.utils.data_models import (
@@ -36,6 +36,9 @@ from src.utils.data_models import (
 )
 from src.utils.utils import (
     convert_model,
+    convert_qwen_image_inputs,
+    convert_qwen_video_inputs,
+    extract_qwen_video_frames,
     decode_and_save_video,
     get_device_property,
     get_devices,
@@ -45,10 +48,11 @@ from src.utils.utils import (
     setup_seed,
     validate_video_inputs,
 )
+from src.utils.telemetry import build_usage_and_telemetry
 from starlette.middleware.base import BaseHTTPMiddleware
 from starlette.requests import Request
 from starlette.responses import StreamingResponse
-from transformers import AutoProcessor, AutoTokenizer, TextIteratorStreamer
+from transformers import AutoProcessor, AutoTokenizer
 
 # Suppress specific warnings
 warnings.filterwarnings("ignore", category=DeprecationWarning)
@@ -58,6 +62,66 @@ manager = Manager()
 active_requests = manager.Value("i", 0)
 queued_requests = manager.Value("i", 0)
 request_lock = manager.Lock()
+
+QWEN_FALLBACK_VIDEO_FRAME_LIMIT = int(os.getenv("QWEN_VIDEO_FRAME_LIMIT", "12"))
+
+
+class QueueStreamer:
+    """Simple queue-backed streamer compatible with ov_genai pipelines."""
+
+    def __init__(self):
+        self._queue = Queue()
+        self._sentinel = object()
+        self.perf_metrics = None
+
+    def __call__(self, text: str):
+        if text:
+            self._queue.put(text)
+
+    def __iter__(self):
+        while True:
+            chunk = self._queue.get()
+            if chunk is self._sentinel:
+                break
+            yield chunk
+
+    def end(self):
+        self._queue.put(self._sentinel)
+
+
+def extract_response_text(result) -> str:
+    """Return the first decoded text from a VLM result if available."""
+    if hasattr(result, "texts") and getattr(result, "texts"):
+        return result.texts[0]
+    return str(result)
+
+
+def run_generation(pipe, generation_kwargs, streamer):
+    """Invoke pipeline generation and ensure streamer termination."""
+    result = None
+    try:
+        result = pipe.generate(**generation_kwargs)
+        if hasattr(streamer, "perf_metrics") and result is not None:
+            streamer.perf_metrics = getattr(result, "perf_metrics", None)
+    except Exception as e:
+        logger.error(f"Exception in thread during generation: {e}")
+        if ErrorMessages.GPU_OOM_ERROR_MESSAGE in str(e):
+            logger.error("Detected GPU out-of-memory error, restarting server...")
+            restart_server()
+    finally:
+        if hasattr(streamer, "end"):
+            streamer.end()
+
+
+def launch_streaming_generation(pipe, generation_kwargs):
+    """Start a background thread for streaming generation."""
+    streamer = QueueStreamer()
+    streaming_kwargs = dict(generation_kwargs)
+    streaming_kwargs["streamer"] = streamer
+    thread = Thread(target=run_generation, args=(pipe, streaming_kwargs, streamer))
+    thread.daemon = True
+    thread.start()
+    return streamer, thread
 
 
 @asynccontextmanager
@@ -274,27 +338,19 @@ def initialize_model():
         model_config = load_model_config(model_name.split("/")[-1].lower())
         ov_config = settings.get_ov_config_dict()
         logger.debug(f"Using OpenVINO configuration: {ov_config}")
+        pipe = ov_genai.VLMPipeline(
+            model_dir,
+            device=settings.VLM_DEVICE.upper(),
+            **ov_config,
+        )
+
         if ModelNames.PHI in model_name.lower():
-            pipe = OVModelForVisualCausalLM.from_pretrained(
-                model_dir,
-                device=settings.VLM_DEVICE.upper(),
-                trust_remote_code=True,
-                use_cache=False,
-                ov_config=ov_config,
-            )
             processor = AutoProcessor.from_pretrained(
                 model_name, trust_remote_code=True
             )
         elif ModelNames.QWEN in model_name.lower():
             if not model_config:
                 raise RuntimeError("Model configuration is empty or invalid.")
-            pipe = OVModelForVisualCausalLM.from_pretrained(
-                model_dir,
-                device=settings.VLM_DEVICE.upper(),
-                trust_remote_code=True,
-                use_cache=False,
-                ov_config=ov_config,
-            )
             processor = AutoProcessor.from_pretrained(
                 model_dir,
                 trust_remote_code=True,
@@ -302,9 +358,6 @@ def initialize_model():
                 max_pixels=int(eval(model_config.get("max_pixels"))),
             )
         else:
-            pipe = ov_genai.VLMPipeline(
-                model_dir, device=settings.VLM_DEVICE.upper(), **ov_config
-            )
             processor = None  # No processor needed for this case
         model_ready = is_model_ready(model_dir)
         logger.debug("Model is ready")
@@ -315,26 +368,6 @@ def initialize_model():
 
 # Initialize the model to create global objects of processor, model, model_ready
 initialize_model()
-
-
-def safe_generate(pipe, generation_kwargs, streamer):
-    """
-    Safely call the `generate` method of the pipeline and handle exceptions.
-
-    Args:
-        pipe: The model pipeline.
-        generation_kwargs: The generation configuration arguments.
-        streamer: The streamer to handle output tokens.
-    """
-    try:
-        pipe.generate(**generation_kwargs)
-    except Exception as e:
-        logger.error(f"Exception in thread during generation: {e}")
-        if ErrorMessages.GPU_OOM_ERROR_MESSAGE in str(e):
-            logger.error("Detected GPU out-of-memory error, restarting server...")
-            restart_server()
-    finally:
-        streamer.end_of_stream = True
 
 
 def create_streaming_response(
@@ -381,6 +414,9 @@ def create_streaming_response(
                         ],
                     ).model_dump_json()}\n\n"""
                 )
+            usage, telemetry = build_usage_and_telemetry(
+                getattr(streamer, "perf_metrics", None)
+            )
             yield (
                 f"""data: {ChatCompletionStreamingResponse(
                     id=completion_id,
@@ -392,8 +428,10 @@ def create_streaming_response(
                             index=0,
                             delta={},
                             finish_reason="stop",
+                            usage=usage,
                         )
                     ],
+                    telemetry=telemetry,
                 ).model_dump_json()}\n\n"""
             )
         finally:
@@ -516,10 +554,52 @@ async def chat_completions(request: ChatRequest):
             f"config: { {k: v for k, v in config_kwargs.items() if v is not None} }"
         )
 
+        def respond_with_generation(generation_kwargs):
+            nonlocal cleanup_deferred
+            logger.debug(
+                "Invoking pipeline with kwargs: %s", list(generation_kwargs.keys())
+            )
+            if request.stream:
+                streamer, thread = launch_streaming_generation(pipe, generation_kwargs)
+                cleanup_deferred = True
+                return create_streaming_response(
+                    streamer,
+                    request,
+                    settings.VLM_MODEL_NAME,
+                    on_complete=cleanup_pipeline_state,
+                    generation_thread=thread,
+                )
+
+            output = pipe.generate(**generation_kwargs)
+            response_text = extract_response_text(output)
+            usage, telemetry = build_usage_and_telemetry(
+                getattr(output, "perf_metrics", None)
+            )
+            return ChatCompletionResponse(
+                id=str(uuid.uuid4()),
+                object="chat.completion",
+                created=int(time.time()),
+                model=request.model,
+                choices=[
+                    ChatCompletionChoice(
+                        index=0,
+                        message=ChatCompletionDelta(
+                            role="assistant", content=response_text
+                        ),
+                        finish_reason="stop",
+                    )
+                ],
+                usage=usage,
+                telemetry=telemetry,
+            )
+
         if ModelNames.PHI in settings.VLM_MODEL_NAME.lower():
+            # Phi chat variants expect ChatML-formatted prompts (system/user roles plus
+            # <|image_i|> markers) and ov_genai only accepts the final prompt string, so
+            # we must keep applying the tokenizer chat template ourselves to stay
+            # compatible with the OpenAI-style /v1/chat/completions payload.
             logger.info("Using phi-3.5-vision model for processing.")
             logger.debug("Running phi3-vision model")
-            inputs = ""
             if len(image_urls) > 0:
                 logger.info(f"Processing {len(image_urls)} image(s) for the request.")
                 images, image_tensors = await load_images(image_urls)
@@ -531,7 +611,11 @@ async def chat_completions(request: ChatRequest):
                     messages, tokenize=False, add_generation_prompt=True
                 )
                 logger.debug(f"formatted_prompt: {formatted_prompt}")
-                inputs = processor(formatted_prompt, images, return_tensors="pt")
+                generation_kwargs = {
+                    "prompt": formatted_prompt,
+                    "images": image_tensors,
+                    "generation_config": config,
+                }
             else:
                 logger.info("processing as text prompt")
                 formatted_messages = []
@@ -552,69 +636,37 @@ async def chat_completions(request: ChatRequest):
                     formatted_messages, tokenize=False, add_generation_prompt=True
                 )
                 logger.debug(f"formatted_prompt: {formatted_prompt}")
-                inputs = processor(formatted_prompt, return_tensors="pt")
+                generation_kwargs = {
+                    "prompt": formatted_prompt,
+                    "generation_config": config,
+                }
 
-            streamer = TextIteratorStreamer(
-                processor,
-                skip_special_tokens=True,
-                skip_prompt=True,
-                clean_up_tokenization_spaces=False,
-            )
-            generation_kwargs = dict(
-                **inputs,
-                streamer=streamer,
-                max_new_tokens=request.max_completion_tokens,
-                top_p=request.top_p,
-                top_k=request.top_k,
-                do_sample=request.do_sample,
-                temperature=request.temperature,
-                eos_token_id=processor.tokenizer.eos_token_id,
-            )
-
-            thread = Thread(
-                target=safe_generate, args=(pipe, generation_kwargs, streamer)
-            )
-            thread.daemon = True
-            thread.start()
-
-            if request.stream:
-                cleanup_deferred = True
-                return create_streaming_response(
-                    streamer,
-                    request,
-                    settings.VLM_MODEL_NAME,
-                    on_complete=cleanup_pipeline_state,
-                    generation_thread=thread,
-                )
-            else:
-                buffer = ""
-                for new_text in streamer:
-                    buffer += new_text
-                    logger.debug(new_text)
-                wait_for_generation_thread(thread)
-                return ChatCompletionResponse(
-                    id=str(uuid.uuid4()),
-                    object="chat.completion",
-                    created=int(time.time()),
-                    model=request.model,
-                    choices=[
-                        ChatCompletionChoice(
-                            index=0,
-                            message=ChatCompletionDelta(
-                                role="assistant", content=str(buffer)
-                            ),
-                            finish_reason="stop",
-                        )
-                    ],
-                )
+            return respond_with_generation(generation_kwargs)
 
         elif ModelNames.QWEN in settings.VLM_MODEL_NAME.lower():
+            # Qwen2/2.5 VL models still rely on processor-supplied chat templates and
+            # qwen_vl_utils vision preprocessing (max_pixels/fps, video kwargs, tensor
+            # conversion). Without this branch we would lose multi-turn formatting and
+            # the specialized video/image packing that ov_genai does not yet expose.
             logger.info(f"Using {ModelNames.QWEN} model for processing.")
             if processor.chat_template is None:
                 logger.debug("Initializing chat template from tokenizer.")
                 tok = AutoTokenizer.from_pretrained(model_dir)
                 processor.chat_template = tok.chat_template
 
+            def _normalize_video_kwargs(video_kwargs: Optional[dict]):
+                if not video_kwargs:
+                    return video_kwargs
+                normalized = {}
+                for key, value in video_kwargs.items():
+                    if isinstance(value, list) and len(value) == 1:
+                        normalized[key] = value[0]
+                    else:
+                        normalized[key] = value
+                return normalized
+
+            qwen_images = None
+            qwen_videos = None
             if len(image_urls) == 0 and video_url is None and len(video_frames) == 0:
                 logger.info("processing as text prompt")
                 # Create formatted_messages only for MessageContentText or str
@@ -634,11 +686,10 @@ async def chat_completions(request: ChatRequest):
                     formatted_messages, tokenize=False, add_generation_prompt=True
                 )
                 logger.debug(f"text: {text}")
-                inputs = processor(
-                    text=[text],
-                    padding=True,
-                    return_tensors="pt",
-                )
+                generation_kwargs = {
+                    "prompt": text,
+                    "generation_config": config,
+                }
             elif len(image_urls) > 0:
                 logger.info("processing as single/multiple image prompt")
                 messages = [
@@ -654,42 +705,51 @@ async def chat_completions(request: ChatRequest):
                     messages, tokenize=False, add_generation_prompt=True
                 )
                 image_inputs, video_inputs = process_vision_info(messages)
-                inputs = processor(
-                    text=[text],
-                    images=image_inputs,
-                    videos=video_inputs,
-                    padding=True,
-                    return_tensors="pt",
-                )
+                qwen_images = convert_qwen_image_inputs(image_inputs)
+                qwen_videos = convert_qwen_video_inputs(video_inputs)
+                generation_kwargs = {
+                    "prompt": text,
+                    "generation_config": config,
+                }
             elif len(video_frames) > 0:
-                logger.info("processing as video (list of image frames)")
+                logger.info(
+                    "processing as video (list of image frames) by expanding frames into image inputs"
+                )
+                frame_contents = [
+                    {"type": "image", "image": frame_url}
+                    for frame_url in video_frames
+                ]
                 messages = [
                     {
                         "role": "user",
-                        "content": [
-                            {"type": "video", "video": video_frames},
-                            {"type": "text", "text": prompt},
+                        "content": frame_contents
+                        + [
+                            {
+                                "type": "text",
+                                "text": prompt,
+                            }
                         ],
                     }
                 ]
                 text = processor.apply_chat_template(
                     messages, tokenize=False, add_generation_prompt=True
                 )
-                image_inputs, video_inputs, video_kwargs = process_vision_info(
-                    messages, return_video_kwargs=True
+                image_inputs, _ = process_vision_info(messages)
+                frame_count = len(image_inputs) if image_inputs else 0
+                logger.debug(
+                    "Expanded %s video frames into %s image tensors for Qwen prompt=%s",
+                    len(video_frames),
+                    frame_count,
+                    text,
                 )
-                inputs = processor(
-                    text=[text],
-                    images=image_inputs,
-                    videos=video_inputs,
-                    # fps=fps,
-                    padding=True,
-                    return_tensors="pt",
-                    **video_kwargs,
-                )
+                qwen_images = convert_qwen_image_inputs(image_inputs)
+                qwen_videos = None
+                generation_kwargs = {
+                    "prompt": text,
+                    "generation_config": config,
+                }
             elif video_url:
                 logger.info("processing as video_url")
-                # video_frames = await load_video(video_url)
                 video_content = {
                     "type": "video",
                     "video": video_url,
@@ -720,15 +780,55 @@ async def chat_completions(request: ChatRequest):
                 image_inputs, video_inputs, video_kwargs = process_vision_info(
                     messages, return_video_kwargs=True
                 )
-                inputs = processor(
-                    text=[text],
-                    images=image_inputs,
-                    videos=video_inputs,
-                    # fps=fps,
-                    padding=True,
-                    return_tensors="pt",
-                    **video_kwargs,
+                video_kwargs = _normalize_video_kwargs(video_kwargs)
+                logger.debug(f"Processed video kwargs for URL input: {video_kwargs}")
+                logger.debug(
+                    "Qwen video url prompt=%s, video_count=%s, frame_tensors=%s",
+                    text,
+                    len(video_inputs) if video_inputs else 0,
+                    [tuple(t.shape) if hasattr(t, "shape") else len(t) for t in (video_inputs or [])],
                 )
+                fallback_frames = extract_qwen_video_frames(
+                    video_inputs, max_frames=QWEN_FALLBACK_VIDEO_FRAME_LIMIT
+                )
+                if not fallback_frames:
+                    logger.warning(
+                        "No frames extracted from video input; falling back to text-only prompt."
+                    )
+                    qwen_images = None
+                    qwen_videos = None
+                    generation_kwargs = {
+                        "prompt": text,
+                        "generation_config": config,
+                    }
+                else:
+                    frame_messages = [
+                        {
+                            "role": "user",
+                            "content": [
+                                {
+                                    "type": "image",
+                                    "image": f"video_frame_{idx}",
+                                }
+                                for idx in range(len(fallback_frames))
+                            ]
+                            + [
+                                {
+                                    "type": "text",
+                                    "text": prompt,
+                                }
+                            ],
+                        }
+                    ]
+                    text = processor.apply_chat_template(
+                        frame_messages, tokenize=False, add_generation_prompt=True
+                    )
+                    qwen_images = convert_qwen_image_inputs(fallback_frames)
+                    qwen_videos = None
+                    generation_kwargs = {
+                        "prompt": text,
+                        "generation_config": config,
+                    }
             else:
                 logger.error(
                     "Invalid input: No valid image, video, or text prompt provided."
@@ -740,59 +840,12 @@ async def chat_completions(request: ChatRequest):
                     },
                 )
 
-            streamer = TextIteratorStreamer(
-                processor,
-                skip_special_tokens=True,
-                skip_prompt=True,
-                clean_up_tokenization_spaces=False,
-            )
-            generation_kwargs = dict(
-                **inputs,
-                streamer=streamer,
-                max_new_tokens=request.max_completion_tokens,
-                top_p=request.top_p,
-                top_k=request.top_k,
-                do_sample=request.do_sample,
-                temperature=request.temperature,
-                eos_token_id=processor.tokenizer.eos_token_id,
-            )
+            if qwen_images:
+                generation_kwargs["images"] = qwen_images
+            if qwen_videos:
+                generation_kwargs["videos"] = qwen_videos
 
-            thread = Thread(
-                target=safe_generate, args=(pipe, generation_kwargs, streamer)
-            )
-            thread.daemon = True
-            thread.start()
-
-            if request.stream:
-                cleanup_deferred = True
-                return create_streaming_response(
-                    streamer,
-                    request,
-                    settings.VLM_MODEL_NAME,
-                    on_complete=cleanup_pipeline_state,
-                    generation_thread=thread,
-                )
-            else:
-                buffer = ""
-                for new_text in streamer:
-                    buffer += new_text
-                    logger.debug(new_text)
-                wait_for_generation_thread(thread)
-                return ChatCompletionResponse(
-                    id=str(uuid.uuid4()),
-                    object="chat.completion",
-                    created=int(time.time()),
-                    model=request.model,
-                    choices=[
-                        ChatCompletionChoice(
-                            index=0,
-                            message=ChatCompletionDelta(
-                                role="assistant", content=str(buffer)
-                            ),
-                            finish_reason="stop",
-                        )
-                    ],
-                )
+            return respond_with_generation(generation_kwargs)
 
         else:
             logger.info("Using default model pipeline for processing.")
@@ -802,28 +855,20 @@ async def chat_completions(request: ChatRequest):
                 if not prompt or not prompt.strip():
                     logger.error("Prompt is empty or invalid. Aborting generation.")
                     raise ValueError("Invalid prompt provided.")
-                output = pipe.generate(prompt, generation_config=config)
+                generation_kwargs = {
+                    "prompt": prompt,
+                    "generation_config": config,
+                }
             else:
                 logger.info("processing as prompt + image")
                 images, image_tensors = await load_images(image_urls)
-                output = pipe.generate(
-                    prompt, images=image_tensors, generation_config=config
-                )
-        logger.debug(f"output: {str(output)}")
-        response = ChatCompletionResponse(
-            id=str(uuid.uuid4()),
-            object="chat.completion",
-            created=int(time.time()),
-            model=request.model,
-            choices=[
-                ChatCompletionChoice(
-                    index=0,
-                    message=ChatCompletionDelta(role="assistant", content=str(output)),
-                    finish_reason="stop",
-                )
-            ],
-        )
+                generation_kwargs = {
+                    "prompt": prompt,
+                    "images": image_tensors,
+                    "generation_config": config,
+                }
 
+        response = respond_with_generation(generation_kwargs)
         logger.info("Chat completion request processed successfully.")
         return response
     except ValueError as e:

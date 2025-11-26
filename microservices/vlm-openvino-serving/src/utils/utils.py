@@ -7,7 +7,7 @@ import random
 import uuid
 from io import BytesIO
 from pathlib import Path
-from typing import Dict, List
+from typing import Dict, List, Optional, Sequence, Union
 
 import aiohttp
 import numpy as np
@@ -350,3 +350,147 @@ def decode_and_save_video(base64_video: str, output_dir: Path = Path("/tmp")) ->
     except Exception as e:
         logger.error(f"Error decoding and saving video: {e}")
         raise RuntimeError(f"Error decoding and saving video: {e}")
+
+
+def pil_image_to_ov_tensor(image: Image.Image) -> ov.Tensor:
+    """Convert a PIL RGB image into an OpenVINO tensor with NHWC layout.
+
+    Args:
+        image (Image.Image): The PIL image to convert. The image is converted to
+            RGB before tensor creation to guarantee three channels.
+
+    Returns:
+        ov.Tensor: A tensor with shape `(1, H, W, 3)` and dtype `uint8` that can
+        be passed directly to `ov_genai` pipelines.
+
+    Raises:
+        ValueError: If the supplied image does not have three dimensions after
+            RGB conversion.
+    """
+    image_data = np.array(image.convert("RGB"))
+    if image_data.ndim != 3:
+        raise ValueError("Expected an RGB image when converting to OpenVINO tensor.")
+    tensor_data = image_data.reshape(1, image_data.shape[0], image_data.shape[1], image_data.shape[2])
+    return ov.Tensor(tensor_data.astype(np.uint8))
+
+
+def convert_qwen_image_inputs(
+    image_inputs: Optional[Sequence[Image.Image]],
+) -> Optional[List[ov.Tensor]]:
+    """Normalize optional Qwen image inputs to the tensor format required by ov_genai.
+
+    Args:
+        image_inputs (Sequence[Image.Image] | None): Zero or more PIL images
+            coming from `qwen_vl_utils.process_vision_info`.
+
+    Returns:
+        list[ov.Tensor] | None: A list of OpenVINO tensors (one per image) or
+        `None` if no images were provided.
+    """
+    if not image_inputs:
+        return None
+    return [pil_image_to_ov_tensor(image) for image in image_inputs]
+
+
+def _video_tensor_to_numpy(video_tensor: Union[torch.Tensor, np.ndarray]) -> np.ndarray:
+    """Convert a torch or numpy video tensor to a THWC numpy array.
+
+    Args:
+        video_tensor (torch.Tensor | np.ndarray): Video data in either
+            `(frames, channels, height, width)` or `(frames, height, width, channels)`
+            layout.
+
+    Returns:
+        np.ndarray: Video data arranged as `(frames, height, width, channels)`.
+
+    Raises:
+        TypeError: If the provided object is not a Tensor or numpy array.
+        ValueError: If the tensor does not have four dimensions.
+    """
+    if isinstance(video_tensor, torch.Tensor):
+        video_np = (
+            video_tensor.detach().to("cpu").permute(0, 2, 3, 1).contiguous().numpy()
+        )
+    elif isinstance(video_tensor, np.ndarray):
+        video_np = video_tensor
+    else:
+        raise TypeError("Unsupported video tensor type.")
+    if video_np.ndim != 4:
+        raise ValueError("Video tensor must have 4 dimensions [frames, height, width, channels].")
+    return video_np
+
+
+def convert_qwen_video_inputs(
+    video_inputs: Optional[Sequence[Union[torch.Tensor, Sequence[Image.Image]]]],
+) -> Optional[List[ov.Tensor]]:
+    """Convert Qwen video inputs (torch tensors or frame lists) to OpenVINO tensors.
+
+    Args:
+        video_inputs (Sequence[torch.Tensor | Sequence[Image.Image]] | None): Each
+            entry represents one video either as a tensor or a list of PIL frames.
+
+    Returns:
+        list[ov.Tensor] | None: A list of tensors with per-video frame stacks, or
+        `None` when no videos were supplied.
+
+    Raises:
+        ValueError: If a video contains no frames.
+    """
+    if not video_inputs:
+        return None
+
+    ov_videos: List[ov.Tensor] = []
+    for video in video_inputs:
+        if isinstance(video, torch.Tensor) or isinstance(video, np.ndarray):
+            video_np = _video_tensor_to_numpy(video)
+        else:
+            frames = [np.array(frame.convert("RGB")) for frame in video]
+            if not frames:
+                raise ValueError("Video frame list is empty.")
+            video_np = np.stack(frames, axis=0)
+        video_uint8 = np.clip(video_np, 0, 255).astype(np.uint8)
+        ov_videos.append(ov.Tensor(video_uint8))
+    return ov_videos
+
+
+def extract_qwen_video_frames(
+    video_inputs: Optional[Sequence[Union[torch.Tensor, np.ndarray]]],
+    max_frames: int = 12,
+) -> List[Image.Image]:
+    """Convert video tensors into a limited list of PIL frames for fallback image processing.
+
+    Args:
+        video_inputs (Sequence[torch.Tensor | np.ndarray] | None): Raw videos produced by
+            ``qwen_vl_utils.process_vision_info``.
+        max_frames (int): Maximum number of frames to extract across all videos.
+
+    Returns:
+        list[Image.Image]: Sampled RGB frames suitable for ``convert_qwen_image_inputs``.
+    """
+    if not video_inputs:
+        return []
+
+    sampled_frames: List[Image.Image] = []
+    remaining_budget = max_frames if max_frames > 0 else None
+
+    for video in video_inputs:
+        video_np = _video_tensor_to_numpy(video)
+        frame_total = video_np.shape[0]
+        if frame_total == 0:
+            continue
+        current_budget = remaining_budget or frame_total
+        frames_to_take = min(frame_total, current_budget)
+        if frames_to_take <= 0:
+            break
+        indices = (
+            np.linspace(0, frame_total - 1, frames_to_take).astype(int)
+            if frames_to_take < frame_total
+            else np.arange(frame_total)
+        )
+        for idx in indices:
+            sampled_frames.append(Image.fromarray(video_np[idx].astype(np.uint8)))
+        if remaining_budget is not None:
+            remaining_budget -= frames_to_take
+            if remaining_budget <= 0:
+                break
+    return sampled_frames
