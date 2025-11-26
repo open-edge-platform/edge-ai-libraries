@@ -178,6 +178,8 @@ helm install vss . -f unified_summary_search.yaml -f user_values_override.yaml -
 
 > **Requirement:** Before installing the unified stack, populate `global.env.TEXT_EMBEDDING_MODEL_NAME` and set `global.embedding.preferTextModel=true` (the supplied `unified_summary_search.yaml` does this for you). The chart will raise an error if the text embedding model is omitted while unified mode is enabled. Review the supported model list in [supported-models](../../../../microservices/multimodal-embedding-serving/docs/user-guide/supported-models.md) before choosing model IDs.
 
+> **GPU Tip:** In unified mode the `multimodal-embedding-ms` and `vdms-dataprep` pods always share the same PVC, so either enable GPU for both (`global.gpu.multimodalembeddingmsEnabled=true` and `global.gpu.vdmsdataprepEnabled=true`) or keep both on CPU. Mixing GPU/CPU settings leaves the GPU pod pending because the shared PVC cannot mount on two nodes simultaneously.
+
 ### Step 6: Verify the Deployment
 
 Check the status of the deployed resources to ensure everything is running correctly:
