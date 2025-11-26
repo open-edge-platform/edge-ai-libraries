@@ -107,6 +107,11 @@ Update or edit the values in YAML file as follows:
 
 > **Note:** `multimodal-embedding-ms` and `vdms-dataprep` share the same PVC for model/cache storage. If you enable GPU for one of them, enable it for the other as well (`global.gpu.multimodalembeddingmsEnabled=true` **and** `global.gpu.vdmsdataprepEnabled=true`). Mixing GPU/CPU modes between the two causes the GPU pod to wait forever because the shared PVC can only be attached to a single node at a time. The Helm chart validates this pairing and will fail the install/upgrade when the flags don’t match while both services are enabled.
 
+> **Unified-mode GPU examples:**
+> - VLM search + MME + DataPrep on GPU: set `global.gpu.vlminferenceEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
+> - OVMS summary + MME + DataPrep on GPU: set `global.gpu.ovmsEnabled=true`, `global.gpu.multimodalembeddingmsEnabled=true`, `global.gpu.vdmsdataprepEnabled=true`.
+> In each case MME and DataPrep must share the same GPU setting, otherwise Helm blocks the deployment.
+
 
 ### 3. Build Helm Dependencies
 
