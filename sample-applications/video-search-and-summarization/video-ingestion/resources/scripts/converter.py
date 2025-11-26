@@ -48,7 +48,7 @@ def main():
                         help="Name of the model (without extension, e.g., 'yolov8l-worldv2')")
     parser.add_argument("--model-type", type=str, default='yolo_v8', 
                         help="Type of model (e.g., 'yolo_v8', 'YOLOv8-SEG')")
-    parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld', 
+    parser.add_argument("--output-dir", type=str, default='ov_models/yoloworld/v2', 
                         help="Directory to save the converted models")
     
     args = parser.parse_args()
