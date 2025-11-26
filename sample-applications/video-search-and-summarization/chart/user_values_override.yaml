@@ -1,64 +1,64 @@
 # DO NOT COMMIT/PUSH THIS FILE TO ANY REPO WITH UPDATED VALUES. IT CAN LEAD TO CREDENTIAL LEAKS.
 # RESET ALL THE VALUES HERE TO DEFAULT, BEFORE COMMITING/PUSHING.
 global:
-    # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
-    usePvc: true
+  # usePvc should be set to true to use a new PVC for storage required by any of the subchart.
+  usePvc: true
 
-    # keepPvc should be set to true to retain the PVC after uninstalling the chart.
-    keepPvc: false
+  # keepPvc should be set to true to retain the PVC after uninstalling the chart.
+  keepPvc: false
 
-    # Update huggingfaceToken if access to gated models is required. (This is needed in case OVMS is used for final summarization)
-    huggingfaceToken: ''
+  # Update huggingfaceToken if access to gated models is required. (This is needed in case OVMS is used for final summarization)
+  huggingfaceToken: ""
 
-    # vlmName is Vision-Language Model Name used by VLM Inference Microservice
-    vlmName: ''
-    # llmName is Large Language Model Name used by OVMS service
-    llmName: ''
+  # vlmName is Vision-Language Model Name used by VLM Inference Microservice
+  vlmName: ""
+  # llmName is Large Language Model Name used by OVMS service
+  llmName: ""
 
-    # Update http_proxy and https_proxy with appropriate values if a proxy is required for external access.
-    proxy:
-        http_proxy: ''
-        https_proxy: ''
+  # Update http_proxy and https_proxy with appropriate values if a proxy is required for external access.
+  proxy:
+    http_proxy: ""
+    https_proxy: ""
 
-    env:
-        # Update following credentials with a values of your choice - as this is required by respective microservices.
-        POSTGRES_USER: ''
-        POSTGRES_PASSWORD: ''
-        MINIO_ROOT_USER: ''
-        MINIO_ROOT_PASSWORD: ''
-        RABBITMQ_DEFAULT_USER: ''
-        RABBITMQ_DEFAULT_PASS: ''
+  env:
+    # Update following credentials with a values of your choice - as this is required by respective microservices.
+    POSTGRES_USER: ""
+    POSTGRES_PASSWORD: ""
+    MINIO_ROOT_USER: ""
+    MINIO_ROOT_PASSWORD: ""
+    RABBITMQ_DEFAULT_USER: ""
+    RABBITMQ_DEFAULT_PASS: ""
 
-        # Update these values for telemetry if required. Leave empty if telemetry is not used.
-        OTLP_ENDPOINT: ''
-        OTLP_ENDPOINT_TRACE: ''
+    # Update these values for telemetry if required. Leave empty if telemetry is not used.
+    OTLP_ENDPOINT: ""
+    OTLP_ENDPOINT_TRACE: ""
 
-        # Set this to override the embedding model used by both Multimodal Embedding MS and DataPrep (leave empty to use chart default or mode override).
-        EMBEDDING_MODEL_NAME: ''
-        # Optional: supply a text-only embedding model. When global.embedding.preferTextModel is true (unified summary + search),
-        # this value becomes mandatory and overrides EMBEDDING_MODEL_NAME across services.
-        TEXT_EMBEDDING_MODEL_NAME: ''
+    # Set this to override the embedding model used by both Multimodal Embedding MS and DataPrep (leave empty to use chart default or mode override).
+    EMBEDDING_MODEL_NAME: ""
+    # Optional: supply a text-only embedding model. When global.embedding.preferTextModel is true (unified summary + search),
+    # this value becomes mandatory and overrides EMBEDDING_MODEL_NAME across services.
+    TEXT_EMBEDDING_MODEL_NAME: ""
 
-    embedding:
-        # Set to true when deploying summary and search together so the text embedding model overrides the default.
-        preferTextModel: false
+  embedding:
+    # Set to true when deploying summary and search together so the text embedding model overrides the default.
+    preferTextModel: false
 
-    # Update these values to deploy on GPU. Leave empty if want to keep default deployment on CPU.
-    gpu:
-        vlminferenceEnabled:
-        multimodalembeddingmsEnabled:
-        vdmsdataprepEnabled:
-        ovmsEnabled:
+  # Update these values to deploy on GPU. Leave empty if want to keep default deployment on CPU.
+  gpu:
+    vlminferenceEnabled:
+    multimodalembeddingmsEnabled:
+    vdmsdataprepEnabled:
+    ovmsEnabled:
 
-        # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled,
-        # vdmsdataprepEnabled or ovmsEnabled is set to true
-        # Update as per the cluster node label key for GPU assigned by the device plugin
-        key:
-        # Set value to `GPU` to deploy on GPU
-        device:
+    # Set `key` and `device` if anyone of vlminferenceEnabled, multimodalembeddingmsEnabled,
+    # vdmsdataprepEnabled or ovmsEnabled is set to true
+    # Update as per the cluster node label key for GPU assigned by the device plugin
+    key:
+    # Set value to `GPU` to deploy on GPU
+    device:
 
 videoingestion:
-    # odModelName defines the name of Object Detection Model
-    odModelName: ''
-    # odModelType defines the type of Object Detection Model. e.g., 'yolo_v8'
-    odModelType: ''
+  # odModelName defines the name of Object Detection Model
+  odModelName: ""
+  # odModelType defines the type of Object Detection Model. e.g., "yolo_v8"
+  odModelType: ""
