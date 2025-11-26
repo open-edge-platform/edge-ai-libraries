@@ -1,1 +1,1 @@
-{ { - include "video-summarization.validateGpuPairing" . - } }
+{{- include "video-summarization.validateGpuPairing" . -}}
