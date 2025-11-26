@@ -14,8 +14,6 @@ in a Dockerfile](https://documentation.ubuntu.com/pro-client/en/docs/howtoguides
 
 ### [1.1.0](https://docs.openedgeplatform.intel.com/dev/edge-ai-libraries/time-series-analytics/release_notes/dec-2025.html#v1-1-0)
 
-This is a stable release.
-
 #### Deploy using Docker Compose
 ---
 For more details on deployment, refer to the [documentation](https://docs.openedgeplatform.intel.com/2025.2/edge-ai-libraries/time-series-analytics/get-started.html).
@@ -26,8 +24,6 @@ For more details on deployment, refer to the [documentation](https://docs.opened
 
 
 ### [1.0.0](https://docs.openedgeplatform.intel.com/2025.1/edge-ai-libraries/time-series-analytics/release_notes/aug-2025.html#v1-0-0)
-
-This is a stable release.
 
 #### Deploy using Docker Compose
 ---
@@ -45,5 +41,6 @@ Licensed under the Apache License, Version 2.0 (the "License"); you may not use 
 
 ## Legal Information
 Intel, the Intel logo, and Xeon are trademarks of Intel Corporation in the U.S. and/or other countries.
+
 
 *Other names and brands may be claimed as the property of others.
