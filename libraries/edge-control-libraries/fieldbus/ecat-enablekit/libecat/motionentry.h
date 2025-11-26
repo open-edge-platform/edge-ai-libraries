@@ -65,8 +65,15 @@ struct list_head {
 };
 
 typedef struct {
+    struct list_head pdo_list;
+    void* domain;
+} ecat_domain;
+
+typedef struct {
     struct list_head list;  /**< EtherCAT slave list */
     ec_slave_config_t* sc;  /**< EtherCAT slave configuration */
+    ecat_domain* domain_tx_pd; /**< EtherCAT slave TX domain */
+    ecat_domain* domain_rx_pd; /**< EtherCAT slave RX domain */
 } servo_slave_t;
 
 typedef struct {
@@ -110,10 +117,6 @@ typedef struct{
     uint8_t sm_size;
 }servo_slave_info_t;
 
-typedef struct {
-    struct list_head pdo_list;
-} ecat_domain;
-
 typedef struct{
     ec_domain_state_t d_state;
 }servo_domain_state_t;
@@ -124,11 +127,14 @@ typedef struct{
 
 typedef struct{
     ec_master_t* master;
-    ecat_domain* domain;
+    /* 0: single domain mode 1: multiple domain mode*/
+    uint8_t domain_mode;
+    ecat_domain* domain_pd;
     struct list_head sc_list;
 } servo_master_t;
 
 typedef struct{
+    struct list_head list;
     void* eni_info;
     servo_master_t* master;
 } servo_master;
@@ -153,8 +159,15 @@ typedef struct{
 
 int motion_servo_load_config(servo_master* servomaster,char* name);
 servo_master* motion_servo_master_create(char* name);
+int motion_servo_set_multiple_domain_mode(servo_master* servomaster);
+servo_master* motion_servo_master_create_v2(uint16_t node_id);
+servo_master* motion_servo_master_request(servo_master* masters, char* name, uint16_t id);
+
+servo_master_t* motion_servo_driver_register_v2(servo_master* servomaster);
 servo_master_t* motion_servo_driver_register(servo_master* servomaster, void* domain);
 int motion_servo_domain_entry_register(servo_master* servomaster, void** domain);
+
+uint32_t motion_servo_get_slave_size(servo_master_t * master);
 
 int motion_servo_slave_config_sdo8(servo_master* servomaster, uint16_t alias, uint16_t position, uint16_t sdo_index, uint8_t sdo_subindex, uint8_t value);
 int motion_servo_slave_config_sdo16(servo_master* servomaster, uint16_t alias, uint16_t position, uint16_t sdo_index, uint8_t sdo_subindex, uint16_t value);
@@ -166,9 +179,14 @@ int motion_servo_send_process(servo_master_t* master, void* domain);
 uint32_t motion_servo_sync_monitor_process(servo_master_t* master);
 int motion_servo_get_domain_state(void* domain, servo_domain_state_t* domain_state);
 int motion_servo_get_master_state(servo_master_t *master, servo_master_state_t* master_state);
+void* motion_servo_get_tx_domain_by_slave(servo_master_t* master, uint32_t index);
+void* motion_servo_get_rx_domain_by_slave(servo_master_t* master, uint32_t index);
+void* motion_servo_get_domain_by_master(servo_master_t* master);
 uint8_t* motion_servo_domain_data(void* domain);
 uint32_t motion_servo_domain_size(void* domain);
 uint32_t motion_servo_get_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex);
+uint32_t motion_servo_get_tx_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex);
+uint32_t motion_servo_get_rx_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex);
 int motion_servo_master_activate(servo_master_t* servomaster);
 int motion_servo_master_release(servo_master* servomaster);
 
