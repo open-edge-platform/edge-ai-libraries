@@ -32,10 +32,7 @@
 #include <time.h>
 #include <getopt.h>
 
-#ifdef ENABLE_SHM
-#include "json-c/json.h"
-#include "shmringbuf.h"
-#endif
+#define ECAT_MULTIPLE_DOMAIN_MODE
 
 #define CYCLE_US				(1000)
 #define PERIOD_NS				(CYCLE_US*1000)
@@ -46,10 +43,13 @@
 
 static pthread_t cyclic_thread;
 static volatile int run = 1;
-static servo_master* master = NULL;
+static servo_master* masters = NULL;
+#ifndef ECAT_MULTIPLE_DOMAIN_MODE
 static uint8_t* domain1;
 void* domain;
-static uint32_t domain_size;
+#else
+static int node_id = 0;
+#endif
 
 static volatile int sem_update = 0;
 int64_t latency_min_ns = 1000000, latency_max_ns = -1000000;
@@ -98,13 +98,37 @@ static uint16_t coe_cia402_statemachine(uint16_t status)
 void *my_thread(void *arg)
 {
     struct timespec next_period, dc_period;
+    servo_master* master = (servo_master*)arg;
     unsigned int cycle_count = 0;
     uint16_t control;
     uint32_t target;
     int64_t latency_ns = 0;
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+    void* tx_domain_sc;
+    void* rx_domain_sc;
+    uint8_t* tx_domain_pd_sc;
+    uint8_t* rx_domain_pd_sc;
+#endif
+
 
     struct sched_param param = {.sched_priority = 99};
     pthread_setschedparam(pthread_self(), SCHED_FIFO, &param);
+
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+    tx_domain_sc = motion_servo_get_tx_domain_by_slave(master->master, 0);
+    rx_domain_sc = motion_servo_get_rx_domain_by_slave(master->master, 0);
+    tx_domain_pd_sc = motion_servo_domain_data(tx_domain_sc);
+    rx_domain_pd_sc = motion_servo_domain_data(rx_domain_sc);
+    if (!tx_domain_pd_sc) {
+        printf("fail to get tx domain data\n");
+        return NULL;
+    }
+    rx_domain_pd_sc = motion_servo_domain_data(rx_domain_sc);
+    if (!rx_domain_pd_sc) {
+        printf("fail to get rx domain data\n");
+        return NULL;
+    }
+#endif
 
     clock_gettime(CLOCK_MONOTONIC, &next_period);
     while(run){
@@ -124,31 +148,63 @@ void *my_thread(void *arg)
         if ((cycle_count%CYCLE_COUNTER_PERSEC)==0) {
             sem_update = 1;
         }
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        motion_servo_recv_process(master->master, NULL);
+
+        control = coe_cia402_statemachine(MOTION_DOMAIN_READ_U16(rx_domain_pd_sc + statusword));
+#else
         motion_servo_recv_process(master->master, domain);
-#ifdef ENABLE_SHM
-        shm_blkbuf_write(handle, domain1, domain_size);
-#endif
+
         control = coe_cia402_statemachine(MOTION_DOMAIN_READ_U16(domain1 + statusword));
+#endif
         if (control == 0x1F) {
 #ifdef POS_MODE
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+            target = MOTION_DOMAIN_READ_U32(rx_domain_pd_sc + actualpos);
+#else
             target = MOTION_DOMAIN_READ_U32(domain1 + actualpos);
+#endif
             target += (uint32_t)((set_tar_vel*PER_CIRCLE_ENCODER)/CYCLE_COUNTER_PERSEC);
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+            MOTION_DOMAIN_WRITE_U32(tx_domain_pd_sc+targetpos, target);
+#else
             MOTION_DOMAIN_WRITE_U32(domain1+targetpos, target);
+#endif
 #else
             target = set_tar_vel*PER_CIRCLE_ENCODER;
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+            MOTION_DOMAIN_WRITE_U32(tx_domain_pd_sc+targetvel, target);
+#else
             MOTION_DOMAIN_WRITE_U32(domain1+targetvel, target);
 #endif
+#endif
         }
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        MOTION_DOMAIN_WRITE_U16(tx_domain_pd_sc+controlword, control);
+#else
         MOTION_DOMAIN_WRITE_U16(domain1+controlword, control);
+#endif
 
 #ifdef POS_MODE
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        MOTION_DOMAIN_WRITE_U8(tx_domain_pd_sc+modesel, MODE_CSP);
+#else
         MOTION_DOMAIN_WRITE_U8(domain1+modesel, MODE_CSP);
+#endif
+#else
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        MOTION_DOMAIN_WRITE_U8(tx_domain_pd_sc+modesel, MODE_CSV);
 #else
         MOTION_DOMAIN_WRITE_U8(domain1+modesel, MODE_CSV);
 #endif
+#endif
         clock_gettime(CLOCK_MONOTONIC, &dc_period);
         motion_servo_sync_dc(master->master, TIMESPEC2NS(dc_period));
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        motion_servo_send_process(master->master, NULL);
+#else
         motion_servo_send_process(master->master, domain);
+#endif
     }
     printf("latency:  %10.3f ... %10.3f\n", (float)latency_min_ns/1000, (float)latency_max_ns/1000);
     return NULL;
@@ -166,11 +222,18 @@ static void getOptions(int argc, char**argv)
         //name		has_arg				flag	val
         {"velocity",	required_argument,	NULL,	'v'},
         {"eni",	    required_argument,	NULL,	'n'},
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        {"master",	    required_argument,	NULL,	'm'},
+#endif
         {"help",	no_argument,		NULL,	'h'},
         {}
     };
     do {
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+        index = getopt_long(argc, argv, "v:m:n:h", longOptions, NULL);
+#else
         index = getopt_long(argc, argv, "v:n:h", longOptions, NULL);
+#endif
         switch(index){
             case 'v':
                 set_tar_vel = atof(optarg);
@@ -191,10 +254,18 @@ static void getOptions(int argc, char**argv)
                     printf("Using %s\n", eni_file);
                 }
                 break;
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+            case 'm':
+                node_id = atoi(optarg);
+                break;
+#endif
             case 'h':
                 printf("Global options:\n");
                 printf("    --velocity  -v  Set target velocity(circle/s). Max:50.0 \n");
                 printf("    --eni       -n  Specify ENI/XML file\n");
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+                printf("    --master    -m  Specify Master node id\n");
+#endif
                 printf("    --help      -h  Show this help.\n");
                 if (eni_file) {
                     free(eni_file);
@@ -206,63 +277,10 @@ static void getOptions(int argc, char**argv)
     } while(index != -1);
 }
 
-#ifdef ENABLE_SHM
-static struct json_object* get_servo_variable_property(int id)
-{
-    struct json_object* object;
-    object = json_object_new_object();
-    json_object_object_add(object, "name", json_object_new_string(""));
-    json_object_object_add(object, "type", json_object_new_string("U16"));
-    json_object_object_add(object, "offset", json_object_new_int(0));
-}
-
-static struct json_object* get_servo_variables(servo_master* master, int id)
-{
-    struct json_object* object;
-    object = json_object_new_array();
-}
-
-static struct json_object* get_servo_data_object(servo_master* master, int id)
-{
-    struct json_object* object;
-    object = json_object_new_object();
-    json_object_object_add(object, "name", json_object_new_string("slave 0"));
-    json_object_object_add(object, "type", json_object_new_string("servo"));
-
-}
-static struct json_object* get_objects_array(servo_master* master)
-{
-    struct json_object* object;
-    object = json_object_new_object();
-    
-}
-
-static void generate_data_json(servo_master* master)
-{
-    struct json_object* object;
-    #if 0
-    if (!master) {
-        printf("master is NULL\n");
-        return;
-    }
-    #endif
-    object = json_object_new_object();
-    json_object_object_add(object, "addr", json_object_new_string("servo"));
-    json_object_object_add(object, "size", json_object_new_int(12));
-
-    //json_object_object_add(object, )
-    printf("%s\n", json_object_to_json_string(object));
-    json_object_put(object);
-}
-#endif
-
 int main (int argc, char **argv)
 {
+    servo_master* master = NULL;
     struct timespec dc_period;
-
-#ifdef ENABLE_SHM
-    handle = shm_blkbuf_init("shm_test", 10, 1024);
-#endif
 
     getOptions(argc, argv);
     signal(SIGTERM, signal_handler);
@@ -275,23 +293,34 @@ int main (int argc, char **argv)
         printf("Error: Unspecify ENI/XML file\n");
         exit(0);
     }
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+    masters = motion_servo_master_create_v2(node_id);
+    if (masters == NULL) {
+        return -1;
+    }
+    master = motion_servo_master_request(masters, eni_file, 0);
+#else
     master = motion_servo_master_create(eni_file);
+#endif
     free(eni_file);
     eni_file = NULL;
     if (master == NULL) {
         return -1;
     }
-#ifdef ENABLE_SHM
-    generate_data_json(master);
-#endif
-    /* Motion domain create */
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+    motion_servo_set_multiple_domain_mode(master);
+    if (!motion_servo_driver_register(master, NULL)) {
+        goto End;
+    }
+#else
+     /* Motion domain create */
     if (motion_servo_domain_entry_register(master, &domain)) {
         goto End;
     }
-
     if (!motion_servo_driver_register(master, domain)) {
         goto End;
     }
+#endif
 
     motion_servo_set_send_interval(master);
 
@@ -313,15 +342,48 @@ int main (int argc, char **argv)
         printf("fail to activate master\n");
         goto End;
     }
-
+#ifndef ECAT_MULTIPLE_DOMAIN_MODE
     domain1 = motion_servo_domain_data(domain);
     if (!domain1) {
         printf("fail to get domain data\n");
         goto End;
     }
+#endif
 
-    domain_size = motion_servo_domain_size(domain);
-
+#ifdef ECAT_MULTIPLE_DOMAIN_MODE
+    statusword = motion_servo_get_rx_domain_offset(master->master, SLAVE00_POS, 0x6041, 0x00);
+    if (statusword == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+    actualpos = motion_servo_get_rx_domain_offset(master->master, SLAVE00_POS, 0x6064, 0x00);
+    if (actualpos == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+    controlword = motion_servo_get_tx_domain_offset(master->master, SLAVE00_POS, 0x6040, 0x00);
+    if (controlword == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+    targetpos = motion_servo_get_tx_domain_offset(master->master, SLAVE00_POS, 0x607a, 0x00);
+    if (targetpos == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+#ifndef POS_MODE
+    targetvel = motion_servo_get_tx_domain_offset(master->master, SLAVE00_POS, 0x60FF, 0x00);
+    if (targetvel == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+#endif
+    modesel = motion_servo_get_tx_domain_offset(master->master, SLAVE00_POS, 0x6060, 0x00);
+    if (modesel == DOMAIN_INVAILD_OFFSET)
+    {
+        goto End;
+    }
+#else
     statusword = motion_servo_get_domain_offset(master->master, SLAVE00_POS, 0x6041, 0x00);
     if (statusword == DOMAIN_INVAILD_OFFSET)
     {
@@ -342,23 +404,25 @@ int main (int argc, char **argv)
     {
         goto End;
     }
+#ifndef POS_MODE
     targetvel = motion_servo_get_domain_offset(master->master, SLAVE00_POS, 0x60FF, 0x00);
     if (targetvel == DOMAIN_INVAILD_OFFSET)
     {
         goto End;
     }
+#endif
     modesel = motion_servo_get_domain_offset(master->master, SLAVE00_POS, 0x6060, 0x00);
     if (modesel == DOMAIN_INVAILD_OFFSET)
     {
         goto End;
     }
-
+#endif
     /* Create cyclic RT-thread */
     pthread_attr_t thattr;
     pthread_attr_init(&thattr);
     pthread_attr_setdetachstate(&thattr, PTHREAD_CREATE_JOINABLE);
 
-    if (pthread_create(&cyclic_thread, &thattr, &my_thread, NULL)) {
+    if (pthread_create(&cyclic_thread, &thattr, &my_thread, master)) {
         printf("pthread_create cyclic task failed\n");
         pthread_attr_destroy(&thattr);
         goto End;
@@ -375,9 +439,7 @@ int main (int argc, char **argv)
 
     pthread_join(cyclic_thread, NULL);
     pthread_attr_destroy(&thattr);
-#ifdef ENABLE_SHM
-    shm_blkbuf_close(handle);
-#endif
+
     motion_servo_master_release(master);
     return 0;
 End:

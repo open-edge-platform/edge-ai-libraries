@@ -1,7 +1,7 @@
 apiVersion: v2
 name: chat-question-and-answer
 description: A helm chart for deploying Intel ChatQnA sample application
-version: 2.0.0
+version: 2.0.1
 dependencies:
   - name: vllmService
     version: 0.1.0
@@ -12,7 +12,7 @@ dependencies:
     repository: "file://subchart/llm/tgi"
     condition: tgiService.enabled
   - name: ovmsService
-    version: 0.1.0
+    version: 0.1.1
     repository: "file://subchart/llm/ovms"
     condition: ovmsService.enabled,global.gpu.enabled
   - name: teiEmbeddingService
@@ -20,7 +20,7 @@ dependencies:
     repository: "file://subchart/embedding/tei"
     condition: global.teiEmbeddingService.enabled
   - name: ovmsEmbeddingService
-    version: 0.1.0
+    version: 0.1.1
     repository: "file://subchart/embedding/ovms"
     condition: global.ovmsEmbeddingService.enabled
   - name: pgvector
@@ -36,5 +36,5 @@ dependencies:
     version: 0.1.0
     repository: "file://subchart/reranker"
   - name: chatqna-ui
-    version: 2.0.0
+    version: 2.0.1
     repository: "file://subchart/chatqna-ui"

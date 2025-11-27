@@ -19,8 +19,6 @@ env:
   TIMESERIES_USER_NAME: timeseries_user
   TIMESERIES_UID: 1999
   TIMESERIES_NO_PROXY: influxdb,time-series-analytics-microservice,mqttbroker,ia-mqtt-broker,ia-opcua-server
-  INFLUXDB_USERNAME: 
-  INFLUXDB_PASSWORD:  
   timeseries_no_proxy: localhost,127.0.0.1,.intel.com
   HTTP_PROXY: 
   HTTPS_PROXY: 

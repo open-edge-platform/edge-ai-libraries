@@ -20,7 +20,6 @@ services:
     hostname: ia-time-series-analytics-microservice
     image: ${DOCKER_REGISTRY}${TIME_SERIES_ANALYTICS_IMAGE}${IMAGE_SUFFIX:+-${IMAGE_SUFFIX}}
     restart: unless-stopped
-    privileged: true
     security_opt:
     - no-new-privileges
     read_only: true
@@ -52,8 +51,8 @@ services:
     - 5000:5000
     volumes:
     - "vol_temp_time_series_analytics_microservice:/tmp/"
-    - ../config.json:/app/config.json
-    - /dev/dri:/dev/dri
+    - ../config.json:/app/config.json:ro
+    - /dev/dri:/dev/dri:ro
     - "/run/udev:/run/udev:ro"
     devices:
       # Following devices under /dev filesystem will be needed based on usecase
@@ -64,7 +63,8 @@ services:
     - "109"
     # render group ID for ubuntu 22.04 host OS
     - "110"
-
+    # render group ID for ubuntu 24.04 host OS
+    - "992"
 
 networks:
   timeseries_network:

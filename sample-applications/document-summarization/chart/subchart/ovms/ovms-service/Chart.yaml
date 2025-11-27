@@ -2,5 +2,5 @@ apiVersion: v2
 name: ovms-service
 description: A Helm chart for deploying the Document Summarization application
 type: application
-version: 1.0.0
+version: 1.0.1
 appVersion: "1.0.0"

@@ -12,6 +12,14 @@ from rabbitmq_mqtt_client import RabbitMQMQTTClient  # Updated import
 from minio_client import MinioClient
 
 
+"""
+PROLOGUE:
+This Python script is used as the gstreamer element responsible for processing video frames, extracting metadata, publishing the data 
+to RabbitMQ and storing image frames to Minio. This element is effectively the final sink element in the Gst pipeline. This is the 
+reason the pipeline has `fakesink` as last element (just after this element) which does NOT do anything with the video/frames buffer reaching it. 
+However, this does not mean that this particular pipeline is not handling the video/frames output.  
+"""
+
 Logger = logging.getLogger('PUBLISHER')
 Logger.setLevel(logging.DEBUG)
 class Publisher:

@@ -58,7 +58,7 @@ else
     export REGISTRY=$CONTAINER_REGISTRY_URL
 fi
 export IMAGE_REGISTRY="${REGISTRY}${PROJECT_NAME}/"
-export TAG="${CONTAINER_TAG:-latest}"
+export TAG="${CONTAINER_TAG:-1.2.3}"
 
 # Handle the special characters in password for connection string
 convert_pg_password() {

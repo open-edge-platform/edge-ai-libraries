@@ -41,6 +41,7 @@
 
 static void motion_slave_free_pdo(servo_pdo_info_t* pdo_info);
 static void motion_slave_free_pdo_entry(servo_pdo_entry_info_t* entry_info);
+static int motion_servo_free_master_list(struct list_head* list);
 
 int motion_servo_load_config(servo_master* servomaster, char* name)
 {
@@ -61,6 +62,7 @@ int motion_servo_load_config(servo_master* servomaster, char* name)
     return ECAT_OKAY;
 }
 
+
 servo_master* motion_servo_master_create(char* name)
 {
     ecat_eni* info;
@@ -70,6 +72,9 @@ servo_master* motion_servo_master_create(char* name)
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "servo master alloc fail\n");
         return NULL;
     }
+#ifdef EC_ENABLE_USERMODE
+    ecrt_masters_create(0);
+#endif
     memset(servomaster, 0, sizeof(servo_master));
 
     if (motion_servo_load_config(servomaster, name)) {
@@ -88,8 +93,8 @@ servo_master* motion_servo_master_create(char* name)
         goto Init_Master_Fail;
     }
     memset(servomaster->master, 0, sizeof(servo_master_t));
-
     servo_master_t* master = servomaster->master;
+    master->domain_mode = 0; /* single domain mode by default */
     master->master = ecrt_request_master(0);
     if (!master->master) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "Requesting master index 0:Failed\n");
@@ -115,6 +120,156 @@ Init_Fail:
     return NULL;
 }
 
+#ifdef EC_ENABLE_USERMODE
+int motion_servo_set_multiple_domain_mode(servo_master* servomaster)
+{
+    if (!servomaster) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "motion master is NULL!\n");
+        return ECAT_FAIL;
+    }
+    servo_master_t* master = servomaster->master;
+
+    if (!master){
+        return ECAT_FAIL;
+    }
+    if (master->domain_pd) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "Domain had been created, mutiple domain mode only support to set before domain creating!\n");
+        return ECAT_FAIL;
+    }
+    master->domain_mode = 1; /* multiple domain mode */
+
+    return ECAT_OKAY;
+}
+
+servo_master* motion_servo_master_create_v2(uint16_t node_id)
+{
+    int loop;
+    servo_master* servomaster;
+    servo_master* current;
+    servo_master* new;
+
+    for (loop = 0; loop < ecrt_master_count_by_node(node_id); loop++) {
+        new = ecat_malloc(sizeof(servo_master));
+        if (!new) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "servo master%d alloc fail\n", loop);
+            goto Init_Master_Fail;
+        }
+        memset(new, 0, sizeof(servo_master));
+        INIT_LIST_HEAD(&new->list);
+        new->master = ecat_malloc(sizeof(servo_master_t));
+        if (!new->master) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "servo master%d point alloc failed\n", loop);
+            goto Init_Master_Fail;
+        }
+        memset(new->master, 0, sizeof(servo_master_t));
+        new->master->domain_mode = 0; /* single domain mode by default */
+        if (loop == 0) {
+            servomaster = new;
+            current = new;
+        } else {
+            list_add_tail(&new->list, &current->list);
+        }
+    }
+    ecrt_masters_create(node_id);
+    return servomaster;
+Init_Master_Fail:
+    if (servomaster) {
+        motion_servo_free_master_list(&servomaster->list);
+        if (servomaster->master) {
+            ecat_free(servomaster->master);
+            servomaster->master = NULL;
+        }
+        ecat_free(servomaster);
+        servomaster = NULL;
+    }
+    return NULL;
+}
+#else
+int motion_servo_set_multiple_domain_mode(servo_master* servomaster)
+{
+    return 0;
+}
+servo_master* motion_servo_master_create_v2(uint16_t node_id)
+{
+    return NULL;
+}
+#endif
+
+static servo_master* motion_servo_get_master_by_id(servo_master* masters, uint16_t id)
+{
+    servo_master* master = masters;
+    if(id == 0) {
+        return master;
+    }
+    uint32_t loop = 1;
+    list_for_each_entry(master, &masters->list, list) {
+        if (loop == id) {
+            return master;
+        }
+        loop++;
+    }
+
+    return NULL;
+}
+
+#ifdef EC_ENABLE_USERMODE
+servo_master* motion_servo_master_request(servo_master* masters, char* name, uint16_t id)
+{
+    ecat_eni* info;
+    int count;
+    MOTION_CONSOLE_INFO(MOTIONENTRY_LOG "Requesting master index %d:...\n", id);
+    servo_master* servomaster = motion_servo_get_master_by_id(masters, id);
+    if (!servomaster){
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "servo master alloc fail\n");
+        return NULL;
+    }
+
+    if (motion_servo_load_config(servomaster, name)) {
+        goto Init_Fail;
+    }
+
+    if (!servomaster->eni_info) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "ENI infomation is NULL\n");
+        goto Init_Fail;
+    }
+    info = (ecat_eni*)servomaster->eni_info;
+
+    servomaster->master = ecat_malloc(sizeof(servo_master_t));
+    if (!servomaster->master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "servo master point alloc failed\n");
+        goto Init_Master_Fail;
+    }
+    memset(servomaster->master, 0, sizeof(servo_master_t));
+
+    servo_master_t* master = servomaster->master;
+    master->domain_mode = 0; /* single domain mode by default */
+    master->master = ecrt_request_master(id);
+
+    return servomaster;
+
+Init_Master_Fail:
+    if (info) {
+        eni_config_free(info);
+        info = NULL;
+    }
+Init_Fail:
+    if (servomaster) {
+        if (servomaster->master) {
+            ecat_free(servomaster->master);
+            servomaster->master = NULL;
+        }
+        ecat_free(servomaster);
+        servomaster = NULL;
+    }
+    return NULL;
+}
+#else
+servo_master* motion_servo_master_request(servo_master* masters, char* name, uint16_t id)
+{
+    return NULL;
+}
+#endif
+
 static uint32_t motion_servo_eni_slave_size(eni_config* info)
 {
     uint32_t size = 0;
@@ -128,6 +283,21 @@ static uint32_t motion_servo_eni_slave_size(eni_config* info)
     }
 
     list_for_each_entry(slave, &info->slave_list, list) {
+        if (slave) {
+            size++;
+        }
+    }
+    return size;
+}
+
+uint32_t motion_servo_get_slave_size(servo_master_t * master)
+{
+    if (!master) {
+        return 0;
+    }
+    uint32_t size = 0;
+    servo_slave_t* slave = NULL;
+    list_for_each_entry(slave, &master->sc_list, list) {
         if (slave) {
             size++;
         }
@@ -369,8 +539,8 @@ static int motion_get_pdo_info(servo_pdo_info_t* pdo_info, eni_slave_processdata
         ret = motion_get_pdo_entry_info(&entry_info[loop], eni_entry);
         if(ret < 0) {
             motion_slave_free_pdo_entry(entry_info);
-	    ecat_free(entry_info);
-	    entry_info = NULL;
+            ecat_free(entry_info);
+            entry_info = NULL;
             return ECAT_FAIL;
         }
         loop++;
@@ -531,8 +701,8 @@ static void motion_slave_free_pdo(servo_pdo_info_t* pdo_info)
         for (idx = pdo_info->n_entries; idx > 0; idx--) {
             motion_slave_free_pdo_entry(&pdo_info->pdo_entry_info[idx-1]);
         }
-	ecat_free(pdo_info->pdo_entry_info);
-	pdo_info->pdo_entry_info = NULL;
+	    ecat_free(pdo_info->pdo_entry_info);
+	    pdo_info->pdo_entry_info = NULL;
     }
     if(pdo_info->name) {
         ecat_free(pdo_info->name);
@@ -687,6 +857,7 @@ static int motion_servo_slave_config_register(servo_master_t* master, eni_config
                 /* Configure register for PDO entries */
                 if (slave_syncs) {
                     uint32_t idx;
+
                     for (idx = 0; idx < n_sync; idx++) {
                         ec_sync_info_t* sync = &slave_syncs[idx];
                         if (sync->pdos) {
@@ -722,6 +893,119 @@ static int motion_servo_slave_config_register(servo_master_t* master, eni_config
     return ECAT_OKAY;
 }
 
+#ifdef EC_ENABLE_USERMODE
+static int motion_servo_slave_config_register_v2(servo_master_t* master, eni_config* info, unsigned int id)
+{
+    if ((!master)||(!info)) {
+        return ECAT_FAIL;
+    }
+    eni_config_slave* slave = NULL;
+    uint32_t n_sync = 0;
+    INIT_LIST_HEAD(&master->sc_list);
+    if (list_empty(&info->slave_list)) {
+        return ECAT_FAIL;
+    }
+
+    ecrt_master_wait_for_slave(master->master, motion_servo_eni_slave_size(info));
+
+    list_for_each_entry(slave, &info->slave_list, list) {
+        servo_slave_t* slave_t;
+        ec_sync_info_t* slave_syncs;
+        if (slave) {
+            slave_t = (servo_slave_t*)ecat_malloc(sizeof(servo_slave_t));
+            if (slave_t) {
+                uint32_t loop;
+                memset(slave_t, 0, sizeof(servo_slave_t));
+                INIT_LIST_HEAD(&slave_t->list);
+                slave_t->sc = ecrt_master_slave_config(master->master, 0, slave->info.physAddr-SLAVE_PHYS_ADDR_OFFSET, \
+                    slave->info.vendorId, slave->info.productCode);
+                list_add_tail(&slave_t->list, &master->sc_list);
+                slave_syncs = motion_slave_pdo_remap(slave_t->sc, slave, &n_sync);
+                /* Configure register for PDO entries */
+                if (slave_syncs) {
+                    uint32_t idx;
+
+                    slave_t->domain_tx_pd = (ecat_domain*)ecat_malloc(sizeof(ecat_domain));
+                    if (!slave_t->domain_tx_pd) {
+                        motion_slave_free_syncs(slave_syncs);
+                        return ECAT_FAIL;
+                    }
+                    memset(slave_t->domain_tx_pd, 0, sizeof(ecat_domain));
+                    slave_t->domain_rx_pd = (ecat_domain*)ecat_malloc(sizeof(ecat_domain));
+                    if (!slave_t->domain_rx_pd) {
+                        ecat_free(slave_t->domain_tx_pd);
+                        motion_slave_free_syncs(slave_syncs);
+                        return ECAT_FAIL;
+                    }
+                    memset(slave_t->domain_rx_pd, 0, sizeof(ecat_domain));
+                    slave_t->domain_tx_pd->domain = (void*)ecrt_master_create_domain(master->master);
+                    if (!(slave_t->domain_tx_pd->domain)) {
+                        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "TX Domain create fail\n");
+                        return ECAT_FAIL;
+                    }
+                    slave_t->domain_rx_pd->domain = (void*)ecrt_master_create_domain(master->master);
+                    if (!(slave_t->domain_rx_pd->domain)) {
+                        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "RX Domain create fail\n");
+                        return ECAT_FAIL;
+                    }
+                    INIT_LIST_HEAD(&slave_t->domain_tx_pd->pdo_list);
+                    INIT_LIST_HEAD(&slave_t->domain_rx_pd->pdo_list);
+
+                    for (idx = 0; idx < n_sync; idx++) {
+                        ec_sync_info_t* sync = &slave_syncs[idx];
+                        if (sync->pdos) {
+                            ecat_domain* domain_pd = NULL;
+                            if (sync->dir == EC_DIR_INPUT) {
+                                domain_pd = slave_t->domain_rx_pd;
+                            } else if (sync->dir == EC_DIR_OUTPUT) {
+                                domain_pd = slave_t->domain_tx_pd;
+                            } else {
+                                continue;
+                            }
+                            if (!domain_pd) {
+                                continue;
+                            }
+                            for (loop = 0; loop < sync->n_pdos; loop++) {
+                                uint32_t index;
+                                ec_pdo_info_t pdos = sync->pdos[loop];
+                                if (!pdos.entries) {
+                                    continue;
+                                }
+                                for (index = 0; index < pdos.n_entries; index++) {
+                                    ecat_pdo_entries* entry;
+                                    entry = (ecat_pdo_entries*)ecat_malloc(sizeof(ecat_pdo_entries));
+                                    if (entry) {
+                                        memset(entry, 0, sizeof(ecat_pdo_entries));
+                                        entry->entry.alias = 0;
+                                        entry->entry.position = slave->info.physAddr-SLAVE_PHYS_ADDR_OFFSET;
+                                        INIT_LIST_HEAD(&entry->list);
+                                        entry->entry.index = pdos.entries[index].index;
+                                        entry->entry.subindex = pdos.entries[index].subindex;
+                                        entry->offset = ecrt_slave_config_reg_pdo_entry(slave_t->sc, \
+                                            entry->entry.index, entry->entry.subindex, domain_pd->domain, NULL);
+                                        list_add_tail(&entry->list, &domain_pd->pdo_list);
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    motion_slave_free_syncs(slave_syncs);
+                }
+            }
+        }
+    }
+    return ECAT_OKAY;
+}
+#else
+static int motion_servo_slave_config_register_v2(servo_master_t* master, eni_config* info, unsigned int id)
+{
+    MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "%s only support with ----enable-ethercatd, please use motion_servo_slave_config_register.\n", __func__);
+
+    return ECAT_FAIL;
+}
+#endif
+
 static servo_slave_t* motion_servo_get_slave_by_index(servo_master_t* master, uint32_t index)
 {
     if (!master) {
@@ -740,6 +1024,69 @@ static servo_slave_t* motion_servo_get_slave_by_index(servo_master_t* master, ui
     }
     return NULL;
 }
+
+#ifdef EC_ENABLE_USERMODE
+servo_master_t* motion_servo_driver_register_v2(servo_master* servomaster)
+{
+    servo_master_t* master;
+    int n_slave;
+    MOTION_CONSOLE_INFO(MOTIONENTRY_LOG "Register servo driver...\n");
+    if ((!servomaster)||(!servomaster->master)) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master have not requested\n");
+        return NULL;
+    }
+    /* Create configuration for bus coupler */
+    if (!servomaster->eni_info) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "ENI/XML info is Null\n");
+        return NULL;
+    }
+    eni_config* info = (eni_config*)servomaster->eni_info;
+
+    master = servomaster->master;
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master id cannot be found in servomaster\n");
+        return NULL;
+    }
+    if (!master->domain_mode) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "single domain mode\n");
+        master->domain_pd = (ecat_domain*)ecat_malloc(sizeof(ecat_domain));
+        if (!master->domain_pd) {
+            return NULL;
+        }
+        memset(master->domain_pd, 0, sizeof(ecat_domain));
+        INIT_LIST_HEAD(&master->domain_pd->pdo_list);
+        master->domain_pd->domain = (void*)ecrt_master_create_domain(master->master);
+        if (!(master->domain_pd->domain)) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "Domain create fail\n");
+            free(master->domain_pd);
+            master->domain_pd = NULL;
+            return ECAT_FAIL;
+        }
+        /* Create configuration for bus coupler */
+        ecrt_master_wait_for_slave(master->master, motion_servo_eni_slave_size(info));
+        motion_servo_slave_config_register(master, info, (ec_domain_t*)master->domain_pd->domain, &master->domain_pd->pdo_list);
+    } else {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "multiple domain mode\n");
+        /* Create configuration for bus coupler */
+        motion_servo_slave_config_register_v2(master, info, 0);
+    }
+
+    n_slave = motion_servo_eni_slave_size(info);
+    if (n_slave == 0) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no slaves are found in servomaster\n");
+        return master;
+    }
+
+    return master;
+}
+#else
+servo_master_t* motion_servo_driver_register_v2(servo_master* servomaster)
+{
+    MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "%s only support with ----enable-ethercatd, please use motion_servo_driver_register.\n", __func__);
+
+    return ECAT_FAIL;
+}
+#endif
 
 servo_master_t* motion_servo_driver_register(servo_master* servomaster, void* domain)
 {
@@ -762,15 +1109,17 @@ servo_master_t* motion_servo_driver_register(servo_master* servomaster, void* do
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master id cannot be found in servomaster\n");
         return NULL;
     }
-    master->domain = (ecat_domain*)ecat_malloc(sizeof(ecat_domain));
-    if (!master->domain) {
-        return NULL;
+    if (!master->domain_mode) {
+        INIT_LIST_HEAD(&master->domain_pd->pdo_list);
+        /* Create configuration for bus coupler */
+#ifdef EC_ENABLE_USERMODE
+        ecrt_master_wait_for_slave(master->master, motion_servo_eni_slave_size(info));
+#endif
+        motion_servo_slave_config_register(master, info, (ec_domain_t*)master->domain_pd->domain, &master->domain_pd->pdo_list);
+    } else {
+        /* Create configuration for bus coupler */
+        motion_servo_slave_config_register_v2(master, info, 0);
     }
-    memset(master->domain, 0, sizeof(ecat_domain));
-    INIT_LIST_HEAD(&master->domain->pdo_list);
-
-    /* Create configuration for bus coupler */
-    motion_servo_slave_config_register(master, info, (ec_domain_t*)domain, &master->domain->pdo_list);
 
     n_slave = motion_servo_eni_slave_size(info);
     if (n_slave == 0) {
@@ -781,29 +1130,39 @@ servo_master_t* motion_servo_driver_register(servo_master* servomaster, void* do
     return master;
 }
 
+/* Only for single master mode*/
 int motion_servo_domain_entry_register(servo_master* servomaster, void** domain)
 {
     servo_master_t *master;
-    MOTION_CONSOLE_INFO(MOTIONENTRY_LOG "Creating domain...\n");
     if ((!servomaster)||(!servomaster->master)) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master have not requested\n");
         return ECAT_FAIL;
     }
-    if (!domain) {
-        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "domain point is NULL\n");
-        return ECAT_FAIL;
-    }
     master = servomaster->master;
-    if (!master) {
-        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master cannot be found in servomaster\n");
-        return ECAT_FAIL;
+    if (!master->domain_mode) {
+        MOTION_CONSOLE_INFO(MOTIONENTRY_LOG "Creating domain...\n");
+        if (!domain) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "domain point is NULL\n");
+            return ECAT_FAIL;
+        }
+        if (!master) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "master cannot be found in servomaster\n");
+            return ECAT_FAIL;
+        }
+        master->domain_pd = (ecat_domain*)ecat_malloc(sizeof(ecat_domain));
+        if (!master->domain_pd) {
+            return NULL;
+        }
+        memset(master->domain_pd, 0, sizeof(ecat_domain));
+        *domain = (void*)ecrt_master_create_domain(master->master);
+        if (!(*domain)) {
+            MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "Domain create fail\n");
+            return ECAT_FAIL;
+        }
+        master->domain_pd->domain = *domain;
     }
+    /* This API have been merged into motion_servo_driver_register for multiple domain mode, it don't need to be called, only reserve this API for compatible */
 
-    *domain = (void*)ecrt_master_create_domain(master->master);
-    if (!(*domain)) {
-        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "Domain create fail\n");
-        return ECAT_FAIL;
-    }
     return ECAT_OKAY;
 }
 
@@ -878,13 +1237,24 @@ int motion_servo_recv_process(servo_master_t* master, void* domain)
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
         return ECAT_FAIL;
     }
-    if (!domain) {
+    if ((!master->domain_mode)&&(!domain)) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "domain have not created\n");
         return ECAT_FAIL;
     }
 
     ecrt_master_receive(master->master);
-    ecrt_domain_process(domain);
+    if (master->domain_mode) {
+        if (list_empty(&master->sc_list)) {
+            return NULL;
+        }
+        servo_slave_t* slave = NULL;
+        list_for_each_entry(slave, &master->sc_list, list) {
+            ecrt_domain_process(slave->domain_rx_pd->domain);
+            ecrt_domain_process(slave->domain_tx_pd->domain);
+        }
+    } else {
+        ecrt_domain_process(domain);
+    }
     return ECAT_OKAY;
 }
 
@@ -894,12 +1264,22 @@ int motion_servo_send_process(servo_master_t* master, void* domain)
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
         return ECAT_FAIL;
     }
-    if (!domain) {
+    if ((!master->domain_mode)&&(!domain)) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "domain have not created\n");
         return ECAT_FAIL;
     }
-
-    ecrt_domain_queue(domain);
+    if (master->domain_mode) {
+        if (list_empty(&master->sc_list)) {
+            return NULL;
+        }
+        servo_slave_t* slave = NULL;
+        list_for_each_entry(slave, &master->sc_list, list) {
+            ecrt_domain_queue(slave->domain_tx_pd->domain);
+            ecrt_domain_queue(slave->domain_rx_pd->domain);
+        }
+    } else {
+        ecrt_domain_queue(domain);
+    }
     ecrt_master_send(master->master);
     return ECAT_OKAY;
 }
@@ -955,19 +1335,144 @@ uint32_t motion_servo_domain_size(void* domain)
     return ecrt_domain_size(domain);
 }
 
+void* motion_servo_get_tx_domain_by_slave(servo_master_t* master, uint32_t index)
+{
+    servo_slave_t* slave_sc;
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
+        return NULL;
+    }
+    if (!master->domain_mode) {
+        return NULL;
+    }
+    slave_sc = motion_servo_get_slave_by_index(master, index);
+    if (!slave_sc) {
+        return NULL;
+    }
+    if (!slave_sc->domain_tx_pd) {
+        return NULL;
+    }
+    return slave_sc->domain_tx_pd->domain;
+}
+
+void* motion_servo_get_rx_domain_by_slave(servo_master_t* master, uint32_t index)
+{
+    servo_slave_t* slave_sc;
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
+        return NULL;
+    }
+    if (!master->domain_mode) {
+        return NULL;
+    }
+    slave_sc = motion_servo_get_slave_by_index(master, index);
+    if (!slave_sc) {
+        return NULL;
+    }
+    if (!slave_sc->domain_rx_pd) {
+        return NULL;
+    }
+    return slave_sc->domain_rx_pd->domain;
+}
+
+void* motion_servo_get_domain_by_master(servo_master_t* master)
+{
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
+        return NULL;
+    }
+    if (master->domain_mode) {
+        return NULL;
+    }
+    if (master->domain_pd) {
+        return master->domain_pd->domain;
+    }
+    return NULL;
+}
+
 uint32_t motion_servo_get_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex)
 {
     if (!master) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
         return DOMAIN_INVAILD_OFFSET;
     }
-    if (!master->domain) {
+    if (master->domain_mode) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "need to specify tx/rx domain for offset\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    if (!master->domain_pd) {
         MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "domain have not created\n");
         return DOMAIN_INVAILD_OFFSET;
     }
 
     ecat_pdo_entries* entry = NULL;
-    list_for_each_entry(entry, &master->domain->pdo_list, list) {
+    list_for_each_entry(entry, &master->domain_pd->pdo_list, list) {
+        if (entry) {
+            if ((entry->entry.alias == alias) && (entry->entry.position == position) \
+                && (entry->entry.index == index) && (entry->entry.subindex == subindex)) {
+                return entry->offset;
+            }
+        }
+    }
+    MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "The offset of PDO 0x%04X:0x%02x cannot been found\n", index, subindex);
+    return DOMAIN_INVAILD_OFFSET;
+}
+
+uint32_t motion_servo_get_tx_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex)
+{
+    servo_slave_t* slave_sc;
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    if (!master->domain_mode) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "need to use motion_servo_get_domain_offset for offset\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    slave_sc = motion_servo_get_slave_by_index(master, position);
+    if (!slave_sc) {
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    if (!slave_sc->domain_tx_pd) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "tx domain have not created\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+
+    ecat_pdo_entries* entry = NULL;
+    list_for_each_entry(entry, &slave_sc->domain_tx_pd->pdo_list, list) {
+        if (entry) {
+            if ((entry->entry.alias == alias) && (entry->entry.position == position) \
+                && (entry->entry.index == index) && (entry->entry.subindex == subindex)) {
+                return entry->offset;
+            }
+        }
+    }
+    MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "The offset of PDO 0x%04X:0x%02x cannot been found\n", index, subindex);
+    return DOMAIN_INVAILD_OFFSET;
+}
+
+uint32_t motion_servo_get_rx_domain_offset(servo_master_t* master, uint16_t alias, uint16_t position, uint16_t index, uint8_t subindex)
+{
+    servo_slave_t* slave_sc;
+    if (!master) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "no master is created\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    if (!master->domain_mode) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "need to use motion_servo_get_domain_offset for offset\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    slave_sc = motion_servo_get_slave_by_index(master, position);
+    if (!slave_sc) {
+        return DOMAIN_INVAILD_OFFSET;
+    }
+    if (!slave_sc->domain_rx_pd) {
+        MOTION_CONSOLE_ERR(MOTIONENTRY_LOG "rx domain have not created\n");
+        return DOMAIN_INVAILD_OFFSET;
+    }
+
+    ecat_pdo_entries* entry = NULL;
+    list_for_each_entry(entry, &slave_sc->domain_rx_pd->pdo_list, list) {
         if (entry) {
             if ((entry->entry.alias == alias) && (entry->entry.position == position) \
                 && (entry->entry.index == index) && (entry->entry.subindex == subindex)) {
@@ -1141,6 +1646,28 @@ static int motion_servo_free_ecat_domain(ecat_domain* domain)
     return ECAT_OKAY;
 }
 
+static int motion_servo_free_master_list(struct list_head* list)
+{
+    if (!list) {
+        return ECAT_FAIL;
+    }
+
+    servo_master* master = NULL;
+    servo_master* next = NULL;
+    list_for_each_entry_safe(master, next, list, list) {
+        if (master) {
+            list_del(&master->list);
+            if (master->master) {
+                ecat_free(master->master);
+                master->master = NULL;
+            }
+            ecat_free(master);
+            master = NULL;
+        }
+    }
+    return ECAT_OKAY;
+}
+
 static int motion_servo_free_sc_list(struct list_head* list)
 {
     if (!list) {
@@ -1152,10 +1679,6 @@ static int motion_servo_free_sc_list(struct list_head* list)
     list_for_each_entry_safe(slave, next, list, list) {
         if (slave) {
             list_del(&slave->list);
-            if (slave->sc) {
-                ecat_free(slave->sc);
-                slave->sc = NULL;
-            }
             ecat_free(slave);
             slave = NULL;
         }
@@ -1174,10 +1697,10 @@ int motion_servo_master_release(servo_master* servomaster)
         servomaster->eni_info = NULL;
     }
     ecrt_release_master(servomaster->master->master);
-    if (servomaster->master->domain) {
-        motion_servo_free_ecat_domain(servomaster->master->domain);
-        ecat_free(servomaster->master->domain);
-        servomaster->master->domain = NULL;
+    if (servomaster->master->domain_pd) {
+        motion_servo_free_ecat_domain(servomaster->master->domain_pd);
+        ecat_free(servomaster->master->domain_pd);
+        servomaster->master->domain_pd = NULL;
     }
     motion_servo_free_sc_list(&servomaster->master->sc_list);
     ecat_free(servomaster->master);
