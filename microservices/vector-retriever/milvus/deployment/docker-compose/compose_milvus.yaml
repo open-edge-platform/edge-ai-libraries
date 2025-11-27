@@ -75,7 +75,7 @@ services:
       - "milvus-minio"
 
   multimodal-embedding-serving:
-    image: ${REGISTRY:-}multimodal-embedding-serving:${TAG:-latest}
+    image: intel/multimodal-embedding-serving:1.3.1
     container_name: multimodal-embedding-serving
     ports:
       - "${EMBEDDING_SERVER_PORT}:8000"
@@ -114,7 +114,7 @@ services:
       - ov-models:/app/ov_models
 
   retriever-milvus:
-    image: ${REGISTRY:-}retriever-milvus:${TAG:-latest}
+    image: intel/retriever-milvus:2025.2-rc2
     container_name: retriever-milvus
     ports:
       - "${RETRIEVER_SERVICE_PORT}:7770"
