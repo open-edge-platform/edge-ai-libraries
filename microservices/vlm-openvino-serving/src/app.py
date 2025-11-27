@@ -304,6 +304,18 @@ def restart_server():
         raise RuntimeError(f"Failed to restart the server: {e}")
 
 
+def log_telemetry(context: str, usage, telemetry):
+    """Log collected telemetry/usage data for observability."""
+    if telemetry is None and usage is None:
+        return
+    logger.info(
+        "Telemetry (%s): usage=%s telemetry=%s",
+        context,
+        usage.model_dump() if usage else None,
+        telemetry.model_dump() if telemetry else None,
+    )
+
+
 # Initialize the model
 def initialize_model():
     """
@@ -417,6 +429,7 @@ def create_streaming_response(
             usage, telemetry = build_usage_and_telemetry(
                 getattr(streamer, "perf_metrics", None)
             )
+            log_telemetry("stream", usage, telemetry)
             yield (
                 f"""data: {ChatCompletionStreamingResponse(
                     id=completion_id,
@@ -575,6 +588,7 @@ async def chat_completions(request: ChatRequest):
             usage, telemetry = build_usage_and_telemetry(
                 getattr(output, "perf_metrics", None)
             )
+            log_telemetry("non-stream", usage, telemetry)
             return ChatCompletionResponse(
                 id=str(uuid.uuid4()),
                 object="chat.completion",
