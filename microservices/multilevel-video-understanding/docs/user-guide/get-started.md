@@ -99,8 +99,8 @@ INFO:     Application startup complete.
 **step1.** Prepare docker image
 Before lauching the service as documented below, users need to prepare the docker images:
 
-- **Option1.** [build the docker images](./how-to-build-from-source.md#steps-to-build)
-- **Option2.** Download the prebuilt images from Docker Hub (Link TBD)
+- **Option1.** [Build the docker images](./how-to-build-from-source.md#steps-to-build)
+- **Option2.** Download the prebuilt images from Docker Hub ([intel/multilevel-video-understanding](https://hub.docker.com/r/intel/multilevel-video-understanding))
 
 Then, use the following commands to set up the `multilevel-video-understanding` microservice.
 
@@ -109,7 +109,7 @@ Then, use the following commands to set up the `multilevel-video-understanding` 
 The following environment variables can be configured:
 
 **Basic configuration**
-- `REGISTRY_URL`: Docker image registry url (default: intel/)
+- `REGISTRY_URL`: Docker image registry url
 - `TAG`: Docker image tag (default: latest)
 - `SERVICE_PORT`: Multi-level Video Understanding Microservice port (default: 8192)
 - `MAX_CONCURRENT_REQUESTS`: Max concurrent requests for this microservice (default: 6)
