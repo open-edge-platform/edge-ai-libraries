@@ -74,6 +74,10 @@ install_dependencies() {
             print_info "Ultralytics dependencies will be installed via uv sync"
             # Additional setup can be added here if needed
             ;;
+        geti)
+            print_info "Geti plugin dependencies will be installed via uv sync"
+            print_info "Geti plugin requires: GETI_HOST, GETI_ORGANIZATION_ID, GETI_WORKSPACE_ID, GETI_TOKEN, GETI_SERVER_API_VERSION"
+            ;;
         *)
             print_error "Unknown plugin: $plugin"
             return 1
@@ -104,7 +108,7 @@ while [[ $# -gt 0 ]]; do
 done
 
 # Define all available plugins in the application
-AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics")
+AVAILABLE_PLUGINS=("openvino" "huggingface" "ollama" "ultralytics" "geti")
 
 # Install plugin-specific dependencies
 print_header "Installing plugin dependencies"
@@ -124,6 +128,7 @@ else
     echo "ACTIVATED_PLUGINS=$PLUGINS" > "$PLUGINS_ENV_FILE"
     
     for plugin in "${PLUGIN_LIST[@]}"; do
+        plugin=$(echo "$plugin" | xargs)  # Trim whitespace
         install_dependencies "$plugin"
     done
     

@@ -6,4 +6,5 @@ from src.plugins.ultralytics_plugin import UltralyticsDownloader
 from src.plugins.huggingface_plugin import HuggingFacePlugin
 from src.plugins.ollama_plugin import OllamaPlugin
 from src.plugins.openvino_plugin import OpenVINOConverter
+from src.plugins.geti_plugin import GetiPlugin
 # Add any other plugins here
