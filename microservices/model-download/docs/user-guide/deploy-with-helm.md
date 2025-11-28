@@ -40,8 +40,6 @@ This will create a directory named `model-download` containing the chart files. 
 cd model-download
 ```
 
-
-
 ### Option 2: Install from Source
 
 #### Step 1: Clone the Repository
@@ -60,8 +58,6 @@ Navigate to the chart directory:
 ```bash
 cd edge-ai-libraries/microservices/model-download/chart
 ```
-
-
 
 ## Common Steps
 

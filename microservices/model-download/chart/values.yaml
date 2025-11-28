@@ -10,8 +10,8 @@ replicaCount: 1
 modeldownload:
   name: model-download
   image:
-    registry: ""  #provide your registry info here, replace 'registry' with actual registry URL
-    tag: 1.0.1
+    registry: "intel/"
+    tag: 1.0.0
     pullPolicy: IfNotPresent
 
   readinessProbe:

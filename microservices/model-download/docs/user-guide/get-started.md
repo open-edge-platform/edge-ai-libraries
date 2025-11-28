@@ -36,9 +36,9 @@ The Model Download Service is a microservice that enables downloading models fro
 3. **Configure the environment variables**
     - Set the below environment variables
       ```bash
-      export REGISTRY=<provide-registry-url>
-      export TAG=<provide-tag>
-      export HUGGINGFACEHUB_API_TOKEN=<your huggingface token>
+      export REGISTRY="intel/"
+      export TAG=1.0.0
+      export HUGGINGFACEHUB_API_TOKEN=<your-huggingface-token>
       ```
 4. **Launch the service**
     - Use the run script to start the service and enable the plugins
@@ -195,6 +195,7 @@ curl -X POST "http://<host-ip>:8200/api/v1/models/download?download_path=ovms_mo
     "status": "completed",
     "start_time": "2025-10-27T08:24:23.510870",
     "plugin_name": "ultralytics",
+    "model_type":"vision",
     "plugin": "ultralytics",
     "completion_time": "2025-10-27T08:30:14.443898",
     "result": {
