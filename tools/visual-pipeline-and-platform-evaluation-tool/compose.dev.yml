@@ -1,13 +1,7 @@
 services:
-  vippet-gpu:
+  vippet:
     command: tail -f /dev/null
     volumes:
       - ./vippet:/home/dlstreamer/vippet
-  vippet-cpu:
-    command: tail -f /dev/null
-    volumes:
-      - ./vippet:/home/dlstreamer/vippet
-  vippet-npu:
-    command: tail -f /dev/null
-    volumes:
-      - ./vippet:/home/dlstreamer/vippet
+    healthcheck:
+      test: ["CMD", "true"]
