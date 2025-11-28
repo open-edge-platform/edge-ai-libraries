@@ -204,7 +204,7 @@ For `EMT-D`, the following steps should work.
 
 For `EMT-S`, 
 > ```bash
-> sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ --releasever=3.0 -y install mesa-libGL
+> sudo env no_proxy="localhost,127.0.0.1" dnf --installroot=/opt/user-apps/tools/ -y install mesa-libGL
 > export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:/opt/user-apps/tools/usr/lib/ 
 > ```
 
