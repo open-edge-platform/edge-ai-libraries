@@ -125,4 +125,4 @@ make run-videogenerator
 1. **Verify Build Success**:
    - Check the logs. Look for confirmation messages indicating the microservice started successfully.
 
-- Expected result: An MP4 file is created under the `shared/videos` folder.
+- Expected result: An MP4 file is created under the `shared/videos/video-generator` folder.

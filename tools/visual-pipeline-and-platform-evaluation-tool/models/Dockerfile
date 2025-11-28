@@ -14,16 +14,30 @@
 
 # SPDX-License-Identifier: Apache-2.0
 
-FROM intel/dlstreamer:2025.2-ubuntu24-rc1
+# Use DLStreamer as the base image
+FROM intel/dlstreamer:2025.2-ubuntu24-rc2
 
+# Switch to root user to install dependencies
 USER root
 
-RUN apt-get update && apt-get install --yes --no-install-recommends dialog
+# Set environment variable to non-interactive mode (avoids some prompts)
+ENV DEBIAN_FRONTEND=noninteractive
 
+# Install necessary dependencies
+RUN apt-get update && \
+    apt-get install --yes --no-install-recommends dialog yq && \
+    apt-get clean && \
+    rm -rf /var/lib/apt/lists/*
+
+# Switch to dlstreamer user
 USER dlstreamer
 
+# Set the working directory inside the container
 WORKDIR /home/dlstreamer
 
+# Copy the model manager script into the container and give execution permissions
 COPY --chown=dlstreamer:dlstreamer models/model_manager.sh /home/dlstreamer/
+RUN chmod +x ./model_manager.sh
 
+# Set the entrypoint for the container to run the model manager script
 CMD ["./model_manager.sh"]

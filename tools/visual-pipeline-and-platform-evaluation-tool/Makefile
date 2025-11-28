@@ -25,7 +25,8 @@ $(VENV_DIR): $(PROJECT_NAME)/requirements.txt ## Create Python venv
 	python3 -m venv $@ ;\
 	set +u; . ./$@/bin/activate; set -u ;\
 	python -m pip install --upgrade pip ;\
-	python -m pip install -r $(PROJECT_NAME)/requirements-dev.txt
+	python -m pip install -r $(PROJECT_NAME)/requirements-dev.txt ;\
+	python -m pip install -r video_generator/requirements.txt # needed for pyright checks
 
 all: lint build run test ## Run lint, build, run and test
 
@@ -56,76 +57,79 @@ pyright: $(VENV_DIR) ## Run pyright type checker
 	pyright --version ;\
 	pyright .
 
-# Environment setup target: always run before build/run targets that need .env
-env-setup:
+generate_openapi: $(VENV_DIR) ## Generate OpenAPI schema file
+	set +u; . ./$</bin/activate; set -u ;\
+	cd $(PROJECT_NAME) ;\
+	PYTHONPATH=. SUPPORTED_MODELS_FILE=../shared/models/supported_models.yaml RECORDINGS_PATH=../shared/videos/input python ../generate_openapi.py
+
+env-setup: ## Environment setup target: always run before build/run targets that need .env and shared dirs
+	mkdir -p shared/collector-signals && chmod o+w shared/collector-signals
+	mkdir -p shared/models/output && chmod o+w shared/models/output
+	mkdir -p shared/videos/input && chmod o+w shared/videos/input
+	mkdir -p shared/videos/video-generator && chmod o+w shared/videos/video-generator
 	./setup_env.sh
 
-build: env-setup ## Build core images (vippet-app, vippet-collector)
-	docker compose build
+build: env-setup ## Build core images (vippet-app, vippet-collector, vippet-ui)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build
 
-build-dev: env-setup ## Build core dev images (vippet-app, vippet-collector)
-	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) build
+build-dev: env-setup ## Build core dev images (vippet-app, vippet-collector, vippet-ui)
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) build
 
 build-videogenerator: env-setup ## Build videogenerator image
-	docker compose build videogenerator
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build videogenerator
 
 build-models: env-setup ## Build model image
-	docker compose build models
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml build models
 
 docker-build: build build-videogenerator build-models ## Build all images
 
 run: env-setup install-models-once ## Run the docker compose services
-	docker compose up -d
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d
 
 run-videogenerator: env-setup build-videogenerator ## Run only the videogenerator service
-	mkdir -p shared/videos && chmod o+w shared/videos
-	docker compose up -d videogenerator
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml up -d videogenerator
 
 run-dev: env-setup install-models-once ## Run the docker compose services for development
-	docker compose -f $(COMPOSE_FILE) -f $(DEV_COMPOSE_FILE) up -d
+	. .env && docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml -f $(DEV_COMPOSE_FILE) up -d
 
 test: env-setup ## Run tests and generate coverage report
-    # Run tests using the vippet-cpu container (tests are device agnostic)
+    # Run tests using the cpu profile (tests are device agnostic)
     # Override DOCKER_TAG with '-test' suffix only for this docker compose run
-	TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) run \
-	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet-cpu bash -c "\
+	. .env && TARGET=test DOCKER_TAG="test" docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run \
+	--build --rm --no-deps --volume $(PROJECT_DIR):/home/dlstreamer/vippet vippet bash -c "\
 		cd $(PROJECT_NAME) && \
 		python -m coverage run --source=./ --data-file=/tmp/.vippet-coverage -m unittest discover -v -s ./tests -p '*_test.py' && \
 		python -m coverage report --data-file=/tmp/.vippet-coverage --omit=*/config-3.py,*/config.py,*_test.py"
 
 install-models-once: env-setup ## Handle models download and installation (once)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
-	MODEL_INSTALLATION=once docker compose run --rm -it models
+	. .env && MODEL_INSTALLATION=once docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
 
 install-models-force: env-setup ## Handle models download and installation (force)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
-	MODEL_INSTALLATION=force docker compose run --rm -it models
+	. .env && MODEL_INSTALLATION=force docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
 
 install-models-all: env-setup ## Install all models automatically (no dialog)
-	mkdir -p shared/models/output && chmod o+w shared/models/output
-	MODEL_INSTALLATION=all docker compose run --rm -it models
+	. .env && MODEL_INSTALLATION=all docker compose -f $(COMPOSE_FILE) -f compose.$$COMPOSE_PROFILES.yml run --rm -it models
 
 shell: env-setup ## Open shell in specified container (i.e. make shell SERVICE=vippet)
 	docker exec -it $(SERVICE) bash
 
-shell-vippet: env-setup ## Open shell in vippet container
+shell-vippet: ## Open shell in vippet container
 	$(MAKE) shell SERVICE=vippet
 
-shell-models: env-setup ## Open shell in models container
+shell-models: ## Open shell in models container
 	$(MAKE) shell SERVICE=models
 
-shell-collector: env-setup ## Open shell in collector container
+shell-collector: ## Open shell in collector container
 	$(MAKE) shell SERVICE=collector
 
-shell-videogenerator: env-setup ## Open shell in videogenerator container
+shell-videogenerator: ## Open shell in videogenerator container
 	$(MAKE) shell SERVICE=videogenerator
 
 stop: ## Stop the docker compose services
-	@VIPPET_SERVICE=$$(docker compose ps --services | grep "^vippet-" | head -n 1 || echo ""); \
-	docker compose down models collector videogenerator $$VIPPET_SERVICE
+	docker compose down models collector videogenerator vippet-ui vippet
 
 clean: ## Clean all build artifacts
-	rm -rf shared/models/output/ shared/videos/
+	rm -rf shared/collector-signals shared/models/output/ shared/videos/input shared/videos/video-generator
 
 help: ## Print help for each target
 	@echo ViPPET make targets

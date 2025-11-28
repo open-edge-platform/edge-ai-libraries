@@ -1,280 +1,236 @@
-import os
-import shutil
-import tempfile
+import re
 import unittest
-from unittest.mock import MagicMock, patch
-import itertools
 
-from gstpipeline import GstPipeline
 import utils
-from utils import (
-    prepare_video_and_constants,
-    run_pipeline_and_extract_metrics,
-    is_yolov10_model,
-)
 
 
 class TestUtils(unittest.TestCase):
-    def setUp(self):
-        # Create a temporary directory for models and output
-        self.temp_dir = tempfile.mkdtemp()
-        self.models_path = os.path.join(self.temp_dir, "models")
-        os.makedirs(self.models_path, exist_ok=True)
-        self.input_video = os.path.join(self.temp_dir, "input.mp4")
-        with open(self.input_video, "w") as f:
-            f.write("dummy video content")
+    def test_generate_unique_id_format(self):
+        # Test that the generated ID follows the expected format: prefix-hash
+        prefix = "test"
+        unique_id = utils.generate_unique_id(prefix)
 
-    def tearDown(self):
-        shutil.rmtree(self.temp_dir)
+        # Should start with the prefix
+        self.assertTrue(unique_id.startswith(f"{prefix}-"))
 
-    @patch("utils.discover_video_codec")
-    @patch("utils.os.path.exists")
-    @patch("utils.os.remove")
-    def test_prepare_video_and_constants_output_file_removed(
-        self, mock_remove, mock_exists, mock_discover_video_codec
-    ):
-        mock_exists.return_value = True
-        mock_discover_video_codec.return_value = "h264"
-        output_path, constants, param_grid = prepare_video_and_constants(
-            **{
-                "input_video_player": self.input_video,
-                "object_detection_model": "SSDLite MobileNet V2 (INT8)",
-                "object_detection_device": "CPU",
-                "object_detection_batch_size": 1,
-                "object_detection_nireq": 1,
-                "object_detection_inference_interval": 1,
-                "object_classification_model": "ResNet-50 TF (INT8)",
-                "object_classification_device": "CPU",
-                "object_classification_batch_size": 1,
-                "object_classification_nireq": 1,
-                "object_classification_inference_interval": 1,
-                "object_classification_reclassify_interval": 1,
-            }
-        )
-        mock_remove.assert_called_once()
-        self.assertTrue(output_path.endswith(".mp4"))
-        self.assertIn("VIDEO_PATH", constants)
-        self.assertIn("VIDEO_CODEC", constants)
-        self.assertIn("VIDEO_OUTPUT_PATH", constants)
-        self.assertIn("object_detection_device", param_grid)
-        self.assertIn("object_classification_device", param_grid)
+        # Should have exactly 8 hexadecimal characters after the prefix and dash
+        pattern = rf"^{re.escape(prefix)}-[0-9a-f]{{8}}$"
+        self.assertIsNotNone(re.match(pattern, unique_id))
 
-    @patch("utils.discover_video_codec")
-    def test_prepare_video_and_constants_unknown_codec(self, mock_discover_video_codec):
-        mock_discover_video_codec.return_value = "unknown"
-        with self.assertRaises(ValueError) as context:
-            prepare_video_and_constants(
-                **{
-                    "input_video_player": self.input_video,
-                    "object_detection_model": "SSDLite MobileNet V2 (INT8)",
-                    "object_detection_device": "CPU",
-                    "object_detection_batch_size": 1,
-                    "object_detection_nireq": 1,
-                    "object_detection_inference_interval": 1,
-                    "object_classification_model": "ResNet-50 TF (INT8)",
-                    "object_classification_device": "CPU",
-                    "object_classification_batch_size": 1,
-                    "object_classification_nireq": 1,
-                    "object_classification_inference_interval": 1,
-                    "object_classification_reclassify_interval": 1,
-                }
-            )
-        self.assertIn(
-            "Could not detect the video codec of the input file. Please provide a valid video file.",
-            str(context.exception),
-        )
+    def test_generate_unique_id_uniqueness(self):
+        # Test that multiple calls generate different IDs
+        prefix = "pipeline"
+        ids = [utils.generate_unique_id(prefix) for _ in range(100)]
 
-    @patch("utils.discover_video_codec")
-    def test_prepare_video_and_constants_not_supported_codec(
-        self, mock_discover_video_codec
-    ):
-        mock_discover_video_codec.return_value = (
-            "av1"  # Assuming 'av1' is not in the supported list
-        )
-        with self.assertRaises(ValueError) as context:
-            prepare_video_and_constants(
-                **{
-                    "input_video_player": self.input_video,
-                    "object_detection_model": "SSDLite MobileNet V2 (INT8)",
-                    "object_detection_device": "CPU",
-                    "object_detection_batch_size": 1,
-                    "object_detection_nireq": 1,
-                    "object_detection_inference_interval": 1,
-                    "object_classification_model": "ResNet-50 TF (INT8)",
-                    "object_classification_device": "CPU",
-                    "object_classification_batch_size": 1,
-                    "object_classification_nireq": 1,
-                    "object_classification_inference_interval": 1,
-                    "object_classification_reclassify_interval": 1,
-                    "video_codec": "unsupported_codec",
-                }
-            )
-        self.assertIn(
-            f"Input video codec '{mock_discover_video_codec.return_value}' is not supported.",
-            str(context.exception),
-        )
+        # All IDs should be unique
+        self.assertEqual(len(ids), len(set(ids)))
 
-    @patch("utils.Popen")
-    @patch("utils.ps")
-    @patch("utils.select.select")
-    def test_run_pipeline_and_extract_metrics(self, mock_select, mock_ps, mock_popen):
-        # Mock pipeline command
-        class DummyPipeline(GstPipeline):
-            def evaluate(
-                self,
-                constants,
-                parameters,
-                regular_channels,
-                inference_channels,
-                elements,
-            ):
-                return "gst-launch-1.0 videotestsrc ! fakesink"
+    def test_generate_unique_id_different_prefixes(self):
+        # Test that different prefixes produce different IDs
+        id1 = utils.generate_unique_id("prefix1")
+        id2 = utils.generate_unique_id("prefix2")
 
-        # Mock process
-        process_mock = MagicMock()
-        process_mock.poll.side_effect = [None, 0]
-        # Avoid StopIteration by returning empty bytes forever after the real line
-        process_mock.stdout.readline.side_effect = itertools.chain(
-            [
-                b"FpsCounter(average 10.0sec): total=100.0 fps, number-streams=1, per-stream=100.0 fps\n"
-            ],
-            itertools.repeat(b""),
-        )
-        process_mock.pid = 1234
-        # Ensure fileno returns an int to avoid TypeError in select and bad fd errors
-        process_mock.stdout.fileno.return_value = 10
-        process_mock.stderr.fileno.return_value = 11
-        mock_select.return_value = ([process_mock.stdout], [], [])
-        mock_popen.return_value = process_mock
-        mock_ps.Process.return_value.status.return_value = "zombie"
+        self.assertTrue(id1.startswith("prefix1-"))
+        self.assertTrue(id2.startswith("prefix2-"))
+        self.assertNotEqual(id1, id2)
 
-        constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
-        parameters = {
-            "object_detection_device": ["CPU"],
-            "object_classification_device": ["CPU"],
-        }
-        gen = run_pipeline_and_extract_metrics(
-            DummyPipeline(),
-            constants,
-            parameters,
-            channels=1,
-            elements=[],
-            poll_interval=0,
-        )
-        try:
-            while True:
-                next(gen)
-        except StopIteration as e:
-            results = e.value
+    def test_generate_unique_id_empty_prefix(self):
+        # Test with an empty prefix
+        unique_id = utils.generate_unique_id("")
 
-        self.assertIsInstance(results, list)
-        self.assertEqual(results[0]["total_fps"], 100.0)
-        self.assertEqual(results[0]["per_stream_fps"], 100.0)
-        self.assertEqual(results[0]["num_streams"], 1)
+        # Should start with a dash and have 8 hex characters
+        pattern = r"^-[0-9a-f]{8}$"
+        self.assertIsNotNone(re.match(pattern, unique_id))
 
-    @patch("utils.Popen")
-    def test_stop_pipeline(self, mock_popen):
-        # Mock pipeline command
-        class DummyPipeline(GstPipeline):
-            def evaluate(
-                self,
-                constants,
-                parameters,
-                regular_channels,
-                inference_channels,
-                elements,
-            ):
-                return "gst-launch-1.0 videotestsrc ! fakesink"
+    def test_generate_unique_id_special_chars_prefix(self):
+        # Test with special characters in prefix
+        prefix = "test_prefix-123"
+        unique_id = utils.generate_unique_id(prefix)
 
-        # Mock process
-        process_mock = MagicMock()
-        process_mock.poll.side_effect = [None]
-        # Avoid TypeError in select by providing fileno
-        process_mock.stdout.fileno.return_value = 10
-        process_mock.stderr.fileno.return_value = 11
-        mock_popen.return_value = process_mock
+        self.assertTrue(unique_id.startswith(f"{prefix}-"))
+        pattern = rf"^{re.escape(prefix)}-[0-9a-f]{{8}}$"
+        self.assertIsNotNone(re.match(pattern, unique_id))
 
-        constants = {"VIDEO_PATH": self.input_video, "VIDEO_OUTPUT_PATH": "out.mp4"}
-        parameters = {"object_detection_device": ["CPU"]}
+    def test_generate_unique_id_rapid_succession(self):
+        # Test that IDs generated in rapid succession are still unique
+        prefix = "rapid"
+        ids = []
+        for _ in range(10):
+            ids.append(utils.generate_unique_id(prefix))
+            # No sleep to test rapid generation
 
-        # Signal to stop the pipeline
-        utils.cancelled = True
-
-        # Run the pipeline and handle generator
-        gen = run_pipeline_and_extract_metrics(
-            DummyPipeline(),
-            constants,
-            parameters,
-            channels=1,
-            elements=[],
-            poll_interval=0,
-        )
-        try:
-            # Exhaust generator to get return value
-            while True:
-                next(gen)
-        except StopIteration as e:
-            results = e.value
-
-        self.assertIsInstance(results, list)
-        self.assertEqual(utils.cancelled, False)
-        process_mock.terminate.assert_called_once()
-        self.assertEqual(results[0]["total_fps"], "N/A")
-        self.assertEqual(results[0]["per_stream_fps"], "N/A")
-        self.assertEqual(results[0]["num_streams"], "N/A")
-
-    @patch("cv2.VideoCapture")
-    def test_discover_video_codec(self, mock_videocap):
-        mock_cap = MagicMock()
-        mock_cap.isOpened.return_value = True
-
-        # Mock VideoCapture to simulate a video file with H.264 codec
-        # 'avc' as fourcc: ord('a') | ord('v')<<8 | ord('c')<<16 | ord(' ')<<24
-        fourcc = (ord("a")) | (ord("v") << 8) | (ord("c") << 16) | (ord(" ") << 24)
-        mock_cap.get.return_value = fourcc
-        mock_videocap.return_value = mock_cap
-        video_codec = utils.discover_video_codec("dummy.mp4")
-        self.assertEqual(video_codec, "h264")
-
-        # Mock VideoCapture to simulate a video file with H.265 codec
-        # 'hevc' as fourcc: ord('h') | ord('e')<<8 | ord('v')<<16 | ord('c')<<24
-        fourcc = (ord("h")) | (ord("e") << 8) | (ord("v") << 16) | (ord("c") << 24)
-        mock_cap.get.return_value = fourcc
-        mock_videocap.return_value = mock_cap
-        video_codec = utils.discover_video_codec("dummy.mp4")
-        self.assertEqual(video_codec, "h265")
-
-        # Mock VideoCapture to simulate a video file with AV1 codec
-        # 'av01' as fourcc: ord('a') | ord('v')<<8 | ord('0')<<16 | ord('1')<<24
-        fourcc = (ord("a")) | (ord("v") << 8) | (ord("0") << 16) | (ord("1") << 24)
-        mock_cap.get.return_value = fourcc
-        mock_videocap.return_value = mock_cap
-        video_codec = utils.discover_video_codec("dummy.mp4")
-        self.assertEqual(video_codec, "av01")
-
-    def test_discover_video_codec_non_existing_file(self):
-        video_codec = utils.discover_video_codec("non_existing_file.mp4")
-        self.assertEqual(video_codec, "unknown")
+        # All should be unique despite being generated rapidly
+        self.assertEqual(len(ids), len(set(ids)))
 
     def test_yolov10_model(self):
         # Test with a valid YOLO v10 model path
-        self.assertTrue(is_yolov10_model("/path/to/yolov10s_model.xml"))
+        self.assertTrue(utils.is_yolov10_model("/path/to/yolov10s_model.xml"))
 
     def test_non_yolov10_model(self):
         # Test with a non-YOLO v10 model path
-        self.assertFalse(is_yolov10_model("/path/to/other_model.xml"))
+        self.assertFalse(utils.is_yolov10_model("/path/to/other_model.xml"))
 
     def test_case_insensitivity(self):
         # Test with mixed-case YOLO v10 model path
-        self.assertTrue(is_yolov10_model("/path/to/YOLOv10m_model.xml"))
+        self.assertTrue(utils.is_yolov10_model("/path/to/YOLOv10m_model.xml"))
 
     def test_empty_path(self):
         # Test with an empty string
-        self.assertFalse(is_yolov10_model(""))
+        self.assertFalse(utils.is_yolov10_model(""))
 
     def test_no_yolo_in_path(self):
         # Test with a path that does not contain "yolov10"
-        self.assertFalse(is_yolov10_model("/path/to/yolo_model.xml"))
+        self.assertFalse(utils.is_yolov10_model("/path/to/yolo_model.xml"))
+
+    def test_make_tee_names_unique_single_tee(self):
+        # Test with single tee element
+        pipeline = "videotestsrc ! tee name=t0 ! queue t0. ! fakesink"
+        result = utils.make_tee_names_unique(pipeline, 1, 0)
+
+        # Should replace t0 with t1000
+        self.assertIn("tee name=t1000", result)
+        self.assertIn("t1000.", result)
+        self.assertNotIn("t0.", result)
+
+    def test_make_tee_names_unique_multiple_tees(self):
+        # Test with multiple tee elements
+        pipeline = "src ! tee name=t0 t0. ! queue ! sink1 t0. ! tee name=t1 t1. ! sink2"
+        result = utils.make_tee_names_unique(pipeline, 2, 1)
+
+        # Should replace both tees uniquely
+        self.assertIn("tee name=t2100", result)  # t0 -> t2100
+        self.assertIn("tee name=t2111", result)  # t1 -> t2111
+        self.assertNotIn("name=t0", result)
+        self.assertNotIn("name=t1", result)
+
+    def test_make_tee_names_unique_no_tees(self):
+        # Test with pipeline without tees
+        pipeline = "videotestsrc ! queue ! fakesink"
+        result = utils.make_tee_names_unique(pipeline, 0, 0)
+
+        # Should return unchanged
+        self.assertEqual(pipeline, result)
+
+    def test_make_tee_names_unique_tee_references(self):
+        # Test that all tee references are updated
+        pipeline = "tee name=t0 t0. ! queue1 t0. ! queue2 t0. ! queue3"
+        result = utils.make_tee_names_unique(pipeline, 0, 0)
+
+        # All references should be updated
+        self.assertEqual(result.count("t0000."), 3)
+        self.assertNotIn("t0.", result)
+
+    def test_make_tee_names_unique_different_indices(self):
+        # Test with different pipeline and stream indices
+        pipeline = "tee name=t5 "
+        result1 = utils.make_tee_names_unique(pipeline, 1, 2)
+        result2 = utils.make_tee_names_unique(pipeline, 3, 4)
+
+        # Results should be different based on indices
+        self.assertIn("t1205", result1)
+        self.assertIn("t3405", result2)
+        self.assertNotEqual(result1, result2)
+
+    def test_generate_unique_filename_basic(self):
+        # Test basic filename generation with extension
+        filename = "video.mp4"
+        result = utils.generate_unique_filename(filename)
+
+        # Should start with "video_"
+        self.assertTrue(result.startswith("video_"))
+
+        # Should end with ".mp4"
+        self.assertTrue(result.endswith(".mp4"))
+
+        # Should match pattern: stem_YYYYMMDD_HHMMSS_<6hex>.mp4
+        pattern = r"^video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_filename_no_extension(self):
+        # Test filename generation without extension (should default to .mp4)
+        filename = "video"
+        result = utils.generate_unique_filename(filename)
+
+        # Should end with default ".mp4" extension
+        self.assertTrue(result.endswith(".mp4"))
+
+        # Should match pattern with default extension
+        pattern = r"^video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_filename_uniqueness(self):
+        # Test that multiple calls generate unique filenames
+        filename = "test.mp4"
+        filenames = [utils.generate_unique_filename(filename) for _ in range(100)]
+
+        # All filenames should be unique
+        self.assertEqual(len(filenames), len(set(filenames)))
+
+    def test_generate_unique_filename_with_path(self):
+        # Test with a full path (should only use the filename part)
+        filename = "/path/to/video.mp4"
+        result = utils.generate_unique_filename(filename)
+
+        # Should not include path separators
+        self.assertNotIn("/", result)
+
+        # Should start with "video_"
+        self.assertTrue(result.startswith("video_"))
+
+        # Should end with ".mp4"
+        self.assertTrue(result.endswith(".mp4"))
+
+    def test_generate_unique_filename_complex_name(self):
+        # Test with complex filename containing underscores and numbers
+        filename = "test_video_123.mp4"
+        result = utils.generate_unique_filename(filename)
+
+        # Should start with the original stem
+        self.assertTrue(result.startswith("test_video_123_"))
+
+        # Should match pattern
+        pattern = r"^test_video_123_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_filename_special_characters(self):
+        # Test with special characters in filename
+        filename = "test-video.mp4"
+        result = utils.generate_unique_filename(filename)
+
+        # Should preserve special characters in stem
+        self.assertTrue(result.startswith("test-video_"))
+
+        # Should match pattern
+        pattern = r"^test-video_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_filename_empty_string(self):
+        # Test with empty string (edge case)
+        filename = ""
+        result = utils.generate_unique_filename(filename)
+
+        # Should generate with default extension
+        self.assertTrue(result.endswith(".mp4"))
+
+        # Should match pattern with empty stem
+        pattern = r"^_\d{8}_\d{6}_[0-9a-f]{6}\.mp4$"
+        self.assertIsNotNone(re.match(pattern, result))
+
+    def test_generate_unique_filename_hex_suffix_length(self):
+        # Test that hex suffix is exactly 6 characters
+        filename = "video.mp4"
+        result = utils.generate_unique_filename(filename)
+
+        # Extract the hex suffix
+        match = re.search(r"_([0-9a-f]{6})\.mp4$", result)
+        self.assertIsNotNone(match)
+        assert match is not None  # Type narrowing for linter
+
+        hex_suffix = match.group(1)
+        self.assertEqual(len(hex_suffix), 6)
+
+        # All characters should be valid hex
+        self.assertTrue(all(c in "0123456789abcdef" for c in hex_suffix))
 
 
 if __name__ == "__main__":
