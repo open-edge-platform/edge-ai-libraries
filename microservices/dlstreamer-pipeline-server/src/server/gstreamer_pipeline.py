@@ -772,10 +772,13 @@ class GStreamerPipeline(Pipeline):
 
     def _calc_frame_fps(self):
         current_time = time.time()
+
+        if current_time > self.start_time:
+          self._avg_fps = self.frame_count / (current_time - self.start_time)
+
         delta_time = current_time - self._last_frame_time
         if delta_time >= 1:
           self._frame_fps = (self.frame_count - self._last_frame_count) / delta_time
-          self._avg_fps = self.frame_count / (current_time - self.start_time)
           self._last_frame_count = self.frame_count
           self._last_frame_time = current_time
         
