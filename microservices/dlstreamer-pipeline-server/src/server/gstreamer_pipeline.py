@@ -770,9 +770,10 @@ class GStreamerPipeline(Pipeline):
         self._last_frame_count = 0
         self.frame_count = 0
 
-    def _calc_frame_fps(self):
-        current_time = time.time()
+    def _increment_frame_count(self):
+        self.frame_count += 1
 
+        current_time = time.time()
         if current_time > self.start_time:
           self._avg_fps = self.frame_count / (current_time - self.start_time)
 
@@ -795,15 +796,13 @@ class GStreamerPipeline(Pipeline):
                 id=self.identifier, err=error))
             return Gst.FlowReturn.ERROR
 
-        self.frame_count += 1
-        self._calc_frame_fps()
+        self._increment_frame_count()
         return Gst.FlowReturn.OK
 
     def on_sample(self, sink):
         _ = sink.emit("pull-sample")
 
-        self.frame_count += 1
-        self._calc_frame_fps()
+        self._increment_frame_count()
         return Gst.FlowReturn.OK
 
     def bus_call(self, unused_bus, message, unused_data=None):
